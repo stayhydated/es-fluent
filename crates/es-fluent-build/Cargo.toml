@@ -1,0 +1,25 @@
+[package]
+name = "es-fluent-build"
+description = """
+A crate that expose a build script for building Fluent resources
+"""
+version.workspace = true
+edition.workspace = true
+categories = [ "localization", "internationalization", "development-tools::build-utils" ]
+keywords = [ "fluent", "build", "i18n", "locale" ]
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+cargo_metadata = { workspace = true }
+es-fluent-generate = { workspace = true }
+es-fluent-sc-parser = { workspace = true }
+heck = { workspace = true }
+i18n-config = { workspace = true }
+state-shift = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

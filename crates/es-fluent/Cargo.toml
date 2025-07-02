@@ -1,0 +1,24 @@
+[package]
+name = "es-fluent"
+description = """
+The es-fluent crate
+"""
+version.workspace = true
+edition.workspace = true
+categories = [ "localization", "internationalization", "development-tools::build-utils" ]
+keywords = [ "fluent", "i18n", "locale" ]
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[features]
+default = [ "derive" ]
+derive = [ "dep:es-fluent-derive" ]
+
+[dependencies]
+es-fluent-derive = { optional = true, workspace = true }
+fluent-bundle = { workspace = true }
+
+[lints]
+workspace = true

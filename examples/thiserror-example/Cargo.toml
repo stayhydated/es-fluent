@@ -1,0 +1,21 @@
+[package]
+name = "thiserror-example"
+version = "0.1.0"
+edition.workspace = true
+license = "Unlicense"
+publish = false
+
+[dependencies]
+es-fluent = { features = [ "derive" ], workspace = true }
+i18n-embed = { features = [ "fluent-system", "desktop-requester" ], workspace = true }
+i18n-embed-fl = { workspace = true }
+log = { workspace = true }
+rust-embed = { workspace = true }
+thiserror = { workspace = true }
+
+[build-dependencies]
+es-fluent-build = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true
