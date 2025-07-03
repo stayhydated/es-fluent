@@ -178,7 +178,7 @@ pub enum AddressFtl {
 see the [examples](examples) dir to see a bunch of ways to use this crate. where i18n ressources are placed in the [i18n](examples/i18n) dir.
 
 ## [Gpui](https://gpui.rs) example
-...
+https://github.com/stayhydated/gpui-form/tree/master/examples
 
 ## Prototyping tools
 [Build.rs script](crates/es-fluent-build/README.md)
