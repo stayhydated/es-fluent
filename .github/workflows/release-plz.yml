@@ -3,7 +3,7 @@ name: Release-plz
 on:
   push:
     branches:
-      - fuckofffornow
+      - master
 
 jobs:
   release-plz-release:
