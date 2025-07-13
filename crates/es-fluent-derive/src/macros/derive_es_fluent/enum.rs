@@ -155,8 +155,8 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
         let this_ftl_key = namer::FluentKey::new(original_ident, "");
         quote! {
             impl #impl_generics #original_ident #ty_generics #where_clause {
-                pub fn this_ftl() -> &'static str {
-                    #this_ftl_key
+                pub fn this_ftl() -> String {
+                    #fl_path!(#this_ftl_key)
                 }
             }
         }

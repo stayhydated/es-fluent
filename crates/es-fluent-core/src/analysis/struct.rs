@@ -97,5 +97,28 @@ pub fn analyze_struct(opts: &StructOpts, type_infos: &mut Vec<FtlTypeInfo>) {
                     .build(),
             );
         }
+
+        if is_this {
+            let main_ftl_key = namer::FluentKey::new(target_ident, "");
+            let main_variant = FtlVariant::builder()
+                .name(target_ident.to_string())
+                .ftl_key(main_ftl_key)
+                .build();
+
+            log::debug!(
+                "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
+                TypeKind::Enum,
+                target_ident,
+                target_ident,
+                "struct analysis (main struct variant with keys)"
+            );
+            type_infos.push(
+                FtlTypeInfo::builder()
+                    .type_kind(TypeKind::Enum)
+                    .type_name(target_ident.to_string())
+                    .variants(vec![main_variant])
+                    .build(),
+            );
+        }
     }
 }

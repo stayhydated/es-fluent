@@ -6,6 +6,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 pub fn process_struct(opts: &StructOpts, data: &syn::DataStruct) -> TokenStream {
+    let fl_path = opts.attr_args().fl();
     let strategy = DisplayStrategy::from(opts);
     let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
 
@@ -23,8 +24,8 @@ pub fn process_struct(opts: &StructOpts, data: &syn::DataStruct) -> TokenStream 
             let this_ftl_key = namer::FluentKey::new(original_ident, "");
             quote! {
                 impl #original_ident {
-                    pub fn this_ftl() -> &'static str {
-                        #this_ftl_key
+                    pub fn this_ftl() -> String {
+                        #fl_path!(#this_ftl_key)
                     }
                 }
             }
@@ -126,8 +127,8 @@ fn generate_unit_enum(
         let this_ftl_key = namer::FluentKey::new(ident, "");
         quote! {
             impl #ident {
-                pub fn this_ftl() -> &'static str {
-                    #this_ftl_key
+                pub fn this_ftl() -> String {
+                    #fl_path!(#this_ftl_key)
                 }
             }
         }

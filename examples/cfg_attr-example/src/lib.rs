@@ -17,6 +17,7 @@ pub struct Mouse {
 }
 
 #[cfg_attr(feature = "i18n", derive(EsFluent))]
+#[cfg_attr(feature = "i18n", fluent(this, keys = ["Description", "Label"]))]
 pub struct Thing {
     pub something: String,
 }

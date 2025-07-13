@@ -34,6 +34,16 @@ payment_type_no_cfg_discriminants-Cash = Cash
 payment_type_no_cfg_discriminants-CreditCard = Credit Card
 payment_type_no_cfg_discriminants-Robbery = Robbery
 
-## ThingFtl
+## Thing
 
-thing_ftl-something = Something
+thing = Thing
+
+## ThingDescriptionFtl
+
+thing_description_ftl = Thing Description Ftl
+thing_description_ftl-something = Something
+
+## ThingLabelFtl
+
+thing_label_ftl = Thing Label Ftl
+thing_label_ftl-something = Something
