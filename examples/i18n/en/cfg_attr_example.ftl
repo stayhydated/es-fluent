@@ -1,11 +1,13 @@
 ## KeyboardLayout
 
 keyboard_layout-Azerty = Azerty
+keyboard_layout = Keyboard Layout
 keyboard_layout-Qwerty = Qwerty
 keyboard_layout-Qwertz = Qwertz
 
 ## MouseFtl
 
+mouse_ftl = Mouse Ftl
 mouse_ftl-dpi = Dpi
 
 ## PaymentTypeCfg

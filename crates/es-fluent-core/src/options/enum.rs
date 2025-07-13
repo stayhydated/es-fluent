@@ -83,6 +83,8 @@ pub struct EnumFluentAttributeArgs {
     display: Option<String>,
     #[darling(default)]
     choice: Option<bool>,
+    #[darling(default)]
+    this: Option<bool>,
 }
 
 impl EnumFluentAttributeArgs {
@@ -108,5 +110,8 @@ impl EnumFluentAttributeArgs {
     }
     pub fn is_choice(&self) -> bool {
         self.choice.unwrap_or(false)
+    }
+    pub fn is_this(&self) -> bool {
+        self.this.unwrap_or(false)
     }
 }

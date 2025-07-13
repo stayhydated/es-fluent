@@ -7,8 +7,9 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
     let target_ident = opts.ident();
     let target_name = target_ident.to_string();
     let opts_variants = opts.variants();
+    let is_this = opts.attr_args().is_this();
 
-    let unit_variants: Vec<FtlVariant> = opts_variants
+    let mut unit_variants: Vec<FtlVariant> = opts_variants
         .iter()
         .filter_map(|variant_opt| {
             if matches!(variant_opt.style(), darling::ast::Style::Unit) {
@@ -25,6 +26,15 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
             }
         })
         .collect();
+
+    if is_this {
+        let this_ftl_key = namer::FluentKey::new(target_ident, "");
+        let this_variant = FtlVariant::builder()
+            .name(target_name.clone())
+            .ftl_key(this_ftl_key)
+            .build();
+        unit_variants.insert(0, this_variant);
+    }
 
     if !unit_variants.is_empty() {
         log::debug!(
@@ -43,7 +53,7 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         );
     }
 
-    let struct_variants: Vec<FtlVariant> = opts_variants
+    let mut struct_variants: Vec<FtlVariant> = opts_variants
         .iter()
         .filter_map(|variant_opt| {
             if matches!(variant_opt.style(), darling::ast::Style::Unit) {
@@ -88,6 +98,15 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
             )
         })
         .collect();
+
+    if is_this {
+        let this_ftl_key = namer::FluentKey::new(target_ident, "");
+        let this_variant = FtlVariant::builder()
+            .name(target_name.clone())
+            .ftl_key(this_ftl_key)
+            .build();
+        struct_variants.insert(0, this_variant);
+    }
 
     if !struct_variants.is_empty() {
         log::debug!(

@@ -84,6 +84,8 @@ pub struct StructFluentAttributeArgs {
     display: Option<String>,
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
+    #[darling(default)]
+    this: Option<bool>,
 }
 impl StructFluentAttributeArgs {
     pub fn fl(&self) -> syn::Path {
@@ -105,5 +107,8 @@ impl StructFluentAttributeArgs {
         } else {
             DisplayStrategy::StdDisplay
         }
+    }
+    pub fn is_this(&self) -> bool {
+        self.this.unwrap_or(false)
     }
 }

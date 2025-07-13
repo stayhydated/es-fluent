@@ -18,8 +18,24 @@ pub fn process_struct(opts: &StructOpts, data: &syn::DataStruct) -> TokenStream 
             .iter()
             .map(|key| generate_unit_enum(opts, data, use_fluent_display, key));
 
+        let this_ftl_impl = if opts.attr_args().is_this() {
+            let original_ident = opts.ident();
+            let this_ftl_key = namer::FluentKey::new(original_ident, "");
+            quote! {
+                impl #original_ident {
+                    pub fn this_ftl() -> &'static str {
+                        #this_ftl_key
+                    }
+                }
+            }
+        } else {
+            quote! {}
+        };
+
         quote! {
             #(#enums)*
+
+            #this_ftl_impl
         }
     }
 }
@@ -106,12 +122,27 @@ fn generate_unit_enum(
         }
     };
 
+    let this_ftl_impl = if opts.attr_args().is_this() {
+        let this_ftl_key = namer::FluentKey::new(ident, "");
+        quote! {
+            impl #ident {
+                pub fn this_ftl() -> &'static str {
+                    #this_ftl_key
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
       #new_enum
 
       #default_impl
 
       #display_impl
+
+      #this_ftl_impl
 
       impl From<&#ident> for ::es_fluent::FluentValue<'_> {
             fn from(value: &#ident) -> Self {

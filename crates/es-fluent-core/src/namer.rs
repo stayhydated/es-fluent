@@ -8,7 +8,11 @@ pub struct FluentKey(pub String);
 impl FluentKey {
     pub fn new(ftl_name: &syn::Ident, sub_name: &str) -> Self {
         let normalized_name = ftl_name.to_string().to_snake_case();
-        FluentKey(format!("{}-{}", normalized_name, sub_name))
+        if sub_name.is_empty() {
+            FluentKey(normalized_name)
+        } else {
+            FluentKey(format!("{}-{}", normalized_name, sub_name))
+        }
     }
 }
 
