@@ -1,7 +1,7 @@
 ## KeyboardLayout
 
-keyboard_layout-Azerty = Azerty
 keyboard_layout = Keyboard Layout
+keyboard_layout-Azerty = Azerty
 keyboard_layout-Qwerty = Qwerty
 keyboard_layout-Qwertz = Qwertz
 

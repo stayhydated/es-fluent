@@ -110,7 +110,7 @@ impl FtlVisitor {
                     .name(discriminant_ident_str.clone())
                     .ftl_key(this_ftl_key)
                     .build();
-                variants.insert(0, this_variant);
+                variants.push(this_variant);
             }
 
             if !variants.is_empty() {

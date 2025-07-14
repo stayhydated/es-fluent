@@ -212,7 +212,17 @@ fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     grouped
         .into_iter()
         .map(|(type_name, (type_kind, mut variants))| {
-            variants.sort_by(|a, b| a.name.cmp(&b.name));
+            variants.sort_by(|a, b| {
+                // Put "this" variants (those without a dash in the key) first
+                let a_is_this = !a.ftl_key.to_string().contains('-');
+                let b_is_this = !b.ftl_key.to_string().contains('-');
+
+                match (a_is_this, b_is_this) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.name.cmp(&b.name),
+                }
+            });
             variants.dedup();
 
             FtlTypeInfo {
