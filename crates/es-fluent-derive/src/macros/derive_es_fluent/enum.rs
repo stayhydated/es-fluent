@@ -151,8 +151,23 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
         }
     };
 
+    let this_ftl_impl = if opts.attr_args().is_this() {
+        let this_ftl_key = namer::FluentKey::new(original_ident, "");
+        quote! {
+            impl #impl_generics #original_ident #ty_generics #where_clause {
+                pub fn this_ftl() -> String {
+                    #fl_path!(#this_ftl_key)
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
       #display_impl
+
+      #this_ftl_impl
 
       impl #impl_generics From<&#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
             fn from(value: &#original_ident #ty_generics) -> Self {

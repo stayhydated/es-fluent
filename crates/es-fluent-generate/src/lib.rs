@@ -1,5 +1,6 @@
 use clap::ValueEnum;
 use es_fluent_core::meta::TypeKind;
+use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::HashMap;
@@ -59,7 +60,8 @@ pub fn generate<P: AsRef<Path>>(
                 existing_entries_map.insert(msg.id.name.clone(), entry);
             },
             ast::Entry::Term(term) => {
-                existing_entries_map.insert(format!("-{}", term.id.name), entry);
+                existing_entries_map
+                    .insert(format!("{}{}", FluentKey::DELIMITER, term.id.name), entry);
             },
             _ => {},
         }
@@ -86,7 +88,7 @@ pub fn generate<P: AsRef<Path>>(
                 keys_added_or_preserved.insert(key, ());
             },
             ast::Entry::Term(term) => {
-                let key = format!("-{}", term.id.name);
+                let key = format!("{}{}", FluentKey::DELIMITER, term.id.name);
                 let entry_to_add = if matches!(mode, FluentParseMode::Aggressive) {
                     ast::Entry::Term(term)
                 } else {
@@ -212,7 +214,17 @@ fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     grouped
         .into_iter()
         .map(|(type_name, (type_kind, mut variants))| {
-            variants.sort_by(|a, b| a.name.cmp(&b.name));
+            variants.sort_by(|a, b| {
+                // Put "this" variants (those without a dash in the key) first
+                let a_is_this = !a.ftl_key.to_string().contains(FluentKey::DELIMITER);
+                let b_is_this = !b.ftl_key.to_string().contains(FluentKey::DELIMITER);
+
+                match (a_is_this, b_is_this) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => a.name.cmp(&b.name),
+                }
+            });
             variants.dedup();
 
             FtlTypeInfo {

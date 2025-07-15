@@ -3,6 +3,7 @@ use es_fluent::EsFluent;
 use strum::EnumDiscriminants;
 
 #[cfg_attr(feature = "i18n", derive(EsFluent))]
+#[cfg_attr(feature = "i18n", fluent(this))]
 pub enum KeyboardLayout {
     Qwerty,
     Azerty,
@@ -10,11 +11,13 @@ pub enum KeyboardLayout {
 }
 
 #[cfg_attr(feature = "i18n", derive(EsFluent))]
+#[cfg_attr(feature = "i18n", fluent(this))]
 pub struct Mouse {
     pub dpi: u32,
 }
 
-#[derive(EsFluent)]
+#[cfg_attr(feature = "i18n", derive(EsFluent))]
+#[cfg_attr(feature = "i18n", fluent(this, keys = ["Description", "Label"]))]
 pub struct Thing {
     pub something: String,
 }

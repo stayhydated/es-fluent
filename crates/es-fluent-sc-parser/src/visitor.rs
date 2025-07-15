@@ -86,7 +86,7 @@ impl FtlVisitor {
             let discriminant_ident = format_ident!("{}Discriminants", original_ident);
             let discriminant_ident_str = discriminant_ident.to_string();
 
-            let variants: Vec<FtlVariant> = enum_opts
+            let mut variants: Vec<FtlVariant> = enum_opts
                 .variants()
                 .iter()
                 .filter_map(|variant_opt| {
@@ -103,6 +103,15 @@ impl FtlVisitor {
                     )
                 })
                 .collect();
+
+            if enum_opts.attr_args().is_this() {
+                let this_ftl_key = namer::FluentKey::new(&discriminant_ident, "");
+                let this_variant = FtlVariant::builder()
+                    .name(discriminant_ident_str.clone())
+                    .ftl_key(this_ftl_key)
+                    .build();
+                variants.push(this_variant);
+            }
 
             if !variants.is_empty() {
                 log::debug!(
