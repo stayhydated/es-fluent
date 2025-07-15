@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/stayhydated/es-fluent/compare/es-fluent-sc-parser-v0.1.0...es-fluent-sc-parser-v0.1.1) - 2025-07-15
+
+### Other
+
+- place "this" variant first
+- .
+- release v0.1.0
+
 ## [0.1.0](https://github.com/stayhydated/es-fluent/releases/tag/es-fluent-sc-parser-v0.1.0) - 2025-07-03
 
 ### Other
