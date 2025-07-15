@@ -86,6 +86,9 @@ pub struct StructFluentAttributeArgs {
     keys: Option<Vec<syn::LitStr>>,
     #[darling(default)]
     this: Option<bool>,
+    #[getset(get = "pub")]
+    #[darling(default)]
+    derive: darling::util::PathList,
 }
 impl StructFluentAttributeArgs {
     pub fn fl(&self) -> syn::Path {
