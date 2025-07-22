@@ -141,8 +141,10 @@ pub enum PaymentTypeStdDisplay {
 given
 ```rs
 #[derive(EsFluent)]
-#[fluent(display = "std")]
-#[fluent(keys = ["Description", "Label"])]
+#[fluent(display = "std")] // set display impl to `std::fmt::Display`
+#[fluent(keys = ["Description", "Label"])] // generates specialized names
+#[fluent(derive(Clone))] // custom derives you'd define
+#[fluent(this)] // describes the item ident (name) as a fn, `{}::this_ftl()`
 pub struct Address {
     pub street: String,
     pub postal_code: String,
@@ -151,19 +153,32 @@ pub struct Address {
 
 this will expand to
 ```rs
-#[derive(EsFluent)]
+impl Address {
+  pub fn this_ftl() -> String {/* */}
+}
+
+#[derive(EsFluent, Clone)]
 #[fluent(display = "std")]
 pub enum AddressLabelFtl {
     Street,
     PostalCode,
 }
 
-#[derive(EsFluent)]
+impl AddressLabelFtl {
+  pub fn this_ftl() -> String {/* */}
+}
+
+#[derive(EsFluent, Clone)]
 #[fluent(display = "std")]
 pub enum AddressDescriptionFtl {
     Street,
     PostalCode,
 }
+
+impl AddressDescriptionFtl {
+  pub fn this_ftl() -> String {/* */}
+}
+
 ```
 
 if no keys are provided, this will expand to

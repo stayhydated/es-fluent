@@ -70,8 +70,15 @@ fn generate_unit_enum(
     });
 
     let cleaned_variants = variants.iter().map(|(ident, _)| ident);
+    let derives = opts.attr_args().derive();
+    let derive_attr = if !derives.is_empty() {
+        quote! { #[derive(#(#derives),*)] }
+    } else {
+        quote! {}
+    };
 
     let new_enum = quote! {
+      #derive_attr
       pub enum #ident {
           #(#cleaned_variants),*
       }

@@ -36,8 +36,6 @@ impl StructFieldOpts {
 #[getset(get = "pub")]
 pub struct StructOpts {
     ident: syn::Ident,
-    #[darling(default)]
-    derive: darling::util::PathList,
     generics: syn::Generics,
     data: darling::ast::Data<darling::util::Ignored, StructFieldOpts>,
     #[darling(flatten)]
@@ -86,6 +84,9 @@ pub struct StructFluentAttributeArgs {
     keys: Option<Vec<syn::LitStr>>,
     #[darling(default)]
     this: Option<bool>,
+    #[getset(get = "pub")]
+    #[darling(default)]
+    derive: darling::util::PathList,
 }
 impl StructFluentAttributeArgs {
     pub fn fl(&self) -> syn::Path {
