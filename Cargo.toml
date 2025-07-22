@@ -19,7 +19,7 @@ license = "MIT OR Apache-2.0"
 publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
-version = "0.1.3"
+version = "0.1.4"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
@@ -33,12 +33,12 @@ crossterm = "0.29.0"
 darling = "0.20.11"
 derive_more = "2.0.1"
 env_logger = "0.11"
-es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.1.3" }
+es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.1.4" }
 es-fluent-build = { path = "crates/es-fluent-build" }
-es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.1.3" }
-es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.1.3" }
-es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.1.3" }
-es-fluent-sc-parser = { path = "crates/es-fluent-sc-parser", version = "0.1.3" }
+es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.1.4" }
+es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.1.4" }
+es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.1.4" }
+es-fluent-sc-parser = { path = "crates/es-fluent-sc-parser", version = "0.1.4" }
 fluent-bundle = "0.15.3"
 fluent-syntax = "0.11.1"
 garde = "0.22.0"
