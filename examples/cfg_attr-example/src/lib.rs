@@ -11,7 +11,7 @@ pub enum KeyboardLayout {
 }
 
 #[cfg_attr(feature = "i18n", derive(EsFluent))]
-#[cfg_attr(feature = "i18n", fluent(this))]
+#[cfg_attr(feature = "i18n", fluent(this, derive(Clone)))]
 pub struct Mouse {
     pub dpi: u32,
 }

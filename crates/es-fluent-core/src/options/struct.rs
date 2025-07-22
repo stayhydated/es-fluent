@@ -36,8 +36,6 @@ impl StructFieldOpts {
 #[getset(get = "pub")]
 pub struct StructOpts {
     ident: syn::Ident,
-    #[darling(default)]
-    derive: darling::util::PathList,
     generics: syn::Generics,
     data: darling::ast::Data<darling::util::Ignored, StructFieldOpts>,
     #[darling(flatten)]
