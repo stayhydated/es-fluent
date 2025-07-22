@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "es-fluent-derive",
  "fluent-bundle",
@@ -517,7 +517,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-build"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "cargo_metadata",
  "es-fluent-generate",
@@ -530,7 +530,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "cargo_metadata",
  "clap",
@@ -551,7 +551,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-core"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "bon",
  "darling",
@@ -569,7 +569,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "darling",
  "es-fluent-core",
@@ -584,7 +584,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-generate"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "clap",
  "es-fluent-core",
@@ -596,7 +596,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-sc-parser"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "bon",
  "darling",
