@@ -11,6 +11,8 @@ version.workspace = true
 anyhow.workspace = true
 i18n-embed.workspace = true
 inventory.workspace = true
+thiserror.workspace = true
+log.workspace = true
 
 [lints]
 workspace = true

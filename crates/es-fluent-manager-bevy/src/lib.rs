@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use i18n_embed::unic_langid::LanguageIdentifier;
 use es_fluent_manager::{I18N_MANAGER};
 
-pub use es_fluent_manager::{I18nManager, I18nModule};
+pub use es_fluent_manager::{I18nManager, I18nModule, I18nManagerError};
 
 #[derive(Resource, Default)]
 pub struct I18nResource {

@@ -59,16 +59,19 @@ struct BevyI18nModule;
 
 impl es_fluent_manager_bevy::I18nModule for BevyI18nModule {
     fn name(&self) -> &'static str {
-        "bevy_example"
+        env!("CARGO_PKG_NAME")
     }
 
-    fn init(&self, requested_languages: &[LanguageIdentifier]) -> anyhow::Result<()> {
+    fn init(&self, requested_languages: &[LanguageIdentifier]) -> Result<(), es_fluent_manager_bevy::I18nManagerError> {
         init(requested_languages);
         Ok(())
     }
 
-    fn change_locale(&self, language: &str) -> anyhow::Result<()> {
-        change_locale(language).map_err(|e| anyhow::anyhow!("Failed to change locale: {}", e))
+    fn change_locale(&self, language: &str) -> Result<(), es_fluent_manager_bevy::I18nManagerError> {
+        change_locale(language).map_err(|e| es_fluent_manager_bevy::I18nManagerError::ModuleError {
+            module_name: self.name().to_string(),
+            source: anyhow::anyhow!("Failed to change locale: {}", e),
+        })
     }
 }
 

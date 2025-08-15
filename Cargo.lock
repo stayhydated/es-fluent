@@ -2443,6 +2443,8 @@ dependencies = [
  "anyhow",
  "i18n-embed",
  "inventory",
+ "log",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
