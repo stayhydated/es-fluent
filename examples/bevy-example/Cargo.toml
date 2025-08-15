@@ -1,0 +1,26 @@
+[package]
+name = "bevy_example"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+readme.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bevy.workspace = true
+es-fluent-manager-bevy.workspace = true
+es-fluent = { features = [ "derive" ], workspace = true }
+i18n-embed = { features = [ "fluent-system", "desktop-requester" ], workspace = true }
+i18n-embed-fl = { workspace = true }
+inventory.workspace = true
+rust-embed = { workspace = true }
+log = { workspace = true }
+
+[build-dependencies]
+es-fluent-build = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true
