@@ -12,6 +12,11 @@ pub enum ButtonState {
     Pressed,
 }
 
+#[derive(EsFluent)]
+pub enum ScreenMessages {
+    ToggleLanguageHint { current_language: Languages },
+}
+
 #[derive(EsFluent, EnumIter, Display, Clone, Copy, Default)]
 pub enum Languages {
   #[strum(serialize = "en")]

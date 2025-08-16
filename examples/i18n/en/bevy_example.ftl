@@ -9,3 +9,7 @@ button_state-Pressed = Pressed
 languages-Chinese = Chinese
 languages-English = English
 languages-French = French
+
+## ScreenMessages
+
+screen_messages-ToggleLanguageHint = Press 't' to switch language, current language: { $current_language }
