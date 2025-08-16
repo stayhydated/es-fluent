@@ -1,7 +1,6 @@
 pub use bevy_example::fl;
 
-use std::sync::LazyLock;
-
+use strum::{Display, EnumIter, IntoEnumIterator};
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
 use es_fluent::{EsFluent, ToFluentString};
 use es_fluent_manager_bevy;
@@ -13,13 +12,20 @@ pub enum ButtonState {
     Pressed,
 }
 
+#[derive(EsFluent, EnumIter, Display, Clone, Copy)]
+pub enum Languages {
+  #[strum(serialize = "en")]
+  English,
+  #[strum(serialize = "fr")]
+  French,
+  #[strum(serialize = "cn")]
+  Chinese,
+}
+
 #[derive(Component)]
 struct LocalizedButton {
     current_state: ButtonState,
 }
-
-const DEFAULT_LANGUAGES: LazyLock<Vec<String>> =
-    LazyLock::new(|| vec!["en".to_string(), "fr".to_string(), "cn".to_string()]);
 
 fn main() {
     App::new()
@@ -30,7 +36,7 @@ fn main() {
         .add_systems(Update, update_button_text_system)
         .add_systems(Update, initialize_button_text_system)
         .add_plugins(es_fluent_manager_bevy::I18nPlugin {
-            default_languages: DEFAULT_LANGUAGES.clone(),
+            default_languages: Languages::iter().map(|l| l.to_string()).collect(),
         })
         .add_systems(Update, example_locale_change_system)
         .add_systems(Update, update_ui_on_locale_change_system)
@@ -43,16 +49,18 @@ fn example_locale_change_system(
 ) {
     // Change locale when pressing 'L' key
     if keyboard.just_pressed(KeyCode::KeyL) {
-        let current_locale =
-            es_fluent_manager_bevy::get_current_locale().unwrap_or(DEFAULT_LANGUAGES[0].clone());
-        let languages = DEFAULT_LANGUAGES.clone();
-        let current_index = languages
-            .iter()
-            .position(|lang| lang == &current_locale)
-            .unwrap_or(0);
-        let next_index = (current_index + 1) % languages.len();
-        let next_locale = &languages[next_index];
-        es_fluent_manager_bevy::change_locale(next_locale, &mut locale_change_events);
+      let current_locale = es_fluent_manager_bevy::get_current_locale()
+        .unwrap_or(Languages::English.to_string());
+
+      let languages: Vec<Languages> = Languages::iter().collect();
+      let current_index = languages
+        .iter()
+        .position(|lang| lang.to_string() == current_locale)
+        .unwrap_or(0);
+      let next_index = (current_index + 1) % languages.len();
+      let next_locale = languages[next_index];
+
+      es_fluent_manager_bevy::change_locale(&next_locale.to_string(), &mut locale_change_events);
     }
 }
 
@@ -140,7 +148,7 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn(button(&assets));
 }
 
-fn button(_asset_server: &AssetServer) -> impl Bundle + use<> {
+fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
     (
         Node {
             width: Val::Percent(100.0),
@@ -173,6 +181,7 @@ fn button(_asset_server: &AssetServer) -> impl Bundle + use<> {
                 Text::new(""),
                 TextFont {
                     font_size: 33.0,
+                    //font: asset_server.load("../fonts/NotoSansSC-Bold.ttf"),
                     ..default()
                 },
                 TextColor(Color::srgb(0.9, 0.9, 0.9)),

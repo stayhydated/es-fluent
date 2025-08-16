@@ -711,6 +711,7 @@ dependencies = [
  "inventory",
  "log",
  "rust-embed",
+ "strum",
 ]
 
 [[package]]
