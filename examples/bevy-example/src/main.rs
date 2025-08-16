@@ -86,7 +86,6 @@ fn example_locale_change_system(
 fn update_ui_on_locale_change_system(
     trigger: Trigger<es_fluent_manager_bevy::LocaleChangedEvent>,
     button_query: Query<&LocalizedButton>,
-    // Group the conflicting queries into a ParamSet
     mut text_queries: ParamSet<(
         Query<&mut Text, With<ButtonText>>,
         Query<&mut Text, With<LanguageHintText>>,
@@ -96,9 +95,7 @@ fn update_ui_on_locale_change_system(
     info!("UI updating for new locale: {}", event.locale);
 
     if let Ok(button) = button_query.single() {
-        // Access the first query in the set using .p0()
         if let Ok(mut text) = text_queries.p0().single_mut() {
-            // Your preferred method: replace the old Text component with a new one
             *text = Text::from(button.current_state.to_fluent_string());
         }
     }
@@ -107,9 +104,7 @@ fn update_ui_on_locale_change_system(
         .find(|lang| lang.to_string() == event.locale)
         .unwrap_or_default();
 
-    // Access the second query in the set using .p1()
     if let Ok(mut text) = text_queries.p1().single_mut() {
-        // Your preferred method: replace the old Text component with a new one
         *text =
             Text::from(ScreenMessages::ToggleLanguageHint { current_language }.to_fluent_string());
     }
@@ -117,7 +112,6 @@ fn update_ui_on_locale_change_system(
 
 fn initialize_ui_text_system(
     button_query: Query<&LocalizedButton>,
-    // Apply the same ParamSet fix here
     mut text_queries: ParamSet<(
         Query<&mut Text, With<ButtonText>>,
         Query<&mut Text, With<LanguageHintText>>,
@@ -139,7 +133,6 @@ fn initialize_ui_text_system(
     }
 }
 
-// Also ensuring this system is consistent with the others
 fn update_button_text_system(
     button_query: Query<&LocalizedButton, Changed<LocalizedButton>>,
     mut text_query: Query<&mut Text, With<ButtonText>>,
@@ -214,9 +207,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                     width: Val::Px(150.0),
                     height: Val::Px(65.0),
                     border: UiRect::all(Val::Px(5.0)),
-                    // horizontally center child text
                     justify_content: JustifyContent::Center,
-                    // vertically center child text
                     align_items: AlignItems::Center,
                     margin: UiRect::bottom(Val::Px(20.0)),
                     ..default()
