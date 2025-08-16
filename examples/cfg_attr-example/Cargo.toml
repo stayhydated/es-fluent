@@ -22,4 +22,4 @@ workspace = true
 
 [features]
 default = [ "i18n" ]
-i18n = []
+i18n = [  ]

@@ -23,7 +23,7 @@ pub enum Shared<'a> {
         /// from a reference to a reference to a reference to a reference to a u32
         photo_count: &'a &'a &'a &'a u32,
         // this signals the macro to use the choice representation, since we'll
-        // match against it in the ftl ressource
+        // match against it in the ftl resource
         #[fluent(choice)]
         user_gender: &'a Gender,
     },

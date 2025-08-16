@@ -8,7 +8,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem},
 };
 
-fn build_list_items(app: &AppState) -> Vec<ListItem> {
+fn build_list_items(app: &'_ AppState) -> Vec<ListItem<'_>> {
     let mut items: Vec<ListItem> = Vec::new();
     let build_statuses_locked = app.build_statuses.lock().unwrap();
     let active_builds_locked = app.active_builds.lock().unwrap();

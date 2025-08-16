@@ -1,6 +1,9 @@
+# es-fluent
+
 A enum/struct derive macro for [Project Fluent](https://projectfluent.org/).
 
 given [Project Fluent](https://projectfluent.org/)'s first example
+
 ```ftl
 # Simple things are simple.
 hello-user = Hello, {$userName}!
@@ -16,7 +19,9 @@ shared-photos =
        *[other] their stream
     }.
 ```
+
 This could be represented as
+
 ```rs
 use es_fluent::{EsFluent, EsFluentChoice};
 
@@ -41,7 +46,7 @@ pub enum Shared<'a> {
         user_name: &'a str,
         photo_count: &'a u32,
         // this signals the macro to use the choice representation, since we'll
-        // match against it in the ftl ressource
+        // match against it in the ftl resource
         #[fluent(choice)]
         user_gender: &'a Gender,
     },
@@ -49,6 +54,7 @@ pub enum Shared<'a> {
 ```
 
 using any of the *prototyping tools* for building the `.ftl` resources, we'd get
+
 ```ftl
 ## Gender
 
@@ -67,6 +73,7 @@ shared-Photos = Photos { $user_name } { $photo_count } { $user_gender }
 ```
 
 which we would modify to our needs:
+
 ```ftl
 ## Gender
 
@@ -92,12 +99,15 @@ shared-Photos = {$user_name} {$photo_count ->
 ```
 
 see the output with
+
 ```sh
 cargo run -p first-example
 ```
 
 ## Generics
+
 all generics need to impl `for<'a> &'a {type parameter}: Into<FluentValue<'a>>`, like
+
 ```rust
 #[derive(EsFluent)]
 #[fluent(display = "fluent")] // optional, defaults to "fluent" if not specified
@@ -112,9 +122,11 @@ where
 ```
 
 ## Display Trait
+
 By default, the macro will only implement the `es_fluent::FluentDisplay` trait.
 
 Its also possible for it to only implement the `std::fmt::Display` trait. By manually adding `#[fluent(display = "std")]`, such as
+
 ```rs
 #[derive(EsFluent)]
 #[fluent(display = "std")]
@@ -124,7 +136,9 @@ pub enum AbcStdDisplay {
     C,
 }
 ```
+
 This can also be implemented for `strum::EnumDiscriminants`, such as
+
 ```rs
 #[derive(EnumDiscriminants, EsFluent)]
 #[fluent(display = "std")]
@@ -138,7 +152,9 @@ pub enum PaymentTypeStdDisplay {
 ```
 
 ## On Structs
+
 given
+
 ```rs
 #[derive(EsFluent)]
 #[fluent(display = "std")] // set display impl to `std::fmt::Display`
@@ -152,6 +168,7 @@ pub struct Address {
 ```
 
 this will expand to
+
 ```rs
 impl Address {
   pub fn this_ftl() -> String {/* */}
@@ -182,6 +199,7 @@ impl AddressDescriptionFtl {
 ```
 
 if no keys are provided, this will expand to
+
 ```rs
 pub enum AddressFtl {
     Street,
@@ -190,26 +208,32 @@ pub enum AddressFtl {
 ```
 
 ## Simple examples
-see the [examples](examples) dir to see a bunch of ways to use this crate. where i18n ressources are placed in the [i18n](examples/i18n) dir.
+
+see the [examples](examples) dir to see a bunch of ways to use this crate. where i18n resources are placed in the [i18n](examples/i18n) dir.
 
 ## [Gpui](https://gpui.rs) example
-https://github.com/stayhydated/gpui-form/tree/master/examples
+
+<https://github.com/stayhydated/gpui-form/tree/master/examples>
 
 ## Prototyping tools
+
 [Build.rs script](crates/es-fluent-build/README.md)
 
 [Cli](crates/es-fluent-cli/README.md)
 
 ## Notes
+
 - `es-fluent` expects you to provide a `fl!` macro, accessible via `crate::fl`
 - This macro was designed around [i18n-embed-fl](https://github.com/kellpossible/cargo-i18n/tree/master/i18n-embed-fl) and [i18n-embed](https://github.com/kellpossible/cargo-i18n/tree/master/i18n-embed). Decoupling from it is planned in the future. For now, this satisfies my use case with [gpui](https://gpui.rs). Feel free to contribute to the project!
 
 ## Derive Macro Supported kinds
 
 ### Enums
+
 - enum_unit
 - enum_named
 - enum_tuple
 
 ### Structs
+
 - struct_named
