@@ -12,9 +12,10 @@ pub enum ButtonState {
     Pressed,
 }
 
-#[derive(EsFluent, EnumIter, Display, Clone, Copy)]
+#[derive(EsFluent, EnumIter, Display, Clone, Copy, Default)]
 pub enum Languages {
   #[strum(serialize = "en")]
+  #[default]
   English,
   #[strum(serialize = "fr")]
   French,
@@ -29,7 +30,10 @@ struct LocalizedButton {
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(AssetPlugin {
+            file_path: "../assets".to_string(),
+            ..default()
+        }))
         .insert_resource(WinitSettings::desktop_app())
         .add_systems(Startup, setup)
         .add_systems(Update, button_system)
@@ -50,7 +54,7 @@ fn example_locale_change_system(
     // Change locale when pressing 'L' key
     if keyboard.just_pressed(KeyCode::KeyL) {
       let current_locale = es_fluent_manager_bevy::get_current_locale()
-        .unwrap_or(Languages::English.to_string());
+        .unwrap_or(Languages::default().to_string());
 
       let languages: Vec<Languages> = Languages::iter().collect();
       let current_index = languages
@@ -181,7 +185,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                 Text::new(""),
                 TextFont {
                     font_size: 33.0,
-                    //font: asset_server.load("../fonts/NotoSansSC-Bold.ttf"),
+                    font: asset_server.load("fonts/NotoSansSC-Bold.ttf"),
                     ..default()
                 },
                 TextColor(Color::srgb(0.9, 0.9, 0.9)),
