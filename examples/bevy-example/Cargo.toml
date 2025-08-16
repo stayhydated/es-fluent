@@ -17,7 +17,7 @@ i18n-embed-fl = { workspace = true }
 inventory.workspace = true
 log = { workspace = true }
 rust-embed = { workspace = true }
-strum = { workspace = true, features = [ "derive" ] }
+strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }

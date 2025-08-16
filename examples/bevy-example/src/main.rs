@@ -1,9 +1,9 @@
 pub use bevy_example::fl;
 
-use strum::{Display, EnumIter, IntoEnumIterator};
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
 use es_fluent::{EsFluent, ToFluentString};
 use es_fluent_manager_bevy;
+use strum::{Display, EnumIter, IntoEnumIterator};
 
 #[derive(EsFluent)]
 pub enum ButtonState {
@@ -17,15 +17,15 @@ pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(EsFluent, EnumIter, Display, Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Display, EnumIter, EsFluent)]
 pub enum Languages {
-  #[strum(serialize = "en")]
-  #[default]
-  English,
-  #[strum(serialize = "fr")]
-  French,
-  #[strum(serialize = "cn")]
-  Chinese,
+    #[strum(serialize = "en")]
+    #[default]
+    English,
+    #[strum(serialize = "fr")]
+    French,
+    #[strum(serialize = "cn")]
+    Chinese,
 }
 
 #[derive(Component)]
@@ -36,6 +36,9 @@ struct LocalizedButton {
 #[derive(Component)]
 struct LanguageHintText;
 
+#[derive(Component)]
+struct ButtonText;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(AssetPlugin {
@@ -43,15 +46,19 @@ fn main() {
             ..default()
         }))
         .insert_resource(WinitSettings::desktop_app())
-        .add_systems(Startup, setup)
-        .add_systems(Update, button_system)
-        .add_systems(Update, update_button_text_system)
-        .add_systems(Update, initialize_button_text_system)
+        .add_systems(Startup, (setup, initialize_ui_text_system.after(setup)))
+        .add_systems(
+            Update,
+            (
+                button_system,
+                update_button_text_system,
+                example_locale_change_system,
+            ),
+        )
         .add_plugins(es_fluent_manager_bevy::I18nPlugin {
             default_languages: Languages::iter().map(|l| l.to_string()).collect(),
         })
-        .add_systems(Update, example_locale_change_system)
-        .add_systems(Update, update_ui_on_locale_change_system)
+        .add_observer(update_ui_on_locale_change_system)
         .run();
 }
 
@@ -61,78 +68,86 @@ fn example_locale_change_system(
 ) {
     // Change locale when pressing 'T' key
     if keyboard.just_pressed(KeyCode::KeyT) {
-      let current_locale = es_fluent_manager_bevy::get_current_locale()
-        .unwrap_or(Languages::default().to_string());
+        let current_locale = es_fluent_manager_bevy::get_current_locale()
+            .unwrap_or(Languages::default().to_string());
 
-      let languages: Vec<Languages> = Languages::iter().collect();
-      let current_index = languages
-        .iter()
-        .position(|lang| lang.to_string() == current_locale)
-        .unwrap_or(0);
-      let next_index = (current_index + 1) % languages.len();
-      let next_locale = languages[next_index];
+        let languages: Vec<Languages> = Languages::iter().collect();
+        let current_index = languages
+            .iter()
+            .position(|lang| lang.to_string() == current_locale)
+            .unwrap_or(0);
+        let next_index = (current_index + 1) % languages.len();
+        let next_locale = languages[next_index];
 
-      es_fluent_manager_bevy::change_locale(&next_locale.to_string(), &mut locale_change_events);
+        es_fluent_manager_bevy::change_locale(&next_locale.to_string(), &mut locale_change_events);
     }
 }
 
 fn update_ui_on_locale_change_system(
-    mut locale_changed_events: EventReader<es_fluent_manager_bevy::LocaleChangedEvent>,
-    button_query: Query<(&Children, &LocalizedButton), With<Button>>,
-    mut button_text_query: Query<&mut Text, Without<LanguageHintText>>,
-    mut hint_text_query: Query<&mut Text, With<LanguageHintText>>,
+    trigger: Trigger<es_fluent_manager_bevy::LocaleChangedEvent>,
+    button_query: Query<&LocalizedButton>,
+    // Group the conflicting queries into a ParamSet
+    mut text_queries: ParamSet<(
+        Query<&mut Text, With<ButtonText>>,
+        Query<&mut Text, With<LanguageHintText>>,
+    )>,
 ) {
-    for event in locale_changed_events.read() {
-        info!("UI updating for new locale: {}", event.locale);
+    let event = trigger.event();
+    info!("UI updating for new locale: {}", event.locale);
 
-        // Update button text
-        for (children, localized_button) in button_query.iter() {
-            if let Ok(mut text) = button_text_query.get_mut(children[0]) {
-                **text = localized_button.current_state.to_fluent_string();
-            }
-        }
-
-        // Update language hint text
-        let current_language = Languages::iter()
-            .find(|lang| lang.to_string() == event.locale)
-            .unwrap_or(Languages::default());
-
-        for mut text in hint_text_query.iter_mut() {
-            **text = ScreenMessages::ToggleLanguageHint { current_language }.to_fluent_string();
+    if let Ok(button) = button_query.single() {
+        // Access the first query in the set using .p0()
+        if let Ok(mut text) = text_queries.p0().single_mut() {
+            // Your preferred method: replace the old Text component with a new one
+            *text = Text::from(button.current_state.to_fluent_string());
         }
     }
-}fn update_button_text_system(
-    button_query: Query<(&Children, &LocalizedButton), (With<Button>, Changed<LocalizedButton>)>,
-    mut text_query: Query<&mut Text, Without<LanguageHintText>>,
-) {
-    for (children, localized_button) in button_query.iter() {
-        if let Ok(mut text) = text_query.get_mut(children[0]) {
-            **text = localized_button.current_state.to_fluent_string();
-        }
+
+    let current_language = Languages::iter()
+        .find(|lang| lang.to_string() == event.locale)
+        .unwrap_or_default();
+
+    // Access the second query in the set using .p1()
+    if let Ok(mut text) = text_queries.p1().single_mut() {
+        // Your preferred method: replace the old Text component with a new one
+        *text =
+            Text::from(ScreenMessages::ToggleLanguageHint { current_language }.to_fluent_string());
     }
 }
 
-fn initialize_button_text_system(
-    button_query: Query<(&Children, &LocalizedButton), With<Button>>,
-    mut button_text_query: Query<&mut Text, Without<LanguageHintText>>,
-    mut hint_text_query: Query<&mut Text, With<LanguageHintText>>,
-    mut initialized: Local<bool>,
+fn initialize_ui_text_system(
+    button_query: Query<&LocalizedButton>,
+    // Apply the same ParamSet fix here
+    mut text_queries: ParamSet<(
+        Query<&mut Text, With<ButtonText>>,
+        Query<&mut Text, With<LanguageHintText>>,
+    )>,
 ) {
-    if !*initialized {
-        // Initialize button text
-        for (children, localized_button) in button_query.iter() {
-            if let Ok(mut text) = button_text_query.get_mut(children[0]) {
-                **text = localized_button.current_state.to_fluent_string();
+    if let Ok(button) = button_query.single() {
+        if let Ok(mut text) = text_queries.p0().single_mut() {
+            *text = Text::from(button.current_state.to_fluent_string());
+        }
+    }
+
+    if let Ok(mut text) = text_queries.p1().single_mut() {
+        *text = Text::from(
+            ScreenMessages::ToggleLanguageHint {
+                current_language: Languages::default(),
             }
-        }
+            .to_fluent_string(),
+        );
+    }
+}
 
-        // Initialize language hint text
-        let current_language = Languages::default();
-        for mut text in hint_text_query.iter_mut() {
-            **text = ScreenMessages::ToggleLanguageHint { current_language }.to_fluent_string();
+// Also ensuring this system is consistent with the others
+fn update_button_text_system(
+    button_query: Query<&LocalizedButton, Changed<LocalizedButton>>,
+    mut text_query: Query<&mut Text, With<ButtonText>>,
+) {
+    if let Ok(button) = button_query.single() {
+        if let Ok(mut text) = text_query.single_mut() {
+            *text = Text::from(button.current_state.to_fluent_string());
         }
-
-        *initialized = true;
     }
 }
 
@@ -173,7 +188,6 @@ fn button_system(
 }
 
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
-    // ui camera
     commands.spawn(Camera2d);
     commands.spawn(button(&assets));
 }
@@ -211,6 +225,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                 BorderRadius::MAX,
                 BackgroundColor(NORMAL_BUTTON),
                 children![(
+                    ButtonText,
                     Text::new(""),
                     TextFont {
                         font_size: 33.0,
