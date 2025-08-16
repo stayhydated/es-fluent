@@ -33,6 +33,9 @@ struct LocalizedButton {
     current_state: ButtonState,
 }
 
+#[derive(Component)]
+struct LanguageHintText;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(AssetPlugin {
@@ -56,8 +59,8 @@ fn example_locale_change_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut locale_change_events: EventWriter<es_fluent_manager_bevy::LocaleChangeEvent>,
 ) {
-    // Change locale when pressing 'L' key
-    if keyboard.just_pressed(KeyCode::KeyL) {
+    // Change locale when pressing 'T' key
+    if keyboard.just_pressed(KeyCode::KeyT) {
       let current_locale = es_fluent_manager_bevy::get_current_locale()
         .unwrap_or(Languages::default().to_string());
 
@@ -76,22 +79,31 @@ fn example_locale_change_system(
 fn update_ui_on_locale_change_system(
     mut locale_changed_events: EventReader<es_fluent_manager_bevy::LocaleChangedEvent>,
     button_query: Query<(&Children, &LocalizedButton), With<Button>>,
-    mut text_query: Query<&mut Text>,
+    mut button_text_query: Query<&mut Text, Without<LanguageHintText>>,
+    mut hint_text_query: Query<&mut Text, With<LanguageHintText>>,
 ) {
     for event in locale_changed_events.read() {
         info!("UI updating for new locale: {}", event.locale);
 
+        // Update button text
         for (children, localized_button) in button_query.iter() {
-            if let Ok(mut text) = text_query.get_mut(children[0]) {
+            if let Ok(mut text) = button_text_query.get_mut(children[0]) {
                 **text = localized_button.current_state.to_fluent_string();
             }
         }
-    }
-}
 
-fn update_button_text_system(
+        // Update language hint text
+        let current_language = Languages::iter()
+            .find(|lang| lang.to_string() == event.locale)
+            .unwrap_or(Languages::default());
+
+        for mut text in hint_text_query.iter_mut() {
+            **text = ScreenMessages::ToggleLanguageHint { current_language }.to_fluent_string();
+        }
+    }
+}fn update_button_text_system(
     button_query: Query<(&Children, &LocalizedButton), (With<Button>, Changed<LocalizedButton>)>,
-    mut text_query: Query<&mut Text>,
+    mut text_query: Query<&mut Text, Without<LanguageHintText>>,
 ) {
     for (children, localized_button) in button_query.iter() {
         if let Ok(mut text) = text_query.get_mut(children[0]) {
@@ -102,16 +114,25 @@ fn update_button_text_system(
 
 fn initialize_button_text_system(
     button_query: Query<(&Children, &LocalizedButton), With<Button>>,
-    mut text_query: Query<&mut Text>,
+    mut button_text_query: Query<&mut Text, Without<LanguageHintText>>,
+    mut hint_text_query: Query<&mut Text, With<LanguageHintText>>,
     mut initialized: Local<bool>,
 ) {
     if !*initialized {
+        // Initialize button text
         for (children, localized_button) in button_query.iter() {
-            if let Ok(mut text) = text_query.get_mut(children[0]) {
+            if let Ok(mut text) = button_text_query.get_mut(children[0]) {
                 **text = localized_button.current_state.to_fluent_string();
-                *initialized = true;
             }
         }
+
+        // Initialize language hint text
+        let current_language = Languages::default();
+        for mut text in hint_text_query.iter_mut() {
+            **text = ScreenMessages::ToggleLanguageHint { current_language }.to_fluent_string();
+        }
+
+        *initialized = true;
     }
 }
 
@@ -164,38 +185,57 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
             height: Val::Percent(100.0),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Column,
             ..default()
         },
-        children![(
+        children![
             (
-                Button,
-                LocalizedButton {
-                    current_state: ButtonState::Normal,
+                (
+                    Button,
+                    LocalizedButton {
+                        current_state: ButtonState::Normal,
+                    },
+                ),
+                Node {
+                    width: Val::Px(150.0),
+                    height: Val::Px(65.0),
+                    border: UiRect::all(Val::Px(5.0)),
+                    // horizontally center child text
+                    justify_content: JustifyContent::Center,
+                    // vertically center child text
+                    align_items: AlignItems::Center,
+                    margin: UiRect::bottom(Val::Px(20.0)),
+                    ..default()
                 },
+                BorderColor(Color::BLACK),
+                BorderRadius::MAX,
+                BackgroundColor(NORMAL_BUTTON),
+                children![(
+                    Text::new(""),
+                    TextFont {
+                        font_size: 33.0,
+                        font: asset_server.load("fonts/NotoSansSC-Bold.ttf"),
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                    TextShadow::default(),
+                )]
             ),
-            Node {
-                width: Val::Px(150.0),
-                height: Val::Px(65.0),
-                border: UiRect::all(Val::Px(5.0)),
-                // horizontally center child text
-                justify_content: JustifyContent::Center,
-                // vertically center child text
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BorderColor(Color::BLACK),
-            BorderRadius::MAX,
-            BackgroundColor(NORMAL_BUTTON),
-            children![(
+            (
+                LanguageHintText,
                 Text::new(""),
                 TextFont {
-                    font_size: 33.0,
+                    font_size: 20.0,
                     font: asset_server.load("fonts/NotoSansSC-Bold.ttf"),
                     ..default()
                 },
-                TextColor(Color::srgb(0.9, 0.9, 0.9)),
-                TextShadow::default(),
-            )]
-        )],
+                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                Node {
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+            )
+        ],
     )
 }
