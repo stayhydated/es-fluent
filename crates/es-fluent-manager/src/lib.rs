@@ -1,9 +1,12 @@
 use i18n_embed::unic_langid::LanguageIdentifier;
-use std::sync::{Arc, RwLock};
 use std::sync::LazyLock;
+use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[cfg(feature = "macros")]
+pub use es_fluent_manager_macros::register_i18n_module;
+
+#[derive(Debug, Error)]
 pub enum I18nManagerError {
     #[error("No I18n modules found in inventory")]
     NoModules,
@@ -15,6 +18,8 @@ pub enum I18nManagerError {
     },
     #[error("Multiple module errors: {errors}")]
     MultipleErrors { errors: String },
+    #[error("I18nEmbed error: {0}")]
+    I18nEmbedError(#[from] i18n_embed::I18nEmbedError),
 }
 
 pub trait I18nModule: Send + Sync {
@@ -38,7 +43,10 @@ impl I18nManager {
         }
     }
 
-    pub fn init_all(&self, requested_languages: &[LanguageIdentifier]) -> Result<(), I18nManagerError> {
+    pub fn init_all(
+        &self,
+        requested_languages: &[LanguageIdentifier],
+    ) -> Result<(), I18nManagerError> {
         let mut initialized = self.initialized.write().unwrap();
         if *initialized {
             return Ok(());

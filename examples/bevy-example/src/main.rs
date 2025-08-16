@@ -1,4 +1,4 @@
-pub mod i18n;
+pub use bevy_example::fl;
 
 use std::sync::LazyLock;
 
@@ -18,9 +18,8 @@ struct LocalizedButton {
     current_state: ButtonState,
 }
 
-const DEFAULT_LANGUAGES : LazyLock<Vec<String>> = LazyLock::new(|| {
-    vec!["en".to_string(), "fr".to_string(), "cn".to_string()]
-});
+const DEFAULT_LANGUAGES: LazyLock<Vec<String>> =
+    LazyLock::new(|| vec!["en".to_string(), "fr".to_string(), "cn".to_string()]);
 
 fn main() {
     App::new()
@@ -44,12 +43,16 @@ fn example_locale_change_system(
 ) {
     // Change locale when pressing 'L' key
     if keyboard.just_pressed(KeyCode::KeyL) {
-      let current_locale = es_fluent_manager_bevy::get_current_locale().unwrap_or(DEFAULT_LANGUAGES[0].clone());
-      let languages = DEFAULT_LANGUAGES.clone();
-      let current_index = languages.iter().position(|lang| lang == &current_locale).unwrap_or(0);
-      let next_index = (current_index + 1) % languages.len();
-      let next_locale = &languages[next_index];
-      es_fluent_manager_bevy::change_locale(next_locale, &mut locale_change_events);
+        let current_locale =
+            es_fluent_manager_bevy::get_current_locale().unwrap_or(DEFAULT_LANGUAGES[0].clone());
+        let languages = DEFAULT_LANGUAGES.clone();
+        let current_index = languages
+            .iter()
+            .position(|lang| lang == &current_locale)
+            .unwrap_or(0);
+        let next_index = (current_index + 1) % languages.len();
+        let next_locale = &languages[next_index];
+        es_fluent_manager_bevy::change_locale(next_locale, &mut locale_change_events);
     }
 }
 
@@ -95,7 +98,6 @@ fn initialize_button_text_system(
     }
 }
 
-
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
@@ -117,17 +119,17 @@ fn button_system(
                 localized_button.current_state = ButtonState::Pressed;
                 *color = PRESSED_BUTTON.into();
                 border_color.0 = RED.into();
-            }
+            },
             Interaction::Hovered => {
                 localized_button.current_state = ButtonState::Hovered;
                 *color = HOVERED_BUTTON.into();
                 border_color.0 = Color::WHITE;
-            }
+            },
             Interaction::None => {
                 localized_button.current_state = ButtonState::Normal;
                 *color = NORMAL_BUTTON.into();
                 border_color.0 = Color::BLACK;
-            }
+            },
         }
     }
 }

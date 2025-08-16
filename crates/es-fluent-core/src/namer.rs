@@ -2,7 +2,7 @@ use derive_more::{Debug, Deref, Display};
 use heck::ToSnakeCase as _;
 use quote::format_ident;
 
-#[derive(Clone, Debug, Deref, Display, Eq, Hash, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deref, Display, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FluentKey(pub String);
 
 impl FluentKey {

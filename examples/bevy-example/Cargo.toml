@@ -9,14 +9,14 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-bevy.workspace = true
-es-fluent-manager-bevy.workspace = true
+bevy = { features = [ "wayland" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-manager-bevy = { features = [ "macros" ], workspace = true }
 i18n-embed = { features = [ "fluent-system", "desktop-requester" ], workspace = true }
 i18n-embed-fl = { workspace = true }
 inventory.workspace = true
-rust-embed = { workspace = true }
 log = { workspace = true }
+rust-embed = { workspace = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }

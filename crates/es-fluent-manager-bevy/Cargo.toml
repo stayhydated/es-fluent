@@ -10,8 +10,13 @@ version.workspace = true
 [dependencies]
 anyhow.workspace = true
 bevy.workspace = true
+es-fluent-manager = { workspace = true }
 i18n-embed.workspace = true
 inventory.workspace = true
-es-fluent-manager = {workspace = true }
+
+[features]
+default = [  ]
+macros = [ "es-fluent-manager/macros" ]
+
 [lints]
 workspace = true

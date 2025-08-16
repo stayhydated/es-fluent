@@ -1,15 +1,11 @@
-mod app_state;
-mod consts;
-mod core;
-mod error;
-mod ui;
-
-use crate::{
+use es_fluent_cli::{
     app_state::{AppEvent, AppState},
     consts::{DEBOUNCE_DURATION, TICK_RATE},
     core::{self as fluent_core, BuildOutcome, CrateInfo},
     error::CliError,
+    ui,
 };
+
 use clap::Parser;
 use colored::*;
 use crossterm::{
