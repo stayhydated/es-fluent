@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use es_fluent;
 use es_fluent_manager_core::FluentManager;
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
@@ -54,6 +55,10 @@ impl Plugin for I18nPlugin {
         // Create and insert the Bevy resource
         let mut i18n_resource = I18nResource::new_with_discovered_modules();
         i18n_resource.select_language(&self.initial_language);
+
+        // Set the global context for derive macros
+        es_fluent::set_context(i18n_resource.manager.clone());
+
         app.insert_resource(i18n_resource);
 
         info!("es-fluent I18nResource initialized for language '{}'", self.initial_language);
@@ -66,15 +71,15 @@ impl Plugin for I18nPlugin {
 
 /// A system function that localizes a message ID with optional arguments using the `I18nResource`.
 /// This function is intended to be used in Bevy systems that need to perform localization.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust,ignore
 /// use bevy::prelude::*;
 /// use es_fluent_manager_bevy::{localize, I18nResource};
 /// use fluent_bundle::FluentValue;
 /// use std::collections::HashMap;
-/// 
+///
 /// fn my_system(i18n_resource: Res<I18nResource>) {
 ///     let mut args = HashMap::new();
 ///     args.insert("name", FluentValue::from("Alice"));
@@ -102,7 +107,12 @@ fn handle_locale_changes(
     for event in reader.read() {
         // Use the Bevy resource to mutate the state.
         i18n_resource.select_language(&event.0);
-        
+
+        // Update the global context for derive macros
+        es_fluent::update_context(|manager| {
+            manager.select_language(&event.0);
+        });
+
         writer.write(LocaleChangedEvent(event.0.clone()));
         info!("Locale changed to '{}'", event.0);
     }
