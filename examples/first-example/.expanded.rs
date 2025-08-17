@@ -230,11 +230,10 @@ pub mod first_example {
     }
 }
 pub mod i18n {
-    use es_fluent::localization::{self, LocalizationContext};
+    use es_fluent::{FluentManager, set_context, update_context};
     use es_fluent_macros::define_i18n_module;
-    use unic_langid::LanguageIdentifier;
     mod __es_fluent_generated {
-        use es_fluent::localization::{Localizer, LocalizationError};
+        use es_fluent::{Localizer, LocalizationError};
         use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
         use fluent_bundle::concurrent::FluentBundle as ConcurrentFluentBundle;
         use std::collections::HashMap;
@@ -327,9 +326,19 @@ pub mod i18n {
                     <[_]>::into_vec(::alloc::boxed::box_new([lang.clone()])),
                 );
                 let ftl_path = ::alloc::__export::must_use({
-                    ::alloc::fmt::format(format_args!("{0}.ftl", lang))
+                    ::alloc::fmt::format(
+                        format_args!("{0}/{1}.ftl", lang, "first-example"),
+                    )
                 });
-                let file = Localizations::get(&ftl_path)?;
+                let file = Localizations::get(&ftl_path)
+                    .unwrap_or_else(|| {
+                        ::core::panicking::panic_fmt(
+                            format_args!(
+                                "FTL file \'{0}\' not found in embedded assets",
+                                ftl_path,
+                            ),
+                        );
+                    });
                 let content = std::str::from_utf8(file.data.as_ref()).ok()?;
                 let res = FluentResource::try_new(content.to_string())
                     .expect("Failed to parse FTL file.");
@@ -401,11 +410,11 @@ pub mod i18n {
         }
     }
     struct FirstExampleI18nModule;
-    impl es_fluent::localization::I18nModule for FirstExampleI18nModule {
+    impl es_fluent::I18nModule for FirstExampleI18nModule {
         fn name(&self) -> &'static str {
             "first-example"
         }
-        fn create_localizer(&self) -> Box<dyn es_fluent::localization::Localizer> {
+        fn create_localizer(&self) -> Box<dyn es_fluent::Localizer> {
             let fallback_lang = {
                 #[allow(dead_code)]
                 enum ProcMacroHack {
@@ -432,9 +441,7 @@ pub mod i18n {
     #[allow(non_upper_case_globals)]
     const _: () = {
         static __INVENTORY: ::inventory::Node = ::inventory::Node {
-            value: &{
-                &FirstExampleI18nModule as &dyn es_fluent::localization::I18nModule
-            },
+            value: &{ &FirstExampleI18nModule as &dyn es_fluent::I18nModule },
             next: ::inventory::core::cell::UnsafeCell::new(
                 ::inventory::core::option::Option::None,
             ),
@@ -447,15 +454,18 @@ pub mod i18n {
         #[link_section = ".init_array"]
         static __CTOR: unsafe extern "C" fn() = __ctor;
     };
-    pub fn init() {
-        let context = LocalizationContext::new_with_discovered_modules();
-        localization::set_context(context);
+    pub fn init() -> FluentManager {
+        let manager = FluentManager::new_with_discovered_modules();
+        set_context(manager.clone());
+        manager
     }
-    pub fn change_locale(language: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let lang_id: LanguageIdentifier = language.parse()?;
-        localization::with_context(|ctx| {
-            ctx.select_language(&lang_id);
-        });
+    pub fn change_locale(
+        manager: &mut FluentManager,
+        language: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let lang_id: unic_langid::LanguageIdentifier = language.parse()?;
+        manager.select_language(&lang_id);
+        update_context(|ctx| *ctx = manager.clone());
         Ok(())
     }
 }

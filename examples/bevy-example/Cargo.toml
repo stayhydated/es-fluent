@@ -12,13 +12,13 @@ bevy = { features = [ "wayland" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-macros = { workspace = true }
 es-fluent-manager-bevy = { workspace = true }
+fluent = { workspace = true }
+fluent-bundle = { workspace = true }
+inventory = { workspace = true }
 log = { workspace = true }
 rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
-fluent = { workspace = true }
-fluent-bundle = { workspace = true }
-inventory = { workspace = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }

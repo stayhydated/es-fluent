@@ -69,7 +69,7 @@ fn run(manager: &mut es_fluent::FluentManager, locale: &str) {
                 println!("thiserror: {}", e);
                 println!("i18n: {}", e.to_fluent_string());
                 println!();
-            }
+            },
         }
     }
     println!()

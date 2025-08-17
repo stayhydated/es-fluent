@@ -79,7 +79,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                                 quote! { #arg_name }
                             }
                         };
-                        
+
                         Some(quote!{ args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); })
                     })
                     .collect();
@@ -127,7 +127,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                                 quote! { #arg_name }
                             }
                         };
-                        
+
                         quote!{ args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); }
                     })
                     .collect();

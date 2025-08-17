@@ -10,7 +10,10 @@ pub fn init() -> FluentManager {
     manager
 }
 
-pub fn change_locale(manager: &mut FluentManager, language: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn change_locale(
+    manager: &mut FluentManager,
+    language: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let lang_id: unic_langid::LanguageIdentifier = language.parse()?;
     manager.select_language(&lang_id);
     // Update the global context for derive macros

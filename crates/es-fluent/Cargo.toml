@@ -17,7 +17,7 @@ default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
 
 [dependencies]
-anyhow = {workspace = true }
+anyhow = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent = { workspace = true }
@@ -25,7 +25,7 @@ fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
-unic-langid = { workspace = true, features = ["macros"] }
+unic-langid = { features = [ "macros" ], workspace = true }
 
 [lints]
 workspace = true

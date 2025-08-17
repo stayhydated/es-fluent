@@ -24,20 +24,20 @@ title = "dioxus-example"
 reload_html = true
 
 # which files or dirs will be watcher monitoring
-watch_path = ["src", "assets"]
+watch_path = [ "src", "assets" ]
 
 # include `assets` in web platform
 [web.resource]
 
 # CSS style file
 
-style = []
+style = [  ]
 
 # Javascript code file
-script = []
+script = [  ]
 
 [web.resource.dev]
 
 # Javascript code file
 # serve: [dev-server] only
-script = []
+script = [  ]

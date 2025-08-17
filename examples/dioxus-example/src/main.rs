@@ -1,18 +1,16 @@
 use dioxus::prelude::*;
 use dioxus_i18n::use_i18n;
-use es_fluent::{ToFluentString, EsFluent, FluentManager};
-use unic_langid::LanguageIdentifier;
+use es_fluent::{EsFluent, FluentManager, ToFluentString};
 use std::sync::{Arc, Mutex};
+use unic_langid::LanguageIdentifier;
 
 mod i18n;
 
-// Global manager for the application
 lazy_static::lazy_static! {
     static ref MANAGER: Arc<Mutex<FluentManager>> = Arc::new(Mutex::new(i18n::init()));
 }
 
 fn main() {
-    // Launch the Dioxus app
     dioxus::launch(App);
 }
 
@@ -27,7 +25,6 @@ pub fn App() -> Element {
     let mut count = use_signal(|| 0);
     let mut i18n_context = use_i18n::i18n();
 
-    // Set the initial language for es-fluent
     use_effect(move || {
         let lang = i18n_context.language();
         if let Err(e) = i18n::change_locale(&mut MANAGER.lock().unwrap(), &lang) {
