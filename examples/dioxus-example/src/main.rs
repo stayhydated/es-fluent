@@ -14,7 +14,7 @@ mod views;
 /// 
 /// Each variant represents a different URL pattern that can be matched by the router. If that pattern is matched,
 /// the components for that route will be rendered.
-#[derive(Debug, Clone, Routable, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Routable)]
 #[rustfmt::skip]
 enum Route {
     // The layout attribute defines a wrapper for all routes under the layout. Layouts are great for wrapping

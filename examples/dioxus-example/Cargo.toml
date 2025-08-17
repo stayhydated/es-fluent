@@ -8,7 +8,7 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-dioxus = { version = "0.6.3", features = ["router", "fullstack"] }
+dioxus = { features = [ "router", "fullstack" ], version = "0.6.3" }
 dioxus-i18n = "0.4.3"
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-macros = { workspace = true }
@@ -25,9 +25,9 @@ es-fluent-build = { workspace = true }
 log = { workspace = true }
 
 [features]
-default = ["web"]
+default = [ "web" ]
 # The feature that are only required for the web = ["dioxus/web"] build target should be optional and only enabled in the web = ["dioxus/web"] feature
-web = ["dioxus/web"]
+web = [ "dioxus/web" ]
 
 [profile]
 
