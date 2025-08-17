@@ -2549,6 +2549,7 @@ dependencies = [
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",
+ "lazy_static",
  "log",
  "rust-embed",
  "strum",
@@ -2928,6 +2929,7 @@ version = "0.1.3"
 dependencies = [
  "anyhow",
  "es-fluent-derive",
+ "es-fluent-manager-core",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",
@@ -3031,7 +3033,29 @@ version = "0.1.3"
 dependencies = [
  "bevy",
  "es-fluent",
+ "es-fluent-manager-core",
+ "fluent-bundle 0.16.0",
  "log",
+ "unic-langid",
+]
+
+[[package]]
+name = "es-fluent-manager-core"
+version = "0.1.3"
+dependencies = [
+ "anyhow",
+ "fluent-bundle 0.16.0",
+ "inventory",
+ "log",
+ "thiserror 2.0.12",
+ "unic-langid",
+]
+
+[[package]]
+name = "es-fluent-manager-generic"
+version = "0.1.3"
+dependencies = [
+ "es-fluent-manager-core",
  "unic-langid",
 ]
 

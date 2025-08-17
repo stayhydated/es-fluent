@@ -16,7 +16,7 @@ pub fn define_i18n_module(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         // Encapsulate implementation details in a private module.
         mod __es_fluent_generated {
-            use es_fluent::localization::{Localizer, LocalizationError};
+            use es_fluent::{Localizer, LocalizationError};
             use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
             use fluent_bundle::concurrent::FluentBundle as ConcurrentFluentBundle;
             use std::collections::HashMap;
@@ -90,10 +90,10 @@ pub fn define_i18n_module(input: TokenStream) -> TokenStream {
         // The public descriptor that gets registered.
         struct #module_struct_name;
 
-        impl es_fluent::localization::I18nModule for #module_struct_name {
+        impl es_fluent::I18nModule for #module_struct_name {
             fn name(&self) -> &'static str { #crate_name }
 
-            fn create_localizer(&self) -> Box<dyn es_fluent::localization::Localizer> {
+            fn create_localizer(&self) -> Box<dyn es_fluent::Localizer> {
                 // TODO: This should ideally read the fallback language from i18n.toml.
                 // For now, we hardcode a common default.
                 let fallback_lang = unic_langid::langid!("en");
@@ -101,7 +101,7 @@ pub fn define_i18n_module(input: TokenStream) -> TokenStream {
             }
         }
 
-        inventory::submit!(&#module_struct_name as &dyn es_fluent::localization::I18nModule);
+        inventory::submit!(&#module_struct_name as &dyn es_fluent::I18nModule);
     };
     TokenStream::from(expanded)
 }

@@ -1,13 +1,17 @@
 use dioxus::prelude::*;
 use dioxus_i18n::use_i18n;
-use es_fluent::{ToFluentString, EsFluent};
+use es_fluent::{ToFluentString, EsFluent, FluentManager};
 use unic_langid::LanguageIdentifier;
+use std::sync::{Arc, Mutex};
 
 mod i18n;
 
+// Global manager for the application
+lazy_static::lazy_static! {
+    static ref MANAGER: Arc<Mutex<FluentManager>> = Arc::new(Mutex::new(i18n::init()));
+}
+
 fn main() {
-    // Initialize the es-fluent localization system
-    i18n::init();
     // Launch the Dioxus app
     dioxus::launch(App);
 }
@@ -26,7 +30,7 @@ pub fn App() -> Element {
     // Set the initial language for es-fluent
     use_effect(move || {
         let lang = i18n_context.language();
-        if let Err(e) = i18n::change_locale(&lang) {
+        if let Err(e) = i18n::change_locale(&mut MANAGER.lock().unwrap(), &lang) {
             log::error!("Failed to change locale: {}", e);
         }
     });
@@ -54,7 +58,7 @@ pub fn App() -> Element {
                 onclick: move |_| {
                     let lang = "en".parse::<LanguageIdentifier>().unwrap();
                     i18n_context.set_language(lang.clone());
-                    if let Err(e) = i18n::change_locale(&lang) {
+                    if let Err(e) = i18n::change_locale(&mut MANAGER.lock().unwrap(), &lang) {
                         log::error!("Failed to change locale: {}", e);
                     }
                 },
@@ -64,7 +68,7 @@ pub fn App() -> Element {
                 onclick: move |_| {
                     let lang = "fr".parse::<LanguageIdentifier>().unwrap();
                     i18n_context.set_language(lang.clone());
-                    if let Err(e) = i18n::change_locale(&lang) {
+                    if let Err(e) = i18n::change_locale(&mut MANAGER.lock().unwrap(), &lang) {
                         log::error!("Failed to change locale: {}", e);
                     }
                 },

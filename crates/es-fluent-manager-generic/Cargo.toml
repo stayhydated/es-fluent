@@ -1,18 +1,15 @@
 [package]
-name = "es-fluent-manager-bevy"
+name = "es-fluent-manager-generic"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 readme.workspace = true
 repository.workspace = true
 version.workspace = true
+description = "A generic manager for es-fluent that can be used in various contexts."
 
 [dependencies]
-bevy.workspace = true
-es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-core = { workspace = true }
-fluent-bundle = { workspace = true }
-log = { workspace = true }
 unic-langid = { workspace = true }
 
 [lints]

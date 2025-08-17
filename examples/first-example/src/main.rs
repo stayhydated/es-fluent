@@ -4,17 +4,17 @@ use first_example::i18n;
 use strum::IntoEnumIterator as _;
 
 fn main() {
-    i18n::init();
+    let mut manager = i18n::init();
 
-    run("en");
+    run(&mut manager, "en");
 
-    run("fr");
+    run(&mut manager, "fr");
 
-    run("cn");
+    run(&mut manager, "cn");
 }
 
-fn run(locale: &str) {
-    i18n::change_locale(locale).unwrap();
+fn run(manager: &mut es_fluent::FluentManager, locale: &str) {
+    i18n::change_locale(manager, locale).unwrap();
 
     println!("Language: {locale}");
 
