@@ -30,9 +30,9 @@ pub enum Languages {
 impl From<Languages> for LanguageIdentifier {
     fn from(val: Languages) -> Self {
         match val {
-            Languages::English => langid!("en-US"),
-            Languages::French => langid!("fr-FR"),
-            Languages::Chinese => langid!("zh-CN"),
+            Languages::English => langid!("en"),
+            Languages::French => langid!("fr"),
+            Languages::Chinese => langid!("cn"),
         }
     }
 }

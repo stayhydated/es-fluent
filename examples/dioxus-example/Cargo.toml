@@ -1,0 +1,28 @@
+[package]
+name = "dioxus-example"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+readme.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+dioxus = "0.6.3"
+dioxus-i18n = "0.4.3"
+es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-macros = { workspace = true }
+log = { workspace = true }
+rust-embed = { workspace = true }
+strum = { features = [ "derive" ], workspace = true }
+unic-langid = { workspace = true }
+fluent = { workspace = true }
+fluent-bundle = { workspace = true }
+inventory = { workspace = true }
+
+[build-dependencies]
+es-fluent-build = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true

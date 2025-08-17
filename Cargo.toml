@@ -12,7 +12,7 @@ members = [
   "examples/first-example",
   "examples/thiserror-example",
   "examples/cfg_attr-example",
-  "examples/bevy-example",
+  "examples/bevy-example", "examples/dioxus-example",
 ]
 resolver = "3"
 
@@ -85,6 +85,16 @@ opt-level = 3
 codegen-units = 1
 lto = true
 opt-level = 3
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "deny" }

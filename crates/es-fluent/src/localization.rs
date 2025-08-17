@@ -1,8 +1,8 @@
 // In: crates/es-fluent/src/localization.rs
 
 use fluent_bundle::FluentValue;
-use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock, OnceLock};
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 
@@ -61,36 +61,43 @@ impl LocalizationContext {
     }
 }
 
-// --- Thread-Local Implementation ---
+// --- Global Thread-Safe Implementation ---
 
-thread_local! {
-    static CONTEXT: RefCell<Option<LocalizationContext>> = RefCell::new(None);
-}
+static CONTEXT: OnceLock<Arc<RwLock<LocalizationContext>>> = OnceLock::new();
 
-/// Sets the global localization context for the current thread.
+/// Sets the global localization context.
 /// Should be called once at application startup.
 pub fn set_context(context: LocalizationContext) {
-    CONTEXT.with(|ctx| *ctx.borrow_mut() = Some(context));
+    CONTEXT.set(Arc::new(RwLock::new(context)))
+        .map_err(|_| "Localization context already set")
+        .expect("Failed to set localization context");
 }
 
 /// Provides safe, scoped access to the localization context for mutation.
-pub fn with_context<F, R>(f: F) -> R where F: FnOnce(&mut LocalizationContext) -> R {
-    CONTEXT.with(|ctx| {
-        let mut borrowed = ctx.borrow_mut();
-        let context = borrowed.as_mut().expect("Localization context not set. Call es_fluent::localization::set_context() at startup.");
-        f(context)
-    })
+pub fn with_context<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut LocalizationContext) -> R
+{
+    let context_arc = CONTEXT.get()
+        .expect("Localization context not set. Call es_fluent::localization::set_context() at startup.");
+
+    let mut context = context_arc.write()
+        .expect("Failed to acquire write lock on localization context");
+
+    f(&mut *context)
 }
 
 /// The global localization function used by generated code.
 pub fn localize<'a>(id: &str, args: Option<&HashMap<&str, FluentValue<'a>>>) -> String {
-    CONTEXT.with(|ctx| {
-        let borrowed = ctx.borrow();
-        borrowed.as_ref()
-            .and_then(|context| context.get_translation(id, args))
-            .unwrap_or_else(|| {
-                log::warn!("Translation for '{}' not found or context not set.", id);
-                id.to_string()
-            })
-    })
+    let context_arc = CONTEXT.get()
+        .expect("Localization context not set. Call es_fluent::localization::set_context() at startup.");
+
+    let context = context_arc.read()
+        .expect("Failed to acquire read lock on localization context");
+
+    context.get_translation(id, args)
+        .unwrap_or_else(|| {
+            log::warn!("Translation for '{}' not found or context not set.", id);
+            id.to_string()
+        })
 }
