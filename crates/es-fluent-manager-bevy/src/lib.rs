@@ -3,6 +3,7 @@ use es_fluent;
 use es_fluent_manager_core::FluentManager;
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use unic_langid::LanguageIdentifier;
 
 #[derive(Event, Clone)]
@@ -15,27 +16,31 @@ pub struct LocaleChangedEvent(pub LanguageIdentifier);
 /// This resource is used for localization within Bevy systems.
 #[derive(Resource)]
 pub struct I18nResource {
-    manager: FluentManager,
+    manager: Arc<RwLock<FluentManager>>,
 }
 
 impl I18nResource {
     /// Creates a new `I18nResource` with a `FluentManager` that has discovered modules.
     pub fn new_with_discovered_modules() -> Self {
         Self {
-            manager: FluentManager::new_with_discovered_modules(),
+            manager: Arc::new(RwLock::new(FluentManager::new_with_discovered_modules())),
         }
     }
 
     /// Selects the language for all registered localizers.
     /// Errors from individual localizers are logged as warnings.
     pub fn select_language(&mut self, lang: &LanguageIdentifier) {
-        self.manager.select_language(lang);
+        let mut manager = self.manager.write()
+            .expect("Failed to acquire write lock on FluentManager");
+        manager.select_language(lang);
     }
 
     /// Attempts to localize a message ID with optional arguments.
     /// Returns the first successful localization from any localizer, or `None` if not found.
     pub fn localize<'a>(&self, id: &str, args: Option<&HashMap<&str, FluentValue<'a>>>) -> Option<String> {
-        self.manager.localize(id, args)
+        let manager = self.manager.read()
+            .expect("Failed to acquire read lock on FluentManager");
+        manager.localize(id, args)
     }
 }
 
@@ -56,8 +61,8 @@ impl Plugin for I18nPlugin {
         let mut i18n_resource = I18nResource::new_with_discovered_modules();
         i18n_resource.select_language(&self.initial_language);
 
-        // Set the global context for derive macros
-        es_fluent::set_context(i18n_resource.manager.clone());
+        // Set the global context for derive macros (shared reference)
+        es_fluent::set_shared_context(i18n_resource.manager.clone());
 
         app.insert_resource(i18n_resource);
 
@@ -108,10 +113,8 @@ fn handle_locale_changes(
         // Use the Bevy resource to mutate the state.
         i18n_resource.select_language(&event.0);
 
-        // Update the global context for derive macros
-        es_fluent::update_context(|manager| {
-            manager.select_language(&event.0);
-        });
+        // The global context for derive macros is automatically updated since we're using
+        // a shared Arc<RwLock<FluentManager>> that was set with set_shared_context
 
         writer.write(LocaleChangedEvent(event.0.clone()));
         info!("Locale changed to '{}'", event.0);

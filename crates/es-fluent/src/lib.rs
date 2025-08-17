@@ -23,10 +23,19 @@ pub fn set_context(manager: FluentManager) {
         .expect("Failed to set context");
 }
 
+/// Sets the global FluentManager context using a shared Arc<RwLock<FluentManager>>.
+/// This allows sharing the same manager instance between the global context and other resources.
+/// This is only needed when using the derive macros.
+pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
+    CONTEXT.set(manager)
+        .map_err(|_| "Context already set")
+        .expect("Failed to set shared context");
+}
+
 /// Updates the global FluentManager context for use with derive macros.
 /// This is only needed when using the derive macros.
-pub fn update_context<F>(f: F) 
-where 
+pub fn update_context<F>(f: F)
+where
     F: FnOnce(&mut FluentManager)
 {
     if let Some(context_arc) = CONTEXT.get() {

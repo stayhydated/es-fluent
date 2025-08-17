@@ -1,4 +1,6 @@
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
+#[allow(unused_imports)] // Needed for i18n module registration
+use bevy_example::i18n;
 use es_fluent::{EsFluent, ToFluentString};
 use es_fluent_manager_bevy::{I18nPlugin, LocaleChangeEvent, LocaleChangedEvent};
 use strum::{Display, EnumIter, IntoEnumIterator};
