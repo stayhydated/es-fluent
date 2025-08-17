@@ -3085,7 +3085,9 @@ dependencies = [
 name = "es-fluent-manager-generic"
 version = "0.1.3"
 dependencies = [
+ "es-fluent",
  "es-fluent-manager-core",
+ "log",
  "unic-langid",
 ]
 
@@ -3168,11 +3170,11 @@ dependencies = [
  "es-fluent",
  "es-fluent-build",
  "es-fluent-macros",
+ "es-fluent-manager-generic",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",
  "log",
- "rust-embed",
  "strum",
  "unic-langid",
 ]
@@ -6160,6 +6162,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-build",
  "es-fluent-macros",
+ "es-fluent-manager-generic",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",

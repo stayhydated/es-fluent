@@ -40,17 +40,17 @@ fn debit_account(
 }
 
 fn main() {
-    let mut manager = i18n::init();
+    i18n::init();
 
-    run(&mut manager, "en");
+    run("en");
 
-    run(&mut manager, "fr");
+    run("fr");
 
-    run(&mut manager, "cn");
+    run("cn");
 }
 
-fn run(manager: &mut es_fluent::FluentManager, locale: &str) {
-    i18n::change_locale(manager, locale).unwrap();
+fn run(locale: &str) {
+    i18n::change_locale(locale).unwrap();
 
     println!("Language : {}", locale);
 

@@ -8,11 +8,11 @@ publish = false
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-macros = { workspace = true }
+es-fluent-manager-generic = { workspace = true }
 fluent = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
-rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
 

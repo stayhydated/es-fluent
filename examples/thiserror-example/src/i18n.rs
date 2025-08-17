@@ -1,22 +1,13 @@
-use es_fluent::{FluentManager, set_context, update_context};
-use es_fluent_macros::define_i18n_module;
+use es_fluent_manager_generic as i18n_manager;
 
-define_i18n_module!("../i18n/");
+es_fluent_macros::define_i18n_module!("../i18n/");
 
-pub fn init() -> FluentManager {
-    let manager = FluentManager::new_with_discovered_modules();
-    // Set the global context for derive macros
-    set_context(manager.clone());
-    manager
+pub fn init() {
+    i18n_manager::init();
 }
 
-pub fn change_locale(
-    manager: &mut FluentManager,
-    language: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn change_locale(language: &str) -> Result<(), unic_langid::LanguageIdentifierError> {
     let lang_id: unic_langid::LanguageIdentifier = language.parse()?;
-    manager.select_language(&lang_id);
-    // Update the global context for derive macros
-    update_context(|ctx| *ctx = manager.clone());
+    i18n_manager::select_language(&lang_id);
     Ok(())
 }
