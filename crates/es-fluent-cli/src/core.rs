@@ -2,7 +2,6 @@ use crate::error::CliError;
 use cargo_metadata::{MetadataCommand, Package};
 use es_fluent_generate::FluentParseMode;
 use getset::Getters;
-use heck::ToSnakeCase as _;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as _};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -108,7 +107,7 @@ pub async fn build_crate(
     mode: FluentParseMode,
 ) -> Result<BuildOutcome, CliError> {
     let start = Instant::now();
-    let crate_name = krate.name.to_snake_case();
+    let crate_name = &krate.name;
 
     let result = (|| -> Result<(), CliError> {
         if let Some(parent) = krate.i18n_output_path.parent() {

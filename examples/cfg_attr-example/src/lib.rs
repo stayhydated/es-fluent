@@ -1,4 +1,6 @@
+#[cfg(feature = "i18n")]
 mod i18n;
+
 use es_fluent::EsFluent;
 use strum::EnumDiscriminants;
 

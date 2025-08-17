@@ -40,7 +40,7 @@ fn debit_account(
 }
 
 fn main() {
-    i18n::init(&["cn".parse().unwrap(), "fr".parse().unwrap()]);
+    i18n::init();
 
     run("en");
 
@@ -69,7 +69,7 @@ fn run(locale: &str) {
                 println!("thiserror: {}", e);
                 println!("i18n: {}", e.to_fluent_string());
                 println!();
-            },
+            }
         }
     }
     println!()

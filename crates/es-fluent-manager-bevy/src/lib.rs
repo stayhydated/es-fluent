@@ -1,88 +1,52 @@
+// In: crates/es-fluent-manager-bevy/src/lib.rs
+
 use bevy::prelude::*;
-use es_fluent_manager::I18N_MANAGER;
-use i18n_embed::unic_langid::LanguageIdentifier;
+use es_fluent::localization::{self, LocalizationContext};
+use unic_langid::LanguageIdentifier;
 
-pub use es_fluent_manager::{I18nManager, I18nManagerError, I18nModule};
+#[derive(Event, Clone)]
+pub struct LocaleChangeEvent(pub LanguageIdentifier);
 
-#[cfg(feature = "macros")]
-pub use es_fluent_manager::register_i18n_module;
+#[derive(Event, Clone)]
+pub struct LocaleChangedEvent(pub LanguageIdentifier);
 
-#[derive(Default, Resource)]
-pub struct I18nResource {
-    pub requested_languages: Vec<String>,
-}
-
-#[derive(Event)]
-pub struct LocaleChangeEvent {
-    pub locale: String,
-}
-
-#[derive(Event)]
-pub struct LocaleChangedEvent {
-    pub locale: String,
-}
-
+#[derive(Default)]
 pub struct I18nPlugin {
-    pub default_languages: Vec<String>,
+    initial_language: LanguageIdentifier,
+}
+
+impl I18nPlugin {
+    pub fn new(initial_language: LanguageIdentifier) -> Self {
+        Self { initial_language }
+    }
 }
 
 impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(I18nResource {
-            requested_languages: self.default_languages.clone(),
-        })
-        .add_event::<LocaleChangeEvent>()
-        .add_systems(Startup, initialize_i18n_system)
-        .add_systems(Update, handle_locale_changes_system);
+        let mut context = LocalizationContext::new_with_discovered_modules();
+        context.select_language(&self.initial_language);
+
+        // This is the most important step for the Bevy integration.
+        localization::set_context(context);
+
+        info!("es-fluent context initialized and set for language '{}'", self.initial_language);
+
+        app.add_event::<LocaleChangeEvent>()
+           .add_event::<LocaleChangedEvent>()
+           .add_systems(Update, handle_locale_changes);
     }
 }
 
-fn initialize_i18n_system(i18n_resource: Res<I18nResource>) {
-    let language_ids: Result<Vec<LanguageIdentifier>, _> = i18n_resource
-        .requested_languages
-        .iter()
-        .map(|lang| lang.parse())
-        .collect();
-
-    match language_ids {
-        Ok(langs) => {
-            if let Err(e) = I18N_MANAGER.init_all(&langs) {
-                error!("Failed to initialize I18n modules: {}", e);
-            } else {
-                info!("I18n modules initialized successfully");
-            }
-        },
-        Err(e) => {
-            error!("Failed to parse language identifiers: {}", e);
-        },
-    }
-}
-
-fn handle_locale_changes_system(
-    mut locale_change_events: EventReader<LocaleChangeEvent>,
-    mut commands: Commands,
+fn handle_locale_changes(
+    mut reader: EventReader<LocaleChangeEvent>,
+    mut writer: EventWriter<LocaleChangedEvent>,
 ) {
-    for event in locale_change_events.read() {
-        match I18N_MANAGER.change_locale_all(&event.locale) {
-            Ok(()) => {
-                info!("Locale changed to: {}", event.locale);
-                commands.trigger(LocaleChangedEvent {
-                    locale: event.locale.clone(),
-                });
-            },
-            Err(e) => {
-                error!("Failed to change locale to {}: {}", event.locale, e);
-            },
-        }
+    for event in reader.read() {
+        // Use the public `with_context` function to mutate the global state.
+        localization::with_context(|ctx| {
+            ctx.select_language(&event.0);
+        });
+        writer.write(LocaleChangedEvent(event.0.clone()));
+        info!("Locale changed to '{}'", event.0);
     }
-}
-
-pub fn change_locale(locale: &str, event_writer: &mut EventWriter<LocaleChangeEvent>) {
-    event_writer.write(LocaleChangeEvent {
-        locale: locale.to_string(),
-    });
-}
-
-pub fn get_current_locale() -> Option<String> {
-    I18N_MANAGER.current_language()
 }

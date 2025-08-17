@@ -1,9 +1,8 @@
-pub use bevy_example::fl;
-
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
 use es_fluent::{EsFluent, ToFluentString};
-use es_fluent_manager_bevy;
+use es_fluent_manager_bevy::{I18nPlugin, LocaleChangeEvent, LocaleChangedEvent};
 use strum::{Display, EnumIter, IntoEnumIterator};
+use unic_langid::{langid, LanguageIdentifier};
 
 #[derive(EsFluent)]
 pub enum ButtonState {
@@ -17,7 +16,7 @@ pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(Clone, Copy, Default, Display, EnumIter, EsFluent)]
+#[derive(Clone, Copy, Default, Display, EnumIter, EsFluent, PartialEq)]
 pub enum Languages {
     #[strum(serialize = "en")]
     #[default]
@@ -27,6 +26,19 @@ pub enum Languages {
     #[strum(serialize = "cn")]
     Chinese,
 }
+
+impl From<Languages> for LanguageIdentifier {
+    fn from(val: Languages) -> Self {
+        match val {
+            Languages::English => langid!("en-US"),
+            Languages::French => langid!("fr-FR"),
+            Languages::Chinese => langid!("zh-CN"),
+        }
+    }
+}
+
+#[derive(Resource)]
+struct CurrentLanguage(Languages);
 
 #[derive(Component)]
 struct LocalizedButton {
@@ -46,6 +58,8 @@ fn main() {
             ..default()
         }))
         .insert_resource(WinitSettings::desktop_app())
+        .insert_resource(CurrentLanguage(Languages::default()))
+        .add_plugins(I18nPlugin::new(Languages::default().into()))
         .add_systems(Startup, (setup, initialize_ui_text_system.after(setup)))
         .add_systems(
             Update,
@@ -53,60 +67,57 @@ fn main() {
                 button_system,
                 update_button_text_system,
                 example_locale_change_system,
+                update_ui_on_locale_change_system,
             ),
         )
-        .add_plugins(es_fluent_manager_bevy::I18nPlugin {
-            default_languages: Languages::iter().map(|l| l.to_string()).collect(),
-        })
-        .add_observer(update_ui_on_locale_change_system)
         .run();
 }
 
 fn example_locale_change_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut locale_change_events: EventWriter<es_fluent_manager_bevy::LocaleChangeEvent>,
+    mut locale_change_events: EventWriter<LocaleChangeEvent>,
+    mut current_language: ResMut<CurrentLanguage>,
 ) {
-    // Change locale when pressing 'T' key
     if keyboard.just_pressed(KeyCode::KeyT) {
-        let current_locale = es_fluent_manager_bevy::get_current_locale()
-            .unwrap_or(Languages::default().to_string());
-
         let languages: Vec<Languages> = Languages::iter().collect();
         let current_index = languages
             .iter()
-            .position(|lang| lang.to_string() == current_locale)
+            .position(|&lang| lang == current_language.0)
             .unwrap_or(0);
         let next_index = (current_index + 1) % languages.len();
-        let next_locale = languages[next_index];
+        let next_language = languages[next_index];
 
-        es_fluent_manager_bevy::change_locale(&next_locale.to_string(), &mut locale_change_events);
+        current_language.0 = next_language;
+        locale_change_events.write(LocaleChangeEvent(next_language.into()));
     }
 }
 
 fn update_ui_on_locale_change_system(
-    trigger: Trigger<es_fluent_manager_bevy::LocaleChangedEvent>,
+    mut events: EventReader<LocaleChangedEvent>,
     button_query: Query<&LocalizedButton>,
     mut text_queries: ParamSet<(
         Query<&mut Text, With<ButtonText>>,
         Query<&mut Text, With<LanguageHintText>>,
     )>,
+    current_language: Res<CurrentLanguage>,
 ) {
-    let event = trigger.event();
-    info!("UI updating for new locale: {}", event.locale);
+    for event in events.read() {
+        info!("UI updating for new locale: {}", event.0);
 
-    if let Ok(button) = button_query.single() {
-        if let Ok(mut text) = text_queries.p0().single_mut() {
-            *text = Text::from(button.current_state.to_fluent_string());
+        if let Ok(button) = button_query.single() {
+            if let Ok(mut text) = text_queries.p0().single_mut() {
+                *text = Text::from(button.current_state.to_fluent_string());
+            }
         }
-    }
 
-    let current_language = Languages::iter()
-        .find(|lang| lang.to_string() == event.locale)
-        .unwrap_or_default();
-
-    if let Ok(mut text) = text_queries.p1().single_mut() {
-        *text =
-            Text::from(ScreenMessages::ToggleLanguageHint { current_language }.to_fluent_string());
+        if let Ok(mut text) = text_queries.p1().single_mut() {
+            *text = Text::from(
+                ScreenMessages::ToggleLanguageHint {
+                    current_language: current_language.0,
+                }
+                .to_fluent_string(),
+            );
+        }
     }
 }
 
@@ -116,6 +127,7 @@ fn initialize_ui_text_system(
         Query<&mut Text, With<ButtonText>>,
         Query<&mut Text, With<LanguageHintText>>,
     )>,
+    current_language: Res<CurrentLanguage>,
 ) {
     if let Ok(button) = button_query.single() {
         if let Ok(mut text) = text_queries.p0().single_mut() {
@@ -126,7 +138,7 @@ fn initialize_ui_text_system(
     if let Ok(mut text) = text_queries.p1().single_mut() {
         *text = Text::from(
             ScreenMessages::ToggleLanguageHint {
-                current_language: Languages::default(),
+                current_language: current_language.0,
             }
             .to_fluent_string(),
         );
@@ -165,17 +177,17 @@ fn button_system(
                 localized_button.current_state = ButtonState::Pressed;
                 *color = PRESSED_BUTTON.into();
                 border_color.0 = RED.into();
-            },
+            }
             Interaction::Hovered => {
                 localized_button.current_state = ButtonState::Hovered;
                 *color = HOVERED_BUTTON.into();
                 border_color.0 = Color::WHITE;
-            },
+            }
             Interaction::None => {
                 localized_button.current_state = ButtonState::Normal;
                 *color = NORMAL_BUTTON.into();
                 border_color.0 = Color::BLACK;
-            },
+            }
         }
     }
 }

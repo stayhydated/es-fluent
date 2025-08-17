@@ -1,4 +1,3 @@
-use heck::ToSnakeCase as _;
 use std::path::{Path, PathBuf};
 mod error;
 use error::FluentBuildError;
@@ -49,8 +48,7 @@ impl FluentBuilder {
                 .unwrap_or_else(|| {
                     std::env::var("CARGO_PKG_NAME").expect("Error fetching `CARGO_PKG_NAME` env")
                 })
-        }
-        .to_snake_case();
+        };
 
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let src_dir = Path::new(&manifest_dir).join("src");
@@ -71,11 +69,11 @@ impl FluentBuilder {
         println!("cargo:rerun-if-changed=i18n.toml");
         println!("cargo:rerun-if-env-changed=CARGO_PKG_NAME");
 
-        let file_path = i18n_output_path.join(format!("{}.ftl", crate_name));
+        let file_path = i18n_output_path.join(format!("{}.ftl", &crate_name));
         println!("cargo:rerun-if-changed={}", file_path.display());
 
         let data = es_fluent_sc_parser::parse_directory(&src_dir)?;
-        es_fluent_generate::generate(crate_name, i18n_output_path, data, self.mode)?;
+        es_fluent_generate::generate(&crate_name, i18n_output_path, data, self.mode)?;
         Ok(())
     }
 }

@@ -14,7 +14,6 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
 
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) -> TokenStream {
     let original_ident = opts.ident();
-    let fl_path = opts.attr_args().fl();
 
     let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
@@ -25,9 +24,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
 
         match variant_opt.style() {
             darling::ast::Style::Unit => {
-                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string());
+                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string()).to_string();
                 quote! {
-                    Self::#variant_ident => write!(f, "{}", #fl_path!(#ftl_key))
+                    Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
                 }
             },
             darling::ast::Style::Tuple => {
@@ -45,7 +44,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                     })
                     .collect();
 
-                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string());
+                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string()).to_string();
 
                 let args: Vec<_> = all_fields
                     .iter()
@@ -56,22 +55,40 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                         }
 
                         let arg_name = namer::UnnamedItem::from(index).to_ident();
+                        let arg_key = arg_name.to_string();
                         let field_ty = field.ty();
                         let is_choice = field.is_choice();
 
-                        Some(generate_fluent_arg(&arg_name, field_ty, is_choice))
+                        let value_expr = if is_choice {
+                            quote! { #arg_name.as_fluent_choice() }
+                        } else {
+                            let mut current_ty = field_ty;
+                            let mut deref_count = 0;
+                            while let syn::Type::Reference(type_ref) = current_ty {
+                                deref_count += 1;
+                                current_ty = &type_ref.elem;
+                            }
+
+                            if deref_count > 0 {
+                                let mut inner = quote! { #arg_name };
+                                for _ in 0..deref_count {
+                                    inner = quote! { (*#inner) };
+                                }
+                                inner
+                            } else {
+                                quote! { #arg_name }
+                            }
+                        };
+                        
+                        Some(quote!{ args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); })
                     })
                     .collect();
 
-                let ftl_args = if !args.is_empty() {
-                    quote! { , #(#args),* }
-                } else {
-                    quote! {}
-                };
-
                 quote! {
                     Self::#variant_ident(#(#field_pats),*) => {
-                        write!(f, "{}", #fl_path!(#ftl_key #ftl_args))
+                        let mut args = ::std::collections::HashMap::new();
+                        #(#args)*
+                        write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
                     }
                 }
             },
@@ -80,24 +97,40 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                 let field_pats: Vec<_> =
                     fields.iter().map(|f| f.ident().as_ref().unwrap()).collect();
 
-                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string());
+                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string()).to_string();
 
                 let args: Vec<_> = fields
                     .iter()
                     .map(|field_opt| {
                         let arg_name = field_opt.ident().as_ref().unwrap();
+                        let arg_key = arg_name.to_string();
                         let field_ty = field_opt.ty();
                         let is_choice = field_opt.is_choice();
 
-                        generate_fluent_arg(arg_name, field_ty, is_choice)
+                        let value_expr = if is_choice {
+                            quote! { #arg_name.as_fluent_choice() }
+                        } else {
+                            let mut current_ty = field_ty;
+                            let mut deref_count = 0;
+                            while let syn::Type::Reference(type_ref) = current_ty {
+                                deref_count += 1;
+                                current_ty = &type_ref.elem;
+                            }
+
+                            if deref_count > 0 {
+                                let mut inner = quote! { #arg_name };
+                                for _ in 0..deref_count {
+                                    inner = quote! { (*#inner) };
+                                }
+                                inner
+                            } else {
+                                quote! { #arg_name }
+                            }
+                        };
+                        
+                        quote!{ args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); }
                     })
                     .collect();
-
-                let ftl_args = if !args.is_empty() {
-                    quote! { , #(#args),* }
-                } else {
-                    quote! {}
-                };
 
                 let all_fields = variant_opt.all_fields();
                 let has_skipped_fields = all_fields.len() > fields.len();
@@ -110,7 +143,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
 
                 quote! {
                     #pattern => {
-                        write!(f, "{}", #fl_path!(#ftl_key #ftl_args))
+                        let mut args = ::std::collections::HashMap::new();
+                        #(#args)*
+                        write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
                     }
                 }
             },
@@ -152,11 +187,11 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
     };
 
     let this_ftl_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(original_ident, "");
+        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
         quote! {
             impl #impl_generics #original_ident #ty_generics #where_clause {
                 pub fn this_ftl() -> String {
-                    #fl_path!(#this_ftl_key)
+                    ::es_fluent::localize(#this_ftl_key, None)
                 }
             }
         }
@@ -180,32 +215,5 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                 (&value).into()
             }
       }
-    }
-}
-
-fn generate_fluent_arg(
-    arg_name: &proc_macro2::Ident,
-    field_ty: &syn::Type,
-    is_choice: bool,
-) -> TokenStream {
-    if is_choice {
-        return quote! { #arg_name = #arg_name.as_fluent_choice() };
-    }
-
-    let mut current_ty = field_ty;
-    let mut deref_count = 0;
-    while let syn::Type::Reference(type_ref) = current_ty {
-        deref_count += 1;
-        current_ty = &type_ref.elem;
-    }
-
-    if deref_count > 0 {
-        let mut inner = quote! { #arg_name };
-        for _ in 0..deref_count {
-            inner = quote! { (*#inner) };
-        }
-        quote! { #arg_name = #inner }
-    } else {
-        quote! { #arg_name = #arg_name }
     }
 }

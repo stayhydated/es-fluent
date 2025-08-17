@@ -6,7 +6,6 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 pub fn process_struct(opts: &StructOpts, data: &syn::DataStruct) -> TokenStream {
-    let fl_path = opts.attr_args().fl();
     let strategy = DisplayStrategy::from(opts);
     let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
 
@@ -21,11 +20,11 @@ pub fn process_struct(opts: &StructOpts, data: &syn::DataStruct) -> TokenStream 
 
         let this_ftl_impl = if opts.attr_args().is_this() {
             let original_ident = opts.ident();
-            let this_ftl_key = namer::FluentKey::new(original_ident, "");
+            let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
             quote! {
                 impl #original_ident {
                     pub fn this_ftl() -> String {
-                        #fl_path!(#this_ftl_key)
+                        ::es_fluent::localize(#this_ftl_key, None)
                     }
                 }
             }
@@ -47,8 +46,6 @@ fn generate_unit_enum(
     use_fluent_display: bool,
     ident: &syn::Ident,
 ) -> TokenStream {
-    let fl_path = opts.attr_args().fl();
-
     let field_opts = opts.fields();
 
     let variants: Vec<_> = field_opts
@@ -63,9 +60,9 @@ fn generate_unit_enum(
 
     let match_arms = variants.iter().map(|(variant_ident, _)| {
         let base_key = variant_ident.to_string().to_snake_case();
-        let ftl_key = namer::FluentKey::new(ident, &base_key);
+        let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
         quote! {
-            Self::#variant_ident => write!(f, "{}", #fl_path!(#ftl_key))
+            Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
         }
     });
 
@@ -131,11 +128,11 @@ fn generate_unit_enum(
     };
 
     let this_ftl_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(ident, "");
+        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
         quote! {
             impl #ident {
                 pub fn this_ftl() -> String {
-                    #fl_path!(#this_ftl_key)
+                    ::es_fluent::localize(#this_ftl_key, None)
                 }
             }
         }
@@ -152,8 +149,8 @@ fn generate_unit_enum(
 
       #this_ftl_impl
 
-      impl From<&#ident> for ::es_fluent::FluentValue<'_> {
-            fn from(value: &#ident) -> Self {
+      impl From<& #ident> for ::es_fluent::FluentValue<'_> {
+            fn from(value: & #ident) -> Self {
               value.to_string().into()
             }
       }

@@ -8,15 +8,10 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 bevy.workspace = true
-es-fluent-manager = { workspace = true }
-i18n-embed.workspace = true
-inventory.workspace = true
-
-[features]
-default = [  ]
-macros = [ "es-fluent-manager/macros" ]
+es-fluent = { features = [ "derive" ], workspace = true }
+log = { workspace = true }
+unic-langid = { workspace = true }
 
 [lints]
 workspace = true

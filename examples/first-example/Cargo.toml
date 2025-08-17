@@ -7,11 +7,14 @@ publish = false
 
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
-i18n-embed = { features = [ "fluent-system", "desktop-requester" ], workspace = true }
-i18n-embed-fl = { workspace = true }
+es-fluent-macros = { workspace = true }
 log = { workspace = true }
 rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
+unic-langid = { workspace = true }
+fluent = { workspace = true }
+fluent-bundle = { workspace = true }
+inventory = { workspace = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }
