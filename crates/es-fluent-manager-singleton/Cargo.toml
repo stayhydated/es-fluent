@@ -1,5 +1,5 @@
 [package]
-name = "es-fluent-manager-generic"
+name = "es-fluent-manager-singleton"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true

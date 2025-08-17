@@ -1,4 +1,4 @@
-use es_fluent_manager_generic as i18n_manager;
+use es_fluent_manager_singleton as i18n_manager;
 
 es_fluent_macros::define_i18n_module!("../i18n/");
 

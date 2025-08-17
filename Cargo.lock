@@ -3082,7 +3082,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "es-fluent-manager-generic"
+name = "es-fluent-manager-singleton"
 version = "0.1.3"
 dependencies = [
  "es-fluent",
@@ -3170,7 +3170,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-build",
  "es-fluent-macros",
- "es-fluent-manager-generic",
+ "es-fluent-manager-singleton",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",
@@ -6162,7 +6162,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-build",
  "es-fluent-macros",
- "es-fluent-manager-generic",
+ "es-fluent-manager-singleton",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",
