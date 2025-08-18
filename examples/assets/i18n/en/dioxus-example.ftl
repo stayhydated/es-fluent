@@ -7,12 +7,12 @@ button_state-Pressed = Pressed
 ## Languages
 
 languages-Chinese = Chinese
-languages-English = English
+languages-English = Englishn't
 languages-French = French
 
 ## ScreenMessages
 
-screen_messages-AppTitle = App Title
-screen_messages-ButtonDemo = Button Demo
-screen_messages-Instructions = Instructions
+screen_messages-AppTitle = App Titleaaaaaaaa
+screen_messages-ButtonDemo = Button Demo holy shit this works
+screen_messages-Instructions = Instructions but not very well :(
 screen_messages-ToggleLanguageHint = Toggle Language Hint { $current_language }

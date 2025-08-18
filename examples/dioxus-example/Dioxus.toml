@@ -8,6 +8,9 @@ title = "dioxus-example"
 # include `assets` in web platform
 [web.resource]
 
+# Include i18n assets directory
+assets = [ "../assets" ]
+
 # Additional CSS style files
 style = [  ]
 

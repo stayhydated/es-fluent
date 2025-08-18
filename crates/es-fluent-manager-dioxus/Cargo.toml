@@ -9,6 +9,7 @@ version.workspace = true
 description = "A Dioxus web-native internationalization (i18n) manager that integrates es-fluent with Dioxus's asset system."
 
 [dependencies]
+anyhow = { workspace = true }
 dioxus = { features = [ "macro", "hooks", "signals" ], workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
@@ -18,6 +19,7 @@ inventory = { workspace = true }
 log = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
+
 
 [features]
 default = [ "macros" ]

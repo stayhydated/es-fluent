@@ -263,8 +263,14 @@ pub fn define_dioxus_i18n_module(_input: TokenStream) -> TokenStream {
         }
     }
 
-    let language_identifiers = languages.iter().map(|lang| {
-        quote! { unic_langid::langid!(#lang) }
+    // Generate content tuples for each language
+    let content_tuples = languages.iter().map(|lang| {
+        let ftl_file_name = format!("{}.ftl", crate_name);
+        let ftl_path = format!("{}/{}/{}", i18n_root_path.display(), lang, ftl_file_name);
+
+        quote! {
+            (#lang, include_str!(#ftl_path))
+        }
     });
 
     let export_sym = format!("es_fluent_{}_init_wasm_ctors", crate_name.replace('-', "_"));
@@ -280,17 +286,17 @@ pub fn define_dioxus_i18n_module(_input: TokenStream) -> TokenStream {
             __wasm_call_ctors();
         }
 
-        static #static_data_name: es_fluent_manager_core::AssetModuleData = es_fluent_manager_core::AssetModuleData {
+        static #static_data_name: es_fluent_manager_dioxus::DioxusModuleData = es_fluent_manager_dioxus::DioxusModuleData {
             name: #crate_name,
             domain: #crate_name,
-            supported_languages: &[
-                #(#language_identifiers),*
+            content: &[
+                #(#content_tuples),*
             ],
         };
 
         inventory::submit!(
-            &es_fluent_manager_core::AssetI18nModule::new(&#static_data_name)
-            as &dyn es_fluent_manager_core::I18nAssetModule
+            &es_fluent_manager_dioxus::DioxusI18nModule::new(&#static_data_name)
+            as &dyn es_fluent_manager_core::I18nModule
         );
     };
 
