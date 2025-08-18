@@ -1,66 +1,213 @@
-// The dioxus prelude contains a ton of common items used in dioxus apps. It's a good idea to import wherever you
-// need dioxus
+use dioxus::events::Key;
 use dioxus::prelude::*;
+use es_fluent::{EsFluent, ToFluentString};
+use es_fluent_manager_dioxus::*;
+use strum::{Display, EnumIter, IntoEnumIterator};
+use tracing;
+use unic_langid::{LanguageIdentifier, langid};
 
-use views::{Blog, Home, Navbar};
+// Define the i18n module for this crate
+es_fluent_manager_dioxus::define_dioxus_i18n_module!();
 
-/// Define a components module that contains all shared components for our app.
-mod components;
-/// Define a views module that contains the UI for all Layouts and Routes for our app.
-mod views;
-
-/// The Route enum is used to define the structure of internal routes in our app. All route enums need to derive
-/// the [`Routable`] trait, which provides the necessary methods for the router to work.
-/// 
-/// Each variant represents a different URL pattern that can be matched by the router. If that pattern is matched,
-/// the components for that route will be rendered.
-#[derive(Clone, Debug, PartialEq, Routable)]
-#[rustfmt::skip]
-enum Route {
-    // The layout attribute defines a wrapper for all routes under the layout. Layouts are great for wrapping
-    // many routes with a common UI like a navbar.
-    #[layout(Navbar)]
-        // The route attribute defines the URL pattern that a specific route matches. If that pattern matches the URL,
-        // the component for that route will be rendered. The component name that is rendered defaults to the variant name.
-        #[route("/")]
-        Home {},
-        // The route attribute can include dynamic parameters that implement [`std::str::FromStr`] and [`std::fmt::Display`] with the `:` syntax.
-        // In this case, id will match any integer like `/blog/123` or `/blog/-456`.
-        #[route("/blog/:id")]
-        // Fields of the route variant will be passed to the component as props. In this case, the blog component must accept
-        // an `id` prop of type `i32`.
-        Blog { id: i32 },
+#[derive(Clone, Copy, Debug, EsFluent, PartialEq)]
+pub enum ButtonState {
+    Normal,
+    Hovered,
+    Pressed,
 }
 
-// We can import assets in dioxus with the `asset!` macro. This macro takes a path to an asset relative to the crate root.
-// The macro returns an `Asset` type that will display as the path to the asset in the browser or a local path in desktop bundles.
-const FAVICON: Asset = asset!("/assets/favicon.ico");
-// The asset macro also minifies some assets like CSS and JS to make bundled smaller
-const MAIN_CSS: Asset = asset!("/assets/styling/main.css");
-const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub enum ScreenMessages {
+    ToggleLanguageHint { current_language: Languages },
+    AppTitle,
+    Instructions,
+    ButtonDemo,
+}
+
+#[derive(Clone, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq)]
+pub enum Languages {
+    #[strum(serialize = "en")]
+    #[default]
+    English,
+    #[strum(serialize = "fr")]
+    French,
+    #[strum(serialize = "cn")]
+    Chinese,
+}
+
+impl From<Languages> for LanguageIdentifier {
+    fn from(val: Languages) -> Self {
+        match val {
+            Languages::English => langid!("en"),
+            Languages::French => langid!("fr"),
+            Languages::Chinese => langid!("cn"),
+        }
+    }
+}
 
 fn main() {
-    // The `launch` function is the main entry point for a dioxus app. It takes a component and renders it with the platform feature
-    // you have enabled
+    // Enable logging for debugging
+    dioxus_logger::init(tracing::Level::INFO).expect("failed to init logger");
+
+    // Set up i18n configuration
+    let config = setup_i18n_debug(Languages::default().into());
+
+    // Initialize the i18n system
+    init(config);
+
     dioxus::launch(App);
 }
 
-/// App is the main component of our app. Components are the building blocks of dioxus apps. Each component is a function
-/// that takes some props and returns an Element. In this case, App takes no props because it is the root of our app.
-///
-/// Components should be annotated with `#[component]` to support props, better error messages, and autocomplete
 #[component]
 fn App() -> Element {
-    // The `rsx!` macro lets us define HTML inside of rust. It expands to an Element with all of our HTML inside.
     rsx! {
-        // In addition to element and text (which we will see later), rsx can contain other components. In this case,
-        // we are using the `document::Link` component to add a link to our favicon and main CSS file into the head of our app.
-        document::Link { rel: "icon", href: FAVICON }
-        document::Link { rel: "stylesheet", href: MAIN_CSS }
-        document::Link { rel: "stylesheet", href: TAILWIND_CSS }
+        div { class: "min-h-screen bg-gray-900 text-white font-sans",
+            MainContent {}
+        }
+    }
+}
 
-        // The router component renders the route enum we defined above. It will handle synchronization of the URL and render
-        // the layouts and components for the active route.
-        Router::<Route> {}
+#[component]
+fn MainContent() -> Element {
+    let mut current_language = use_signal(|| Languages::default());
+    let mut is_loading = use_signal(|| true);
+
+    // Check if assets are loaded
+    use_effect(move || {
+        spawn(async move {
+            loop {
+                let loaded = is_language_loaded(&current_language().into());
+                is_loading.set(!loaded);
+                if loaded {
+                    tracing::info!("Assets loaded for language: {:?}", current_language());
+                    break;
+                }
+                gloo_timers::future::TimeoutFuture::new(100).await;
+            }
+        });
+    });
+
+    // Handle keyboard events for language switching
+    let handle_keydown = move |event: KeyboardEvent| {
+        if event.key() == Key::Character("t".to_string())
+            || event.key() == Key::Character("T".to_string())
+        {
+            let languages: Vec<Languages> = Languages::iter().collect();
+            let current_index = languages
+                .iter()
+                .position(|&lang| lang == current_language())
+                .unwrap_or(0);
+            let next_index = (current_index + 1) % languages.len();
+            let next_language = languages[next_index];
+
+            current_language.set(next_language);
+            set_language(next_language.into());
+            tracing::info!("Language changed to: {:?}", next_language);
+        }
+    };
+
+    rsx! {
+        div {
+            class: "min-h-screen flex flex-col items-center justify-center p-8",
+            onkeydown: handle_keydown,
+            tabindex: "0",
+            autofocus: true,
+
+            if is_loading() {
+                LoadingScreen {}
+            } else {
+                MainUI { current_language }
+            }
+        }
+    }
+}
+
+#[component]
+fn LoadingScreen() -> Element {
+    rsx! {
+        div { class: "flex flex-col items-center justify-center space-y-4",
+            div { class: "animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400" }
+            p { class: "text-xl text-gray-300", "Loading translations..." }
+        }
+    }
+}
+
+#[component]
+fn MainUI(current_language: Signal<Languages>) -> Element {
+    let app_title = ScreenMessages::AppTitle.to_fluent_string();
+    let instructions = ScreenMessages::Instructions.to_fluent_string();
+    let language_hint = ScreenMessages::ToggleLanguageHint {
+        current_language: current_language(),
+    }
+    .to_fluent_string();
+    let current_lang_display = format!("{}", current_language());
+
+    rsx! {
+        div { class: "flex flex-col items-center space-y-8 max-w-md mx-auto text-center",
+            div { class: "space-y-4",
+                h1 {
+                    class: "text-4xl font-bold text-blue-400 mb-2",
+                    "{app_title}"
+                }
+
+                p {
+                    class: "text-lg text-gray-300",
+                    "{instructions}"
+                }
+            }
+
+            InteractiveButton {}
+
+            p {
+                class: "text-sm text-gray-400 mt-6 px-4 py-2 bg-gray-800 rounded-lg border border-gray-700",
+                "{language_hint}"
+            }
+
+            div { class: "flex items-center space-x-2 mt-4",
+                span { class: "text-sm text-gray-500", "Current:" }
+                span {
+                    class: "px-3 py-1 bg-blue-600 rounded-full text-sm font-medium",
+                    "{current_lang_display}"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn InteractiveButton() -> Element {
+    let mut button_state = use_signal(|| ButtonState::Normal);
+
+    let button_classes = match button_state() {
+        ButtonState::Normal => "bg-gray-700 hover:bg-gray-600 border-gray-500",
+        ButtonState::Hovered => "bg-gray-600 border-white",
+        ButtonState::Pressed => "bg-green-600 border-red-500",
+    };
+
+    let button_demo_title = ScreenMessages::ButtonDemo.to_fluent_string();
+    let button_text = button_state().to_fluent_string();
+
+    rsx! {
+        div { class: "space-y-4",
+            h2 {
+                class: "text-xl font-semibold text-gray-200",
+                "{button_demo_title}"
+            }
+
+            button {
+                class: "px-8 py-4 rounded-lg border-2 transition-all duration-200 text-lg font-medium min-w-[150px] {button_classes}",
+                onmouseenter: move |_| button_state.set(ButtonState::Hovered),
+                onmouseleave: move |_| button_state.set(ButtonState::Normal),
+                onmousedown: move |_| button_state.set(ButtonState::Pressed),
+                onmouseup: move |_| button_state.set(ButtonState::Hovered),
+
+                "{button_text}"
+            }
+
+            p {
+                class: "text-sm text-gray-400",
+                "Hover, click, and interact with the button above"
+            }
+        }
     }
 }

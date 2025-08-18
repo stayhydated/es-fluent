@@ -8,15 +8,16 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-dioxus = { features = [ "router", "fullstack" ], version = "0.6.3" }
-dioxus-i18n = "0.4.3"
+dioxus = { features = [ "router", "fullstack", "logger" ], workspace = true }
+dioxus-logger = "0.5"
 es-fluent = { features = [ "derive" ], workspace = true }
-fluent = { workspace = true }
-fluent-bundle = { workspace = true }
+es-fluent-manager-core = { workspace = true }
+es-fluent-manager-dioxus = { workspace = true }
+gloo-timers = { features = [ "futures" ], version = "0.3" }
 inventory = { workspace = true }
 log = { workspace = true }
-rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
+tracing = { workspace = true }
 unic-langid = { workspace = true }
 
 [build-dependencies]
