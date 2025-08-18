@@ -12,7 +12,7 @@ languages-French = French
 
 ## ScreenMessages
 
-screen_messages-AppTitle = App Titleaaaaaaaa
-screen_messages-ButtonDemo = Button Demo holy shit this works
-screen_messages-Instructions = Instructions but not very well :(
-screen_messages-ToggleLanguageHint = Toggle Language Hint { $current_language }
+screen_messages-AppTitle = Demo i18n dioxus
+screen_messages-ButtonDemo = Demo interactive button
+screen_messages-Instructions = Press on 'T' to toggle language
+screen_messages-ToggleLanguageHint = Press on 'T' to toggle language (current language: { $current_language })

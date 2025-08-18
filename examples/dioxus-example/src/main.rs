@@ -136,7 +136,7 @@ fn MainUI(current_language: Signal<Languages>) -> Element {
         current_language: current_language(),
     }
     .to_fluent_string();
-    let current_lang_display = format!("{}", current_language());
+    let current_lang_display = current_language().to_fluent_string();
 
     rsx! {
         div { class: "flex flex-col items-center space-y-8 max-w-md mx-auto text-center",
