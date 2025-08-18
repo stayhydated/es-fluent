@@ -6,7 +6,6 @@ use strum::{Display, EnumIter, IntoEnumIterator};
 use tracing;
 use unic_langid::{LanguageIdentifier, langid};
 
-// Define the i18n module for this crate
 es_fluent_manager_dioxus::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, EsFluent, PartialEq)]
@@ -113,11 +112,8 @@ fn MainContent() -> Element {
             tabindex: "0",
             autofocus: true,
 
-            if is_loading() {
-                LoadingScreen {}
-            } else {
-                MainUI { current_language }
-            }
+            MainUI { current_language }
+
         }
     }
 }

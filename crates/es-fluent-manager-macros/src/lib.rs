@@ -267,7 +267,19 @@ pub fn define_dioxus_i18n_module(_input: TokenStream) -> TokenStream {
         quote! { unic_langid::langid!(#lang) }
     });
 
+    let export_sym = format!("es_fluent_{}_init_wasm_ctors", crate_name.replace('-', "_"));
+    let export_lit = syn::LitStr::new(&export_sym, proc_macro2::Span::call_site());
+
     let expanded = quote! {
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        unsafe extern "C" { fn __wasm_call_ctors(); }
+
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        #[unsafe(export_name = #export_lit)]
+        pub unsafe extern "C" fn __es_fluent_call_wasm_ctors() {
+            __wasm_call_ctors();
+        }
+
         static #static_data_name: es_fluent_manager_core::AssetModuleData = es_fluent_manager_core::AssetModuleData {
             name: #crate_name,
             domain: #crate_name,
