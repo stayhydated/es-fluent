@@ -11,6 +11,7 @@ description = "A generic manager for es-fluent that can be used in various conte
 [dependencies]
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
+inventory = { workspace = true }
 log = { workspace = true }
 unic-langid = { workspace = true }
 

@@ -1,5 +1,6 @@
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt, LoadContext};
 use bevy::prelude::*;
+use es_fluent_manager_core::I18nAssetModule;
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -163,7 +164,9 @@ impl I18nResource {
 pub struct I18nPluginConfig {
     pub initial_language: LanguageIdentifier,
     pub asset_path: String,
+    /// Optional manual domains - if empty, will auto-discover via inventory
     pub domains: Vec<String>,
+    /// Optional manual languages - if empty, will auto-discover via inventory
     pub supported_languages: Vec<LanguageIdentifier>,
 }
 
@@ -172,8 +175,8 @@ impl Default for I18nPluginConfig {
         Self {
             initial_language: unic_langid::langid!("en"),
             asset_path: "i18n".to_string(),
-            domains: vec!["main".to_string()],
-            supported_languages: vec![unic_langid::langid!("en")],
+            domains: vec![],             // Auto-discover
+            supported_languages: vec![], // Auto-discover
         }
     }
 }
@@ -226,14 +229,50 @@ impl Plugin for I18nPlugin {
         let mut i18n_assets = I18nAssets::new();
         let i18n_resource = I18nResource::new(self.config.initial_language.clone());
 
-        // Load all FTL assets
+        // Auto-discover modules or use manual configuration
         let asset_server = app.world().resource::<AssetServer>();
-        for lang in &self.config.supported_languages {
-            for domain in &self.config.domains {
-                let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
-                let handle: Handle<FtlAsset> = asset_server.load(&path);
-                i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
-                info!("Loading i18n asset: {}", path);
+
+        if self.config.domains.is_empty() || self.config.supported_languages.is_empty() {
+            // Auto-discover via inventory
+            let mut discovered_domains = std::collections::HashSet::new();
+            let mut discovered_languages = std::collections::HashSet::new();
+
+            for module in inventory::iter::<&'static dyn I18nAssetModule>() {
+                let data = module.data();
+                discovered_domains.insert(data.domain.to_string());
+                for lang in data.supported_languages {
+                    discovered_languages.insert(lang.clone());
+                }
+                info!(
+                    "Discovered i18n module: {} with domain: {}",
+                    data.name, data.domain
+                );
+            }
+
+            // Load discovered assets
+            for lang in &discovered_languages {
+                for domain in &discovered_domains {
+                    let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
+                    let handle: Handle<FtlAsset> = asset_server.load(&path);
+                    i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
+                    info!("Loading discovered i18n asset: {}", path);
+                }
+            }
+
+            info!(
+                "Auto-discovered {} domains and {} languages",
+                discovered_domains.len(),
+                discovered_languages.len()
+            );
+        } else {
+            // Use manual configuration
+            for lang in &self.config.supported_languages {
+                for domain in &self.config.domains {
+                    let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
+                    let handle: Handle<FtlAsset> = asset_server.load(&path);
+                    i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
+                    info!("Loading configured i18n asset: {}", path);
+                }
             }
         }
 
@@ -251,11 +290,7 @@ impl Plugin for I18nPlugin {
                     .chain(),
             );
 
-        info!(
-            "I18n plugin initialized with {} languages and {} domains",
-            self.config.supported_languages.len(),
-            self.config.domains.len()
-        );
+        info!("I18n plugin initialized successfully");
     }
 }
 
@@ -460,4 +495,5 @@ fn bevy_custom_localizer<'a>(id: &str, args: Option<&HashMap<&str, FluentValue<'
 }
 
 // Re-export commonly used types for convenience
+// Re-exported from es_fluent_manager_core (already imported above)
 pub use unic_langid::langid;

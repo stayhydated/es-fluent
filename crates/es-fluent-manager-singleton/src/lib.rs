@@ -1,6 +1,6 @@
 use es_fluent::set_shared_context;
-use es_fluent_manager_core::FluentManager;
-use std::sync::{Arc, RwLock, OnceLock};
+use es_fluent_manager_core::{FluentManager, I18nAssetModule};
+use std::sync::{Arc, OnceLock, RwLock};
 use unic_langid::LanguageIdentifier;
 
 static GENERIC_MANAGER: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
@@ -22,4 +22,68 @@ pub fn select_language(lang: &LanguageIdentifier) {
     } else {
         log::error!("Generic fluent manager not initialized. Call init() first.");
     }
+}
+
+/// Initialize the singleton manager with support for both static and asset-based modules.
+/// This provides automatic discovery of all available i18n modules.
+pub fn init_with_discovery() {
+    let manager = FluentManager::new_with_discovered_modules();
+    let manager_arc = Arc::new(RwLock::new(manager));
+
+    // Log discovered asset modules for informational purposes
+    log_discovered_asset_modules();
+
+    if GENERIC_MANAGER.set(manager_arc.clone()).is_ok() {
+        set_shared_context(manager_arc);
+        log::info!("Generic fluent manager initialized with module discovery");
+    } else {
+        log::warn!("Generic fluent manager already initialized.");
+    }
+}
+
+/// Get information about discovered asset modules.
+/// This is useful for applications that want to implement their own asset loading.
+pub fn get_discovered_asset_modules() -> Vec<&'static dyn I18nAssetModule> {
+    inventory::iter::<&'static dyn I18nAssetModule>()
+        .map(|m| *m)
+        .collect()
+}
+
+/// Log information about discovered asset modules.
+/// This helps with debugging and understanding what modules are available.
+fn log_discovered_asset_modules() {
+    let asset_modules = get_discovered_asset_modules();
+    if !asset_modules.is_empty() {
+        log::info!(
+            "Discovered {} asset-based i18n modules:",
+            asset_modules.len()
+        );
+        for module in asset_modules {
+            let data = module.data();
+            log::info!(
+                "  - Module '{}' (domain: '{}') with {} languages: {:?}",
+                data.name,
+                data.domain,
+                data.supported_languages.len(),
+                data.supported_languages
+            );
+        }
+        log::info!(
+            "Note: Asset modules require a compatible manager (like es-fluent-manager-bevy) for runtime loading"
+        );
+    } else {
+        log::debug!("No asset-based i18n modules discovered");
+    }
+}
+
+/// Get asset module information for implementing custom asset loading.
+/// Returns tuples of (domain, languages) for each discovered module.
+pub fn get_asset_loading_info() -> Vec<(&'static str, &'static [LanguageIdentifier])> {
+    get_discovered_asset_modules()
+        .into_iter()
+        .map(|module| {
+            let data = module.data();
+            (data.domain, data.supported_languages)
+        })
+        .collect()
 }

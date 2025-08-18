@@ -12,6 +12,7 @@ bevy.workspace = true
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
+inventory = { workspace = true }
 log = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }

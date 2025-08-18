@@ -20,6 +20,7 @@ This crate provides a Bevy plugin that enables runtime loading of Fluent (.ftl) 
 [dependencies]
 bevy = "0.16"
 es-fluent = { version = "0.1", features = ["derive"] }
+es-fluent-macros = "0.1"
 es-fluent-manager-bevy = "0.1"
 unic-langid = "0.9"
 ```
@@ -44,8 +45,11 @@ assets/
 ```rust
 use bevy::prelude::*;
 use es_fluent::EsFluent;
-use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
+use es_fluent_manager_bevy::I18nPlugin;
 use unic_langid::langid;
+
+// Automatically discovers translation files and registers for asset loading
+es_fluent_macros::define_bevy_i18n_module!("../assets/i18n/");
 
 #[derive(EsFluent)]
 enum MyMessages {
@@ -56,12 +60,7 @@ enum MyMessages {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(I18nPlugin::with_config(I18nPluginConfig {
-            initial_language: langid!("en"),
-            asset_path: "i18n".to_string(),
-            domains: vec!["main".to_string()],
-            supported_languages: vec![langid!("en"), langid!("fr"), langid!("cn")],
-        }))
+        .add_plugins(I18nPlugin::with_language(langid!("en"))) // Auto-discovers modules
         .run();
 }
 ```
@@ -220,10 +219,11 @@ Thanks to Bevy's asset system, translation files support hot-reloading in develo
 
 If you were previously using the compile-time embedding approach:
 
-1. **Remove** `build.rs` and build dependencies
-2. **Move** .ftl files from source directory to `assets/i18n/`  
-3. **Replace** `I18nPlugin::new()` with `I18nPlugin::with_config()`
-4. **Keep** all your `#[derive(EsFluent)]` code unchanged!
+1. **Replace** `es_fluent_macros::define_i18n_module!()` with `es_fluent_macros::define_bevy_i18n_module!()`
+2. **Remove** `build.rs` and build dependencies (no longer needed)
+3. **Move** .ftl files from source directory to `assets/i18n/` (if not already there)
+4. **Simplify** plugin setup to `I18nPlugin::with_language()` (auto-discovery replaces manual config)
+5. **Keep** all your `#[derive(EsFluent)]` code unchanged!
 
 ## Comparison with Other Approaches
 
