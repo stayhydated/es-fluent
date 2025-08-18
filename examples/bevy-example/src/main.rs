@@ -1,24 +1,22 @@
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
 use es_fluent::{EsFluent, ToFluentString};
-use es_fluent_manager_bevy::{I18nPlugin, LocaleChangeEvent, LocaleChangedEvent};
+use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig, LocaleChangeEvent, LocaleChangedEvent};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use unic_langid::{LanguageIdentifier, langid};
 
-es_fluent_macros::define_i18n_module!("../i18n/");
-
-#[derive(EsFluent)]
+#[derive(Clone, Copy, Debug, EsFluent)]
 pub enum ButtonState {
     Normal,
     Hovered,
     Pressed,
 }
 
-#[derive(EsFluent)]
+#[derive(Clone, Copy, Debug, EsFluent)]
 pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(Clone, Copy, Default, Display, EnumIter, EsFluent, PartialEq)]
+#[derive(Clone, Copy, Default, Display, EnumIter, PartialEq, Debug, EsFluent)]
 pub enum Languages {
     #[strum(serialize = "en")]
     #[default]
@@ -61,7 +59,12 @@ fn main() {
         }))
         .insert_resource(WinitSettings::desktop_app())
         .insert_resource(CurrentLanguage(Languages::default()))
-        .add_plugins(I18nPlugin::new(Languages::default().into()))
+        .add_plugins(I18nPlugin::with_config(I18nPluginConfig {
+            initial_language: Languages::default().into(),
+            asset_path: "i18n".to_string(),
+            domains: vec!["bevy-example".to_string()],
+            supported_languages: vec![langid!("en"), langid!("fr"), langid!("cn")],
+        }))
         .add_systems(Startup, (setup, initialize_ui_text_system.after(setup)))
         .add_systems(
             Update,

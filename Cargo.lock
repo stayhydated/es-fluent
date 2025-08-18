@@ -444,13 +444,10 @@ dependencies = [
  "bevy",
  "es-fluent",
  "es-fluent-build",
- "es-fluent-macros",
  "es-fluent-manager-bevy",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
- "inventory",
  "log",
- "rust-embed",
  "strum",
  "unic-langid",
 ]
@@ -3067,6 +3064,7 @@ dependencies = [
  "es-fluent-manager-core",
  "fluent-bundle 0.16.0",
  "log",
+ "serde",
  "unic-langid",
 ]
 
