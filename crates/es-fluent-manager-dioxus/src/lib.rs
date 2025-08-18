@@ -5,7 +5,7 @@ use std::sync::{Arc, OnceLock, RwLock};
 use unic_langid::LanguageIdentifier;
 
 #[cfg(feature = "macros")]
-pub use es_fluent_manager_macros::define_bevy_i18n_module as define_dioxus_i18n_module;
+pub use es_fluent_manager_macros::define_dioxus_i18n_module as define_i18n_module;
 
 /// Re-export commonly used types
 pub use unic_langid::langid;

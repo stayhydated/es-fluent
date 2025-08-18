@@ -267,26 +267,7 @@ pub fn define_dioxus_i18n_module(_input: TokenStream) -> TokenStream {
         quote! { unic_langid::langid!(#lang) }
     });
 
-    // Generate Asset declarations for each language
-    let asset_declarations = languages.iter().map(|lang| {
-        let asset_name = syn::Ident::new(
-            &format!(
-                "{}_{}",
-                lang.to_uppercase().replace('-', "_"),
-                crate_name.to_uppercase().replace('-', "_")
-            ),
-            proc_macro2::Span::call_site(),
-        );
-        let asset_path = format!("/i18n/{}/{}.ftl", lang, crate_name);
-
-        quote! {
-            const #asset_name: dioxus::prelude::Asset = dioxus::prelude::Asset::new(#asset_path);
-        }
-    });
-
     let expanded = quote! {
-        #(#asset_declarations)*
-
         static #static_data_name: es_fluent_manager_core::AssetModuleData = es_fluent_manager_core::AssetModuleData {
             name: #crate_name,
             domain: #crate_name,

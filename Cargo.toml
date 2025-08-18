@@ -1,23 +1,23 @@
 [workspace]
 members = [
   "crates/es-fluent",
+  "crates/es-fluent-toml",
   "crates/es-fluent-derive",
   "crates/es-fluent-core",
   "crates/es-fluent-build",
   "crates/es-fluent-generate",
   "crates/es-fluent-sc-parser",
   "crates/es-fluent-cli",
+  "crates/es-fluent-manager-core",
+  "crates/es-fluent-manager-macros",
+  "crates/es-fluent-manager-singleton",
   "crates/es-fluent-manager-bevy",
   "crates/es-fluent-manager-dioxus",
-  "crates/es-fluent-manager-singleton",
-  "crates/es-fluent-manager-macros",
   "examples/first-example",
   "examples/thiserror-example",
   "examples/cfg_attr-example",
   "examples/bevy-example",
   "examples/dioxus-example",
-  "crates/es-fluent-manager-core",
-  "crates/es-fluent-toml",
 ]
 resolver = "3"
 
