@@ -28,11 +28,6 @@ pub struct I18nConfig {
 }
 
 impl I18nConfig {
-    /// Read configuration from the current working directory
-    pub fn read() -> Result<Self, I18nConfigError> {
-        Self::read_from_path("i18n.toml")
-    }
-
     /// Read configuration from a specific file path
     pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self, I18nConfigError> {
         let path = path.as_ref();
@@ -54,43 +49,6 @@ impl I18nConfig {
 
         let config_path = Path::new(&manifest_dir).join("i18n.toml");
         Self::read_from_path(config_path)
-    }
-
-    /// Find and read configuration by searching up the directory tree
-    /// Starts from the current directory and searches parent directories
-    pub fn find_and_read() -> Result<Self, I18nConfigError> {
-        let current_dir = env::current_dir()?;
-
-        Self::find_and_read_from_dir(current_dir)
-    }
-
-    /// Find and read configuration starting from a specific directory
-    pub fn find_and_read_from_dir<P: AsRef<Path>>(start_dir: P) -> Result<Self, I18nConfigError> {
-        let mut current_dir = start_dir.as_ref().to_path_buf();
-
-        loop {
-            let config_path = current_dir.join("i18n.toml");
-
-            if config_path.exists() {
-                return Self::read_from_path(config_path);
-            }
-
-            if let Some(parent) = current_dir.parent() {
-                current_dir = parent.to_path_buf();
-            } else {
-                break;
-            }
-        }
-
-        Err(I18nConfigError::NotFound)
-    }
-
-    /// Read configuration with fallback methods
-    /// Tries multiple methods to find and read the configuration file
-    pub fn read_or_default() -> Result<Self, I18nConfigError> {
-        Self::read()
-            .or_else(|_| Self::read_from_manifest_dir())
-            .or_else(|_| Self::find_and_read())
     }
 
     /// Get the assets directory as a PathBuf
@@ -134,15 +92,4 @@ impl I18nConfig {
     pub fn fallback_language_id(&self) -> &str {
         &self.fallback_language
     }
-}
-
-/// Convenience function to read configuration or use defaults
-pub fn read_config() -> Result<I18nConfig, I18nConfigError> {
-    I18nConfig::read_or_default()
-}
-
-/// Convenience function to read configuration from manifest directory
-/// Useful for build scripts and proc macros
-pub fn read_config_from_manifest() -> Result<I18nConfig, I18nConfigError> {
-    I18nConfig::read_from_manifest_dir()
 }
