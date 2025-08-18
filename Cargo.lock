@@ -435,7 +435,6 @@ dependencies = [
  "bevy",
  "es-fluent",
  "es-fluent-build",
- "es-fluent-macros",
  "es-fluent-manager-bevy",
  "es-fluent-manager-core",
  "fluent 0.17.0",
@@ -1759,8 +1758,7 @@ version = "0.1.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-macros",
- "es-fluent-manager-core",
+ "es-fluent-manager-singleton",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",
@@ -2540,7 +2538,6 @@ dependencies = [
  "dioxus-i18n",
  "es-fluent",
  "es-fluent-build",
- "es-fluent-macros",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
  "inventory",
@@ -3041,23 +3038,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "es-fluent-macros"
-version = "0.1.3"
-dependencies = [
- "es-fluent-manager-core",
- "heck",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "es-fluent-manager-bevy"
 version = "0.1.3"
 dependencies = [
  "bevy",
  "es-fluent",
  "es-fluent-manager-core",
+ "es-fluent-manager-macros",
  "fluent-bundle 0.16.0",
  "inventory",
  "log",
@@ -3078,11 +3065,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "es-fluent-manager-macros"
+version = "0.1.3"
+dependencies = [
+ "es-fluent-manager-core",
+ "es-fluent-toml",
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "es-fluent-manager-singleton"
 version = "0.1.3"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
+ "es-fluent-manager-macros",
  "inventory",
  "log",
  "unic-langid",
@@ -3175,8 +3175,6 @@ version = "0.1.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-macros",
- "es-fluent-manager-core",
  "es-fluent-manager-singleton",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",
@@ -6174,8 +6172,6 @@ version = "0.1.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-macros",
- "es-fluent-manager-core",
  "es-fluent-manager-singleton",
  "fluent 0.17.0",
  "fluent-bundle 0.16.0",

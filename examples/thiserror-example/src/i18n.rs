@@ -1,6 +1,6 @@
 use es_fluent_manager_singleton as i18n_manager;
 
-es_fluent_macros::define_i18n_module!("../assets/i18n/");
+es_fluent_manager_singleton::define_i18n_module!();
 
 pub fn init() {
     i18n_manager::init();

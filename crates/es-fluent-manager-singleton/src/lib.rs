@@ -3,6 +3,9 @@ use es_fluent_manager_core::{FluentManager, I18nAssetModule};
 use std::sync::{Arc, OnceLock, RwLock};
 use unic_langid::LanguageIdentifier;
 
+#[cfg(feature = "macros")]
+pub use es_fluent_manager_macros::define_static_i18n_module as define_i18n_module;
+
 static GENERIC_MANAGER: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 
 pub fn init() {

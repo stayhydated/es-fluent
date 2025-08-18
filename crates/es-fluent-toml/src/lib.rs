@@ -65,7 +65,7 @@ impl I18nConfig {
 
     /// Validate that the assets directory exists
     pub fn validate_assets_dir(&self) -> Result<(), I18nConfigError> {
-        let assets_path = self.assets_dir_path();
+        let assets_path = self.assets_dir_from_manifest()?;
 
         if !assets_path.exists() {
             return Err(I18nConfigError::ReadError(std::io::Error::new(

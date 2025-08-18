@@ -7,6 +7,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 use unic_langid::LanguageIdentifier;
 
+#[cfg(feature = "macros")]
+pub use es_fluent_manager_macros::define_bevy_i18n_module as define_i18n_module;
+
 /// A Fluent Translation (.ftl) file asset
 #[derive(Asset, TypePath, Debug, Clone, Serialize, Deserialize)]
 pub struct FtlAsset {

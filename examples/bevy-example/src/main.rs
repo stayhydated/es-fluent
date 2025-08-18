@@ -4,7 +4,7 @@ use es_fluent_manager_bevy::{I18nPlugin, LocaleChangeEvent, LocaleChangedEvent};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use unic_langid::{LanguageIdentifier, langid};
 
-es_fluent_macros::define_bevy_i18n_module!("../assets/i18n/");
+es_fluent_manager_bevy::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, EsFluent)]
 pub enum ButtonState {

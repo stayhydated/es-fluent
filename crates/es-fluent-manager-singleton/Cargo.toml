@@ -11,9 +11,15 @@ description = "A generic manager for es-fluent that can be used in various conte
 [dependencies]
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
+es-fluent-manager-macros = { optional = true, workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
 unic-langid = { workspace = true }
+
+[features]
+default = [ "macros" ]
+macros = [ "es-fluent-manager-macros" ]
+
 
 [lints]
 workspace = true
