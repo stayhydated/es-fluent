@@ -229,11 +229,8 @@ fn dioxus_custom_localizer<'a>(id: &str, args: Option<&HashMap<&str, FluentValue
         .expect("Failed to acquire read lock on Dioxus i18n manager");
 
     manager.localize(id, args).unwrap_or_else(|| {
-        if let Some(config) = DIOXUS_I18N_CONFIG.get() {
-            if config.debug {
-                log::warn!("Translation for '{}' not found", id);
-            }
-        }
+        log::warn!("Translation for '{}' not found", id);
+
         id.to_string()
     })
 }
