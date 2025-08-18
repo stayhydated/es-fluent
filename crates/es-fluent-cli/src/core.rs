@@ -67,14 +67,11 @@ fn check_crate_for_i18n(package: &Package) -> Result<Option<CrateInfo>, CliError
         return Ok(None);
     }
 
-    let i18n_config = i18n_config::I18nConfig::from_file(&i18n_config_path)?;
+    let i18n_config = es_fluent_toml::I18nConfig::read_from_path(&i18n_config_path)?;
 
-    let i18n_output_path = match &i18n_config.fluent {
-        Some(fluent_config) => {
-            let assets_dir = manifest_dir.join(&fluent_config.assets_dir);
-            assets_dir.join(i18n_config.fallback_language.to_string())
-        },
-        None => return Ok(None),
+    let i18n_output_path = {
+        let assets_dir = manifest_dir.join(&i18n_config.assets_dir);
+        assets_dir.join(i18n_config.fallback_language.to_string())
     };
 
     let src_dir = manifest_dir.join("src");

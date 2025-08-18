@@ -54,16 +54,11 @@ impl FluentBuilder {
         let src_dir = Path::new(&manifest_dir).join("src");
 
         let i18n_config_file = PathBuf::from("i18n.toml");
-        let i18n_config = i18n_config::I18nConfig::from_file(&i18n_config_file)?;
+        let i18n_config = es_fluent_toml::I18nConfig::read_from_path(&i18n_config_file)?;
 
-        let i18n_output_path = match i18n_config.fluent {
-            Some(fluent_config) => fluent_config
-                .assets_dir
-                .join(i18n_config.fallback_language.to_string()),
-            None => {
-                return Err(FluentBuildError::NoI18nConfig(i18n_config_file));
-            },
-        };
+        let i18n_output_path = i18n_config
+            .assets_dir
+            .join(i18n_config.fallback_language.to_string());
 
         println!("cargo:rerun-if-changed={}", src_dir.display());
         println!("cargo:rerun-if-changed=i18n.toml");

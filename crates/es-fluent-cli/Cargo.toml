@@ -19,10 +19,10 @@ colored = { workspace = true }
 crossterm = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-sc-parser = { workspace = true }
+es-fluent-toml = { workspace = true }
 getset = { workspace = true }
 heck = { workspace = true }
 humantime = { workspace = true }
-i18n-config = { workspace = true }
 log = { workspace = true }
 notify = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }

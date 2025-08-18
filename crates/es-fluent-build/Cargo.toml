@@ -16,8 +16,8 @@ readme = "README.md"
 cargo_metadata = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-sc-parser = { workspace = true }
+es-fluent-toml = { workspace = true }
 heck = { workspace = true }
-i18n-config = { workspace = true }
 state-shift = { workspace = true }
 thiserror = { workspace = true }
 
