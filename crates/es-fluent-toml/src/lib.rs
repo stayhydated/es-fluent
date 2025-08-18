@@ -27,15 +27,6 @@ pub struct I18nConfig {
     pub assets_dir: PathBuf,
 }
 
-impl Default for I18nConfig {
-    fn default() -> Self {
-        Self {
-            fallback_language: "en".to_string(),
-            assets_dir: "assets/i18n".into(),
-        }
-    }
-}
-
 impl I18nConfig {
     /// Read configuration from the current working directory
     pub fn read() -> Result<Self, I18nConfigError> {
@@ -94,13 +85,12 @@ impl I18nConfig {
         Err(I18nConfigError::NotFound)
     }
 
-    /// Read configuration with fallback to defaults
-    /// This is the most user-friendly method that won't fail
-    pub fn read_or_default() -> Self {
+    /// Read configuration with fallback methods
+    /// Tries multiple methods to find and read the configuration file
+    pub fn read_or_default() -> Result<Self, I18nConfigError> {
         Self::read()
             .or_else(|_| Self::read_from_manifest_dir())
             .or_else(|_| Self::find_and_read())
-            .unwrap_or_default()
     }
 
     /// Get the assets directory as a PathBuf
@@ -147,7 +137,7 @@ impl I18nConfig {
 }
 
 /// Convenience function to read configuration or use defaults
-pub fn read_config() -> I18nConfig {
+pub fn read_config() -> Result<I18nConfig, I18nConfigError> {
     I18nConfig::read_or_default()
 }
 
