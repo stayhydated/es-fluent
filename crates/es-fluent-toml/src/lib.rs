@@ -18,7 +18,7 @@ pub enum I18nConfigError {
 }
 
 /// Main i18n configuration structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct I18nConfig {
     /// The fallback language identifier (e.g., "en")
     pub fallback_language: String,

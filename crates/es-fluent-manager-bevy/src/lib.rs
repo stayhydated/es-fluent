@@ -11,7 +11,7 @@ use unic_langid::LanguageIdentifier;
 pub use es_fluent_manager_macros::define_bevy_i18n_module as define_i18n_module;
 
 /// A Fluent Translation (.ftl) file asset
-#[derive(Asset, TypePath, Debug, Clone, Serialize, Deserialize)]
+#[derive(Asset, Clone, Debug, Deserialize, Serialize, TypePath)]
 pub struct FtlAsset {
     pub content: String,
 }
@@ -49,7 +49,7 @@ pub struct LocaleChangeEvent(pub LanguageIdentifier);
 pub struct LocaleChangedEvent(pub LanguageIdentifier);
 
 /// Resource that holds asset handles for different languages and domains
-#[derive(Resource, Default, Clone)]
+#[derive(Clone, Default, Resource)]
 pub struct I18nAssets {
     /// Map from (language, domain) to asset handle
     pub assets: HashMap<(LanguageIdentifier, String), Handle<FtlAsset>>,

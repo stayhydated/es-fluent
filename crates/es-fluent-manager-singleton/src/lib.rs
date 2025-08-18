@@ -4,7 +4,7 @@ use std::sync::{Arc, OnceLock, RwLock};
 use unic_langid::LanguageIdentifier;
 
 #[cfg(feature = "macros")]
-pub use es_fluent_manager_macros::define_static_i18n_module as define_i18n_module;
+pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_module;
 
 static GENERIC_MANAGER: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 
@@ -27,18 +27,19 @@ pub fn select_language(lang: &LanguageIdentifier) {
     }
 }
 
-/// Initialize the singleton manager with support for both static and asset-based modules.
+/// Initialize the singleton manager with support for both embedded and asset-based modules.
 /// This provides automatic discovery of all available i18n modules.
 pub fn init_with_discovery() {
     let manager = FluentManager::new_with_discovered_modules();
     let manager_arc = Arc::new(RwLock::new(manager));
 
     // Log discovered asset modules for informational purposes
+    log::info!("Generic fluent manager initialized with embedded and asset module discovery");
     log_discovered_asset_modules();
 
     if GENERIC_MANAGER.set(manager_arc.clone()).is_ok() {
         set_shared_context(manager_arc);
-        log::info!("Generic fluent manager initialized with module discovery");
+        log::info!("Generic fluent manager ready with discovered modules");
     } else {
         log::warn!("Generic fluent manager already initialized.");
     }
@@ -72,8 +73,9 @@ fn log_discovered_asset_modules() {
             );
         }
         log::info!(
-            "Note: Asset modules require a compatible manager (like es-fluent-manager-bevy) for runtime loading"
+            "Note: Asset modules require a compatible manager (like es-fluent-manager-bevy) for runtime loading."
         );
+        log::info!("Embedded modules are loaded automatically at compile time.");
     } else {
         log::debug!("No asset-based i18n modules discovered");
     }

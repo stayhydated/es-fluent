@@ -13,6 +13,7 @@ anyhow = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
+rust-embed = { workspace = true }
 thiserror = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 

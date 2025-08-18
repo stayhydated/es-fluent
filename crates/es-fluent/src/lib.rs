@@ -3,9 +3,7 @@
 #[cfg(feature = "derive")]
 pub use es_fluent_derive::{EsFluent, EsFluentChoice};
 
-pub use es_fluent_manager_core::{
-    FluentManager, I18nModule, LocalizationError, Localizer, StaticI18nModule, StaticModuleData,
-};
+pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
 
 pub use fluent_bundle::FluentValue;
 

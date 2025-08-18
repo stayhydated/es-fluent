@@ -18,7 +18,7 @@ pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(Clone, Copy, Default, Display, EnumIter, PartialEq, Debug, EsFluent)]
+#[derive(Clone, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq)]
 pub enum Languages {
     #[strum(serialize = "en")]
     #[default]
@@ -42,7 +42,7 @@ impl From<Languages> for LanguageIdentifier {
 #[derive(Resource)]
 struct CurrentLanguage(Languages);
 
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum AppState {
     #[default]
     Loading,

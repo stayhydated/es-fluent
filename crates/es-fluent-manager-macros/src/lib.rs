@@ -1,14 +1,23 @@
+use heck::ToPascalCase;
 use proc_macro::TokenStream;
 use quote::quote;
 use std::fs;
 
-/// Define a static i18n module with compile-time embedding of FTL content.
-/// This is suitable for singleton managers and other non-asset-based systems.
+/// Define an embedded i18n module with compile-time embedding of FTL content using rust-embed.
+/// This replaces the old static approach with a more efficient embedded asset system.
 /// Reads configuration from i18n.toml in the project root.
 #[proc_macro]
-pub fn define_static_i18n_module(_input: TokenStream) -> TokenStream {
+pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
-    let static_data_name = syn::Ident::new(
+    let assets_struct_name = syn::Ident::new(
+        &format!(
+            "{}I18nAssets",
+            &crate_name.replace('-', "_").to_pascal_case()
+        ),
+        proc_macro2::Span::call_site(),
+    );
+
+    let module_data_name = syn::Ident::new(
         &format!(
             "{}_I18N_MODULE_DATA",
             &crate_name.to_uppercase().replace('-', "_")
@@ -44,7 +53,7 @@ pub fn define_static_i18n_module(_input: TokenStream) -> TokenStream {
         panic!("Assets directory validation failed: {}", e);
     }
 
-    let mut resources = Vec::new();
+    let mut languages = Vec::new();
     let entries = fs::read_dir(&i18n_root_path).unwrap_or_else(|e| {
         panic!(
             "Failed to read i18n directory at {:?}: {}",
@@ -61,30 +70,41 @@ pub fn define_static_i18n_module(_input: TokenStream) -> TokenStream {
                 let ftl_path = path.join(ftl_file_name);
 
                 if ftl_path.exists() {
-                    let content = fs::read_to_string(&ftl_path).unwrap_or_else(|e| {
-                        panic!("Failed to read FTL file at {:?}: {}", ftl_path, e)
-                    });
-                    resources.push((lang_code.to_string(), content));
+                    languages.push(lang_code.to_string());
                 }
             }
         }
     }
 
-    let resource_tuples = resources.iter().map(|(lang, content)| {
-        quote! { (unic_langid::langid!(#lang), #content) }
+    let language_identifiers = languages.iter().map(|lang| {
+        quote! { unic_langid::langid!(#lang) }
     });
 
+    let i18n_root_str = i18n_root_path.to_string_lossy();
+
     let expanded = quote! {
-        static #static_data_name: es_fluent::StaticModuleData = es_fluent::StaticModuleData {
-            name: #crate_name,
-            resources: &[
-                #(#resource_tuples),*
-            ],
-        };
+        #[derive(rust_embed::RustEmbed)]
+        #[folder = #i18n_root_str]
+        struct #assets_struct_name;
+
+        impl es_fluent_manager_core::EmbeddedAssets for #assets_struct_name {
+            fn domain() -> &'static str {
+                #crate_name
+            }
+        }
+
+        static #module_data_name: es_fluent_manager_core::EmbeddedModuleData =
+            es_fluent_manager_core::EmbeddedModuleData {
+                name: #crate_name,
+                domain: #crate_name,
+                supported_languages: &[
+                    #(#language_identifiers),*
+                ],
+            };
 
         inventory::submit!(
-            &es_fluent::StaticI18nModule::new(&#static_data_name)
-            as &dyn es_fluent::I18nModule
+            &es_fluent_manager_core::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name)
+            as &dyn es_fluent_manager_core::I18nModule
         );
     };
 
