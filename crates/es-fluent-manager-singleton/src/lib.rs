@@ -27,13 +27,10 @@ pub fn select_language(lang: &LanguageIdentifier) {
     }
 }
 
-/// Initialize the singleton manager with support for both embedded and asset-based modules.
-/// This provides automatic discovery of all available i18n modules.
 pub fn init_with_discovery() {
     let manager = FluentManager::new_with_discovered_modules();
     let manager_arc = Arc::new(RwLock::new(manager));
 
-    // Log discovered asset modules for informational purposes
     log::info!("Generic fluent manager initialized with embedded and asset module discovery");
     log_discovered_asset_modules();
 
@@ -45,16 +42,12 @@ pub fn init_with_discovery() {
     }
 }
 
-/// Get information about discovered asset modules.
-/// This is useful for applications that want to implement their own asset loading.
 pub fn get_discovered_asset_modules() -> Vec<&'static dyn I18nAssetModule> {
     inventory::iter::<&'static dyn I18nAssetModule>()
         .map(|m| *m)
         .collect()
 }
 
-/// Log information about discovered asset modules.
-/// This helps with debugging and understanding what modules are available.
 fn log_discovered_asset_modules() {
     let asset_modules = get_discovered_asset_modules();
     if !asset_modules.is_empty() {
@@ -81,8 +74,6 @@ fn log_discovered_asset_modules() {
     }
 }
 
-/// Get asset module information for implementing custom asset loading.
-/// Returns tuples of (domain, languages) for each discovered module.
 pub fn get_asset_loading_info() -> Vec<(&'static str, &'static [LanguageIdentifier])> {
     get_discovered_asset_modules()
         .into_iter()

@@ -3,9 +3,6 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::fs;
 
-/// Define an embedded i18n module with compile-time embedding of FTL content using rust-embed.
-/// This replaces the old static approach with a more efficient embedded asset system.
-/// Reads configuration from i18n.toml in the project root.
 #[proc_macro]
 pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
@@ -25,7 +22,6 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
-    // Read configuration from i18n.toml
     let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
         Ok(config) => config,
         Err(es_fluent_toml::I18nConfigError::NotFound) => {
@@ -48,7 +44,6 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         },
     };
 
-    // Validate that the assets directory exists
     if let Err(e) = config.validate_assets_dir() {
         panic!("Assets directory validation failed: {}", e);
     }
@@ -111,9 +106,6 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// Define a Bevy asset-based i18n module for runtime loading through Bevy's asset system.
-/// This registers metadata about available languages and domains for asset discovery.
-/// Reads configuration from i18n.toml in the project root.
 #[proc_macro]
 pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
@@ -125,7 +117,6 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
-    // Read configuration from i18n.toml
     let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
         Ok(config) => config,
         Err(es_fluent_toml::I18nConfigError::NotFound) => {
@@ -148,7 +139,6 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         },
     };
 
-    // Validate that the assets directory exists
     if let Err(e) = config.validate_assets_dir() {
         panic!("Assets directory validation failed: {}", e);
     }
