@@ -1,3 +1,1 @@
-use es_fluent_macros::define_i18n_module;
-
-define_i18n_module!("../i18n/");
+es_fluent_manager_singleton::define_i18n_module!();

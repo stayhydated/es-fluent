@@ -1,24 +1,24 @@
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
 use es_fluent::{EsFluent, ToFluentString};
-use es_fluent_manager_bevy::{I18nPlugin, LocaleChangeEvent, LocaleChangedEvent};
+use es_fluent_manager_bevy::{I18nAssets, I18nPlugin, LocaleChangeEvent, LocaleChangedEvent};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use unic_langid::{LanguageIdentifier, langid};
 
-es_fluent_macros::define_i18n_module!("../i18n/");
+es_fluent_manager_bevy::define_i18n_module!();
 
-#[derive(EsFluent)]
+#[derive(Clone, Copy, Debug, EsFluent)]
 pub enum ButtonState {
     Normal,
     Hovered,
     Pressed,
 }
 
-#[derive(EsFluent)]
+#[derive(Clone, Copy, Debug, EsFluent)]
 pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(Clone, Copy, Default, Display, EnumIter, EsFluent, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq)]
 pub enum Languages {
     #[strum(serialize = "en")]
     #[default]
@@ -42,6 +42,13 @@ impl From<Languages> for LanguageIdentifier {
 #[derive(Resource)]
 struct CurrentLanguage(Languages);
 
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
+enum AppState {
+    #[default]
+    Loading,
+    Ready,
+}
+
 #[derive(Component)]
 struct LocalizedButton {
     current_state: ButtonState,
@@ -61,17 +68,20 @@ fn main() {
         }))
         .insert_resource(WinitSettings::desktop_app())
         .insert_resource(CurrentLanguage(Languages::default()))
-        .add_plugins(I18nPlugin::new(Languages::default().into()))
-        .add_systems(Startup, (setup, initialize_ui_text_system.after(setup)))
+        .init_state::<AppState>()
+        .add_plugins(I18nPlugin::with_language(Languages::default().into()))
+        .add_systems(Startup, setup)
         .add_systems(
             Update,
             (
-                button_system,
-                update_button_text_system,
-                example_locale_change_system,
-                update_ui_on_locale_change_system,
+                check_assets_ready_system.run_if(in_state(AppState::Loading)),
+                button_system.run_if(in_state(AppState::Ready)),
+                update_button_text_system.run_if(in_state(AppState::Ready)),
+                example_locale_change_system.run_if(in_state(AppState::Ready)),
+                update_ui_on_locale_change_system.run_if(in_state(AppState::Ready)),
             ),
         )
+        .add_systems(OnEnter(AppState::Ready), initialize_ui_system)
         .run();
 }
 
@@ -123,7 +133,18 @@ fn update_ui_on_locale_change_system(
     }
 }
 
-fn initialize_ui_text_system(
+fn check_assets_ready_system(
+    i18n_assets: Res<I18nAssets>,
+    current_language: Res<CurrentLanguage>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if i18n_assets.is_language_loaded(&current_language.0.into()) {
+        info!("Assets ready, transitioning to Ready state");
+        next_state.set(AppState::Ready);
+    }
+}
+
+fn initialize_ui_system(
     button_query: Query<&LocalizedButton>,
     mut text_queries: ParamSet<(
         Query<&mut Text, With<ButtonText>>,
@@ -131,6 +152,8 @@ fn initialize_ui_text_system(
     )>,
     current_language: Res<CurrentLanguage>,
 ) {
+    info!("Initializing UI text on app ready");
+
     if let Ok(button) = button_query.single() {
         if let Ok(mut text) = text_queries.p0().single_mut() {
             *text = Text::from(button.current_state.to_fluent_string());

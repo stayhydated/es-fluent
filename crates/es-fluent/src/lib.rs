@@ -3,9 +3,7 @@
 #[cfg(feature = "derive")]
 pub use es_fluent_derive::{EsFluent, EsFluentChoice};
 
-pub use es_fluent_manager_core::{
-    FluentManager, I18nModule, LocalizationError, Localizer, StaticI18nModule, StaticModuleData,
-};
+pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
 
 pub use fluent_bundle::FluentValue;
 
@@ -16,6 +14,13 @@ use std::sync::{Arc, OnceLock, RwLock};
 
 // Global context for derive macros
 static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
+
+// Alternative localization function for custom backends (like Bevy)
+static CUSTOM_LOCALIZER: OnceLock<
+    Box<
+        dyn Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> String + Send + Sync,
+    >,
+> = OnceLock::new();
 
 /// Sets the global FluentManager context for use with derive macros.
 /// This is only needed when using the derive macros.
@@ -34,6 +39,22 @@ pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
         .set(manager)
         .map_err(|_| "Context already set")
         .expect("Failed to set shared context");
+}
+
+/// Sets a custom localization function for use with derive macros.
+/// This allows integration with alternative backends like Bevy's asset system.
+/// This is only needed when using the derive macros.
+pub fn set_custom_localizer<F>(localizer: F)
+where
+    F: Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> String
+        + Send
+        + Sync
+        + 'static,
+{
+    CUSTOM_LOCALIZER
+        .set(Box::new(localizer))
+        .map_err(|_| "Custom localizer already set")
+        .expect("Failed to set custom localizer");
 }
 
 /// Updates the global FluentManager context for use with derive macros.
@@ -57,9 +78,15 @@ pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
+    // Try custom localizer first (for backends like Bevy)
+    if let Some(custom_localizer) = CUSTOM_LOCALIZER.get() {
+        return custom_localizer(id, args);
+    }
+
+    // Fall back to FluentManager context
     let context_arc = CONTEXT
         .get()
-        .expect("Context not set. Call es_fluent::set_context() before using derive macros.");
+        .expect("Context not set. Call es_fluent::set_context() or es_fluent::set_custom_localizer() before using derive macros.");
 
     let context = context_arc
         .read()
