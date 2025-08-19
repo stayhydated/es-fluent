@@ -3,9 +3,6 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::fs;
 
-/// Define an embedded i18n module with compile-time embedding of FTL content using rust-embed.
-/// This replaces the old static approach with a more efficient embedded asset system.
-/// Reads configuration from i18n.toml in the project root.
 #[proc_macro]
 pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
@@ -25,7 +22,6 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
-    // Read configuration from i18n.toml
     let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
         Ok(config) => config,
         Err(es_fluent_toml::I18nConfigError::NotFound) => {
@@ -48,7 +44,6 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         },
     };
 
-    // Validate that the assets directory exists
     if let Err(e) = config.validate_assets_dir() {
         panic!("Assets directory validation failed: {}", e);
     }
@@ -111,9 +106,6 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// Define a Bevy asset-based i18n module for runtime loading through Bevy's asset system.
-/// This registers metadata about available languages and domains for asset discovery.
-/// Reads configuration from i18n.toml in the project root.
 #[proc_macro]
 pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
@@ -125,7 +117,6 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
-    // Read configuration from i18n.toml
     let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
         Ok(config) => config,
         Err(es_fluent_toml::I18nConfigError::NotFound) => {
@@ -148,7 +139,6 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         },
     };
 
-    // Validate that the assets directory exists
     if let Err(e) = config.validate_assets_dir() {
         panic!("Assets directory validation failed: {}", e);
     }
@@ -192,111 +182,6 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         inventory::submit!(
             &es_fluent_manager_core::AssetI18nModule::new(&#static_data_name)
             as &dyn es_fluent_manager_core::I18nAssetModule
-        );
-    };
-
-    TokenStream::from(expanded)
-}
-
-/// Define a Dioxus asset-based i18n module for loading through Dioxus's asset system.
-/// This creates Asset declarations for all discovered .ftl files and registers metadata
-/// for auto-discovery. Reads configuration from i18n.toml in the project root.
-#[proc_macro]
-pub fn define_dioxus_i18n_module(_input: TokenStream) -> TokenStream {
-    let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
-    let static_data_name = syn::Ident::new(
-        &format!(
-            "{}_I18N_DIOXUS_MODULE_DATA",
-            &crate_name.to_uppercase().replace('-', "_")
-        ),
-        proc_macro2::Span::call_site(),
-    );
-
-    // Read configuration from i18n.toml
-    let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
-        Ok(config) => config,
-        Err(es_fluent_toml::I18nConfigError::NotFound) => {
-            panic!(
-                "No i18n.toml configuration file found in project root. Please create one with the required settings."
-            );
-        },
-        Err(e) => {
-            panic!("Failed to read i18n.toml configuration: {}", e);
-        },
-    };
-
-    let i18n_root_path = match config.assets_dir_from_manifest() {
-        Ok(path) => path,
-        Err(e) => {
-            panic!(
-                "Failed to resolve assets directory from configuration: {}",
-                e
-            );
-        },
-    };
-
-    // Validate that the assets directory exists
-    if let Err(e) = config.validate_assets_dir() {
-        panic!("Assets directory validation failed: {}", e);
-    }
-
-    let mut languages = Vec::new();
-    let entries = fs::read_dir(&i18n_root_path).unwrap_or_else(|e| {
-        panic!(
-            "Failed to read i18n directory at {:?}: {}",
-            i18n_root_path, e
-        )
-    });
-
-    for entry in entries {
-        let entry = entry.expect("Failed to read directory entry");
-        let path = entry.path();
-        if path.is_dir() {
-            if let Some(lang_code) = path.file_name().and_then(|s| s.to_str()) {
-                let ftl_file_name = format!("{}.ftl", crate_name);
-                let ftl_path = path.join(ftl_file_name);
-
-                if ftl_path.exists() {
-                    languages.push(lang_code.to_string());
-                }
-            }
-        }
-    }
-
-    // Generate content tuples for each language
-    let content_tuples = languages.iter().map(|lang| {
-        let ftl_file_name = format!("{}.ftl", crate_name);
-        let ftl_path = format!("{}/{}/{}", i18n_root_path.display(), lang, ftl_file_name);
-
-        quote! {
-            (#lang, include_str!(#ftl_path))
-        }
-    });
-
-    let export_sym = format!("es_fluent_{}_init_wasm_ctors", crate_name.replace('-', "_"));
-    let export_lit = syn::LitStr::new(&export_sym, proc_macro2::Span::call_site());
-
-    let expanded = quote! {
-        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        unsafe extern "C" { fn __wasm_call_ctors(); }
-
-        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        #[unsafe(export_name = #export_lit)]
-        pub unsafe extern "C" fn __es_fluent_call_wasm_ctors() {
-            __wasm_call_ctors();
-        }
-
-        static #static_data_name: es_fluent_manager_dioxus::DioxusModuleData = es_fluent_manager_dioxus::DioxusModuleData {
-            name: #crate_name,
-            domain: #crate_name,
-            content: &[
-                #(#content_tuples),*
-            ],
-        };
-
-        inventory::submit!(
-            &es_fluent_manager_dioxus::DioxusI18nModule::new(&#static_data_name)
-            as &dyn es_fluent_manager_core::I18nModule
         );
     };
 

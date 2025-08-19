@@ -5,27 +5,17 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use unic_langid::LanguageIdentifier;
 
-/// Trait for embedded asset collections that can be used for i18n.
-/// This should be derived using `#[derive(RustEmbed)]` on a struct.
 pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
-    /// Get the domain name for this embedded asset collection.
-    /// This is used to match FTL files (e.g., "my-app" matches "my-app.ftl").
     fn domain() -> &'static str;
 }
 
-/// Data for an embedded i18n module that uses rust-embed.
-/// This struct is intended to be created by a macro at compile time.
 #[derive(Debug)]
 pub struct EmbeddedModuleData {
-    /// The name of the module (typically the crate name).
     pub name: &'static str,
-    /// The domain name used for asset file names (e.g., "my-app" -> "my-app.ftl").
     pub domain: &'static str,
-    /// Languages discovered from the embedded files.
     pub supported_languages: &'static [LanguageIdentifier],
 }
 
-/// A `Localizer` implementation that uses rust-embed for embedded assets.
 #[derive(Debug)]
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     data: &'static EmbeddedModuleData,
@@ -44,7 +34,6 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         }
     }
 
-    /// Load the FTL resource for a given language from embedded assets.
     fn load_resource_for_language(
         &self,
         lang: &LanguageIdentifier,
@@ -81,14 +70,12 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             return Ok(());
         }
 
-        // Try exact match first
         if let Ok(resource) = self.load_resource_for_language(lang) {
             *self.current_resource.write().unwrap() = Some(Arc::new(resource));
             *current_lang_guard = Some(lang.clone());
             return Ok(());
         }
 
-        // Try matching against supported languages with language matching
         for supported_lang in self.data.supported_languages {
             if lang.matches(supported_lang, true, true) {
                 if let Ok(resource) = self.load_resource_for_language(supported_lang) {
@@ -142,10 +129,6 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     }
 }
 
-/// An `I18nModule` implementation that uses rust-embed for embedded assets.
-///
-/// This struct is intended to be created by a macro at compile time and
-/// registered with the inventory system for automatic discovery.
 pub struct EmbeddedI18nModule<T: EmbeddedAssets> {
     data: &'static EmbeddedModuleData,
     _phantom: std::marker::PhantomData<T>,
@@ -159,15 +142,12 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
         }
     }
 
-    /// Discover available languages from embedded files.
-    /// This scans the embedded assets to find directories that contain the expected FTL file.
     pub fn discover_languages() -> Vec<LanguageIdentifier> {
         let domain = T::domain();
         let file_name = format!("{}.ftl", domain);
         let mut languages = Vec::new();
 
         for file_path in T::iter() {
-            // Parse paths like "en/my-app.ftl", "fr/my-app.ftl", etc.
             if file_path.ends_with(&file_name) {
                 if let Some(lang_part) = file_path.strip_suffix(&format!("/{}", file_name)) {
                     if let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>() {

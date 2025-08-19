@@ -10,13 +10,11 @@ use unic_langid::LanguageIdentifier;
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_bevy_i18n_module as define_i18n_module;
 
-/// A Fluent Translation (.ftl) file asset
 #[derive(Asset, Clone, Debug, Deserialize, Serialize, TypePath)]
 pub struct FtlAsset {
     pub content: String,
 }
 
-/// Asset loader for .ftl files
 #[derive(Default)]
 pub struct FtlAssetLoader;
 
@@ -41,19 +39,15 @@ impl AssetLoader for FtlAssetLoader {
     }
 }
 
-/// Events for locale management
 #[derive(Clone, Event)]
 pub struct LocaleChangeEvent(pub LanguageIdentifier);
 
 #[derive(Clone, Event)]
 pub struct LocaleChangedEvent(pub LanguageIdentifier);
 
-/// Resource that holds asset handles for different languages and domains
 #[derive(Clone, Default, Resource)]
 pub struct I18nAssets {
-    /// Map from (language, domain) to asset handle
     pub assets: HashMap<(LanguageIdentifier, String), Handle<FtlAsset>>,
-    /// Map from (language, domain) to loaded fluent resource
     pub loaded_resources: HashMap<(LanguageIdentifier, String), Arc<FluentResource>>,
 }
 
@@ -62,7 +56,6 @@ impl I18nAssets {
         Self::default()
     }
 
-    /// Add an asset handle for a specific language and domain
     pub fn add_asset(
         &mut self,
         lang: LanguageIdentifier,
@@ -72,7 +65,6 @@ impl I18nAssets {
         self.assets.insert((lang, domain), handle);
     }
 
-    /// Check if all assets for a language are loaded
     pub fn is_language_loaded(&self, lang: &LanguageIdentifier) -> bool {
         self.assets
             .keys()
@@ -80,7 +72,6 @@ impl I18nAssets {
             .all(|key| self.loaded_resources.contains_key(key))
     }
 
-    /// Get all loaded resources for a language
     pub fn get_language_resources(&self, lang: &LanguageIdentifier) -> Vec<&Arc<FluentResource>> {
         self.loaded_resources
             .iter()
@@ -93,7 +84,6 @@ impl I18nAssets {
     }
 }
 
-/// Main i18n resource that manages language state
 #[derive(Resource)]
 pub struct I18nResource {
     current_language: LanguageIdentifier,
@@ -114,7 +104,6 @@ impl I18nResource {
         self.current_language = lang;
     }
 
-    /// Localize a message using the current language and available resources
     pub fn localize<'a>(
         &self,
         id: &str,
@@ -130,10 +119,8 @@ impl I18nResource {
             return None;
         }
 
-        // Create a temporary bundle for this localization request
         let mut bundle = FluentBundle::new(vec![self.current_language.clone()]);
 
-        // Add all resources for this language
         for resource in resources {
             if let Err(e) = bundle.add_resource(resource.clone()) {
                 error!("Failed to add resource to bundle: {:?}", e);
@@ -163,13 +150,10 @@ impl I18nResource {
     }
 }
 
-/// Configuration for the I18n plugin
 pub struct I18nPluginConfig {
     pub initial_language: LanguageIdentifier,
     pub asset_path: String,
-    /// Optional manual domains - if empty, will auto-discover via inventory
     pub domains: Vec<String>,
-    /// Optional manual languages - if empty, will auto-discover via inventory
     pub supported_languages: Vec<LanguageIdentifier>,
 }
 
@@ -184,7 +168,6 @@ impl Default for I18nPluginConfig {
     }
 }
 
-/// Bevy plugin for i18n using assets
 pub struct I18nPlugin {
     config: I18nPluginConfig,
 }
@@ -218,25 +201,19 @@ impl Default for I18nPlugin {
 
 impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
-        // Set up global custom localizer for derive macros
         es_fluent::set_custom_localizer(bevy_custom_localizer);
 
-        // Initialize global state
         set_bevy_i18n_state(BevyI18nState::new(self.config.initial_language.clone()));
 
-        // Register the asset type and loader
         app.init_asset::<FtlAsset>()
             .init_asset_loader::<FtlAssetLoader>();
 
-        // Create resources
         let mut i18n_assets = I18nAssets::new();
         let i18n_resource = I18nResource::new(self.config.initial_language.clone());
 
-        // Auto-discover modules or use manual configuration
         let asset_server = app.world().resource::<AssetServer>();
 
         if self.config.domains.is_empty() || self.config.supported_languages.is_empty() {
-            // Auto-discover via inventory
             let mut discovered_domains = std::collections::HashSet::new();
             let mut discovered_languages = std::collections::HashSet::new();
 
@@ -252,7 +229,6 @@ impl Plugin for I18nPlugin {
                 );
             }
 
-            // Load discovered assets
             for lang in &discovered_languages {
                 for domain in &discovered_domains {
                     let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
@@ -268,7 +244,6 @@ impl Plugin for I18nPlugin {
                 discovered_languages.len()
             );
         } else {
-            // Use manual configuration
             for lang in &self.config.supported_languages {
                 for domain in &self.config.domains {
                     let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
@@ -297,7 +272,6 @@ impl Plugin for I18nPlugin {
     }
 }
 
-/// System that monitors asset loading and updates the fluent resources
 fn handle_asset_loading(
     mut i18n_assets: ResMut<I18nAssets>,
     ftl_assets: Res<Assets<FtlAsset>>,
@@ -306,7 +280,6 @@ fn handle_asset_loading(
     for event in asset_events.read() {
         match event {
             AssetEvent::Added { id } | AssetEvent::Modified { id } => {
-                // Find which (language, domain) this asset belongs to
                 if let Some(((lang, domain), _)) = i18n_assets
                     .assets
                     .iter()
@@ -336,15 +309,12 @@ fn handle_asset_loading(
                     }
                 }
             },
-            AssetEvent::Removed { id: _ } => {
-                // Handle asset removal if needed
-            },
+            AssetEvent::Removed { id: _ } => {},
             _ => {},
         }
     }
 }
 
-/// System that handles locale change events
 fn handle_locale_changes(
     mut locale_change_events: EventReader<LocaleChangeEvent>,
     mut locale_changed_events: EventWriter<LocaleChangedEvent>,
@@ -358,7 +328,6 @@ fn handle_locale_changes(
     }
 }
 
-/// Helper function for easy localization access
 pub fn localize<'a>(
     i18n_resource: &I18nResource,
     i18n_assets: &I18nAssets,
@@ -373,18 +342,14 @@ pub fn localize<'a>(
         })
 }
 
-/// System that keeps the global state in sync with Bevy resources
 fn sync_global_state(i18n_assets: Res<I18nAssets>, _i18n_resource: Res<I18nResource>) {
-    // Only update if assets have changed
     if i18n_assets.is_changed() {
         update_global_assets((*i18n_assets).clone());
     }
 }
 
-// Global state for derive macros - integrates with Bevy's asset system
 static BEVY_I18N_STATE: OnceLock<Arc<RwLock<BevyI18nState>>> = OnceLock::new();
 
-/// State that bridges between the global derive macro system and Bevy's asset system
 #[derive(Clone)]
 pub struct BevyI18nState {
     current_language: LanguageIdentifier,
@@ -423,10 +388,8 @@ impl BevyI18nState {
             return None;
         }
 
-        // Create a temporary bundle for this localization request
         let mut bundle = FluentBundle::new(vec![self.current_language.clone()]);
 
-        // Add all resources for this language
         for resource in resources {
             if let Err(_) = bundle.add_resource(resource.clone()) {
                 continue;
@@ -455,7 +418,6 @@ impl BevyI18nState {
     }
 }
 
-/// Sets the global Bevy i18n state for use with derive macros
 pub fn set_bevy_i18n_state(state: BevyI18nState) {
     BEVY_I18N_STATE
         .set(Arc::new(RwLock::new(state)))
@@ -463,7 +425,6 @@ pub fn set_bevy_i18n_state(state: BevyI18nState) {
         .expect("Failed to set Bevy i18n state");
 }
 
-/// Updates the global state with new assets
 pub fn update_global_assets(assets: I18nAssets) {
     if let Some(state_arc) = BEVY_I18N_STATE.get() {
         if let Ok(mut state) = state_arc.write() {
@@ -472,7 +433,6 @@ pub fn update_global_assets(assets: I18nAssets) {
     }
 }
 
-/// Updates the current language in the global state
 pub fn update_global_language(lang: LanguageIdentifier) {
     if let Some(state_arc) = BEVY_I18N_STATE.get() {
         if let Ok(mut state) = state_arc.write() {
@@ -481,7 +441,6 @@ pub fn update_global_language(lang: LanguageIdentifier) {
     }
 }
 
-/// Custom localizer function for Bevy (used by derive macros)
 fn bevy_custom_localizer<'a>(id: &str, args: Option<&HashMap<&str, FluentValue<'a>>>) -> String {
     let state_arc = BEVY_I18N_STATE
         .get()
@@ -497,6 +456,4 @@ fn bevy_custom_localizer<'a>(id: &str, args: Option<&HashMap<&str, FluentValue<'
     })
 }
 
-// Re-export commonly used types for convenience
-// Re-exported from es_fluent_manager_core (already imported above)
 pub use unic_langid::langid;
