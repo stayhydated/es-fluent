@@ -8,7 +8,7 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-bevy = { features = [ "wayland" ], workspace = true }
+bevy = { features = [ "wayland", "file_watcher" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-bevy = { workspace = true }
 es-fluent-manager-core = { workspace = true }
