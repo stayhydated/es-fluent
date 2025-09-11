@@ -10,12 +10,10 @@ use unic_langid::LanguageIdentifier;
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_bevy_i18n_module as define_i18n_module;
 
-pub mod extension;
 pub mod plugin;
 pub mod systems;
 
 pub use es_fluent::{FluentDisplay, ToFluentString};
-pub use extension::*;
 pub use plugin::*;
 pub use systems::*;
 

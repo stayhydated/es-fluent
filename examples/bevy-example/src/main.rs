@@ -1,8 +1,8 @@
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
-use es_fluent::{EsFluent, ToFluentString};
+use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    EsFluentBevyPlugin, EsFluentText, EsFluentTypeRegistration, I18nAssets, I18nPlugin,
-    LocaleChangeEvent, LocaleChangedEvent,
+    I18nAssets, I18nPlugin, LocaleChangeEvent, LocaleChangedEvent, Localized,
+    LocalizedTypeRegistration,
 };
 use strum::{Display, EnumIter, IntoEnumIterator};
 use unic_langid::{LanguageIdentifier, langid};
@@ -52,17 +52,6 @@ enum AppState {
     Ready,
 }
 
-#[derive(Component)]
-struct LocalizedButton {
-    current_state: ButtonState,
-}
-
-#[derive(Component)]
-struct LanguageHintText;
-
-#[derive(Component)]
-struct ButtonText;
-
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
@@ -73,11 +62,10 @@ fn main() {
     .insert_resource(WinitSettings::desktop_app())
     .insert_resource(CurrentLanguage(Languages::default()))
     .init_state::<AppState>()
-    .add_plugins(I18nPlugin::with_language(Languages::default().into()))
-    .add_plugins(EsFluentBevyPlugin);
+    .add_plugins(I18nPlugin::with_language(Languages::default().into()));
 
-    app.register_es_fluent_parent_type::<ButtonState>()
-        .register_es_fluent_type::<ScreenMessages>();
+    app.register_localized_parent_type::<ButtonState>()
+        .register_localized_type::<ScreenMessages>();
 
     app.add_systems(Startup, setup)
         .add_systems(
@@ -114,19 +102,16 @@ fn example_locale_change_system(
 
 fn update_ui_on_locale_change_system(
     mut events: EventReader<LocaleChangedEvent>,
-    mut text_query: Query<&mut Text, With<LanguageHintText>>,
+    mut localized_query: Query<&mut Localized<ScreenMessages>>,
     current_language: Res<CurrentLanguage>,
 ) {
     for event in events.read() {
         info!("UI updating for new locale: {}", event.0);
 
-        if let Ok(mut text) = text_query.single_mut() {
-            *text = Text::from(
-                ScreenMessages::ToggleLanguageHint {
-                    current_language: current_language.0,
-                }
-                .to_fluent_string(),
-            );
+        if let Ok(mut localized) = localized_query.single_mut() {
+            localized.value = ScreenMessages::ToggleLanguageHint {
+                current_language: current_language.0,
+            };
         }
     }
 }
@@ -143,25 +128,22 @@ fn check_assets_ready_system(
 }
 
 fn initialize_ui_system(
-    mut text_queries: ParamSet<(
-        Query<&mut Text, With<ButtonText>>,
-        Query<&mut Text, With<LanguageHintText>>,
+    mut localized_queries: ParamSet<(
+        Query<&mut Localized<ButtonState>>,
+        Query<&mut Localized<ScreenMessages>>,
     )>,
     current_language: Res<CurrentLanguage>,
 ) {
     info!("Initializing UI text on app ready");
 
-    if let Ok(mut text) = text_queries.p0().single_mut() {
-        *text = Text::from(ButtonState::Normal.to_fluent_string());
+    if let Ok(mut localized) = localized_queries.p0().single_mut() {
+        localized.value = ButtonState::Normal;
     }
 
-    if let Ok(mut text) = text_queries.p1().single_mut() {
-        *text = Text::from(
-            ScreenMessages::ToggleLanguageHint {
-                current_language: current_language.0,
-            }
-            .to_fluent_string(),
-        );
+    if let Ok(mut localized) = localized_queries.p1().single_mut() {
+        localized.value = ScreenMessages::ToggleLanguageHint {
+            current_language: current_language.0,
+        };
     }
 }
 
@@ -175,38 +157,34 @@ fn button_system(
             &Interaction,
             &mut BackgroundColor,
             &mut BorderColor,
-            &mut LocalizedButton,
-            &mut EsFluentText<ButtonState>,
+            &mut Localized<ButtonState>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
 ) {
-    for (interaction, mut color, mut border_color, mut localized_button, mut es_fluent_text) in
-        &mut interaction_query
-    {
-        let previous_state = localized_button.current_state;
+    for (interaction, mut color, mut border_color, mut localized) in &mut interaction_query {
+        let previous_state = localized.value;
         match *interaction {
             Interaction::Pressed => {
-                localized_button.current_state = ButtonState::Pressed;
+                localized.value = ButtonState::Pressed;
                 *color = PRESSED_BUTTON.into();
                 border_color.0 = RED.into();
             },
             Interaction::Hovered => {
-                localized_button.current_state = ButtonState::Hovered;
+                localized.value = ButtonState::Hovered;
                 *color = HOVERED_BUTTON.into();
                 border_color.0 = Color::WHITE;
             },
             Interaction::None => {
-                localized_button.current_state = ButtonState::Normal;
+                localized.value = ButtonState::Normal;
                 *color = NORMAL_BUTTON.into();
                 border_color.0 = Color::BLACK;
             },
         }
 
-        // If the state changed, update the EsFluentText component
-        if localized_button.current_state != previous_state {
-            es_fluent_text.value = localized_button.current_state;
-            es_fluent_text.set_changed();
+        // If the state changed, update the Localized component
+        if localized.value != previous_state {
+            localized.value = localized.value;
         }
     }
 }
@@ -228,13 +206,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
         },
         children![
             (
-                (
-                    Button,
-                    LocalizedButton {
-                        current_state: ButtonState::Normal,
-                    },
-                    EsFluentText::new(ButtonState::Normal),
-                ),
+                (Button, Localized::new(ButtonState::Normal),),
                 Node {
                     width: Val::Px(150.0),
                     height: Val::Px(65.0),
@@ -248,7 +220,6 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                 BorderRadius::MAX,
                 BackgroundColor(NORMAL_BUTTON),
                 children![(
-                    ButtonText,
                     Text::new(""),
                     TextFont {
                         font_size: 33.0,
@@ -260,7 +231,9 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                 )]
             ),
             (
-                LanguageHintText,
+                Localized::new(ScreenMessages::ToggleLanguageHint {
+                    current_language: Languages::default(),
+                }),
                 Text::new(""),
                 TextFont {
                     font_size: 20.0,

@@ -13,23 +13,23 @@ impl Plugin for EsFluentBevyPlugin {
 }
 
 /// A trait for registering specific type systems
-pub trait EsFluentTypeRegistration {
-    fn register_es_fluent_type<
+pub trait LocalizedTypeRegistration {
+    fn register_localized_type<
         T: es_fluent::ToFluentString + Clone + Component + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self;
 
     /// Register a type with parent-child text update support
-    fn register_es_fluent_parent_type<
+    fn register_localized_parent_type<
         T: es_fluent::ToFluentString + Clone + Component + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self;
 }
 
-impl EsFluentTypeRegistration for App {
-    fn register_es_fluent_type<
+impl LocalizedTypeRegistration for App {
+    fn register_localized_type<
         T: es_fluent::ToFluentString + Clone + Component + Send + Sync + 'static,
     >(
         &mut self,
@@ -37,15 +37,15 @@ impl EsFluentTypeRegistration for App {
         self.add_systems(
             Update,
             (
-                crate::systems::update_all_es_fluent_text_on_locale_change::<T>,
-                crate::systems::update_es_fluent_text_system::<T>,
+                crate::systems::update_all_localized_text_on_locale_change::<T>,
+                crate::systems::update_localized_text_system::<T>,
             )
                 .chain(),
         );
         self
     }
 
-    fn register_es_fluent_parent_type<
+    fn register_localized_parent_type<
         T: es_fluent::ToFluentString + Clone + Component + Send + Sync + 'static,
     >(
         &mut self,
@@ -53,8 +53,8 @@ impl EsFluentTypeRegistration for App {
         self.add_systems(
             Update,
             (
-                crate::systems::update_all_es_fluent_text_on_locale_change::<T>,
-                crate::systems::update_es_fluent_text_parent_system::<T>,
+                crate::systems::update_all_localized_text_on_locale_change::<T>,
+                crate::systems::update_localized_text_parent_system::<T>,
             )
                 .chain(),
         );
