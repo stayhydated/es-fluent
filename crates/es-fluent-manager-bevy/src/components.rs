@@ -5,7 +5,7 @@ use std::fmt::Display;
 /// A component that holds a value implementing the EsFluent trait.
 /// This component automatically updates the associated Text component
 /// when the language changes.
-#[derive(Component, Clone)]
+#[derive(Clone, Component)]
 pub struct FluentText<T: FluentDisplay + Clone> {
     pub value: T,
 }

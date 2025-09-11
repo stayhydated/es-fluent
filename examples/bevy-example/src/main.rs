@@ -9,19 +9,19 @@ use unic_langid::{LanguageIdentifier, langid};
 
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[derive(Clone, Copy, Debug, EsFluent, Component, PartialEq)]
+#[derive(Clone, Component, Copy, Debug, EsFluent, PartialEq)]
 pub enum ButtonState {
     Normal,
     Hovered,
     Pressed,
 }
 
-#[derive(Clone, Copy, Debug, EsFluent, Component)]
+#[derive(Clone, Component, Copy, Debug, EsFluent)]
 pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(Clone, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq, Component)]
+#[derive(Clone, Component, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq)]
 pub enum Languages {
     #[strum(serialize = "en")]
     #[default]

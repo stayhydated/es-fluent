@@ -5,7 +5,7 @@ use es_fluent::ToFluentString;
 /// A component that holds a value that can be localized.
 /// This component automatically updates the associated Text component
 /// when the language changes or its value changes.
-#[derive(Component, Clone)]
+#[derive(Clone, Component)]
 pub struct Localized<T: ToFluentString + Clone> {
     pub value: T,
 }

@@ -13,11 +13,11 @@ es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
+intl-memoizer = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
-intl-memoizer = { workspace = true }
 
 [features]
 default = [ "macros" ]

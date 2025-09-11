@@ -61,7 +61,7 @@ pub struct I18nAssets {
 type SyncFluentBundle =
     FluentBundle<Arc<FluentResource>, intl_memoizer::concurrent::IntlLangMemoizer>;
 
-#[derive(Resource, Default, Clone)]
+#[derive(Clone, Default, Resource)]
 pub struct I18nBundle(pub HashMap<LanguageIdentifier, Arc<SyncFluentBundle>>);
 
 impl I18nAssets {
