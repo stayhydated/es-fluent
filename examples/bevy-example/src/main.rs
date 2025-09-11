@@ -181,11 +181,6 @@ fn button_system(
                 border_color.0 = Color::BLACK;
             },
         }
-
-        // If the state changed, update the Localized component
-        if localized.value != previous_state {
-            localized.value = localized.value;
-        }
     }
 }
 
