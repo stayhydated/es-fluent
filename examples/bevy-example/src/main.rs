@@ -1,24 +1,27 @@
 use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
 use es_fluent::{EsFluent, ToFluentString};
-use es_fluent_manager_bevy::{I18nAssets, I18nPlugin, LocaleChangeEvent, LocaleChangedEvent};
+use es_fluent_manager_bevy::{
+    EsFluentBevyPlugin, EsFluentText, EsFluentTypeRegistration, I18nAssets, I18nPlugin,
+    LocaleChangeEvent, LocaleChangedEvent,
+};
 use strum::{Display, EnumIter, IntoEnumIterator};
 use unic_langid::{LanguageIdentifier, langid};
 
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[derive(Clone, Copy, Debug, EsFluent)]
+#[derive(Clone, Copy, Debug, EsFluent, Component, PartialEq)]
 pub enum ButtonState {
     Normal,
     Hovered,
     Pressed,
 }
 
-#[derive(Clone, Copy, Debug, EsFluent)]
+#[derive(Clone, Copy, Debug, EsFluent, Component)]
 pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(Clone, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq, Component)]
 pub enum Languages {
     #[strum(serialize = "en")]
     #[default]
@@ -61,23 +64,27 @@ struct LanguageHintText;
 struct ButtonText;
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(AssetPlugin {
-            watch_for_changes_override: Some(true),
-            file_path: "../assets".to_string(),
-            ..default()
-        }))
-        .insert_resource(WinitSettings::desktop_app())
-        .insert_resource(CurrentLanguage(Languages::default()))
-        .init_state::<AppState>()
-        .add_plugins(I18nPlugin::with_language(Languages::default().into()))
-        .add_systems(Startup, setup)
+    let mut app = App::new();
+    app.add_plugins(DefaultPlugins.set(AssetPlugin {
+        watch_for_changes_override: Some(true),
+        file_path: "../assets".to_string(),
+        ..default()
+    }))
+    .insert_resource(WinitSettings::desktop_app())
+    .insert_resource(CurrentLanguage(Languages::default()))
+    .init_state::<AppState>()
+    .add_plugins(I18nPlugin::with_language(Languages::default().into()))
+    .add_plugins(EsFluentBevyPlugin);
+
+    app.register_es_fluent_parent_type::<ButtonState>()
+        .register_es_fluent_type::<ScreenMessages>();
+
+    app.add_systems(Startup, setup)
         .add_systems(
             Update,
             (
                 check_assets_ready_system.run_if(in_state(AppState::Loading)),
                 button_system.run_if(in_state(AppState::Ready)),
-                update_button_text_system.run_if(in_state(AppState::Ready)),
                 example_locale_change_system.run_if(in_state(AppState::Ready)),
                 update_ui_on_locale_change_system.run_if(in_state(AppState::Ready)),
             ),
@@ -107,23 +114,13 @@ fn example_locale_change_system(
 
 fn update_ui_on_locale_change_system(
     mut events: EventReader<LocaleChangedEvent>,
-    button_query: Query<&LocalizedButton>,
-    mut text_queries: ParamSet<(
-        Query<&mut Text, With<ButtonText>>,
-        Query<&mut Text, With<LanguageHintText>>,
-    )>,
+    mut text_query: Query<&mut Text, With<LanguageHintText>>,
     current_language: Res<CurrentLanguage>,
 ) {
     for event in events.read() {
         info!("UI updating for new locale: {}", event.0);
 
-        if let Ok(button) = button_query.single() {
-            if let Ok(mut text) = text_queries.p0().single_mut() {
-                *text = Text::from(button.current_state.to_fluent_string());
-            }
-        }
-
-        if let Ok(mut text) = text_queries.p1().single_mut() {
+        if let Ok(mut text) = text_query.single_mut() {
             *text = Text::from(
                 ScreenMessages::ToggleLanguageHint {
                     current_language: current_language.0,
@@ -146,7 +143,6 @@ fn check_assets_ready_system(
 }
 
 fn initialize_ui_system(
-    button_query: Query<&LocalizedButton>,
     mut text_queries: ParamSet<(
         Query<&mut Text, With<ButtonText>>,
         Query<&mut Text, With<LanguageHintText>>,
@@ -155,10 +151,8 @@ fn initialize_ui_system(
 ) {
     info!("Initializing UI text on app ready");
 
-    if let Ok(button) = button_query.single() {
-        if let Ok(mut text) = text_queries.p0().single_mut() {
-            *text = Text::from(button.current_state.to_fluent_string());
-        }
+    if let Ok(mut text) = text_queries.p0().single_mut() {
+        *text = Text::from(ButtonState::Normal.to_fluent_string());
     }
 
     if let Ok(mut text) = text_queries.p1().single_mut() {
@@ -168,17 +162,6 @@ fn initialize_ui_system(
             }
             .to_fluent_string(),
         );
-    }
-}
-
-fn update_button_text_system(
-    button_query: Query<&LocalizedButton, Changed<LocalizedButton>>,
-    mut text_query: Query<&mut Text, With<ButtonText>>,
-) {
-    if let Ok(button) = button_query.single() {
-        if let Ok(mut text) = text_query.single_mut() {
-            *text = Text::from(button.current_state.to_fluent_string());
-        }
     }
 }
 
@@ -193,11 +176,15 @@ fn button_system(
             &mut BackgroundColor,
             &mut BorderColor,
             &mut LocalizedButton,
+            &mut EsFluentText<ButtonState>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
 ) {
-    for (interaction, mut color, mut border_color, mut localized_button) in &mut interaction_query {
+    for (interaction, mut color, mut border_color, mut localized_button, mut es_fluent_text) in
+        &mut interaction_query
+    {
+        let previous_state = localized_button.current_state;
         match *interaction {
             Interaction::Pressed => {
                 localized_button.current_state = ButtonState::Pressed;
@@ -214,6 +201,12 @@ fn button_system(
                 *color = NORMAL_BUTTON.into();
                 border_color.0 = Color::BLACK;
             },
+        }
+
+        // If the state changed, update the EsFluentText component
+        if localized_button.current_state != previous_state {
+            es_fluent_text.value = localized_button.current_state;
+            es_fluent_text.set_changed();
         }
     }
 }
@@ -240,6 +233,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                     LocalizedButton {
                         current_state: ButtonState::Normal,
                     },
+                    EsFluentText::new(ButtonState::Normal),
                 ),
                 Node {
                     width: Val::Px(150.0),

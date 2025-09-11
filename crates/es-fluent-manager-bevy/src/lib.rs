@@ -1,14 +1,23 @@
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt, LoadContext};
 use bevy::prelude::*;
 use es_fluent_manager_core::I18nAssetModule;
-use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
+use fluent_bundle::{FluentArgs, FluentResource, FluentValue, bundle::FluentBundle};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
 use unic_langid::LanguageIdentifier;
 
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_bevy_i18n_module as define_i18n_module;
+
+pub mod extension;
+pub mod plugin;
+pub mod systems;
+
+pub use es_fluent::{FluentDisplay, ToFluentString};
+pub use extension::*;
+pub use plugin::*;
+pub use systems::*;
 
 #[derive(Asset, Clone, Debug, Deserialize, Serialize, TypePath)]
 pub struct FtlAsset {
@@ -50,6 +59,12 @@ pub struct I18nAssets {
     pub assets: HashMap<(LanguageIdentifier, String), Handle<FtlAsset>>,
     pub loaded_resources: HashMap<(LanguageIdentifier, String), Arc<FluentResource>>,
 }
+
+type SyncFluentBundle =
+    FluentBundle<Arc<FluentResource>, intl_memoizer::concurrent::IntlLangMemoizer>;
+
+#[derive(Resource, Default, Clone)]
+pub struct I18nBundle(pub HashMap<LanguageIdentifier, Arc<SyncFluentBundle>>);
 
 impl I18nAssets {
     pub fn new() -> Self {
@@ -108,25 +123,9 @@ impl I18nResource {
         &self,
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
-        i18n_assets: &I18nAssets,
+        i18n_bundle: &I18nBundle,
     ) -> Option<String> {
-        if !i18n_assets.is_language_loaded(&self.current_language) {
-            return None;
-        }
-
-        let resources = i18n_assets.get_language_resources(&self.current_language);
-        if resources.is_empty() {
-            return None;
-        }
-
-        let mut bundle = FluentBundle::new(vec![self.current_language.clone()]);
-
-        for resource in resources {
-            if let Err(e) = bundle.add_resource(resource.clone()) {
-                error!("Failed to add resource to bundle: {:?}", e);
-                continue;
-            }
-        }
+        let bundle = i18n_bundle.0.get(&self.current_language)?;
 
         let message = bundle.get_message(id)?;
         let pattern = message.value()?;
@@ -206,7 +205,8 @@ impl Plugin for I18nPlugin {
         set_bevy_i18n_state(BevyI18nState::new(self.config.initial_language.clone()));
 
         app.init_asset::<FtlAsset>()
-            .init_asset_loader::<FtlAssetLoader>();
+            .init_asset_loader::<FtlAssetLoader>()
+            .init_resource::<I18nBundle>();
 
         let mut i18n_assets = I18nAssets::new();
         let i18n_resource = I18nResource::new(self.config.initial_language.clone());
@@ -262,6 +262,7 @@ impl Plugin for I18nPlugin {
                 Update,
                 (
                     handle_asset_loading,
+                    build_fluent_bundles,
                     handle_locale_changes,
                     sync_global_state,
                 )
@@ -315,6 +316,51 @@ fn handle_asset_loading(
     }
 }
 
+fn build_fluent_bundles(
+    mut i18n_bundle: ResMut<I18nBundle>,
+    i18n_assets: Res<I18nAssets>,
+    mut asset_events: EventReader<AssetEvent<FtlAsset>>,
+) {
+    let mut dirty_languages = asset_events
+        .read()
+        .filter_map(|event| match event {
+            AssetEvent::Added { id } | AssetEvent::Modified { id } | AssetEvent::Removed { id } => {
+                Some(id)
+            },
+            _ => None,
+        })
+        .flat_map(|id| {
+            i18n_assets
+                .assets
+                .iter()
+                .find(|(_, handle)| handle.id() == *id)
+                .map(|((lang, _), _)| lang.clone())
+        })
+        .collect::<HashSet<_>>();
+
+    if i18n_assets.is_added() {
+        for (lang, _) in i18n_assets.assets.keys() {
+            dirty_languages.insert(lang.clone());
+        }
+    }
+
+    for lang in dirty_languages {
+        if i18n_assets.is_language_loaded(&lang) {
+            let mut bundle = FluentBundle::new_concurrent(vec![lang.clone()]);
+            for resource in i18n_assets.get_language_resources(&lang) {
+                if let Err(e) = bundle.add_resource(resource.clone()) {
+                    error!("Failed to add resource to bundle while caching: {:?}", e);
+                }
+            }
+            i18n_bundle.0.insert(lang.clone(), Arc::new(bundle));
+            info!("Updated fluent bundle cache for {}", lang);
+        } else {
+            i18n_bundle.0.remove(&lang);
+            info!("Removed fluent bundle cache for {}", lang);
+        }
+    }
+}
+
 fn handle_locale_changes(
     mut locale_change_events: EventReader<LocaleChangeEvent>,
     mut locale_changed_events: EventWriter<LocaleChangedEvent>,
@@ -330,21 +376,21 @@ fn handle_locale_changes(
 
 pub fn localize<'a>(
     i18n_resource: &I18nResource,
-    i18n_assets: &I18nAssets,
+    i18n_bundle: &I18nBundle,
     id: &str,
     args: Option<&HashMap<&str, FluentValue<'a>>>,
 ) -> String {
     i18n_resource
-        .localize(id, args, i18n_assets)
+        .localize(id, args, i18n_bundle)
         .unwrap_or_else(|| {
             warn!("Translation for '{}' not found", id);
             id.to_string()
         })
 }
 
-fn sync_global_state(i18n_assets: Res<I18nAssets>, _i18n_resource: Res<I18nResource>) {
-    if i18n_assets.is_changed() {
-        update_global_assets((*i18n_assets).clone());
+fn sync_global_state(i18n_bundle: Res<I18nBundle>) {
+    if i18n_bundle.is_changed() {
+        update_global_bundle((*i18n_bundle).clone());
     }
 }
 
@@ -353,19 +399,19 @@ static BEVY_I18N_STATE: OnceLock<Arc<RwLock<BevyI18nState>>> = OnceLock::new();
 #[derive(Clone)]
 pub struct BevyI18nState {
     current_language: LanguageIdentifier,
-    i18n_assets: Option<I18nAssets>,
+    bundle: I18nBundle,
 }
 
 impl BevyI18nState {
     pub fn new(initial_language: LanguageIdentifier) -> Self {
         Self {
             current_language: initial_language,
-            i18n_assets: None,
+            bundle: I18nBundle::default(),
         }
     }
 
-    pub fn set_assets(&mut self, assets: I18nAssets) {
-        self.i18n_assets = Some(assets);
+    pub fn set_bundle(&mut self, bundle: I18nBundle) {
+        self.bundle = bundle;
     }
 
     pub fn set_language(&mut self, lang: LanguageIdentifier) {
@@ -377,24 +423,7 @@ impl BevyI18nState {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let assets = self.i18n_assets.as_ref()?;
-
-        if !assets.is_language_loaded(&self.current_language) {
-            return None;
-        }
-
-        let resources = assets.get_language_resources(&self.current_language);
-        if resources.is_empty() {
-            return None;
-        }
-
-        let mut bundle = FluentBundle::new(vec![self.current_language.clone()]);
-
-        for resource in resources {
-            if let Err(_) = bundle.add_resource(resource.clone()) {
-                continue;
-            }
-        }
+        let bundle = self.bundle.0.get(&self.current_language)?;
 
         let message = bundle.get_message(id)?;
         let pattern = message.value()?;
@@ -425,10 +454,10 @@ pub fn set_bevy_i18n_state(state: BevyI18nState) {
         .expect("Failed to set Bevy i18n state");
 }
 
-pub fn update_global_assets(assets: I18nAssets) {
+pub fn update_global_bundle(bundle: I18nBundle) {
     if let Some(state_arc) = BEVY_I18N_STATE.get() {
         if let Ok(mut state) = state_arc.write() {
-            state.set_assets(assets);
+            state.set_bundle(bundle);
         }
     }
 }

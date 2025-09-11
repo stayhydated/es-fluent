@@ -2490,6 +2490,7 @@ dependencies = [
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
  "fluent-bundle",
+ "intl-memoizer",
  "inventory",
  "log",
  "serde",
