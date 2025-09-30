@@ -71,7 +71,7 @@ fn check_crate_for_i18n(package: &Package) -> Result<Option<CrateInfo>, CliError
 
     let i18n_output_path = {
         let assets_dir = manifest_dir.join(&i18n_config.assets_dir);
-        assets_dir.join(i18n_config.fallback_language.to_string())
+        assets_dir.join(&i18n_config.fallback_language)
     };
 
     let src_dir = manifest_dir.join("src");
@@ -155,15 +155,14 @@ pub fn watch_crates_sender(
 
         match notify_rx.recv_timeout(recv_timeout_duration) {
             Ok(Ok(event)) => {
-                if should_rebuild(&event) {
-                    if let Some(affected_crate) = find_affected_crate(&event, &path_to_crate_map) {
-                        if event_tx.send(affected_crate.clone()).is_err() {
-                            log::error!(
-                                "Watch event channel (AppEvent::FileChange) closed. File watcher stopping."
-                            );
-                            break;
-                        }
-                    }
+                if should_rebuild(&event)
+                    && let Some(affected_crate) = find_affected_crate(&event, &path_to_crate_map)
+                    && event_tx.send(affected_crate.clone()).is_err()
+                {
+                    log::error!(
+                        "Watch event channel (AppEvent::FileChange) closed. File watcher stopping."
+                    );
+                    break;
                 }
             },
             Ok(Err(e)) => {

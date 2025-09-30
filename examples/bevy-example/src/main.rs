@@ -2,9 +2,9 @@ use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
     I18nAssets, I18nPlugin, LocaleChangeEvent, LocaleChangedEvent, Localized,
-    LocalizedTypeRegistration,
+    LocalizedTypeRegistration as _,
 };
-use strum::{EnumIter, IntoEnumIterator};
+use strum::{EnumIter, IntoEnumIterator as _};
 use unic_langid::{LanguageIdentifier, langid};
 
 es_fluent_manager_bevy::define_i18n_module!();
@@ -160,7 +160,6 @@ fn button_system(
     >,
 ) {
     for (interaction, mut color, mut border_color, mut localized) in &mut interaction_query {
-        let previous_state = localized.value;
         match *interaction {
             Interaction::Pressed => {
                 localized.value = ButtonState::Pressed;
