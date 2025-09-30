@@ -40,7 +40,7 @@ fn debit_account(
 }
 
 fn main() {
-    i18n::init(&["cn".parse().unwrap(), "fr".parse().unwrap()]);
+    i18n::init();
 
     run("en");
 

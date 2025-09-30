@@ -20,12 +20,13 @@ pub enum FluentParseMode {
 }
 
 pub fn generate<P: AsRef<Path>>(
-    crate_name: String,
+    crate_name: &str,
     i18n_path: P,
     items: Vec<FtlTypeInfo>,
     mode: FluentParseMode,
 ) -> Result<(), FluentGenerateError> {
     let i18n_path = i18n_path.as_ref();
+
     fs::create_dir_all(i18n_path)?;
 
     let file_path = i18n_path.join(format!("{}.ftl", crate_name));

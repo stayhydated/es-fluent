@@ -2,7 +2,6 @@ use crate::error::CliError;
 use cargo_metadata::{MetadataCommand, Package};
 use es_fluent_generate::FluentParseMode;
 use getset::Getters;
-use heck::ToSnakeCase as _;
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as _};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -68,14 +67,11 @@ fn check_crate_for_i18n(package: &Package) -> Result<Option<CrateInfo>, CliError
         return Ok(None);
     }
 
-    let i18n_config = i18n_config::I18nConfig::from_file(&i18n_config_path)?;
+    let i18n_config = es_fluent_toml::I18nConfig::read_from_path(&i18n_config_path)?;
 
-    let i18n_output_path = match &i18n_config.fluent {
-        Some(fluent_config) => {
-            let assets_dir = manifest_dir.join(&fluent_config.assets_dir);
-            assets_dir.join(i18n_config.fallback_language.to_string())
-        },
-        None => return Ok(None),
+    let i18n_output_path = {
+        let assets_dir = manifest_dir.join(&i18n_config.assets_dir);
+        assets_dir.join(i18n_config.fallback_language.to_string())
     };
 
     let src_dir = manifest_dir.join("src");
@@ -108,7 +104,7 @@ pub async fn build_crate(
     mode: FluentParseMode,
 ) -> Result<BuildOutcome, CliError> {
     let start = Instant::now();
-    let crate_name = krate.name.to_snake_case();
+    let crate_name = &krate.name;
 
     let result = (|| -> Result<(), CliError> {
         if let Some(parent) = krate.i18n_output_path.parent() {

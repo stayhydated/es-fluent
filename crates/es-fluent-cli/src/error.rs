@@ -24,8 +24,8 @@ pub enum CliError {
     Internal(String),
 }
 
-impl From<i18n_config::I18nConfigError> for CliError {
-    fn from(err: i18n_config::I18nConfigError) -> Self {
+impl From<es_fluent_toml::I18nConfigError> for CliError {
+    fn from(err: es_fluent_toml::I18nConfigError) -> Self {
         CliError::ConfigParse(err.to_string())
     }
 }

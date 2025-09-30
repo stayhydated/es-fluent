@@ -1,5 +1,5 @@
 [package]
-name = "bevy_example"
+name = "bevy-example"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
@@ -8,16 +8,16 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-anyhow.workspace = true
-bevy = { features = [ "wayland" ], workspace = true }
+bevy = { features = [ "wayland", "file_watcher" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-manager-bevy = { features = [ "macros" ], workspace = true }
-i18n-embed = { features = [ "fluent-system", "desktop-requester" ], workspace = true }
-i18n-embed-fl = { workspace = true }
-inventory.workspace = true
+es-fluent-manager-bevy = { workspace = true }
+es-fluent-manager-core = { workspace = true }
+fluent = { workspace = true }
+fluent-bundle = { workspace = true }
+inventory = { workspace = true }
 log = { workspace = true }
-rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
+unic-langid = { workspace = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }

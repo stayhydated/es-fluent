@@ -4,7 +4,7 @@ use first_example::i18n;
 use strum::IntoEnumIterator as _;
 
 fn main() {
-    i18n::init(&["cn".parse().unwrap(), "fr".parse().unwrap()]);
+    i18n::init();
 
     run("en");
 

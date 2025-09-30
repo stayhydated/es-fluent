@@ -1,27 +1,26 @@
 [package]
-name = "es-fluent-manager-bevy"
+name = "es-fluent-manager-singleton"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 readme.workspace = true
 repository.workspace = true
 version.workspace = true
+description = "A generic manager for es-fluent that can be used in various contexts."
 
 [dependencies]
-bevy = { features = [ "file_watcher" ], workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
-fluent-bundle = { workspace = true }
-intl-memoizer = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
-serde = { features = [ "derive" ], workspace = true }
+rust-embed = { workspace = true }
 unic-langid = { workspace = true }
 
 [features]
 default = [ "macros" ]
 macros = [ "es-fluent-manager-macros" ]
+
 
 [lints]
 workspace = true

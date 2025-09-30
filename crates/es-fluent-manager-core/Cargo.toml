@@ -1,0 +1,21 @@
+[package]
+name = "es-fluent-manager-core"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+readme.workspace = true
+repository.workspace = true
+version.workspace = true
+description = "Core functionality for es-fluent managers that can be used in various contexts."
+
+[dependencies]
+anyhow = { workspace = true }
+fluent-bundle = { workspace = true }
+inventory = { workspace = true }
+log = { workspace = true }
+rust-embed = { workspace = true }
+thiserror = { workspace = true }
+unic-langid = { features = [ "macros" ], workspace = true }
+
+[lints]
+workspace = true

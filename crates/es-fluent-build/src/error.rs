@@ -8,7 +8,7 @@ pub enum FluentBuildError {
     NoI18nConfig(std::path::PathBuf),
 
     #[error("Failed to parse i18n.toml configuration: {0}")]
-    ConfigParseError(#[from] i18n_config::I18nConfigError),
+    ConfigParseError(#[from] es_fluent_toml::I18nConfigError),
 
     #[error("Cannot create i18n output directory: {0}")]
     CreateDirError(#[from] std::io::Error),
