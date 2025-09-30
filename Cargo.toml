@@ -25,7 +25,7 @@ license = "MIT OR Apache-2.0"
 publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
-version = "0.1.3"
+version = "0.1.4"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
@@ -41,16 +41,16 @@ darling = "0.20.11"
 derive_more = "2.0.1"
 dioxus = "0.6.3"
 env_logger = "0.11"
-es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.1.3" }
+es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.1.4" }
 es-fluent-build = { path = "crates/es-fluent-build" }
-es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.1.3" }
-es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.1.3" }
-es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.1.3" }
-es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.1.3" }
-es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.1.3" }
-es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.1.3" }
-es-fluent-manager-singleton = { path = "crates/es-fluent-manager-singleton", version = "0.1.3" }
-es-fluent-sc-parser = { path = "crates/es-fluent-sc-parser", version = "0.1.3" }
+es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.1.4" }
+es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.1.4" }
+es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.1.4" }
+es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.1.4" }
+es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.1.4" }
+es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.1.4" }
+es-fluent-manager-singleton = { path = "crates/es-fluent-manager-singleton", version = "0.1.4" }
+es-fluent-sc-parser = { path = "crates/es-fluent-sc-parser", version = "0.1.4" }
 es-fluent-toml = { path = "crates/es-fluent-toml" }
 fluent = { version = "0.17.0" }
 fluent-bundle = "0.16.0"

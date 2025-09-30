@@ -7,15 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.4](https://github.com/stayhydated/es-fluent/compare/es-fluent-build-v0.1.3...es-fluent-build-v0.1.4) - 2025-09-30
+## [0.1.4](https://github.com/stayhydated/es-fluent/compare/es-fluent-toml-v0.1.3...es-fluent-toml-v0.1.4) - 2025-09-30
 
 ### Other
 
+- .
+- use rust-embed for singleton impl
+- .
+- Update lib.rs
+- Update lib.rs
 - get rid of `i18n-config`
-- rough draft
-
-## [0.1.0](https://github.com/stayhydated/es-fluent/releases/tag/es-fluent-build-v0.1.0) - 2025-07-03
-
-### Other
-
+- add <https://github.com/crate-ci/typos>
+- Update README.md
+- Update README.md
 - .

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/stayhydated/es-fluent/compare/es-fluent-cli-v0.1.3...es-fluent-cli-v0.1.4) - 2025-09-30
+
+### Other
+
+- get rid of `i18n-config`
+- rough draft
+- add convenience register_i18n_module macro
+
 ## [0.1.2](https://github.com/stayhydated/es-fluent/compare/es-fluent-cli-v0.1.1...es-fluent-cli-v0.1.2) - 2025-07-15
 
 ### Other
