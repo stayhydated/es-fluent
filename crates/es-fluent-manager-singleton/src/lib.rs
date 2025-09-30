@@ -21,7 +21,7 @@ pub fn init() {
 pub fn select_language(lang: &LanguageIdentifier) {
     if let Some(manager_arc) = GENERIC_MANAGER.get() {
         let mut manager = manager_arc.write().unwrap();
-        let _ = manager.select_language(lang);
+        manager.select_language(lang);
     } else {
         log::error!("Generic fluent manager not initialized. Call init() first.");
     }
