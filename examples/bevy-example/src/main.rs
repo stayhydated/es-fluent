@@ -4,7 +4,7 @@ use es_fluent_manager_bevy::{
     I18nAssets, I18nPlugin, LocaleChangeEvent, LocaleChangedEvent, Localized,
     LocalizedTypeRegistration,
 };
-use strum::{Display, EnumIter, IntoEnumIterator};
+use strum::{EnumIter, IntoEnumIterator};
 use unic_langid::{LanguageIdentifier, langid};
 
 es_fluent_manager_bevy::define_i18n_module!();
@@ -21,14 +21,14 @@ pub enum ScreenMessages {
     ToggleLanguageHint { current_language: Languages },
 }
 
-#[derive(Clone, Component, Copy, Debug, Default, Display, EnumIter, EsFluent, PartialEq)]
+#[derive(Resource)]
+struct CurrentLanguage(Languages);
+
+#[derive(Clone, Component, Copy, Debug, Default, EnumIter, EsFluent, PartialEq)]
 pub enum Languages {
-    #[strum(serialize = "en")]
     #[default]
     English,
-    #[strum(serialize = "fr")]
     French,
-    #[strum(serialize = "cn")]
     Chinese,
 }
 
@@ -41,9 +41,6 @@ impl From<Languages> for LanguageIdentifier {
         }
     }
 }
-
-#[derive(Resource)]
-struct CurrentLanguage(Languages);
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
 enum AppState {
