@@ -89,8 +89,8 @@ impl Plugin for I18nPlugin {
 
         app.insert_resource(i18n_assets)
             .insert_resource(i18n_resource)
-            .add_event::<LocaleChangeEvent>()
-            .add_event::<LocaleChangedEvent>()
+            .add_message::<LocaleChangeEvent>()
+            .add_message::<LocaleChangedEvent>()
             .add_systems(
                 Update,
                 (
@@ -109,7 +109,7 @@ impl Plugin for I18nPlugin {
 fn handle_asset_loading(
     mut i18n_assets: ResMut<I18nAssets>,
     ftl_assets: Res<Assets<FtlAsset>>,
-    mut asset_events: EventReader<AssetEvent<FtlAsset>>,
+    mut asset_events: MessageReader<AssetEvent<FtlAsset>>,
 ) {
     for event in asset_events.read() {
         match event {
@@ -152,7 +152,7 @@ fn handle_asset_loading(
 fn build_fluent_bundles(
     mut i18n_bundle: ResMut<I18nBundle>,
     i18n_assets: Res<I18nAssets>,
-    mut asset_events: EventReader<AssetEvent<FtlAsset>>,
+    mut asset_events: MessageReader<AssetEvent<FtlAsset>>,
 ) {
     let mut dirty_languages = asset_events
         .read()
@@ -196,8 +196,8 @@ fn build_fluent_bundles(
 }
 
 fn handle_locale_changes(
-    mut locale_change_events: EventReader<LocaleChangeEvent>,
-    mut locale_changed_events: EventWriter<LocaleChangedEvent>,
+    mut locale_change_events: MessageReader<LocaleChangeEvent>,
+    mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
     mut i18n_resource: ResMut<I18nResource>,
 ) {
     for event in locale_change_events.read() {

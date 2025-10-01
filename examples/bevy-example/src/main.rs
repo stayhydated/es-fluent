@@ -71,7 +71,6 @@ fn main() {
                 check_assets_ready_system.run_if(in_state(AppState::Loading)),
                 button_system.run_if(in_state(AppState::Ready)),
                 example_locale_change_system.run_if(in_state(AppState::Ready)),
-                update_ui_on_locale_change_system.run_if(in_state(AppState::Ready)),
             ),
         )
         .add_systems(OnEnter(AppState::Ready), initialize_ui_system)
@@ -80,7 +79,7 @@ fn main() {
 
 fn example_locale_change_system(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut locale_change_events: EventWriter<LocaleChangeEvent>,
+    mut locale_change_events: MessageWriter<LocaleChangeEvent>,
     mut current_language: ResMut<CurrentLanguage>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyT) {
@@ -94,22 +93,6 @@ fn example_locale_change_system(
 
         current_language.0 = next_language;
         locale_change_events.write(LocaleChangeEvent(next_language.into()));
-    }
-}
-
-fn update_ui_on_locale_change_system(
-    mut events: EventReader<LocaleChangedEvent>,
-    mut localized_query: Query<&mut Localized<ScreenMessages>>,
-    current_language: Res<CurrentLanguage>,
-) {
-    for event in events.read() {
-        info!("UI updating for new locale: {}", event.0);
-
-        if let Ok(mut localized) = localized_query.single_mut() {
-            localized.value = ScreenMessages::ToggleLanguageHint {
-                current_language: current_language.0,
-            };
-        }
     }
 }
 
@@ -164,17 +147,17 @@ fn button_system(
             Interaction::Pressed => {
                 localized.value = ButtonState::Pressed;
                 *color = PRESSED_BUTTON.into();
-                border_color.0 = RED.into();
+                *border_color = BorderColor::all(RED);
             },
             Interaction::Hovered => {
                 localized.value = ButtonState::Hovered;
                 *color = HOVERED_BUTTON.into();
-                border_color.0 = Color::WHITE;
+                *border_color = BorderColor::all(Color::WHITE);
             },
             Interaction::None => {
                 localized.value = ButtonState::Normal;
                 *color = NORMAL_BUTTON.into();
-                border_color.0 = Color::BLACK;
+                *border_color = BorderColor::all(Color::BLACK);
             },
         }
     }
@@ -207,7 +190,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                     margin: UiRect::bottom(Val::Px(20.0)),
                     ..default()
                 },
-                BorderColor(Color::BLACK),
+                BorderColor::all(Color::BLACK),
                 BorderRadius::MAX,
                 BackgroundColor(NORMAL_BUTTON),
                 children![(

@@ -45,10 +45,10 @@ impl AssetLoader for FtlAssetLoader {
     }
 }
 
-#[derive(Clone, Event)]
+#[derive(Clone, Message)]
 pub struct LocaleChangeEvent(pub LanguageIdentifier);
 
-#[derive(Clone, Event)]
+#[derive(Clone, Message)]
 pub struct LocaleChangedEvent(pub LanguageIdentifier);
 
 #[derive(Clone, Default, Resource)]

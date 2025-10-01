@@ -48,7 +48,7 @@ pub fn update_localized_text_parent_system<T: ToFluentString + Clone + Component
 
 /// System that updates all Localized components when the locale changes.
 pub fn update_all_localized_text_on_locale_change<T: ToFluentString + Clone + Component>(
-    mut locale_changed_events: EventReader<LocaleChangedEvent>,
+    mut locale_changed_events: MessageReader<LocaleChangedEvent>,
     mut query: Query<&mut Localized<T>>,
 ) {
     for _event in locale_changed_events.read() {
