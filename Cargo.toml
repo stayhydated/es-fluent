@@ -111,6 +111,6 @@ unexpected_cfgs = { level = "deny" }
 [workspace.lints.clippy]
 dbg_macro = "deny"
 todo = "deny"
+type_complexity = "allow"
 uninlined_format_args = "allow"
 unused_trait_names = "warn"
-type_complexity = "allow"

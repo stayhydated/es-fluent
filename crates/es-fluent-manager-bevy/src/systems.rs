@@ -24,7 +24,7 @@ pub fn update_localized_text_system<T: ToFluentString + Clone + Component>(
     for (localized, mut text) in query.iter_mut() {
         let new_text = localized.value.to_fluent_string();
         info!("Updating direct text: {}", new_text);
-        text.0 = new_text;
+        *text = Text::new(new_text);
     }
 }
 
@@ -40,7 +40,7 @@ pub fn update_localized_text_parent_system<T: ToFluentString + Clone + Component
         info!("Updating parent-child text: {}", new_text);
         for child in children {
             if let Ok(mut text) = text_query.get_mut(*child) {
-                text.0 = new_text.clone();
+                *text = Text::new(new_text.clone());
             }
         }
     }
