@@ -1,4 +1,4 @@
-use crate::{LocaleChangedEvent, components::FluentText};
+use crate::{I18nAssets, I18nResource, LocaleChangedEvent, components::FluentText};
 use bevy::prelude::*;
 use es_fluent::ToFluentString;
 
@@ -7,8 +7,16 @@ use es_fluent::ToFluentString;
 /// as `FluentText` or on a child entity.
 pub fn update_fluent_text_system<T: ToFluentString + Clone + Component>(
     mut text_query: Query<&mut Text>,
-    fluent_text_query: Query<(Entity, &FluentText<T>, Option<&Children>), Changed<FluentText<T>>>,
+    fluent_text_query: Query<
+        (Entity, &FluentText<T>, Option<&Children>),
+        Or<(Added<FluentText<T>>, Changed<FluentText<T>>)>,
+    >,
+    i18n_assets: Res<I18nAssets>,
+    i18n_resource: Res<I18nResource>,
 ) {
+    if !i18n_assets.is_language_loaded(i18n_resource.current_language()) {
+        return;
+    }
     for (entity, fluent_text, children) in fluent_text_query.iter() {
         let new_text = fluent_text.value.to_fluent_string();
 

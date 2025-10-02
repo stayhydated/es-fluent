@@ -1,7 +1,7 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    FluentText, FluentTextRegistration as _, I18nAssets, I18nPlugin, LocaleChangeEvent,
+    FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
 use strum::{EnumIter, IntoEnumIterator as _};
 use unic_langid::{LanguageIdentifier, langid};
@@ -41,13 +41,6 @@ impl From<Languages> for LanguageIdentifier {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, States)]
-enum AppState {
-    #[default]
-    Loading,
-    Ready,
-}
-
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
@@ -57,26 +50,18 @@ fn main() {
     }))
     .insert_resource(WinitSettings::desktop_app())
     .insert_resource(CurrentLanguage(Languages::default()))
-    .init_state::<AppState>()
-    .add_plugins(I18nPlugin::with_language(Languages::default().into()));
+    .add_plugins(I18nPlugin::with_language(Languages::default().into()))
+    .init_resource::<InputFocus>();
 
     app.register_fluent_text::<ButtonState>()
         .register_fluent_text::<ScreenMessages>();
 
     app.add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (
-                check_assets_ready_system.run_if(in_state(AppState::Loading)),
-                button_system.run_if(in_state(AppState::Ready)),
-                example_locale_change_system.run_if(in_state(AppState::Ready)),
-            ),
-        )
-        .add_systems(OnEnter(AppState::Ready), initialize_ui_system)
+        .add_systems(PostUpdate, (button_system, locale_change_system))
         .run();
 }
 
-fn example_locale_change_system(
+fn locale_change_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut locale_change_events: MessageWriter<LocaleChangeEvent>,
     mut current_language: ResMut<CurrentLanguage>,
@@ -92,37 +77,6 @@ fn example_locale_change_system(
 
         current_language.0 = next_language;
         locale_change_events.write(LocaleChangeEvent(next_language.into()));
-    }
-}
-
-fn check_assets_ready_system(
-    i18n_assets: Res<I18nAssets>,
-    current_language: Res<CurrentLanguage>,
-    mut next_state: ResMut<NextState<AppState>>,
-) {
-    if i18n_assets.is_language_loaded(&current_language.0.into()) {
-        info!("Assets ready, transitioning to Ready state");
-        next_state.set(AppState::Ready);
-    }
-}
-
-fn initialize_ui_system(
-    mut localized_queries: ParamSet<(
-        Query<&mut FluentText<ButtonState>>,
-        Query<&mut FluentText<ScreenMessages>>,
-    )>,
-    current_language: Res<CurrentLanguage>,
-) {
-    info!("Initializing UI text on app ready");
-
-    if let Ok(mut localized) = localized_queries.p0().single_mut() {
-        localized.value = ButtonState::Normal;
-    }
-
-    if let Ok(mut localized) = localized_queries.p1().single_mut() {
-        localized.value = ScreenMessages::ToggleLanguageHint {
-            current_language: current_language.0,
-        };
     }
 }
 

@@ -194,7 +194,7 @@ impl FluentTextRegistration for App {
         &mut self,
     ) -> &mut Self {
         self.add_systems(
-            Update,
+            PostUpdate,
             (
                 crate::systems::update_all_fluent_text_on_locale_change::<T>,
                 crate::systems::update_fluent_text_system::<T>,
