@@ -1,8 +1,7 @@
-use bevy::{color::palettes::basic::*, prelude::*, winit::WinitSettings};
+use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    I18nAssets, I18nPlugin, LocaleChangeEvent, LocaleChangedEvent, Localized,
-    LocalizedTypeRegistration as _,
+    FluentText, FluentTextRegistration as _, I18nAssets, I18nPlugin, LocaleChangeEvent,
 };
 use strum::{EnumIter, IntoEnumIterator as _};
 use unic_langid::{LanguageIdentifier, langid};
@@ -61,8 +60,8 @@ fn main() {
     .init_state::<AppState>()
     .add_plugins(I18nPlugin::with_language(Languages::default().into()));
 
-    app.register_localized_parent_type::<ButtonState>()
-        .register_localized_type::<ScreenMessages>();
+    app.register_fluent_text::<ButtonState>()
+        .register_fluent_text::<ScreenMessages>();
 
     app.add_systems(Startup, setup)
         .add_systems(
@@ -109,8 +108,8 @@ fn check_assets_ready_system(
 
 fn initialize_ui_system(
     mut localized_queries: ParamSet<(
-        Query<&mut Localized<ButtonState>>,
-        Query<&mut Localized<ScreenMessages>>,
+        Query<&mut FluentText<ButtonState>>,
+        Query<&mut FluentText<ScreenMessages>>,
     )>,
     current_language: Res<CurrentLanguage>,
 ) {
@@ -137,7 +136,7 @@ fn button_system(
             &Interaction,
             &mut BackgroundColor,
             &mut BorderColor,
-            &mut Localized<ButtonState>,
+            &mut FluentText<ButtonState>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
@@ -180,7 +179,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
         },
         children![
             (
-                (Button, Localized::new(ButtonState::Normal),),
+                (Button, FluentText::new(ButtonState::Normal),),
                 Node {
                     width: Val::Px(150.0),
                     height: Val::Px(65.0),
@@ -205,7 +204,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                 )]
             ),
             (
-                Localized::new(ScreenMessages::ToggleLanguageHint {
+                FluentText::new(ScreenMessages::ToggleLanguageHint {
                     current_language: Languages::default(),
                 }),
                 Text::new(""),
