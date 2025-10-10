@@ -77,8 +77,6 @@ impl StructOpts {
 
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct StructFluentAttributeArgs {
-    #[darling(default)]
-    fl: Option<syn::Path>, // this is probably useless, force user to provide a fl! macro?
     display: Option<String>,
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
@@ -89,10 +87,6 @@ pub struct StructFluentAttributeArgs {
     derive: darling::util::PathList,
 }
 impl StructFluentAttributeArgs {
-    pub fn fl(&self) -> syn::Path {
-        let default_fl_path: syn::Path = syn::parse_str(super::DEFAULT_FL_PATH).unwrap();
-        self.fl.clone().unwrap_or(default_fl_path)
-    }
     pub fn display(&self) -> DisplayStrategy {
         if let Some(mode_str) = self.display.as_deref() {
             DisplayStrategy::from_str(mode_str).unwrap_or_else(|_| {
