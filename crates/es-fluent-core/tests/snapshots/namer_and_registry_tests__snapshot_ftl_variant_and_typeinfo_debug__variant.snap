@@ -1,0 +1,12 @@
+---
+source: crates/es-fluent-core/tests/namer_and_registry_tests.rs
+expression: "&variant"
+---
+FtlVariant(
+  name: "Network",
+  ftl_key: FluentKey("error_type-Network"),
+  arguments: Some([
+    "code",
+    "message",
+  ]),
+)
