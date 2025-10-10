@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-core/tests/enum_skipped_variant_tests.rs
+expression: "&infos"
+---
+[]

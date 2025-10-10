@@ -1,0 +1,8 @@
+---
+source: crates/es-fluent-core/tests/error_messages_tests.rs
+expression: "&cases"
+---
+[
+  ("named", "Field \'value\' error: Cannot be both #[fluent(skip)] and #[fluent(default)]"),
+  ("unnamed", "Field error: Unexpected attribute on tuple field"),
+]

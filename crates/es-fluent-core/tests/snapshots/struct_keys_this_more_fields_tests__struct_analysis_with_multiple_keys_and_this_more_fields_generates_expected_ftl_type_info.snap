@@ -1,0 +1,79 @@
+---
+source: crates/es-fluent-core/tests/struct_keys_this_more_fields_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "ProfilePrimaryFtl",
+    variants: [
+      FtlVariant(
+        name: "ProfilePrimaryFtl",
+        ftl_key: FluentKey("profile_primary_ftl"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "id",
+        ftl_key: FluentKey("profile_primary_ftl-id"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "username",
+        ftl_key: FluentKey("profile_primary_ftl-username"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "email",
+        ftl_key: FluentKey("profile_primary_ftl-email"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "active",
+        ftl_key: FluentKey("profile_primary_ftl-active"),
+        arguments: None,
+      ),
+    ],
+  ),
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "ProfileSecondaryFtl",
+    variants: [
+      FtlVariant(
+        name: "ProfileSecondaryFtl",
+        ftl_key: FluentKey("profile_secondary_ftl"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "id",
+        ftl_key: FluentKey("profile_secondary_ftl-id"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "username",
+        ftl_key: FluentKey("profile_secondary_ftl-username"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "email",
+        ftl_key: FluentKey("profile_secondary_ftl-email"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "active",
+        ftl_key: FluentKey("profile_secondary_ftl-active"),
+        arguments: None,
+      ),
+    ],
+  ),
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "Profile",
+    variants: [
+      FtlVariant(
+        name: "Profile",
+        ftl_key: FluentKey("profile"),
+        arguments: None,
+      ),
+    ],
+  ),
+]
