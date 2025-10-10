@@ -1,0 +1,28 @@
+---
+source: crates/es-fluent-core/tests/analysis_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Struct,
+    type_name: "E",
+    variants: [
+      FtlVariant(
+        name: "Data",
+        ftl_key: FluentKey("e-Data"),
+        arguments: Some([
+          "x",
+          "y",
+        ]),
+      ),
+      FtlVariant(
+        name: "Tup",
+        ftl_key: FluentKey("e-Tup"),
+        arguments: Some([
+          "f0",
+          "f2",
+        ]),
+      ),
+    ],
+  ),
+]

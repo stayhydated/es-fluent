@@ -1,7 +1,7 @@
 use proc_macro_error2::{abort, abort_call_site, emit_error};
 use proc_macro2::Span;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone)]
 pub enum EsFluentCoreError {
     /// Error related to Fluent attribute parsing
     #[error("Attribute error: {message}")]
@@ -90,4 +90,4 @@ impl ErrorExt for EsFluentCoreError {
     }
 }
 
-pub type EsFluentCoreResult<T> = Result<T, crate::error::EsFluentCoreError>;
+pub type EsFluentCoreResult<T> = Result<T, EsFluentCoreError>;

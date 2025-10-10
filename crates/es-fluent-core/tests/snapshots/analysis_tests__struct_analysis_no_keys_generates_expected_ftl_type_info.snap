@@ -1,0 +1,17 @@
+---
+source: crates/es-fluent-core/tests/analysis_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "MyStructFtl",
+    variants: [
+      FtlVariant(
+        name: "a",
+        ftl_key: FluentKey("my_struct_ftl-a"),
+        arguments: None,
+      ),
+    ],
+  ),
+]

@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-core/tests/error_messages_tests.rs
+expression: err.to_string()
+---
+"Transform error: Failed to convert type: Path<\'a> -> String\nhelp: Implement TryFrom<Path<\'a>> for String or adjust your types"

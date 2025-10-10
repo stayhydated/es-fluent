@@ -1,0 +1,95 @@
+---
+source: crates/es-fluent-core/tests/struct_keys_this_more_fields_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "MyStructErrorFtl",
+    variants: [
+      FtlVariant(
+        name: "MyStructErrorFtl",
+        ftl_key: FluentKey("my_struct_error_ftl"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "first",
+        ftl_key: FluentKey("my_struct_error_ftl-first"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "second",
+        ftl_key: FluentKey("my_struct_error_ftl-second"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "third",
+        ftl_key: FluentKey("my_struct_error_ftl-third"),
+        arguments: None,
+      ),
+    ],
+  ),
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "MyStructNoticeFtl",
+    variants: [
+      FtlVariant(
+        name: "MyStructNoticeFtl",
+        ftl_key: FluentKey("my_struct_notice_ftl"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "first",
+        ftl_key: FluentKey("my_struct_notice_ftl-first"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "second",
+        ftl_key: FluentKey("my_struct_notice_ftl-second"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "third",
+        ftl_key: FluentKey("my_struct_notice_ftl-third"),
+        arguments: None,
+      ),
+    ],
+  ),
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "MyStructWarningFtl",
+    variants: [
+      FtlVariant(
+        name: "MyStructWarningFtl",
+        ftl_key: FluentKey("my_struct_warning_ftl"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "first",
+        ftl_key: FluentKey("my_struct_warning_ftl-first"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "second",
+        ftl_key: FluentKey("my_struct_warning_ftl-second"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "third",
+        ftl_key: FluentKey("my_struct_warning_ftl-third"),
+        arguments: None,
+      ),
+    ],
+  ),
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "MyStruct",
+    variants: [
+      FtlVariant(
+        name: "MyStruct",
+        ftl_key: FluentKey("my_struct"),
+        arguments: None,
+      ),
+    ],
+  ),
+]

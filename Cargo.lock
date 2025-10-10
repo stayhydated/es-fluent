@@ -396,6 +396,12 @@ dependencies = [
 
 [[package]]
 name = "base64"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
+
+[[package]]
+name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
@@ -472,7 +478,7 @@ dependencies = [
  "downcast-rs 2.0.2",
  "either",
  "petgraph",
- "ron",
+ "ron 0.10.1",
  "serde",
  "smallvec",
  "thiserror 2.0.17",
@@ -567,7 +573,7 @@ dependencies = [
  "js-sys",
  "notify-debouncer-full",
  "parking_lot",
- "ron",
+ "ron 0.10.1",
  "serde",
  "stackfuture",
  "thiserror 2.0.17",
@@ -820,7 +826,7 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47b3d762ebbfa5fc45ba59591b8d57283f73684c1c539fb4ed91203007099518"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bevy_animation",
  "bevy_app",
  "bevy_asset",
@@ -2024,6 +2030,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.15.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "054ccb5b10f9f2cbf51eb355ca1d05c2d279ce1804688d0db74b4733a5aeafd8"
+dependencies = [
+ "encode_unicode",
+ "libc",
+ "once_cell",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "console_error_panic_hook"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2541,6 +2559,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "encode_unicode"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2564,7 +2588,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -2625,10 +2649,12 @@ dependencies = [
  "derive_more",
  "getset",
  "heck",
+ "insta",
  "log",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
+ "serde",
  "strum",
  "syn",
  "thiserror 2.0.17",
@@ -2658,6 +2684,9 @@ dependencies = [
  "fluent-syntax 0.11.1",
  "heck",
  "log",
+ "proc-macro2",
+ "syn",
+ "tempfile",
  "thiserror 2.0.17",
 ]
 
@@ -2726,6 +2755,7 @@ dependencies = [
  "log",
  "quote",
  "syn",
+ "tempfile",
  "thiserror 2.0.17",
  "walkdir",
 ]
@@ -2735,6 +2765,7 @@ name = "es-fluent-toml"
 version = "0.1.3"
 dependencies = [
  "serde",
+ "tempfile",
  "thiserror 2.0.17",
  "toml",
 ]
@@ -3393,6 +3424,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e05c02b5e89bff3b946cedeca278abc628fe811e604f027c45a8aa3cf793d0eb"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "insta"
+version = "1.43.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46fdb647ebde000f43b5b53f773c30cf9b0cb4300453208713fa38b2c70935a0"
+dependencies = [
+ "console",
+ "once_cell",
+ "ron 0.7.1",
+ "serde",
+ "similar",
 ]
 
 [[package]]
@@ -4075,9 +4119,9 @@ dependencies = [
 
 [[package]]
 name = "objc2-core-foundation"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c10c2894a6fed806ade6027bcd50662746363a9589d3ec9d9bef30a4e4bc166"
+checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
 dependencies = [
  "bitflags 2.9.4",
 ]
@@ -4740,11 +4784,22 @@ dependencies = [
 
 [[package]]
 name = "ron"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88073939a61e5b7680558e6be56b419e208420c2adb92be54921fa6b72283f1a"
+dependencies = [
+ "base64 0.13.1",
+ "bitflags 1.3.2",
+ "serde",
+]
+
+[[package]]
+name = "ron"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "beceb6f7bf81c73e73aeef6dd1356d9a1b2b4909e1f0fc3e59b034f9572d7b7f"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bitflags 2.9.4",
  "serde",
  "serde_derive",
@@ -4832,7 +4887,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -5042,6 +5097,12 @@ name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d66dc143e6b11c1eddc06d5c423cfc97062865baf299914ab64caa38182078fe"
+
+[[package]]
+name = "similar"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 
 [[package]]
 name = "skrifa"
@@ -5267,6 +5328,19 @@ dependencies = [
  "grid",
  "serde",
  "slotmap",
+]
+
+[[package]]
+name = "tempfile"
+version = "3.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d31c77bdf42a745371d260a26ca7163f1e0924b64afa0b688e61b5a9fa02f16"
+dependencies = [
+ "fastrand",
+ "getrandom",
+ "once_cell",
+ "rustix 1.1.2",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -6182,7 +6256,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]

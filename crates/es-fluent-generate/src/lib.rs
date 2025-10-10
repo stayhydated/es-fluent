@@ -12,7 +12,7 @@ mod formatter;
 use error::FluentGenerateError;
 use formatter::value::ValueFormatter;
 
-#[derive(Clone, Debug, Default, ValueEnum)]
+#[derive(Clone, Debug, Default, ValueEnum, PartialEq)]
 pub enum FluentParseMode {
     Aggressive,
     #[default]
@@ -252,4 +252,152 @@ fn build_target_resource(items: &[FtlTypeInfo]) -> ast::Resource<String> {
     }
 
     ast::Resource { body }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent_core::{meta::TypeKind, namer::FluentKey};
+    use proc_macro2::Ident;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_value_formatter_expand() {
+        assert_eq!(ValueFormatter::expand("simple-key"), "Key");
+        assert_eq!(ValueFormatter::expand("another-test-value"), "Value");
+        assert_eq!(ValueFormatter::expand("single"), "Single");
+    }
+
+    #[test]
+    fn test_generate_empty_items() {
+        let temp_dir = TempDir::new().unwrap();
+        let i18n_path = temp_dir.path().join("i18n");
+
+        let result = generate(
+            "test_crate",
+            &i18n_path,
+            vec![],
+            FluentParseMode::Conservative,
+        );
+        assert!(result.is_ok());
+
+        let ftl_file_path = i18n_path.join("test_crate.ftl");
+        assert!(!ftl_file_path.exists());
+    }
+
+    #[test]
+    fn test_generate_with_items() {
+        let temp_dir = TempDir::new().unwrap();
+        let i18n_path = temp_dir.path().join("i18n");
+
+        let ftl_key = FluentKey::new(
+            &Ident::new("TestEnum", proc_macro2::Span::call_site()),
+            "Variant1",
+        );
+        let variant = FtlVariant {
+            name: "variant1".to_string(),
+            ftl_key,
+            arguments: None,
+        };
+
+        let type_info = FtlTypeInfo {
+            type_kind: TypeKind::Enum,
+            type_name: "TestEnum".to_string(),
+            variants: vec![variant],
+        };
+
+        let result = generate(
+            "test_crate",
+            &i18n_path,
+            vec![type_info],
+            FluentParseMode::Conservative,
+        );
+        assert!(result.is_ok());
+
+        let ftl_file_path = i18n_path.join("test_crate.ftl");
+        assert!(ftl_file_path.exists());
+
+        let content = fs::read_to_string(ftl_file_path).unwrap();
+        assert!(content.contains("TestEnum"));
+        assert!(content.contains("Variant1"));
+    }
+
+    #[test]
+    fn test_generate_aggressive_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let i18n_path = temp_dir.path().join("i18n");
+
+        let ftl_file_path = i18n_path.join("test_crate.ftl");
+        fs::create_dir_all(&i18n_path).unwrap();
+        fs::write(&ftl_file_path, "existing-message = Existing Content").unwrap();
+
+        let ftl_key = FluentKey::new(
+            &Ident::new("TestEnum", proc_macro2::Span::call_site()),
+            "Variant1",
+        );
+        let variant = FtlVariant {
+            name: "variant1".to_string(),
+            ftl_key,
+            arguments: None,
+        };
+
+        let type_info = FtlTypeInfo {
+            type_kind: TypeKind::Enum,
+            type_name: "TestEnum".to_string(),
+            variants: vec![variant],
+        };
+
+        let result = generate(
+            "test_crate",
+            &i18n_path,
+            vec![type_info],
+            FluentParseMode::Aggressive,
+        );
+        assert!(result.is_ok());
+
+        let content = fs::read_to_string(&ftl_file_path).unwrap();
+        assert!(!content.contains("existing-message"));
+        assert!(content.contains("TestEnum"));
+        assert!(content.contains("Variant1"));
+    }
+
+    #[test]
+    fn test_generate_conservative_mode() {
+        let temp_dir = TempDir::new().unwrap();
+        let i18n_path = temp_dir.path().join("i18n");
+
+        let ftl_file_path = i18n_path.join("test_crate.ftl");
+        fs::create_dir_all(&i18n_path).unwrap();
+        fs::write(&ftl_file_path, "existing-message = Existing Content").unwrap();
+
+        let ftl_key = FluentKey::new(
+            &Ident::new("TestEnum", proc_macro2::Span::call_site()),
+            "Variant1",
+        );
+        let variant = FtlVariant {
+            name: "variant1".to_string(),
+            ftl_key,
+            arguments: None,
+        };
+
+        let type_info = FtlTypeInfo {
+            type_kind: TypeKind::Enum,
+            type_name: "TestEnum".to_string(),
+            variants: vec![variant],
+        };
+
+        let result = generate(
+            "test_crate",
+            &i18n_path,
+            vec![type_info],
+            FluentParseMode::Conservative,
+        );
+        assert!(result.is_ok());
+
+        let content = fs::read_to_string(&ftl_file_path).unwrap();
+        assert!(content.contains("existing-message"));
+        assert!(content.contains("TestEnum"));
+        assert!(content.contains("Variant1"));
+    }
 }

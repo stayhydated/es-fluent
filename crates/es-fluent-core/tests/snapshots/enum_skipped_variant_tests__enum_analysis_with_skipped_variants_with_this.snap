@@ -1,0 +1,49 @@
+---
+source: crates/es-fluent-core/tests/enum_skipped_variant_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "Mixed",
+    variants: [
+      FtlVariant(
+        name: "Mixed",
+        ftl_key: FluentKey("mixed"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "UnitKept",
+        ftl_key: FluentKey("mixed-UnitKept"),
+        arguments: None,
+      ),
+    ],
+  ),
+  FtlTypeInfo(
+    type_kind: Struct,
+    type_name: "Mixed",
+    variants: [
+      FtlVariant(
+        name: "Mixed",
+        ftl_key: FluentKey("mixed"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "DataKept",
+        ftl_key: FluentKey("mixed-DataKept"),
+        arguments: Some([
+          "x",
+          "z",
+        ]),
+      ),
+      FtlVariant(
+        name: "TupKept",
+        ftl_key: FluentKey("mixed-TupKept"),
+        arguments: Some([
+          "f1",
+          "f2",
+        ]),
+      ),
+    ],
+  ),
+]

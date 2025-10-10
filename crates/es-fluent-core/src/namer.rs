@@ -2,7 +2,7 @@ use derive_more::{Debug, Deref, Display};
 use heck::ToSnakeCase as _;
 use quote::format_ident;
 
-#[derive(Clone, Debug, Deref, Display, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Deref, Display, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize)]
 pub struct FluentKey(pub String);
 
 impl FluentKey {
@@ -30,7 +30,7 @@ impl quote::ToTokens for FluentKey {
 }
 
 #[derive(Clone, Debug, Deref, Display, Eq, Hash, PartialEq)]
-pub struct FluentDoc(pub String);
+pub struct FluentDoc(String);
 
 impl From<&FluentKey> for FluentDoc {
     fn from(ftl_key: &FluentKey) -> Self {

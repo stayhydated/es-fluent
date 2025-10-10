@@ -12,6 +12,9 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
     let mut unit_variants: Vec<FtlVariant> = opts_variants
         .iter()
         .filter_map(|variant_opt| {
+            if variant_opt.is_skipped() {
+                return None;
+            }
             if matches!(variant_opt.style(), darling::ast::Style::Unit) {
                 let name_str = variant_opt.ident().to_string();
                 let ftl_key = namer::FluentKey::new(target_ident, &name_str);
@@ -56,6 +59,9 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
     let mut struct_variants: Vec<FtlVariant> = opts_variants
         .iter()
         .filter_map(|variant_opt| {
+            if variant_opt.is_skipped() {
+                return None;
+            }
             if matches!(variant_opt.style(), darling::ast::Style::Unit) {
                 return None;
             }

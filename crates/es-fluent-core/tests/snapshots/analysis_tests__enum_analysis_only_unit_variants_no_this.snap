@@ -1,0 +1,22 @@
+---
+source: crates/es-fluent-core/tests/analysis_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "E",
+    variants: [
+      FtlVariant(
+        name: "A",
+        ftl_key: FluentKey("e-A"),
+        arguments: None,
+      ),
+      FtlVariant(
+        name: "B",
+        ftl_key: FluentKey("e-B"),
+        arguments: None,
+      ),
+    ],
+  ),
+]
