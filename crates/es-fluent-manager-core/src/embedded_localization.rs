@@ -39,7 +39,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         lang: &LanguageIdentifier,
     ) -> Result<FluentResource, LocalizationError> {
         let file_name = format!("{}.ftl", self.data.domain);
-        let file_path = format!("{}/{}", lang.to_string(), file_name);
+        let file_path = format!("{}/{}", lang, file_name);
 
         if let Some(file_data) = T::get(&file_path) {
             let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
@@ -77,12 +77,12 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         }
 
         for supported_lang in self.data.supported_languages {
-            if lang.matches(supported_lang, true, true) {
-                if let Ok(resource) = self.load_resource_for_language(supported_lang) {
-                    *self.current_resource.write().unwrap() = Some(Arc::new(resource));
-                    *current_lang_guard = Some(lang.clone());
-                    return Ok(());
-                }
+            if lang.matches(supported_lang, true, true)
+                && let Ok(resource) = self.load_resource_for_language(supported_lang)
+            {
+                *self.current_resource.write().unwrap() = Some(Arc::new(resource));
+                *current_lang_guard = Some(lang.clone());
+                return Ok(());
             }
         }
 
@@ -106,22 +106,22 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
                 .add_resource(resource.clone())
                 .expect("Failed to add resource");
 
-            if let Some(message) = bundle.get_message(id) {
-                if let Some(pattern) = message.value() {
-                    let mut errors = Vec::new();
-                    let fluent_args = args.map(|args| {
-                        let mut fa = FluentArgs::new();
-                        for (key, value) in args {
-                            fa.set(*key, value.clone());
-                        }
-                        fa
-                    });
-                    let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
-                    if errors.is_empty() {
-                        return Some(value.into_owned());
-                    } else {
-                        log::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+            if let Some(message) = bundle.get_message(id)
+                && let Some(pattern) = message.value()
+            {
+                let mut errors = Vec::new();
+                let fluent_args = args.map(|args| {
+                    let mut fa = FluentArgs::new();
+                    for (key, value) in args {
+                        fa.set(*key, value.clone());
                     }
+                    fa
+                });
+                let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+                if errors.is_empty() {
+                    return Some(value.into_owned());
+                } else {
+                    log::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
                 }
             }
         }
@@ -148,16 +148,15 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
         let mut languages = Vec::new();
 
         for file_path in T::iter() {
-            if file_path.ends_with(&file_name) {
-                if let Some(lang_part) = file_path.strip_suffix(&format!("/{}", file_name)) {
-                    if let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>() {
-                        languages.push(lang_id);
-                    }
-                }
+            if file_path.ends_with(&file_name)
+                && let Some(lang_part) = file_path.strip_suffix(&format!("/{}", file_name))
+                && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
+            {
+                languages.push(lang_id);
             }
         }
 
-        languages.sort_by(|a, b| a.to_string().cmp(&b.to_string()));
+        languages.sort_by_key(|a| a.to_string());
         languages
     }
 }

@@ -1,62 +1,56 @@
-use crate::LocaleChangedEvent;
+use crate::{I18nAssets, I18nResource, LocaleChangedEvent, components::FluentText};
 use bevy::prelude::*;
 use es_fluent::ToFluentString;
 
-/// A component that holds a value that can be localized.
-/// This component automatically updates the associated Text component
-/// when the language changes or its value changes.
-#[derive(Clone, Component)]
-pub struct Localized<T: ToFluentString + Clone> {
-    pub value: T,
-}
-
-impl<T: ToFluentString + Clone> Localized<T> {
-    pub fn new(value: T) -> Self {
-        Self { value }
-    }
-}
-
-/// System that updates Text components based on Localized values.
-/// This system runs when Localized components are modified.
-pub fn update_localized_text_system<T: ToFluentString + Clone + Component>(
-    mut query: Query<(&Localized<T>, &mut Text), Changed<Localized<T>>>,
-) {
-    for (localized, mut text) in query.iter_mut() {
-        let new_text = localized.value.to_fluent_string();
-        info!("Updating direct text: {}", new_text);
-        text.0 = new_text;
-    }
-}
-
-/// System that updates Text components based on Localized values in parent entities.
-/// This system is useful when the Localized component is on a parent entity and the
-/// Text component is on a child entity.
-pub fn update_localized_text_parent_system<T: ToFluentString + Clone + Component>(
-    mut parent_query: Query<(&Localized<T>, &Children), Changed<Localized<T>>>,
+/// System that updates `Text` components based on `FluentText` values.
+/// This system handles both cases where `Text` is on the same entity
+/// as `FluentText` or on a child entity.
+pub fn update_fluent_text_system<T: ToFluentString + Clone + Component>(
     mut text_query: Query<&mut Text>,
+    fluent_text_query: Query<
+        (Entity, &FluentText<T>, Option<&Children>),
+        Or<(Added<FluentText<T>>, Changed<FluentText<T>>)>,
+    >,
+    i18n_assets: Res<I18nAssets>,
+    i18n_resource: Res<I18nResource>,
 ) {
-    for (localized, children) in parent_query.iter_mut() {
-        let new_text = localized.value.to_fluent_string();
-        info!("Updating parent-child text: {}", new_text);
-        for child in children {
-            if let Ok(mut text) = text_query.get_mut(*child) {
-                text.0 = new_text.clone();
+    if !i18n_assets.is_language_loaded(i18n_resource.current_language()) {
+        return;
+    }
+    for (entity, fluent_text, children) in fluent_text_query.iter() {
+        let new_text = fluent_text.value.to_fluent_string();
+
+        // Try to update a Text component on the same entity
+        if let Ok(mut text) = text_query.get_mut(entity) {
+            info!("Updating direct text: {}", &new_text);
+            // A text component is composed of sections.
+            // We'll update the first section's value.
+            *text = Text::from(new_text.clone());
+        }
+
+        // Try to update Text components on children
+        if let Some(children) = children {
+            for child in children.iter() {
+                if let Ok(mut text) = text_query.get_mut(child) {
+                    info!("Updating child text: {}", &new_text);
+                    *text = Text::from(new_text.clone());
+                }
             }
         }
     }
 }
 
-/// System that updates all Localized components when the locale changes.
-pub fn update_all_localized_text_on_locale_change<T: ToFluentString + Clone + Component>(
-    mut locale_changed_events: EventReader<LocaleChangedEvent>,
-    mut query: Query<&mut Localized<T>>,
+/// System that updates all `FluentText` components when the locale changes.
+pub fn update_all_fluent_text_on_locale_change<T: ToFluentString + Clone + Component>(
+    mut locale_changed_events: MessageReader<LocaleChangedEvent>,
+    mut query: Query<&mut FluentText<T>>,
 ) {
     for _event in locale_changed_events.read() {
-        // When locale changes, we mark all Localized components as changed
-        // so they will be updated by the update_localized_text_system
-        for mut localized in query.iter_mut() {
+        // When locale changes, we mark all FluentText components as changed
+        // so they will be updated by the update_fluent_text_system
+        for mut fluent_text in query.iter_mut() {
             // This is a workaround to force the Changed detection
-            localized.set_changed();
+            fluent_text.set_changed();
         }
     }
 }

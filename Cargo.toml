@@ -29,7 +29,7 @@ version = "0.1.3"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-bevy = "0.16.1"
+bevy = "0.17.0"
 bon = "3.3.2"
 borrow = "1.3.0"
 cargo_metadata = "0.18"
@@ -111,5 +111,6 @@ unexpected_cfgs = { level = "deny" }
 [workspace.lints.clippy]
 dbg_macro = "deny"
 todo = "deny"
+type_complexity = "allow"
 uninlined_format_args = "allow"
 unused_trait_names = "warn"

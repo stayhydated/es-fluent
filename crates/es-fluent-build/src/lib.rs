@@ -56,9 +56,7 @@ impl FluentBuilder {
         let i18n_config_file = PathBuf::from("i18n.toml");
         let i18n_config = es_fluent_toml::I18nConfig::read_from_path(&i18n_config_file)?;
 
-        let i18n_output_path = i18n_config
-            .assets_dir
-            .join(i18n_config.fallback_language.to_string());
+        let i18n_output_path = i18n_config.assets_dir.join(&i18n_config.fallback_language);
 
         println!("cargo:rerun-if-changed={}", src_dir.display());
         println!("cargo:rerun-if-changed=i18n.toml");

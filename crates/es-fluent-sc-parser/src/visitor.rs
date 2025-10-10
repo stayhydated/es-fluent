@@ -251,14 +251,14 @@ fn is_es_fluent_derived(item: &Item) -> bool {
     };
 
     for attr in attrs {
-        if attr.path().is_ident("derive") {
-            if let Ok(paths) = attr.parse_args_with(
+        if attr.path().is_ident("derive")
+            && let Ok(paths) = attr.parse_args_with(
                 syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
-            ) {
-                for path in paths {
-                    if path.segments.last().is_some_and(|s| s.ident == "EsFluent") {
-                        return true;
-                    }
+            )
+        {
+            for path in paths {
+                if path.segments.last().is_some_and(|s| s.ident == "EsFluent") {
+                    return true;
                 }
             }
         }
