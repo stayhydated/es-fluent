@@ -1,24 +1,38 @@
-Cli (TUI) for generating Fluent localization files from Rust source code.
+# es-fluent-cli
 
-The cli will watch over each crate that contains a `i18n.toml` file.
+`es-fluent-cli` is a command-line tool that provides a Terminal User Interface (TUI) for managing Fluent translations. It automatically discovers crates with `i18n.toml` configuration, generates `.ftl` files, and watches for changes in your source code to trigger rebuilds.
 
-## Parse Modes
+This tool is ideal for a "watch" mode during development, giving you instant feedback and generating translation keys as you write your code.
 
-`es-fluent-cli` supports two modes:
+## Features
 
-### Aggressive Mode
-Warning : Flushes and rewrites all entries.
+-   **Automatic Crate Discovery**: Scans your workspace for crates that are configured for `es-fluent`.
+-   **Live Reload**: Watches your source files for changes and automatically regenerates `.ftl` files.
+-   **Interactive TUI**: Displays the build status of all discovered crates in a clean, interactive terminal interface.
+-   **Configurable Modes**: Supports different generation modes, such as `conservative` (default) to preserve existing translations and `aggressive` to regenerate files from scratch.
+
+## Usage
+
+To start the CLI in its default watch mode, simply run the following command in your project's root directory:
 
 ```sh
-es-fluent-cli --mode aggressive
+es-fluent-cli
 ```
 
-### Conservative Mode (default)
-Adds new entries while preserving all existing ones. Useful when you want to avoid losing existing work when things move around.
+The tool will scan for crates, perform an initial build, and then monitor for file changes.
 
-```sh
-es-fluent-cli --mode conservative
-```
+### Modes
 
-## Note
-- the parser will be aware of the `#[strum_discriminants(...)]` attributes, and will generate entries for them.
+You can control how the `.ftl` files are generated using the `--mode` flag.
+
+-   **Conservative Mode (Default)**: Adds new translation keys to your `.ftl` files while preserving any existing keys and their translations. This is the safest and default mode.
+
+    ```sh
+    es-fluent-cli --mode conservative
+    ```
+
+-   **Aggressive Mode**: Overwrites the existing `.ftl` file entirely with newly generated keys. This is useful for cleaning up stale keys but will erase any manual changes or translations in the file.
+
+    ```sh
+    es-fluent-cli --mode aggressive
+    ```

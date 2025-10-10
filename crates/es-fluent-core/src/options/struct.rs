@@ -8,34 +8,44 @@ use strum::IntoEnumIterator as _;
 
 use crate::strategy::DisplayStrategy;
 
+/// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]
 #[darling(attributes(fluent))]
 pub struct StructFieldOpts {
+    /// The identifier of the field.
     #[getset(get = "pub")]
     ident: Option<syn::Ident>,
+    /// The type of the field.
     #[getset(get = "pub")]
     ty: syn::Type,
+    /// Whether to skip this field.
     #[darling(default)]
     skip: Option<bool>,
+    /// Whether this field is a default.
     #[darling(default)]
     default: Option<bool>,
 }
 
 impl StructFieldOpts {
+    /// Returns `true` if the field should be skipped.
     pub fn is_skipped(&self) -> bool {
         self.skip.unwrap_or(false)
     }
 
+    /// Returns `true` if the field is a default.
     pub fn is_default(&self) -> bool {
         self.default.unwrap_or(false)
     }
 }
 
+/// Options for a struct.
 #[derive(Clone, FromDeriveInput, Getters)]
 #[darling(supports(struct_named), attributes(fluent))]
 #[getset(get = "pub")]
 pub struct StructOpts {
+    /// The identifier of the struct.
     ident: syn::Ident,
+    /// The generics of the struct.
     generics: syn::Generics,
     data: darling::ast::Data<darling::util::Ignored, StructFieldOpts>,
     #[darling(flatten)]
@@ -45,10 +55,12 @@ pub struct StructOpts {
 impl StructOpts {
     const FTL_ENUM_IDENT: &str = "Ftl";
 
+    /// Returns the identifier of the FTL enum.
     pub fn ftl_enum_ident(&self) -> syn::Ident {
         format_ident!("{}{}", &self.ident, Self::FTL_ENUM_IDENT)
     }
 
+    /// Returns the identifiers of the keyed FTL enums.
     pub fn keyyed_idents(&self) -> Vec<syn::Ident> {
         self.attr_args
             .clone()
@@ -63,6 +75,7 @@ impl StructOpts {
             .collect()
     }
 
+    /// Returns the fields of the struct that are not skipped.
     pub fn fields(&self) -> Vec<&StructFieldOpts> {
         match &self.data {
             darling::ast::Data::Struct(fields) => fields
@@ -75,6 +88,7 @@ impl StructOpts {
     }
 }
 
+/// Attribute arguments for a struct.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct StructFluentAttributeArgs {
     display: Option<String>,
@@ -82,11 +96,13 @@ pub struct StructFluentAttributeArgs {
     keys: Option<Vec<syn::LitStr>>,
     #[darling(default)]
     this: Option<bool>,
+    /// The traits to derive on the FTL enum.
     #[getset(get = "pub")]
     #[darling(default)]
     derive: darling::util::PathList,
 }
 impl StructFluentAttributeArgs {
+    /// Returns the display strategy for the struct.
     pub fn display(&self) -> DisplayStrategy {
         if let Some(mode_str) = self.display.as_deref() {
             DisplayStrategy::from_str(mode_str).unwrap_or_else(|_| {
@@ -103,6 +119,7 @@ impl StructFluentAttributeArgs {
             DisplayStrategy::StdDisplay
         }
     }
+    /// Returns `true` if the struct should be passed as `this`.
     pub fn is_this(&self) -> bool {
         self.this.unwrap_or(false)
     }

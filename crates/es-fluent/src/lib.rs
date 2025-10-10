@@ -1,9 +1,20 @@
+#![doc = include_str!("../README.md")]
+
 #[cfg(feature = "derive")]
+/// Re-export of the `EsFluent` derive macro.
 pub use es_fluent_derive::{EsFluent, EsFluentChoice};
 
+/// Re-export of `es_fluent_manager_core` items.
 pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
 
+/// Re-export of `fluent_bundle::FluentValue`.
 pub use fluent_bundle::FluentValue;
+
+#[doc(hidden)]
+pub use inventory as __inventory;
+
+#[doc(hidden)]
+pub use es_fluent_manager_core as __manager_core;
 
 mod traits;
 pub use traits::*;
@@ -20,6 +31,14 @@ static CUSTOM_LOCALIZER: OnceLock<
     >,
 > = OnceLock::new();
 
+/// Sets the global `FluentManager` context.
+///
+/// This function should be called once at the beginning of your application's
+/// lifecycle.
+///
+/// # Panics
+///
+/// This function will panic if the context has already been set.
 pub fn set_context(manager: FluentManager) {
     CONTEXT
         .set(Arc::new(RwLock::new(manager)))
@@ -27,6 +46,14 @@ pub fn set_context(manager: FluentManager) {
         .expect("Failed to set context");
 }
 
+/// Sets the global `FluentManager` context with a shared `Arc<RwLock<FluentManager>>`.
+///
+/// This function is useful when you want to share the `FluentManager` between
+/// multiple threads.
+///
+/// # Panics
+///
+/// This function will panic if the context has already been set.
 pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
     CONTEXT
         .set(manager)
@@ -34,6 +61,15 @@ pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
         .expect("Failed to set shared context");
 }
 
+/// Sets a custom localizer function.
+///
+/// The custom localizer will be called before the global context's `localize`
+/// method. If the custom localizer returns `Some(message)`, the message will be
+/// returned. Otherwise, the global context will be used.
+///
+/// # Panics
+///
+/// This function will panic if the custom localizer has already been set.
 pub fn set_custom_localizer<F>(localizer: F)
 where
     F: Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> Option<String>
@@ -47,6 +83,31 @@ where
         .expect("Failed to set custom localizer");
 }
 
+/// Updates the global `FluentManager` context.
+///
+/// This function allows you to modify the `FluentManager` in a thread-safe way.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use es_fluent::{set_context, update_context, FluentManager};
+/// use fluent_bundle::{FluentBundle, FluentResource};
+/// use unic_langid::LanguageIdentifier;
+///
+/// let mut manager = FluentManager::new();
+/// set_context(manager);
+///
+/// update_context(|manager| {
+///     let ftl_string = String::from("hello-world = Hello, world!");
+///     let res = FluentResource::try_new(ftl_string).expect("Failed to parse an FTL string.");
+///
+///     let langid_en: LanguageIdentifier = "en-US".parse().expect("Parsing failed.");
+///     let mut bundle = FluentBundle::new(vec![langid_en]);
+///     bundle.add_resource(res).expect("Failed to add FTL resources to the bundle.");
+///
+///     manager.add_bundle("en-US".to_string(), bundle);
+/// });
+/// ```
 pub fn update_context<F>(f: F)
 where
     F: FnOnce(&mut FluentManager),
@@ -59,6 +120,14 @@ where
     }
 }
 
+/// Localizes a message by its ID.
+///
+/// This function will first try to use the custom localizer if it has been set.
+/// If the custom localizer returns `None`, it will then try to use the global
+/// context.
+///
+/// If the message is not found, a warning will be logged and the ID will be
+/// returned as the message.
 pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,

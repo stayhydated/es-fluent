@@ -1,12 +1,18 @@
+//! This module provides types for naming Fluent keys and documentation.
+
 use derive_more::{Debug, Deref, Display};
 use heck::ToSnakeCase as _;
 use quote::format_ident;
 
+/// A Fluent key.
 #[derive(Clone, Debug, Deref, Display, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize)]
 pub struct FluentKey(pub String);
 
 impl FluentKey {
+    /// The delimiter used in Fluent keys.
     pub const DELIMITER: &str = "-";
+
+    /// Creates a new `FluentKey`.
     pub fn new(ftl_name: &syn::Ident, sub_name: &str) -> Self {
         let normalized_name = ftl_name.to_string().to_snake_case();
         if sub_name.is_empty() {
@@ -29,6 +35,7 @@ impl quote::ToTokens for FluentKey {
     }
 }
 
+/// A Fluent documentation comment.
 #[derive(Clone, Debug, Deref, Display, Eq, Hash, PartialEq)]
 pub struct FluentDoc(String);
 
@@ -45,6 +52,7 @@ impl quote::ToTokens for FluentDoc {
     }
 }
 
+/// An unnamed item.
 pub struct UnnamedItem(usize);
 
 impl std::fmt::Display for UnnamedItem {
@@ -56,6 +64,7 @@ impl std::fmt::Display for UnnamedItem {
 impl UnnamedItem {
     const UNNAMED_PREFIX: &str = "f";
 
+    /// Converts the unnamed item to an `Ident`.
     pub fn to_ident(&self) -> syn::Ident {
         format_ident!("{}", self.to_string())
     }

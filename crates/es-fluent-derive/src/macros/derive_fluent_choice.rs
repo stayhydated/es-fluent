@@ -1,3 +1,5 @@
+//! This module provides the implementation of the `EsFluentChoice` derive macro.
+
 use darling::{FromDeriveInput, FromMeta};
 use getset::Getters;
 use heck::{
@@ -67,6 +69,7 @@ impl CaseStyle {
     }
 }
 
+/// The entry point for the `EsFluentChoice` derive macro.
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let opts = match Opts::from_derive_input(&input) {

@@ -1,13 +1,16 @@
+//! This module provides the error types for `es-fluent-core`.
+
 use proc_macro_error2::{abort, abort_call_site, emit_error};
 use proc_macro2::Span;
 
+/// An error that can occur when parsing `es-fluent` attributes.
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum EsFluentCoreError {
-    /// Error related to Fluent attribute parsing
+    /// An error related to Fluent attribute parsing.
     #[error("Attribute error: {message}")]
     AttributeError { message: String, span: Option<Span> },
 
-    /// Error related to variant consistency
+    /// An error related to variant consistency.
     #[error("Variant '{variant_name}' error: {message}")]
     VariantError {
         message: String,
@@ -15,7 +18,7 @@ pub enum EsFluentCoreError {
         span: Option<Span>,
     },
 
-    /// Error related to field processing
+    /// An error related to field processing.
     #[error("{}", field_error_fmt(.message, .field_name))]
     FieldError {
         message: String,
@@ -23,7 +26,7 @@ pub enum EsFluentCoreError {
         span: Option<Span>,
     },
 
-    /// Error with conversions or transformations
+    /// An error with conversions or transformations.
     #[error("Transform error: {message}")]
     TransformError { message: String, span: Option<Span> },
 }
@@ -36,6 +39,7 @@ fn field_error_fmt(message: &str, field_name: &Option<String>) -> String {
 }
 
 impl EsFluentCoreError {
+    /// Returns the span of the error.
     pub fn span(&self) -> Option<Span> {
         match self {
             EsFluentCoreError::AttributeError { span, .. } => *span,
@@ -45,6 +49,7 @@ impl EsFluentCoreError {
         }
     }
 
+    /// Returns a mutable reference to the error message.
     pub fn message_mut(&mut self) -> &mut String {
         match self {
             EsFluentCoreError::AttributeError { message, .. } => message,
@@ -54,6 +59,7 @@ impl EsFluentCoreError {
         }
     }
 
+    /// Aborts the macro execution with the error.
     pub fn abort(self) -> ! {
         let msg = self.to_string();
         match self.span() {
@@ -62,6 +68,7 @@ impl EsFluentCoreError {
         }
     }
 
+    /// Emits the error as a compiler error.
     pub fn emit(&self) {
         let msg = self.to_string();
         match self.span() {
@@ -71,8 +78,11 @@ impl EsFluentCoreError {
     }
 }
 
+/// A trait for adding notes and help messages to an error.
 pub trait ErrorExt {
+    /// Adds a note to the error.
     fn with_note(self, note: String) -> Self;
+    /// Adds a help message to the error.
     fn with_help(self, help: String) -> Self;
 }
 
@@ -90,4 +100,5 @@ impl ErrorExt for EsFluentCoreError {
     }
 }
 
+/// A result type for `es-fluent-core`.
 pub type EsFluentCoreResult<T> = Result<T, EsFluentCoreError>;

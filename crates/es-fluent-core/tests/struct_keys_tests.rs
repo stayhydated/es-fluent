@@ -1,7 +1,7 @@
 use darling::FromDeriveInput;
 use es_fluent_core::analysis;
 use es_fluent_core::options::r#struct::StructOpts;
-use syn::{parse_quote, DeriveInput};
+use syn::{DeriveInput, parse_quote};
 
 #[test]
 fn struct_analysis_with_keys_no_this_generates_expected_ftl_type_info() {

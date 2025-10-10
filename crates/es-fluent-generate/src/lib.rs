@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use clap::ValueEnum;
 use es_fluent_core::meta::TypeKind;
 use es_fluent_core::namer::FluentKey;
@@ -12,13 +14,29 @@ mod formatter;
 use error::FluentGenerateError;
 use formatter::value::ValueFormatter;
 
+/// The mode to use when parsing Fluent files.
 #[derive(Clone, Debug, Default, ValueEnum, PartialEq)]
 pub enum FluentParseMode {
+    /// Overwrite existing translations.
     Aggressive,
+    /// Preserve existing translations.
     #[default]
     Conservative,
 }
 
+/// Generates a Fluent translation file from a list of `FtlTypeInfo` objects.
+///
+/// # Arguments
+///
+/// * `crate_name` - The name of the crate.
+/// * `i18n_path` - The path to the i18n directory.
+/// * `items` - A list of `FtlTypeInfo` objects.
+/// * `mode` - The `FluentParseMode` to use.
+///
+/// # Errors
+///
+/// This function will return an error if the i18n directory cannot be created,
+/// or if the FTL file cannot be written.
 pub fn generate<P: AsRef<Path>>(
     crate_name: &str,
     i18n_path: P,
