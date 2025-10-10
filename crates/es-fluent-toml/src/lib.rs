@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 use thiserror::Error;
 
-/// Configuration error types
 #[derive(Debug, Error)]
 pub enum I18nConfigError {
     /// Configuration file not found
@@ -17,7 +16,6 @@ pub enum I18nConfigError {
     ParseError(#[from] toml::de::Error),
 }
 
-/// Main i18n configuration structure
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct I18nConfig {
     /// The fallback language identifier (e.g., "en")
@@ -28,7 +26,6 @@ pub struct I18nConfig {
 }
 
 impl I18nConfig {
-    /// Read configuration from a specific file path
     pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self, I18nConfigError> {
         let path = path.as_ref();
 
@@ -43,7 +40,6 @@ impl I18nConfig {
         Ok(config)
     }
 
-    /// Read configuration from the manifest directory (for use in build scripts and proc macros)
     pub fn read_from_manifest_dir() -> Result<Self, I18nConfigError> {
         let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
 
@@ -51,19 +47,16 @@ impl I18nConfig {
         Self::read_from_path(config_path)
     }
 
-    /// Get the assets directory as a PathBuf
     pub fn assets_dir_path(&self) -> PathBuf {
         PathBuf::from(&self.assets_dir)
     }
 
-    /// Get the assets directory relative to the manifest directory
     pub fn assets_dir_from_manifest(&self) -> Result<PathBuf, I18nConfigError> {
         let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
 
         Ok(Path::new(&manifest_dir).join(&self.assets_dir))
     }
 
-    /// Validate that the assets directory exists
     pub fn validate_assets_dir(&self) -> Result<(), I18nConfigError> {
         let assets_path = self.assets_dir_from_manifest()?;
 
@@ -87,8 +80,6 @@ impl I18nConfig {
         Ok(())
     }
 
-    /// Parse fallback language as a language identifier
-    /// Returns the language string that can be used with unic_langid::langid!
     pub fn fallback_language_id(&self) -> &str {
         &self.fallback_language
     }

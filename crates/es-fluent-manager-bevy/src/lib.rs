@@ -162,24 +162,15 @@ pub fn localize<'a>(
         })
 }
 
-/// Plugin that adds EsFluent support to Bevy applications.
-/// This plugin automatically updates text components when the language changes.
 pub struct EsFluentBevyPlugin;
 
 impl Plugin for EsFluentBevyPlugin {
     fn build(&self, _app: &mut App) {
-        // The plugin doesn't add any systems by default
-        // Users can register specific types using the register_es_fluent_type method
         info!("EsFluentBevyPlugin initialized");
     }
 }
 
-/// A trait for registering specific type systems
 pub trait FluentTextRegistration {
-    /// Register a type for localization with `FluentText<T>`.
-    /// This will add systems to automatically update `Text` components
-    /// when the `FluentText<T>` value changes or the locale changes.
-    /// The `Text` component can be on the same entity or on a child entity.
     fn register_fluent_text<
         T: es_fluent::ToFluentString + Clone + Component + Send + Sync + 'static,
     >(

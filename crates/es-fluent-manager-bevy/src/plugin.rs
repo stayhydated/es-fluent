@@ -216,7 +216,6 @@ fn sync_global_state(
     if i18n_bundle.is_changed() {
         update_global_bundle((*i18n_bundle).clone());
 
-        // Emit event once the current language bundle is available so consumers don't need custom gating
         if i18n_bundle.0.contains_key(i18n_resource.current_language()) {
             let lang = i18n_resource.current_language().clone();
             info!(

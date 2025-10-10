@@ -202,7 +202,7 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
 fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by `type_name`
+    // Group by type_name
     let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>)> = BTreeMap::new();
 
     for item in items {
