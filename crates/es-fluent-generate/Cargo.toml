@@ -19,7 +19,7 @@ log = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3.0"
+tempfile = { workspace = true }
 proc-macro2 = { workspace = true }
 syn = { workspace = true }
 

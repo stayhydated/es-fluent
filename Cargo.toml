@@ -28,6 +28,7 @@ repository = "https://github.com/stayhydated/es-fluent"
 version = "0.1.3"
 
 [workspace.dependencies]
+tempfile = "3.23.0"
 anyhow = "1.0.98"
 bevy = "0.17.0"
 bon = "3.3.2"
