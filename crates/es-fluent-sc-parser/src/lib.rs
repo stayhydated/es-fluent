@@ -65,3 +65,97 @@ pub fn parse_directory(dir_path: &Path) -> Result<Vec<FtlTypeInfo>, FluentScPars
     );
     Ok(results)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_parse_directory_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let result = parse_directory(temp_dir.path());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_parse_directory_with_nonexistent_path() {
+        let non_existent_path = Path::new("/non/existent/path");
+        let result = parse_directory(non_existent_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_directory_with_rust_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let rust_file_path = temp_dir.path().join("test.rs");
+
+        let rust_content = r#"
+use es_fluent_core::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(display = "fluent")]
+pub enum TestEnum {
+    Variant1,
+    Variant2,
+}
+"#;
+
+        fs::write(&rust_file_path, rust_content).unwrap();
+
+        let result = parse_directory(temp_dir.path());
+        assert!(result.is_ok());
+
+        let type_infos = result.unwrap();
+        assert!(!type_infos.is_empty());
+    }
+
+    #[test]
+    fn test_parse_directory_with_multiple_rust_files() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let rust_file1_path = temp_dir.path().join("test1.rs");
+        let rust_content1 = r#"
+use es_fluent_core::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(display = "fluent")]
+pub enum TestEnum1 {
+    VariantA,
+}
+"#;
+
+        fs::write(&rust_file1_path, rust_content1).unwrap();
+
+        let rust_file2_path = temp_dir.path().join("test2.rs");
+        let rust_content2 = r#"
+use es_fluent_core::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(display = "fluent")]
+pub enum TestEnum2 {
+    VariantB,
+}
+"#;
+        fs::write(&rust_file2_path, rust_content2).unwrap();
+
+        let result = parse_directory(temp_dir.path());
+        assert!(result.is_ok());
+
+        let type_infos = result.unwrap();
+        assert!(type_infos.len() >= 2);
+    }
+
+    #[test]
+    fn test_parse_directory_with_non_rust_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let non_rust_file_path = temp_dir.path().join("test.txt");
+        fs::write(&non_rust_file_path, "not a rust file").unwrap();
+
+        let result = parse_directory(temp_dir.path());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 0);
+    }
+}

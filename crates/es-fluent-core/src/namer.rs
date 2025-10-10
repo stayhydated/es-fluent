@@ -30,7 +30,7 @@ impl quote::ToTokens for FluentKey {
 }
 
 #[derive(Clone, Debug, Deref, Display, Eq, Hash, PartialEq)]
-pub struct FluentDoc(pub String);
+pub struct FluentDoc(String);
 
 impl From<&FluentKey> for FluentDoc {
     fn from(ftl_key: &FluentKey) -> Self {
@@ -64,5 +64,51 @@ impl UnnamedItem {
 impl From<usize> for UnnamedItem {
     fn from(index: usize) -> Self {
         Self(index)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proc_macro2::Span;
+
+    #[test]
+    fn test_fluent_key_new_with_subname() {
+        let ident = syn::Ident::new("TestName", Span::call_site());
+        let key = FluentKey::new(&ident, "sub_part");
+        assert_eq!(key.0, "test_name-sub_part");
+    }
+
+    #[test]
+    fn test_fluent_key_new_empty_subname() {
+        let ident = syn::Ident::new("TestName", Span::call_site());
+        let key = FluentKey::new(&ident, "");
+        assert_eq!(key.0, "test_name");
+    }
+
+    #[test]
+    fn test_fluent_doc_from_fluent_key() {
+        let key = FluentKey("test_key".to_string());
+        let doc: FluentDoc = (&key).into();
+        assert_eq!(doc.to_string(), "Key = `test_key`");
+    }
+
+    #[test]
+    fn test_unnamed_item_display() {
+        let item = UnnamedItem(5);
+        assert_eq!(item.to_string(), "f5");
+    }
+
+    #[test]
+    fn test_unnamed_item_from_usize() {
+        let item: UnnamedItem = 10.into();
+        assert_eq!(item.to_string(), "f10");
+    }
+
+    #[test]
+    fn test_unnamed_item_to_ident() {
+        let item = UnnamedItem(0);
+        let ident = item.to_ident();
+        assert_eq!(ident.to_string(), "f0");
     }
 }

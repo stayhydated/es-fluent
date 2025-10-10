@@ -93,3 +93,74 @@ impl I18nConfig {
         &self.fallback_language
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_read_from_path_success() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let config_content = r#"
+fallback_language = "en"
+assets_dir = "i18n"
+"#;
+
+        fs::write(&config_path, config_content).unwrap();
+
+        let result = I18nConfig::read_from_path(&config_path);
+        assert!(result.is_ok());
+
+        let config = result.unwrap();
+        assert_eq!(config.fallback_language, "en");
+        assert_eq!(config.assets_dir, PathBuf::from("i18n"));
+    }
+
+    #[test]
+    fn test_read_from_path_file_not_found() {
+        let non_existent_path = Path::new("/non/existent/path/i18n.toml");
+        let result = I18nConfig::read_from_path(non_existent_path);
+        assert!(matches!(result, Err(I18nConfigError::NotFound)));
+    }
+
+    #[test]
+    fn test_read_from_path_invalid_toml() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let invalid_config = r#"
+fallback_language = "en"
+[invalid_section]
+assets_dir = "i18n"
+"#;
+
+        fs::write(&config_path, invalid_config).unwrap();
+
+        let result = I18nConfig::read_from_path(&config_path);
+        assert!(matches!(result, Err(I18nConfigError::ParseError(_))));
+    }
+
+    #[test]
+    fn test_assets_dir_path() {
+        let config = I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: PathBuf::from("locales"),
+        };
+
+        assert_eq!(config.assets_dir_path(), PathBuf::from("locales"));
+    }
+
+    #[test]
+    fn test_fallback_language_id() {
+        let config = I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+        };
+
+        assert_eq!(config.fallback_language_id(), "en");
+    }
+}
