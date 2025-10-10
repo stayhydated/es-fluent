@@ -1,5 +1,3 @@
-/// A trait for converting a type into a Fluent choice.
-///
 /// This trait is used to convert an enum into a string that can be used as a
 /// Fluent choice.
 ///
@@ -26,6 +24,5 @@
 /// assert_eq!(my_enum.as_fluent_choice(), "variant1");
 /// ```
 pub trait EsFluentChoice {
-    /// Converts the type into a Fluent choice.
     fn as_fluent_choice(&self) -> &'static str;
 }

@@ -7,7 +7,6 @@ use state_shift::{impl_state, type_state};
 
 pub use es_fluent_generate::FluentParseMode;
 
-/// A builder for generating Fluent translation files.
 #[type_state(
     states = (Unset, ModeSet),
     slots = (Unset)

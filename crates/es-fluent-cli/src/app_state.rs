@@ -6,7 +6,6 @@ use std::{
     time::Instant,
 };
 
-/// An event that can occur in the application.
 #[derive(Debug)]
 pub enum AppEvent {
     /// An input event from the user.
@@ -17,7 +16,6 @@ pub enum AppEvent {
     Tick,
 }
 
-/// The state of the application.
 pub struct AppState {
     /// The crates that have been discovered.
     pub crates: Vec<CrateInfo>,

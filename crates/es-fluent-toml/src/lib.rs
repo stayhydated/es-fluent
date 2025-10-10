@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 use thiserror::Error;
 
-/// An error that can occur when parsing an `i18n.toml` file.
 #[derive(Debug, Error)]
 pub enum I18nConfigError {
     /// Configuration file not found.

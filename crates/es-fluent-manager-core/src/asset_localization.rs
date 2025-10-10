@@ -2,7 +2,6 @@
 
 use unic_langid::LanguageIdentifier;
 
-/// Data for an asset-based i18n module.
 #[derive(Debug)]
 pub struct AssetModuleData {
     /// The name of the module.
@@ -13,13 +12,11 @@ pub struct AssetModuleData {
     pub supported_languages: &'static [LanguageIdentifier],
 }
 
-/// A trait for an asset-based i18n module.
 pub trait I18nAssetModule: Send + Sync {
     /// Returns the data for the module.
     fn data(&self) -> &'static AssetModuleData;
 }
 
-/// An asset-based i18n module.
 pub struct AssetI18nModule {
     data: &'static AssetModuleData,
 }

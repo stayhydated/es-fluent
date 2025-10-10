@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-/// An error that can occur during the build process.
 #[derive(Debug, Error)]
 pub enum FluentBuildError {
     /// An error that occurs when the `i18n.toml` configuration file is not

@@ -4,14 +4,12 @@ use proc_macro_error2::proc_macro_error;
 
 mod macros;
 
-/// A derive macro for the `EsFluent` trait.
 #[proc_macro_derive(EsFluent, attributes(fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent::from(input)
 }
 
-/// A derive macro for the `EsFluentChoice` trait.
 #[proc_macro_derive(EsFluentChoice, attributes(fluent_choice))]
 #[proc_macro_error]
 pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

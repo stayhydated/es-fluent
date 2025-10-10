@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
-/// An error that can occur when parsing Rust source code.
 #[derive(Debug, Error)]
 pub enum FluentScParserError {
     /// An IO error.

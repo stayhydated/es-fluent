@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-/// An error that can occur in the CLI.
 #[derive(Debug, Error)]
 pub enum CliError {
     /// An error that occurs when parsing the `i18n.toml` configuration file.

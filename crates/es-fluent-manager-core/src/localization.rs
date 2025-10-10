@@ -16,7 +16,6 @@ pub enum LocalizationError {
     BackendError(#[from] anyhow::Error),
 }
 
-/// A trait for a localizer.
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError>;
@@ -28,7 +27,6 @@ pub trait Localizer: Send + Sync {
     ) -> Option<String>;
 }
 
-/// A trait for an i18n module.
 pub trait I18nModule: Send + Sync {
     /// Returns the name of the module.
     fn name(&self) -> &'static str;

@@ -20,14 +20,11 @@ pub use es_fluent::{FluentDisplay, ToFluentString};
 pub use plugin::*;
 pub use systems::*;
 
-/// A Bevy asset for Fluent translation files.
 #[derive(Asset, Clone, Debug, Deserialize, Serialize, TypePath)]
 pub struct FtlAsset {
-    /// The content of the FTL file.
     pub content: String,
 }
 
-/// A Bevy asset loader for FTL files.
 #[derive(Default)]
 pub struct FtlAssetLoader;
 
@@ -52,15 +49,12 @@ impl AssetLoader for FtlAssetLoader {
     }
 }
 
-/// An event that is sent when the locale should be changed.
 #[derive(Clone, Message)]
 pub struct LocaleChangeEvent(pub LanguageIdentifier);
 
-/// An event that is sent when the locale has been changed.
 #[derive(Clone, Message)]
 pub struct LocaleChangedEvent(pub LanguageIdentifier);
 
-/// A resource that stores the handles to the FTL assets.
 #[derive(Clone, Default, Resource)]
 pub struct I18nAssets {
     /// A map of language identifiers and domains to FTL asset handles.
@@ -72,7 +66,6 @@ pub struct I18nAssets {
 type SyncFluentBundle =
     FluentBundle<Arc<FluentResource>, intl_memoizer::concurrent::IntlLangMemoizer>;
 
-/// A resource that stores the Fluent bundles.
 #[derive(Clone, Default, Resource)]
 pub struct I18nBundle(pub HashMap<LanguageIdentifier, Arc<SyncFluentBundle>>);
 
@@ -113,7 +106,6 @@ impl I18nAssets {
     }
 }
 
-/// A resource that stores the current language.
 #[derive(Resource)]
 pub struct I18nResource {
     current_language: LanguageIdentifier,
@@ -183,7 +175,6 @@ pub fn localize<'a>(
         })
 }
 
-/// A Bevy plugin for `es-fluent`.
 pub struct EsFluentBevyPlugin;
 
 impl Plugin for EsFluentBevyPlugin {

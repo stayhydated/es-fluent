@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-/// An error that can occur when generating a Fluent translation file.
 #[derive(Debug, Error)]
 pub enum FluentGenerateError {
     /// An IO error.

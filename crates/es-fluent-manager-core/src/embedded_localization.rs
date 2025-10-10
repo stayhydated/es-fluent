@@ -7,13 +7,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use unic_langid::LanguageIdentifier;
 
-/// A trait for embedded assets.
 pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
-    /// Returns the domain of the assets.
     fn domain() -> &'static str;
 }
 
-/// Data for an embedded i18n module.
 #[derive(Debug)]
 pub struct EmbeddedModuleData {
     /// The name of the module.
@@ -24,7 +21,6 @@ pub struct EmbeddedModuleData {
     pub supported_languages: &'static [LanguageIdentifier],
 }
 
-/// A localizer for embedded assets.
 #[derive(Debug)]
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     data: &'static EmbeddedModuleData,
@@ -34,7 +30,6 @@ pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
 }
 
 impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
-    /// Creates a new `EmbeddedLocalizer`.
     pub fn new(data: &'static EmbeddedModuleData) -> Self {
         Self {
             data,
@@ -139,14 +134,12 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     }
 }
 
-/// An embedded i18n module.
 pub struct EmbeddedI18nModule<T: EmbeddedAssets> {
     data: &'static EmbeddedModuleData,
     _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
-    /// Creates a new `EmbeddedI18nModule`.
     pub const fn new(data: &'static EmbeddedModuleData) -> Self {
         Self {
             data,
@@ -154,7 +147,6 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
         }
     }
 
-    /// Discovers the languages available in the embedded assets.
     pub fn discover_languages() -> Vec<LanguageIdentifier> {
         let domain = T::domain();
         let file_name = format!("{}.ftl", domain);

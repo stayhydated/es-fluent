@@ -1,7 +1,5 @@
 use std::fmt;
 
-/// A trait for formatting a type as a Fluent message.
-///
 /// This trait is similar to `std::fmt::Display`, but it is used for formatting
 /// types that can be displayed in a Fluent message.
 pub trait FluentDisplay {
@@ -9,12 +7,10 @@ pub trait FluentDisplay {
     fn fluent_fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
-/// A trait for converting a type into a Fluent string.
-///
 /// This trait is automatically implemented for any type that implements
 /// `FluentDisplay`.
 pub trait ToFluentString {
-    /// Converts the type into a Fluent string.
+    /// Converts the type into a Fluent (i18n translated) string.
     fn to_fluent_string(&self) -> String;
 }
 
