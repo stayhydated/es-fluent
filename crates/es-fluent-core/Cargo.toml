@@ -30,5 +30,3 @@ workspace = true
 [dev-dependencies]
 insta = { workspace = true, features = ["ron"] }
 syn = { workspace = true, features = ["full"] }
-
-serde_json = "1"
