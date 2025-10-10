@@ -221,11 +221,6 @@ see the [examples](examples) dir to see a bunch of ways to use this crate. where
 
 [Cli](crates/es-fluent-cli/README.md)
 
-## Notes
-
-- `es-fluent` expects you to provide a `fl!` macro, accessible via `crate::fl`
-- This macro was designed around [i18n-embed-fl](https://github.com/kellpossible/cargo-i18n/tree/master/i18n-embed-fl) and [i18n-embed](https://github.com/kellpossible/cargo-i18n/tree/master/i18n-embed). Decoupling from it is planned in the future. For now, this satisfies my use case with [gpui](https://gpui.rs). Feel free to contribute to the project!
-
 ## Derive Macro Supported kinds
 
 ### Enums
