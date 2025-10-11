@@ -195,7 +195,7 @@ This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with va
 
 Generic parameters must convert into Fluent values when used as arguments:
 
-````rs,ignore
+```rs
 use es_fluent::EsFluent;
 use fluent_bundle::FluentValue;
 
@@ -213,3 +213,4 @@ where
 ## Examples
 - [bevy](../../examples/bevy-example)
 - [gpui](../../examples/gpui-example)
+- [iced](../../examples/iced-example)

@@ -213,3 +213,4 @@ where
 ## Examples
 - [bevy](examples/bevy-example)
 - [gpui](examples/gpui-example)
+- [iced](examples/iced-example)
