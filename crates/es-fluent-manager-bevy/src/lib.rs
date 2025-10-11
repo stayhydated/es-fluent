@@ -20,6 +20,33 @@ pub use es_fluent::{FluentDisplay, ToFluentString};
 pub use plugin::*;
 pub use systems::*;
 
+#[derive(Clone, Resource)]
+pub struct CurrentLanguageId(pub LanguageIdentifier);
+
+pub fn primary_language(lang: &LanguageIdentifier) -> &str {
+    lang.language.as_str()
+}
+
+pub trait FromLocale {
+    fn from_locale(lang: &LanguageIdentifier) -> Self;
+}
+
+/// Mutating refresh API to update only locale-dependent fields while preserving state.
+pub trait RefreshForLocale {
+    fn refresh_for_locale(&mut self, lang: &LanguageIdentifier);
+}
+
+/// Blanket impl: fall back to rebuilding via `FromLocale` if no specialized impl is provided.
+impl<T> RefreshForLocale for T
+where
+    T: FromLocale,
+{
+    #[inline]
+    fn refresh_for_locale(&mut self, lang: &LanguageIdentifier) {
+        *self = T::from_locale(lang);
+    }
+}
+
 #[derive(Asset, Clone, Debug, Deserialize, Serialize, TypePath)]
 pub struct FtlAsset {
     pub content: String,
@@ -175,6 +202,19 @@ pub fn localize<'a>(
         })
 }
 
+pub fn update_values_on_locale_change<T>(
+    mut locale_changed_events: MessageReader<LocaleChangedEvent>,
+    mut query: Query<&mut FluentText<T>>,
+) where
+    T: RefreshForLocale + ToFluentString + Clone + Component,
+{
+    for event in locale_changed_events.read() {
+        for mut fluent_text in query.iter_mut() {
+            fluent_text.value.refresh_for_locale(&event.0);
+        }
+    }
+}
+
 pub struct EsFluentBevyPlugin;
 
 impl Plugin for EsFluentBevyPlugin {
@@ -191,6 +231,13 @@ pub trait FluentTextRegistration {
     >(
         &mut self,
     ) -> &mut Self;
+
+    /// Registers a fluent text component that can rebuild its value when the locale changes.
+    fn register_fluent_text_from_locale<
+        T: es_fluent::ToFluentString + Clone + Component + RefreshForLocale + Send + Sync + 'static,
+    >(
+        &mut self,
+    ) -> &mut Self;
 }
 
 impl FluentTextRegistration for App {
@@ -203,6 +250,22 @@ impl FluentTextRegistration for App {
             PostUpdate,
             (
                 crate::systems::update_all_fluent_text_on_locale_change::<T>,
+                crate::systems::update_fluent_text_system::<T>,
+            )
+                .chain(),
+        );
+        self
+    }
+
+    fn register_fluent_text_from_locale<
+        T: es_fluent::ToFluentString + Clone + Component + RefreshForLocale + Send + Sync + 'static,
+    >(
+        &mut self,
+    ) -> &mut Self {
+        self.add_systems(
+            PostUpdate,
+            (
+                crate::update_values_on_locale_change::<T>,
                 crate::systems::update_fluent_text_system::<T>,
             )
                 .chain(),

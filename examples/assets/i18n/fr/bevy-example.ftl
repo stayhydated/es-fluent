@@ -1,3 +1,7 @@
 ## BevyScreenMessages
 
-bevy_screen_messages-ToggleLanguageHint = Appuyez sur 't' pour changer de langue, langue actuelle : { $current_language }
+bevy_screen_messages-ToggleLanguageHint = Appuyez sur '{ $key }' pour changer de langue, langue actuelle : { $current_language }
+
+## KbKeys
+
+kb_keys-T = T

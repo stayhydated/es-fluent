@@ -14,7 +14,7 @@ members = [
   "crates/es-fluent-manager-bevy",
   "examples/first-example",
   "examples/thiserror-example",
-  "examples/bevy-example", "examples/example-shared-lib", "examples/gpui-example",
+  "examples/bevy-example", "examples/example-shared-lib", "examples/gpui-example", "examples/iced-example",
 ]
 resolver = "3"
 
@@ -27,6 +27,7 @@ repository = "https://github.com/stayhydated/es-fluent"
 version = "0.1.3"
 
 [workspace.dependencies]
+iced = { version = "0.13.1", default-features = false }
 tempfile = "3.23.0"
 anyhow = "1.0.98"
 bevy = "0.17.0"

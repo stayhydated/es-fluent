@@ -1,16 +1,37 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
+    CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
-use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
+use example_shared_lib::{ButtonState, Languages};
 use strum::IntoEnumIterator as _;
 
 es_fluent_manager_bevy::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, EsFluent, Component)]
+pub enum KbKeys {
+    T,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent, Component)]
 pub enum BevyScreenMessages {
-    ToggleLanguageHint { current_language: Languages },
+    ToggleLanguageHint {
+        key: KbKeys,
+        current_language: Languages,
+    },
+}
+
+impl es_fluent_manager_bevy::RefreshForLocale for BevyScreenMessages {
+    fn refresh_for_locale(&mut self, lang: &unic_langid::LanguageIdentifier) {
+        match self {
+            BevyScreenMessages::ToggleLanguageHint {
+                key: _,
+                current_language,
+            } => {
+                *current_language = Languages::from(lang);
+            },
+        }
+    }
 }
 
 fn main() {
@@ -21,12 +42,11 @@ fn main() {
         ..default()
     }))
     .insert_resource(WinitSettings::desktop_app())
-    .insert_resource(CurrentLanguage(Languages::default()))
     .add_plugins(I18nPlugin::with_language(Languages::default().into()))
     .init_resource::<InputFocus>();
 
     app.register_fluent_text::<ButtonState>()
-        .register_fluent_text::<BevyScreenMessages>();
+        .register_fluent_text_from_locale::<BevyScreenMessages>();
 
     app.add_systems(Startup, setup)
         .add_systems(PostUpdate, (button_system, locale_change_system))
@@ -36,18 +56,17 @@ fn main() {
 fn locale_change_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut locale_change_events: MessageWriter<LocaleChangeEvent>,
-    mut current_language: ResMut<CurrentLanguage>,
+    current_language: Res<CurrentLanguageId>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyT) {
         let languages: Vec<Languages> = Languages::iter().collect();
         let current_index = languages
             .iter()
-            .position(|&lang| lang == current_language.0)
+            .position(|&lang| unic_langid::LanguageIdentifier::from(lang) == current_language.0)
             .unwrap_or(0);
         let next_index = (current_index + 1) % languages.len();
         let next_language = languages[next_index];
 
-        current_language.0 = next_language;
         locale_change_events.write(LocaleChangeEvent(next_language.into()));
     }
 }
@@ -131,6 +150,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
             ),
             (
                 FluentText::new(BevyScreenMessages::ToggleLanguageHint {
+                    key: KbKeys::T,
                     current_language: Languages::default(),
                 }),
                 Text::new(""),
