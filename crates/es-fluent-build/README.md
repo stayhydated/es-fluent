@@ -10,14 +10,19 @@ It is designed to be used as a `build-dependency` in your `Cargo.toml` and invok
 
     ```toml
     [build-dependencies]
-    es-fluent-build = { version = "...", path = "../es-fluent-build" } # Adjust path as needed
+    es-fluent-build = { version = "*" }
     ```
 
 2.  Create a `build.rs` file in your crate's root with the following content:
 
-    ```rs,no_run
-    fn main() {
-        es_fluent_build::FluentBuilder::new().build().unwrap();
+    ```rs
+    pub fn main() {
+        if let Err(e) = es_fluent_build::FluentBuilder::new()
+            .mode(es_fluent_build::FluentParseMode::Conservative)
+            .build()
+        {
+            log::error!("Error building FTL files: {}", e);
+        }
     }
     ```
 

@@ -14,7 +14,7 @@ It is designed to work with embedded translations, using the `define_embedded_i1
 
 1.  In each of your crates that has translations, define an embedded module:
 
-    ```rs,no_run
+    ```rs
     // In my_crate/src/lib.rs
     use es_fluent_manager_singleton::define_i18n_module;
 
@@ -23,7 +23,7 @@ It is designed to work with embedded translations, using the `define_embedded_i1
 
 2.  At the start of your application, initialize the singleton:
 
-    ```rs,no_run
+    ```rs
     // In main.rs
     use es_fluent_manager_singleton::{init, select_language};
     use es_fluent::localize;

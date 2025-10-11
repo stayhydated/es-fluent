@@ -2,8 +2,6 @@
 
 The `es-fluent-toml` crate provides the data structures and parsing logic for the `i18n.toml` configuration file used by the `es-fluent` ecosystem.
 
-This small utility crate ensures that tools like `es-fluent-build` and `es-fluent-cli` can consistently read and interpret the project's localization settings.
-
 ## Configuration
 
 The `i18n.toml` file defines the basic settings required for the build tools to locate and process your translation files.

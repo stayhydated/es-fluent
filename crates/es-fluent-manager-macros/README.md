@@ -16,7 +16,7 @@ You typically call one of these macros once in your `lib.rs` or `main.rs` to set
 
 ### For Embedded Translations:
 
-```rs,no_run
+```rs
 // In lib.rs or main.rs
 use es_fluent_manager_macros::define_embedded_i18n_module;
 
@@ -25,7 +25,7 @@ define_embedded_i18n_module!();
 
 ### For Bevy Asset-based Translations:
 
-```rs,no_run
+```rs
 // In lib.rs or main.rs
 use es_fluent_manager_macros::define_bevy_i18n_module;
 
