@@ -4724,9 +4724,17 @@ dependencies = [
 name = "gpui-example"
 version = "0.1.3"
 dependencies = [
+ "anyhow",
+ "es-fluent",
+ "es-fluent-build",
+ "es-fluent-manager-singleton",
  "gpui",
  "gpui-component",
+ "log",
+ "rust-embed",
  "shared-lib",
+ "strum 0.26.3",
+ "unic-langid",
 ]
 
 [[package]]
@@ -8427,6 +8435,7 @@ dependencies = [
  "es-fluent-manager-bevy",
  "es-fluent-manager-singleton",
  "log",
+ "rust-embed",
  "strum 0.26.3",
  "unic-langid",
 ]

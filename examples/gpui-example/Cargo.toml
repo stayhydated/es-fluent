@@ -6,9 +6,19 @@ license = "Unlicense"
 publish = false
 
 [dependencies]
+es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-manager-singleton = { workspace = true }
 gpui = { workspace = true }
 gpui-component = { workspace = true }
-shared-lib = { path = "../shared-lib" }
+rust-embed = { workspace = true }
+strum = { features = [ "derive" ], workspace = true }
+unic-langid = { workspace = true }
+shared-lib = { path = "../shared-lib", features = ["gpui"] }
+anyhow = { workspace = true }
+
+[build-dependencies]
+es-fluent-build = { workspace = true }
+log = { workspace = true }
 
 [lints]
 workspace = true
