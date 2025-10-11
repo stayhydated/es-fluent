@@ -4,7 +4,7 @@ use proc_macro_error2::{abort, abort_call_site, emit_error};
 use proc_macro2::Span;
 
 /// An error that can occur when parsing `es-fluent` attributes.
-#[derive(Debug, thiserror::Error, Clone)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum EsFluentCoreError {
     /// An error related to Fluent attribute parsing.
     #[error("Attribute error: {message}")]

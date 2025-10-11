@@ -8,11 +8,11 @@ publish = false
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-singleton = { workspace = true }
-iced = { workspace = true, features = ["tiny-skia", "web-colors"] }
+example-shared-lib = { features = [ "iced" ], path = "../example-shared-lib" }
+iced = { features = [ "tiny-skia", "web-colors" ], workspace = true }
 rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
-example-shared-lib = { path = "../example-shared-lib", features = ["gpui"] }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }

@@ -6,14 +6,14 @@ license = "Unlicense"
 publish = false
 
 [dependencies]
-bevy = { workspace = true, optional = true }
+bevy = { optional = true, workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-manager-bevy = { optional = true, workspace = true }
+es-fluent-manager-singleton = { optional = true, workspace = true }
+gpui = { optional = true, workspace = true }
+rust-embed = { optional = true, workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
-es-fluent-manager-bevy = { workspace = true, optional = true }
-es-fluent-manager-singleton = { workspace = true, optional = true }
-rust-embed = { workspace = true, optional = true }
-gpui = { workspace = true, optional = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }
@@ -23,5 +23,6 @@ log = { workspace = true }
 workspace = true
 
 [features]
-gpui = ["dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-singleton"]
-bevy = ["dep:bevy", "dep:es-fluent-manager-bevy"]
+bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy" ]
+gpui = [ "dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-singleton" ]
+iced = [ "dep:rust-embed", "dep:es-fluent-manager-singleton" ]

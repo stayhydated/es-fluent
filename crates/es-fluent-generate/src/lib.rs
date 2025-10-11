@@ -15,7 +15,7 @@ use error::FluentGenerateError;
 use formatter::value::ValueFormatter;
 
 /// The mode to use when parsing Fluent files.
-#[derive(Clone, Debug, Default, ValueEnum, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, ValueEnum)]
 pub enum FluentParseMode {
     /// Overwrite existing translations.
     Aggressive,

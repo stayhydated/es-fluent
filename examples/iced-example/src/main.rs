@@ -36,7 +36,7 @@ struct IcedExampleView {
     current_language: Languages,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 enum Message {
     StateButtonHovered(bool),
     StateButtonPressed,

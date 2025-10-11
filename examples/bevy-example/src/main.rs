@@ -8,12 +8,12 @@ use strum::IntoEnumIterator as _;
 
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[derive(Clone, Copy, Debug, EsFluent, Component)]
+#[derive(Clone, Component, Copy, Debug, EsFluent)]
 pub enum KbKeys {
     T,
 }
 
-#[derive(Clone, Copy, Debug, EsFluent, Component)]
+#[derive(Clone, Component, Copy, Debug, EsFluent)]
 pub enum BevyScreenMessages {
     ToggleLanguageHint {
         key: KbKeys,
