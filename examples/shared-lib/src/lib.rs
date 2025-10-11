@@ -28,6 +28,9 @@ pub enum ScreenMessages {
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct CurrentLanguage(pub Languages);
 
+#[cfg(feature = "gpui")]
+impl gpui::Global for CurrentLanguage {}
+
 #[derive(Clone, Copy, Debug, Default, EnumIter, EsFluent, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(Component))]
 pub enum Languages {
