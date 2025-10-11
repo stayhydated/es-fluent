@@ -1,42 +1,98 @@
 # es-fluent
 
-A enum/struct derive macro for [Project Fluent](https://projectfluent.org/).
+Derive macros and utilities for authoring strongly-typed messages with [Project Fluent](https://projectfluent.org/).
 
-given [Project Fluent](https://projectfluent.org/)'s first example
+This crate gives you:
+- Derives to turn enums/structs into Fluent message IDs and arguments.
+- A simple API to format values for Fluent and convert them into strings.
+- Optional integration via a singleton manager (`es-fluent-manager-singleton`) or for Bevy (`es-fluent-manager-bevy`).
 
-```ftl
-# Simple things are simple.
-hello-user = Hello, {$userName}!
+## Installation
 
-# Complex things are possible.
-shared-photos =
-    {$userName} {$photoCount ->
-        [one] added a new photo
-       *[other] added {$photoCount} new photos
-    } to {$userGender ->
-        [male] his stream
-        [female] her stream
-       *[other] their stream
-    }.
+Add the crate with the `derive` feature to access the procedural macros:
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["derive"] }
+unic-langid = "*"
+
+# If you want to register modules with the singleton and localize at runtime:
+es-fluent-manager-singleton = "*"
+
+# For Bevy integration: replace `es-fluent-manager-singleton` with  `es-fluent-manager-bevy`
+es-fluent-manager-bevy = "*"
 ```
 
-This could be represented as
+To bootstrap `.ftl` files from your Rust types, add the build helper:
 
-```rs
-use es_fluent::{EsFluent, EsFluentChoice};
+```toml
+[build-dependencies]
+es-fluent-build = "*"
+```
+
+And create a `build.rs`:
+
+```rust
+// build.rs
+use es_fluent_build::FluentParseMode;
+
+fn main() {
+    if let Err(e) = es_fluent_build::FluentBuilder::new()
+        .mode(FluentParseMode::Conservative)
+        .build()
+    {
+        eprintln!("Error building FTL files: {e}");
+    }
+}
+```
+
+## Project configuration
+
+Create an `i18n.toml` next to your `Cargo.toml`:
+
+```toml
+# i18n.toml
+assets_dir = "i18n"      # where your localized files live
+fallback_language = "en" # default language subdirectory under assets_dir
+```
+
+When you run a build, the builder will:
+- Discover your crate name,
+- Parse Rust sources under `src/`,
+- Generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
+
+For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the file would be `../i18n/en/{crate_name}.ftl`.
+
+## Core derives
+
+### `#[derive(EsFluent)]` on enums
+
+Annotate an enum to generate message IDs and, optionally, implement `es_fluent::FluentDisplay` or `std::fmt::Display`.
+
+```rust
+use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
-#[fluent(display = "fluent")] // optional, defaults to "fluent" if not specified
+#[fluent(display = "fluent")] // default; use "std" to implement std::fmt::Display
 pub enum Hello<'a> {
     User { user_name: &'a str },
 }
+```
+
+Fields become Fluent arguments. The derive generates stable keys and formatting logic for you.
+
+### Choices with `EsFluentChoice`
+
+When a message needs to match on an enum (a Fluent select expression), implement `EsFluentChoice`. You can then mark a field with `#[fluent(choice)]` to pass its choice value instead of formatting it as a nested message.
+
+```rust
+use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
 #[fluent_choice(serialize_all = "snake_case")]
 pub enum Gender {
     Male,
     Female,
-    Helicopter,
     Other,
 }
 
@@ -45,50 +101,42 @@ pub enum Shared<'a> {
     Photos {
         user_name: &'a str,
         photo_count: &'a u32,
-        // this signals the macro to use the choice representation, since we'll
-        // match against it in the ftl resource
         #[fluent(choice)]
         user_gender: &'a Gender,
     },
 }
 ```
 
-using any of the *prototyping tools* for building the `.ftl` resources, we'd get
+A prototyping build will write skeleton FTL like:
 
 ```ftl
 ## Gender
-
-gender-Female = Female
-gender-Helicopter = Helicopter
 gender-Male = Male
+gender-Female = Female
 gender-Other = Other
 
 ## Hello
-
 hello-User = User { $user_name }
 
 ## Shared
-
 shared-Photos = Photos { $user_name } { $photo_count } { $user_gender }
 ```
 
-which we would modify to our needs:
+You can then edit it into a real copy, e.g.:
 
 ```ftl
 ## Gender
-
 gender-Female = Female
 gender-Helicopter = Helicopter
 gender-Male = Male
 gender-Other = Other
 
 ## Hello
-
 hello-User = Hello, {$user_name}!
 
 ## Shared
-
-shared-Photos = {$user_name} {$photo_count ->
+shared-Photos =
+    {$user_name} {$photo_count ->
         [one] added a new photo
        *[other] added {$photo_count} new photos
     } to {$user_gender ->
@@ -98,128 +146,38 @@ shared-Photos = {$user_name} {$photo_count ->
     }.
 ```
 
-see the output with
+### Display strategy
 
-```sh
-cargo run -p first-example
-```
-
-## Generics
-
-all generics need to impl `for<'a> &'a {type parameter}: Into<FluentValue<'a>>`, like
+By default, `EsFluent` implements `es_fluent::FluentDisplay`, which formats through Fluent. If you prefer plain Rust `Display` for a type, use:
 
 ```rust
 #[derive(EsFluent)]
-#[fluent(display = "fluent")] // optional, defaults to "fluent" if not specified
-pub enum GenericFluentDisplay<T>
-where
-    for<'a> &'a T: Into<FluentValue<'a>>,
-{
-    A(T),
-    B { c: T },
-    D,
-}
-```
-
-## Display Trait
-
-By default, the macro will only implement the `es_fluent::FluentDisplay` trait.
-
-Its also possible for it to only implement the `std::fmt::Display` trait. By manually adding `#[fluent(display = "std")]`, such as
-
-```rs
-#[derive(EsFluent)]
 #[fluent(display = "std")]
 pub enum AbcStdDisplay {
-    A,
-    B,
-    C,
+    A, B, C,
 }
 ```
 
-This can also be implemented for `strum::EnumDiscriminants`, such as
+This also works with `strum::EnumDiscriminants` when you want to display the discriminants.
 
-```rs
-#[derive(EnumDiscriminants, EsFluent)]
-#[fluent(display = "std")]
-// doesn't need to be condensed into a single block, using multiple block is fine.
-#[strum_discriminants(vis(pub), derive(EsFluent), fluent(display = "std"))]
-pub enum PaymentTypeStdDisplay {
-    Cash(f64),
-    CreditCard { amount: f64, card_number: String },
-    Robbery,
-}
-```
+### `#[derive(EsFluent)]` on structs (keys and “this”)
 
-## On Structs
+You can derive on structs to produce key enums (labels, descriptions, etc.). For example:
 
-given
+```rust
+use es_fluent::EsFluent;
 
-```rs
 #[derive(EsFluent)]
-#[fluent(display = "std")] // set display impl to `std::fmt::Display`
-#[fluent(keys = ["Description", "Label"])] // generates specialized names
-#[fluent(derive(Clone))] // custom derives you'd define
-#[fluent(this)] // describes the item ident (name) as a fn, `{}::this_ftl()`
+#[fluent(display = "std")]
+#[fluent(this)] // generates `Address::this_ftl()`
+#[fluent(keys = ["Description", "Label"])]
 pub struct Address {
     pub street: String,
     pub postal_code: String,
 }
 ```
 
-this will expand to
-
-```rs
-impl Address {
-  pub fn this_ftl() -> String {/* */}
-}
-
-#[derive(EsFluent, Clone)]
-#[fluent(display = "std")]
-pub enum AddressLabelFtl {
-    Street,
-    PostalCode,
-}
-
-impl AddressLabelFtl {
-  pub fn this_ftl() -> String {/* */}
-}
-
-#[derive(EsFluent, Clone)]
-#[fluent(display = "std")]
-pub enum AddressDescriptionFtl {
-    Street,
-    PostalCode,
-}
-
-impl AddressDescriptionFtl {
-  pub fn this_ftl() -> String {/* */}
-}
-
-```
-
-if no keys are provided, this will expand to
-
-```rs
-pub enum AddressFtl {
-    Street,
-    PostalCode,
-}
-```
-
-## Simple examples
-
-see the [examples](examples) dir to see a bunch of ways to use this crate. where i18n resources are placed in the [i18n](examples/i18n) dir.
-
-## [Gpui](https://gpui.rs) example
-
-<https://github.com/stayhydated/gpui-form/tree/master/examples>
-
-## Prototyping tools
-
-[Build.rs script](crates/es-fluent-build/README.md)
-
-[Cli](crates/es-fluent-cli/README.md)
+This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with variants for each field (`Street`, `PostalCode`). They implement the selected display strategy. `this` adds a helper `Address::this_ftl()` that returns the ID of the parent.
 
 ## Derive Macro Supported kinds
 
@@ -232,3 +190,26 @@ see the [examples](examples) dir to see a bunch of ways to use this crate. where
 ### Structs
 
 - struct_named
+
+### Generics
+
+Generic parameters must convert into Fluent values when used as arguments:
+
+```rust
+use es_fluent::EsFluent;
+use fluent_bundle::FluentValue;
+
+#[derive(EsFluent)]
+pub enum GenericFluentDisplay<T>
+where
+    for<'a> &'a T: Into<FluentValue<'a>>,
+{
+    A(T),
+    B { c: T },
+    D,
+}
+```
+
+## Examples
+- [bevy](examples/bevy-example)
+- [gpui](examples/gpui-example)

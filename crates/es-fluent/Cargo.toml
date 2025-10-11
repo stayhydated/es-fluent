@@ -25,6 +25,7 @@ fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
+rust-embed = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [lints]

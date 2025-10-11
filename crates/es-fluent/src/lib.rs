@@ -1,20 +1,22 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "derive")]
-/// Re-export of the `EsFluent` derive macro.
 pub use es_fluent_derive::{EsFluent, EsFluentChoice};
 
-/// Re-export of `es_fluent_manager_core` items.
 pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
 
-/// Re-export of `fluent_bundle::FluentValue`.
 pub use fluent_bundle::FluentValue;
 
 #[doc(hidden)]
 pub use inventory as __inventory;
 
 #[doc(hidden)]
+pub use rust_embed as __rust_embed;
+
+#[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
+
+pub use unic_langid;
 
 mod traits;
 pub use traits::*;

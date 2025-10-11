@@ -82,13 +82,13 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     }
 
     let language_identifiers = languages.iter().map(|lang| {
-        quote! { unic_langid::langid!(#lang) }
+        quote! { es_fluent::unic_langid::langid!(#lang) }
     });
 
     let i18n_root_str = i18n_root_path.to_string_lossy();
 
     let expanded = quote! {
-        #[derive(rust_embed::RustEmbed)]
+        #[derive(es_fluent::__rust_embed::RustEmbed)]
         #[folder = #i18n_root_str]
         struct #assets_struct_name;
 
@@ -184,7 +184,7 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     }
 
     let language_identifiers = languages.iter().map(|lang| {
-        quote! { unic_langid::langid!(#lang) }
+        quote! { es_fluent::unic_langid::langid!(#lang) }
     });
 
     let expanded = quote! {

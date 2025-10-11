@@ -1,9 +1,9 @@
 [workspace]
 members = [
   "crates/es-fluent",
+  "crates/es-fluent-core",
   "crates/es-fluent-toml",
   "crates/es-fluent-derive",
-  "crates/es-fluent-core",
   "crates/es-fluent-build",
   "crates/es-fluent-generate",
   "crates/es-fluent-sc-parser",
@@ -14,7 +14,6 @@ members = [
   "crates/es-fluent-manager-bevy",
   "examples/first-example",
   "examples/thiserror-example",
-  "examples/cfg_attr-example",
   "examples/bevy-example",
 ]
 resolver = "3"
