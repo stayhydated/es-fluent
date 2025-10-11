@@ -1,10 +1,10 @@
 use es_fluent::{EsFluent, ToFluentString};
+use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui::{
     App, Application, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px,
     size,
 };
 use gpui_component::button::Button;
-use shared_lib::{ButtonState, CurrentLanguage, Languages};
 use strum::IntoEnumIterator;
 mod i18n;
 

@@ -3,7 +3,7 @@ use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
     FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
-use shared_lib::{ButtonState, CurrentLanguage, Languages};
+use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use strum::IntoEnumIterator as _;
 
 es_fluent_manager_bevy::define_i18n_module!();

@@ -1,5 +1,5 @@
 [package]
-name = "shared-lib"
+name = "example-shared-lib"
 version.workspace = true
 edition.workspace = true
 license = "Unlicense"

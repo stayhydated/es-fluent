@@ -13,7 +13,7 @@ gpui-component = { workspace = true }
 rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
-shared-lib = { path = "../shared-lib", features = ["gpui"] }
+example-shared-lib = { path = "../example-shared-lib", features = ["gpui"] }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }

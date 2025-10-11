@@ -14,7 +14,7 @@ members = [
   "crates/es-fluent-manager-bevy",
   "examples/first-example",
   "examples/thiserror-example",
-  "examples/bevy-example", "examples/shared-lib", "examples/gpui-example",
+  "examples/bevy-example", "examples/example-shared-lib", "examples/gpui-example",
 ]
 resolver = "3"
 
