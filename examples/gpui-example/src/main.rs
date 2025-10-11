@@ -81,7 +81,7 @@ impl Render for GpuiExampleView {
                             .on_mouse_up(
                                 gpui::MouseButton::Left,
                                 cx.listener(|this, _event, _window, cx| {
-                                    this.button_state = ButtonState::Normal;
+                                    this.button_state = ButtonState::Hovered;
                                     cx.notify();
                                 }),
                             ),
