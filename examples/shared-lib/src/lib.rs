@@ -19,12 +19,6 @@ pub enum ButtonState {
     Pressed,
 }
 
-#[derive(Clone, Copy, Debug, EsFluent)]
-#[cfg_attr(feature = "bevy", derive(Component))]
-pub enum ScreenMessages {
-    ToggleLanguageHint { current_language: Languages },
-}
-
 #[cfg_attr(feature = "bevy", derive(Resource))]
 pub struct CurrentLanguage(pub Languages);
 

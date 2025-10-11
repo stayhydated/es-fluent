@@ -1,9 +1,17 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
+use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
     FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
-use shared_lib::{ButtonState, CurrentLanguage, Languages, ScreenMessages};
+use shared_lib::{ButtonState, CurrentLanguage, Languages};
 use strum::IntoEnumIterator as _;
+
+es_fluent_manager_bevy::define_i18n_module!();
+
+#[derive(Clone, Copy, Debug, EsFluent, Component)]
+pub enum BevyScreenMessages {
+    ToggleLanguageHint { current_language: Languages },
+}
 
 fn main() {
     let mut app = App::new();
@@ -18,7 +26,7 @@ fn main() {
     .init_resource::<InputFocus>();
 
     app.register_fluent_text::<ButtonState>()
-        .register_fluent_text::<ScreenMessages>();
+        .register_fluent_text::<BevyScreenMessages>();
 
     app.add_systems(Startup, setup)
         .add_systems(PostUpdate, (button_system, locale_change_system))
@@ -122,7 +130,7 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
                 )]
             ),
             (
-                FluentText::new(ScreenMessages::ToggleLanguageHint {
+                FluentText::new(BevyScreenMessages::ToggleLanguageHint {
                     current_language: Languages::default(),
                 }),
                 Text::new(""),
