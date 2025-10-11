@@ -1,3 +1,3 @@
 ## IcedScreenMessages
 
-iced_screen_messages-ToggleLanguageHint = Toggle Language Hint { $current_language }
+iced_screen_messages-ToggleLanguageHint = Click me to switch language, current language: { $current_language }

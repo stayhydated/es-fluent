@@ -1,5 +1,5 @@
 use es_fluent::{EsFluent, ToFluentString};
-use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
+use example_shared_lib::{ButtonState, Languages};
 use iced::widget::{button, center, mouse_area, row, text};
 use iced::{Center, Element, Theme};
 use strum::IntoEnumIterator;
