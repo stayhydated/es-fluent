@@ -19,7 +19,7 @@ This crate is designed to work with asset-based localization, where translation 
 3.  Use the `I18nResource` and `localize` function to translate messages in your systems.
 4.  Use components that implement `FluentText` to have their text automatically updated on locale change.
 
-```rust,no_run
+```rs,no_run
 use bevy::prelude::*;
 use es_fluent_manager_bevy::{EsFluentBevyPlugin, define_bevy_i18n_module, localize, I18nResource, I18nBundle};
 

@@ -12,7 +12,7 @@ The `es-fluent-derive` crate provides the procedural derive macros that power th
 
 You typically won't use this crate directly. Instead, you'll enable the `derive` feature on the main `es-fluent` crate and use the macros through it.
 
-```rust
+```rs
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent)]

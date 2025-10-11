@@ -32,7 +32,7 @@ es-fluent-build = "*"
 
 And create a `build.rs`:
 
-```rust
+```rs
 // build.rs
 use es_fluent_build::FluentParseMode;
 
@@ -69,7 +69,7 @@ For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the f
 
 Annotate an enum to generate message IDs and, optionally, implement `es_fluent::FluentDisplay` or `std::fmt::Display`.
 
-```rust
+```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
@@ -85,7 +85,7 @@ Fields become Fluent arguments. The derive generates stable keys and formatting 
 
 When a message needs to match on an enum (a Fluent select expression), implement `EsFluentChoice`. You can then mark a field with `#[fluent(choice)]` to pass its choice value instead of formatting it as a nested message.
 
-```rust
+```rs
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
@@ -150,7 +150,7 @@ shared-Photos =
 
 By default, `EsFluent` implements `es_fluent::FluentDisplay`, which formats through Fluent. If you prefer plain Rust `Display` for a type, use:
 
-```rust
+```rs
 #[derive(EsFluent)]
 #[fluent(display = "std")]
 pub enum AbcStdDisplay {
@@ -164,7 +164,7 @@ This also works with `strum::EnumDiscriminants` when you want to display the dis
 
 You can derive on structs to produce key enums (labels, descriptions, etc.). For example:
 
-```rust
+```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
@@ -195,7 +195,7 @@ This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with va
 
 Generic parameters must convert into Fluent values when used as arguments:
 
-```rust
+```rs
 use es_fluent::EsFluent;
 use fluent_bundle::FluentValue;
 

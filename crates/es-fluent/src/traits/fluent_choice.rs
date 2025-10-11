@@ -3,7 +3,7 @@
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rs
 /// use es_fluent::EsFluentChoice;
 ///
 /// enum MyEnum {

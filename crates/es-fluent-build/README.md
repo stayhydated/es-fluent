@@ -15,7 +15,7 @@ It is designed to be used as a `build-dependency` in your `Cargo.toml` and invok
 
 2.  Create a `build.rs` file in your crate's root with the following content:
 
-    ```rust,no_run
+    ```rs,no_run
     fn main() {
         es_fluent_build::FluentBuilder::new().build().unwrap();
     }

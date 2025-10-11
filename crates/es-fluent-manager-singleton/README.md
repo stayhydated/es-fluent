@@ -14,29 +14,29 @@ It is designed to work with embedded translations, using the `define_embedded_i1
 
 1.  In each of your crates that has translations, define an embedded module:
 
-    ```rust,no_run
+    ```rs,no_run
     // In my_crate/src/lib.rs
     use es_fluent_manager_singleton::define_i18n_module;
-    
+
     define_i18n_module!();
     ```
 
 2.  At the start of your application, initialize the singleton:
 
-    ```rust,no_run
+    ```rs,no_run
     // In main.rs
     use es_fluent_manager_singleton::{init, select_language};
     use es_fluent::localize;
     use unic_langid::langid;
-    
+
     fn main() {
         // Initializes the FluentManager with all discovered modules
         init();
-    
+
         // Select the desired language
         let lang_en = langid!("en-US");
         select_language(&lang_en);
-    
+
         // Now you can use the global `localize` function anywhere
         let greeting = localize("hello-world", None);
         println!("{}", greeting);

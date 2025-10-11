@@ -86,30 +86,6 @@ where
 }
 
 /// Updates the global `FluentManager` context.
-///
-/// This function allows you to modify the `FluentManager` in a thread-safe way.
-///
-/// # Example
-///
-/// ```rust,no_run
-/// use es_fluent::{set_context, update_context, FluentManager};
-/// use fluent_bundle::{FluentBundle, FluentResource};
-/// use unic_langid::LanguageIdentifier;
-///
-/// let mut manager = FluentManager::new();
-/// set_context(manager);
-///
-/// update_context(|manager| {
-///     let ftl_string = String::from("hello-world = Hello, world!");
-///     let res = FluentResource::try_new(ftl_string).expect("Failed to parse an FTL string.");
-///
-///     let langid_en: LanguageIdentifier = "en-US".parse().expect("Parsing failed.");
-///     let mut bundle = FluentBundle::new(vec![langid_en]);
-///     bundle.add_resource(res).expect("Failed to add FTL resources to the bundle.");
-///
-///     manager.add_bundle("en-US".to_string(), bundle);
-/// });
-/// ```
 pub fn update_context<F>(f: F)
 where
     F: FnOnce(&mut FluentManager),
