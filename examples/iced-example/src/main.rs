@@ -16,6 +16,7 @@ pub fn main() -> iced::Result {
     i18n::change_locale(&Languages::English.into()).unwrap();
 
     iced::application("", IcedExampleView::update, IcedExampleView::view)
+        .font(include_bytes!("../../assets/fonts/NotoSansSC-Bold.ttf").as_slice())
         .theme(IcedExampleView::theme)
         .run()
 }
