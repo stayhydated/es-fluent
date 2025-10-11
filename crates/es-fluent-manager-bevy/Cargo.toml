@@ -5,7 +5,7 @@ license.workspace = true
 publish.workspace = true
 readme.workspace = true
 repository.workspace = true
-version.workspace = true
+version = "0.17.0"
 
 [dependencies]
 bevy = { features = [ "file_watcher" ], workspace = true }

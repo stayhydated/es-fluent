@@ -1,45 +1,9 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
-use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
     FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
-use strum::{EnumIter, IntoEnumIterator as _};
-use unic_langid::{LanguageIdentifier, langid};
-
-es_fluent_manager_bevy::define_i18n_module!();
-
-#[derive(Clone, Component, Copy, Debug, EsFluent, PartialEq)]
-pub enum ButtonState {
-    Normal,
-    Hovered,
-    Pressed,
-}
-
-#[derive(Clone, Component, Copy, Debug, EsFluent)]
-pub enum ScreenMessages {
-    ToggleLanguageHint { current_language: Languages },
-}
-
-#[derive(Resource)]
-struct CurrentLanguage(Languages);
-
-#[derive(Clone, Component, Copy, Debug, Default, EnumIter, EsFluent, PartialEq)]
-pub enum Languages {
-    #[default]
-    English,
-    French,
-    Chinese,
-}
-
-impl From<Languages> for LanguageIdentifier {
-    fn from(val: Languages) -> Self {
-        match val {
-            Languages::English => langid!("en"),
-            Languages::French => langid!("fr"),
-            Languages::Chinese => langid!("cn"),
-        }
-    }
-}
+use shared_lib::{ButtonState, CurrentLanguage, Languages, ScreenMessages};
+use strum::IntoEnumIterator as _;
 
 fn main() {
     let mut app = App::new();

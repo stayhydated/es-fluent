@@ -1,18 +1,17 @@
 [package]
-name = "bevy-example"
+name = "shared-lib"
 version.workspace = true
 edition.workspace = true
 license = "Unlicense"
 publish = false
 
 [dependencies]
-bevy = { features = [ "wayland", "file_watcher" ], workspace = true }
+bevy = { workspace = true, optional = true }
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-manager-bevy = { workspace = true }
-log = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
-shared-lib = { path = "../shared-lib", features = ["bevy"] }
+es-fluent-manager-bevy = { workspace = true, optional = true }
+es-fluent-manager-singleton = { workspace = true, optional = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }
@@ -20,3 +19,7 @@ log = { workspace = true }
 
 [lints]
 workspace = true
+
+[features]
+gpui = ["dep:es-fluent-manager-singleton"]
+bevy = ["dep:bevy", "dep:es-fluent-manager-bevy"]
