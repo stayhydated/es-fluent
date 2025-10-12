@@ -7,4 +7,4 @@ fmt:
     taplo fmt
 
 clippy:
-    cargo clippy --workspace --exclude cosmic-example
+    cargo clippy --workspace --all-features --exclude cosmic-example
