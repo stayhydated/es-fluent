@@ -36,4 +36,5 @@ fn main() {
 
 ## Examples
 - [gpui](../../examples/gpui-example)
+- [cosmic](../../examples/cosmic-example)
 - [iced](../../examples/iced-example)
