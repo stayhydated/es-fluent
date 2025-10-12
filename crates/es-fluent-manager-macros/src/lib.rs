@@ -69,14 +69,14 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     for entry in entries {
         let entry = entry.expect("Failed to read directory entry");
         let path = entry.path();
-        if path.is_dir() {
-            if let Some(lang_code) = path.file_name().and_then(|s| s.to_str()) {
-                let ftl_file_name = format!("{}.ftl", crate_name);
-                let ftl_path = path.join(ftl_file_name);
+        if path.is_dir()
+            && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
+        {
+            let ftl_file_name = format!("{}.ftl", crate_name);
+            let ftl_path = path.join(ftl_file_name);
 
-                if ftl_path.exists() {
-                    languages.push(lang_code.to_string());
-                }
+            if ftl_path.exists() {
+                languages.push(lang_code.to_string());
             }
         }
     }
@@ -171,14 +171,14 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     for entry in entries {
         let entry = entry.expect("Failed to read directory entry");
         let path = entry.path();
-        if path.is_dir() {
-            if let Some(lang_code) = path.file_name().and_then(|s| s.to_str()) {
-                let ftl_file_name = format!("{}.ftl", crate_name);
-                let ftl_path = path.join(ftl_file_name);
+        if path.is_dir()
+            && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
+        {
+            let ftl_file_name = format!("{}.ftl", crate_name);
+            let ftl_path = path.join(ftl_file_name);
 
-                if ftl_path.exists() {
-                    languages.push(lang_code.to_string());
-                }
+            if ftl_path.exists() {
+                languages.push(lang_code.to_string());
             }
         }
     }

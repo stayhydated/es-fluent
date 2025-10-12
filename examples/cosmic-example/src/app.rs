@@ -1,15 +1,15 @@
 use crate::config::Config;
 use cosmic::app::context_drawer;
-use cosmic::cosmic_config::{self, CosmicConfigEntry};
+use cosmic::cosmic_config::{self, CosmicConfigEntry as _};
 use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::{Alignment, Length, Subscription};
 use cosmic::prelude::*;
 use cosmic::widget::{self, icon, menu, nav_bar};
 use cosmic::{cosmic_theme, theme};
 use es_fluent::{EsFluent, ToFluentString as _};
-use futures_util::SinkExt;
+use futures_util::SinkExt as _;
 use std::collections::HashMap;
-use strum::IntoEnumIterator;
+use strum::IntoEnumIterator as _;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
