@@ -16,7 +16,12 @@ inputs:
   xkb:
     description: Install xkb (libxkbcommon-dev)
     required: false
-    default: "false"
+    default: "true"
+  xkb_x11:
+    description: Install xkb-x11 (libxkbcommon-x11-dev)
+    required: false
+    default: "true"
+
 runs:
   using: composite
   steps:
@@ -31,3 +36,4 @@ runs:
         ${{ fromJSON(inputs.udev) && 'libudev-dev' || '' }}
         ${{ fromJSON(inputs.wayland) && 'libwayland-dev' || '' }}
         ${{ fromJSON(inputs.xkb) && 'libxkbcommon-dev' || '' }}
+        ${{ fromJSON(inputs.xkb_x11) && 'libxkbcommon-x11-dev' || '' }}
