@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use crate::visitor::FtlVisitor;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,6 +12,17 @@ mod visitor;
 use error::FluentScParserError;
 use es_fluent_core::registry::FtlTypeInfo;
 
+/// Parses a directory of Rust source code and returns a list of `FtlTypeInfo`
+/// objects.
+///
+/// # Arguments
+///
+/// * `dir_path` - The path to the directory to parse.
+///
+/// # Errors
+///
+/// This function will return an error if the directory cannot be read, or if
+/// any of the files in the directory cannot be parsed.
 pub fn parse_directory(dir_path: &Path) -> Result<Vec<FtlTypeInfo>, FluentScParserError> {
     log::info!(
         "Starting FTL type info parsing in directory: {}",

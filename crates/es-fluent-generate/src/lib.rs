@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use clap::ValueEnum;
 use es_fluent_core::meta::TypeKind;
 use es_fluent_core::namer::FluentKey;
@@ -12,13 +14,29 @@ mod formatter;
 use error::FluentGenerateError;
 use formatter::value::ValueFormatter;
 
-#[derive(Clone, Debug, Default, ValueEnum, PartialEq)]
+/// The mode to use when parsing Fluent files.
+#[derive(Clone, Debug, Default, PartialEq, ValueEnum)]
 pub enum FluentParseMode {
+    /// Overwrite existing translations.
     Aggressive,
+    /// Preserve existing translations.
     #[default]
     Conservative,
 }
 
+/// Generates a Fluent translation file from a list of `FtlTypeInfo` objects.
+///
+/// # Arguments
+///
+/// * `crate_name` - The name of the crate.
+/// * `i18n_path` - The path to the i18n directory.
+/// * `items` - A list of `FtlTypeInfo` objects.
+/// * `mode` - The `FluentParseMode` to use.
+///
+/// # Errors
+///
+/// This function will return an error if the i18n directory cannot be created,
+/// or if the FTL file cannot be written.
 pub fn generate<P: AsRef<Path>>(
     crate_name: &str,
     i18n_path: P,
@@ -175,18 +193,16 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
 
     let mut elements = vec![ast::PatternElement::TextElement { value: base_value }];
 
-    if let Some(args) = &variant.arguments {
-        for arg_name in args {
-            elements.push(ast::PatternElement::TextElement { value: " ".into() });
+    for arg_name in &variant.args {
+        elements.push(ast::PatternElement::TextElement { value: " ".into() });
 
-            elements.push(ast::PatternElement::Placeable {
-                expression: ast::Expression::Inline(ast::InlineExpression::VariableReference {
-                    id: ast::Identifier {
-                        name: arg_name.into(),
-                    },
-                }),
-            });
-        }
+        elements.push(ast::PatternElement::Placeable {
+            expression: ast::Expression::Inline(ast::InlineExpression::VariableReference {
+                id: ast::Identifier {
+                    name: arg_name.into(),
+                },
+            }),
+        });
     }
 
     let pattern = ast::Pattern { elements };
@@ -202,7 +218,7 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
 fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by `type_name`
+    // Group by type_name
     let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>)> = BTreeMap::new();
 
     for item in items {
@@ -298,7 +314,7 @@ mod tests {
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
-            arguments: None,
+            args: Vec::new(),
         };
 
         let type_info = FtlTypeInfo {
@@ -339,7 +355,7 @@ mod tests {
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
-            arguments: None,
+            args: Vec::new(),
         };
 
         let type_info = FtlTypeInfo {
@@ -378,7 +394,7 @@ mod tests {
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
-            arguments: None,
+            args: Vec::new(),
         };
 
         let type_info = FtlTypeInfo {

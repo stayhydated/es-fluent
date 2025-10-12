@@ -1,34 +1,35 @@
+#![doc = include_str!("../README.md")]
+
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 use thiserror::Error;
 
-/// Configuration error types
 #[derive(Debug, Error)]
 pub enum I18nConfigError {
-    /// Configuration file not found
+    /// Configuration file not found.
     #[error("i18n.toml configuration file not found")]
     NotFound,
-    /// Failed to read configuration file
+    /// Failed to read configuration file.
     #[error("Failed to read configuration file: {0}")]
     ReadError(#[from] std::io::Error),
-    /// Failed to parse configuration file
+    /// Failed to parse configuration file.
     #[error("Failed to parse configuration file: {0}")]
     ParseError(#[from] toml::de::Error),
 }
 
-/// Main i18n configuration structure
+/// The configuration for `es-fluent`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct I18nConfig {
-    /// The fallback language identifier (e.g., "en")
+    /// The fallback language identifier (e.g., "en").
     pub fallback_language: String,
-    /// Path to the assets directory containing translation files
+    /// Path to the assets directory containing translation files.
     /// Expected structure: {assets_dir}/{language}/{domain}.ftl
     pub assets_dir: PathBuf,
 }
 
 impl I18nConfig {
-    /// Read configuration from a specific file path
+    /// Reads the configuration from a path.
     pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self, I18nConfigError> {
         let path = path.as_ref();
 
@@ -43,7 +44,7 @@ impl I18nConfig {
         Ok(config)
     }
 
-    /// Read configuration from the manifest directory (for use in build scripts and proc macros)
+    /// Reads the configuration from the manifest directory.
     pub fn read_from_manifest_dir() -> Result<Self, I18nConfigError> {
         let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
 
@@ -51,19 +52,19 @@ impl I18nConfig {
         Self::read_from_path(config_path)
     }
 
-    /// Get the assets directory as a PathBuf
+    /// Returns the path to the assets directory.
     pub fn assets_dir_path(&self) -> PathBuf {
         PathBuf::from(&self.assets_dir)
     }
 
-    /// Get the assets directory relative to the manifest directory
+    /// Returns the path to the assets directory from the manifest directory.
     pub fn assets_dir_from_manifest(&self) -> Result<PathBuf, I18nConfigError> {
         let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
 
         Ok(Path::new(&manifest_dir).join(&self.assets_dir))
     }
 
-    /// Validate that the assets directory exists
+    /// Validates the assets directory.
     pub fn validate_assets_dir(&self) -> Result<(), I18nConfigError> {
         let assets_path = self.assets_dir_from_manifest()?;
 
@@ -87,8 +88,7 @@ impl I18nConfig {
         Ok(())
     }
 
-    /// Parse fallback language as a language identifier
-    /// Returns the language string that can be used with unic_langid::langid!
+    /// Returns the fallback language identifier.
     pub fn fallback_language_id(&self) -> &str {
         &self.fallback_language
     }

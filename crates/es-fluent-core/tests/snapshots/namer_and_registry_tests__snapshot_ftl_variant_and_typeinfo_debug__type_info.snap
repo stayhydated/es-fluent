@@ -9,15 +9,15 @@ FtlTypeInfo(
     FtlVariant(
       name: "Network",
       ftl_key: FluentKey("error_type-Network"),
-      arguments: Some([
+      args: [
         "code",
         "message",
-      ]),
+      ],
     ),
     FtlVariant(
       name: "Io",
       ftl_key: FluentKey("error_type-Io"),
-      arguments: None,
+      args: [],
     ),
   ],
 )

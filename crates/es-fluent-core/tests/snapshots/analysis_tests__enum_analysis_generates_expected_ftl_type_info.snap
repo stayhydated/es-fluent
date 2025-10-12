@@ -10,12 +10,12 @@ expression: "&infos"
       FtlVariant(
         name: "MyError",
         ftl_key: FluentKey("my_error"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "Unit",
         ftl_key: FluentKey("my_error-Unit"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -26,21 +26,21 @@ expression: "&infos"
       FtlVariant(
         name: "MyError",
         ftl_key: FluentKey("my_error"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "Data",
         ftl_key: FluentKey("my_error-Data"),
-        arguments: Some([
+        args: [
           "a",
-        ]),
+        ],
       ),
       FtlVariant(
         name: "Tuple",
         ftl_key: FluentKey("my_error-Tuple"),
-        arguments: Some([
+        args: [
           "f1",
-        ]),
+        ],
       ),
     ],
   ),

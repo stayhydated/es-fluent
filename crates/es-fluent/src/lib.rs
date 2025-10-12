@@ -1,21 +1,35 @@
-// In: crates/es-fluent/src/lib.rs
+#![doc = include_str!("../README.md")]
 
 #[cfg(feature = "derive")]
 pub use es_fluent_derive::{EsFluent, EsFluentChoice};
 
+#[doc(hidden)]
 pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
 
+#[doc(hidden)]
 pub use fluent_bundle::FluentValue;
+
+#[doc(hidden)]
+pub use inventory as __inventory;
+
+#[doc(hidden)]
+pub use rust_embed as __rust_embed;
+
+#[doc(hidden)]
+pub use es_fluent_manager_core as __manager_core;
+
+#[doc(hidden)]
+pub use unic_langid;
 
 mod traits;
 pub use traits::*;
 
 use std::sync::{Arc, OnceLock, RwLock};
 
-// Global context for derive macros
+#[doc(hidden)]
 static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 
-// Alternative localization function for custom backends (like Bevy)
+#[doc(hidden)]
 static CUSTOM_LOCALIZER: OnceLock<
     Box<
         dyn Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> Option<String>
@@ -24,8 +38,15 @@ static CUSTOM_LOCALIZER: OnceLock<
     >,
 > = OnceLock::new();
 
-/// Sets the global FluentManager context for use with derive macros.
-/// This is only needed when using the derive macros.
+/// Sets the global `FluentManager` context.
+///
+/// This function should be called once at the beginning of your application's
+/// lifecycle.
+///
+/// # Panics
+///
+/// This function will panic if the context has already been set.
+#[doc(hidden)]
 pub fn set_context(manager: FluentManager) {
     CONTEXT
         .set(Arc::new(RwLock::new(manager)))
@@ -33,9 +54,15 @@ pub fn set_context(manager: FluentManager) {
         .expect("Failed to set context");
 }
 
-/// Sets the global FluentManager context using a shared Arc<RwLock<FluentManager>>.
-/// This allows sharing the same manager instance between the global context and other resources.
-/// This is only needed when using the derive macros.
+/// Sets the global `FluentManager` context with a shared `Arc<RwLock<FluentManager>>`.
+///
+/// This function is useful when you want to share the `FluentManager` between
+/// multiple threads.
+///
+/// # Panics
+///
+/// This function will panic if the context has already been set.
+#[doc(hidden)]
 pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
     CONTEXT
         .set(manager)
@@ -43,9 +70,16 @@ pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
         .expect("Failed to set shared context");
 }
 
-/// Sets a custom localization function for use with derive macros.
-/// This allows integration with alternative backends like Bevy's asset system.
-/// This is only needed when using the derive macros.
+/// Sets a custom localizer function.
+///
+/// The custom localizer will be called before the global context's `localize`
+/// method. If the custom localizer returns `Some(message)`, the message will be
+/// returned. Otherwise, the global context will be used.
+///
+/// # Panics
+///
+/// This function will panic if the custom localizer has already been set.
+#[doc(hidden)]
 pub fn set_custom_localizer<F>(localizer: F)
 where
     F: Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> Option<String>
@@ -59,8 +93,8 @@ where
         .expect("Failed to set custom localizer");
 }
 
-/// Updates the global FluentManager context for use with derive macros.
-/// This is only needed when using the derive macros.
+/// Updates the global `FluentManager` context.
+#[doc(hidden)]
 pub fn update_context<F>(f: F)
 where
     F: FnOnce(&mut FluentManager),
@@ -73,21 +107,25 @@ where
     }
 }
 
-/// Localizes a message ID with optional arguments using the global context.
-/// This function is used by the derive macros.
-/// For the new API, users should call `manager.localize()` directly.
+/// Localizes a message by its ID.
+///
+/// This function will first try to use the custom localizer if it has been set.
+/// If the custom localizer returns `None`, it will then try to use the global
+/// context.
+///
+/// If the message is not found, a warning will be logged and the ID will be
+/// returned as the message.
+#[doc(hidden)]
 pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
-    // Try custom localizer first (for backends like Bevy)
     if let Some(custom_localizer) = CUSTOM_LOCALIZER.get()
         && let Some(message) = custom_localizer(id, args)
     {
         return message;
     }
 
-    // Fall back to FluentManager context
     if let Some(context_arc) = CONTEXT.get() {
         let context = context_arc
             .read()

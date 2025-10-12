@@ -1,0 +1,134 @@
+---
+source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+expression: "&opts"
+---
+StructOpts {
+    ident: Ident {
+        sym: Person,
+    },
+    generics: Generics {
+        lt_token: None,
+        params: [],
+        gt_token: None,
+        where_clause: None,
+    },
+    data: Struct(
+        Fields {
+            style: Struct,
+            fields: [
+                StructFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: name,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: String,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                    choice: None,
+                },
+                StructFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: password_hash,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: String,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: Some(
+                        true,
+                    ),
+                    default: None,
+                    choice: None,
+                },
+                StructFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: gender,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: Gender,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                    choice: Some(
+                        true,
+                    ),
+                },
+            ],
+            span: Some(
+                bytes(0..0),
+            ),
+            __nonexhaustive: (),
+        },
+    ),
+    attr_args: StructFluentAttributeArgs {
+        display: None,
+        this: Some(
+            true,
+        ),
+        derive: PathList(
+            [
+                Path {
+                    leading_colon: None,
+                    segments: [
+                        PathSegment {
+                            ident: Ident {
+                                sym: Debug,
+                            },
+                            arguments: PathArguments::None,
+                        },
+                    ],
+                },
+                Path {
+                    leading_colon: None,
+                    segments: [
+                        PathSegment {
+                            ident: Ident {
+                                sym: Clone,
+                            },
+                            arguments: PathArguments::None,
+                        },
+                    ],
+                },
+            ],
+        ),
+    },
+}

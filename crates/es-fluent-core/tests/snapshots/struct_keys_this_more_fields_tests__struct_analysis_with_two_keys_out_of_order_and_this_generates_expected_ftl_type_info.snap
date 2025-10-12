@@ -10,22 +10,22 @@ expression: "&infos"
       FtlVariant(
         name: "SystemConfigZedFtl",
         ftl_key: FluentKey("system_config_zed_ftl"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "host",
         ftl_key: FluentKey("system_config_zed_ftl-host"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "port",
         ftl_key: FluentKey("system_config_zed_ftl-port"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "use_tls",
         ftl_key: FluentKey("system_config_zed_ftl-use_tls"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -36,22 +36,22 @@ expression: "&infos"
       FtlVariant(
         name: "SystemConfigAlphaFtl",
         ftl_key: FluentKey("system_config_alpha_ftl"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "host",
         ftl_key: FluentKey("system_config_alpha_ftl-host"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "port",
         ftl_key: FluentKey("system_config_alpha_ftl-port"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "use_tls",
         ftl_key: FluentKey("system_config_alpha_ftl-use_tls"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -62,7 +62,7 @@ expression: "&infos"
       FtlVariant(
         name: "SystemConfig",
         ftl_key: FluentKey("system_config"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),

@@ -1,17 +1,13 @@
 [package]
 name = "first-example"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license = "Unlicense"
 publish = false
 
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-manager-core = { workspace = true }
-es-fluent-manager-singleton = { workspace = true }
-fluent = { workspace = true }
-fluent-bundle = { workspace = true }
-inventory = { workspace = true }
+es-fluent-manager-embedded = { workspace = true }
 log = { workspace = true }
 rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }

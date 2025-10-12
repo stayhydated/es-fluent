@@ -19,14 +19,14 @@ log = { workspace = true }
 proc-macro-error2 = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
+serde = { features = [ "derive" ], workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 syn = { features = [ "full" ], workspace = true }
 thiserror = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true
 
 [dev-dependencies]
-insta = { workspace = true, features = ["ron"] }
-syn = { workspace = true, features = ["full"] }
+insta = { features = [ "ron" ], workspace = true }
+syn = { features = [ "full" ], workspace = true }

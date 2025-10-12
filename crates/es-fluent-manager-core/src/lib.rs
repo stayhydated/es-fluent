@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 pub mod asset_localization;
 pub mod embedded_localization;
 pub mod localization;

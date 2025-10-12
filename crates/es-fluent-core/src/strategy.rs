@@ -1,12 +1,19 @@
-use crate::options::{r#enum::EnumOpts, r#struct::StructOpts};
+//! This module provides the `DisplayStrategy` enum, which is used to determine
+//! how to display a type.
+
+use crate::options::{
+    r#enum::EnumOpts,
+    r#struct::{StructKvOpts, StructOpts},
+};
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
+/// The strategy to use for displaying a type.
 #[derive(Clone, Copy, Debug, EnumIter, EnumString, Eq, Hash, IntoStaticStr, PartialEq)]
 pub enum DisplayStrategy {
-    /// use es_fluent::FluentDisplay on the target enum
+    /// Use `es_fluent::FluentDisplay` on the target enum.
     #[strum(serialize = "fluent")]
     FluentDisplay,
-    /// use std::fmt::Display on the target enum
+    /// Use `std::fmt::Display` on the target enum.
     #[strum(serialize = "std")]
     StdDisplay,
 }
@@ -19,6 +26,12 @@ impl From<&EnumOpts> for DisplayStrategy {
 
 impl From<&StructOpts> for DisplayStrategy {
     fn from(opts: &StructOpts) -> Self {
+        opts.attr_args().display()
+    }
+}
+
+impl From<&StructKvOpts> for DisplayStrategy {
+    fn from(opts: &StructKvOpts) -> Self {
         opts.attr_args().display()
     }
 }

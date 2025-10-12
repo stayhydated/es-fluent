@@ -1,0 +1,164 @@
+---
+source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+expression: "&opts"
+---
+StructKvOpts {
+    ident: Ident {
+        sym: Profile,
+    },
+    generics: Generics {
+        lt_token: None,
+        params: [],
+        gt_token: None,
+        where_clause: None,
+    },
+    data: Struct(
+        Fields {
+            style: Struct,
+            fields: [
+                StructKvFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: id,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: u64,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: Some(
+                        true,
+                    ),
+                },
+                StructKvFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: username,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: String,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                },
+                StructKvFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: secret_token,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: String,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: Some(
+                        true,
+                    ),
+                    default: None,
+                },
+                StructKvFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: active,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: bool,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                },
+            ],
+            span: Some(
+                bytes(0..0),
+            ),
+            __nonexhaustive: (),
+        },
+    ),
+    attr_args: StructKvFluentAttributeArgs {
+        display: None,
+        keys: Some(
+            [
+                LitStr {
+                    token: "Primary",
+                },
+                LitStr {
+                    token: "Secondary",
+                },
+            ],
+        ),
+        this: Some(
+            true,
+        ),
+        derive: PathList(
+            [
+                Path {
+                    leading_colon: None,
+                    segments: [
+                        PathSegment {
+                            ident: Ident {
+                                sym: Debug,
+                            },
+                            arguments: PathArguments::None,
+                        },
+                    ],
+                },
+                Path {
+                    leading_colon: None,
+                    segments: [
+                        PathSegment {
+                            ident: Ident {
+                                sym: PartialEq,
+                            },
+                            arguments: PathArguments::None,
+                        },
+                    ],
+                },
+            ],
+        ),
+    },
+}

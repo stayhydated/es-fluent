@@ -89,6 +89,7 @@ impl Plugin for I18nPlugin {
 
         app.insert_resource(i18n_assets)
             .insert_resource(i18n_resource)
+            .insert_resource(CurrentLanguageId(self.config.initial_language.clone()))
             .add_message::<LocaleChangeEvent>()
             .add_message::<LocaleChangedEvent>()
             .add_systems(
@@ -199,11 +200,13 @@ fn handle_locale_changes(
     mut locale_change_events: MessageReader<LocaleChangeEvent>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
     mut i18n_resource: ResMut<I18nResource>,
+    mut current_language_id: ResMut<CurrentLanguageId>,
 ) {
     for event in locale_change_events.read() {
         info!("Changing locale to: {}", event.0);
         i18n_resource.set_language(event.0.clone());
         update_global_language(event.0.clone());
+        current_language_id.0 = event.0.clone();
         locale_changed_events.write(LocaleChangedEvent(event.0.clone()));
     }
 }
@@ -216,7 +219,6 @@ fn sync_global_state(
     if i18n_bundle.is_changed() {
         update_global_bundle((*i18n_bundle).clone());
 
-        // Emit event once the current language bundle is available so consumers don't need custom gating
         if i18n_bundle.0.contains_key(i18n_resource.current_language()) {
             let lang = i18n_resource.current_language().clone();
             info!(

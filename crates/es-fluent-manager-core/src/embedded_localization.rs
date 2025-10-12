@@ -1,3 +1,5 @@
+//! This module provides types for managing embedded translations.
+
 use crate::localization::{I18nModule, LocalizationError, Localizer};
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use rust_embed::RustEmbed;
@@ -11,8 +13,11 @@ pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
 
 #[derive(Debug)]
 pub struct EmbeddedModuleData {
+    /// The name of the module.
     pub name: &'static str,
+    /// The domain of the module.
     pub domain: &'static str,
+    /// The supported languages of the module.
     pub supported_languages: &'static [LanguageIdentifier],
 }
 

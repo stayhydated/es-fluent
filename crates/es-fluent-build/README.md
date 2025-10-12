@@ -1,28 +1,36 @@
-Build.rs script for generating Fluent localization files from Rust source code.
+# es-fluent-build
 
-## Parse Modes
+The `es-fluent-build` crate provides a build script integration for automatically generating `.ftl` translation files from your Rust source code.
 
-The `FluentBuilder` supports two modes:
+It is designed to be used as a `build-dependency` in your `Cargo.toml` and invoked from a `build.rs` script. The crate parses your source files for types that derive `EsFluent` and generates corresponding message keys in a Fluent resource file.
 
-### Aggressive Mode
-Warning : Flushes and rewrites all entries.
+## Usage
 
-```rust
-// build.rs
-es_fluent_build::FluentBuilder::new()
-    .mode(es_fluent_build::FluentParseMode::Aggressive)
-    .build()
-```
+1.  Add `es-fluent-build` as a build dependency in your `Cargo.toml`:
 
-### Conservative Mode (default)
-Adds new entries while preserving all existing ones. Useful when you want to avoid losing existing work when things move around.
+    ```toml
+    [build-dependencies]
+    es-fluent-build = { version = "*" }
+    ```
 
-```rust
-// build.rs
-es_fluent_build::FluentBuilder::new()
-    .mode(es_fluent_build::FluentParseMode::Conservative)
-    .build()
-```
+2.  Create a `build.rs` file in your crate's root with the following content:
 
-## Note
-- the parser will be aware of the `#[strum_discriminants(...)]` attributes, and will generate entries for them.
+    ```rs
+    pub fn main() {
+        if let Err(e) = es_fluent_build::FluentBuilder::new()
+            .mode(es_fluent_build::FluentParseMode::Conservative)
+            .build()
+        {
+            log::error!("Error building FTL files: {}", e);
+        }
+    }
+    ```
+
+3.  Create an `i18n.toml` configuration file in your crate's root to specify the output directory and fallback language:
+
+    ```toml
+    fallback_language = "en"
+    assets_dir = "i18n"
+    ```
+
+Now, every time you build your crate, the script will automatically scan your `src` directory and generate a `{crate_name}.ftl` file inside `i18n/en/`. This file will contain all the message keys extracted from your `EsFluent`-derived types, ready for you to add translations.

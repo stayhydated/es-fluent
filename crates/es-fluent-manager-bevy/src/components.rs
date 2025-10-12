@@ -2,9 +2,6 @@ use bevy::prelude::*;
 use es_fluent::ToFluentString;
 use std::fmt::Display;
 
-/// A component that holds a value that can be localized.
-/// This component automatically updates the associated Text component
-/// when the language changes or its value changes.
 #[derive(Clone, Component)]
 pub struct FluentText<T: ToFluentString + Clone> {
     pub value: T,

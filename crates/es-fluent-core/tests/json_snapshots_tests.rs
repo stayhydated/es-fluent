@@ -11,7 +11,7 @@ fn json_snapshot_ftl_variant() {
     let variant = FtlVariant::builder()
         .name("Network".to_string())
         .ftl_key(FluentKey::new(&ident, "Network"))
-        .maybe_arguments(Some(vec!["code".into(), "message".into()]))
+        .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     insta::assert_json_snapshot!("json_snapshot_ftl_variant", &variant);
@@ -24,13 +24,13 @@ fn json_snapshot_ftl_type_info() {
     let variant1 = FtlVariant::builder()
         .name("Network".to_string())
         .ftl_key(FluentKey::new(&ident, "Network"))
-        .maybe_arguments(Some(vec!["code".into(), "message".into()]))
+        .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     let variant2 = FtlVariant::builder()
         .name("Io".to_string())
         .ftl_key(FluentKey::new(&ident, "Io"))
-        .maybe_arguments(None)
+        .maybe_args(None)
         .build();
 
     let type_info = FtlTypeInfo::builder()

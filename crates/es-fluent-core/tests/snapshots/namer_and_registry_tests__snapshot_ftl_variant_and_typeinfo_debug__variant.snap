@@ -5,8 +5,8 @@ expression: "&variant"
 FtlVariant(
   name: "Network",
   ftl_key: FluentKey("error_type-Network"),
-  arguments: Some([
+  args: [
     "code",
     "message",
-  ]),
+  ],
 )

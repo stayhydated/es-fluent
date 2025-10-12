@@ -1,7 +1,7 @@
 use crate::processor::{FluentProcessKind as _, FtlProcessor};
 use darling::{FromDeriveInput as _, FromMeta};
 use es_fluent_core::{
-    meta::{EnumKind, StructKind, TypeKind},
+    meta::{EnumKind, StructKind, StructKvKind, TypeKind},
     namer,
     options::r#enum::EnumOpts,
     registry::{FtlTypeInfo, FtlVariant},
@@ -156,7 +156,7 @@ impl<'ast> Visit<'ast> for FtlVisitor {
             _ => {},
         }
 
-        let has_es_fluent_derive = is_es_fluent_derived(&processed_item);
+        let es_fluent_derived = is_es_fluent_derived(&processed_item);
 
         let has_strum_discriminants_attr = if let Item::Enum(item_enum) = &processed_item {
             item_enum
@@ -167,7 +167,7 @@ impl<'ast> Visit<'ast> for FtlVisitor {
             false
         };
 
-        if !has_es_fluent_derive && !has_strum_discriminants_attr {
+        if es_fluent_derived.is_none() && !has_strum_discriminants_attr {
             syn::visit::visit_item(self, item);
             return;
         }
@@ -178,12 +178,15 @@ impl<'ast> Visit<'ast> for FtlVisitor {
         let struct_processor = FtlProcessor::<StructKind>::builder()
             .current_file(self.current_file.clone())
             .build();
+        let struct_kv_processor = FtlProcessor::<StructKvKind>::builder()
+            .current_file(self.current_file.clone())
+            .build();
 
         match processed_item {
             Item::Enum(item_enum) => {
                 let derive_input = DeriveInput::from(item_enum);
 
-                if has_es_fluent_derive {
+                if es_fluent_derived.is_some() {
                     if let Data::Enum(_) = derive_input.data {
                         match enum_processor.process(&derive_input) {
                             Ok(type_info) => {
@@ -211,31 +214,36 @@ impl<'ast> Visit<'ast> for FtlVisitor {
                 }
             },
             Item::Struct(item_struct) => {
-                if !has_es_fluent_derive {
-                    return;
-                }
-                let derive_input = DeriveInput::from(item_struct);
+                if let Some(derive_name) = es_fluent_derived {
+                    let derive_input = DeriveInput::from(item_struct);
 
-                if let Data::Struct(_) = derive_input.data {
-                    match struct_processor.process(&derive_input) {
-                        Ok(type_info) => {
-                            self.type_infos.extend(type_info);
-                        },
-                        Err(e) => {
-                            log::error!(
-                                "Error processing struct '{}' in file '{}': {}",
-                                derive_input.ident,
-                                self.current_file.display(),
-                                e
-                            );
-                        },
+                    if let Data::Struct(_) = derive_input.data {
+                        let result = if derive_name == "EsFluent" {
+                            struct_processor.process(&derive_input)
+                        } else {
+                            struct_kv_processor.process(&derive_input)
+                        };
+
+                        match result {
+                            Ok(type_info) => {
+                                self.type_infos.extend(type_info);
+                            },
+                            Err(e) => {
+                                log::error!(
+                                    "Error processing struct '{}' in file '{}': {}",
+                                    derive_input.ident,
+                                    self.current_file.display(),
+                                    e
+                                );
+                            },
+                        }
+                    } else {
+                        unreachable!(
+                            "Internal error: Item::Struct expected for struct '{}' in file '{}'",
+                            derive_input.ident,
+                            self.current_file.display()
+                        );
                     }
-                } else {
-                    unreachable!(
-                        "Internal error: Item::Struct expected for struct '{}' in file '{}'",
-                        derive_input.ident,
-                        self.current_file.display()
-                    );
                 }
             },
             _ => {},
@@ -243,11 +251,11 @@ impl<'ast> Visit<'ast> for FtlVisitor {
     }
 }
 
-fn is_es_fluent_derived(item: &Item) -> bool {
+fn is_es_fluent_derived(item: &Item) -> Option<String> {
     let attrs = match item {
         Item::Enum(item) => &item.attrs,
         Item::Struct(item) => &item.attrs,
-        _ => return false,
+        _ => return None,
     };
 
     for attr in attrs {
@@ -257,14 +265,16 @@ fn is_es_fluent_derived(item: &Item) -> bool {
             )
         {
             for path in paths {
-                if path.segments.last().is_some_and(|s| s.ident == "EsFluent") {
-                    return true;
+                if let Some(s) = path.segments.last() {
+                    if s.ident == "EsFluent" || s.ident == "EsFluentKv" {
+                        return Some(s.ident.to_string());
+                    }
                 }
             }
         }
     }
 
-    false
+    None
 }
 
 fn preprocess_item_attributes(

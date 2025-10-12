@@ -1,12 +1,16 @@
+//! This module provides functions for validating `es-fluent` attributes.
+
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::options::r#enum::EnumOpts;
 use crate::options::r#struct::StructOpts;
 use syn::{DataEnum, DataStruct};
 
+/// Validates the `es-fluent` attributes on an enum.
 pub fn validate_enum(_opts: &EnumOpts, _data: &DataEnum) -> EsFluentCoreResult<()> {
     Ok(())
 }
 
+/// Validates the `es-fluent` attributes on a struct.
 pub fn validate_struct(opts: &StructOpts, _data: &DataStruct) -> EsFluentCoreResult<()> {
     validate_struct_defaults(opts)?;
     Ok(())

@@ -1,0 +1,22 @@
+[package]
+name = "iced-example"
+version.workspace = true
+edition.workspace = true
+license = "Unlicense"
+publish = false
+
+[dependencies]
+es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-manager-embedded = { workspace = true }
+example-shared-lib = { features = [ "iced" ], path = "../example-shared-lib" }
+iced = { features = [ "tiny-skia", "web-colors" ], workspace = true }
+rust-embed = { workspace = true }
+strum = { features = [ "derive" ], workspace = true }
+unic-langid = { workspace = true }
+
+[build-dependencies]
+es-fluent-build = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true

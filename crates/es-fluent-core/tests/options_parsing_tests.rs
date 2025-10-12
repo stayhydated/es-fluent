@@ -1,5 +1,8 @@
 use darling::FromDeriveInput;
-use es_fluent_core::options::{r#enum::EnumOpts, r#struct::StructOpts};
+use es_fluent_core::options::{
+    r#enum::{EnumChoiceOpts, EnumOpts},
+    r#struct::{StructKvOpts, StructOpts},
+};
 use es_fluent_core::strategy::DisplayStrategy;
 use syn::{DeriveInput, parse_quote};
 
@@ -100,17 +103,17 @@ fn enum_variants_and_fields_skipping_and_choice() {
 }
 
 #[test]
-fn struct_display_strategy_default_is_std() {
+fn struct_display_strategy_default_is_fluent() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent] // no explicit display -> default for structs is StdDisplay
+        #[fluent] // no explicit display -> default for structs is FluentDisplay
         struct MyStruct {
             a: i32,
         }
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    assert_eq!(DisplayStrategy::from(&opts), DisplayStrategy::StdDisplay);
+    assert_eq!(DisplayStrategy::from(&opts), DisplayStrategy::FluentDisplay);
     assert!(!opts.attr_args().is_this());
 }
 
@@ -130,18 +133,18 @@ fn struct_display_strategy_override_fluent_and_this() {
 }
 
 #[test]
-fn struct_keys_parsing_and_field_skipping() {
+fn struct_kv_keys_parsing_and_field_skipping() {
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(keys = ["Error", "Notice"], this)]
+        #[derive(EsFluentKv)]
+        #[fluent_kv(keys = ["Error", "Notice"], this)]
         struct MyStruct {
             a: i32,
-            #[fluent(skip)]
+            #[fluent_kv(skip)]
             b: String,
         }
     };
 
-    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
 
     // ftl_enum_ident is <StructName>Ftl
     assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructFtl");
@@ -200,4 +203,37 @@ fn struct_display_strategy_invalid_value_panics() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     // This call should panic due to invalid display value
     let _ = DisplayStrategy::from(&opts);
+}
+
+#[test]
+fn struct_fluent_parsing() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent(this)]
+        struct MyStruct {
+            a: i32,
+            #[fluent(skip)]
+            b: String,
+            #[fluent(choice)]
+            c: bool,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    insta::assert_debug_snapshot!(&opts);
+}
+
+#[test]
+fn enum_choice_parsing() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluentChoice)]
+        #[fluent_choice(serialize_all = "snake_case")]
+        enum MyEnum {
+            A,
+            B,
+        }
+    };
+
+    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    insta::assert_debug_snapshot!(&opts);
 }

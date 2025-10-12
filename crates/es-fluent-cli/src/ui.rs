@@ -64,6 +64,7 @@ fn build_list_items(app: &'_ AppState) -> Vec<ListItem<'_>> {
     items
 }
 
+/// Renders the UI for the application.
 pub fn ui(f: &mut Frame, app: &AppState) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)

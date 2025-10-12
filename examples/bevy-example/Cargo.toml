@@ -1,6 +1,6 @@
 [package]
 name = "bevy-example"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license = "Unlicense"
 publish = false
@@ -9,10 +9,7 @@ publish = false
 bevy = { features = [ "wayland", "file_watcher" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-bevy = { workspace = true }
-es-fluent-manager-core = { workspace = true }
-fluent = { workspace = true }
-fluent-bundle = { workspace = true }
-inventory = { workspace = true }
+example-shared-lib = { features = [ "bevy" ], path = "../example-shared-lib" }
 log = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }

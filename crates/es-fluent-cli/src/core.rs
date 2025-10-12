@@ -9,26 +9,43 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
+/// Information about a crate that uses `es-fluent`.
 #[derive(Clone, Debug, Getters)]
 #[getset(get = "pub")]
 pub struct CrateInfo {
+    /// The name of the crate.
     name: String,
+    /// The path to the crate's manifest directory.
     manifest_dir: PathBuf,
+    /// The path to the crate's `src` directory.
     src_dir: PathBuf,
+    /// The path to the i18n output directory.
     i18n_output_path: PathBuf,
 }
 
+/// The outcome of a build.
 #[derive(Clone, Debug)]
 pub enum BuildOutcome {
+    /// The build was successful.
     Success {
+        /// The duration of the build.
         duration: Duration,
     },
+    /// The build failed.
     Failure {
+        /// The error message.
         error_message: String,
+        /// The duration of the build.
         duration: Duration,
     },
 }
 
+/// Discovers all crates in a directory that use `es-fluent`.
+///
+/// This function will search for `Cargo.toml` files in the given directory and
+/// its subdirectories. If a `Cargo.toml` file is found, it will check for an
+/// `i18n.toml` file in the same directory. If both files are found, the crate
+/// will be added to the list of discovered crates.
 pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>, CliError> {
     let mut crates = Vec::new();
 
@@ -87,6 +104,7 @@ fn check_crate_for_i18n(package: &Package) -> Result<Option<CrateInfo>, CliError
     }))
 }
 
+/// Builds all crates that use `es-fluent`.
 pub async fn build_all_crates(
     crates: &[CrateInfo],
     mode: FluentParseMode,
@@ -99,6 +117,7 @@ pub async fn build_all_crates(
     Ok(results)
 }
 
+/// Builds a single crate that uses `es-fluent`.
 pub async fn build_crate(
     krate: &CrateInfo,
     mode: FluentParseMode,
@@ -125,6 +144,11 @@ pub async fn build_crate(
     }
 }
 
+/// Watches all crates that use `es-fluent` for changes.
+///
+/// This function will watch the `src` directory of each crate for changes.
+/// When a change is detected, it will send a `CrateInfo` object to the
+/// `event_tx` channel.
 pub fn watch_crates_sender(
     crates: &[CrateInfo],
     event_tx: mpsc::Sender<CrateInfo>,
@@ -214,6 +238,7 @@ fn find_affected_crate(
     None
 }
 
+/// Formats a `Duration` into a human-readable string.
 pub fn format_duration(duration: Duration) -> String {
     if duration.as_nanos() == 0 {
         return "0s".to_string();

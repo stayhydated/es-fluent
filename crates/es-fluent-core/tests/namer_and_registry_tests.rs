@@ -40,19 +40,19 @@ fn registry_structs_equality() {
     let v1 = FtlVariant::builder()
         .name("Network".to_string())
         .ftl_key(FluentKey::new(&ident, "Network"))
-        .maybe_arguments(Some(vec!["code".into(), "message".into()]))
+        .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     let v1_dup = FtlVariant::builder()
         .name("Network".to_string())
         .ftl_key(FluentKey::new(&ident, "Network"))
-        .maybe_arguments(Some(vec!["code".into(), "message".into()]))
+        .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     let v2 = FtlVariant::builder()
         .name("Io".to_string())
         .ftl_key(FluentKey::new(&ident, "Io"))
-        .maybe_arguments(None)
+        .maybe_args(None)
         .build();
 
     assert_eq!(v1, v1_dup);
@@ -80,7 +80,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
     let variant = FtlVariant::builder()
         .name("Network".to_string())
         .ftl_key(FluentKey::new(&ident, "Network"))
-        .maybe_arguments(Some(vec!["code".into(), "message".into()]))
+        .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     insta::assert_ron_snapshot!("snapshot_ftl_variant_and_typeinfo_debug__variant", &variant);
@@ -88,7 +88,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
     let variant2 = FtlVariant::builder()
         .name("Io".to_string())
         .ftl_key(FluentKey::new(&ident, "Io"))
-        .maybe_arguments(None)
+        .maybe_args(None)
         .build();
 
     let type_info = FtlTypeInfo::builder()

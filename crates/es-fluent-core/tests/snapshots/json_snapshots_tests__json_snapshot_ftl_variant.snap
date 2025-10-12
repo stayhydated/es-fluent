@@ -5,7 +5,7 @@ expression: "&variant"
 {
   "name": "Network",
   "ftl_key": "error_type-Network",
-  "arguments": [
+  "args": [
     "code",
     "message"
   ]

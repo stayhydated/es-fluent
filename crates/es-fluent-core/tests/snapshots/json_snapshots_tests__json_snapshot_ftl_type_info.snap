@@ -9,7 +9,7 @@ expression: "&type_info"
     {
       "name": "Network",
       "ftl_key": "error_type-Network",
-      "arguments": [
+      "args": [
         "code",
         "message"
       ]
@@ -17,7 +17,7 @@ expression: "&type_info"
     {
       "name": "Io",
       "ftl_key": "error_type-Io",
-      "arguments": null
+      "args": []
     }
   ]
 }

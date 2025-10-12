@@ -1,8 +1,18 @@
+#![doc = include_str!("../README.md")]
+
 use heck::ToPascalCase as _;
 use proc_macro::TokenStream;
 use quote::quote;
 use std::fs;
 
+/// Defines an embedded i18n module.
+///
+/// This macro will:
+///
+/// 1.  Read the `i18n.toml` configuration file.
+/// 2.  Discover the available languages in the `i18n` directory.
+/// 3.  Generate a `RustEmbed` struct for the i18n assets.
+/// 4.  Generate an `EmbeddedI18nModule` for the crate.
 #[proc_macro]
 pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
@@ -59,37 +69,37 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     for entry in entries {
         let entry = entry.expect("Failed to read directory entry");
         let path = entry.path();
-        if path.is_dir()
-            && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
-        {
-            let ftl_file_name = format!("{}.ftl", crate_name);
-            let ftl_path = path.join(ftl_file_name);
+        if path.is_dir() {
+            if let Some(lang_code) = path.file_name().and_then(|s| s.to_str()) {
+                let ftl_file_name = format!("{}.ftl", crate_name);
+                let ftl_path = path.join(ftl_file_name);
 
-            if ftl_path.exists() {
-                languages.push(lang_code.to_string());
+                if ftl_path.exists() {
+                    languages.push(lang_code.to_string());
+                }
             }
         }
     }
 
     let language_identifiers = languages.iter().map(|lang| {
-        quote! { unic_langid::langid!(#lang) }
+        quote! { es_fluent::unic_langid::langid!(#lang) }
     });
 
     let i18n_root_str = i18n_root_path.to_string_lossy();
 
     let expanded = quote! {
-        #[derive(rust_embed::RustEmbed)]
+        #[derive(es_fluent::__rust_embed::RustEmbed)]
         #[folder = #i18n_root_str]
         struct #assets_struct_name;
 
-        impl es_fluent_manager_core::EmbeddedAssets for #assets_struct_name {
+        impl es_fluent::__manager_core::EmbeddedAssets for #assets_struct_name {
             fn domain() -> &'static str {
                 #crate_name
             }
         }
 
-        static #module_data_name: es_fluent_manager_core::EmbeddedModuleData =
-            es_fluent_manager_core::EmbeddedModuleData {
+        static #module_data_name: es_fluent::__manager_core::EmbeddedModuleData =
+            es_fluent::__manager_core::EmbeddedModuleData {
                 name: #crate_name,
                 domain: #crate_name,
                 supported_languages: &[
@@ -97,15 +107,22 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
                 ],
             };
 
-        inventory::submit!(
-            &es_fluent_manager_core::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name)
-            as &dyn es_fluent_manager_core::I18nModule
+        es_fluent::__inventory::submit!(
+            &es_fluent::__manager_core::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name)
+            as &dyn es_fluent::__manager_core::I18nModule
         );
     };
 
     TokenStream::from(expanded)
 }
 
+/// Defines a Bevy i18n module.
+///
+/// This macro will:
+///
+/// 1.  Read the `i18n.toml` configuration file.
+/// 2.  Discover the available languages in the `i18n` directory.
+/// 3.  Generate an `AssetI18nModule` for the crate.
 #[proc_macro]
 pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
@@ -154,24 +171,24 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     for entry in entries {
         let entry = entry.expect("Failed to read directory entry");
         let path = entry.path();
-        if path.is_dir()
-            && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
-        {
-            let ftl_file_name = format!("{}.ftl", crate_name);
-            let ftl_path = path.join(ftl_file_name);
+        if path.is_dir() {
+            if let Some(lang_code) = path.file_name().and_then(|s| s.to_str()) {
+                let ftl_file_name = format!("{}.ftl", crate_name);
+                let ftl_path = path.join(ftl_file_name);
 
-            if ftl_path.exists() {
-                languages.push(lang_code.to_string());
+                if ftl_path.exists() {
+                    languages.push(lang_code.to_string());
+                }
             }
         }
     }
 
     let language_identifiers = languages.iter().map(|lang| {
-        quote! { unic_langid::langid!(#lang) }
+        quote! { es_fluent::unic_langid::langid!(#lang) }
     });
 
     let expanded = quote! {
-        static #static_data_name: es_fluent_manager_core::AssetModuleData = es_fluent_manager_core::AssetModuleData {
+        static #static_data_name: es_fluent::__manager_core::AssetModuleData = es_fluent::__manager_core::AssetModuleData {
             name: #crate_name,
             domain: #crate_name,
             supported_languages: &[
@@ -179,9 +196,9 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
             ],
         };
 
-        inventory::submit!(
-            &es_fluent_manager_core::AssetI18nModule::new(&#static_data_name)
-            as &dyn es_fluent_manager_core::I18nAssetModule
+        es_fluent::__inventory::submit!(
+            &es_fluent::__manager_core::AssetI18nModule::new(&#static_data_name)
+            as &dyn es_fluent::__manager_core::I18nAssetModule
         );
     };
 

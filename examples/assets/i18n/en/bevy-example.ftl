@@ -1,15 +1,7 @@
-## ButtonState
+## BevyScreenMessages
 
-button_state-Hovered = Hovered
-button_state-Normal = Normal
-button_state-Pressed = Pressed
+bevy_screen_messages-ToggleLanguageHint = Press '{ $key }' to switch language, current language: { $current_language }
 
-## Languages
+## KbKeys
 
-languages-Chinese = Chinese
-languages-English = English
-languages-French = French
-
-## ScreenMessages
-
-screen_messages-ToggleLanguageHint = Press 't' to switch language, current language: { $current_language }
+kb_keys-T = T

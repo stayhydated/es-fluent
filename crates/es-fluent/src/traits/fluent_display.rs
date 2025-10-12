@@ -1,18 +1,16 @@
 use std::fmt;
 
-/// A trait for types that can be displayed in a Fluent message.
-///
-/// This is a counterpart to `std::fmt::Display`, but specifically for generating
-/// strings that are meant to be used with Fluent. The derive macro for `es-fluent`
-/// can implement this trait for your types.
+/// This trait is similar to `std::fmt::Display`, but it is used for formatting
+/// types that can be displayed in a Fluent message.
 pub trait FluentDisplay {
     /// Formats the value using the given formatter.
     fn fluent_fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
 }
 
-/// Extension trait that provides `to_fluent_string`.
+/// This trait is automatically implemented for any type that implements
+/// `FluentDisplay`.
 pub trait ToFluentString {
-    /// Converts a value to a `String` for use in Fluent.
+    /// Converts the type into a Fluent (i18n translated) string.
     fn to_fluent_string(&self) -> String;
 }
 

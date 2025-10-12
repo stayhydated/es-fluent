@@ -1,0 +1,26 @@
+---
+source: crates/es-fluent-core/tests/options_parsing_tests.rs
+expression: "&opts"
+---
+EnumChoiceOpts {
+    ident: Ident {
+        sym: MyEnum,
+    },
+    generics: Generics {
+        lt_token: None,
+        params: [],
+        gt_token: None,
+        where_clause: None,
+    },
+    data: Enum(
+        [
+            Ignored,
+            Ignored,
+        ],
+    ),
+    attr_args: EnumChoiceAttributeArgs {
+        serialize_all: Some(
+            "snake_case",
+        ),
+    },
+}

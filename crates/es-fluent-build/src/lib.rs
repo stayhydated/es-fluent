@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use std::path::{Path, PathBuf};
 mod error;
 use error::FluentBuildError;
@@ -15,6 +17,7 @@ pub struct FluentBuilder {
 
 #[impl_state]
 impl FluentBuilder {
+    /// Creates a new `FluentBuilder`.
     #[require(Unset)]
     pub fn new() -> FluentBuilder {
         FluentBuilder {
@@ -22,12 +25,25 @@ impl FluentBuilder {
         }
     }
 
+    /// Sets the `FluentParseMode`.
     #[require(Unset)]
     #[switch_to(ModeSet)]
     pub fn mode(self, mode: FluentParseMode) -> FluentBuilder {
         FluentBuilder { mode }
     }
 
+    /// Builds the Fluent translation files.
+    ///
+    /// This method will:
+    ///
+    /// 1.  Get the crate name from `Cargo.toml`.
+    /// 2.  Read the `i18n.toml` configuration file.
+    /// 3.  Parse all Rust files in the `src` directory.
+    /// 4.  Generate a Fluent translation file in the `i18n` directory.
+    ///
+    /// # Errors
+    ///
+    /// This method will return an error if any of the steps fail.
     #[require(A)]
     pub fn build(self) -> Result<(), FluentBuildError> {
         let crate_name = {

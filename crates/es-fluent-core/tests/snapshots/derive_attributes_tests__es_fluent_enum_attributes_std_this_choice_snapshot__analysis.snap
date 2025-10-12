@@ -1,0 +1,164 @@
+---
+source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+expression: "&opts"
+---
+EnumOpts {
+    ident: Ident {
+        sym: Status,
+    },
+    generics: Generics {
+        lt_token: None,
+        params: [],
+        gt_token: None,
+        where_clause: None,
+    },
+    data: Enum(
+        [
+            VariantOpts {
+                ident: Ident {
+                    sym: Ok,
+                },
+                fields: Fields {
+                    style: Unit,
+                    fields: [],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+            },
+            VariantOpts {
+                ident: Ident {
+                    sym: Mixed,
+                },
+                fields: Fields {
+                    style: Tuple,
+                    fields: [
+                        EnumFieldOpts {
+                            ident: None,
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: Severity,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: None,
+                            choice: Some(
+                                true,
+                            ),
+                        },
+                        EnumFieldOpts {
+                            ident: None,
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: i32,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: Some(
+                                true,
+                            ),
+                            choice: None,
+                        },
+                    ],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+            },
+            VariantOpts {
+                ident: Ident {
+                    sym: Info,
+                },
+                fields: Fields {
+                    style: Struct,
+                    fields: [
+                        EnumFieldOpts {
+                            ident: Some(
+                                Ident {
+                                    sym: level,
+                                },
+                            ),
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: Severity,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: None,
+                            choice: Some(
+                                true,
+                            ),
+                        },
+                        EnumFieldOpts {
+                            ident: Some(
+                                Ident {
+                                    sym: message,
+                                },
+                            ),
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: String,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: None,
+                            choice: None,
+                        },
+                    ],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+            },
+        ],
+    ),
+    attr_args: EnumFluentAttributeArgs {
+        display: Some(
+            "std",
+        ),
+        choice: Some(
+            true,
+        ),
+        this: Some(
+            true,
+        ),
+    },
+}

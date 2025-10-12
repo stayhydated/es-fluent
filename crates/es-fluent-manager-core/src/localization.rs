@@ -1,18 +1,25 @@
+//! This module provides the core types for managing translations.
+
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 
+/// An error that can occur when localizing a message.
 #[derive(Debug, Error)]
 pub enum LocalizationError {
+    /// An error that occurs when a language is not supported.
     #[error("Language '{0}' is not supported by this module")]
     LanguageNotSupported(LanguageIdentifier),
+    /// An error that occurs in the localization backend.
     #[error("An underlying localization backend error occurred: {0}")]
     BackendError(#[from] anyhow::Error),
 }
 
 pub trait Localizer: Send + Sync {
+    /// Selects a language for the localizer.
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError>;
+    /// Localizes a message by its ID.
     fn localize<'a>(
         &self,
         id: &str,
@@ -21,12 +28,15 @@ pub trait Localizer: Send + Sync {
 }
 
 pub trait I18nModule: Send + Sync {
+    /// Returns the name of the module.
     fn name(&self) -> &'static str;
+    /// Creates a localizer for the module.
     fn create_localizer(&self) -> Box<dyn Localizer>;
 }
 
 inventory::collect!(&'static dyn I18nModule);
 
+/// A manager for Fluent translations.
 #[derive(Default)]
 pub struct FluentManager {
     localizers: Vec<Box<dyn Localizer>>,
@@ -39,6 +49,7 @@ impl Clone for FluentManager {
 }
 
 impl FluentManager {
+    /// Creates a new `FluentManager` with discovered i18n modules.
     pub fn new_with_discovered_modules() -> Self {
         let mut manager = Self::default();
         for module in inventory::iter::<&'static dyn I18nModule>() {
@@ -48,6 +59,7 @@ impl FluentManager {
         manager
     }
 
+    /// Selects a language for all localizers.
     pub fn select_language(&mut self, lang: &LanguageIdentifier) {
         for localizer in &self.localizers {
             if let Err(e) = localizer.select_language(lang) {
@@ -56,6 +68,7 @@ impl FluentManager {
         }
     }
 
+    /// Localizes a message by its ID.
     pub fn localize<'a>(
         &self,
         id: &str,
