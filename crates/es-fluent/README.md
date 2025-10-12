@@ -5,7 +5,7 @@ Derive macros and utilities for authoring strongly-typed messages with [Project 
 This crate gives you:
 - Derives to turn enums/structs into Fluent message IDs and arguments.
 - A simple API to format values for Fluent and convert them into strings.
-- Optional integration via a singleton manager (`es-fluent-manager-singleton`) or for Bevy (`es-fluent-manager-bevy`).
+- Optional integration via a embedded singleton manager (`es-fluent-manager-embedded`) or for Bevy (`es-fluent-manager-bevy`).
 
 ## Installation
 
@@ -16,10 +16,10 @@ Add the crate with the `derive` feature to access the procedural macros:
 es-fluent = { version = "*", features = ["derive"] }
 unic-langid = "*"
 
-# If you want to register modules with the singleton and localize at runtime:
-es-fluent-manager-singleton = "*"
+# If you want to register modules with the embedded singleton and localize at runtime:
+es-fluent-manager-embedded = "*"
 
-# For Bevy integration: replace `es-fluent-manager-singleton` with  `es-fluent-manager-bevy`
+# For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
 es-fluent-manager-bevy = "*"
 ```
 

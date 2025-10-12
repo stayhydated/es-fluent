@@ -3350,7 +3350,7 @@ version = "0.2.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-manager-singleton",
+ "es-fluent-manager-embedded",
  "example-shared-lib",
  "futures-util",
  "libcosmic",
@@ -4451,19 +4451,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "es-fluent-manager-macros"
-version = "0.2.0"
-dependencies = [
- "es-fluent-manager-core",
- "es-fluent-toml",
- "heck 0.5.0",
- "proc-macro2",
- "quote",
- "syn 2.0.106",
-]
-
-[[package]]
-name = "es-fluent-manager-singleton"
+name = "es-fluent-manager-embedded"
 version = "0.2.0"
 dependencies = [
  "es-fluent",
@@ -4473,6 +4461,18 @@ dependencies = [
  "log",
  "rust-embed",
  "unic-langid",
+]
+
+[[package]]
+name = "es-fluent-manager-macros"
+version = "0.2.0"
+dependencies = [
+ "es-fluent-manager-core",
+ "es-fluent-toml",
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
 ]
 
 [[package]]
@@ -4566,7 +4566,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-build",
  "es-fluent-manager-bevy",
- "es-fluent-manager-singleton",
+ "es-fluent-manager-embedded",
  "gpui",
  "log",
  "rust-embed",
@@ -4692,7 +4692,7 @@ version = "0.2.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-manager-singleton",
+ "es-fluent-manager-embedded",
  "log",
  "rust-embed",
  "strum 0.26.3",
@@ -5594,7 +5594,7 @@ version = "0.2.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-manager-singleton",
+ "es-fluent-manager-embedded",
  "example-shared-lib",
  "gpui",
  "gpui-component",
@@ -6089,7 +6089,7 @@ version = "0.2.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-manager-singleton",
+ "es-fluent-manager-embedded",
  "example-shared-lib",
  "iced 0.13.1",
  "log",
@@ -11123,7 +11123,7 @@ version = "0.1.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-manager-singleton",
+ "es-fluent-manager-embedded",
  "log",
  "rust-embed",
  "thiserror 2.0.17",

@@ -10,10 +10,10 @@ pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_mod
 
 static GENERIC_MANAGER: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 
-/// Initializes the singleton `FluentManager`.
+/// Initializes the embedded singleton `FluentManager`.
 ///
 /// This function discovers all embedded i18n modules linked into the binary,
-/// creates a `FluentManager` with them, and sets it as a global singleton.
+/// creates a `FluentManager` with them, and sets it as a global embedded singleton.
 /// It also registers this manager with the `es-fluent` crate's central context,
 /// allowing the `es_fluent::localize!` macro to work.
 ///
@@ -34,14 +34,14 @@ pub fn init() {
     }
 }
 
-/// Selects the active language for the singleton `FluentManager`.
+/// Selects the active language for the embedded singleton `FluentManager`.
 ///
 /// After a language is selected, all subsequent calls to localization functions
 /// will use the bundles for this language.
 ///
 /// # Errors
 ///
-/// This function will log an error if the singleton has not been initialized by
+/// This function will log an error if the embedded singleton has not been initialized by
 /// calling `init()` first.
 pub fn select_language(lang: &LanguageIdentifier) {
     if let Some(manager_arc) = GENERIC_MANAGER.get() {

@@ -9,7 +9,7 @@ use bevy::prelude::*;
 es_fluent_manager_bevy::define_i18n_module!();
 
 #[cfg(any(feature = "iced", feature = "gpui"))]
-es_fluent_manager_singleton::define_i18n_module!();
+es_fluent_manager_embedded::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, Default, EsFluent, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(Component))]

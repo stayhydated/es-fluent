@@ -9,7 +9,7 @@ publish = false
 bevy = { optional = true, workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-bevy = { optional = true, workspace = true }
-es-fluent-manager-singleton = { optional = true, workspace = true }
+es-fluent-manager-embedded = { optional = true, workspace = true }
 gpui = { optional = true, workspace = true }
 rust-embed = { optional = true, workspace = true }
 strum = { features = [ "derive" ], workspace = true }
@@ -24,5 +24,5 @@ workspace = true
 
 [features]
 bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy" ]
-gpui = [ "dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-singleton" ]
-iced = [ "dep:rust-embed", "dep:es-fluent-manager-singleton" ]
+gpui = [ "dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
+iced = [ "dep:rust-embed", "dep:es-fluent-manager-embedded" ]

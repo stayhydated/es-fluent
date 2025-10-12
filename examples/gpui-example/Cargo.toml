@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-manager-singleton = { workspace = true }
+es-fluent-manager-embedded = { workspace = true }
 example-shared-lib = { features = [ "gpui" ], path = "../example-shared-lib" }
 gpui = { workspace = true }
 gpui-component = { workspace = true }

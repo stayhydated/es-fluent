@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-manager-singleton = { workspace = true }
+es-fluent-manager-embedded = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]
