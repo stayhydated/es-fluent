@@ -1,9 +1,9 @@
-use es_fluent::{EsFluent, ToFluentString};
+use es_fluent::{EsFluent, ToFluentString as _};
 use example_shared_lib::{ButtonState, Languages};
 use iced::font::{Family, Font};
 use iced::widget::{button, center, mouse_area, row, text};
 use iced::{Center, Element, Theme};
-use strum::IntoEnumIterator;
+use strum::IntoEnumIterator as _;
 
 mod i18n;
 
