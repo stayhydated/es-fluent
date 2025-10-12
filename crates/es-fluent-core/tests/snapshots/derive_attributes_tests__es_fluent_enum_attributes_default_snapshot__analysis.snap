@@ -1,0 +1,170 @@
+---
+source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+expression: "&opts"
+---
+EnumOpts {
+    ident: Ident {
+        sym: ApiError,
+    },
+    generics: Generics {
+        lt_token: None,
+        params: [],
+        gt_token: None,
+        where_clause: None,
+    },
+    data: Enum(
+        [
+            VariantOpts {
+                ident: Ident {
+                    sym: NotFound,
+                },
+                fields: Fields {
+                    style: Unit,
+                    fields: [],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+            },
+            VariantOpts {
+                ident: Ident {
+                    sym: PermissionDenied,
+                },
+                fields: Fields {
+                    style: Unit,
+                    fields: [],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+            },
+            VariantOpts {
+                ident: Ident {
+                    sym: Data,
+                },
+                fields: Fields {
+                    style: Struct,
+                    fields: [
+                        EnumFieldOpts {
+                            ident: Some(
+                                Ident {
+                                    sym: id,
+                                },
+                            ),
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: u64,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: None,
+                            choice: None,
+                        },
+                        EnumFieldOpts {
+                            ident: Some(
+                                Ident {
+                                    sym: internal,
+                                },
+                            ),
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: bool,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: Some(
+                                true,
+                            ),
+                            choice: None,
+                        },
+                    ],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+            },
+            VariantOpts {
+                ident: Ident {
+                    sym: TupleVariant,
+                },
+                fields: Fields {
+                    style: Tuple,
+                    fields: [
+                        EnumFieldOpts {
+                            ident: None,
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: String,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: None,
+                            choice: None,
+                        },
+                        EnumFieldOpts {
+                            ident: None,
+                            ty: Type::Path {
+                                qself: None,
+                                path: Path {
+                                    leading_colon: None,
+                                    segments: [
+                                        PathSegment {
+                                            ident: Ident {
+                                                sym: i32,
+                                            },
+                                            arguments: PathArguments::None,
+                                        },
+                                    ],
+                                },
+                            },
+                            skip: Some(
+                                true,
+                            ),
+                            choice: None,
+                        },
+                    ],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+            },
+        ],
+    ),
+    attr_args: EnumFluentAttributeArgs {
+        display: None,
+        choice: None,
+        this: None,
+    },
+}
