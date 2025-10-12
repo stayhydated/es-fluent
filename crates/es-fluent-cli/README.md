@@ -4,13 +4,6 @@
 
 This tool is ideal for a "watch" mode during development, giving you instant feedback and generating translation keys as you write your code.
 
-## Features
-
--   **Automatic Crate Discovery**: Scans your workspace for crates that are configured for `es-fluent`.
--   **Live Reload**: Watches your source files for changes and automatically regenerates `.ftl` files.
--   **Interactive TUI**: Displays the build status of all discovered crates in a clean, interactive terminal interface.
--   **Configurable Modes**: Supports different generation modes, such as `conservative` (default) to preserve existing translations and `aggressive` to regenerate files from scratch.
-
 ## Usage
 
 To start the CLI in its default watch mode, simply run the following command in your project's root directory:

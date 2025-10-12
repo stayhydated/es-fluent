@@ -4,12 +4,6 @@ The `es-fluent-manager-singleton` crate provides a convenient global singleton f
 
 It is designed to work with embedded translations, using the `define_embedded_i18n_module!` macro to discover and compile translation files directly into the binary.
 
-## Features
-
--   **Global `FluentManager`**: A `OnceLock`-guarded singleton that provides thread-safe, global access to the `FluentManager`.
--   **Simple Initialization**: A single `init()` function to discover all embedded i18n modules and initialize the manager.
--   **Easy Language Switching**: A `select_language()` function to change the active language for all registered modules.
-
 ## Usage
 
 1.  In each of your crates that has translations, define a singleton-specific module:
