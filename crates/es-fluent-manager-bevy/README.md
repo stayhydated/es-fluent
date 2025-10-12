@@ -22,7 +22,7 @@ Here's a step-by-step guide to integrating `es-fluent-manager-bevy` into your ap
 
 In each of your crates that contains `EsFluent`-derived types, you need to define an i18n module. This macro discovers the languages from your `i18n` directory and registers the module with Bevy's asset system.
 
-```rust
+```rs
 // In my_crate/src/lib.rs
 use es_fluent::EsFluent;
 
@@ -40,7 +40,7 @@ pub enum MyMessages {
 
 In your application's entry point, add the `I18nPlugin` and provide an initial language.
 
-```rust
+```rs
 // In main.rs
 use bevy::prelude::*;
 use es_fluent_manager_bevy::I18nPlugin;
@@ -62,7 +62,7 @@ fn main() {
 
 For each component `T : es_fluent::ToFluentString` that you want to display using `FluentText<T>`, you need to register it with the app.
 
-```rust
+```rs
 use es_fluent_manager_bevy::FluentTextRegistration as _;
 
 // ... inside main()
@@ -85,7 +85,7 @@ If your component needs to be rebuilt when the language changes (e.g., it contai
 
 Now you can use the `FluentText<T>` component to automatically display localized text. When the value of your component changes, the text will be updated automatically.
 
-```rust
+```rs
 use es_fluent_manager_bevy::FluentText;
 
 fn setup_system(mut commands: Commands) {
