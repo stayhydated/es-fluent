@@ -9,6 +9,7 @@ use cosmic::{cosmic_theme, theme};
 use es_fluent::{EsFluent, ToFluentString as _};
 use futures_util::SinkExt;
 use std::collections::HashMap;
+use strum::IntoEnumIterator;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
@@ -26,6 +27,7 @@ pub struct AppModel {
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     // Configuration data that persists between application runs.
     config: Config,
+    current_language: example_shared_lib::Languages,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -36,6 +38,7 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     LaunchUrl(String),
+    ToggleLanguage,
 }
 
 /// Create a COSMIC application from the app model
@@ -103,6 +106,7 @@ impl cosmic::Application for AppModel {
                     },
                 })
                 .unwrap_or_default(),
+            current_language: example_shared_lib::Languages::English,
         };
 
         // Create a startup command that sets the window title.
@@ -153,7 +157,20 @@ impl cosmic::Application for AppModel {
     /// Application events will be processed through the view. Any messages emitted by
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<Self::Message> {
-        widget::text::title1(AppItems::Welcome.to_fluent_string())
+        let title = widget::text::title1(AppItems::Welcome.to_fluent_string());
+
+        let language_button = widget::button::link(
+            CosmicScreenMessages::ToggleLanguageHint {
+                current_language: self.current_language,
+            }
+            .to_fluent_string(),
+        )
+        .on_press(Message::ToggleLanguage);
+
+        widget::column()
+            .push(title)
+            .push(language_button)
+            .align_x(Alignment::Center)
             .apply(widget::container)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -227,6 +244,21 @@ impl cosmic::Application for AppModel {
                 Err(err) => {
                     eprintln!("failed to open {url:?}: {err}");
                 },
+            },
+
+            Message::ToggleLanguage => {
+                let mut languages: Vec<example_shared_lib::Languages> =
+                    example_shared_lib::Languages::iter().collect();
+                languages.sort_by_key(|a| *a as isize);
+                let current_index = languages
+                    .iter()
+                    .position(|&lang| lang == self.current_language)
+                    .unwrap_or(0);
+                let next_index = (current_index + 1) % languages.len();
+                let next_language = languages[next_index];
+
+                self.current_language = next_language;
+                crate::i18n::change_locale(&next_language.into()).unwrap();
             },
         }
         Task::none()
@@ -307,6 +339,13 @@ pub enum AppItems {
     Welcome,
     About,
     View,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub enum CosmicScreenMessages {
+    ToggleLanguageHint {
+        current_language: example_shared_lib::Languages,
+    },
 }
 
 #[derive(EsFluent)]
