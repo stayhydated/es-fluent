@@ -9,6 +9,6 @@ pub fn init() {
 pub fn change_locale(
     language: &unic_langid::LanguageIdentifier,
 ) -> Result<(), unic_langid::LanguageIdentifierError> {
-    i18n_manager::select_language(&language);
+    i18n_manager::select_language(language);
     Ok(())
 }

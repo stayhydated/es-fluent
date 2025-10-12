@@ -265,10 +265,10 @@ fn is_es_fluent_derived(item: &Item) -> Option<String> {
             )
         {
             for path in paths {
-                if let Some(s) = path.segments.last() {
-                    if s.ident == "EsFluent" || s.ident == "EsFluentKv" {
-                        return Some(s.ident.to_string());
-                    }
+                if let Some(s) = path.segments.last()
+                    && (s.ident == "EsFluent" || s.ident == "EsFluentKv")
+                {
+                    return Some(s.ident.to_string());
                 }
             }
         }

@@ -1,11 +1,11 @@
-use es_fluent::{EsFluent, ToFluentString};
+use es_fluent::{EsFluent, ToFluentString as _};
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui::{
     App, Application, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px,
     size,
 };
 use gpui_component::button::Button;
-use strum::IntoEnumIterator;
+use strum::IntoEnumIterator as _;
 mod i18n;
 
 #[derive(Clone, Copy, Debug, EsFluent)]
@@ -26,7 +26,7 @@ fn main() {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
-            |_, cx| cx.new(|cx| GpuiExampleView::new(cx)),
+            |_, cx| cx.new(GpuiExampleView::new),
         )
         .unwrap();
     });

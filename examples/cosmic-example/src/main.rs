@@ -1,3 +1,5 @@
+#![allow(clippy::needless_lifetimes)]
+
 use unic_langid::langid;
 
 mod app;
