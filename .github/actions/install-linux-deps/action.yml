@@ -16,7 +16,7 @@ inputs:
   xkb:
     description: Install xkb (libxkbcommon-dev)
     required: false
-    default: "false"
+    default: "true"
 runs:
   using: composite
   steps:
