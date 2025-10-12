@@ -10,17 +10,17 @@ expression: "&infos"
       FtlVariant(
         name: "first",
         ftl_key: FluentKey("my_struct_error_ftl-first"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "second",
         ftl_key: FluentKey("my_struct_error_ftl-second"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "third",
         ftl_key: FluentKey("my_struct_error_ftl-third"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -31,17 +31,17 @@ expression: "&infos"
       FtlVariant(
         name: "first",
         ftl_key: FluentKey("my_struct_notice_ftl-first"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "second",
         ftl_key: FluentKey("my_struct_notice_ftl-second"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "third",
         ftl_key: FluentKey("my_struct_notice_ftl-third"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -52,17 +52,17 @@ expression: "&infos"
       FtlVariant(
         name: "first",
         ftl_key: FluentKey("my_struct_warning_ftl-first"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "second",
         ftl_key: FluentKey("my_struct_warning_ftl-second"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "third",
         ftl_key: FluentKey("my_struct_warning_ftl-third"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),

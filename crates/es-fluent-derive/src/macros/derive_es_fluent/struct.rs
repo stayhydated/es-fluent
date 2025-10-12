@@ -1,108 +1,58 @@
 use es_fluent_core::namer;
 use es_fluent_core::options::r#struct::StructOpts;
 use es_fluent_core::strategy::DisplayStrategy;
-use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-pub fn process_struct(opts: &StructOpts, data: &syn::DataStruct) -> TokenStream {
-    let strategy = DisplayStrategy::from(opts);
-    let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
-
-    let keys = opts.keyyed_idents();
-    if keys.is_empty() {
-        let ftl_enum_ident = opts.ftl_enum_ident();
-        generate_unit_enum(opts, data, use_fluent_display, &ftl_enum_ident)
-    } else {
-        let enums = keys
-            .iter()
-            .map(|key| generate_unit_enum(opts, data, use_fluent_display, key));
-
-        let this_ftl_impl = if opts.attr_args().is_this() {
-            let original_ident = opts.ident();
-            let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
-            quote! {
-                impl #original_ident {
-                    pub fn this_ftl() -> String {
-                        ::es_fluent::localize(#this_ftl_key, None)
-                    }
-                }
-            }
-        } else {
-            quote! {}
-        };
-
-        quote! {
-            #(#enums)*
-
-            #this_ftl_impl
-        }
+pub fn process_struct(opts: &StructOpts, _data: &syn::DataStruct) -> TokenStream {
+    let strategy = opts.attr_args().display();
+    match strategy {
+        DisplayStrategy::FluentDisplay => generate(opts, true),
+        DisplayStrategy::StdDisplay => generate(opts, false),
     }
 }
 
-fn generate_unit_enum(
-    opts: &StructOpts,
-    _data: &syn::DataStruct,
-    use_fluent_display: bool,
-    ident: &syn::Ident,
-) -> TokenStream {
-    let field_opts = opts.fields();
+fn generate(opts: &StructOpts, use_fluent_display: bool) -> TokenStream {
+    let original_ident = opts.ident();
 
-    let variants: Vec<_> = field_opts
+    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
+
+    let fields = opts.fields();
+
+    let ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+
+    let args: Vec<_> = fields
         .iter()
         .map(|field_opt| {
-            let ident = field_opt.ident().as_ref().unwrap();
-            let pascal_case_name = ident.to_string().to_pascal_case();
-            let variant_ident = syn::Ident::new(&pascal_case_name, ident.span());
-            (variant_ident, field_opt)
+            let arg_name = field_opt.ident().as_ref().unwrap();
+            let arg_key = arg_name.to_string();
+            let field_ty = field_opt.ty();
+            let is_choice = field_opt.is_choice();
+
+            let value_expr = if is_choice {
+                quote! { self.#arg_name.as_fluent_choice() }
+            } else {
+                let mut current_ty = field_ty;
+                let mut deref_count = 0;
+                while let syn::Type::Reference(type_ref) = current_ty {
+                    deref_count += 1;
+                    current_ty = &type_ref.elem;
+                }
+
+                if deref_count > 0 {
+                    let mut inner = quote! { &self.#arg_name };
+                    for _ in 0..deref_count {
+                        inner = quote! { (*#inner) };
+                    }
+                    inner
+                } else {
+                    quote! { &self.#arg_name }
+                }
+            };
+
+            quote! { args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); }
         })
         .collect();
-
-    let match_arms = variants.iter().map(|(variant_ident, _)| {
-        let base_key = variant_ident.to_string().to_snake_case();
-        let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
-        quote! {
-            Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
-        }
-    });
-
-    let cleaned_variants = variants.iter().map(|(ident, _)| ident);
-    let derives = opts.attr_args().derive();
-    let derive_attr = if !derives.is_empty() {
-        quote! { #[derive(#(#derives),*)] }
-    } else {
-        quote! {}
-    };
-
-    let new_enum = quote! {
-      #derive_attr
-      pub enum #ident {
-          #(#cleaned_variants),*
-      }
-    };
-
-    let default_variant_ident = {
-        let field_opts = opts.fields();
-        let fluent_default_opt = field_opts.iter().find(|opts| opts.is_default());
-
-        fluent_default_opt.and_then(|opts| {
-            opts.ident().as_ref().map(|ident| {
-                let pascal_case_name = ident.to_string().to_pascal_case();
-                syn::Ident::new(&pascal_case_name, ident.span())
-            })
-        })
-    };
-    let default_impl = if let Some(default_variant_ident) = default_variant_ident {
-        quote! {
-            impl Default for #ident {
-                fn default() -> Self {
-                    Self::#default_variant_ident
-                }
-            }
-        }
-    } else {
-        quote! {}
-    };
 
     let display_impl = {
         let trait_impl = if use_fluent_display {
@@ -117,20 +67,31 @@ fn generate_unit_enum(
             quote! { fmt }
         };
         quote! {
-            impl #trait_impl for #ident {
+            impl #impl_generics #trait_impl for #original_ident #ty_generics #where_clause {
                 fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                    match self {
-                        #(#match_arms),*
-                    }
+                    let mut args = ::std::collections::HashMap::new();
+                    #(#args)*
+                    write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
                 }
             }
         }
     };
 
-    let this_ftl_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
+    let fluent_value_inner_fn = if use_fluent_display {
         quote! {
-            impl #ident {
+          use ::es_fluent::ToFluentString as _;
+          value.to_fluent_string().into()
+        }
+    } else {
+        quote! {
+          value.to_string().into()
+        }
+    };
+
+    let this_ftl_impl = if opts.attr_args().is_this() {
+        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+        quote! {
+            impl #impl_generics #original_ident #ty_generics #where_clause {
                 pub fn this_ftl() -> String {
                     ::es_fluent::localize(#this_ftl_key, None)
                 }
@@ -141,22 +102,18 @@ fn generate_unit_enum(
     };
 
     quote! {
-      #new_enum
-
-      #default_impl
-
       #display_impl
 
       #this_ftl_impl
 
-      impl From<& #ident> for ::es_fluent::FluentValue<'_> {
-            fn from(value: & #ident) -> Self {
-              value.to_string().into()
+      impl #impl_generics From<&#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
+            fn from(value: &#original_ident #ty_generics) -> Self {
+              #fluent_value_inner_fn
             }
       }
 
-      impl From<#ident> for ::es_fluent::FluentValue<'_> {
-            fn from(value: #ident) -> Self {
+      impl #impl_generics From<#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
+            fn from(value: #original_ident #ty_generics) -> Self {
                 (&value).into()
             }
       }

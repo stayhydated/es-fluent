@@ -1,24 +1,25 @@
 use darling::FromDeriveInput;
 use es_fluent_core::analysis;
-use es_fluent_core::options::r#struct::StructOpts;
+use es_fluent_core::options::r#struct::StructKvOpts;
 use syn::{DeriveInput, parse_quote};
 
 #[test]
 fn struct_analysis_with_multiple_keys_and_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(this, keys = ["Error", "Notice", "Warning"])]
+        #[derive(EsFluentKv)]
+        #[fluent_kv(this, keys = ["Error", "Notice", "Warning"])]
         struct MyStruct {
             first: String,
-            #[fluent(skip)]
+            #[fluent_kv(skip)]
             secret: bool,
             second: i32,
             third: u8,
         }
     };
 
-    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    let infos = analysis::analyze_struct(&opts);
+    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let mut infos = Vec::new();
+    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos);
 
     // Expect:
     // - One FtlTypeInfo per key: MyStructErrorFtl, MyStructNoticeFtl, MyStructWarningFtl
@@ -34,20 +35,21 @@ fn struct_analysis_with_multiple_keys_and_this_generates_expected_ftl_type_info(
 #[test]
 fn struct_analysis_with_multiple_keys_and_this_more_fields_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(this, keys = ["Primary", "Secondary"])]
+        #[derive(EsFluentKv)]
+        #[fluent_kv(this, keys = ["Primary", "Secondary"])]
         struct Profile {
             id: u64,
             username: String,
-            #[fluent(skip)]
+            #[fluent_kv(skip)]
             password_hash: String,
             email: String,
             active: bool,
         }
     };
 
-    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    let infos = analysis::analyze_struct(&opts);
+    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let mut infos = Vec::new();
+    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos);
 
     // Expect:
     // - Keys produce: ProfilePrimaryFtl and ProfileSecondaryFtl
@@ -63,19 +65,20 @@ fn struct_analysis_with_multiple_keys_and_this_more_fields_generates_expected_ft
 fn struct_analysis_with_two_keys_out_of_order_and_this_generates_expected_ftl_type_info() {
     // Intentionally out-of-order keys to ensure iteration preserves user order
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(this, keys = ["Zed", "Alpha"])]
+        #[derive(EsFluentKv)]
+        #[fluent_kv(this, keys = ["Zed", "Alpha"])]
         struct SystemConfig {
             host: String,
             port: u16,
-            #[fluent(skip)]
+            #[fluent_kv(skip)]
             deprecated_field: i32,
             use_tls: bool,
         }
     };
 
-    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    let infos = analysis::analyze_struct(&opts);
+    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let mut infos = Vec::new();
+    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos);
 
     // Expect:
     // - Order of FtlTypeInfo matches keys declaration: SystemConfigZedFtl then SystemConfigAlphaFtl

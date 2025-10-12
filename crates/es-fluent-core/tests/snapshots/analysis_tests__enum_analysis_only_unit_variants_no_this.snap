@@ -10,12 +10,12 @@ expression: "&infos"
       FtlVariant(
         name: "A",
         ftl_key: FluentKey("e-A"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "B",
         ftl_key: FluentKey("e-B"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),

@@ -10,18 +10,18 @@ expression: "&infos"
       FtlVariant(
         name: "Data",
         ftl_key: FluentKey("e-Data"),
-        arguments: Some([
+        args: [
           "x",
           "y",
-        ]),
+        ],
       ),
       FtlVariant(
         name: "Tup",
         ftl_key: FluentKey("e-Tup"),
-        arguments: Some([
+        args: [
           "f0",
           "f2",
-        ]),
+        ],
       ),
     ],
   ),

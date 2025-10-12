@@ -131,3 +131,25 @@ impl EnumFluentAttributeArgs {
         self.this.unwrap_or(false)
     }
 }
+
+/// Options for an enum that can be used as a choice.
+#[derive(Clone, Debug, FromDeriveInput, Getters)]
+#[darling(supports(enum_unit), attributes(fluent_choice))]
+#[getset(get = "pub")]
+pub struct EnumChoiceOpts {
+    /// The identifier of the enum.
+    ident: syn::Ident,
+    /// The generics of the enum.
+    generics: syn::Generics,
+    data: darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
+    #[darling(flatten)]
+    attr_args: EnumChoiceAttributeArgs,
+}
+
+/// Attribute arguments for an enum that can be used as a choice.
+#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
+#[getset(get = "pub")]
+pub struct EnumChoiceAttributeArgs {
+    #[darling(default)]
+    serialize_all: Option<String>,
+}

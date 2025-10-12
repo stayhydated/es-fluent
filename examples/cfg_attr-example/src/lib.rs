@@ -1,7 +1,7 @@
 #[cfg(feature = "i18n")]
 mod i18n;
 
-use es_fluent::EsFluent;
+use es_fluent::{EsFluent, EsFluentKv};
 use strum::EnumDiscriminants;
 
 #[cfg_attr(feature = "i18n", derive(EsFluent))]
@@ -12,14 +12,14 @@ pub enum KeyboardLayout {
     Qwertz,
 }
 
-#[cfg_attr(feature = "i18n", derive(EsFluent))]
-#[cfg_attr(feature = "i18n", fluent(this, derive(Clone)))]
+#[cfg_attr(feature = "i18n", derive(EsFluentKv))]
+#[cfg_attr(feature = "i18n", fluent_kv(this, derive(Clone)))]
 pub struct Mouse {
     pub dpi: u32,
 }
 
-#[cfg_attr(feature = "i18n", derive(EsFluent))]
-#[cfg_attr(feature = "i18n", fluent(this, keys = ["Description", "Label"]))]
+#[cfg_attr(feature = "i18n", derive(EsFluentKv))]
+#[cfg_attr(feature = "i18n", fluent_kv(this, keys = ["Description", "Label"]))]
 pub struct Thing {
     pub something: String,
 }

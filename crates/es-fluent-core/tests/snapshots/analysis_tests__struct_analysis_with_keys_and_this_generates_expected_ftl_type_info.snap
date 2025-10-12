@@ -10,12 +10,12 @@ expression: "&infos"
       FtlVariant(
         name: "MyStructErrorFtl",
         ftl_key: FluentKey("my_struct_error_ftl"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "a",
         ftl_key: FluentKey("my_struct_error_ftl-a"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -26,12 +26,12 @@ expression: "&infos"
       FtlVariant(
         name: "MyStructNoticeFtl",
         ftl_key: FluentKey("my_struct_notice_ftl"),
-        arguments: None,
+        args: [],
       ),
       FtlVariant(
         name: "a",
         ftl_key: FluentKey("my_struct_notice_ftl-a"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -42,7 +42,7 @@ expression: "&infos"
       FtlVariant(
         name: "MyStruct",
         ftl_key: FluentKey("my_struct"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),

@@ -10,7 +10,7 @@ expression: "&infos"
       FtlVariant(
         name: "UnitKept",
         ftl_key: FluentKey("mixed-UnitKept"),
-        arguments: None,
+        args: [],
       ),
     ],
   ),
@@ -21,18 +21,18 @@ expression: "&infos"
       FtlVariant(
         name: "DataKept",
         ftl_key: FluentKey("mixed-DataKept"),
-        arguments: Some([
+        args: [
           "x",
           "z",
-        ]),
+        ],
       ),
       FtlVariant(
         name: "TupKept",
         ftl_key: FluentKey("mixed-TupKept"),
-        arguments: Some([
+        args: [
           "f1",
           "f2",
-        ]),
+        ],
       ),
     ],
   ),

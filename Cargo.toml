@@ -18,6 +18,7 @@ members = [
   "examples/bevy-example",
   "examples/gpui-example",
   "examples/iced-example",
+  "examples/cosmic-example"
 ]
 resolver = "3"
 

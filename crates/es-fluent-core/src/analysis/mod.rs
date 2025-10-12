@@ -1,8 +1,9 @@
 //! This module provides functions for analyzing Rust source code and extracting
 //! information about types that can be translated with `es-fluent`.
 
-mod r#enum;
-mod r#struct;
+pub mod r#enum;
+pub mod r#struct;
+pub mod struct_kv;
 
 use crate::options::r#enum::EnumOpts;
 use crate::options::r#struct::StructOpts;

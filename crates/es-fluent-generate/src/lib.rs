@@ -193,18 +193,16 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
 
     let mut elements = vec![ast::PatternElement::TextElement { value: base_value }];
 
-    if let Some(args) = &variant.arguments {
-        for arg_name in args {
-            elements.push(ast::PatternElement::TextElement { value: " ".into() });
+    for arg_name in &variant.args {
+        elements.push(ast::PatternElement::TextElement { value: " ".into() });
 
-            elements.push(ast::PatternElement::Placeable {
-                expression: ast::Expression::Inline(ast::InlineExpression::VariableReference {
-                    id: ast::Identifier {
-                        name: arg_name.into(),
-                    },
-                }),
-            });
-        }
+        elements.push(ast::PatternElement::Placeable {
+            expression: ast::Expression::Inline(ast::InlineExpression::VariableReference {
+                id: ast::Identifier {
+                    name: arg_name.into(),
+                },
+            }),
+        });
     }
 
     let pattern = ast::Pattern { elements };
@@ -316,7 +314,7 @@ mod tests {
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
-            arguments: None,
+            args: Vec::new(),
         };
 
         let type_info = FtlTypeInfo {
@@ -357,7 +355,7 @@ mod tests {
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
-            arguments: None,
+            args: Vec::new(),
         };
 
         let type_info = FtlTypeInfo {
@@ -396,7 +394,7 @@ mod tests {
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
-            arguments: None,
+            args: Vec::new(),
         };
 
         let type_info = FtlTypeInfo {

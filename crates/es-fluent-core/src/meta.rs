@@ -1,14 +1,19 @@
 //! This module provides types for representing the kind of a type.
 
-use strum::{Display, EnumString};
+use serde::Serialize;
 
-pub struct StructKind;
-
+#[derive(Clone, Debug)]
 pub struct EnumKind;
 
-#[derive(Clone, Debug, Display, EnumString, Eq, Hash, PartialEq, serde::Serialize)]
-pub enum TypeKind {
-    Struct,
+#[derive(Clone, Debug)]
+pub struct StructKind;
 
+#[derive(Clone, Debug)]
+pub struct StructKvKind;
+
+#[derive(Clone, Debug, strum::Display, strum::IntoStaticStr, Eq, Hash, PartialEq, Serialize)]
+#[strum(serialize_all = "snake_case")]
+pub enum TypeKind {
     Enum,
+    Struct,
 }

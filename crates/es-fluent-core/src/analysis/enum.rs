@@ -99,7 +99,7 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
                 FtlVariant::builder()
                     .name(name_str)
                     .ftl_key(ftl_key)
-                    .maybe_arguments(arguments)
+                    .args(arguments.unwrap_or_default())
                     .build(),
             )
         })
