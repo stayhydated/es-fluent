@@ -1,5 +1,8 @@
 [package]
 name = "es-fluent-manager-macros"
+description = """
+Macros for the es-fluent manager
+"""
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
