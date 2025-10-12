@@ -12,33 +12,34 @@ It is designed to work with embedded translations, using the `define_embedded_i1
 
 ## Usage
 
-1.  In each of your crates that has translations, define an embedded module:
+1.  In each of your crates that has translations, define a singleton-specific module:
 
-    ```rs
-    // In my_crate/src/lib.rs
-    use es_fluent_manager_singleton::define_i18n_module;
-
-    define_i18n_module!();
-    ```
+```rs
+// In my_crate/src/lib.rs
+// This macro discovers languages from your `i18n` directory and registers
+// the module for the embedded assets system.
+es_fluent_manager_singleton::define_i18n_module!();
+```
 
 2.  At the start of your application, initialize the singleton:
 
-    ```rs
-    // In main.rs
-    use es_fluent_manager_singleton::{init, select_language};
-    use es_fluent::localize;
-    use unic_langid::langid;
+```rs
+// In main.rs
+use unic_langid::langid;
 
-    fn main() {
-        // Initializes the FluentManager with all discovered modules
-        init();
+// This macro discovers languages from your `i18n` directory and registers
+// the module for the embedded assets system.
+// In this case, for any EsFluent derived item included with your application's entrypoint.
+es_fluent_manager_bevy::define_i18n_module!();
 
-        // Select the desired language
-        let lang_en = langid!("en-US");
-        select_language(&lang_en);
+fn main() {
+    es_fluent_manager_singleton::init();
 
-        // Now you can use the global `localize` function anywhere
-        let greeting = localize("hello-world", None);
-        println!("{}", greeting);
-    }
-    ```
+    let lang_en = langid!("en-US");
+    es_fluent_manager_singleton::select_language(&lang_en);
+}
+```
+
+## Examples
+- [gpui](../../examples/gpui-example)
+- [iced](../../examples/iced-example)
