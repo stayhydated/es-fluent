@@ -3,8 +3,10 @@
 #[cfg(feature = "derive")]
 pub use es_fluent_derive::{EsFluent, EsFluentChoice};
 
+#[doc(hidden)]
 pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
 
+#[doc(hidden)]
 pub use fluent_bundle::FluentValue;
 
 #[doc(hidden)]
@@ -16,6 +18,7 @@ pub use rust_embed as __rust_embed;
 #[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
 
+#[doc(hidden)]
 pub use unic_langid;
 
 mod traits;
@@ -23,8 +26,10 @@ pub use traits::*;
 
 use std::sync::{Arc, OnceLock, RwLock};
 
+#[doc(hidden)]
 static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 
+#[doc(hidden)]
 static CUSTOM_LOCALIZER: OnceLock<
     Box<
         dyn Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> Option<String>
@@ -41,6 +46,7 @@ static CUSTOM_LOCALIZER: OnceLock<
 /// # Panics
 ///
 /// This function will panic if the context has already been set.
+#[doc(hidden)]
 pub fn set_context(manager: FluentManager) {
     CONTEXT
         .set(Arc::new(RwLock::new(manager)))
@@ -56,6 +62,7 @@ pub fn set_context(manager: FluentManager) {
 /// # Panics
 ///
 /// This function will panic if the context has already been set.
+#[doc(hidden)]
 pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
     CONTEXT
         .set(manager)
@@ -72,6 +79,7 @@ pub fn set_shared_context(manager: Arc<RwLock<FluentManager>>) {
 /// # Panics
 ///
 /// This function will panic if the custom localizer has already been set.
+#[doc(hidden)]
 pub fn set_custom_localizer<F>(localizer: F)
 where
     F: Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> Option<String>
@@ -86,6 +94,7 @@ where
 }
 
 /// Updates the global `FluentManager` context.
+#[doc(hidden)]
 pub fn update_context<F>(f: F)
 where
     F: FnOnce(&mut FluentManager),
@@ -106,6 +115,7 @@ where
 ///
 /// If the message is not found, a warning will be logged and the ID will be
 /// returned as the message.
+#[doc(hidden)]
 pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
