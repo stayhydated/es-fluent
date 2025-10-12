@@ -28,6 +28,7 @@ pub struct AppModel {
     // Configuration data that persists between application runs.
     config: Config,
     current_language: example_shared_lib::Languages,
+    current_page: Page,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -69,23 +70,7 @@ impl cosmic::Application for AppModel {
         _flags: Self::Flags,
     ) -> (Self, Task<cosmic::Action<Self::Message>>) {
         // Create a nav bar with three page items.
-        let mut nav = nav_bar::Model::default();
-
-        nav.insert()
-            .text(PageNumber::new(1).to_fluent_string())
-            .data::<Page>(Page::Page1)
-            .icon(icon::from_name("applications-science-symbolic"))
-            .activate();
-
-        nav.insert()
-            .text(PageNumber::new(2).to_fluent_string())
-            .data::<Page>(Page::Page2)
-            .icon(icon::from_name("applications-system-symbolic"));
-
-        nav.insert()
-            .text(PageNumber::new(3).to_fluent_string())
-            .data::<Page>(Page::Page3)
-            .icon(icon::from_name("applications-games-symbolic"));
+        let nav = nav_bar::Model::default();
 
         // Construct the app model with the runtime's core.
         let mut app = AppModel {
@@ -107,9 +92,10 @@ impl cosmic::Application for AppModel {
                 })
                 .unwrap_or_default(),
             current_language: example_shared_lib::Languages::English,
+            current_page: Page::Page1,
         };
 
-        // Create a startup command that sets the window title.
+        app.rebuild_nav();
         let command = app.update_title();
 
         (app, command)
@@ -259,6 +245,8 @@ impl cosmic::Application for AppModel {
 
                 self.current_language = next_language;
                 crate::i18n::change_locale(&next_language.into()).unwrap();
+                self.rebuild_nav();
+                return self.update_title();
             },
         }
         Task::none()
@@ -266,7 +254,10 @@ impl cosmic::Application for AppModel {
 
     /// Called when a nav item is selected.
     fn on_nav_select(&mut self, id: nav_bar::Id) -> Task<cosmic::Action<Self::Message>> {
-        // Activate the page in the model.
+        // Infer and store the selected page, then activate it.
+        if let Some(&page) = self.nav.data::<Page>(id) {
+            self.current_page = page;
+        }
         self.nav.activate(id);
 
         self.update_title()
@@ -308,6 +299,69 @@ impl AppModel {
             .align_x(Alignment::Center)
             .spacing(space_xxs)
             .into()
+    }
+
+    /// Rebuilds the nav model with localized labels and preserves the active page.
+    pub fn rebuild_nav(&mut self) {
+        let active_page = self.current_page;
+
+        let mut nav = nav_bar::Model::default();
+
+        match active_page {
+            Page::Page1 => {
+                nav.insert()
+                    .text(PageNumber::new(1).to_fluent_string())
+                    .data::<Page>(Page::Page1)
+                    .icon(icon::from_name("applications-science-symbolic"))
+                    .activate();
+
+                nav.insert()
+                    .text(PageNumber::new(2).to_fluent_string())
+                    .data::<Page>(Page::Page2)
+                    .icon(icon::from_name("applications-system-symbolic"));
+
+                nav.insert()
+                    .text(PageNumber::new(3).to_fluent_string())
+                    .data::<Page>(Page::Page3)
+                    .icon(icon::from_name("applications-games-symbolic"));
+            },
+            Page::Page2 => {
+                nav.insert()
+                    .text(PageNumber::new(1).to_fluent_string())
+                    .data::<Page>(Page::Page1)
+                    .icon(icon::from_name("applications-science-symbolic"));
+
+                nav.insert()
+                    .text(PageNumber::new(2).to_fluent_string())
+                    .data::<Page>(Page::Page2)
+                    .icon(icon::from_name("applications-system-symbolic"))
+                    .activate();
+
+                nav.insert()
+                    .text(PageNumber::new(3).to_fluent_string())
+                    .data::<Page>(Page::Page3)
+                    .icon(icon::from_name("applications-games-symbolic"));
+            },
+            Page::Page3 => {
+                nav.insert()
+                    .text(PageNumber::new(1).to_fluent_string())
+                    .data::<Page>(Page::Page1)
+                    .icon(icon::from_name("applications-science-symbolic"));
+
+                nav.insert()
+                    .text(PageNumber::new(2).to_fluent_string())
+                    .data::<Page>(Page::Page2)
+                    .icon(icon::from_name("applications-system-symbolic"));
+
+                nav.insert()
+                    .text(PageNumber::new(3).to_fluent_string())
+                    .data::<Page>(Page::Page3)
+                    .icon(icon::from_name("applications-games-symbolic"))
+                    .activate();
+            },
+        }
+
+        self.nav = nav;
     }
 
     /// Updates the header and window titles.
@@ -360,6 +414,7 @@ impl PageNumber {
 }
 
 /// The page to display in the application.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Page {
     Page1,
     Page2,
