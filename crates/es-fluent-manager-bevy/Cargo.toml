@@ -6,7 +6,6 @@ es-fluent manager for Bevy
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-readme.workspace = true
 repository.workspace = true
 version = "0.17.1"
 

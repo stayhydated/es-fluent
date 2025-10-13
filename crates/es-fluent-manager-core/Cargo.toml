@@ -6,7 +6,6 @@ es-fluent manager core
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-readme.workspace = true
 repository.workspace = true
 version.workspace = true
 

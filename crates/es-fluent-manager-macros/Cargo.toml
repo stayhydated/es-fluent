@@ -6,7 +6,6 @@ Macros for the es-fluent manager
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-readme.workspace = true
 repository.workspace = true
 version.workspace = true
 

@@ -1,5 +1,9 @@
 # es-fluent
 
+[![Build Status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
+
 Derive macros and utilities for authoring strongly-typed messages with [Project Fluent](https://projectfluent.org/).
 
 This crate gives you:
@@ -211,7 +215,7 @@ where
 ```
 
 ## Examples
-- [bevy](examples/bevy-example)
-- [gpui](examples/gpui-example)
-- [cosmic](examples/cosmic-example)
-- [iced](examples/iced-example)
+- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example)
+- [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
+- [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
+- [iced](https://github.com/stayhydated/es-fluent/tree/master/examples/iced-example)

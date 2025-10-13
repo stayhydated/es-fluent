@@ -35,6 +35,6 @@ fn main() {
 ```
 
 ## Examples
-- [gpui](../../examples/gpui-example)
-- [cosmic](../../examples/cosmic-example)
-- [iced](../../examples/iced-example)
+- [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
+- [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
+- [iced](https://github.com/stayhydated/es-fluent/tree/master/examples/iced-example)
