@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/stayhydated/es-fluent/compare/es-fluent-sc-parser-v0.2.0...es-fluent-sc-parser-v0.2.1) - 2025-10-12
+
+### Other
+
+- make clippy happy
+
 ## [0.1.1](https://github.com/stayhydated/es-fluent/compare/es-fluent-sc-parser-v0.1.0...es-fluent-sc-parser-v0.1.1) - 2025-07-15
 
 ### Other
