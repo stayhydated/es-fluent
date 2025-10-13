@@ -1,5 +1,9 @@
 # es-fluent
 
+[![Build Status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
+
 Derive macros and utilities for authoring strongly-typed messages with [Project Fluent](https://projectfluent.org/).
 
 This crate gives you:
