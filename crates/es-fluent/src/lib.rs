@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "derive")]
-pub use es_fluent_derive::{EsFluent, EsFluentChoice};
+pub use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentKv};
 
 #[doc(hidden)]
 pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};

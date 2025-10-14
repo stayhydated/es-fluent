@@ -71,7 +71,7 @@ impl VariantOpts {
 }
 
 /// Options for an enum.
-#[derive(Clone, FromDeriveInput, Getters, Debug)]
+#[derive(Clone, Debug, FromDeriveInput, Getters)]
 #[darling(supports(enum_unit, enum_named, enum_tuple), attributes(fluent))]
 #[getset(get = "pub")]
 pub struct EnumOpts {
