@@ -32,7 +32,7 @@ pub struct AppModel {
 }
 
 /// Messages emitted by the application and its widgets.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum Message {
     OpenRepositoryUrl,
     SubscriptionChannel,
@@ -422,7 +422,7 @@ pub enum Page {
 }
 
 /// The context page to display in the context drawer.
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ContextPage {
     #[default]
     About,

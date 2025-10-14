@@ -140,7 +140,7 @@ impl StructKvFieldOpts {
 }
 
 /// Options for a struct.
-#[derive(Clone, FromDeriveInput, Getters, Debug)]
+#[derive(Clone, Debug, FromDeriveInput, Getters)]
 #[darling(supports(struct_named), attributes(fluent_kv))]
 #[getset(get = "pub")]
 pub struct StructKvOpts {
