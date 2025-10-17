@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/stayhydated/es-fluent/compare/es-fluent-core-v0.2.3...es-fluent-core-v0.2.4) - 2025-10-17
+
+### Other
+
+- support struct_tuple
+
 ## [0.2.3](https://github.com/stayhydated/es-fluent/compare/es-fluent-core-v0.2.2...es-fluent-core-v0.2.3) - 2025-10-14
 
 ### Other
