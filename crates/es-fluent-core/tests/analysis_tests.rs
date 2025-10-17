@@ -50,6 +50,23 @@ fn struct_analysis_no_keys_generates_expected_ftl_type_info() {
 }
 
 #[test]
+fn struct_analysis_tuple_struct_generates_expected_ftl_type_info() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent]
+        struct TupleStruct(String, #[fluent(skip)] i32, bool);
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    let infos = analysis::analyze_struct(&opts);
+
+    insta::assert_ron_snapshot!(
+        "struct_analysis_tuple_struct_generates_expected_ftl_type_info",
+        &infos
+    );
+}
+
+#[test]
 fn struct_analysis_with_keys_and_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]

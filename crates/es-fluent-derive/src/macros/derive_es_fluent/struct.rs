@@ -17,20 +17,27 @@ fn generate(opts: &StructOpts, use_fluent_display: bool) -> TokenStream {
 
     let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
-    let fields = opts.fields();
+    let indexed_fields = opts.indexed_fields();
 
     let ftl_key = namer::FluentKey::new(original_ident, "").to_string();
 
-    let args: Vec<_> = fields
+    let args: Vec<_> = indexed_fields
         .iter()
-        .map(|field_opt| {
-            let arg_name = field_opt.ident().as_ref().unwrap();
-            let arg_key = arg_name.to_string();
+        .map(|(index, field_opt)| {
+            let arg_key = field_opt.fluent_arg_name(*index);
             let field_ty = field_opt.ty();
             let is_choice = field_opt.is_choice();
 
+            let field_access = if let Some(ident) = field_opt.ident() {
+                quote! { self.#ident }
+            } else {
+                let field_index = syn::Index::from(*index);
+                quote! { self.#field_index }
+            };
+
             let value_expr = if is_choice {
-                quote! { self.#arg_name.as_fluent_choice() }
+                let access = field_access.clone();
+                quote! { (#access).as_fluent_choice() }
             } else {
                 let mut current_ty = field_ty;
                 let mut deref_count = 0;
@@ -40,13 +47,17 @@ fn generate(opts: &StructOpts, use_fluent_display: bool) -> TokenStream {
                 }
 
                 if deref_count > 0 {
-                    let mut inner = quote! { &self.#arg_name };
+                    let mut inner = {
+                        let access = field_access.clone();
+                        quote! { &(#access) }
+                    };
                     for _ in 0..deref_count {
                         inner = quote! { (*#inner) };
                     }
                     inner
                 } else {
-                    quote! { &self.#arg_name }
+                    let access = field_access.clone();
+                    quote! { &(#access) }
                 }
             };
 

@@ -190,6 +190,7 @@ This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with va
 ### Structs
 
 - struct_named
+- struct_tuple
 
 ### Generics
 

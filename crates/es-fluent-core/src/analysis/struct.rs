@@ -8,14 +8,9 @@ pub fn analyze_struct(opts: &StructOpts, type_infos: &mut Vec<FtlTypeInfo>) {
     let is_this = opts.attr_args().is_this();
 
     let field_names: Vec<String> = opts
-        .fields()
-        .iter()
-        .filter_map(|field_opt| {
-            field_opt
-                .ident()
-                .as_ref()
-                .map(|field_ident| field_ident.to_string())
-        })
+        .indexed_fields()
+        .into_iter()
+        .map(|(index, field_opt)| field_opt.fluent_arg_name(index))
         .collect();
 
     if field_names.is_empty() {

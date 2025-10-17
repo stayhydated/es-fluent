@@ -1,0 +1,20 @@
+---
+source: crates/es-fluent-core/tests/analysis_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Struct,
+    type_name: "TupleStruct",
+    variants: [
+      FtlVariant(
+        name: "TupleStruct",
+        ftl_key: FluentKey("tuple_struct"),
+        args: [
+          "f0",
+          "f2",
+        ],
+      ),
+    ],
+  ),
+]

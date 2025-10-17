@@ -6,6 +6,7 @@ use getset::Getters;
 use quote::format_ident;
 use strum::IntoEnumIterator as _;
 
+use crate::namer;
 use crate::strategy::DisplayStrategy;
 
 /// Options for a struct field.
@@ -44,11 +45,19 @@ impl StructFieldOpts {
     pub fn is_choice(&self) -> bool {
         self.choice.unwrap_or(false)
     }
+
+    /// Returns the Fluent argument name for this field.
+    pub fn fluent_arg_name(&self, index: usize) -> String {
+        self.ident
+            .as_ref()
+            .map(|ident| ident.to_string())
+            .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
+    }
 }
 
 /// Options for a struct.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(struct_named), attributes(fluent))]
+#[darling(supports(struct_named, struct_tuple), attributes(fluent))]
 #[getset(get = "pub")]
 pub struct StructOpts {
     /// The identifier of the struct.
@@ -69,6 +78,27 @@ impl StructOpts {
                 .iter()
                 .filter(|field| !field.is_skipped())
                 .collect(),
+            _ => vec![],
+        }
+    }
+
+    /// Returns the fields of the struct paired with their declaration index.
+    pub fn indexed_fields(&self) -> Vec<(usize, &StructFieldOpts)> {
+        match &self.data {
+            darling::ast::Data::Struct(fields) => fields
+                .fields
+                .iter()
+                .enumerate()
+                .filter(|(_, field)| !field.is_skipped())
+                .collect(),
+            _ => vec![],
+        }
+    }
+
+    /// Returns all fields (including skipped) paired with their declaration index.
+    pub fn all_indexed_fields(&self) -> Vec<(usize, &StructFieldOpts)> {
+        match &self.data {
+            darling::ast::Data::Struct(fields) => fields.fields.iter().enumerate().collect(),
             _ => vec![],
         }
     }

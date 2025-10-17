@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-core/tests/validation_tests.rs
+expression: err.to_string()
+---
+"Field \'f1\' error: Struct cannot have multiple fields marked `#[fluent(default)]`.\nnote: First `#[fluent(default)]` field found was `f0`."
