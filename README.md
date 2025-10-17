@@ -71,15 +71,19 @@ For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the f
 
 ### `#[derive(EsFluent)]` on enums
 
-Annotate an enum to generate message IDs and, optionally, implement `es_fluent::FluentDisplay` or `std::fmt::Display`.
+Annotate an enum or a struct to generate message IDs and, optionally, implement `es_fluent::FluentDisplay` or `std::fmt::Display`.
 
 ```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 #[fluent(display = "fluent")] // default; use "std" to implement std::fmt::Display
-pub enum Hello<'a> {
-    User { user_name: &'a str },
+pub struct HelloUser<'a>(&'a str);
+
+impl<'a> HelloUser<'a> {
+    pub fn new(user_name: &'a str) -> Self {
+        Self(user_name)
+    }
 }
 ```
 

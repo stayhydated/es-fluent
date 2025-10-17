@@ -18,7 +18,7 @@ fn run(locale: &str) {
 
     println!("Language: {locale}");
 
-    let hello = Hello::User { user_name: "Alice" };
+    let hello = HelloUser::new("Alice");
     println!("{}", hello.to_fluent_string());
 
     for gender in Gender::iter() {

@@ -5,9 +5,9 @@ gender-Helicopter = 直升机
 gender-Male = 男性
 gender-Other = 其他
 
-## Hello
+## HelloUser
 
-hello-User = 你好，{ $user_name }！
+hello_user = 你好，{ $f0 }！
 
 ## Shared
 

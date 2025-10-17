@@ -5,9 +5,9 @@ gender-Helicopter = Hélicoptère
 gender-Male = Homme
 gender-Other = Autre
 
-## Hello
+## HelloUser
 
-hello-User = Bonjour, { $user_name } !
+hello_user = Bonjour, { $f0 } !
 
 ## Shared
 
