@@ -2,8 +2,12 @@ use es_fluent::{EsFluent, EsFluentChoice};
 use strum::EnumIter;
 
 #[derive(EsFluent)]
-pub enum Hello<'a> {
-    User { user_name: &'a str },
+pub struct HelloUser<'a>(&'a str);
+
+impl<'a> HelloUser<'a> {
+    pub fn new(user_name: &'a str) -> Self {
+        Self(user_name)
+    }
 }
 
 #[derive(EnumIter, EsFluent, EsFluentChoice)]

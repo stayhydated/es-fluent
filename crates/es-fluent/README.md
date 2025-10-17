@@ -67,15 +67,19 @@ For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the f
 
 ### `#[derive(EsFluent)]` on enums
 
-Annotate an enum to generate message IDs and, optionally, implement `es_fluent::FluentDisplay` or `std::fmt::Display`.
+Annotate an enum or a struct to generate message IDs and, optionally, implement `es_fluent::FluentDisplay` or `std::fmt::Display`.
 
 ```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 #[fluent(display = "fluent")] // default; use "std" to implement std::fmt::Display
-pub enum Hello<'a> {
-    User { user_name: &'a str },
+pub struct HelloUser<'a>(&'a str);
+
+impl<'a> HelloUser<'a> {
+    pub fn new(user_name: &'a str) -> Self {
+        Self(user_name)
+    }
 }
 ```
 
@@ -179,6 +183,102 @@ pub struct Address {
 
 This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with variants for each field (`Street`, `PostalCode`). They implement the selected display strategy. `this` adds a helper `Address::this_ftl()` that returns the ID of the parent.
 
+### `#[derive(EsFluentKv)]` on structs
+
+For key-value generation from structs, you can use `EsFluentKv`. This derive is specialized for generating keys for struct fields, often used for UI elements like labels and descriptions.
+
+Here is an example of a `User` struct with various fields:
+
+```rs
+use es_fluent::{EsFluent, EsFluentKv};
+use rust_decimal::Decimal;
+use strum::EnumIter;
+
+#[derive(Clone, Debug, Default, EnumIter, EsFluent, PartialEq)]
+#[fluent(display = "std")]
+pub enum PreferedLanguage {
+    #[default]
+    English,
+    French,
+    Chinese,
+}
+
+#[derive(Clone, Debug, Default, EnumIter, EsFluent, PartialEq)]
+#[fluent(display = "std")]
+pub enum EnumCountry {
+    #[default]
+    UnitedStates,
+    France,
+    China,
+}
+
+#[derive(Clone, Debug, Default, EsFluentKv)]
+#[fluent_kv(display = "std")]
+#[fluent_kv(this, keys = ["Description", "Label"])]
+pub struct User {
+    pub username: Option<String>,
+    pub email: String,
+    pub age: Option<u32>,
+    pub balance: Decimal,
+    pub subscribe_newsletter: bool,
+    pub enable_notifications: bool,
+    pub preferred: PreferedLanguage,
+    pub country: Option<EnumCountry>,
+    pub birth_date: Option<chrono::NaiveDate>,
+    pub skip_me: bool,
+}
+```
+
+The `#[fluent_kv(this, keys = ["Description", "Label"])]` attribute instructs the derive to generate enums `UserDescriptionFtl` and `UserLabelFtl`. The `this` argument also generates a message ID for the struct itself.
+
+This will generate the following FTL entries:
+
+```ftl
+## EnumCountry
+
+enum_country-China = China
+enum_country-France = France
+enum_country-UnitedStates = United States
+
+## PreferedLanguage
+
+prefered_language-Chinese = Chinese
+prefered_language-English = English
+prefered_language-French = French
+
+## User
+
+user = User
+
+## UserDescriptionFtl
+
+user_description_ftl = User Description Ftl
+user_description_ftl-age = Age
+user_description_ftl-balance = Balance
+user_description_ftl-birth_date = Birth Date
+user_description_ftl-country = Country
+user_description_ftl-email = Email
+user_description_ftl-enable_notifications = Enable Notifications
+user_description_ftl-preferred = Preferred
+user_description_ftl-skip_me = Skip Me
+user_description_ftl-subscribe_newsletter = Subscribe Newsletter
+user_description_ftl-username = Username
+
+## UserLabelFtl
+
+user_label_ftl = User Label Ftl
+user_label_ftl-age = Age
+user_label_ftl-balance = Balance
+user_label_ftl-birth_date = Birth Date
+user_label_ftl-country = Country
+user_label_ftl-email = Email
+user_label_ftl-enable_notifications = Enable Notifications
+user_label_ftl-preferred = Preferred
+user_label_ftl-skip_me = Skip Me
+user_label_ftl-subscribe_newsletter = Subscribe Newsletter
+user_label_ftl-username = Username
+```
+
 ## Derive Macro Supported kinds
 
 ### Enums
@@ -190,6 +290,7 @@ This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with va
 ### Structs
 
 - struct_named
+- struct_tuple
 
 ### Generics
 

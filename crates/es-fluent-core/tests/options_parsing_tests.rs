@@ -224,6 +224,33 @@ fn struct_fluent_parsing() {
 }
 
 #[test]
+fn struct_tuple_fields_parsing() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent]
+        struct TupleStruct(#[fluent(skip)] i32, String, #[fluent(choice)] bool);
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    let fields = opts.fields();
+    assert_eq!(fields.len(), 2, "Only non-skipped fields remain");
+    assert!(fields.iter().all(|f| f.ident().is_none()));
+
+    let indexed_fields = opts.indexed_fields();
+    assert_eq!(indexed_fields.len(), 2, "Two indexed fields remain");
+
+    let (first_index, first_field) = &indexed_fields[0];
+    assert_eq!(*first_index, 1);
+    assert_eq!(first_field.fluent_arg_name(*first_index), "f1");
+    assert!(!first_field.is_choice());
+
+    let (second_index, second_field) = &indexed_fields[1];
+    assert_eq!(*second_index, 2);
+    assert_eq!(second_field.fluent_arg_name(*second_index), "f2");
+    assert!(second_field.is_choice());
+}
+
+#[test]
 fn enum_choice_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentChoice)]

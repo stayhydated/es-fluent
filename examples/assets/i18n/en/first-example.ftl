@@ -5,9 +5,9 @@ gender-Helicopter = Helicopter
 gender-Male = Male
 gender-Other = Other
 
-## Hello
+## HelloUser
 
-hello-User = Hello, { $user_name }!
+hello_user = Hello, { $f0 } !
 
 ## Shared
 
@@ -20,3 +20,4 @@ shared-Photos =
         [female] her stream
        *[other] their stream
     }.
+hello_user2 = Hello User2 { $f0 }

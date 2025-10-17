@@ -17,21 +17,28 @@ pub fn validate_struct(opts: &StructOpts, _data: &DataStruct) -> EsFluentCoreRes
 }
 
 fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
-    let fields = opts.fields();
-    let default_fields: Vec<_> = fields.iter().filter(|f| f.is_default()).collect();
+    let default_fields: Vec<_> = opts
+        .indexed_fields()
+        .into_iter()
+        .filter(|(_, field)| field.is_default())
+        .collect();
 
-    if default_fields.len() > 1
-        && let Some(first_field_ident) = default_fields[0].ident().as_ref()
-        && let Some(second_field_ident) = default_fields[1].ident().as_ref()
-    {
+    if default_fields.len() > 1 {
+        let (first_index, first_field) = &default_fields[0];
+        let (second_index, second_field) = &default_fields[1];
+
+        let first_field_name = first_field.fluent_arg_name(*first_index);
+        let second_field_name = second_field.fluent_arg_name(*second_index);
+        let second_span = second_field.ident().as_ref().map(|ident| ident.span());
+
         return Err(EsFluentCoreError::FieldError {
             message: "Struct cannot have multiple fields marked `#[fluent(default)]`.".to_string(),
-            field_name: Some(second_field_ident.to_string()),
-            span: Some(second_field_ident.span()),
+            field_name: Some(second_field_name),
+            span: second_span,
         }
         .with_note(format!(
             "First `#[fluent(default)]` field found was `{}`.",
-            first_field_ident
+            first_field_name
         )));
     }
     Ok(())
