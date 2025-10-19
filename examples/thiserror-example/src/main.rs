@@ -49,7 +49,7 @@ fn main() {
 
     run(Languages::FrFr);
 
-    run(Languages::ZhHansCn);
+    run(Languages::ZhCn);
 }
 
 fn run(locale: Languages) {
