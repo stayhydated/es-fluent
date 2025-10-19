@@ -1,0 +1,11 @@
+[project]
+name = "es-fluent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "requests>=2.32.5",
+    "tqdm>=4.67.1",
+    "typer[all]>=0.19.2",
+]
