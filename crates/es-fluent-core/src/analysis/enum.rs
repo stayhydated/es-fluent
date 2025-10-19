@@ -8,6 +8,7 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
     let target_name = target_ident.to_string();
     let opts_variants = opts.variants();
     let is_this = opts.attr_args().is_this();
+    let base_key = opts.base_key();
 
     let mut unit_variants: Vec<FtlVariant> = opts_variants
         .iter()
@@ -17,7 +18,11 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
             }
             if matches!(variant_opt.style(), darling::ast::Style::Unit) {
                 let name_str = variant_opt.ident().to_string();
-                let ftl_key = namer::FluentKey::new(target_ident, &name_str);
+                let key_suffix = variant_opt
+                    .key()
+                    .map(|k| k.to_string())
+                    .unwrap_or_else(|| name_str.clone());
+                let ftl_key = namer::FluentKey::with_base(&base_key, &key_suffix);
                 Some(
                     FtlVariant::builder()
                         .name(name_str)
@@ -31,7 +36,7 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         .collect();
 
     if is_this {
-        let this_ftl_key = namer::FluentKey::new(target_ident, "");
+        let this_ftl_key = namer::FluentKey::with_base(&base_key, "");
         let this_variant = FtlVariant::builder()
             .name(target_name.clone())
             .ftl_key(this_ftl_key)
@@ -94,7 +99,11 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
                 },
             };
 
-            let ftl_key = namer::FluentKey::new(target_ident, &name_str);
+            let key_suffix = variant_opt
+                .key()
+                .map(|k| k.to_string())
+                .unwrap_or_else(|| name_str.clone());
+            let ftl_key = namer::FluentKey::with_base(&base_key, &key_suffix);
             Some(
                 FtlVariant::builder()
                     .name(name_str)
@@ -106,7 +115,7 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         .collect();
 
     if is_this {
-        let this_ftl_key = namer::FluentKey::new(target_ident, "");
+        let this_ftl_key = namer::FluentKey::with_base(&base_key, "");
         let this_variant = FtlVariant::builder()
             .name(target_name.clone())
             .ftl_key(this_ftl_key)

@@ -4426,6 +4426,10 @@ name = "es-fluent-lang"
 version = "0.2.4"
 dependencies = [
  "es-fluent-lang-macro",
+ "es-fluent-manager-core",
+ "fluent-bundle",
+ "inventory",
+ "log",
  "unic-langid",
 ]
 

@@ -9,11 +9,16 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-default = [ "macro" ]
-macro = [ "dep:es-fluent-lang-macro" ]
+default = [ "macros" ]
+macros = [ "dep:es-fluent-lang-macro" ]
+bevy = []
 
 [dependencies]
 es-fluent-lang-macro = { optional = true, workspace = true }
+es-fluent-manager-core = { workspace = true }
+inventory = { workspace = true }
+fluent-bundle = { workspace = true }
+log = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [lints]

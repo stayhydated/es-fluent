@@ -4,6 +4,7 @@ use crate::strategy::DisplayStrategy;
 use bon::Builder;
 use darling::{FromDeriveInput, FromField, FromMeta, FromVariant};
 use getset::Getters;
+use heck::ToSnakeCase as _;
 use strum::IntoEnumIterator as _;
 
 /// Options for an enum field.
@@ -46,6 +47,9 @@ pub struct VariantOpts {
     /// Whether to skip this variant.
     #[darling(default)]
     skip: Option<bool>,
+    /// Overrides the localization key suffix for this variant.
+    #[darling(default)]
+    key: Option<String>,
 }
 
 impl VariantOpts {
@@ -67,6 +71,10 @@ impl VariantOpts {
     /// Returns all fields of the variant.
     pub fn all_fields(&self) -> Vec<&EnumFieldOpts> {
         self.fields.iter().collect()
+    }
+    /// Returns the explicit localization key for the variant, if provided.
+    pub fn key(&self) -> Option<&str> {
+        self.key.as_deref()
     }
 }
 
@@ -92,6 +100,15 @@ impl EnumOpts {
             _ => unreachable!("Unexpected data type for enum"),
         }
     }
+
+    /// Returns the base localization key used for this enum.
+    pub fn base_key(&self) -> String {
+        if let Some(resource) = self.attr_args().resource() {
+            resource.to_string()
+        } else {
+            self.ident().to_string().to_snake_case()
+        }
+    }
 }
 
 /// Attribute arguments for an enum.
@@ -102,6 +119,8 @@ pub struct EnumFluentAttributeArgs {
     choice: Option<bool>,
     #[darling(default)]
     this: Option<bool>,
+    #[darling(default)]
+    resource: Option<String>,
 }
 
 impl EnumFluentAttributeArgs {
@@ -129,6 +148,10 @@ impl EnumFluentAttributeArgs {
     /// Returns `true` if the enum should be passed as `this`.
     pub fn is_this(&self) -> bool {
         self.this.unwrap_or(false)
+    }
+    /// Returns the explicit resource base key if provided.
+    pub fn resource(&self) -> Option<&str> {
+        self.resource.as_deref()
     }
 }
 

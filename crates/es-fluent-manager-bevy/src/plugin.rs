@@ -1,5 +1,5 @@
 use crate::*;
-use es_fluent_manager_core::I18nAssetModule;
+use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource};
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
@@ -185,6 +185,17 @@ fn build_fluent_bundles(
             for resource in i18n_assets.get_language_resources(&lang) {
                 if let Err(e) = bundle.add_resource(resource.clone()) {
                     error!("Failed to add resource to bundle while caching: {:?}", e);
+                }
+            }
+            for static_resource in inventory::iter::<&'static dyn StaticI18nResource>() {
+                if static_resource.matches_language(&lang) {
+                    if let Err(e) = bundle.add_resource(static_resource.resource()) {
+                        error!(
+                            "Failed to add static resource '{}' to bundle: {:?}",
+                            static_resource.domain(),
+                            e
+                        );
+                    }
                 }
             }
             i18n_bundle.0.insert(lang.clone(), Arc::new(bundle));

@@ -24,6 +24,6 @@ log = { workspace = true }
 workspace = true
 
 [features]
-bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy" ]
+bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy", "es-fluent-lang/bevy" ]
 gpui = [ "dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
 iced = [ "dep:rust-embed", "dep:es-fluent-manager-embedded" ]

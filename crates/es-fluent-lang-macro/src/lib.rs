@@ -2,7 +2,7 @@ use heck::ToUpperCamelCase;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
-use syn::{Fields, ItemEnum, LitStr, Variant, parse_macro_input, spanned::Spanned};
+use syn::{Fields, ItemEnum, LitStr, Variant, parse_macro_input, parse_quote, spanned::Spanned};
 
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
 #[proc_macro_attribute]
@@ -104,6 +104,10 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut language_literals = Vec::with_capacity(language_entries.len());
     let mut fallback_variant_ident = None;
 
+    input_enum
+        .attrs
+        .push(parse_quote!(#[fluent(resource = "es-fluent-lang")]));
+
     input_enum.variants.clear();
 
     for (canonical, _language) in &language_entries {
@@ -112,8 +116,9 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
         let variant_ident = syn::Ident::new(&variant_name, Span::call_site());
         let literal = LitStr::new(&canonical, Span::call_site());
 
+        let attr = parse_quote!(#[fluent(key = #literal)]);
         let variant = Variant {
-            attrs: Vec::new(),
+            attrs: vec![attr],
             ident: variant_ident.clone(),
             fields: Fields::Unit,
             discriminant: None,
@@ -145,16 +150,16 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     let expanded = quote! {
         #input_enum
 
-        impl From<#enum_ident> for unic_langid::LanguageIdentifier {
+        impl From<#enum_ident> for es_fluent::unic_langid::LanguageIdentifier {
             fn from(val: #enum_ident) -> Self {
                 match val {
-                    #( #enum_ident::#variant_idents => unic_langid::langid!(#language_literals), )*
+                    #( #enum_ident::#variant_idents => es_fluent::unic_langid::langid!(#language_literals), )*
                 }
             }
         }
 
-        impl From<&unic_langid::LanguageIdentifier> for #enum_ident {
-            fn from(lang: &unic_langid::LanguageIdentifier) -> Self {
+        impl From<&es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
+            fn from(lang: &es_fluent::unic_langid::LanguageIdentifier) -> Self {
                 let lang_str = lang.to_string();
                 match lang_str.as_str() {
                     #( #language_literals_for_ref => #enum_ident::#variant_idents, )*

@@ -14,6 +14,7 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
 
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) -> TokenStream {
     let original_ident = opts.ident();
+    let base_key = opts.base_key();
 
     let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
@@ -21,10 +22,14 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
 
     let match_arms = variants.iter().map(|variant_opt| {
         let variant_ident = variant_opt.ident();
+        let variant_key_suffix = variant_opt
+            .key()
+            .map(|key| key.to_string())
+            .unwrap_or_else(|| variant_ident.to_string());
 
         match variant_opt.style() {
             darling::ast::Style::Unit => {
-                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string()).to_string();
+                let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
                 quote! {
                     Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
                 }
@@ -44,7 +49,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                     })
                     .collect();
 
-                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string()).to_string();
+                let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
 
                 let args: Vec<_> = all_fields
                     .iter()
@@ -97,7 +102,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
                 let field_pats: Vec<_> =
                     fields.iter().map(|f| f.ident().as_ref().unwrap()).collect();
 
-                let ftl_key = namer::FluentKey::new(original_ident, &variant_ident.to_string()).to_string();
+                        let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
 
                 let args: Vec<_> = fields
                     .iter()
@@ -187,7 +192,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
     };
 
     let this_ftl_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+        let this_ftl_key = namer::FluentKey::with_base(&base_key, "").to_string();
         quote! {
             impl #impl_generics #original_ident #ty_generics #where_clause {
                 pub fn this_ftl() -> String {
