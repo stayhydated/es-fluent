@@ -252,7 +252,7 @@ pub struct EsFluentBevyPlugin;
 
 impl Plugin for EsFluentBevyPlugin {
     fn build(&self, _app: &mut App) {
-        info!("EsFluentBevyPlugin initialized");
+        debug!("EsFluentBevyPlugin initialized");
     }
 }
 

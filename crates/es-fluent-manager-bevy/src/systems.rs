@@ -18,14 +18,14 @@ pub fn update_fluent_text_system<T: ToFluentString + Clone + Component>(
         let new_text = fluent_text.value.to_fluent_string();
 
         if let Ok(mut text) = text_query.get_mut(entity) {
-            info!("Updating direct text: {}", &new_text);
+            trace!("Updating direct text: {}", &new_text);
             *text = Text::from(new_text.clone());
         }
 
         if let Some(children) = children {
             for child in children.iter() {
                 if let Ok(mut text) = text_query.get_mut(child) {
-                    info!("Updating child text: {}", &new_text);
+                    trace!("Updating child text: {}", &new_text);
                     *text = Text::from(new_text.clone());
                 }
             }
