@@ -1,4 +1,5 @@
 use es_fluent::EsFluent;
+use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 use unic_langid::{LanguageIdentifier, langid};
 
@@ -25,32 +26,41 @@ pub struct CurrentLanguage(pub Languages);
 #[cfg(feature = "gpui")]
 impl gpui::Global for CurrentLanguage {}
 
-#[derive(Clone, Copy, Debug, Default, EnumIter, EsFluent, PartialEq)]
+#[es_fluent_language]
+#[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
+pub enum Languages {}
+
+#[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
 #[cfg_attr(feature = "bevy", derive(Component))]
-pub enum Languages {
-    #[default]
+pub enum Languages2 {
     English,
     French,
     Chinese,
 }
 
-impl From<Languages> for LanguageIdentifier {
-    fn from(val: Languages) -> Self {
+impl Default for Languages2 {
+    fn default() -> Self {
+        Languages2::English
+    }
+}
+
+impl From<Languages2> for LanguageIdentifier {
+    fn from(val: Languages2) -> Self {
         match val {
-            Languages::English => langid!("en"),
-            Languages::French => langid!("fr"),
-            Languages::Chinese => langid!("cn"),
+            Languages2::English => langid!("en"),
+            Languages2::French => langid!("fr"),
+            Languages2::Chinese => langid!("cn"),
         }
     }
 }
 
-impl From<&LanguageIdentifier> for Languages {
+impl From<&LanguageIdentifier> for Languages2 {
     fn from(lang: &LanguageIdentifier) -> Self {
         match lang.language.as_str() {
-            "en" => Languages::English,
-            "fr" => Languages::French,
-            "cn" => Languages::Chinese,
-            _ => Languages::English,
+            "en" => Languages2::English,
+            "fr" => Languages2::French,
+            "cn" => Languages2::Chinese,
+            _ => Languages2::English,
         }
     }
 }

@@ -21,7 +21,7 @@ pub enum IcedScreenMessages {
 
 pub fn main() -> iced::Result {
     i18n::init();
-    i18n::change_locale(&Languages::English.into()).unwrap();
+    i18n::change_locale(&Languages::default().into()).unwrap();
 
     iced::application("", IcedExampleView::update, IcedExampleView::view)
         .font(NOTO_SANS_SC)
@@ -61,8 +61,7 @@ impl IcedExampleView {
                 self.button_state = ButtonState::Hovered;
             },
             Message::ToggleLanguage => {
-                let mut languages: Vec<Languages> = Languages::iter().collect();
-                languages.sort_by_key(|a| *a as isize);
+                let languages: Vec<Languages> = Languages::iter().collect();
                 let current_index = languages
                     .iter()
                     .position(|&lang| lang == self.current_language)

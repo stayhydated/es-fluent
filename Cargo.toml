@@ -8,6 +8,8 @@ members = [
   "crates/es-fluent-generate",
   "crates/es-fluent-sc-parser",
   "crates/es-fluent-cli",
+  "crates/es-fluent-lang",
+  "crates/es-fluent-lang-macro",
   "crates/es-fluent-manager-core",
   "crates/es-fluent-manager-macros",
   "crates/es-fluent-manager-embedded",
@@ -49,6 +51,8 @@ es-fluent-build = { path = "crates/es-fluent-build" }
 es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.2.4" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.2.4" }
 es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.2.4" }
+es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.2.4" }
+es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.2.4" }
 es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.17.4" }
 es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.2.4" }
 es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.2.4" }

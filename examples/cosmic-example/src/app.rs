@@ -91,7 +91,7 @@ impl cosmic::Application for AppModel {
                     },
                 })
                 .unwrap_or_default(),
-            current_language: example_shared_lib::Languages::English,
+            current_language: example_shared_lib::Languages::default(),
             current_page: Page::Page1,
         };
 
@@ -233,9 +233,8 @@ impl cosmic::Application for AppModel {
             },
 
             Message::ToggleLanguage => {
-                let mut languages: Vec<example_shared_lib::Languages> =
+                let languages: Vec<example_shared_lib::Languages> =
                     example_shared_lib::Languages::iter().collect();
-                languages.sort_by_key(|a| *a as isize);
                 let current_index = languages
                     .iter()
                     .position(|&lang| lang == self.current_language)

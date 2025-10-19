@@ -1,0 +1,20 @@
+[package]
+name = "es-fluent-lang"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[features]
+default = [ "macro" ]
+macro = [ "dep:es-fluent-lang-macro" ]
+
+[dependencies]
+es-fluent-lang-macro = { optional = true, workspace = true }
+unic-langid = { features = [ "macros" ], workspace = true }
+
+[lints]
+workspace = true

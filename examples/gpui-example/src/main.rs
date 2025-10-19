@@ -18,7 +18,7 @@ fn main() {
         cx.set_global(CurrentLanguage(Languages::default()));
         gpui_component::init(cx);
         i18n::init();
-        i18n::change_locale(&Languages::English.into()).unwrap();
+        i18n::change_locale(&Languages::default().into()).unwrap();
 
         let bounds = Bounds::centered(None, size(px(640.), px(480.)), cx);
         cx.open_window(
@@ -94,8 +94,7 @@ impl Render for GpuiExampleView {
                             )
                             .on_click(cx.listener(|_this, _event, _window, cx| {
                                 let current_language = cx.global::<CurrentLanguage>().0;
-                                let mut languages: Vec<Languages> = Languages::iter().collect();
-                                languages.sort_by_key(|a| *a as isize);
+                                let languages: Vec<Languages> = Languages::iter().collect();
                                 let current_index = languages
                                     .iter()
                                     .position(|&lang| lang == current_language)

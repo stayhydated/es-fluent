@@ -4422,6 +4422,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "es-fluent-lang"
+version = "0.2.4"
+dependencies = [
+ "es-fluent-lang-macro",
+ "unic-langid",
+]
+
+[[package]]
+name = "es-fluent-lang-macro"
+version = "0.2.4"
+dependencies = [
+ "es-fluent-toml",
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+ "unic-langid",
+ "walkdir",
+]
+
+[[package]]
 name = "es-fluent-manager-bevy"
 version = "0.17.4"
 dependencies = [
@@ -4499,6 +4520,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.17",
  "toml 0.9.8",
+ "unic-langid",
 ]
 
 [[package]]
@@ -4565,6 +4587,7 @@ dependencies = [
  "bevy",
  "es-fluent",
  "es-fluent-build",
+ "es-fluent-lang",
  "es-fluent-manager-bevy",
  "es-fluent-manager-embedded",
  "gpui",
