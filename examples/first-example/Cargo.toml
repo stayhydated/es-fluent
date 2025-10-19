@@ -7,6 +7,7 @@ publish = false
 
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-lang = { workspace = true }
 es-fluent-manager-embedded = { workspace = true }
 log = { workspace = true }
 rust-embed = { workspace = true }

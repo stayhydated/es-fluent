@@ -21,7 +21,7 @@ pub enum IcedScreenMessages {
 
 pub fn main() -> iced::Result {
     i18n::init();
-    i18n::change_locale(&Languages::default().into()).unwrap();
+    i18n::change_locale(Languages::default()).unwrap();
 
     iced::application("", IcedExampleView::update, IcedExampleView::view)
         .font(NOTO_SANS_SC)
@@ -70,7 +70,7 @@ impl IcedExampleView {
                 let next_language = languages[next_index];
 
                 self.current_language = next_language;
-                i18n::change_locale(&next_language.into()).unwrap();
+                i18n::change_locale(next_language).unwrap();
             },
         }
     }

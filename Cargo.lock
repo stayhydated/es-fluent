@@ -4720,6 +4720,7 @@ version = "0.2.4"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
+ "es-fluent-lang",
  "es-fluent-manager-embedded",
  "log",
  "rust-embed",
@@ -11151,9 +11152,11 @@ version = "0.1.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
+ "es-fluent-lang",
  "es-fluent-manager-embedded",
  "log",
  "rust-embed",
+ "strum 0.26.3",
  "thiserror 2.0.17",
  "unic-langid",
 ]

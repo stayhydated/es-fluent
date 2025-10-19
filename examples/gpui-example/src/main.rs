@@ -15,10 +15,11 @@ pub enum GpuiScreenMessages {
 
 fn main() {
     Application::new().run(|cx: &mut App| {
-        cx.set_global(CurrentLanguage(Languages::default()));
+        let default_language = Languages::default();
+        cx.set_global(CurrentLanguage(default_language));
         gpui_component::init(cx);
         i18n::init();
-        i18n::change_locale(&Languages::default().into()).unwrap();
+        i18n::change_locale(default_language).unwrap();
 
         let bounds = Bounds::centered(None, size(px(640.), px(480.)), cx);
         cx.open_window(
@@ -103,7 +104,7 @@ impl Render for GpuiExampleView {
                                 let next_language = languages[next_index];
 
                                 cx.set_global(CurrentLanguage(next_language));
-                                i18n::change_locale(&next_language.into()).unwrap();
+                                i18n::change_locale(next_language).unwrap();
                             })),
                     ),
             )

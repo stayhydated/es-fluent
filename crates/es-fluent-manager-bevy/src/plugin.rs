@@ -12,7 +12,7 @@ pub struct I18nPluginConfig {
 impl Default for I18nPluginConfig {
     fn default() -> Self {
         Self {
-            initial_language: unic_langid::langid!("en"),
+            initial_language: unic_langid::langid!("en-US"),
             asset_path: "i18n".to_string(),
         }
     }
@@ -188,14 +188,14 @@ fn build_fluent_bundles(
                 }
             }
             for static_resource in inventory::iter::<&'static dyn StaticI18nResource>() {
-                if static_resource.matches_language(&lang) {
-                    if let Err(e) = bundle.add_resource(static_resource.resource()) {
-                        error!(
-                            "Failed to add static resource '{}' to bundle: {:?}",
-                            static_resource.domain(),
-                            e
-                        );
-                    }
+                if static_resource.matches_language(&lang)
+                    && let Err(e) = bundle.add_resource(static_resource.resource())
+                {
+                    error!(
+                        "Failed to add static resource '{}' to bundle: {:?}",
+                        static_resource.domain(),
+                        e
+                    );
                 }
             }
             i18n_bundle.0.insert(lang.clone(), Arc::new(bundle));

@@ -5,7 +5,6 @@ pub use es_fluent_lang_macro::es_fluent_language;
 
 use es_fluent_manager_core::{I18nModule, LocalizationError, Localizer};
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
-use inventory;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -34,7 +33,7 @@ impl I18nModule for EsFluentLanguageModule {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         Box::new(EsFluentLanguageLocalizer::new(
             embedded_resource(),
-            langid!("en"),
+            langid!("en-US"),
         ))
     }
 }

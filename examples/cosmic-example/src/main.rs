@@ -1,14 +1,13 @@
 #![allow(clippy::needless_lifetimes)]
 
-use unic_langid::langid;
-
+use example_shared_lib::Languages;
 mod app;
 mod config;
 mod i18n;
 
 fn main() -> cosmic::iced::Result {
     i18n::init();
-    i18n::change_locale(&langid!("en")).unwrap();
+    i18n::change_locale(Languages::EnUs).unwrap();
 
     // Settings for configuring the application window and iced runtime.
     let settings = cosmic::app::Settings::default().size_limits(

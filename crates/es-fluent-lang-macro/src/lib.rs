@@ -1,9 +1,11 @@
-use heck::ToUpperCamelCase;
+use heck::ToUpperCamelCase as _;
 use proc_macro::TokenStream;
 use proc_macro_error2::{abort, abort_call_site, proc_macro_error};
 use proc_macro2::Span;
 use quote::quote;
-use syn::{Fields, ItemEnum, LitStr, Variant, parse_macro_input, parse_quote, spanned::Spanned};
+use syn::{
+    Fields, ItemEnum, LitStr, Variant, parse_macro_input, parse_quote, spanned::Spanned as _,
+};
 
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
 /// Which generates variants for each language in the i18n folder structure.
@@ -81,7 +83,7 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
         let variant_name = canonical.replace('-', "_").to_upper_camel_case();
 
         let variant_ident = syn::Ident::new(&variant_name, Span::call_site());
-        let literal = LitStr::new(&canonical, Span::call_site());
+        let literal = LitStr::new(canonical, Span::call_site());
 
         let attr = parse_quote!(#[fluent(key = #literal)]);
         let variant = Variant {
@@ -109,6 +111,7 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let language_literals_for_ref = language_literals.clone();
+    let variant_idents_for_ref = variant_idents.clone();
 
     let expanded = quote! {
         #input_enum
@@ -117,6 +120,14 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
             fn from(val: #enum_ident) -> Self {
                 match val {
                     #( #enum_ident::#variant_idents => es_fluent::unic_langid::langid!(#language_literals), )*
+                }
+            }
+        }
+
+        impl From<&#enum_ident> for es_fluent::unic_langid::LanguageIdentifier {
+            fn from(val: &#enum_ident) -> Self {
+                match val {
+                    #( #enum_ident::#variant_idents_for_ref => es_fluent::unic_langid::langid!(#language_literals_for_ref), )*
                 }
             }
         }

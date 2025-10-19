@@ -1,5 +1,9 @@
 # es-fluent
 
+[![Build Status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
+[![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
+
 Derive macros and utilities for authoring strongly-typed messages with [Project Fluent](https://projectfluent.org/).
 
 This crate gives you:
@@ -52,8 +56,8 @@ Create an `i18n.toml` next to your `Cargo.toml`:
 
 ```toml
 # i18n.toml
-assets_dir = "i18n"      # where your localized files live
-fallback_language = "en" # default language subdirectory under assets_dir
+assets_dir = "i18n"         # where your localized files live
+fallback_language = "en-US" # must include a region
 ```
 
 When you run a build, the builder will:
@@ -61,7 +65,7 @@ When you run a build, the builder will:
 - Parse Rust sources under `src/`,
 - Generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
 
-For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the file would be `../i18n/en/{crate_name}.ftl`.
+For example, with `assets_dir = "../i18n"` and `fallback_language = "en-US"`, the file would be `../i18n/en-US/{crate_name}.ftl`.
 
 ## Core derives
 

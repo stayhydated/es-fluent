@@ -1,4 +1,5 @@
 use es_fluent::ToFluentString as _;
+use first_example::Languages;
 use first_example::first_example::*;
 use first_example::i18n;
 use strum::IntoEnumIterator as _;
@@ -6,17 +7,17 @@ use strum::IntoEnumIterator as _;
 fn main() {
     i18n::init();
 
-    run("en");
+    run(Languages::EnUs);
 
-    run("fr");
+    run(Languages::FrFr);
 
-    run("cn");
+    run(Languages::ZhHansCn);
 }
 
-fn run(locale: &str) {
+fn run(locale: Languages) {
     i18n::change_locale(locale).unwrap();
 
-    println!("Language: {locale}");
+    println!("Language: {}", locale.to_fluent_string());
 
     let hello = HelloUser::new("Alice");
     println!("{}", hello.to_fluent_string());

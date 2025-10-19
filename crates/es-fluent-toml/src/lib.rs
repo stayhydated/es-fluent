@@ -26,11 +26,13 @@ pub enum I18nConfigError {
         #[source]
         source: LanguageIdentifierError,
     },
-    /// Encountered a language identifier that contains unsupported subtags.
-    #[error("Language identifier '{name}' contains a region, script, or variants")]
+    /// Encountered a language identifier that uses an unsupported subtag combination.
+    #[error("Language identifier '{name}' is not supported: {reason}")]
     UnsupportedLanguageIdentifier {
         /// The invalid identifier.
         name: String,
+        /// Explanation of why it is not supported.
+        reason: String,
     },
     /// Encountered an invalid fallback language identifier.
     #[error("Invalid fallback language identifier '{name}'")]
@@ -46,7 +48,7 @@ pub enum I18nConfigError {
 /// The configuration for `es-fluent`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct I18nConfig {
-    /// The fallback language identifier (e.g., "en").
+    /// The fallback language identifier (e.g., "en-US").
     pub fallback_language: String,
     /// Path to the assets directory containing translation files.
     /// Expected structure: {assets_dir}/{language}/{domain}.ftl
@@ -101,7 +103,7 @@ impl I18nConfig {
                 },
             )?;
 
-        ensure_no_extended_subtags(&lang, &self.fallback_language)?;
+        ensure_supported_language_identifier(&lang, &self.fallback_language)?;
 
         Ok(lang)
     }
@@ -138,7 +140,7 @@ impl I18nConfig {
                 }
             })?;
 
-            ensure_no_extended_subtags(&lang, &name)?;
+            ensure_supported_language_identifier(&lang, &name)?;
 
             languages.push((lang.to_string(), lang));
         }
@@ -179,20 +181,25 @@ impl I18nConfig {
     }
 }
 
-fn ensure_no_extended_subtags(
+fn ensure_supported_language_identifier(
     lang: &LanguageIdentifier,
     original: &str,
 ) -> Result<(), I18nConfigError> {
-    let mut variants_iter = lang.variants();
-    let has_variants = variants_iter.next().is_some();
-
-    if lang.script.is_some() || lang.region.is_some() || has_variants {
-        Err(I18nConfigError::UnsupportedLanguageIdentifier {
+    if lang.region.is_none() {
+        return Err(I18nConfigError::UnsupportedLanguageIdentifier {
             name: original.to_string(),
-        })
-    } else {
-        Ok(())
+            reason: "it must include a region subtag (e.g., `en-US`)".to_string(),
+        });
     }
+
+    if lang.variants().next().is_some() {
+        return Err(I18nConfigError::UnsupportedLanguageIdentifier {
+            name: original.to_string(),
+            reason: "variants are not supported".to_string(),
+        });
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -207,7 +214,7 @@ mod tests {
         let config_path = temp_dir.path().join("i18n.toml");
 
         let config_content = r#"
-fallback_language = "en"
+fallback_language = "en-US"
 assets_dir = "i18n"
 "#;
 
@@ -217,7 +224,7 @@ assets_dir = "i18n"
         assert!(result.is_ok());
 
         let config = result.unwrap();
-        assert_eq!(config.fallback_language, "en");
+        assert_eq!(config.fallback_language, "en-US");
         assert_eq!(config.assets_dir, PathBuf::from("i18n"));
     }
 
@@ -234,7 +241,7 @@ assets_dir = "i18n"
         let config_path = temp_dir.path().join("i18n.toml");
 
         let invalid_config = r#"
-fallback_language = "en"
+fallback_language = "en-US"
 [invalid_section]
 assets_dir = "i18n"
 "#;
@@ -248,7 +255,7 @@ assets_dir = "i18n"
     #[test]
     fn test_assets_dir_path() {
         let config = I18nConfig {
-            fallback_language: "en".to_string(),
+            fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("locales"),
         };
 
@@ -258,23 +265,23 @@ assets_dir = "i18n"
     #[test]
     fn test_fallback_language_id() {
         let config = I18nConfig {
-            fallback_language: "en".to_string(),
+            fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
         };
 
-        assert_eq!(config.fallback_language_id(), "en");
+        assert_eq!(config.fallback_language_id(), "en-US");
     }
 
     #[test]
     fn test_fallback_language_identifier_success() {
         let config = I18nConfig {
-            fallback_language: "en".to_string(),
+            fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
         };
 
         let lang = config.fallback_language_identifier().unwrap();
 
-        assert_eq!(lang.to_string(), "en");
+        assert_eq!(lang.to_string(), "en-US");
     }
 
     #[test]
@@ -299,14 +306,15 @@ assets_dir = "i18n"
         let manifest_dir = temp_dir.path();
         let assets = manifest_dir.join("i18n");
         fs::create_dir(&assets).unwrap();
-        fs::create_dir(assets.join("en")).unwrap();
-        fs::create_dir(assets.join("fr")).unwrap();
+        fs::create_dir(assets.join("en-US")).unwrap();
+        fs::create_dir(assets.join("fr-FR")).unwrap();
+        fs::create_dir(assets.join("zh-Hans-CN")).unwrap();
         fs::write(assets.join("README.txt"), "ignored file").unwrap();
 
         unsafe { env::set_var("CARGO_MANIFEST_DIR", manifest_dir) };
 
         let config = I18nConfig {
-            fallback_language: "en".to_string(),
+            fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
         };
 
@@ -317,7 +325,33 @@ assets_dir = "i18n"
         let mut codes: Vec<String> = languages.into_iter().map(|lang| lang.to_string()).collect();
         codes.sort();
 
-        assert_eq!(codes, vec!["en", "fr"]);
+        assert_eq!(codes, vec!["en-US", "fr-FR", "zh-Hans-CN"]);
+    }
+
+    #[test]
+    fn test_available_languages_missing_region_is_error() {
+        let temp_dir = TempDir::new().unwrap();
+        let manifest_dir = temp_dir.path();
+        let assets = manifest_dir.join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join("en")).unwrap();
+
+        unsafe { env::set_var("CARGO_MANIFEST_DIR", manifest_dir) };
+
+        let config = I18nConfig {
+            fallback_language: "en-US".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+        };
+
+        let result = config.available_languages();
+
+        unsafe { env::remove_var("CARGO_MANIFEST_DIR") };
+
+        assert!(matches!(
+            result,
+            Err(I18nConfigError::UnsupportedLanguageIdentifier { name, reason })
+                if name == "en" && reason.contains("region")
+        ));
     }
 
     #[test]
@@ -331,7 +365,7 @@ assets_dir = "i18n"
         unsafe { env::set_var("CARGO_MANIFEST_DIR", manifest_dir) };
 
         let config = I18nConfig {
-            fallback_language: "en".to_string(),
+            fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
         };
 

@@ -243,7 +243,7 @@ impl cosmic::Application for AppModel {
                 let next_language = languages[next_index];
 
                 self.current_language = next_language;
-                crate::i18n::change_locale(&next_language.into()).unwrap();
+                crate::i18n::change_locale(next_language.into()).unwrap();
                 self.rebuild_nav();
                 return self.update_title();
             },
