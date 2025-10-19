@@ -1,19 +1,17 @@
 use heck::ToUpperCamelCase;
 use proc_macro::TokenStream;
+use proc_macro_error2::{abort, abort_call_site, proc_macro_error};
 use proc_macro2::Span;
 use quote::quote;
 use syn::{Fields, ItemEnum, LitStr, Variant, parse_macro_input, parse_quote, spanned::Spanned};
 
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
+/// Which generates variants for each language in the i18n folder structure.
+#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     if !attr.is_empty() {
-        return syn::Error::new(
-            Span::call_site(),
-            "#[es_fluent_language] does not accept any arguments",
-        )
-        .to_compile_error()
-        .into();
+        abort_call_site!("#[es_fluent_language] does not accept any arguments");
     }
 
     let mut input_enum = parse_macro_input!(item as ItemEnum);
@@ -21,70 +19,39 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     let enum_span = enum_ident.span();
 
     if !input_enum.generics.params.is_empty() {
-        return syn::Error::new(
+        abort!(
             input_enum.generics.span(),
-            "#[es_fluent_language] does not support generic enums",
-        )
-        .to_compile_error()
-        .into();
+            "#[es_fluent_language] does not support generic enums"
+        );
     }
 
     if !input_enum.variants.is_empty() {
-        return syn::Error::new(
+        abort!(
             enum_span,
-            "#[es_fluent_language] expects an enum without variants",
-        )
-        .to_compile_error()
-        .into();
+            "#[es_fluent_language] expects an enum without variants"
+        );
     }
 
-    let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
-        Ok(config) => config,
-        Err(err) => {
-            return syn::Error::new(
-                enum_span,
-                format!("failed to read i18n configuration: {err}"),
-            )
-            .to_compile_error()
-            .into();
-        },
-    };
+    let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()
+        .unwrap_or_else(|err| abort!(enum_span, "failed to read i18n configuration: {}", err));
 
-    let mut languages = match config.available_languages() {
-        Ok(languages) => languages,
-        Err(err) => {
-            return syn::Error::new(
-                enum_span,
-                format!("failed to collect available languages: {err}"),
-            )
-            .to_compile_error()
-            .into();
-        },
-    };
+    let mut languages = config
+        .available_languages()
+        .unwrap_or_else(|err| abort!(enum_span, "failed to collect available languages: {}", err));
 
-    let fallback_language = match config.fallback_language_identifier() {
-        Ok(lang) => lang,
-        Err(err) => {
-            return syn::Error::new(
-                enum_span,
-                format!("failed to parse fallback language: {err}"),
-            )
-            .to_compile_error()
-            .into();
-        },
-    };
+    let fallback_language = config
+        .fallback_language_identifier()
+        .unwrap_or_else(|err| abort!(enum_span, "failed to parse fallback language: {}", err));
 
     if !languages.iter().any(|lang| lang == &fallback_language) {
         languages.push(fallback_language.clone());
     }
 
     if languages.is_empty() {
-        return syn::Error::new(
+        abort!(
             enum_span,
-            "no languages found under the configured assets directory",
-        )
-        .to_compile_error()
-        .into();
+            "no languages found under the configured assets directory"
+        );
     }
 
     let fallback_canonical = fallback_language.to_string();
@@ -135,14 +102,10 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let fallback_variant_ident = match fallback_variant_ident {
         Some(ident) => ident,
-        None => {
-            return syn::Error::new(
-                enum_span,
-                "fallback language was not found among available languages",
-            )
-            .to_compile_error()
-            .into();
-        },
+        None => abort!(
+            enum_span,
+            "fallback language was not found among available languages"
+        ),
     };
 
     let language_literals_for_ref = language_literals.clone();

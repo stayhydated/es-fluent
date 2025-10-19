@@ -1,5 +1,8 @@
 [package]
 name = "es-fluent-lang"
+description = """
+Opinionated crate for adding variants to a Language Enum.
+"""
 edition.workspace = true
 license.workspace = true
 publish.workspace = true

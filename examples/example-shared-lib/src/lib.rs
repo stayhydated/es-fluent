@@ -20,11 +20,11 @@ pub enum ButtonState {
     Pressed,
 }
 
-pub struct CurrentLanguage(pub Languages);
-
 #[cfg(feature = "gpui")]
 impl gpui::Global for CurrentLanguage {}
 
 #[es_fluent_language]
 #[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
 pub enum Languages {}
+
+pub struct CurrentLanguage(pub Languages);
