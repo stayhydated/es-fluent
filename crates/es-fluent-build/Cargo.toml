@@ -4,6 +4,7 @@ description = """
 A crate that expose a build script for building Fluent resources
 """
 version.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 categories = [ "localization", "internationalization", "development-tools::build-utils" ]
 keywords = [ "fluent", "build", "i18n", "locale" ]

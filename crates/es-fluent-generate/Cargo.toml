@@ -4,6 +4,7 @@ description = """
 A crate for generating .ftl files
 """
 version.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
