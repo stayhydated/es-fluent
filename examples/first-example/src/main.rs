@@ -6,12 +6,7 @@ use strum::IntoEnumIterator as _;
 
 fn main() {
     i18n::init();
-
-    run(Languages::En);
-
-    run(Languages::Fr);
-
-    run(Languages::ZhCn);
+    Languages::iter().for_each(run);
 }
 
 fn run(locale: Languages) {

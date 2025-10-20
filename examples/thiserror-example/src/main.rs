@@ -3,6 +3,7 @@ pub mod i18n;
 
 use error::TransactionError;
 use es_fluent::ToFluentString as _;
+use strum::IntoEnumIterator as _;
 
 use crate::error::{LockedReason, NetworkError, NotFoundReason};
 use example_shared_lib::Languages;
@@ -42,12 +43,7 @@ fn debit_account(
 
 fn main() {
     i18n::init();
-
-    run(Languages::En);
-
-    run(Languages::Fr);
-
-    run(Languages::ZhCn);
+    Languages::iter().for_each(run);
 }
 
 fn run(locale: Languages) {
