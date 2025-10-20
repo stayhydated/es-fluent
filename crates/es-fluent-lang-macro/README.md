@@ -26,6 +26,7 @@ Then, define your language enum in your code:
 use es_fluent::EsFluent;
 use es_fluent_lang_macro::es_fluent_language;
 use unic_langid::LanguageIdentifier;
+use strum::EnumIter;
 
 #[es_fluent_language]
 #[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
