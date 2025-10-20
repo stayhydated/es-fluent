@@ -139,11 +139,7 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     if !unsupported_languages.is_empty() {
         let formatted = unsupported_languages.join(", ");
-        abort!(
-            enum_span,
-            "unsupported languages in assets: {}. Add matching `es-fluent-lang-*` entries via the es-fluent-lang generator.",
-            formatted
-        );
+        abort!(enum_span, "unsupported languages in assets: {}.", formatted);
     }
 
     let mut variant_idents = Vec::with_capacity(language_entries.len());
