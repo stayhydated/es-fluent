@@ -22,7 +22,7 @@ unic-langid = "*"
 
 Then, define your language enum in your code:
 
-```rust
+```rs
 use es_fluent::EsFluent;
 use es_fluent_lang_macro::es_fluent_language;
 use unic_langid::LanguageIdentifier;
