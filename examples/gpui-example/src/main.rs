@@ -5,7 +5,6 @@ use gpui::{
     size,
 };
 use gpui_component::button::Button;
-use strum::IntoEnumIterator as _;
 mod i18n;
 
 #[derive(Clone, Copy, Debug, EsFluent)]
@@ -95,16 +94,9 @@ impl Render for GpuiExampleView {
                             )
                             .on_click(cx.listener(|_this, _event, _window, cx| {
                                 let current_language = cx.global::<CurrentLanguage>().0;
-                                let languages: Vec<Languages> = Languages::iter().collect();
-                                let current_index = languages
-                                    .iter()
-                                    .position(|&lang| lang == current_language)
-                                    .unwrap_or(0);
-                                let next_index = (current_index + 1) % languages.len();
-                                let next_language = languages[next_index];
-
-                                cx.set_global(CurrentLanguage(next_language));
-                                i18n::change_locale(next_language).unwrap();
+                                let new_lang = current_language.next();
+                                cx.set_global(CurrentLanguage(new_lang));
+                                i18n::change_locale(new_lang).unwrap();
                             })),
                     ),
             )

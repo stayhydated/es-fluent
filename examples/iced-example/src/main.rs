@@ -3,7 +3,6 @@ use example_shared_lib::{ButtonState, Languages};
 use iced::font::{Family, Font};
 use iced::widget::{button, center, mouse_area, row, text};
 use iced::{Center, Element, Theme};
-use strum::IntoEnumIterator as _;
 
 mod i18n;
 
@@ -61,16 +60,9 @@ impl IcedExampleView {
                 self.button_state = ButtonState::Hovered;
             },
             Message::ToggleLanguage => {
-                let languages: Vec<Languages> = Languages::iter().collect();
-                let current_index = languages
-                    .iter()
-                    .position(|&lang| lang == self.current_language)
-                    .unwrap_or(0);
-                let next_index = (current_index + 1) % languages.len();
-                let next_language = languages[next_index];
-
-                self.current_language = next_language;
-                i18n::change_locale(next_language).unwrap();
+                let new_lang = self.current_language.next();
+                self.current_language = new_lang;
+                i18n::change_locale(new_lang).unwrap();
             },
         }
     }

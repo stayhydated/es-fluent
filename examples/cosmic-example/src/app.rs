@@ -9,7 +9,6 @@ use cosmic::{cosmic_theme, theme};
 use es_fluent::{EsFluent, ToFluentString as _};
 use futures_util::SinkExt as _;
 use std::collections::HashMap;
-use strum::IntoEnumIterator as _;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
@@ -233,17 +232,9 @@ impl cosmic::Application for AppModel {
             },
 
             Message::ToggleLanguage => {
-                let languages: Vec<example_shared_lib::Languages> =
-                    example_shared_lib::Languages::iter().collect();
-                let current_index = languages
-                    .iter()
-                    .position(|&lang| lang == self.current_language)
-                    .unwrap_or(0);
-                let next_index = (current_index + 1) % languages.len();
-                let next_language = languages[next_index];
-
-                self.current_language = next_language;
-                crate::i18n::change_locale(next_language.into()).unwrap();
+                let new_lang = self.current_language.next();
+                self.current_language = new_lang;
+                crate::i18n::change_locale(new_lang.into()).unwrap();
                 self.rebuild_nav();
                 return self.update_title();
             },

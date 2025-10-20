@@ -27,4 +27,13 @@ impl gpui::Global for CurrentLanguage {}
 #[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
 pub enum Languages {}
 
+impl Languages {
+    pub fn next(self) -> Self {
+        use strum::IntoEnumIterator as _;
+        let all = Self::iter().collect::<Vec<_>>();
+        let current_index = all.iter().position(|&l| l == self).unwrap_or(0);
+        all[(current_index + 1) % all.len()]
+    }
+}
+
 pub struct CurrentLanguage(pub Languages);

@@ -34,6 +34,7 @@ rust-version = "1.88"
 version = "0.2.4"
 
 [workspace.dependencies]
+itertools = "0.14.0"
 anyhow = "1.0.98"
 bevy = "0.17.0"
 bon = "3.3.2"
