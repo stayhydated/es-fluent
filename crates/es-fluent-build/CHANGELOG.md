@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5](https://github.com/stayhydated/es-fluent/compare/es-fluent-build-v0.2.4...es-fluent-build-v0.2.5) - 2025-10-20
+
+### Other
+
+- machete
+
 ## [0.1.0](https://github.com/stayhydated/es-fluent/releases/tag/es-fluent-build-v0.1.0) - 2025-07-03
 
 ### Other
