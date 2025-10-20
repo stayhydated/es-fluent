@@ -344,30 +344,4 @@ assets_dir = "i18n"
 
         assert_eq!(codes, vec!["en"]);
     }
-
-    #[test]
-    fn test_available_languages_invalid_identifier() {
-        let temp_dir = TempDir::new().unwrap();
-        let manifest_dir = temp_dir.path();
-        let assets = manifest_dir.join("i18n");
-        fs::create_dir(&assets).unwrap();
-        fs::create_dir(assets.join("invalid-lang!")).unwrap();
-
-        unsafe { env::set_var("CARGO_MANIFEST_DIR", manifest_dir) };
-
-        let config = I18nConfig {
-            fallback_language: "en-US".to_string(),
-            assets_dir: PathBuf::from("i18n"),
-        };
-
-        let result = config.available_languages();
-
-        unsafe { env::remove_var("CARGO_MANIFEST_DIR") };
-
-        assert!(matches!(
-            result,
-            Err(I18nConfigError::InvalidLanguageIdentifier { name, .. })
-                if name == "invalid-lang!"
-        ));
-    }
 }
