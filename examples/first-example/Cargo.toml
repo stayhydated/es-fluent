@@ -7,10 +7,8 @@ publish = false
 
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-lang = { workspace = true }
 es-fluent-manager-embedded = { workspace = true }
 example-shared-lib = { features = [ "embedded" ], path = "../example-shared-lib" }
-log = { workspace = true }
 rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }

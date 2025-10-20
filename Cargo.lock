@@ -4325,15 +4325,12 @@ checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
 name = "es-fluent"
 version = "0.2.4"
 dependencies = [
- "anyhow",
  "es-fluent-derive",
  "es-fluent-manager-core",
- "fluent",
  "fluent-bundle",
  "inventory",
  "log",
  "rust-embed",
- "thiserror 2.0.17",
  "unic-langid",
 ]
 
@@ -4345,7 +4342,6 @@ dependencies = [
  "es-fluent-generate",
  "es-fluent-sc-parser",
  "es-fluent-toml",
- "heck 0.5.0",
  "state-shift",
  "thiserror 2.0.17",
 ]
@@ -4362,7 +4358,6 @@ dependencies = [
  "es-fluent-sc-parser",
  "es-fluent-toml",
  "getset",
- "heck 0.5.0",
  "humantime",
  "log",
  "notify 8.2.0",
@@ -4444,7 +4439,6 @@ dependencies = [
  "quote",
  "syn 2.0.106",
  "unic-langid",
- "walkdir",
 ]
 
 [[package]]
@@ -4458,7 +4452,6 @@ dependencies = [
  "fluent-bundle",
  "intl-memoizer",
  "inventory",
- "log",
  "serde",
  "unic-langid",
 ]
@@ -4483,9 +4476,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
- "inventory",
  "log",
- "rust-embed",
  "unic-langid",
 ]
 
@@ -4493,7 +4484,6 @@ dependencies = [
 name = "es-fluent-manager-macros"
 version = "0.2.4"
 dependencies = [
- "es-fluent-manager-core",
  "es-fluent-toml",
  "heck 0.5.0",
  "proc-macro2",
@@ -4599,7 +4589,6 @@ dependencies = [
  "log",
  "rust-embed",
  "strum 0.26.3",
- "unic-langid",
 ]
 
 [[package]]
@@ -4720,7 +4709,6 @@ version = "0.2.4"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-lang",
  "es-fluent-manager-embedded",
  "example-shared-lib",
  "log",
@@ -11153,7 +11141,6 @@ version = "0.1.0"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
- "es-fluent-lang",
  "es-fluent-manager-embedded",
  "example-shared-lib",
  "log",

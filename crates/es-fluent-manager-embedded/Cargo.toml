@@ -14,9 +14,7 @@ readme = "README.md"
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
-inventory = { workspace = true }
 log = { workspace = true }
-rust-embed = { workspace = true }
 unic-langid = { workspace = true }
 
 [features]

@@ -14,7 +14,6 @@ es-fluent-manager-embedded = { optional = true, workspace = true }
 gpui = { optional = true, workspace = true }
 rust-embed = { optional = true, workspace = true }
 strum = { features = [ "derive" ], workspace = true }
-unic-langid = { workspace = true }
 
 [build-dependencies]
 es-fluent-build = { workspace = true }
