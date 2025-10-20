@@ -10,6 +10,7 @@ keywords = [ "fluent", "i18n", "locale" ]
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
+readme.workspace = true
 
 [features]
 default = [ "derive" ]

@@ -6,10 +6,10 @@ Opinionated crate for adding variants to a Language Enum.
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
-readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
+readme = "README.md"
 
 [features]
 bevy = [  ]
