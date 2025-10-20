@@ -4,6 +4,7 @@ description = """
 Cli for building Fluent resources
 """
 version.workspace = true
+rust-version.workspace = true
 categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "build", "i18n", "locale", "watch" ]
 edition.workspace = true

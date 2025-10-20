@@ -4,6 +4,7 @@ description = """
 The es-fluent crate
 """
 version.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 categories = [ "localization", "internationalization", "development-tools::build-utils" ]
 keywords = [ "fluent", "i18n", "locale" ]
