@@ -12,15 +12,14 @@ impl FluentKey {
 
     pub fn new(ftl_name: &syn::Ident, sub_name: &str) -> Self {
         let normalized_name = ftl_name.to_string().to_snake_case();
+        Self::with_base(&normalized_name, sub_name)
+    }
+
+    pub fn with_base(base: &str, sub_name: &str) -> Self {
         if sub_name.is_empty() {
-            FluentKey(normalized_name)
+            FluentKey(base.to_string())
         } else {
-            FluentKey(format!(
-                "{}{}{}",
-                normalized_name,
-                Self::DELIMITER,
-                sub_name
-            ))
+            FluentKey(format!("{}{}{}", base, Self::DELIMITER, sub_name))
         }
     }
 }

@@ -1,28 +1,27 @@
 [package]
-name = "es-fluent"
+name = "es-fluent-lang"
 description = """
-The es-fluent crate
+Opinionated crate for adding variants to a Language Enum.
 """
-version.workspace = true
 edition.workspace = true
-categories = [ "localization", "internationalization", "development-tools::build-utils" ]
-keywords = [ "fluent", "i18n", "locale" ]
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
-readme.workspace = true
+rust-version.workspace = true
+version.workspace = true
+readme = "README.md"
 
 [features]
-default = [ "derive" ]
-derive = [ "dep:es-fluent-derive" ]
+bevy = [  ]
+default = [ "macros" ]
+macros = [ "dep:es-fluent-lang-macro" ]
 
 [dependencies]
-es-fluent-derive = { optional = true, workspace = true }
+es-fluent-lang-macro = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
-rust-embed = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [lints]

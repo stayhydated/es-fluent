@@ -10,7 +10,6 @@ bevy = { features = [ "wayland", "file_watcher" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-bevy = { workspace = true }
 example-shared-lib = { features = [ "bevy" ], path = "../example-shared-lib" }
-log = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
 

@@ -13,7 +13,7 @@ vergen = { features = [ "git", "gitcl" ], version = "8" }
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-embedded = { workspace = true }
-example-shared-lib = { features = [ "iced" ], path = "../example-shared-lib" }
+example-shared-lib = { features = [ "embedded" ], path = "../example-shared-lib" }
 futures-util = "0.3.31"
 open = "5.3.0"
 rust-embed = { workspace = true }

@@ -1,5 +1,5 @@
 use crate::*;
-use es_fluent_manager_core::I18nAssetModule;
+use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource};
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock, RwLock};
@@ -12,7 +12,7 @@ pub struct I18nPluginConfig {
 impl Default for I18nPluginConfig {
     fn default() -> Self {
         Self {
-            initial_language: unic_langid::langid!("en"),
+            initial_language: unic_langid::langid!("en-US"),
             asset_path: "i18n".to_string(),
         }
     }
@@ -77,7 +77,7 @@ impl Plugin for I18nPlugin {
                 let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
                 let handle: Handle<FtlAsset> = asset_server.load(&path);
                 i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
-                info!("Loading discovered i18n asset: {}", path);
+                debug!("Loading discovered i18n asset: {}", path);
             }
         }
 
@@ -129,7 +129,7 @@ fn handle_asset_loading(
                                     (lang_key.clone(), domain_key.clone()),
                                     Arc::new(resource),
                                 );
-                                info!(
+                                debug!(
                                     "Loaded FTL resource for language: {}, domain: {}",
                                     lang_key, domain_key
                                 );
@@ -187,11 +187,22 @@ fn build_fluent_bundles(
                     error!("Failed to add resource to bundle while caching: {:?}", e);
                 }
             }
+            for static_resource in inventory::iter::<&'static dyn StaticI18nResource>() {
+                if static_resource.matches_language(&lang)
+                    && let Err(e) = bundle.add_resource(static_resource.resource())
+                {
+                    error!(
+                        "Failed to add static resource '{}' to bundle: {:?}",
+                        static_resource.domain(),
+                        e
+                    );
+                }
+            }
             i18n_bundle.0.insert(lang.clone(), Arc::new(bundle));
-            info!("Updated fluent bundle cache for {}", lang);
+            debug!("Updated fluent bundle cache for {}", lang);
         } else {
             i18n_bundle.0.remove(&lang);
-            info!("Removed fluent bundle cache for {}", lang);
+            debug!("Removed fluent bundle cache for {}", lang);
         }
     }
 }
@@ -221,10 +232,7 @@ fn sync_global_state(
 
         if i18n_bundle.0.contains_key(i18n_resource.current_language()) {
             let lang = i18n_resource.current_language().clone();
-            info!(
-                "I18n bundle ready for current language: {}, emitting LocaleChangedEvent",
-                lang
-            );
+            debug!("I18n bundle ready for current language: {}", lang);
             locale_changed_events.write(LocaleChangedEvent(lang));
         }
     }

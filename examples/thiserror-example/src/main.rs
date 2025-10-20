@@ -3,8 +3,10 @@ pub mod i18n;
 
 use error::TransactionError;
 use es_fluent::ToFluentString as _;
+use strum::IntoEnumIterator as _;
 
 use crate::error::{LockedReason, NetworkError, NotFoundReason};
+use example_shared_lib::Languages;
 
 fn debit_account(
     account: u64,
@@ -41,18 +43,13 @@ fn debit_account(
 
 fn main() {
     i18n::init();
-
-    run("en");
-
-    run("fr");
-
-    run("cn");
+    Languages::iter().for_each(run);
 }
 
-fn run(locale: &str) {
+fn run(locale: Languages) {
     i18n::change_locale(locale).unwrap();
 
-    println!("Language : {}", locale);
+    println!("Language : {}", locale.to_fluent_string());
 
     let tests = [
         debit_account(69, 50, 100, ""),

@@ -27,6 +27,7 @@ EnumOpts {
                     __nonexhaustive: (),
                 },
                 skip: None,
+                key: None,
             },
             VariantOpts {
                 ident: Ident {
@@ -84,6 +85,7 @@ EnumOpts {
                     __nonexhaustive: (),
                 },
                 skip: None,
+                key: None,
             },
             VariantOpts {
                 ident: Ident {
@@ -147,6 +149,7 @@ EnumOpts {
                     __nonexhaustive: (),
                 },
                 skip: None,
+                key: None,
             },
         ],
     ),
@@ -160,5 +163,6 @@ EnumOpts {
         this: Some(
             true,
         ),
+        resource: None,
     },
 }

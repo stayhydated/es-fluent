@@ -21,7 +21,6 @@ es-fluent-generate = { workspace = true }
 es-fluent-sc-parser = { workspace = true }
 es-fluent-toml = { workspace = true }
 getset = { workspace = true }
-heck = { workspace = true }
 humantime = { workspace = true }
 log = { workspace = true }
 notify = { workspace = true }

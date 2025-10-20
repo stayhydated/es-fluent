@@ -4,7 +4,6 @@ use es_fluent_manager_bevy::{
     CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
 use example_shared_lib::{ButtonState, Languages};
-use strum::IntoEnumIterator as _;
 
 es_fluent_manager_bevy::define_i18n_module!();
 
@@ -59,15 +58,9 @@ fn locale_change_system(
     current_language: Res<CurrentLanguageId>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyT) {
-        let languages: Vec<Languages> = Languages::iter().collect();
-        let current_index = languages
-            .iter()
-            .position(|&lang| unic_langid::LanguageIdentifier::from(lang) == current_language.0)
-            .unwrap_or(0);
-        let next_index = (current_index + 1) % languages.len();
-        let next_language = languages[next_index];
-
-        locale_change_events.write(LocaleChangeEvent(next_language.into()));
+        locale_change_events.write(LocaleChangeEvent(
+            Languages::from(&current_language.0).next().into(),
+        ));
     }
 }
 

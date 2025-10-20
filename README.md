@@ -56,8 +56,8 @@ Create an `i18n.toml` next to your `Cargo.toml`:
 
 ```toml
 # i18n.toml
-assets_dir = "i18n"      # where your localized files live
-fallback_language = "en" # default language subdirectory under assets_dir
+assets_dir = "i18n"         # where your localized files live
+fallback_language = "en"
 ```
 
 When you run a build, the builder will:
@@ -313,6 +313,40 @@ where
     B { c: T },
     D,
 }
+```
+
+## Language Enum Generation
+
+### `es-fluent-lang` and `es-fluent-lang-macro`
+
+- **`es-fluent-lang`**: A support crate containing an embedded Fluent file with pre-translated names for hundreds of world languages.
+- **`es-fluent-lang-macro`**: Provides the `#[es_fluent_language]` procedural macro.
+
+This macro reads your crate's `i18n.toml`, finds all available languages in your `assets_dir`, and generates an enum with a variant for each one. It also implements `Default` (using your `fallback_language`) and conversions to/from `unic_langid::LanguageIdentifier`.
+
+### Usage
+
+Add the dependencies:
+```toml
+[dependencies]
+es-fluent-lang = "*"
+es-fluent-lang-macro = "*"
+unic-langid = "*"
+```
+
+Then, apply the macro to an empty enum:
+```rs
+use es_fluent::EsFluent;
+use es_fluent_lang_macro::es_fluent_language;
+use strum::EnumIter;
+
+#[es_fluent_language]
+#[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
+pub enum Languages {}
+
+// The macro generates variants from your i18n asset folders.
+// If you have 'en' and 'fr-CA', it generates:
+// enum Language { En, FrCA }
 ```
 
 ## Examples

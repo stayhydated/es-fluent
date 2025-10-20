@@ -8,14 +8,13 @@ license.workspace = true
 publish.workspace = true
 repository.workspace = true
 version.workspace = true
+readme = "README.md"
 
 [dependencies]
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
-inventory = { workspace = true }
 log = { workspace = true }
-rust-embed = { workspace = true }
 unic-langid = { workspace = true }
 
 [features]

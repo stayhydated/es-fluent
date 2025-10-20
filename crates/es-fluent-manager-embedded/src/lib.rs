@@ -43,10 +43,10 @@ pub fn init() {
 ///
 /// This function will log an error if the embedded singleton has not been initialized by
 /// calling `init()` first.
-pub fn select_language(lang: &LanguageIdentifier) {
+pub fn select_language<L: Into<LanguageIdentifier>>(lang: L) {
     if let Some(manager_arc) = GENERIC_MANAGER.get() {
         let mut manager = manager_arc.write().unwrap();
-        manager.select_language(lang);
+        manager.select_language(&lang.into());
     } else {
         log::error!("Generic fluent manager not initialized. Call init() first.");
     }

@@ -1,6 +1,6 @@
 use es_fluent::EsFluent;
+use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
-use unic_langid::{LanguageIdentifier, langid};
 
 #[cfg(feature = "bevy")]
 use bevy::prelude::*;
@@ -8,7 +8,7 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy")]
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[cfg(any(feature = "iced", feature = "gpui"))]
+#[cfg(any(feature = "embedded", feature = "gpui"))]
 es_fluent_manager_embedded::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, Default, EsFluent, PartialEq)]
@@ -20,37 +20,20 @@ pub enum ButtonState {
     Pressed,
 }
 
-pub struct CurrentLanguage(pub Languages);
-
 #[cfg(feature = "gpui")]
 impl gpui::Global for CurrentLanguage {}
 
-#[derive(Clone, Copy, Debug, Default, EnumIter, EsFluent, PartialEq)]
-#[cfg_attr(feature = "bevy", derive(Component))]
-pub enum Languages {
-    #[default]
-    English,
-    French,
-    Chinese,
-}
+#[es_fluent_language]
+#[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
+pub enum Languages {}
 
-impl From<Languages> for LanguageIdentifier {
-    fn from(val: Languages) -> Self {
-        match val {
-            Languages::English => langid!("en"),
-            Languages::French => langid!("fr"),
-            Languages::Chinese => langid!("cn"),
-        }
+impl Languages {
+    pub fn next(self) -> Self {
+        use strum::IntoEnumIterator as _;
+        let all = Self::iter().collect::<Vec<_>>();
+        let current_index = all.iter().position(|&l| l == self).unwrap_or(0);
+        all[(current_index + 1) % all.len()]
     }
 }
 
-impl From<&LanguageIdentifier> for Languages {
-    fn from(lang: &LanguageIdentifier) -> Self {
-        match lang.language.as_str() {
-            "en" => Languages::English,
-            "fr" => Languages::French,
-            "cn" => Languages::Chinese,
-            _ => Languages::English,
-        }
-    }
-}
+pub struct CurrentLanguage(pub Languages);
