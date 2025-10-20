@@ -16,7 +16,6 @@ First, add the crate to your `Cargo.toml`:
 ```toml
 [dependencies]
 es-fluent-lang = "*"
-es-fluent-lang-macro = "*"
 unic-langid = "*"
 ```
 
@@ -24,7 +23,7 @@ Then, define your language enum in your code:
 
 ```rs
 use es_fluent::EsFluent;
-use es_fluent_lang_macro::es_fluent_language;
+use es_fluent_lang::es_fluent_language;
 use unic_langid::LanguageIdentifier;
 use strum::EnumIter;
 

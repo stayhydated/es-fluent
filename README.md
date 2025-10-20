@@ -8,8 +8,13 @@ Derive macros and utilities for authoring strongly-typed messages with [Project 
 
 This crate gives you:
 - Derives to turn enums/structs into Fluent message IDs and arguments.
-- A simple API to format values for Fluent and convert them into strings.
-- Optional integration via a embedded singleton manager (`es-fluent-manager-embedded`) or for Bevy (`es-fluent-manager-bevy`).
+- Integration via a embedded singleton manager (`es-fluent-manager-embedded`) or for Bevy (`es-fluent-manager-bevy`).
+
+## Examples
+- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example)
+- [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
+- [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
+- [iced](https://github.com/stayhydated/es-fluent/tree/master/examples/iced-example)
 
 ## Installation
 
@@ -317,10 +322,7 @@ where
 
 ## Language Enum Generation
 
-### `es-fluent-lang` and `es-fluent-lang-macro`
-
-- **`es-fluent-lang`**: A support crate containing an embedded Fluent file with pre-translated names for hundreds of world languages.
-- **`es-fluent-lang-macro`**: Provides the `#[es_fluent_language]` procedural macro.
+### #[es_fluent_language]
 
 This macro reads your crate's `i18n.toml`, finds all available languages in your `assets_dir`, and generates an enum with a variant for each one. It also implements `Default` (using your `fallback_language`) and conversions to/from `unic_langid::LanguageIdentifier`.
 
@@ -330,7 +332,6 @@ Add the dependencies:
 ```toml
 [dependencies]
 es-fluent-lang = "*"
-es-fluent-lang-macro = "*"
 unic-langid = "*"
 ```
 
@@ -348,9 +349,3 @@ pub enum Languages {}
 // If you have 'en' and 'fr-CA', it generates:
 // enum Language { En, FrCA }
 ```
-
-## Examples
-- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example)
-- [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
-- [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
-- [iced](https://github.com/stayhydated/es-fluent/tree/master/examples/iced-example)
