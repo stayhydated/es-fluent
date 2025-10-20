@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5](https://github.com/stayhydated/es-fluent/compare/es-fluent-generate-v0.2.4...es-fluent-generate-v0.2.5) - 2025-10-20
+
+### Fixed
+
+- fix readme linking
+
 ## [0.1.1](https://github.com/stayhydated/es-fluent/compare/es-fluent-generate-v0.1.0...es-fluent-generate-v0.1.1) - 2025-07-15
 
 ### Other
