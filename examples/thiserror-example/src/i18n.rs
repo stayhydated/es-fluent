@@ -2,14 +2,7 @@ use es_fluent_manager_embedded as i18n_manager;
 
 es_fluent_manager_embedded::define_i18n_module!();
 
-use es_fluent::EsFluent;
-use es_fluent_lang::es_fluent_language;
-use strum::EnumIter;
-
-#[es_fluent_language]
-#[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
-pub enum Languages {}
-
+use example_shared_lib::Languages;
 pub fn init() {
     i18n_manager::init();
 }

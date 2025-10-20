@@ -1,6 +1,6 @@
 use es_fluent_manager_embedded as i18n_manager;
 
-use crate::Languages;
+use example_shared_lib::Languages;
 
 es_fluent_manager_embedded::define_i18n_module!();
 

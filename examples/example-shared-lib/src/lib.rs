@@ -8,7 +8,7 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy")]
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[cfg(any(feature = "iced", feature = "gpui"))]
+#[cfg(any(feature = "embedded", feature = "gpui"))]
 es_fluent_manager_embedded::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, Default, EsFluent, PartialEq)]

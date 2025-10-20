@@ -4,10 +4,8 @@ pub mod i18n;
 use error::TransactionError;
 use es_fluent::ToFluentString as _;
 
-use crate::{
-    error::{LockedReason, NetworkError, NotFoundReason},
-    i18n::Languages,
-};
+use crate::error::{LockedReason, NetworkError, NotFoundReason};
+use example_shared_lib::Languages;
 
 fn debit_account(
     account: u64,

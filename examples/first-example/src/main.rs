@@ -1,5 +1,5 @@
 use es_fluent::ToFluentString as _;
-use first_example::Languages;
+use example_shared_lib::Languages;
 use first_example::first_example::*;
 use first_example::i18n;
 use strum::IntoEnumIterator as _;

@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-embedded = { workspace = true }
-example-shared-lib = { features = [ "iced" ], path = "../example-shared-lib" }
+example-shared-lib = { features = [ "embedded" ], path = "../example-shared-lib" }
 iced = { features = [ "tiny-skia", "web-colors" ], workspace = true }
 rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
