@@ -45,9 +45,9 @@ fn debit_account(
 fn main() {
     i18n::init();
 
-    run(Languages::EnUs);
+    run(Languages::En);
 
-    run(Languages::FrFr);
+    run(Languages::Fr);
 
     run(Languages::ZhCn);
 }

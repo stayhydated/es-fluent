@@ -52,7 +52,7 @@ es_fluent_manager_bevy::define_i18n_module!();
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(I18nPlugin::with_language(langid!("en-US")))
+        .add_plugins(I18nPlugin::with_language(langid!("en")))
         // ... other app setup
         .run();
 }
@@ -69,7 +69,7 @@ use es_fluent_manager_bevy::FluentTextRegistration as _;
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins)
-        .add_plugins(I18nPlugin::with_language(langid!("en-US")));
+        .add_plugins(I18nPlugin::with_language(langid!("en")));
 
     // Register the component.
     app.register_fluent_text::<MyMessages>();

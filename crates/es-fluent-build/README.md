@@ -29,8 +29,8 @@ It is designed to be used as a `build-dependency` in your `Cargo.toml` and invok
 3.  Create an `i18n.toml` configuration file in your crate's root to specify the output directory and fallback language:
 
     ```toml
-    fallback_language = "en-US"
+    fallback_language = "en"
     assets_dir = "i18n"
     ```
 
-Now, every time you build your crate, the script will automatically scan your `src` directory and generate a `{crate_name}.ftl` file inside `i18n/en-US/`. This file will contain all the message keys extracted from your `EsFluent`-derived types, ready for you to add translations.
+Now, every time you build your crate, the script will automatically scan your `src` directory and generate a `{crate_name}.ftl` file inside `i18n/en/`. This file will contain all the message keys extracted from your `EsFluent`-derived types, ready for you to add translations.

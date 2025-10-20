@@ -57,7 +57,7 @@ Create an `i18n.toml` next to your `Cargo.toml`:
 ```toml
 # i18n.toml
 assets_dir = "i18n"         # where your localized files live
-fallback_language = "en-US" # must include a region
+fallback_language = "en"
 ```
 
 When you run a build, the builder will:
@@ -65,7 +65,7 @@ When you run a build, the builder will:
 - Parse Rust sources under `src/`,
 - Generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
 
-For example, with `assets_dir = "../i18n"` and `fallback_language = "en-US"`, the file would be `../i18n/en-US/{crate_name}.ftl`.
+For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the file would be `../i18n/en/{crate_name}.ftl`.
 
 ## Core derives
 

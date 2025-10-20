@@ -29,7 +29,7 @@ es_fluent_manager_bevy::define_i18n_module!();
 fn main() {
     es_fluent_manager_embedded::init();
 
-    let lang_en = langid!("en-US");
+    let lang_en = langid!("en");
     es_fluent_manager_embedded::select_language(&lang_en);
 }
 ```

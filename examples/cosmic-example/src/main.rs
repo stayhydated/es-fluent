@@ -7,7 +7,7 @@ mod i18n;
 
 fn main() -> cosmic::iced::Result {
     i18n::init();
-    i18n::change_locale(Languages::EnUs).unwrap();
+    i18n::change_locale(Languages::default()).unwrap();
 
     // Settings for configuring the application window and iced runtime.
     let settings = cosmic::app::Settings::default().size_limits(
