@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 pub use unic_langid::{LanguageIdentifier, langid};
 
 #[cfg(feature = "macros")]

@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use heck::ToUpperCamelCase as _;
 use proc_macro::TokenStream;
 use proc_macro_error2::{abort, abort_call_site, proc_macro_error};
