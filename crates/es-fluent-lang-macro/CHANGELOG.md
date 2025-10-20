@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6](https://github.com/stayhydated/es-fluent/compare/es-fluent-lang-macro-v0.2.5...es-fluent-lang-macro-v0.2.6) - 2025-10-20
+
+### Other
+
+- release v0.2.5
+
 ## [0.2.5](https://github.com/stayhydated/es-fluent/releases/tag/es-fluent-lang-macro-v0.2.5) - 2025-10-20
 
 ### Fixed

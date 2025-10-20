@@ -998,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "bevy-example"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -3346,7 +3346,7 @@ dependencies = [
 
 [[package]]
 name = "cosmic-example"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
@@ -4323,7 +4323,7 @@ checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
 
 [[package]]
 name = "es-fluent"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent-derive",
  "es-fluent-manager-core",
@@ -4336,7 +4336,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-build"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "cargo_metadata",
  "es-fluent-generate",
@@ -4348,7 +4348,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "cargo_metadata",
  "clap",
@@ -4368,7 +4368,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-core"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bon",
  "darling 0.20.11",
@@ -4388,7 +4388,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "darling 0.20.11",
  "es-fluent-core",
@@ -4403,7 +4403,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-generate"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "clap",
  "es-fluent-core",
@@ -4418,7 +4418,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent-lang-macro",
  "es-fluent-manager-core",
@@ -4430,7 +4430,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang-macro"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent-toml",
  "heck 0.5.0",
@@ -4443,7 +4443,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-bevy"
-version = "0.17.5"
+version = "0.17.6"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -4458,7 +4458,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-core"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "anyhow",
  "fluent-bundle",
@@ -4471,7 +4471,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-embedded"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
@@ -4482,7 +4482,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-macros"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent-toml",
  "heck 0.5.0",
@@ -4493,7 +4493,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-sc-parser"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bon",
  "darling 0.20.11",
@@ -4509,7 +4509,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-toml"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "serde",
  "tempfile",
@@ -4577,7 +4577,7 @@ dependencies = [
 
 [[package]]
 name = "example-shared-lib"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -4705,7 +4705,7 @@ checksum = "52051878f80a721bb68ebfbc930e07b65ba72f2da88968ea5c06fd6ca3d3a127"
 
 [[package]]
 name = "first-example"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
@@ -5608,7 +5608,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-example"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent",
  "es-fluent-build",
@@ -6103,7 +6103,7 @@ dependencies = [
 
 [[package]]
 name = "iced-example"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "es-fluent",
  "es-fluent-build",

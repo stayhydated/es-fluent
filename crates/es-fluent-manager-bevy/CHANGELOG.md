@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.6](https://github.com/stayhydated/es-fluent/compare/es-fluent-manager-bevy-v0.17.5...es-fluent-manager-bevy-v0.17.6) - 2025-10-20
+
+### Other
+
+- updated the following local packages: es-fluent-manager-core, es-fluent, es-fluent-manager-macros
+
 ## [0.17.4](https://github.com/stayhydated/es-fluent/compare/es-fluent-manager-bevy-v0.17.3...es-fluent-manager-bevy-v0.17.4) - 2025-10-17
 
 ### Other
