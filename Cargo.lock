@@ -954,7 +954,7 @@ dependencies = [
  "es-fluent-manager-bevy",
  "example-shared-lib",
  "log",
- "strum 0.26.3",
+ "strum 0.27.2",
  "unic-langid",
 ]
 
@@ -3306,7 +3306,7 @@ dependencies = [
  "log",
  "open",
  "rust-embed",
- "strum 0.26.3",
+ "strum 0.27.2",
  "tokio",
  "unic-langid",
  "vergen",
@@ -4330,7 +4330,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
- "strum 0.26.3",
+ "strum 0.27.2",
  "syn 2.0.108",
  "thiserror 2.0.17",
 ]
@@ -4346,7 +4346,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
- "strum 0.26.3",
+ "strum 0.27.2",
  "syn 2.0.108",
 ]
 
@@ -4537,7 +4537,7 @@ dependencies = [
  "gpui",
  "log",
  "rust-embed",
- "strum 0.26.3",
+ "strum 0.27.2",
 ]
 
 [[package]]
@@ -4662,7 +4662,7 @@ dependencies = [
  "example-shared-lib",
  "log",
  "rust-embed",
- "strum 0.26.3",
+ "strum 0.27.2",
  "unic-langid",
 ]
 
@@ -5564,7 +5564,7 @@ dependencies = [
  "gpui-component",
  "log",
  "rust-embed",
- "strum 0.26.3",
+ "strum 0.27.2",
  "unic-langid",
 ]
 
@@ -6208,7 +6208,7 @@ dependencies = [
  "iced 0.13.1",
  "log",
  "rust-embed",
- "strum 0.26.3",
+ "strum 0.27.2",
  "unic-langid",
 ]
 
@@ -11215,7 +11215,7 @@ dependencies = [
  "example-shared-lib",
  "log",
  "rust-embed",
- "strum 0.26.3",
+ "strum 0.27.2",
  "thiserror 2.0.17",
  "unic-langid",
 ]
