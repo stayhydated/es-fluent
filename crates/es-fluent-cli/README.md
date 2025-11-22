@@ -18,14 +18,14 @@ The tool will scan for crates, perform an initial build, and then monitor for fi
 
 You can control how the `.ftl` files are generated using the `--mode` flag.
 
--   **Conservative Mode (Default)**: Adds new translation keys to your `.ftl` files while preserving any existing keys and their translations. This is the safest and default mode.
+- **Conservative Mode (Default)**: Adds new translation keys to your `.ftl` files while preserving any existing keys and their translations. This is the safest and default mode.
 
-    ```sh
-    es-fluent-cli --mode conservative
-    ```
+  ```sh
+  es-fluent-cli --mode conservative
+  ```
 
--   **Aggressive Mode**: Overwrites the existing `.ftl` file entirely with newly generated keys. This is useful for cleaning up stale keys but will erase any manual changes or translations in the file.
+- **Aggressive Mode**: Overwrites the existing `.ftl` file entirely with newly generated keys. This is useful for cleaning up stale keys but will erase any manual changes or translations in the file.
 
-    ```sh
-    es-fluent-cli --mode aggressive
-    ```
+  ```sh
+  es-fluent-cli --mode aggressive
+  ```

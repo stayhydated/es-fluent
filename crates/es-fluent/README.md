@@ -7,10 +7,12 @@
 Derive macros and utilities for authoring strongly-typed messages with [Project Fluent](https://projectfluent.org/).
 
 This crate gives you:
+
 - Derives to turn enums/structs into Fluent message IDs and arguments.
 - Integration via a embedded singleton manager (`es-fluent-manager-embedded`) or for Bevy (`es-fluent-manager-bevy`).
 
 ## Examples
+
 - [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example)
 - [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
 - [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
@@ -66,6 +68,7 @@ fallback_language = "en"
 ```
 
 When you run a build, the builder will:
+
 - Discover your crate name,
 - Parse Rust sources under `src/`,
 - Generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
@@ -329,6 +332,7 @@ This macro reads your crate's `i18n.toml`, finds all available languages in your
 ### Usage
 
 Add the dependencies:
+
 ```toml
 [dependencies]
 es-fluent-lang = "*"
@@ -336,6 +340,7 @@ unic-langid = "*"
 ```
 
 Then, apply the macro to an empty enum:
+
 ```rs
 use es_fluent::EsFluent;
 use es_fluent_lang_macro::es_fluent_language;

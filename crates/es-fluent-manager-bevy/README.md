@@ -107,4 +107,5 @@ fn setup_system(mut commands: Commands) {
 ```
 
 ## Example
+
 - [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example)
