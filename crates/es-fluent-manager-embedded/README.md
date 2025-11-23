@@ -6,7 +6,7 @@ It is designed to work with embedded translations, using the `define_embedded_i1
 
 ## Usage
 
-1.  In each of your crates that has translations, define a embedded singleton-specific module:
+1. In each of your crates that has translations, define a embedded singleton-specific module:
 
 ```rs
 // In my_crate/src/lib.rs
@@ -15,7 +15,7 @@ It is designed to work with embedded translations, using the `define_embedded_i1
 es_fluent_manager_embedded::define_i18n_module!();
 ```
 
-2.  At the start of your application, initialize the embedded singleton:
+2. At the start of your application, initialize the embedded singleton:
 
 ```rs
 // In main.rs
@@ -35,6 +35,7 @@ fn main() {
 ```
 
 ## Examples
+
 - [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
 - [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
 - [iced](https://github.com/stayhydated/es-fluent/tree/master/examples/iced-example)

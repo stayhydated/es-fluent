@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+use std::env;
 use std::path::{Path, PathBuf};
 mod error;
 use error::FluentBuildError;
@@ -32,20 +33,29 @@ impl FluentBuilder {
         FluentBuilder { mode }
     }
 
-    /// Builds the Fluent translation files.
-    ///
-    /// This method will:
-    ///
-    /// 1.  Get the crate name from `Cargo.toml`.
-    /// 2.  Read the `i18n.toml` configuration file.
-    /// 3.  Parse all Rust files in the `src` directory.
-    /// 4.  Generate a Fluent translation file in the `i18n` directory.
-    ///
-    /// # Errors
-    ///
-    /// This method will return an error if any of the steps fail.
     #[require(A)]
     pub fn build(self) -> Result<(), FluentBuildError> {
+        println!("cargo:rerun-if-env-changed=ES_FLUENT_SKIP_BUILD");
+
+        // Allow consumers to skip FTL generation (e.g. during `cargo publish`)
+        // Example:
+        //   ES_FLUENT_SKIP_BUILD cargo publish --workspace --dry-run
+        let skip_build = env::var("ES_FLUENT_SKIP_BUILD")
+            .ok()
+            .map(|value| {
+                let normalized = value.trim().to_ascii_lowercase();
+                normalized.is_empty()
+                    || !(normalized == "0" || normalized == "false" || normalized == "no")
+            })
+            .unwrap_or(false);
+
+        if skip_build {
+            println!(
+                "cargo:warning=es-fluent-build: skipping FTL generation because ES_FLUENT_SKIP_BUILD is set"
+            );
+            return Ok(());
+        }
+
         let crate_name = {
             let manifest_dir =
                 std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
