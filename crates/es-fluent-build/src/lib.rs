@@ -35,10 +35,21 @@ impl FluentBuilder {
 
     #[require(A)]
     pub fn build(self) -> Result<(), FluentBuildError> {
+        println!("cargo:rerun-if-env-changed=ES_FLUENT_SKIP_BUILD");
+
         // Allow consumers to skip FTL generation (e.g. during `cargo publish`)
         // Example:
         //   ES_FLUENT_SKIP_BUILD cargo publish --workspace --dry-run
-        if env::var_os("ES_FLUENT_SKIP_BUILD").is_some() {
+        let skip_build = env::var("ES_FLUENT_SKIP_BUILD")
+            .ok()
+            .map(|value| {
+                let normalized = value.trim().to_ascii_lowercase();
+                normalized.is_empty()
+                    || !(normalized == "0" || normalized == "false" || normalized == "no")
+            })
+            .unwrap_or(false);
+
+        if skip_build {
             println!(
                 "cargo:warning=es-fluent-build: skipping FTL generation because ES_FLUENT_SKIP_BUILD is set"
             );

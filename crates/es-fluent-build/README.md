@@ -42,5 +42,5 @@ in envs like publishing, you can set the `ES_FLUENT_SKIP_BUILD` environment vari
 such as:
 
 ```sh
-ES_FLUENT_SKIP_BUILD cargo publish --workspace --dry-run
+ES_FLUENT_SKIP_BUILD=true cargo publish --workspace --dry-run
 ```
