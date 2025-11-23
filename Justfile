@@ -9,3 +9,6 @@ fmt:
 
 clippy:
     cargo clippy --workspace --all-features --exclude cosmic-example
+
+test-publish:
+  cargo publish --workspace --dry-run --allow-dirty
