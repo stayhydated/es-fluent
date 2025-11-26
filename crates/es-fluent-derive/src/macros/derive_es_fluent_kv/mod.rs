@@ -33,7 +33,10 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
     let strategy = DisplayStrategy::from(opts);
     let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
 
-    let keys = opts.keyyed_idents();
+    let keys = match opts.keyyed_idents() {
+        Ok(keys) => keys,
+        Err(err) => err.abort(),
+    };
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
         generate_unit_enum(opts, data, use_fluent_display, &ftl_enum_ident)

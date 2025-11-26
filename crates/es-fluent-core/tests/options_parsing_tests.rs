@@ -136,7 +136,7 @@ fn struct_display_strategy_override_fluent_and_this() {
 fn struct_kv_keys_parsing_and_field_skipping() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["Error", "Notice"], this)]
+        #[fluent_kv(keys = ["error", "notice"], this)]
         struct MyStruct {
             a: i32,
             #[fluent_kv(skip)]
@@ -152,6 +152,7 @@ fn struct_kv_keys_parsing_and_field_skipping() {
     // keyyed_idents are <StructName><Key>Ftl
     let mut key_names: Vec<String> = opts
         .keyyed_idents()
+        .unwrap()
         .into_iter()
         .map(|k| k.to_string())
         .collect();
@@ -171,6 +172,28 @@ fn struct_kv_keys_parsing_and_field_skipping() {
 
     // 'this' flag was set
     assert!(opts.attr_args().is_this());
+}
+
+#[test]
+fn struct_kv_keys_must_be_lowercase_snake_case() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluentKv)]
+        #[fluent_kv(keys = ["NotSnake"])]
+        struct MyStruct {
+            field: i32,
+        }
+    };
+
+    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let err = opts
+        .keyyed_idents()
+        .expect_err("Non-snake_case keys should be rejected");
+
+    let err_message = err.to_string();
+    assert!(
+        err_message.contains("lowercase snake_case"),
+        "Unexpected error message: {err_message}"
+    );
 }
 
 #[test]

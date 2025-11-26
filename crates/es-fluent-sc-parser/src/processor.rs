@@ -75,7 +75,8 @@ impl FluentProcessKind for FtlProcessor<StructKvKind> {
         };
 
         let mut type_infos = Vec::new();
-        analysis::struct_kv::analyze_struct_kv(&struct_opts, &mut type_infos);
-        Ok(type_infos)
+        analysis::struct_kv::analyze_struct_kv(&struct_opts, &mut type_infos)
+            .map(|_| type_infos)
+            .map_err(|e| FluentScParserError::AttributeValidation(self.current_file.clone(), e))
     }
 }

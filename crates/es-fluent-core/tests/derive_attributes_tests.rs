@@ -125,7 +125,7 @@ fn es_fluent_kv_attributes_no_keys_snapshot() {
 fn es_fluent_kv_attributes_keys_this_derive_default_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this, keys = ["Primary", "Secondary"], derive(Debug, PartialEq))]
+        #[fluent_kv(this, keys = ["primary", "secondary"], derive(Debug, PartialEq))]
         struct Profile {
             #[fluent_kv(default)]
             id: u64,

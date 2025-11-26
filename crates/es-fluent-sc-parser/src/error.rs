@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
+use es_fluent_core::error::EsFluentCoreError;
+
 #[derive(Debug, Error)]
 pub enum FluentScParserError {
     /// An IO error.
@@ -18,6 +20,10 @@ pub enum FluentScParserError {
     /// An error that occurs when parsing an attribute.
     #[error("Attribute parsing error in file '{0}': {1}")]
     AttributeParse(PathBuf, #[source] darling::Error),
+
+    /// An error that occurs when validating attributes.
+    #[error("Attribute validation error in file '{0}': {1}")]
+    AttributeValidation(PathBuf, #[source] EsFluentCoreError),
 
     /// An error that occurs when a required attribute is missing.
     #[error("Missing required attribute data in file '{0}': {1}")]

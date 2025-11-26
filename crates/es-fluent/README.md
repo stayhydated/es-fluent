@@ -186,7 +186,7 @@ use es_fluent::EsFluent;
 #[derive(EsFluent)]
 #[fluent(display = "std")]
 #[fluent(this)] // generates `Address::this_ftl()`
-#[fluent(keys = ["Description", "Label"])]
+#[fluent(keys = ["description", "label"])]
 pub struct Address {
     pub street: String,
     pub postal_code: String,
@@ -226,7 +226,7 @@ pub enum EnumCountry {
 
 #[derive(Clone, Debug, Default, EsFluentKv)]
 #[fluent_kv(display = "std")]
-#[fluent_kv(this, keys = ["Description", "Label"])]
+#[fluent_kv(this, keys = ["description", "label"])]
 pub struct User {
     pub username: Option<String>,
     pub email: String,
@@ -241,7 +241,7 @@ pub struct User {
 }
 ```
 
-The `#[fluent_kv(this, keys = ["Description", "Label"])]` attribute instructs the derive to generate enums `UserDescriptionFtl` and `UserLabelFtl`. The `this` argument also generates a message ID for the struct itself.
+The `#[fluent_kv(this, keys = ["description", "label"])]` attribute instructs the derive to generate enums `UserDescriptionFtl` and `UserLabelFtl`. The `this` argument also generates a message ID for the struct itself.
 
 This will generate the following FTL entries:
 
