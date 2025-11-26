@@ -70,7 +70,7 @@ fn struct_analysis_tuple_struct_generates_expected_ftl_type_info() {
 fn struct_analysis_with_keys_and_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["Error", "Notice"], this)]
+        #[fluent_kv(keys = ["error", "notice"], this)]
         struct MyStruct {
             a: i32,
             #[fluent_kv(skip)]
@@ -80,7 +80,7 @@ fn struct_analysis_with_keys_and_this_generates_expected_ftl_type_info() {
 
     let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
     let mut infos = Vec::new();
-    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos);
+    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos).unwrap();
 
     insta::assert_ron_snapshot!(
         "struct_analysis_with_keys_and_this_generates_expected_ftl_type_info",
@@ -129,7 +129,7 @@ fn enum_analysis_only_struct_and_tuple_variants_no_this() {
 fn struct_analysis_all_fields_skipped_returns_empty() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this, keys = ["A"])]
+        #[fluent_kv(this, keys = ["a"])]
         struct S {
             #[fluent_kv(skip)]
             a: i32,
@@ -140,7 +140,7 @@ fn struct_analysis_all_fields_skipped_returns_empty() {
 
     let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
     let mut infos = Vec::new();
-    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos);
+    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos).unwrap();
 
     assert_eq!(&infos, &[]);
 }

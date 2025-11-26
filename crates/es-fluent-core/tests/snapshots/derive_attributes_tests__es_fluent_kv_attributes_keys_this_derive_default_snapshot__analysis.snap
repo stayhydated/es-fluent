@@ -124,10 +124,10 @@ StructKvOpts {
         keys: Some(
             [
                 LitStr {
-                    token: "Primary",
+                    token: "primary",
                 },
                 LitStr {
-                    token: "Secondary",
+                    token: "secondary",
                 },
             ],
         ),

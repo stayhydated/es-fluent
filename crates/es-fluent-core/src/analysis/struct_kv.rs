@@ -3,9 +3,14 @@ use crate::namer;
 use crate::options::r#struct::StructKvOpts;
 use crate::registry::{FtlTypeInfo, FtlVariant};
 
-pub fn analyze_struct_kv(opts: &StructKvOpts, type_infos: &mut Vec<FtlTypeInfo>) {
+use crate::error::EsFluentCoreResult;
+
+pub fn analyze_struct_kv(
+    opts: &StructKvOpts,
+    type_infos: &mut Vec<FtlTypeInfo>,
+) -> EsFluentCoreResult<()> {
     let target_ident = opts.ident();
-    let keyyed_idents = opts.keyyed_idents();
+    let keyyed_idents = opts.keyyed_idents()?;
     let is_this = opts.attr_args().is_this();
 
     let field_names: Vec<String> = opts
@@ -20,7 +25,7 @@ pub fn analyze_struct_kv(opts: &StructKvOpts, type_infos: &mut Vec<FtlTypeInfo>)
         .collect();
 
     if field_names.is_empty() {
-        return;
+        return Ok(());
     }
 
     if keyyed_idents.is_empty() {
@@ -60,6 +65,8 @@ pub fn analyze_struct_kv(opts: &StructKvOpts, type_infos: &mut Vec<FtlTypeInfo>)
                 .variants(variants)
                 .build(),
         );
+
+        return Ok(());
     } else {
         for keyyed_ident in keyyed_idents {
             let mut variants: Vec<FtlVariant> = field_names
@@ -121,4 +128,6 @@ pub fn analyze_struct_kv(opts: &StructKvOpts, type_infos: &mut Vec<FtlTypeInfo>)
             );
         }
     }
+
+    Ok(())
 }

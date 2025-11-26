@@ -3,9 +3,11 @@ use std::str::FromStr as _;
 use bon::Builder;
 use darling::{FromDeriveInput, FromField, FromMeta};
 use getset::Getters;
+use heck::{ToPascalCase as _, ToSnakeCase as _};
 use quote::format_ident;
 use strum::IntoEnumIterator as _;
 
+use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::namer;
 use crate::strategy::DisplayStrategy;
 
@@ -192,18 +194,23 @@ impl StructKvOpts {
     }
 
     /// Returns the identifiers of the keyed FTL enums.
-    pub fn keyyed_idents(&self) -> Vec<syn::Ident> {
-        self.attr_args
-            .clone()
-            .keys
-            .map_or_else(Vec::new, |keys| {
+    pub fn keyyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
+        self.attr_args.clone().keys.map_or_else(
+            || Ok(Vec::new()),
+            |keys| {
                 keys.into_iter()
-                    .map(|key| format_ident!("{}", key.value()))
+                    .map(|key| {
+                        let pascal_key = Self::validate_key(&key)?;
+                        Ok(format_ident!(
+                            "{}{}{}",
+                            &self.ident,
+                            pascal_key,
+                            Self::FTL_ENUM_IDENT
+                        ))
+                    })
                     .collect()
-            })
-            .into_iter()
-            .map(|key| format_ident!("{}{}{}", &self.ident, key, Self::FTL_ENUM_IDENT))
-            .collect()
+            },
+        )
     }
 
     /// Returns the fields of the struct that are not skipped.
@@ -216,6 +223,27 @@ impl StructKvOpts {
                 .collect(),
             _ => vec![],
         }
+    }
+
+    fn validate_key(key: &syn::LitStr) -> EsFluentCoreResult<String> {
+        let key_str = key.value();
+        let snake_cased = key_str.to_snake_case();
+        let is_lower_snake = !key_str.is_empty()
+            && key_str == snake_cased
+            && key_str == key_str.to_ascii_lowercase();
+
+        if !is_lower_snake {
+            return Err(EsFluentCoreError::AttributeError {
+                message: format!(
+                    "keys in #[fluent_kv] must be lowercase snake_case; found \"{}\"",
+                    key_str
+                ),
+                span: Some(key.span()),
+            }
+            .with_help("Use values like \"description\" or \"label\".".to_string()));
+        }
+
+        Ok(key_str.to_pascal_case())
     }
 }
 
