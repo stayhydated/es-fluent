@@ -33,36 +33,42 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
     let strategy = DisplayStrategy::from(opts);
     let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
 
+    let this_ftl_struct_impl = if opts.attr_args().is_this() {
+        let original_ident = opts.ident();
+        let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
+        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+        quote! {
+            impl #impl_generics #original_ident #ty_generics #where_clause {
+                pub fn this_ftl() -> String {
+                    ::es_fluent::localize(#this_ftl_key, None)
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let keys = match opts.keyyed_idents() {
         Ok(keys) => keys,
         Err(err) => err.abort(),
     };
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        generate_unit_enum(opts, data, use_fluent_display, &ftl_enum_ident)
+        let ftl_enum = generate_unit_enum(opts, data, use_fluent_display, &ftl_enum_ident);
+        quote! {
+            #ftl_enum
+
+            #this_ftl_struct_impl
+        }
     } else {
         let enums = keys
             .iter()
             .map(|key| generate_unit_enum(opts, data, use_fluent_display, key));
 
-        let this_ftl_impl = if opts.attr_args().is_this() {
-            let original_ident = opts.ident();
-            let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
-            quote! {
-                impl #original_ident {
-                    pub fn this_ftl() -> String {
-                        ::es_fluent::localize(#this_ftl_key, None)
-                    }
-                }
-            }
-        } else {
-            quote! {}
-        };
-
         quote! {
             #(#enums)*
 
-            #this_ftl_impl
+            #this_ftl_struct_impl
         }
     }
 }

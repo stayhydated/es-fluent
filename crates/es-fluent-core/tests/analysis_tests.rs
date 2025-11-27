@@ -89,6 +89,29 @@ fn struct_analysis_with_keys_and_this_generates_expected_ftl_type_info() {
 }
 
 #[test]
+fn struct_analysis_no_keys_with_this_generates_expected_ftl_type_info() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluentKv)]
+        #[fluent_kv(this)]
+        struct Fruit {
+            name: String,
+            color: String,
+            #[fluent_kv(skip)]
+            calories: u16,
+        }
+    };
+
+    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let mut infos = Vec::new();
+    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos).unwrap();
+
+    insta::assert_ron_snapshot!(
+        "struct_analysis_no_keys_with_this_generates_expected_ftl_type_info",
+        &infos
+    );
+}
+
+#[test]
 fn enum_analysis_only_unit_variants_no_this() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]

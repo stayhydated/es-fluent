@@ -1,0 +1,38 @@
+---
+source: crates/es-fluent-core/tests/analysis_tests.rs
+expression: "&infos"
+---
+[
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "FruitFtl",
+    variants: [
+      FtlVariant(
+        name: "FruitFtl",
+        ftl_key: FluentKey("fruit_ftl"),
+        args: [],
+      ),
+      FtlVariant(
+        name: "name",
+        ftl_key: FluentKey("fruit_ftl-name"),
+        args: [],
+      ),
+      FtlVariant(
+        name: "color",
+        ftl_key: FluentKey("fruit_ftl-color"),
+        args: [],
+      ),
+    ],
+  ),
+  FtlTypeInfo(
+    type_kind: Enum,
+    type_name: "Fruit",
+    variants: [
+      FtlVariant(
+        name: "Fruit",
+        ftl_key: FluentKey("fruit"),
+        args: [],
+      ),
+    ],
+  ),
+]
