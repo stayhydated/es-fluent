@@ -43,7 +43,7 @@ clap = "4.5.38"
 colored = "2.1"
 crate-paths = "0.1.1"
 crossterm = "0.29.0"
-darling = "0.20.11"
+darling = "0.21.3"
 derive_more = "2.0.1"
 env_logger = "0.11"
 es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.2.7" }
