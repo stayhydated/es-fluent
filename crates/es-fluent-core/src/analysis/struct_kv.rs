@@ -11,6 +11,7 @@ pub fn analyze_struct_kv(
 ) -> EsFluentCoreResult<()> {
     let target_ident = opts.ident();
     let keyyed_idents = opts.keyyed_idents()?;
+    let has_keys = !keyyed_idents.is_empty();
     let is_this = opts.attr_args().is_this();
 
     let field_names: Vec<String> = opts
@@ -30,7 +31,6 @@ pub fn analyze_struct_kv(
 
     if keyyed_idents.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-
         let mut variants: Vec<FtlVariant> = field_names
             .iter()
             .map(|name_str| {
@@ -65,8 +65,6 @@ pub fn analyze_struct_kv(
                 .variants(variants)
                 .build(),
         );
-
-        return Ok(());
     } else {
         for keyyed_ident in keyyed_idents {
             let mut variants: Vec<FtlVariant> = field_names
@@ -104,29 +102,33 @@ pub fn analyze_struct_kv(
                     .build(),
             );
         }
+    }
 
-        if is_this {
-            let main_ftl_key = namer::FluentKey::new(target_ident, "");
-            let main_variant = FtlVariant::builder()
-                .name(target_ident.to_string())
-                .ftl_key(main_ftl_key)
-                .build();
+    if is_this {
+        let main_ftl_key = namer::FluentKey::new(target_ident, "");
+        let main_variant = FtlVariant::builder()
+            .name(target_ident.to_string())
+            .ftl_key(main_ftl_key)
+            .build();
 
-            log::debug!(
-                "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
-                TypeKind::Enum,
-                target_ident,
-                target_ident,
+        log::debug!(
+            "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
+            TypeKind::Enum,
+            target_ident,
+            target_ident,
+            if has_keys {
                 "struct analysis (main struct variant with keys)"
-            );
-            type_infos.push(
-                FtlTypeInfo::builder()
-                    .type_kind(TypeKind::Enum)
-                    .type_name(target_ident.to_string())
-                    .variants(vec![main_variant])
-                    .build(),
-            );
-        }
+            } else {
+                "struct analysis (main struct variant without keys)"
+            }
+        );
+        type_infos.push(
+            FtlTypeInfo::builder()
+                .type_kind(TypeKind::Enum)
+                .type_name(target_ident.to_string())
+                .variants(vec![main_variant])
+                .build(),
+        );
     }
 
     Ok(())
