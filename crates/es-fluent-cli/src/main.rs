@@ -235,7 +235,7 @@ fn generate_formatted_crate_and_build_info(
     lines.push("".to_string());
 
     for krate in discovered_crates {
-        let build_line = match initial_build_results.get(krate.name()) {
+        let build_line = match initial_build_results.get(krate.name().as_str()) {
             Some(BuildOutcome::Success { duration }) => {
                 format!(
                     "{} built in {}",
@@ -294,7 +294,7 @@ async fn run_app_loop(
                     crate_info.name()
                 );
                 app.pending_builds_debouncer
-                    .insert(crate_info.name().clone(), (crate_info, Instant::now()));
+                    .insert(crate_info.name().to_string(), (crate_info, Instant::now()));
             },
             Ok(AppEvent::Tick) => {
                 log::trace!("Received tick event.");
@@ -345,7 +345,8 @@ async fn run_app_loop(
                         let mut statuses_locked = build_statuses_arc.lock().unwrap();
                         match outcome {
                             Ok(build_outcome) => {
-                                statuses_locked.insert(krate_name_captured.clone(), build_outcome);
+                                statuses_locked
+                                    .insert(krate_name_captured.to_string(), build_outcome);
                             },
                             Err(cli_err) => {
                                 log::error!(
@@ -358,12 +359,12 @@ async fn run_app_loop(
                                     duration: Duration::ZERO,
                                 };
                                 statuses_locked
-                                    .insert(krate_name_captured.clone(), failure_outcome);
+                                    .insert(krate_name_captured.to_string(), failure_outcome);
                             },
                         };
 
                         let mut active_builds_locked_after = active_builds_arc.lock().unwrap();
-                        active_builds_locked_after.remove(&krate_name_captured);
+                        active_builds_locked_after.remove(krate_name_captured.as_str());
                         log::debug!("Removed {} from active builds.", krate_name_captured);
                     });
                 }

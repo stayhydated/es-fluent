@@ -3,10 +3,10 @@
 use std::env;
 use std::path::{Path, PathBuf};
 mod error;
+use cargo_metadata::PackageName;
 use error::FluentBuildError;
-use state_shift::{impl_state, type_state};
-
 pub use es_fluent_generate::FluentParseMode;
+use state_shift::{impl_state, type_state};
 
 #[type_state(
     states = (Unset, ModeSet),
@@ -72,7 +72,9 @@ impl FluentBuilder {
                         .map(|pkg| pkg.name.clone())
                 })
                 .unwrap_or_else(|| {
-                    std::env::var("CARGO_PKG_NAME").expect("Error fetching `CARGO_PKG_NAME` env")
+                    let crate_name = std::env::var("CARGO_PKG_NAME")
+                        .expect("Error fetching `CARGO_PKG_NAME` env");
+                    PackageName::new(crate_name)
                 })
         };
 
