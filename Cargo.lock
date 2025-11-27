@@ -4356,7 +4356,7 @@ version = "0.2.7"
 dependencies = [
  "clap",
  "es-fluent-core",
- "fluent-syntax 0.11.1",
+ "fluent-syntax",
  "heck 0.5.0",
  "log",
  "proc-macro2",
@@ -4717,7 +4717,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01203cb8918f5711e73891b347816d932046f95f54207710bda99beaeb423bf4"
 dependencies = [
  "fluent-langneg",
- "fluent-syntax 0.12.0",
+ "fluent-syntax",
  "intl-memoizer",
  "intl_pluralrules",
  "rustc-hash 2.1.1",
@@ -4733,15 +4733,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7eebbe59450baee8282d71676f3bfed5689aeab00b27545e83e5f14b1195e8b0"
 dependencies = [
  "unic-langid",
-]
-
-[[package]]
-name = "fluent-syntax"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a530c4694a6a8d528794ee9bbd8ba0122e779629ac908d15ad5a7ae7763a33d"
-dependencies = [
- "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -6097,7 +6088,7 @@ dependencies = [
  "arc-swap",
  "fluent",
  "fluent-langneg",
- "fluent-syntax 0.12.0",
+ "fluent-syntax",
  "i18n-embed-impl",
  "intl-memoizer",
  "log",
@@ -6117,7 +6108,7 @@ checksum = "e598ed73b67db92f61e04672e599eef2991a262a40e1666735b8a86d2e7e9f30"
 dependencies = [
  "find-crate",
  "fluent",
- "fluent-syntax 0.12.0",
+ "fluent-syntax",
  "i18n-config",
  "i18n-embed",
  "proc-macro-error2",
