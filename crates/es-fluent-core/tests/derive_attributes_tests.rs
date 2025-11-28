@@ -127,7 +127,6 @@ fn es_fluent_kv_attributes_keys_this_derive_default_snapshot() {
         #[derive(EsFluentKv)]
         #[fluent_kv(this, keys = ["primary", "secondary"], derive(Debug, PartialEq))]
         struct Profile {
-            #[fluent_kv(default)]
             id: u64,
             username: String,
             #[fluent_kv(skip)]

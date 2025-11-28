@@ -14,7 +14,7 @@ fn build_list_items(app: &'_ AppState) -> Vec<ListItem<'_>> {
     let active_builds_locked = app.active_builds.lock().unwrap();
 
     for krate in &app.crates {
-        let crate_name_str = krate.name();
+        let crate_name_str = krate.name().as_str();
         let status_span: Span;
 
         if active_builds_locked.contains(crate_name_str) {

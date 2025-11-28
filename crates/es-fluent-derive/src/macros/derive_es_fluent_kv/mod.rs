@@ -17,10 +17,6 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            // if let Err(err) = validation::validate_struct(&opts, data) {
-            //     err.abort();
-            // }
-
             process_struct(&opts, data)
         },
         _ => panic!("EsFluentKv can only be used on structs"),
@@ -32,6 +28,11 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStream {
     let strategy = DisplayStrategy::from(opts);
     let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
+
+    let keys = match opts.keyyed_idents() {
+        Ok(keys) => keys,
+        Err(err) => err.abort(),
+    };
 
     let this_ftl_struct_impl = if opts.attr_args().is_this() {
         let original_ident = opts.ident();
@@ -46,11 +47,6 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
         }
     } else {
         quote! {}
-    };
-
-    let keys = match opts.keyyed_idents() {
-        Ok(keys) => keys,
-        Err(err) => err.abort(),
     };
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
@@ -114,29 +110,6 @@ fn generate_unit_enum(
       }
     };
 
-    let default_variant_ident = {
-        let field_opts = opts.fields();
-        let fluent_default_opt = field_opts.iter().find(|opts| opts.is_default());
-
-        fluent_default_opt.and_then(|opts| {
-            opts.ident().as_ref().map(|ident| {
-                let pascal_case_name = ident.to_string().to_pascal_case();
-                syn::Ident::new(&pascal_case_name, ident.span())
-            })
-        })
-    };
-    let default_impl = if let Some(default_variant_ident) = default_variant_ident {
-        quote! {
-            impl Default for #ident {
-                fn default() -> Self {
-                    Self::#default_variant_ident
-                }
-            }
-        }
-    } else {
-        quote! {}
-    };
-
     let display_impl = {
         let trait_impl = if use_fluent_display {
             quote! { ::es_fluent::FluentDisplay }
@@ -160,23 +133,22 @@ fn generate_unit_enum(
         }
     };
 
-    let this_ftl_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
-        quote! {
-            impl #ident {
-                pub fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
+    let this_ftl_impl =
+        if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
+            let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
+            quote! {
+                impl #ident {
+                    pub fn this_ftl() -> String {
+                        ::es_fluent::localize(#this_ftl_key, None)
+                    }
                 }
             }
-        }
-    } else {
-        quote! {}
-    };
+        } else {
+            quote! {}
+        };
 
     quote! {
       #new_enum
-
-      #default_impl
 
       #display_impl
 

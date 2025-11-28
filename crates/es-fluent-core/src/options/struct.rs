@@ -154,20 +154,12 @@ pub struct StructKvFieldOpts {
     /// Whether to skip this field.
     #[darling(default)]
     skip: Option<bool>,
-    /// Whether this field is a default.
-    #[darling(default)]
-    default: Option<bool>,
 }
 
 impl StructKvFieldOpts {
     /// Returns `true` if the field should be skipped.
     pub fn is_skipped(&self) -> bool {
         self.skip.unwrap_or(false)
-    }
-
-    /// Returns `true` if the field is a default.
-    pub fn is_default(&self) -> bool {
-        self.default.unwrap_or(false)
     }
 }
 
@@ -186,7 +178,7 @@ pub struct StructKvOpts {
 }
 
 impl StructKvOpts {
-    const FTL_ENUM_IDENT: &str = "Ftl";
+    const FTL_ENUM_IDENT: &str = "KvFtl";
 
     /// Returns the identifier of the FTL enum.
     pub fn ftl_enum_ident(&self) -> syn::Ident {

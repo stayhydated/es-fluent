@@ -1,4 +1,5 @@
 use crate::error::CliError;
+use cargo_metadata::PackageName;
 use cargo_metadata::{MetadataCommand, Package};
 use es_fluent_generate::FluentParseMode;
 use getset::Getters;
@@ -14,7 +15,7 @@ use std::time::{Duration, Instant};
 #[getset(get = "pub")]
 pub struct CrateInfo {
     /// The name of the crate.
-    name: String,
+    name: PackageName,
     /// The path to the crate's manifest directory.
     manifest_dir: PathBuf,
     /// The path to the crate's `src` directory.
@@ -112,7 +113,7 @@ pub async fn build_all_crates(
     let mut results = HashMap::new();
     for krate in crates {
         let outcome = build_crate(krate, mode.clone()).await?;
-        results.insert(krate.name.clone(), outcome);
+        results.insert(krate.name.to_string(), outcome);
     }
     Ok(results)
 }
