@@ -160,20 +160,19 @@ fn generate_unit_enum(
         }
     };
 
-    let this_ftl_impl = if opts.attr_args().is_this()
-        && opts.keyyed_idents().map_or(false, |keys| !keys.is_empty())
-    {
-        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
-        quote! {
-            impl #ident {
-                pub fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
+    let this_ftl_impl =
+        if opts.attr_args().is_this() && opts.keyyed_idents().is_ok_and(|keys| !keys.is_empty()) {
+            let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
+            quote! {
+                impl #ident {
+                    pub fn this_ftl() -> String {
+                        ::es_fluent::localize(#this_ftl_key, None)
+                    }
                 }
             }
-        }
-    } else {
-        quote! {}
-    };
+        } else {
+            quote! {}
+        };
 
     quote! {
       #new_enum
