@@ -133,19 +133,18 @@ fn generate_unit_enum(
         }
     };
 
-    let this_ftl_impl =
-        if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
-            let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
-            quote! {
-                impl #ident {
-                    pub fn this_ftl() -> String {
-                        ::es_fluent::localize(#this_ftl_key, None)
-                    }
+    let this_ftl_impl = if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
+        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
+        quote! {
+            impl #ident {
+                pub fn this_ftl() -> String {
+                    ::es_fluent::localize(#this_ftl_key, None)
                 }
             }
-        } else {
-            quote! {}
-        };
+        }
+    } else {
+        quote! {}
+    };
 
     quote! {
       #new_enum
