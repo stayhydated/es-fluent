@@ -33,6 +33,11 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
     let strategy = DisplayStrategy::from(opts);
     let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
 
+    let keys = match opts.keyyed_idents() {
+        Ok(keys) => keys,
+        Err(err) => err.abort(),
+    };
+
     let this_ftl_struct_impl = if opts.attr_args().is_this() {
         let original_ident = opts.ident();
         let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
@@ -46,11 +51,6 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
         }
     } else {
         quote! {}
-    };
-
-    let keys = match opts.keyyed_idents() {
-        Ok(keys) => keys,
-        Err(err) => err.abort(),
     };
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
@@ -160,7 +160,9 @@ fn generate_unit_enum(
         }
     };
 
-    let this_ftl_impl = if opts.attr_args().is_this() {
+    let this_ftl_impl = if opts.attr_args().is_this()
+        && opts.keyyed_idents().map_or(false, |keys| !keys.is_empty())
+    {
         let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
         quote! {
             impl #ident {
