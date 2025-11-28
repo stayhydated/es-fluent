@@ -17,10 +17,6 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            // if let Err(err) = validation::validate_struct(&opts, data) {
-            //     err.abort();
-            // }
-
             process_struct(&opts, data)
         },
         _ => panic!("EsFluentKv can only be used on structs"),
@@ -114,29 +110,6 @@ fn generate_unit_enum(
       }
     };
 
-    let default_variant_ident = {
-        let field_opts = opts.fields();
-        let fluent_default_opt = field_opts.iter().find(|opts| opts.is_default());
-
-        fluent_default_opt.and_then(|opts| {
-            opts.ident().as_ref().map(|ident| {
-                let pascal_case_name = ident.to_string().to_pascal_case();
-                syn::Ident::new(&pascal_case_name, ident.span())
-            })
-        })
-    };
-    let default_impl = if let Some(default_variant_ident) = default_variant_ident {
-        quote! {
-            impl Default for #ident {
-                fn default() -> Self {
-                    Self::#default_variant_ident
-                }
-            }
-        }
-    } else {
-        quote! {}
-    };
-
     let display_impl = {
         let trait_impl = if use_fluent_display {
             quote! { ::es_fluent::FluentDisplay }
@@ -176,8 +149,6 @@ fn generate_unit_enum(
 
     quote! {
       #new_enum
-
-      #default_impl
 
       #display_impl
 
