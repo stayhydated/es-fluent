@@ -134,7 +134,7 @@ fn generate_unit_enum(
     };
 
     let this_ftl_impl =
-        if opts.attr_args().is_this() && opts.keyyed_idents().is_ok_and(|keys| !keys.is_empty()) {
+        if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
             let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
             quote! {
                 impl #ident {
