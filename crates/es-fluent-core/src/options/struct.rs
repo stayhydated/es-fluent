@@ -178,7 +178,7 @@ pub struct StructKvOpts {
 }
 
 impl StructKvOpts {
-    const FTL_ENUM_IDENT: &str = "Ftl";
+    const FTL_ENUM_IDENT: &str = "KvFtl";
 
     /// Returns the identifier of the FTL enum.
     pub fn ftl_enum_ident(&self) -> syn::Ident {

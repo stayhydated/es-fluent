@@ -37,7 +37,6 @@ StructKvOpts {
                         },
                     },
                     skip: None,
-                    default: None,
                 },
                 StructKvFieldOpts {
                     ident: Some(
@@ -60,7 +59,6 @@ StructKvOpts {
                         },
                     },
                     skip: None,
-                    default: None,
                 },
                 StructKvFieldOpts {
                     ident: Some(
@@ -85,7 +83,6 @@ StructKvOpts {
                     skip: Some(
                         true,
                     ),
-                    default: None,
                 },
             ],
             span: Some(

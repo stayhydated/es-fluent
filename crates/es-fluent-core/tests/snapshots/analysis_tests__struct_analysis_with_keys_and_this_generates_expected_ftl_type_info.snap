@@ -5,32 +5,32 @@ expression: "&infos"
 [
   FtlTypeInfo(
     type_kind: Enum,
-    type_name: "MyStructErrorFtl",
+    type_name: "MyStructErrorKvFtl",
     variants: [
       FtlVariant(
-        name: "MyStructErrorFtl",
-        ftl_key: FluentKey("my_struct_error_ftl"),
+        name: "MyStructErrorKvFtl",
+        ftl_key: FluentKey("my_struct_error_kv_ftl"),
         args: [],
       ),
       FtlVariant(
         name: "a",
-        ftl_key: FluentKey("my_struct_error_ftl-a"),
+        ftl_key: FluentKey("my_struct_error_kv_ftl-a"),
         args: [],
       ),
     ],
   ),
   FtlTypeInfo(
     type_kind: Enum,
-    type_name: "MyStructNoticeFtl",
+    type_name: "MyStructNoticeKvFtl",
     variants: [
       FtlVariant(
-        name: "MyStructNoticeFtl",
-        ftl_key: FluentKey("my_struct_notice_ftl"),
+        name: "MyStructNoticeKvFtl",
+        ftl_key: FluentKey("my_struct_notice_kv_ftl"),
         args: [],
       ),
       FtlVariant(
         name: "a",
-        ftl_key: FluentKey("my_struct_notice_ftl-a"),
+        ftl_key: FluentKey("my_struct_notice_kv_ftl-a"),
         args: [],
       ),
     ],

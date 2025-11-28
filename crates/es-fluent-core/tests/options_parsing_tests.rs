@@ -147,7 +147,7 @@ fn struct_kv_keys_parsing_and_field_skipping() {
     let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
 
     // ftl_enum_ident is <StructName>Ftl
-    assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructFtl");
+    assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructKvFtl");
 
     // keyyed_idents are <StructName><Key>Ftl
     let mut key_names: Vec<String> = opts
@@ -160,8 +160,8 @@ fn struct_kv_keys_parsing_and_field_skipping() {
     assert_eq!(
         key_names,
         vec![
-            "MyStructErrorFtl".to_string(),
-            "MyStructNoticeFtl".to_string()
+            "MyStructErrorKvFtl".to_string(),
+            "MyStructNoticeKvFtl".to_string()
         ]
     );
 

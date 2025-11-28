@@ -5,63 +5,63 @@ expression: "&infos"
 [
   FtlTypeInfo(
     type_kind: Enum,
-    type_name: "MyStructErrorFtl",
+    type_name: "MyStructErrorKvFtl",
     variants: [
       FtlVariant(
         name: "first",
-        ftl_key: FluentKey("my_struct_error_ftl-first"),
+        ftl_key: FluentKey("my_struct_error_kv_ftl-first"),
         args: [],
       ),
       FtlVariant(
         name: "second",
-        ftl_key: FluentKey("my_struct_error_ftl-second"),
+        ftl_key: FluentKey("my_struct_error_kv_ftl-second"),
         args: [],
       ),
       FtlVariant(
         name: "third",
-        ftl_key: FluentKey("my_struct_error_ftl-third"),
+        ftl_key: FluentKey("my_struct_error_kv_ftl-third"),
         args: [],
       ),
     ],
   ),
   FtlTypeInfo(
     type_kind: Enum,
-    type_name: "MyStructNoticeFtl",
+    type_name: "MyStructNoticeKvFtl",
     variants: [
       FtlVariant(
         name: "first",
-        ftl_key: FluentKey("my_struct_notice_ftl-first"),
+        ftl_key: FluentKey("my_struct_notice_kv_ftl-first"),
         args: [],
       ),
       FtlVariant(
         name: "second",
-        ftl_key: FluentKey("my_struct_notice_ftl-second"),
+        ftl_key: FluentKey("my_struct_notice_kv_ftl-second"),
         args: [],
       ),
       FtlVariant(
         name: "third",
-        ftl_key: FluentKey("my_struct_notice_ftl-third"),
+        ftl_key: FluentKey("my_struct_notice_kv_ftl-third"),
         args: [],
       ),
     ],
   ),
   FtlTypeInfo(
     type_kind: Enum,
-    type_name: "MyStructWarningFtl",
+    type_name: "MyStructWarningKvFtl",
     variants: [
       FtlVariant(
         name: "first",
-        ftl_key: FluentKey("my_struct_warning_ftl-first"),
+        ftl_key: FluentKey("my_struct_warning_kv_ftl-first"),
         args: [],
       ),
       FtlVariant(
         name: "second",
-        ftl_key: FluentKey("my_struct_warning_ftl-second"),
+        ftl_key: FluentKey("my_struct_warning_kv_ftl-second"),
         args: [],
       ),
       FtlVariant(
         name: "third",
-        ftl_key: FluentKey("my_struct_warning_ftl-third"),
+        ftl_key: FluentKey("my_struct_warning_kv_ftl-third"),
         args: [],
       ),
     ],
