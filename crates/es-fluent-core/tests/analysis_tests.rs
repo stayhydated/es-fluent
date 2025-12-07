@@ -32,7 +32,6 @@ fn enum_analysis_generates_expected_ftl_type_info() {
 fn struct_analysis_no_keys_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
         struct MyStruct {
             a: i32,
             #[fluent(skip)]
@@ -53,7 +52,6 @@ fn struct_analysis_no_keys_generates_expected_ftl_type_info() {
 fn struct_analysis_tuple_struct_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
         struct TupleStruct(String, #[fluent(skip)] i32, bool);
     };
 
@@ -115,7 +113,6 @@ fn struct_analysis_no_keys_with_this_generates_expected_ftl_type_info() {
 fn enum_analysis_only_unit_variants_no_this() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
         enum E {
             A,
             B,
@@ -132,7 +129,6 @@ fn enum_analysis_only_unit_variants_no_this() {
 fn enum_analysis_only_struct_and_tuple_variants_no_this() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
         enum E {
             Data { x: i32, y: i32 },
             Tup(String, #[fluent(skip)] bool, u8),

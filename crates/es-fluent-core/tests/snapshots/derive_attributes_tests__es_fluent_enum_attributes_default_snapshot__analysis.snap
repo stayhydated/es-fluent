@@ -167,7 +167,6 @@ EnumOpts {
         ],
     ),
     attr_args: EnumFluentAttributeArgs {
-        display: None,
         choice: None,
         this: None,
         resource: None,

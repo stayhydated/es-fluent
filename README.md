@@ -79,13 +79,12 @@ For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the f
 
 ### `#[derive(EsFluent)]` on enums
 
-Annotate an enum or a struct to generate message IDs and, optionally, implement `es_fluent::FluentDisplay` or `std::fmt::Display`.
+Annotate an enum or a struct to generate message IDs and implement `es_fluent::FluentDisplay`.
 
 ```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
-#[fluent(display = "fluent")] // default; use "std" to implement std::fmt::Display
 pub struct HelloUser<'a>(&'a str);
 
 impl<'a> HelloUser<'a> {
@@ -162,19 +161,7 @@ shared-Photos =
     }.
 ```
 
-### Display strategy
 
-By default, `EsFluent` implements `es_fluent::FluentDisplay`, which formats through Fluent. If you prefer plain Rust `Display` for a type, use:
-
-```rs
-#[derive(EsFluent)]
-#[fluent(display = "std")]
-pub enum AbcStdDisplay {
-    A, B, C,
-}
-```
-
-This also works with `strum::EnumDiscriminants` when you want to display the discriminants.
 
 ### `#[derive(EsFluent)]` on structs (keys and “this”)
 
@@ -184,7 +171,6 @@ You can derive on structs to produce key enums (labels, descriptions, etc.). For
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
-#[fluent(display = "std")]
 #[fluent(this)] // generates `Address::this_ftl()`
 #[fluent(keys = ["description", "label"])]
 pub struct Address {
@@ -193,7 +179,7 @@ pub struct Address {
 }
 ```
 
-This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with variants for each field (`Street`, `PostalCode`). They implement the selected display strategy. `this` adds a helper `Address::this_ftl()` that returns the ID of the parent.
+This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with variants for each field (`Street`, `PostalCode`). `this` adds a helper `Address::this_ftl()` that returns the ID of the parent.
 
 ### `#[derive(EsFluentKv)]` on structs
 
@@ -207,7 +193,6 @@ use rust_decimal::Decimal;
 use strum::EnumIter;
 
 #[derive(Clone, Debug, Default, EnumIter, EsFluent, PartialEq)]
-#[fluent(display = "std")]
 pub enum PreferedLanguage {
     #[default]
     English,
@@ -216,7 +201,6 @@ pub enum PreferedLanguage {
 }
 
 #[derive(Clone, Debug, Default, EnumIter, EsFluent, PartialEq)]
-#[fluent(display = "std")]
 pub enum EnumCountry {
     #[default]
     UnitedStates,
@@ -225,7 +209,6 @@ pub enum EnumCountry {
 }
 
 #[derive(Clone, Debug, Default, EsFluentKv)]
-#[fluent_kv(display = "std")]
 #[fluent_kv(this, keys = ["description", "label"])]
 pub struct User {
     pub username: Option<String>,
@@ -264,31 +247,31 @@ user = User
 
 ## UserDescriptionFtl
 
-user_description_ftl = User Description Ftl
-user_description_ftl-age = Age
-user_description_ftl-balance = Balance
-user_description_ftl-birth_date = Birth Date
-user_description_ftl-country = Country
-user_description_ftl-email = Email
-user_description_ftl-enable_notifications = Enable Notifications
-user_description_ftl-preferred = Preferred
-user_description_ftl-skip_me = Skip Me
-user_description_ftl-subscribe_newsletter = Subscribe Newsletter
-user_description_ftl-username = Username
+user_description_kv_ftl = User Description Ftl
+user_description_kv_ftl-age = Age
+user_description_kv_ftl-balance = Balance
+user_description_kv_ftl-birth_date = Birth Date
+user_description_kv_ftl-country = Country
+user_description_kv_ftl-email = Email
+user_description_kv_ftl-enable_notifications = Enable Notifications
+user_description_kv_ftl-preferred = Preferred
+user_description_kv_ftl-skip_me = Skip Me
+user_description_kv_ftl-subscribe_newsletter = Subscribe Newsletter
+user_description_kv_ftl-username = Username
 
 ## UserLabelFtl
 
-user_label_ftl = User Label Ftl
-user_label_ftl-age = Age
-user_label_ftl-balance = Balance
-user_label_ftl-birth_date = Birth Date
-user_label_ftl-country = Country
-user_label_ftl-email = Email
-user_label_ftl-enable_notifications = Enable Notifications
-user_label_ftl-preferred = Preferred
-user_label_ftl-skip_me = Skip Me
-user_label_ftl-subscribe_newsletter = Subscribe Newsletter
-user_label_ftl-username = Username
+user_label_kv_ftl = User Label Ftl
+user_label_kv_ftl-age = Age
+user_label_kv_ftl-balance = Balance
+user_label_kv_ftl-birth_date = Birth Date
+user_label_kv_ftl-country = Country
+user_label_kv_ftl-email = Email
+user_label_kv_ftl-enable_notifications = Enable Notifications
+user_label_kv_ftl-preferred = Preferred
+user_label_kv_ftl-skip_me = Skip Me
+user_label_kv_ftl-subscribe_newsletter = Subscribe Newsletter
+user_label_kv_ftl-username = Username
 ```
 
 ## Derive Macro Supported kinds

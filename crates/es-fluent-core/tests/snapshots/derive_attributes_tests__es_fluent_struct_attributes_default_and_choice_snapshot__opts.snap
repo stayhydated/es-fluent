@@ -102,9 +102,6 @@ StructOpts {
         },
     ),
     attr_args: StructFluentAttributeArgs {
-        display: Some(
-            "std",
-        ),
         this: None,
         derive: PathList(
             [],

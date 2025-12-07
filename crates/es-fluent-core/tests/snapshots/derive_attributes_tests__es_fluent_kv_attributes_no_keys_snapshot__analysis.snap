@@ -92,7 +92,6 @@ StructKvOpts {
         },
     ),
     attr_args: StructKvFluentAttributeArgs {
-        display: None,
         keys: None,
         this: None,
         derive: PathList(

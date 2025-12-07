@@ -1,18 +1,14 @@
 use es_fluent_core::namer;
 use es_fluent_core::options::r#enum::EnumOpts;
-use es_fluent_core::strategy::DisplayStrategy;
+
 use proc_macro2::TokenStream;
 use quote::quote;
 
 pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
-    let strategy = opts.attr_args().display();
-    match strategy {
-        DisplayStrategy::FluentDisplay => generate(opts, data, true),
-        DisplayStrategy::StdDisplay => generate(opts, data, false),
-    }
+    generate(opts, data)
 }
 
-fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) -> TokenStream {
+fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
     let base_key = opts.base_key();
 
@@ -158,17 +154,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
     });
 
     let display_impl = {
-        let trait_impl = if use_fluent_display {
-            quote! { ::es_fluent::FluentDisplay }
-        } else {
-            quote! { ::std::fmt::Display }
-        };
+        let trait_impl = quote! { ::es_fluent::FluentDisplay };
+        let trait_fmt_fn_ident = quote! { fluent_fmt };
 
-        let trait_fmt_fn_ident = if use_fluent_display {
-            quote! { fluent_fmt }
-        } else {
-            quote! { fmt }
-        };
         quote! {
             impl #impl_generics #trait_impl for #original_ident #ty_generics #where_clause {
                 fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -180,15 +168,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum, use_fluent_display: bool) ->
         }
     };
 
-    let fluent_value_inner_fn = if use_fluent_display {
-        quote! {
-          use ::es_fluent::ToFluentString as _;
-          value.to_fluent_string().into()
-        }
-    } else {
-        quote! {
-          value.to_string().into()
-        }
+    let fluent_value_inner_fn = quote! {
+      use ::es_fluent::ToFluentString as _;
+      value.to_fluent_string().into()
     };
 
     let this_ftl_impl = if opts.attr_args().is_this() {

@@ -22,7 +22,7 @@ pub use es_fluent_manager_core as __manager_core;
 pub use unic_langid;
 
 mod traits;
-pub use traits::*;
+pub use traits::{EsFluentChoice, FluentDisplay, ToFluentString};
 
 use std::sync::{Arc, OnceLock, RwLock};
 

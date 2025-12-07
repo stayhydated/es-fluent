@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_core::namer;
 use es_fluent_core::options::r#struct::StructKvOpts;
-use es_fluent_core::strategy::DisplayStrategy;
+
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -26,9 +26,6 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStream {
-    let strategy = DisplayStrategy::from(opts);
-    let use_fluent_display = matches!(strategy, DisplayStrategy::FluentDisplay);
-
     let keys = match opts.keyyed_idents() {
         Ok(keys) => keys,
         Err(err) => err.abort(),
@@ -50,7 +47,7 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
     };
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum = generate_unit_enum(opts, data, use_fluent_display, &ftl_enum_ident);
+        let ftl_enum = generate_unit_enum(opts, data, &ftl_enum_ident);
         quote! {
             #ftl_enum
 
@@ -59,7 +56,7 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
     } else {
         let enums = keys
             .iter()
-            .map(|key| generate_unit_enum(opts, data, use_fluent_display, key));
+            .map(|key| generate_unit_enum(opts, data, key));
 
         quote! {
             #(#enums)*
@@ -72,7 +69,6 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
 fn generate_unit_enum(
     opts: &StructKvOpts,
     _data: &syn::DataStruct,
-    use_fluent_display: bool,
     ident: &syn::Ident,
 ) -> TokenStream {
     let field_opts = opts.fields();
@@ -111,17 +107,9 @@ fn generate_unit_enum(
     };
 
     let display_impl = {
-        let trait_impl = if use_fluent_display {
-            quote! { ::es_fluent::FluentDisplay }
-        } else {
-            quote! { ::std::fmt::Display }
-        };
+        let trait_impl = quote! { ::es_fluent::FluentDisplay };
+        let trait_fmt_fn_ident = quote! { fluent_fmt };
 
-        let trait_fmt_fn_ident = if use_fluent_display {
-            quote! { fluent_fmt }
-        } else {
-            quote! { fmt }
-        };
         quote! {
             impl #trait_impl for #ident {
                 fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -155,7 +143,8 @@ fn generate_unit_enum(
 
       impl From<& #ident> for ::es_fluent::FluentValue<'_> {
             fn from(value: & #ident) -> Self {
-              value.to_string().into()
+              use ::es_fluent::ToFluentString as _;
+              value.to_fluent_string().into()
             }
       }
 
