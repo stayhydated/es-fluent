@@ -6,13 +6,11 @@ use es_fluent_core::options::{
 
 use syn::{DeriveInput, parse_quote};
 
-
-
 #[test]
 fn enum_variants_and_fields_skipping_and_choice() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        
+
         enum MyEnum {
             // Struct variant with one skipped field and one choice field
             Data {
@@ -159,7 +157,7 @@ fn struct_fluent_parsing() {
 fn struct_tuple_fields_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        
+
         struct TupleStruct(#[fluent(skip)] i32, String, #[fluent(choice)] bool);
     };
 

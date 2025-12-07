@@ -54,9 +54,7 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
             #this_ftl_struct_impl
         }
     } else {
-        let enums = keys
-            .iter()
-            .map(|key| generate_unit_enum(opts, data, key));
+        let enums = keys.iter().map(|key| generate_unit_enum(opts, data, key));
 
         quote! {
             #(#enums)*
