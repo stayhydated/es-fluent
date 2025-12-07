@@ -3,45 +3,16 @@ use es_fluent_core::options::{
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructKvOpts, StructOpts},
 };
-use es_fluent_core::strategy::DisplayStrategy;
+
 use syn::{DeriveInput, parse_quote};
 
-#[test]
-fn enum_display_strategy_default_is_fluent() {
-    let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent] // no explicit display -> default for enums is FluentDisplay
-        enum MyEnum {
-            Unit,
-        }
-    };
 
-    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    assert_eq!(DisplayStrategy::from(&opts), DisplayStrategy::FluentDisplay);
-    assert!(!opts.attr_args().is_this());
-    assert!(!opts.attr_args().is_choice());
-}
-
-#[test]
-fn enum_display_strategy_override_std_and_this() {
-    let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(display = "std", this)]
-        enum MyEnum {
-            Unit,
-        }
-    };
-
-    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    assert_eq!(DisplayStrategy::from(&opts), DisplayStrategy::StdDisplay);
-    assert!(opts.attr_args().is_this());
-}
 
 #[test]
 fn enum_variants_and_fields_skipping_and_choice() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
+        
         enum MyEnum {
             // Struct variant with one skipped field and one choice field
             Data {
@@ -100,36 +71,6 @@ fn enum_variants_and_fields_skipping_and_choice() {
         .expect("Unit variant present");
     assert!(matches!(unit.style(), darling::ast::Style::Unit));
     assert!(unit.fields().is_empty());
-}
-
-#[test]
-fn struct_display_strategy_default_is_fluent() {
-    let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent] // no explicit display -> default for structs is FluentDisplay
-        struct MyStruct {
-            a: i32,
-        }
-    };
-
-    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    assert_eq!(DisplayStrategy::from(&opts), DisplayStrategy::FluentDisplay);
-    assert!(!opts.attr_args().is_this());
-}
-
-#[test]
-fn struct_display_strategy_override_fluent_and_this() {
-    let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(display = "fluent", this)]
-        struct MyStruct {
-            a: i32,
-        }
-    };
-
-    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    assert_eq!(DisplayStrategy::from(&opts), DisplayStrategy::FluentDisplay);
-    assert!(opts.attr_args().is_this());
 }
 
 #[test]
@@ -197,38 +138,6 @@ fn struct_kv_keys_must_be_lowercase_snake_case() {
 }
 
 #[test]
-#[should_panic(expected = "Unexpected mode")]
-fn enum_display_strategy_invalid_value_panics() {
-    let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(display = "invalid")]
-        enum MyEnum {
-            Unit,
-        }
-    };
-
-    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    // This call should panic due to invalid display value
-    let _ = DisplayStrategy::from(&opts);
-}
-
-#[test]
-#[should_panic(expected = "Unexpected mode")]
-fn struct_display_strategy_invalid_value_panics() {
-    let input: DeriveInput = parse_quote! {
-        #[derive(EsFluent)]
-        #[fluent(display = "bad")]
-        struct MyStruct {
-            a: i32,
-        }
-    };
-
-    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    // This call should panic due to invalid display value
-    let _ = DisplayStrategy::from(&opts);
-}
-
-#[test]
 fn struct_fluent_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
@@ -250,7 +159,7 @@ fn struct_fluent_parsing() {
 fn struct_tuple_fields_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
+        
         struct TupleStruct(#[fluent(skip)] i32, String, #[fluent(choice)] bool);
     };
 

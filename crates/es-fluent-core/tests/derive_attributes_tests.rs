@@ -5,12 +5,12 @@ use es_fluent_core::options::{
 };
 use syn::{DeriveInput, parse_quote};
 
-/// EsFluent on enums: default display (fluent), no `this`, no enum-level `choice`
+/// EsFluent on enums: no `this`, no enum-level `choice`
 #[test]
 fn es_fluent_enum_attributes_default_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent] // default: display = "fluent", no this, no choice
+
         enum ApiError {
             NotFound,
             PermissionDenied,
@@ -30,12 +30,12 @@ fn es_fluent_enum_attributes_default_snapshot() {
     );
 }
 
-/// EsFluent on enums: override display to std, enable `this`, and enum-level `choice` flag
+/// EsFluent on enums: enable `this`, and enum-level `choice` flag
 #[test]
-fn es_fluent_enum_attributes_std_this_choice_snapshot() {
+fn es_fluent_enum_attributes_this_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(display = "std", this, choice)]
+        #[fluent(this, choice)]
         enum Status {
             // unit
             Ok,
@@ -52,12 +52,12 @@ fn es_fluent_enum_attributes_std_this_choice_snapshot() {
 
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
     insta::assert_debug_snapshot!(
-        "es_fluent_enum_attributes_std_this_choice_snapshot__analysis",
+        "es_fluent_enum_attributes_this_choice_snapshot__analysis",
         &opts
     );
 }
 
-/// EsFluent on structs: default display (fluent), with `this`, and derive list present
+/// EsFluent on structs: with `this`, and derive list present
 #[test]
 fn es_fluent_struct_attributes_this_with_derive_snapshot() {
     let input: DeriveInput = parse_quote! {
@@ -79,12 +79,12 @@ fn es_fluent_struct_attributes_this_with_derive_snapshot() {
     );
 }
 
-/// EsFluent on structs: override display to std, no `this`, exercise default and choice fields
+/// EsFluent on structs: no `this`, exercise default and choice fields
 #[test]
-fn es_fluent_struct_attributes_std_with_default_and_choice_snapshot() {
+fn es_fluent_struct_attributes_default_and_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(display = "std")]
+
         struct Label {
             #[fluent(default)]
             text: String,
@@ -97,17 +97,17 @@ fn es_fluent_struct_attributes_std_with_default_and_choice_snapshot() {
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     insta::assert_debug_snapshot!(
-        "es_fluent_struct_attributes_std_with_default_and_choice_snapshot__opts",
+        "es_fluent_struct_attributes_default_and_choice_snapshot__opts",
         &opts
     );
 }
 
-/// EsFluentKv on structs: no keys provided (single FTL enum), default display is std
+/// EsFluentKv on structs: no keys provided (single FTL enum)
 #[test]
 fn es_fluent_kv_attributes_no_keys_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv] // default: display = "std", no keys, no this
+
         struct Config {
             host: String,
             port: u16,

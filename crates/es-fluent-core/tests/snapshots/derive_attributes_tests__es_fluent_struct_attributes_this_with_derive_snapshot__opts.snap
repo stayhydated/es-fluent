@@ -100,7 +100,6 @@ StructOpts {
         },
     ),
     attr_args: StructFluentAttributeArgs {
-        display: None,
         this: Some(
             true,
         ),

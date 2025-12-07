@@ -7,7 +7,6 @@ use syn::{DeriveInput, parse_quote};
 fn enum_mixed_variants_analysis_without_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
         enum Mixed {
             // unit variants
             UnitA,

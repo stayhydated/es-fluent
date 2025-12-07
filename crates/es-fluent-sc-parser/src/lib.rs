@@ -109,7 +109,6 @@ mod tests {
 use es_fluent_core::EsFluent;
 
 #[derive(EsFluent)]
-#[fluent(display = "fluent")]
 pub enum TestEnum {
     Variant1,
     Variant2,
@@ -134,7 +133,6 @@ pub enum TestEnum {
 use es_fluent_core::EsFluent;
 
 #[derive(EsFluent)]
-#[fluent(display = "fluent")]
 pub enum TestEnum1 {
     VariantA,
 }
@@ -147,7 +145,6 @@ pub enum TestEnum1 {
 use es_fluent_core::EsFluent;
 
 #[derive(EsFluent)]
-#[fluent(display = "fluent")]
 pub enum TestEnum2 {
     VariantB,
 }

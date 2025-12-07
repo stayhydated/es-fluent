@@ -1,15 +1,11 @@
-use std::str::FromStr as _;
-
 use bon::Builder;
 use darling::{FromDeriveInput, FromField, FromMeta};
 use getset::Getters;
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use quote::format_ident;
-use strum::IntoEnumIterator as _;
 
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::namer;
-use crate::strategy::DisplayStrategy;
 
 /// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]
@@ -109,7 +105,6 @@ impl StructOpts {
 /// Attribute arguments for a struct.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct StructFluentAttributeArgs {
-    display: Option<String>,
     #[darling(default)]
     this: Option<bool>,
     /// The traits to derive on the FTL enum.
@@ -118,23 +113,6 @@ pub struct StructFluentAttributeArgs {
     derive: darling::util::PathList,
 }
 impl StructFluentAttributeArgs {
-    /// Returns the display strategy for the struct.
-    pub fn display(&self) -> DisplayStrategy {
-        if let Some(mode_str) = self.display.as_deref() {
-            DisplayStrategy::from_str(mode_str).unwrap_or_else(|_| {
-                let possible_values: Vec<&'static str> = DisplayStrategy::iter()
-                    .map(|variant| variant.into())
-                    .collect();
-
-                panic!(
-                    "Unexpected mode: '{}', expected one of {:?}",
-                    mode_str, possible_values
-                );
-            })
-        } else {
-            DisplayStrategy::FluentDisplay
-        }
-    }
     /// Returns `true` if the struct should be passed as `this`.
     pub fn is_this(&self) -> bool {
         self.this.unwrap_or(false)
@@ -242,7 +220,6 @@ impl StructKvOpts {
 /// Attribute arguments for a struct.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct StructKvFluentAttributeArgs {
-    display: Option<String>,
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
     #[darling(default)]
@@ -253,23 +230,6 @@ pub struct StructKvFluentAttributeArgs {
     derive: darling::util::PathList,
 }
 impl StructKvFluentAttributeArgs {
-    /// Returns the display strategy for the struct.
-    pub fn display(&self) -> DisplayStrategy {
-        if let Some(mode_str) = self.display.as_deref() {
-            DisplayStrategy::from_str(mode_str).unwrap_or_else(|_| {
-                let possible_values: Vec<&'static str> = DisplayStrategy::iter()
-                    .map(|variant| variant.into())
-                    .collect();
-
-                panic!(
-                    "Unexpected mode: '{}', expected one of {:?}",
-                    mode_str, possible_values
-                );
-            })
-        } else {
-            DisplayStrategy::StdDisplay
-        }
-    }
     /// Returns `true` if the struct should be passed as `this`.
     pub fn is_this(&self) -> bool {
         self.this.unwrap_or(false)

@@ -154,9 +154,6 @@ EnumOpts {
         ],
     ),
     attr_args: EnumFluentAttributeArgs {
-        display: Some(
-            "std",
-        ),
         choice: Some(
             true,
         ),

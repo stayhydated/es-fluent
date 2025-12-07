@@ -7,7 +7,6 @@ use syn::{DeriveInput, parse_quote};
 fn enum_analysis_with_skipped_variants_without_this() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
         enum Mixed {
             // Unit variants
             #[fluent(skip)]
@@ -79,7 +78,6 @@ fn enum_analysis_with_skipped_variants_with_this() {
 fn enum_analysis_all_variants_skipped_yields_empty() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent]
         enum AllSkipped {
             #[fluent(skip)]
             UnitA,

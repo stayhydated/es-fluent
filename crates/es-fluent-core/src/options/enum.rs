@@ -1,11 +1,7 @@
-use std::str::FromStr as _;
-
-use crate::strategy::DisplayStrategy;
 use bon::Builder;
 use darling::{FromDeriveInput, FromField, FromMeta, FromVariant};
 use getset::Getters;
 use heck::ToSnakeCase as _;
-use strum::IntoEnumIterator as _;
 
 /// Options for an enum field.
 #[derive(Clone, Debug, FromField, Getters)]
@@ -114,7 +110,6 @@ impl EnumOpts {
 /// Attribute arguments for an enum.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct EnumFluentAttributeArgs {
-    display: Option<String>,
     #[darling(default)]
     choice: Option<bool>,
     #[darling(default)]
@@ -124,23 +119,6 @@ pub struct EnumFluentAttributeArgs {
 }
 
 impl EnumFluentAttributeArgs {
-    /// Returns the display strategy for the enum.
-    pub fn display(&self) -> DisplayStrategy {
-        if let Some(mode_str) = self.display.as_deref() {
-            DisplayStrategy::from_str(mode_str).unwrap_or_else(|_| {
-                let possible_values: Vec<&'static str> = DisplayStrategy::iter()
-                    .map(|variant| variant.into())
-                    .collect();
-
-                panic!(
-                    "Unexpected mode: '{}', expected one of {:?}",
-                    mode_str, possible_values
-                );
-            })
-        } else {
-            DisplayStrategy::FluentDisplay
-        }
-    }
     /// Returns `true` if the enum is a choice.
     pub fn is_choice(&self) -> bool {
         self.choice.unwrap_or(false)
