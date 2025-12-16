@@ -25,7 +25,30 @@ pub fn analyze_struct_kv(
         })
         .collect();
 
+    // For empty structs, only generate the `this` variant if is_this is set
     if field_names.is_empty() {
+        if is_this {
+            let main_ftl_key = namer::FluentKey::new(target_ident, "");
+            let main_variant = FtlVariant::builder()
+                .name(target_ident.to_string())
+                .ftl_key(main_ftl_key)
+                .build();
+
+            log::debug!(
+                "Generating FtlTypeInfo ({}) for empty struct '{}' with this during {}",
+                TypeKind::Enum,
+                target_ident,
+                "struct_kv analysis"
+            );
+
+            type_infos.push(
+                FtlTypeInfo::builder()
+                    .type_kind(TypeKind::Enum)
+                    .type_name(target_ident.to_string())
+                    .variants(vec![main_variant])
+                    .build(),
+            );
+        }
         return Ok(());
     }
 

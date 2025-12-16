@@ -1,4 +1,4 @@
-use es_fluent::EsFluent;
+use es_fluent::{EsFluent, EsFluentKv};
 use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
@@ -37,3 +37,15 @@ impl Languages {
 }
 
 pub struct CurrentLanguage(pub Languages);
+
+#[derive(Clone, Debug, Default, EsFluent)]
+#[fluent(this)]
+pub struct EmptyStruct;
+
+#[derive(Clone, Debug, Default, EsFluentKv)]
+#[fluent_kv(this)]
+pub struct EmptyStructKv;
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+#[fluent(this)]
+pub enum EmptyEnum {}

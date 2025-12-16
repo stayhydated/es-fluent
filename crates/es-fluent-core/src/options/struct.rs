@@ -55,7 +55,7 @@ impl StructFieldOpts {
 
 /// Options for a struct.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(struct_named, struct_tuple), attributes(fluent))]
+#[darling(supports(struct_named, struct_tuple, struct_unit), attributes(fluent))]
 #[getset(get = "pub")]
 pub struct StructOpts {
     /// The identifier of the struct.
@@ -143,7 +143,7 @@ impl StructKvFieldOpts {
 
 /// Options for a struct.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(struct_named), attributes(fluent_kv))]
+#[darling(supports(struct_named, struct_unit), attributes(fluent_kv))]
 #[getset(get = "pub")]
 pub struct StructKvOpts {
     /// The identifier of the struct.

@@ -145,10 +145,34 @@ fn enum_analysis_only_struct_and_tuple_variants_no_this() {
 }
 
 #[test]
-fn struct_analysis_all_fields_skipped_returns_empty() {
+fn struct_analysis_all_fields_skipped_with_this_generates_this_variant() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
         #[fluent_kv(this, keys = ["a"])]
+        struct S {
+            #[fluent_kv(skip)]
+            a: i32,
+            #[fluent_kv(skip)]
+            b: String,
+        }
+    };
+
+    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let mut infos = Vec::new();
+    analysis::struct_kv::analyze_struct_kv(&opts, &mut infos).unwrap();
+
+    // When all fields are skipped but `this` is set, we still generate the `this` variant
+    assert_eq!(infos.len(), 1);
+    assert_eq!(infos[0].type_name, "S");
+    assert_eq!(infos[0].variants.len(), 1);
+    assert_eq!(infos[0].variants[0].name, "S");
+}
+
+#[test]
+fn struct_analysis_all_fields_skipped_without_this_returns_empty() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluentKv)]
+        #[fluent_kv(keys = ["a"])]
         struct S {
             #[fluent_kv(skip)]
             a: i32,

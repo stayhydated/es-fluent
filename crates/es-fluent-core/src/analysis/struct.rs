@@ -13,7 +13,30 @@ pub fn analyze_struct(opts: &StructOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         .map(|(index, field_opt)| field_opt.fluent_arg_name(index))
         .collect();
 
+    // For empty structs, only generate the `this` variant if is_this is set
     if field_names.is_empty() {
+        if is_this {
+            let this_ftl_key = namer::FluentKey::new(target_ident, "");
+            let this_variant = FtlVariant::builder()
+                .name(target_ident.to_string())
+                .ftl_key(this_ftl_key)
+                .build();
+
+            log::debug!(
+                "Generating FtlTypeInfo ({}) for empty struct '{}' with this during {}",
+                TypeKind::Struct,
+                target_ident,
+                "struct analysis"
+            );
+
+            type_infos.push(
+                FtlTypeInfo::builder()
+                    .type_kind(TypeKind::Struct)
+                    .type_name(target_ident.to_string())
+                    .variants(vec![this_variant])
+                    .build(),
+            );
+        }
         return;
     }
 
