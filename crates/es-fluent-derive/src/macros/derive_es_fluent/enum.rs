@@ -153,16 +153,29 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         }
     });
 
+    let is_empty = variants.is_empty();
+
     let display_impl = {
         let trait_impl = quote! { ::es_fluent::FluentDisplay };
         let trait_fmt_fn_ident = quote! { fluent_fmt };
 
+        // For empty enums, we need to use `match *self {}` because:
+        // - `&EmptyEnum` is always inhabited (references can't be null)
+        // - `EmptyEnum` (dereferenced) is uninhabited, so `match *self {}` is valid
+        let match_body = if is_empty {
+            quote! { match *self {} }
+        } else {
+            quote! {
+                match self {
+                    #(#match_arms),*
+                }
+            }
+        };
+
         quote! {
             impl #impl_generics #trait_impl for #original_ident #ty_generics #where_clause {
                 fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                    match self {
-                        #(#match_arms),*
-                    }
+                    #match_body
                 }
             }
         }

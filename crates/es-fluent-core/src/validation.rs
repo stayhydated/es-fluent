@@ -2,17 +2,82 @@
 
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::options::r#enum::EnumOpts;
-use crate::options::r#struct::StructOpts;
+use crate::options::r#struct::{StructKvOpts, StructOpts};
 use syn::{DataEnum, DataStruct};
 
 /// Validates the `es-fluent` attributes on an enum.
-pub fn validate_enum(_opts: &EnumOpts, _data: &DataEnum) -> EsFluentCoreResult<()> {
+pub fn validate_enum(opts: &EnumOpts, data: &DataEnum) -> EsFluentCoreResult<()> {
+    validate_empty_enum(opts, data)?;
     Ok(())
 }
 
 /// Validates the `es-fluent` attributes on a struct.
-pub fn validate_struct(opts: &StructOpts, _data: &DataStruct) -> EsFluentCoreResult<()> {
+pub fn validate_struct(opts: &StructOpts, data: &DataStruct) -> EsFluentCoreResult<()> {
+    validate_empty_struct(opts, data)?;
     validate_struct_defaults(opts)?;
+    Ok(())
+}
+
+/// Validates the `es-fluent_kv` attributes on a struct.
+pub fn validate_struct_kv(opts: &StructKvOpts, data: &DataStruct) -> EsFluentCoreResult<()> {
+    validate_empty_struct_kv(opts, data)?;
+    Ok(())
+}
+
+fn validate_empty_enum(opts: &EnumOpts, data: &DataEnum) -> EsFluentCoreResult<()> {
+    if data.variants.is_empty() && !opts.attr_args().is_this() {
+        return Err(EsFluentCoreError::AttributeError {
+            message: "Empty enum must have `#[fluent(this)]` attribute.".to_string(),
+            span: Some(opts.ident().span()),
+        }
+        .with_help(
+            "For empty enums, the only reflectable value is the type name itself. \
+             Add `#[fluent(this)]` to generate a `this_ftl()` method."
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_empty_struct(opts: &StructOpts, data: &DataStruct) -> EsFluentCoreResult<()> {
+    let is_empty = match &data.fields {
+        syn::Fields::Named(fields) => fields.named.is_empty(),
+        syn::Fields::Unnamed(fields) => fields.unnamed.is_empty(),
+        syn::Fields::Unit => true,
+    };
+
+    if is_empty && !opts.attr_args().is_this() {
+        return Err(EsFluentCoreError::AttributeError {
+            message: "Empty struct must have `#[fluent(this)]` attribute.".to_string(),
+            span: Some(opts.ident().span()),
+        }
+        .with_help(
+            "For empty structs, the only reflectable value is the type name itself. \
+             Add `#[fluent(this)]` to generate a `this_ftl()` method."
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_empty_struct_kv(opts: &StructKvOpts, data: &DataStruct) -> EsFluentCoreResult<()> {
+    let is_empty = match &data.fields {
+        syn::Fields::Named(fields) => fields.named.is_empty(),
+        syn::Fields::Unnamed(fields) => fields.unnamed.is_empty(),
+        syn::Fields::Unit => true,
+    };
+
+    if is_empty && !opts.attr_args().is_this() {
+        return Err(EsFluentCoreError::AttributeError {
+            message: "Empty struct must have `#[fluent_kv(this)]` attribute.".to_string(),
+            span: Some(opts.ident().span()),
+        }
+        .with_help(
+            "For empty structs, the only reflectable value is the type name itself. \
+             Add `#[fluent_kv(this)]` to generate a `this_ftl()` method."
+                .to_string(),
+        ));
+    }
     Ok(())
 }
 

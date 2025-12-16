@@ -1,6 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_core::namer;
 use es_fluent_core::options::r#struct::StructKvOpts;
+use es_fluent_core::validation;
 
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::TokenStream;
@@ -16,6 +17,10 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors().into(),
             };
+
+            if let Err(err) = validation::validate_struct_kv(&opts, data) {
+                err.abort();
+            }
 
             process_struct(&opts, data)
         },
@@ -45,6 +50,15 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
     } else {
         quote! {}
     };
+
+    // For empty structs, don't generate any enums - only the this_ftl impl
+    let is_empty = opts.fields().is_empty();
+    if is_empty {
+        return quote! {
+            #this_ftl_struct_impl
+        };
+    }
+
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
         let ftl_enum = generate_unit_enum(opts, data, &ftl_enum_ident);
