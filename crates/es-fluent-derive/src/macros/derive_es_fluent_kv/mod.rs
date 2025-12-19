@@ -41,8 +41,8 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
         let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
         let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
         quote! {
-            impl #impl_generics #original_ident #ty_generics #where_clause {
-                pub fn this_ftl() -> String {
+            impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
+                fn this_ftl() -> String {
                     ::es_fluent::localize(#this_ftl_key, None)
                 }
             }
@@ -136,8 +136,8 @@ fn generate_unit_enum(
     let this_ftl_impl = if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
         let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
         quote! {
-            impl #ident {
-                pub fn this_ftl() -> String {
+            impl ::es_fluent::ThisFtl for #ident {
+                fn this_ftl() -> String {
                     ::es_fluent::localize(#this_ftl_key, None)
                 }
             }
