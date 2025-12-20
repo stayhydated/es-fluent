@@ -12,7 +12,10 @@ pub fn analyze_enum_kv(
     let target_ident = opts.ident();
     let keyyed_idents = opts.keyyed_idents()?;
     let has_keys = !keyyed_idents.is_empty();
+    // `this` generates this_ftl on the original type (e.g., Country)
     let is_this = opts.attr_args().is_this();
+    // `keys_this` generates this_ftl on the generated KV enums (e.g., CountryLabelKvFtl)
+    let is_keys_this = opts.attr_args().is_keys_this();
 
     let variant_names: Vec<String> = opts
         .variants()
@@ -60,7 +63,7 @@ pub fn analyze_enum_kv(
             })
             .collect();
 
-        if is_this {
+        if is_keys_this {
             let this_ftl_key = namer::FluentKey::new(&ftl_enum_ident, "");
             let this_variant = FtlVariant::builder()
                 .name(ftl_enum_ident.to_string())
@@ -96,7 +99,7 @@ pub fn analyze_enum_kv(
                 })
                 .collect();
 
-            if is_this {
+            if is_keys_this {
                 let this_ftl_key = namer::FluentKey::new(&keyyed_ident, "");
                 let this_variant = FtlVariant::builder()
                     .name(keyyed_ident.to_string())
@@ -122,6 +125,7 @@ pub fn analyze_enum_kv(
         }
     }
 
+    // Generate this_ftl for the original type only if this is set
     if is_this {
         let main_ftl_key = namer::FluentKey::new(target_ident, "");
         let main_variant = FtlVariant::builder()
@@ -135,9 +139,9 @@ pub fn analyze_enum_kv(
             target_ident,
             target_ident,
             if has_keys {
-                "enum_kv analysis (main enum variant with keys)"
+                "enum_kv analysis (main enum variant with this)"
             } else {
-                "enum_kv analysis (main enum variant without keys)"
+                "enum_kv analysis (main enum variant with this, no keys)"
             }
         );
         type_infos.push(

@@ -209,7 +209,7 @@ pub enum EnumCountry {
 }
 
 #[derive(Clone, Debug, Default, EsFluentKv)]
-#[fluent_kv(this, keys = ["description", "label"])]
+#[fluent_kv(this, keys_this, keys = ["description", "label"])]
 pub struct User {
     pub username: Option<String>,
     pub email: String,
@@ -224,7 +224,7 @@ pub struct User {
 }
 ```
 
-The `#[fluent_kv(this, keys = ["description", "label"])]` attribute instructs the derive to generate enums `UserDescriptionFtl` and `UserLabelFtl`. The `this` argument also generates a message ID for the struct itself.
+The `#[fluent_kv(this, keys_this, keys = ["description", "label"])]` attribute instructs the derive to generate enums `UserDescriptionFtl` and `UserLabelFtl`. The `this` argument also generates a message ID for the struct itself and `keys_this` generates a message ID for the generated enums from the keys.
 
 This will generate the following FTL entries:
 

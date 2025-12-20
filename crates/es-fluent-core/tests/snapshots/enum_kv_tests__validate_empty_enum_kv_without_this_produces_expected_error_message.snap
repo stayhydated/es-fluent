@@ -2,4 +2,4 @@
 source: crates/es-fluent-core/tests/enum_kv_tests.rs
 expression: err.to_string()
 ---
-"Attribute error: Empty enum must have `#[fluent_kv(this)]` attribute.\nhelp: For empty enums, the only reflectable value is the type name itself. Add `#[fluent_kv(this)]` to generate a `this_ftl()` method."
+"Attribute error: Empty enum must have `#[fluent_kv(this)]` or `#[fluent_kv(keys_this)]` attribute.\nhelp: For empty enums, the only reflectable value is the type name itself. Add `#[fluent_kv(this)]` to generate a `this_ftl()` method on the generated KV enums, or `#[fluent_kv(keys_this)]` to generate it on the original type."

@@ -168,4 +168,52 @@ pub enum TestEnum2 {
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
     }
+
+    #[test]
+    fn test_parse_enum_with_both_es_fluent_and_es_fluent_kv() {
+        let temp_dir = TempDir::new().unwrap();
+        let rust_file_path = temp_dir.path().join("test.rs");
+
+        let rust_content = r#"
+use es_fluent::{EsFluent, EsFluentKv};
+
+#[derive(EsFluent, EsFluentKv)]
+#[fluent(this)]
+#[fluent_kv(keys = ["description", "label"])]
+pub enum Country {
+    USA(USAState),
+    Canada(CanadaProvince),
+}
+
+pub struct USAState;
+pub struct CanadaProvince;
+"#;
+
+        fs::write(&rust_file_path, rust_content).unwrap();
+
+        let result = parse_directory(temp_dir.path());
+        assert!(result.is_ok());
+
+        let type_infos = result.unwrap();
+
+        // Should have entries for:
+        // 1. Country (from EsFluent)
+        // 2. CountryDescriptionKvFtl (from EsFluentKv)
+        // 3. CountryLabelKvFtl (from EsFluentKv)
+        let type_names: Vec<_> = type_infos.iter().map(|t| t.type_name.clone()).collect();
+        println!("Found type_infos: {:?}", type_names);
+
+        assert!(
+            type_names.contains(&"Country".to_string()),
+            "Should have Country from EsFluent"
+        );
+        assert!(
+            type_names.contains(&"CountryDescriptionKvFtl".to_string()),
+            "Should have CountryDescriptionKvFtl from EsFluentKv"
+        );
+        assert!(
+            type_names.contains(&"CountryLabelKvFtl".to_string()),
+            "Should have CountryLabelKvFtl from EsFluentKv"
+        );
+    }
 }

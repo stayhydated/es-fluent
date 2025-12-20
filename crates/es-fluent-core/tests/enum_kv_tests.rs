@@ -111,6 +111,52 @@ fn enum_kv_analysis_with_skipped_variant_generates_expected_ftl_type_info() {
 }
 
 #[test]
+fn enum_kv_analysis_with_keys_this_generates_expected_ftl_type_info() {
+    // keys_this generates this_ftl on the original type (Country)
+    // Use this when the original type does NOT have EsFluent with this
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluentKv)]
+        #[fluent_kv(keys = ["label"], keys_this)]
+        pub enum Country {
+            USA(USAState),
+            Canada(CanadaProvince),
+        }
+    };
+
+    let opts = EnumKvOpts::from_derive_input(&input).expect("EnumKvOpts should parse");
+    let mut infos = Vec::new();
+    analysis::enum_kv::analyze_enum_kv(&opts, &mut infos).unwrap();
+
+    insta::assert_ron_snapshot!(
+        "enum_kv_analysis_with_keys_this_generates_expected_ftl_type_info",
+        &infos
+    );
+}
+
+#[test]
+fn enum_kv_analysis_with_this_and_keys_this_generates_expected_ftl_type_info() {
+    // this generates this_ftl on the generated KV enums (CountryLabelKvFtl)
+    // keys_this generates this_ftl on the original type (Country)
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluentKv)]
+        #[fluent_kv(keys = ["label"], this, keys_this)]
+        pub enum Country {
+            USA(USAState),
+            Canada(CanadaProvince),
+        }
+    };
+
+    let opts = EnumKvOpts::from_derive_input(&input).expect("EnumKvOpts should parse");
+    let mut infos = Vec::new();
+    analysis::enum_kv::analyze_enum_kv(&opts, &mut infos).unwrap();
+
+    insta::assert_ron_snapshot!(
+        "enum_kv_analysis_with_this_and_keys_this_generates_expected_ftl_type_info",
+        &infos
+    );
+}
+
+#[test]
 fn validate_empty_enum_kv_without_this_produces_expected_error_message() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]

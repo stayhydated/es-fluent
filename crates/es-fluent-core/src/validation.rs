@@ -117,14 +117,18 @@ fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
 }
 
 fn validate_empty_enum_kv(opts: &EnumKvOpts, data: &DataEnum) -> EsFluentCoreResult<()> {
-    if data.variants.is_empty() && !opts.attr_args().is_this() {
+    let has_this_or_keys_this = opts.attr_args().is_this() || opts.attr_args().is_keys_this();
+    if data.variants.is_empty() && !has_this_or_keys_this {
         return Err(EsFluentCoreError::AttributeError {
-            message: "Empty enum must have `#[fluent_kv(this)]` attribute.".to_string(),
+            message:
+                "Empty enum must have `#[fluent_kv(this)]` or `#[fluent_kv(keys_this)]` attribute."
+                    .to_string(),
             span: Some(opts.ident().span()),
         }
         .with_help(
             "For empty enums, the only reflectable value is the type name itself. \
-             Add `#[fluent_kv(this)]` to generate a `this_ftl()` method."
+             Add `#[fluent_kv(this)]` to generate a `this_ftl()` method on the generated KV enums, \
+             or `#[fluent_kv(keys_this)]` to generate it on the original type."
                 .to_string(),
         ));
     }
