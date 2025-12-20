@@ -1,7 +1,10 @@
 use bon::Builder;
 use darling::{FromDeriveInput, FromField, FromMeta, FromVariant};
 use getset::Getters;
-use heck::ToSnakeCase as _;
+use heck::{ToPascalCase as _, ToSnakeCase as _};
+use quote::format_ident;
+
+use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 
 /// Options for an enum field.
 #[derive(Clone, Debug, FromField, Getters)]
@@ -153,4 +156,128 @@ pub struct EnumChoiceOpts {
 pub struct EnumChoiceAttributeArgs {
     #[darling(default)]
     serialize_all: Option<String>,
+}
+
+/// Options for an enum variant in EsFluentKv context.
+#[derive(Clone, Debug, FromVariant, Getters)]
+#[darling(attributes(fluent_kv))]
+pub struct EnumKvVariantOpts {
+    /// The identifier of the variant.
+    #[getset(get = "pub")]
+    ident: syn::Ident,
+    fields: darling::ast::Fields<darling::util::Ignored>,
+    /// Whether to skip this variant.
+    #[darling(default)]
+    skip: Option<bool>,
+}
+
+impl EnumKvVariantOpts {
+    /// Returns `true` if the variant should be skipped.
+    pub fn is_skipped(&self) -> bool {
+        self.skip.unwrap_or(false)
+    }
+
+    /// Returns the style of the variant's fields.
+    pub fn style(&self) -> darling::ast::Style {
+        self.fields.style
+    }
+
+    /// Returns true if this is a tuple variant with exactly one field.
+    pub fn is_single_tuple(&self) -> bool {
+        matches!(self.fields.style, darling::ast::Style::Tuple) && self.fields.len() == 1
+    }
+}
+
+/// Options for an enum with EsFluentKv.
+#[derive(Clone, Debug, FromDeriveInput, Getters)]
+#[darling(supports(enum_tuple), attributes(fluent_kv))]
+#[getset(get = "pub")]
+pub struct EnumKvOpts {
+    /// The identifier of the enum.
+    ident: syn::Ident,
+    /// The generics of the enum.
+    generics: syn::Generics,
+    data: darling::ast::Data<EnumKvVariantOpts, darling::util::Ignored>,
+    #[darling(flatten)]
+    attr_args: EnumKvFluentAttributeArgs,
+}
+
+impl EnumKvOpts {
+    const FTL_ENUM_IDENT: &str = "KvFtl";
+
+    /// Returns the identifier of the FTL enum.
+    pub fn ftl_enum_ident(&self) -> syn::Ident {
+        format_ident!("{}{}", &self.ident, Self::FTL_ENUM_IDENT)
+    }
+
+    /// Returns the identifiers of the keyed FTL enums.
+    pub fn keyyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
+        self.attr_args.clone().keys.map_or_else(
+            || Ok(Vec::new()),
+            |keys| {
+                keys.into_iter()
+                    .map(|key| {
+                        let pascal_key = Self::validate_key(&key)?;
+                        Ok(format_ident!(
+                            "{}{}{}",
+                            &self.ident,
+                            pascal_key,
+                            Self::FTL_ENUM_IDENT
+                        ))
+                    })
+                    .collect()
+            },
+        )
+    }
+
+    /// Returns the variants of the enum that are not skipped.
+    pub fn variants(&self) -> Vec<&EnumKvVariantOpts> {
+        match &self.data {
+            darling::ast::Data::Enum(variants) => {
+                variants.iter().filter(|v| !v.is_skipped()).collect()
+            },
+            _ => unreachable!("Unexpected data type for enum"),
+        }
+    }
+
+    fn validate_key(key: &syn::LitStr) -> EsFluentCoreResult<String> {
+        let key_str = key.value();
+        let snake_cased = key_str.to_snake_case();
+        let is_lower_snake = !key_str.is_empty()
+            && key_str == snake_cased
+            && key_str == key_str.to_ascii_lowercase();
+
+        if !is_lower_snake {
+            return Err(EsFluentCoreError::AttributeError {
+                message: format!(
+                    "keys in #[fluent_kv] must be lowercase snake_case; found \"{}\"",
+                    key_str
+                ),
+                span: Some(key.span()),
+            }
+            .with_help("Use values like \"description\" or \"label\".".to_string()));
+        }
+
+        Ok(key_str.to_pascal_case())
+    }
+}
+
+/// Attribute arguments for an enum with EsFluentKv.
+#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
+pub struct EnumKvFluentAttributeArgs {
+    #[darling(default)]
+    keys: Option<Vec<syn::LitStr>>,
+    #[darling(default)]
+    this: Option<bool>,
+    /// The traits to derive on the FTL enum.
+    #[getset(get = "pub")]
+    #[darling(default)]
+    derive: darling::util::PathList,
+}
+
+impl EnumKvFluentAttributeArgs {
+    /// Returns `true` if the enum should have a `this_ftl()` method.
+    pub fn is_this(&self) -> bool {
+        self.this.unwrap_or(false)
+    }
 }

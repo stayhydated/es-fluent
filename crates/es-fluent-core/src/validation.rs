@@ -1,7 +1,7 @@
 //! This module provides functions for validating `es-fluent` attributes.
 
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
-use crate::options::r#enum::EnumOpts;
+use crate::options::r#enum::{EnumKvOpts, EnumOpts};
 use crate::options::r#struct::{StructKvOpts, StructOpts};
 use syn::{DataEnum, DataStruct};
 
@@ -21,6 +21,13 @@ pub fn validate_struct(opts: &StructOpts, data: &DataStruct) -> EsFluentCoreResu
 /// Validates the `es-fluent_kv` attributes on a struct.
 pub fn validate_struct_kv(opts: &StructKvOpts, data: &DataStruct) -> EsFluentCoreResult<()> {
     validate_empty_struct_kv(opts, data)?;
+    Ok(())
+}
+
+/// Validates the `es-fluent_kv` attributes on an enum.
+pub fn validate_enum_kv(opts: &EnumKvOpts, data: &DataEnum) -> EsFluentCoreResult<()> {
+    validate_empty_enum_kv(opts, data)?;
+    validate_enum_kv_variants(opts)?;
     Ok(())
 }
 
@@ -105,6 +112,41 @@ fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
             "First `#[fluent(default)]` field found was `{}`.",
             first_field_name
         )));
+    }
+    Ok(())
+}
+
+fn validate_empty_enum_kv(opts: &EnumKvOpts, data: &DataEnum) -> EsFluentCoreResult<()> {
+    if data.variants.is_empty() && !opts.attr_args().is_this() {
+        return Err(EsFluentCoreError::AttributeError {
+            message: "Empty enum must have `#[fluent_kv(this)]` attribute.".to_string(),
+            span: Some(opts.ident().span()),
+        }
+        .with_help(
+            "For empty enums, the only reflectable value is the type name itself. \
+             Add `#[fluent_kv(this)]` to generate a `this_ftl()` method."
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_enum_kv_variants(opts: &EnumKvOpts) -> EsFluentCoreResult<()> {
+    for variant in opts.variants() {
+        if !variant.is_single_tuple() {
+            return Err(EsFluentCoreError::AttributeError {
+                message: format!(
+                    "EsFluentKv on enums only supports single-element tuple variants; \
+                     variant `{}` is not a single-element tuple.",
+                    variant.ident()
+                ),
+                span: Some(variant.ident().span()),
+            }
+            .with_help(
+                "Each variant must have exactly one tuple field, e.g., `Variant(InnerType)`."
+                    .to_string(),
+            ));
+        }
     }
     Ok(())
 }
