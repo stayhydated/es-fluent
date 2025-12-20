@@ -6,6 +6,9 @@ use serde::Serialize;
 pub struct EnumKind;
 
 #[derive(Clone, Debug)]
+pub struct EnumKvKind;
+
+#[derive(Clone, Debug)]
 pub struct StructKind;
 
 #[derive(Clone, Debug)]

@@ -2,9 +2,9 @@ use crate::error::FluentScParserError;
 use bon::Builder;
 use darling::FromDeriveInput as _;
 use es_fluent_core::analysis;
-use es_fluent_core::meta::{EnumKind, StructKind, StructKvKind};
+use es_fluent_core::meta::{EnumKind, EnumKvKind, StructKind, StructKvKind};
 use es_fluent_core::options::{
-    r#enum::EnumOpts,
+    r#enum::{EnumKvOpts, EnumOpts},
     r#struct::{StructKvOpts, StructOpts},
 };
 use es_fluent_core::registry::FtlTypeInfo;
@@ -37,6 +37,27 @@ impl FluentProcessKind for FtlProcessor<EnumKind> {
         };
 
         Ok(analysis::analyze_enum(&enum_opts))
+    }
+}
+
+impl FluentProcessKind for FtlProcessor<EnumKvKind> {
+    fn process(&self, input: &DeriveInput) -> Result<Vec<FtlTypeInfo>, FluentScParserError> {
+        debug!("Processing EnumKv: {}", input.ident);
+
+        let enum_kv_opts = match EnumKvOpts::from_derive_input(input) {
+            Ok(opts) => opts,
+            Err(e) => {
+                return Err(FluentScParserError::AttributeParse(
+                    self.current_file.clone(),
+                    e,
+                ));
+            },
+        };
+
+        let mut type_infos = Vec::new();
+        analysis::enum_kv::analyze_enum_kv(&enum_kv_opts, &mut type_infos)
+            .map(|_| type_infos)
+            .map_err(|e| FluentScParserError::AttributeValidation(self.current_file.clone(), e))
     }
 }
 
