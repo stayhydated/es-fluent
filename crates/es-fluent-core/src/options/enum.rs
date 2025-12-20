@@ -267,8 +267,13 @@ impl EnumKvOpts {
 pub struct EnumKvFluentAttributeArgs {
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
+    /// If true, generates `this_ftl()` on the original type (e.g., `Country`).
+    /// Use this when the original type does NOT derive `EsFluent` with `this`.
     #[darling(default)]
     this: Option<bool>,
+    /// If true, generates `this_ftl()` on the generated KV enums (e.g., `CountryLabelKvFtl`).
+    #[darling(default)]
+    keys_this: Option<bool>,
     /// The traits to derive on the FTL enum.
     #[getset(get = "pub")]
     #[darling(default)]
@@ -276,8 +281,13 @@ pub struct EnumKvFluentAttributeArgs {
 }
 
 impl EnumKvFluentAttributeArgs {
-    /// Returns `true` if the enum should have a `this_ftl()` method.
+    /// Returns `true` if the original type should have a `this_ftl()` method.
     pub fn is_this(&self) -> bool {
         self.this.unwrap_or(false)
+    }
+
+    /// Returns `true` if the generated KV enums should have a `this_ftl()` method.
+    pub fn is_keys_this(&self) -> bool {
+        self.keys_this.unwrap_or(false)
     }
 }

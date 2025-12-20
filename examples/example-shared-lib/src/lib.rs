@@ -52,7 +52,7 @@ pub enum EmptyEnum {}
 
 #[derive(EsFluent, EsFluentKv)]
 #[fluent(this)]
-#[fluent_kv(keys = ["description", "label"])]
+#[fluent_kv(keys = ["description", "label"], keys_this)]
 pub enum Country {
     USA(USAState),
     Canada(CanadaProvince),

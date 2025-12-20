@@ -146,6 +146,7 @@ fn generate_unit_enum(
         }
     };
 
+    // For structs, `this` controls ThisFtl on the generated KV enums
     let this_ftl_impl = if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
         let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
         quote! {
@@ -190,6 +191,8 @@ pub fn process_enum(opts: &EnumKvOpts) -> TokenStream {
     let original_ident = opts.ident();
     let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
+    // `this` generates ThisFtl on the original type (e.g., Country)
+    // `keys_this` generates ThisFtl on the generated KV enums (e.g., CountryLabelKvFtl)
     let this_ftl_enum_impl = if opts.attr_args().is_this() {
         let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
         quote! {
@@ -281,7 +284,8 @@ fn generate_enum_unit_enum(opts: &EnumKvOpts, ident: &syn::Ident) -> TokenStream
         }
     };
 
-    let this_ftl_impl = if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
+    // `keys_this` generates ThisFtl on the generated KV enums
+    let this_ftl_impl = if opts.attr_args().is_keys_this() {
         let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
         quote! {
             impl ::es_fluent::ThisFtl for #ident {
