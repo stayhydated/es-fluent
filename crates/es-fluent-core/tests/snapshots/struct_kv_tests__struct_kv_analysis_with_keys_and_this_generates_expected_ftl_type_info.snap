@@ -1,31 +1,31 @@
 ---
-source: crates/es-fluent-core/tests/analysis_tests.rs
+source: crates/es-fluent-core/tests/struct_kv_tests.rs
 expression: "&infos"
 ---
 [
   FtlTypeInfo(
     type_kind: Enum,
-    type_name: "FruitKvFtl",
+    type_name: "UserLabelKvFtl",
     variants: [
       FtlVariant(
         name: "name",
-        ftl_key: FluentKey("fruit_kv_ftl-name"),
+        ftl_key: FluentKey("user_label_kv_ftl-name"),
         args: [],
       ),
       FtlVariant(
-        name: "color",
-        ftl_key: FluentKey("fruit_kv_ftl-color"),
+        name: "age",
+        ftl_key: FluentKey("user_label_kv_ftl-age"),
         args: [],
       ),
     ],
   ),
   FtlTypeInfo(
     type_kind: Enum,
-    type_name: "Fruit",
+    type_name: "User",
     variants: [
       FtlVariant(
-        name: "Fruit",
-        ftl_key: FluentKey("fruit"),
+        name: "User",
+        ftl_key: FluentKey("user"),
         args: [],
       ),
     ],

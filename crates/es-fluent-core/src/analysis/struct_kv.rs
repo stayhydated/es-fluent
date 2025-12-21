@@ -12,7 +12,10 @@ pub fn analyze_struct_kv(
     let target_ident = opts.ident();
     let keyyed_idents = opts.keyyed_idents()?;
     let has_keys = !keyyed_idents.is_empty();
+    // `this` generates this_ftl on the original struct type
     let is_this = opts.attr_args().is_this();
+    // `keys_this` generates this_ftl on the generated KV enums (e.g., UserLabelKvFtl)
+    let is_keys_this = opts.attr_args().is_keys_this();
 
     let field_names: Vec<String> = opts
         .fields()
@@ -65,7 +68,7 @@ pub fn analyze_struct_kv(
             })
             .collect();
 
-        if is_this {
+        if is_keys_this {
             let this_ftl_key = namer::FluentKey::new(&ftl_enum_ident, "");
             let this_variant = FtlVariant::builder()
                 .name(ftl_enum_ident.to_string())
@@ -79,7 +82,7 @@ pub fn analyze_struct_kv(
             TypeKind::Enum,
             ftl_enum_ident,
             target_ident,
-            "struct analysis (FTL enum generation)"
+            "struct_kv analysis (FTL enum generation)"
         );
         type_infos.push(
             FtlTypeInfo::builder()
@@ -101,7 +104,7 @@ pub fn analyze_struct_kv(
                 })
                 .collect();
 
-            if is_this {
+            if is_keys_this {
                 let this_ftl_key = namer::FluentKey::new(&keyyed_ident, "");
                 let this_variant = FtlVariant::builder()
                     .name(keyyed_ident.to_string())
@@ -115,7 +118,7 @@ pub fn analyze_struct_kv(
                 TypeKind::Enum,
                 keyyed_ident,
                 target_ident,
-                "struct analysis (FTL enum generation with keys)"
+                "struct_kv analysis (FTL enum generation with keys)"
             );
             type_infos.push(
                 FtlTypeInfo::builder()
@@ -140,9 +143,9 @@ pub fn analyze_struct_kv(
             target_ident,
             target_ident,
             if has_keys {
-                "struct analysis (main struct variant with keys)"
+                "struct_kv analysis (main struct variant with this)"
             } else {
-                "struct analysis (main struct variant without keys)"
+                "struct_kv analysis (main struct variant with this, no keys)"
             }
         );
         type_infos.push(

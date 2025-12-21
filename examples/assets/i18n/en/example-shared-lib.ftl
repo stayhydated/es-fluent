@@ -40,6 +40,20 @@ empty_struct = Empty Struct
 
 empty_struct_kv = Empty Struct Kv
 
+## KvSplit
+
+kv_split = Kv Split
+
+## KvSplitDescriptionKvFtl
+
+kv_split_description_kv_ftl = Kv Split Description Kv Ftl
+kv_split_description_kv_ftl-country = Country
+
+## KvSplitLabelKvFtl
+
+kv_split_label_kv_ftl = Kv Split Label Kv Ftl
+kv_split_label_kv_ftl-country = Country
+
 ## USAState
 
 usa_state = Usa State

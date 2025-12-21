@@ -1,5 +1,5 @@
 ---
-source: crates/es-fluent-core/tests/validation_tests.rs
+source: crates/es-fluent-core/tests/struct_kv_tests.rs
 expression: err.to_string()
 ---
 "Attribute error: Empty struct must have `#[fluent_kv(this)]` or `#[fluent_kv(keys_this)]` attribute.\nhelp: For empty structs, the only reflectable value is the type name itself. Add `#[fluent_kv(this)]` to generate a `this_ftl()` method on the original type, or `#[fluent_kv(keys_this)]` to generate it on the generated KV enums."

@@ -74,14 +74,17 @@ fn validate_empty_struct_kv(opts: &StructKvOpts, data: &DataStruct) -> EsFluentC
         syn::Fields::Unit => true,
     };
 
-    if is_empty && !opts.attr_args().is_this() {
+    let has_this_or_keys_this = opts.attr_args().is_this() || opts.attr_args().is_keys_this();
+
+    if is_empty && !has_this_or_keys_this {
         return Err(EsFluentCoreError::AttributeError {
-            message: "Empty struct must have `#[fluent_kv(this)]` attribute.".to_string(),
+            message: "Empty struct must have `#[fluent_kv(this)]` or `#[fluent_kv(keys_this)]` attribute.".to_string(),
             span: Some(opts.ident().span()),
         }
         .with_help(
             "For empty structs, the only reflectable value is the type name itself. \
-             Add `#[fluent_kv(this)]` to generate a `this_ftl()` method."
+             Add `#[fluent_kv(this)]` to generate a `this_ftl()` method on the original type, \
+             or `#[fluent_kv(keys_this)]` to generate it on the generated KV enums."
                 .to_string(),
         ));
     }

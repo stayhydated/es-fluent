@@ -8,11 +8,6 @@ expression: "&infos"
     type_name: "SystemConfigZedKvFtl",
     variants: [
       FtlVariant(
-        name: "SystemConfigZedKvFtl",
-        ftl_key: FluentKey("system_config_zed_kv_ftl"),
-        args: [],
-      ),
-      FtlVariant(
         name: "host",
         ftl_key: FluentKey("system_config_zed_kv_ftl-host"),
         args: [],
@@ -33,11 +28,6 @@ expression: "&infos"
     type_kind: Enum,
     type_name: "SystemConfigAlphaKvFtl",
     variants: [
-      FtlVariant(
-        name: "SystemConfigAlphaKvFtl",
-        ftl_key: FluentKey("system_config_alpha_kv_ftl"),
-        args: [],
-      ),
       FtlVariant(
         name: "host",
         ftl_key: FluentKey("system_config_alpha_kv_ftl-host"),

@@ -8,11 +8,6 @@ expression: "&infos"
     type_name: "MyStructErrorKvFtl",
     variants: [
       FtlVariant(
-        name: "MyStructErrorKvFtl",
-        ftl_key: FluentKey("my_struct_error_kv_ftl"),
-        args: [],
-      ),
-      FtlVariant(
         name: "a",
         ftl_key: FluentKey("my_struct_error_kv_ftl-a"),
         args: [],
@@ -23,11 +18,6 @@ expression: "&infos"
     type_kind: Enum,
     type_name: "MyStructNoticeKvFtl",
     variants: [
-      FtlVariant(
-        name: "MyStructNoticeKvFtl",
-        ftl_key: FluentKey("my_struct_notice_kv_ftl"),
-        args: [],
-      ),
       FtlVariant(
         name: "a",
         ftl_key: FluentKey("my_struct_notice_kv_ftl-a"),

@@ -146,8 +146,8 @@ fn generate_unit_enum(
         }
     };
 
-    // For structs, `this` controls ThisFtl on the generated KV enums
-    let this_ftl_impl = if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
+    // `keys_this` generates ThisFtl on the generated KV enums
+    let this_ftl_impl = if opts.attr_args().is_keys_this() {
         let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
         quote! {
             impl ::es_fluent::ThisFtl for #ident {
