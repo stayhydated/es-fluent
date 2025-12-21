@@ -1,2 +1,5 @@
 target/
 .expanded.rs
+.venv
+.ruff_cache
+.ropeproject
