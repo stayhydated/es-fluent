@@ -8,11 +8,6 @@ expression: "&infos"
     type_name: "ProfilePrimaryKvFtl",
     variants: [
       FtlVariant(
-        name: "ProfilePrimaryKvFtl",
-        ftl_key: FluentKey("profile_primary_kv_ftl"),
-        args: [],
-      ),
-      FtlVariant(
         name: "id",
         ftl_key: FluentKey("profile_primary_kv_ftl-id"),
         args: [],
@@ -38,11 +33,6 @@ expression: "&infos"
     type_kind: Enum,
     type_name: "ProfileSecondaryKvFtl",
     variants: [
-      FtlVariant(
-        name: "ProfileSecondaryKvFtl",
-        ftl_key: FluentKey("profile_secondary_kv_ftl"),
-        args: [],
-      ),
       FtlVariant(
         name: "id",
         ftl_key: FluentKey("profile_secondary_kv_ftl-id"),
@@ -71,7 +61,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "Profile",
-        ftl_key: FluentKey("profile"),
+        ftl_key: FluentKey("profile_this"),
         args: [],
       ),
     ],

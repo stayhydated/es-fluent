@@ -222,16 +222,25 @@ impl StructKvOpts {
 pub struct StructKvFluentAttributeArgs {
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
+    /// If true, generates `this_ftl()` on the original struct type.
     #[darling(default)]
     this: Option<bool>,
+    /// If true, generates `this_ftl()` on the generated KV enums (e.g., `UserLabelKvFtl`).
+    #[darling(default)]
+    keys_this: Option<bool>,
     /// The traits to derive on the FTL enum.
     #[getset(get = "pub")]
     #[darling(default)]
     derive: darling::util::PathList,
 }
 impl StructKvFluentAttributeArgs {
-    /// Returns `true` if the struct should be passed as `this`.
+    /// Returns `true` if the original struct should have a `this_ftl()` method.
     pub fn is_this(&self) -> bool {
         self.this.unwrap_or(false)
+    }
+
+    /// Returns `true` if the generated KV enums should have a `this_ftl()` method.
+    pub fn is_keys_this(&self) -> bool {
+        self.keys_this.unwrap_or(false)
     }
 }

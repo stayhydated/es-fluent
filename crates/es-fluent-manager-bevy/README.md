@@ -10,9 +10,9 @@ The `master` branch is compatible with the latest Bevy release.
 
 Compatibility of `es-fluent-manager-bevy` versions:
 
-| `es-fluent-manager-bevy` | `bevy` |
-| :----------------------- | :----- |
-| `0.17`                   | `0.17` |
+| `es-fluent-manager-bevy` | `bevy`   |
+| :----------------------- | :------- |
+| `0.17.x`                 | `0.17.x` |
 
 ## Usage
 

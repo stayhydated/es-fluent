@@ -9,7 +9,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "MyError",
-        ftl_key: FluentKey("my_error"),
+        ftl_key: FluentKey("my_error_this"),
         args: [],
       ),
       FtlVariant(
@@ -25,7 +25,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "MyError",
-        ftl_key: FluentKey("my_error"),
+        ftl_key: FluentKey("my_error_this"),
         args: [],
       ),
       FtlVariant(

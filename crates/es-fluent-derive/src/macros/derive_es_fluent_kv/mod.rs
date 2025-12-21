@@ -49,19 +49,20 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
         Err(err) => err.abort(),
     };
 
-    let this_ftl_struct_impl = if opts.attr_args().is_this() {
+    let this_ftl_struct_impl = {
         let original_ident = opts.ident();
-        let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
-        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
-        quote! {
-            impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
-                fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
-                }
-            }
-        }
-    } else {
-        quote! {}
+        let this_ftl_key = if opts.attr_args().is_this() {
+            let this_ident = quote::format_ident!("{}_this", original_ident);
+            Some(namer::FluentKey::new(&this_ident, "").to_string())
+        } else {
+            None
+        };
+
+        crate::macros::utils::generate_this_ftl_impl(
+            original_ident,
+            opts.generics(),
+            this_ftl_key.as_deref(),
+        )
     };
 
     // For empty structs, don't generate any enums - only the this_ftl impl
@@ -146,18 +147,20 @@ fn generate_unit_enum(
         }
     };
 
-    // For structs, `this` controls ThisFtl on the generated KV enums
-    let this_ftl_impl = if opts.attr_args().is_this() && ident != &opts.ftl_enum_ident() {
-        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
-        quote! {
-            impl ::es_fluent::ThisFtl for #ident {
-                fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
-                }
-            }
-        }
-    } else {
-        quote! {}
+    // `keys_this` generates ThisFtl on the generated KV enums
+    let this_ftl_impl = {
+        let this_ftl_key = if opts.attr_args().is_keys_this() {
+            let this_ident = quote::format_ident!("{}_this", ident);
+            Some(namer::FluentKey::new(&this_ident, "").to_string())
+        } else {
+            None
+        };
+
+        crate::macros::utils::generate_this_ftl_impl(
+            ident,
+            &syn::Generics::default(),
+            this_ftl_key.as_deref(),
+        )
     };
 
     quote! {
@@ -189,21 +192,22 @@ pub fn process_enum(opts: &EnumKvOpts) -> TokenStream {
     };
 
     let original_ident = opts.ident();
-    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
     // `this` generates ThisFtl on the original type (e.g., Country)
     // `keys_this` generates ThisFtl on the generated KV enums (e.g., CountryLabelKvFtl)
-    let this_ftl_enum_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
-        quote! {
-            impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
-                fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
-                }
-            }
-        }
-    } else {
-        quote! {}
+    let this_ftl_enum_impl = {
+        let this_ftl_key = if opts.attr_args().is_this() {
+            let this_ident = quote::format_ident!("{}_this", original_ident);
+            Some(namer::FluentKey::new(&this_ident, "").to_string())
+        } else {
+            None
+        };
+
+        crate::macros::utils::generate_this_ftl_impl(
+            original_ident,
+            opts.generics(),
+            this_ftl_key.as_deref(),
+        )
     };
 
     // For empty enums, don't generate any new enums - only the this_ftl impl
@@ -285,17 +289,19 @@ fn generate_enum_unit_enum(opts: &EnumKvOpts, ident: &syn::Ident) -> TokenStream
     };
 
     // `keys_this` generates ThisFtl on the generated KV enums
-    let this_ftl_impl = if opts.attr_args().is_keys_this() {
-        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
-        quote! {
-            impl ::es_fluent::ThisFtl for #ident {
-                fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
-                }
-            }
-        }
-    } else {
-        quote! {}
+    let this_ftl_impl = {
+        let this_ftl_key = if opts.attr_args().is_keys_this() {
+            let this_ident = quote::format_ident!("{}_this", ident);
+            Some(namer::FluentKey::new(&this_ident, "").to_string())
+        } else {
+            None
+        };
+
+        crate::macros::utils::generate_this_ftl_impl(
+            ident,
+            &syn::Generics::default(),
+            this_ftl_key.as_deref(),
+        )
     };
 
     quote! {
