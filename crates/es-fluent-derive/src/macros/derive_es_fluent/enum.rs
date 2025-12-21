@@ -186,19 +186,18 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
       value.to_fluent_string().into()
     };
 
-    let this_ftl_impl = if opts.attr_args().is_this() {
+    let this_ftl_key = if opts.attr_args().is_this() {
         let this_base_key = format!("{}_this", base_key);
-        let this_ftl_key = namer::FluentKey::with_base(&this_base_key, "").to_string();
-        quote! {
-            impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
-                fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
-                }
-            }
-        }
+        Some(namer::FluentKey::with_base(&this_base_key, "").to_string())
     } else {
-        quote! {}
+        None
     };
+
+    let this_ftl_impl = crate::macros::utils::generate_this_ftl_impl(
+        original_ident,
+        opts.generics(),
+        this_ftl_key.as_deref(),
+    );
 
     quote! {
       #display_impl

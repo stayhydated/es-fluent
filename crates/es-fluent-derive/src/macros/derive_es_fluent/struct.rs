@@ -81,19 +81,18 @@ fn generate(opts: &StructOpts) -> TokenStream {
       value.to_fluent_string().into()
     };
 
-    let this_ftl_impl = if opts.attr_args().is_this() {
+    let this_ftl_key = if opts.attr_args().is_this() {
         let this_ident = quote::format_ident!("{}_this", original_ident);
-        let this_ftl_key = namer::FluentKey::new(&this_ident, "").to_string();
-        quote! {
-            impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
-                fn this_ftl() -> String {
-                    ::es_fluent::localize(#this_ftl_key, None)
-                }
-            }
-        }
+        Some(namer::FluentKey::new(&this_ident, "").to_string())
     } else {
-        quote! {}
+        None
     };
+
+    let this_ftl_impl = crate::macros::utils::generate_this_ftl_impl(
+        original_ident,
+        opts.generics(),
+        this_ftl_key.as_deref(),
+    );
 
     quote! {
       #display_impl

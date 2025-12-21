@@ -22,6 +22,16 @@ impl FluentKey {
             FluentKey(format!("{}{}{}", base, Self::DELIMITER, sub_name))
         }
     }
+
+    pub fn this(ftl_name: &syn::Ident) -> Self {
+        let this_ident = quote::format_ident!("{}_this", ftl_name);
+        Self::new(&this_ident, "")
+    }
+
+    pub fn this_from_base(base: &str) -> Self {
+        let this_base = format!("{}_this", base);
+        Self::with_base(&this_base, "")
+    }
 }
 
 impl quote::ToTokens for FluentKey {

@@ -42,8 +42,8 @@ empty_struct_kv_this = Empty Struct Kv
 
 ## KvSplit
 
-kv_split_this = Kv Split
 kv_split = Kv Split { $country }
+kv_split_this = Kv Split
 
 ## KvSplitDescriptionKvFtl
 
