@@ -71,7 +71,7 @@ pub enum CanadaProvince {
     B,
 }
 
-#[derive(EsFluentKv)]
+#[derive(EsFluentKv, EsFluent)]
 #[fluent_kv(keys = ["description", "label"], keys_this, this)]
 pub struct KvSplit {
     pub country: Country,

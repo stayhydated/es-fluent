@@ -25,7 +25,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "Fruit",
-        ftl_key: FluentKey("fruit"),
+        ftl_key: FluentKey("fruit_this"),
         args: [],
       ),
     ],

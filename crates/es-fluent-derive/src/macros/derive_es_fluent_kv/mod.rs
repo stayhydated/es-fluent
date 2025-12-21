@@ -52,7 +52,8 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct) -> TokenStrea
     let this_ftl_struct_impl = if opts.attr_args().is_this() {
         let original_ident = opts.ident();
         let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
-        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+        let this_ident = quote::format_ident!("{}_this", original_ident);
+        let this_ftl_key = namer::FluentKey::new(&this_ident, "").to_string();
         quote! {
             impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
                 fn this_ftl() -> String {
@@ -148,7 +149,8 @@ fn generate_unit_enum(
 
     // `keys_this` generates ThisFtl on the generated KV enums
     let this_ftl_impl = if opts.attr_args().is_keys_this() {
-        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
+        let this_ident = quote::format_ident!("{}_this", ident);
+        let this_ftl_key = namer::FluentKey::new(&this_ident, "").to_string();
         quote! {
             impl ::es_fluent::ThisFtl for #ident {
                 fn this_ftl() -> String {
@@ -194,7 +196,8 @@ pub fn process_enum(opts: &EnumKvOpts) -> TokenStream {
     // `this` generates ThisFtl on the original type (e.g., Country)
     // `keys_this` generates ThisFtl on the generated KV enums (e.g., CountryLabelKvFtl)
     let this_ftl_enum_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+        let this_ident = quote::format_ident!("{}_this", original_ident);
+        let this_ftl_key = namer::FluentKey::new(&this_ident, "").to_string();
         quote! {
             impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
                 fn this_ftl() -> String {
@@ -286,7 +289,8 @@ fn generate_enum_unit_enum(opts: &EnumKvOpts, ident: &syn::Ident) -> TokenStream
 
     // `keys_this` generates ThisFtl on the generated KV enums
     let this_ftl_impl = if opts.attr_args().is_keys_this() {
-        let this_ftl_key = namer::FluentKey::new(ident, "").to_string();
+        let this_ident = quote::format_ident!("{}_this", ident);
+        let this_ftl_key = namer::FluentKey::new(&this_ident, "").to_string();
         quote! {
             impl ::es_fluent::ThisFtl for #ident {
                 fn this_ftl() -> String {

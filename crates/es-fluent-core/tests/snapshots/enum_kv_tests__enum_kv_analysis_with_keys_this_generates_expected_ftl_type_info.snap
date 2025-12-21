@@ -9,7 +9,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "CountryLabelKvFtl",
-        ftl_key: FluentKey("country_label_kv_ftl"),
+        ftl_key: FluentKey("country_label_kv_ftl_this"),
         args: [],
       ),
       FtlVariant(

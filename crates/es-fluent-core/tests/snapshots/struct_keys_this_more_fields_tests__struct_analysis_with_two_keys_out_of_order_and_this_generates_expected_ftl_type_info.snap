@@ -51,7 +51,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "SystemConfig",
-        ftl_key: FluentKey("system_config"),
+        ftl_key: FluentKey("system_config_this"),
         args: [],
       ),
     ],

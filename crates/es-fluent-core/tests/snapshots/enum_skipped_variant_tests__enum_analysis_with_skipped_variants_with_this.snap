@@ -9,7 +9,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "Mixed",
-        ftl_key: FluentKey("mixed"),
+        ftl_key: FluentKey("mixed_this"),
         args: [],
       ),
       FtlVariant(
@@ -25,7 +25,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "Mixed",
-        ftl_key: FluentKey("mixed"),
+        ftl_key: FluentKey("mixed_this"),
         args: [],
       ),
       FtlVariant(

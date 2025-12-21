@@ -82,7 +82,8 @@ fn generate(opts: &StructOpts) -> TokenStream {
     };
 
     let this_ftl_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+        let this_ident = quote::format_ident!("{}_this", original_ident);
+        let this_ftl_key = namer::FluentKey::new(&this_ident, "").to_string();
         quote! {
             impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
                 fn this_ftl() -> String {

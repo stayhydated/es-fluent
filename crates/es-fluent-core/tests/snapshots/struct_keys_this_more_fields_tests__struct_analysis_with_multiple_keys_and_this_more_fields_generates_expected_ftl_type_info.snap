@@ -61,7 +61,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "Profile",
-        ftl_key: FluentKey("profile"),
+        ftl_key: FluentKey("profile_this"),
         args: [],
       ),
     ],

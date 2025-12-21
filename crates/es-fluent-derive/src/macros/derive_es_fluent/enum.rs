@@ -187,7 +187,8 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     };
 
     let this_ftl_impl = if opts.attr_args().is_this() {
-        let this_ftl_key = namer::FluentKey::with_base(&base_key, "").to_string();
+        let this_base_key = format!("{}_this", base_key);
+        let this_ftl_key = namer::FluentKey::with_base(&this_base_key, "").to_string();
         quote! {
             impl #impl_generics ::es_fluent::ThisFtl for #original_ident #ty_generics #where_clause {
                 fn this_ftl() -> String {

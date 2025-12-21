@@ -31,7 +31,7 @@ expression: "&infos"
     variants: [
       FtlVariant(
         name: "MyStruct",
-        ftl_key: FluentKey("my_struct"),
+        ftl_key: FluentKey("my_struct_this"),
         args: [],
       ),
     ],

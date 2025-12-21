@@ -36,7 +36,8 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         .collect();
 
     if is_this {
-        let this_ftl_key = namer::FluentKey::with_base(&base_key, "");
+        let this_base_key = format!("{}_this", base_key);
+        let this_ftl_key = namer::FluentKey::with_base(&this_base_key, "");
         let this_variant = FtlVariant::builder()
             .name(target_name.clone())
             .ftl_key(this_ftl_key)
@@ -115,7 +116,8 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         .collect();
 
     if is_this {
-        let this_ftl_key = namer::FluentKey::with_base(&base_key, "");
+        let this_base_key = format!("{}_this", base_key);
+        let this_ftl_key = namer::FluentKey::with_base(&this_base_key, "");
         let this_variant = FtlVariant::builder()
             .name(target_name.clone())
             .ftl_key(this_ftl_key)

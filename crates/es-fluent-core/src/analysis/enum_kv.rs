@@ -26,7 +26,8 @@ pub fn analyze_enum_kv(
     // For empty enums, only generate the `this` variant if is_this is set
     if variant_names.is_empty() {
         if is_this {
-            let main_ftl_key = namer::FluentKey::new(target_ident, "");
+            let this_ident = quote::format_ident!("{}_this", target_ident);
+            let main_ftl_key = namer::FluentKey::new(&this_ident, "");
             let main_variant = FtlVariant::builder()
                 .name(target_ident.to_string())
                 .ftl_key(main_ftl_key)
@@ -64,7 +65,8 @@ pub fn analyze_enum_kv(
             .collect();
 
         if is_keys_this {
-            let this_ftl_key = namer::FluentKey::new(&ftl_enum_ident, "");
+            let this_ident = quote::format_ident!("{}_this", ftl_enum_ident);
+            let this_ftl_key = namer::FluentKey::new(&this_ident, "");
             let this_variant = FtlVariant::builder()
                 .name(ftl_enum_ident.to_string())
                 .ftl_key(this_ftl_key)
@@ -100,7 +102,8 @@ pub fn analyze_enum_kv(
                 .collect();
 
             if is_keys_this {
-                let this_ftl_key = namer::FluentKey::new(&keyyed_ident, "");
+                let this_ident = quote::format_ident!("{}_this", keyyed_ident);
+                let this_ftl_key = namer::FluentKey::new(&this_ident, "");
                 let this_variant = FtlVariant::builder()
                     .name(keyyed_ident.to_string())
                     .ftl_key(this_ftl_key)
@@ -127,7 +130,8 @@ pub fn analyze_enum_kv(
 
     // Generate this_ftl for the original type only if this is set
     if is_this {
-        let main_ftl_key = namer::FluentKey::new(target_ident, "");
+        let this_ident = quote::format_ident!("{}_this", target_ident);
+        let main_ftl_key = namer::FluentKey::new(&this_ident, "");
         let main_variant = FtlVariant::builder()
             .name(target_ident.to_string())
             .ftl_key(main_ftl_key)
