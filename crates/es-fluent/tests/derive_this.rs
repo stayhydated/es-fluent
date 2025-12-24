@@ -8,14 +8,14 @@ struct TestStruct {
 
 #[derive(EsFluentKv, EsFluentThis)]
 #[fluent_kv(keys = ["label"])]
-#[fluent_this(fields)]
+#[fluent_this(members)]
 struct TestKvStruct {
     field: String,
 }
 
 #[derive(EsFluentKv, EsFluentThis)]
 #[fluent_kv(keys = ["description"])]
-#[fluent_this(variants)]
+#[fluent_this(members)]
 enum TestKvEnum {
     VariantA,
 }

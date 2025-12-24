@@ -39,14 +39,3 @@ kv_split_label_kv_ftl-country = Country
 ## USAState
 
 usa_state-A = A
-empty_struct_this = Empty Struct
-country_description_kv_ftl_this = Country Description Kv Ftl
-country_this = Country
-country_label_kv_ftl_this = Country Label Kv Ftl
-kv_split_this = Kv Split
-kv_split_label_kv_ftl_this = Kv Split Label Kv Ftl
-kv_split_description_kv_ftl_this = Kv Split Description Kv Ftl
-canada_province_this = Canada Province
-usa_state_this = Usa State
-empty_struct_kv_this = Empty Struct Kv
-empty_enum_this = Empty Enum

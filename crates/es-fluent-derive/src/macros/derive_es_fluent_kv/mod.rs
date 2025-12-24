@@ -107,7 +107,7 @@ fn generate_unit_enum(
     
     // If fields_this is true, add EsFluentThis to derives
     if let Some(this_opts) = this_opts {
-        if this_opts.attr_args().is_fields() {
+        if this_opts.attr_args().is_members() {
              derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
         }
     }
@@ -213,7 +213,7 @@ fn generate_enum_unit_enum(opts: &EnumKvOpts, ident: &syn::Ident, this_opts: Opt
 
     // If variants_this is true, add EsFluentThis
     if let Some(this_opts) = this_opts {
-        if this_opts.attr_args().is_variants() {
+        if this_opts.attr_args().is_members() {
              derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
         }
     }

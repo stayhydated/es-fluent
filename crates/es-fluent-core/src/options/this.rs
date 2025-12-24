@@ -21,9 +21,7 @@ pub struct ThisAttributeArgs {
     #[darling(default)]
     origin: Option<bool>,
     #[darling(default)]
-    fields: Option<bool>,
-    #[darling(default)]
-    variants: Option<bool>,
+    members: Option<bool>,
 }
 
 impl ThisAttributeArgs {
@@ -32,13 +30,8 @@ impl ThisAttributeArgs {
         self.origin.unwrap_or(true)
     }
 
-    /// Returns `true` if `fields` should be generated.
-    pub fn is_fields(&self) -> bool {
-        self.fields.unwrap_or(false)
-    }
-
-    /// Returns `true` if `variants` should be generated.
-    pub fn is_variants(&self) -> bool {
-        self.variants.unwrap_or(false)
+    /// Returns `true` if `members` should be generated.
+    pub fn is_members(&self) -> bool {
+        self.members.unwrap_or(false)
     }
 }
