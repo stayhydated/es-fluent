@@ -49,7 +49,6 @@ fn struct_kv_analysis_with_keys_generates_expected_ftl_type_info() {
 fn struct_kv_analysis_with_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this)]
         pub struct User {
             name: String,
             age: u32,
@@ -70,7 +69,7 @@ fn struct_kv_analysis_with_this_generates_expected_ftl_type_info() {
 fn struct_kv_analysis_with_keys_and_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["label"], this)]
+        #[fluent_kv(keys = ["label"])]
         pub struct User {
             name: String,
             age: u32,
@@ -92,7 +91,7 @@ fn struct_kv_analysis_with_keys_this_generates_expected_ftl_type_info() {
     // keys_this generates this_ftl on the generated KV enums (UserLabelKvFtl)
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["label"], keys_this)]
+        #[fluent_kv(keys = ["label"])]
         pub struct User {
             name: String,
             age: u32,
@@ -115,7 +114,7 @@ fn struct_kv_analysis_with_this_and_keys_this_generates_expected_ftl_type_info()
     // keys_this generates this_ftl on the generated KV enums (UserLabelKvFtl)
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["label"], this, keys_this)]
+        #[fluent_kv(keys = ["label"])]
         pub struct User {
             name: String,
             age: u32,
@@ -133,7 +132,7 @@ fn struct_kv_analysis_with_this_and_keys_this_generates_expected_ftl_type_info()
 }
 
 #[test]
-fn validate_empty_struct_kv_without_this_produces_expected_error_message() {
+fn validate_empty_struct_kv_succeeds() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
         pub struct EmptyStructKv {}
@@ -145,19 +144,13 @@ fn validate_empty_struct_kv_without_this_produces_expected_error_message() {
         _ => unreachable!("input is a struct"),
     };
 
-    let err = validate_struct_kv(&opts, data).expect_err("Expected validation error");
-
-    insta::assert_ron_snapshot!(
-        "validate_empty_struct_kv_without_this_produces_expected_error_message",
-        err.to_string()
-    );
+    validate_struct_kv(&opts, data).expect("Validation should succeed");
 }
 
 #[test]
 fn validate_empty_struct_kv_with_this_succeeds() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this)]
         pub struct EmptyStructKv {}
     };
 
@@ -174,7 +167,6 @@ fn validate_empty_struct_kv_with_this_succeeds() {
 fn validate_empty_struct_kv_with_keys_this_succeeds() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys_this)]
         pub struct EmptyStructKv {}
     };
 

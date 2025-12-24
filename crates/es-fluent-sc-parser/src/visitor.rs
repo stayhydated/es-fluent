@@ -104,7 +104,11 @@ impl FtlVisitor {
                 })
                 .collect();
 
-            if enum_opts.attr_args().is_this() {
+            let derives_es_fluent_this = all_derive_paths
+                .iter()
+                .any(|p| p.segments.last().is_some_and(|s| s.ident == "EsFluentThis"));
+
+            if derives_es_fluent_this {
                 let this_ftl_key = namer::FluentKey::new(&discriminant_ident, "");
                 let this_variant = FtlVariant::builder()
                     .name(discriminant_ident_str.clone())

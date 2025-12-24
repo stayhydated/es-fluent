@@ -8,11 +8,6 @@ expression: "&infos"
     type_name: "Mixed",
     variants: [
       FtlVariant(
-        name: "Mixed",
-        ftl_key: FluentKey("mixed_this"),
-        args: [],
-      ),
-      FtlVariant(
         name: "UnitKept",
         ftl_key: FluentKey("mixed-UnitKept"),
         args: [],
@@ -23,11 +18,6 @@ expression: "&infos"
     type_kind: Struct,
     type_name: "Mixed",
     variants: [
-      FtlVariant(
-        name: "Mixed",
-        ftl_key: FluentKey("mixed_this"),
-        args: [],
-      ),
       FtlVariant(
         name: "DataKept",
         ftl_key: FluentKey("mixed-DataKept"),

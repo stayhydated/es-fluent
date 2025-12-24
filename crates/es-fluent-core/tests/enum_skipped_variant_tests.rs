@@ -42,7 +42,6 @@ fn enum_analysis_with_skipped_variants_without_this() {
 fn enum_analysis_with_skipped_variants_with_this() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(this)]
         enum Mixed {
             // Unit variants
             #[fluent(skip)]

@@ -36,7 +36,6 @@ fn enum_mixed_variants_analysis_without_this_generates_expected_ftl_type_info() 
 fn enum_mixed_variants_analysis_with_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(this)]
         enum Mixed {
             // unit variants
             UnitA,

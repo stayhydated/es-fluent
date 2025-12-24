@@ -35,7 +35,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
 fn es_fluent_enum_attributes_this_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(this, choice)]
+        #[fluent(choice)]
         enum Status {
             // unit
             Ok,
@@ -62,7 +62,7 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
 fn es_fluent_struct_attributes_this_with_derive_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(this, derive(Debug, Clone))]
+        #[fluent(derive(Debug, Clone))]
         struct Person {
             name: String,
             #[fluent(skip)]
@@ -125,7 +125,7 @@ fn es_fluent_kv_attributes_no_keys_snapshot() {
 fn es_fluent_kv_attributes_keys_this_derive_default_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this, keys = ["primary", "secondary"], derive(Debug, PartialEq))]
+        #[fluent_kv(keys = ["primary", "secondary"], derive(Debug, PartialEq))]
         struct Profile {
             id: u64,
             username: String,

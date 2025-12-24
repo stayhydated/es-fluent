@@ -157,9 +157,6 @@ EnumOpts {
         choice: Some(
             true,
         ),
-        this: Some(
-            true,
-        ),
         resource: None,
     },
 }

@@ -19,15 +19,4 @@ expression: "&infos"
       ),
     ],
   ),
-  FtlTypeInfo(
-    type_kind: Enum,
-    type_name: "Country",
-    variants: [
-      FtlVariant(
-        name: "Country",
-        ftl_key: FluentKey("country_this"),
-        args: [],
-      ),
-    ],
-  ),
 ]

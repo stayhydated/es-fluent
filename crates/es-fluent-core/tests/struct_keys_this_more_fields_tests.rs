@@ -7,7 +7,7 @@ use syn::{DeriveInput, parse_quote};
 fn struct_analysis_with_multiple_keys_and_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this, keys = ["error", "notice", "warning"])]
+        #[fluent_kv(keys = ["error", "notice", "warning"])]
         struct MyStruct {
             first: String,
             #[fluent_kv(skip)]
@@ -36,7 +36,7 @@ fn struct_analysis_with_multiple_keys_and_this_generates_expected_ftl_type_info(
 fn struct_analysis_with_multiple_keys_and_this_more_fields_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this, keys = ["primary", "secondary"])]
+        #[fluent_kv(keys = ["primary", "secondary"])]
         struct Profile {
             id: u64,
             username: String,
@@ -66,7 +66,7 @@ fn struct_analysis_with_two_keys_out_of_order_and_this_generates_expected_ftl_ty
     // Intentionally out-of-order keys to ensure iteration preserves user order
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this, keys = ["zed", "alpha"])]
+        #[fluent_kv(keys = ["zed", "alpha"])]
         struct SystemConfig {
             host: String,
             port: u16,
