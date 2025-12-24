@@ -108,7 +108,6 @@ fn struct_kv_keys_parsing_and_field_skipping() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 1);
     assert_eq!(fields[0].ident().as_ref().unwrap().to_string(), "a");
-
 }
 
 #[test]

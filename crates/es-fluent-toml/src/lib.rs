@@ -91,13 +91,17 @@ impl I18nConfig {
 
     /// Returns the path to the assets directory from a base directory.
     /// If `base_dir` is `None`, uses `CARGO_MANIFEST_DIR` environment variable.
-    pub fn assets_dir_from_base(&self, base_dir: Option<&Path>) -> Result<PathBuf, I18nConfigError> {
+    pub fn assets_dir_from_base(
+        &self,
+        base_dir: Option<&Path>,
+    ) -> Result<PathBuf, I18nConfigError> {
         let base = match base_dir {
             Some(dir) => dir.to_path_buf(),
             None => {
-                let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
+                let manifest_dir =
+                    env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
                 PathBuf::from(manifest_dir)
-            }
+            },
         };
 
         Ok(base.join(&self.assets_dir))
@@ -127,7 +131,10 @@ impl I18nConfig {
 
     /// Returns the languages available under the assets directory from a base directory.
     /// If `base_dir` is `None`, uses `CARGO_MANIFEST_DIR` environment variable.
-    pub fn available_languages_from_base(&self, base_dir: Option<&Path>) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
+    pub fn available_languages_from_base(
+        &self,
+        base_dir: Option<&Path>,
+    ) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
         let assets_path = self.assets_dir_from_base(base_dir)?;
         let mut languages: Vec<(String, LanguageIdentifier)> = Vec::new();
 
@@ -328,7 +335,9 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("i18n"),
         };
 
-        let languages = config.available_languages_from_base(Some(manifest_dir)).unwrap();
+        let languages = config
+            .available_languages_from_base(Some(manifest_dir))
+            .unwrap();
 
         let mut codes: Vec<String> = languages.into_iter().map(|lang| lang.to_string()).collect();
         codes.sort();
@@ -349,7 +358,9 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("i18n"),
         };
 
-        let languages = config.available_languages_from_base(Some(manifest_dir)).unwrap();
+        let languages = config
+            .available_languages_from_base(Some(manifest_dir))
+            .unwrap();
         let codes: Vec<String> = languages.into_iter().map(|lang| lang.to_string()).collect();
 
         assert_eq!(codes, vec!["en"]);

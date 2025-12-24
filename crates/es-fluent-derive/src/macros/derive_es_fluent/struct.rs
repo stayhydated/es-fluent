@@ -81,7 +81,6 @@ fn generate(opts: &StructOpts) -> TokenStream {
       value.to_fluent_string().into()
     };
 
-
     quote! {
       #display_impl
 

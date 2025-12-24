@@ -45,7 +45,6 @@ pub fn analyze_struct_kv(
             })
             .collect();
 
-
         log::debug!(
             "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
             TypeKind::Enum,
@@ -73,7 +72,6 @@ pub fn analyze_struct_kv(
                 })
                 .collect();
 
-
             log::debug!(
                 "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
                 TypeKind::Enum,
@@ -90,7 +88,6 @@ pub fn analyze_struct_kv(
             );
         }
     }
-
 
     Ok(())
 }

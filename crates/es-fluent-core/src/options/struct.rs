@@ -110,8 +110,7 @@ pub struct StructFluentAttributeArgs {
     #[darling(default)]
     derive: darling::util::PathList,
 }
-impl StructFluentAttributeArgs {
-}
+impl StructFluentAttributeArgs {}
 
 /// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]
@@ -221,5 +220,4 @@ pub struct StructKvFluentAttributeArgs {
     #[darling(default)]
     derive: darling::util::PathList,
 }
-impl StructKvFluentAttributeArgs {
-}
+impl StructKvFluentAttributeArgs {}

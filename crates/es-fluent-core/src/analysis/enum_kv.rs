@@ -40,7 +40,6 @@ pub fn analyze_enum_kv(
             })
             .collect();
 
-
         log::debug!(
             "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
             TypeKind::Enum,
@@ -67,7 +66,6 @@ pub fn analyze_enum_kv(
                         .build()
                 })
                 .collect();
-
 
             log::debug!(
                 "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",

@@ -27,9 +27,6 @@ pub fn validate_enum_kv(opts: &EnumKvOpts, data: &DataEnum) -> EsFluentCoreResul
     Ok(())
 }
 
-
-
-
 fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
     let default_fields: Vec<_> = opts
         .indexed_fields()
@@ -57,7 +54,6 @@ fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
     }
     Ok(())
 }
-
 
 fn validate_enum_kv_variants(_opts: &EnumKvOpts) -> EsFluentCoreResult<()> {
     // We support all variant types now, as we only need the variant name for key generation.

@@ -34,7 +34,6 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         })
         .collect();
 
-
     if !unit_variants.is_empty() {
         log::debug!(
             "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
@@ -104,7 +103,6 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
             )
         })
         .collect();
-
 
     if !struct_variants.is_empty() {
         log::debug!(

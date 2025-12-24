@@ -186,7 +186,6 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
       value.to_fluent_string().into()
     };
 
-
     quote! {
       #display_impl
 
