@@ -48,7 +48,7 @@ pub struct EmptyStructKv;
 pub enum EmptyEnum {}
 
 #[derive(EsFluent, EsFluentKv, EsFluentThis)]
-#[fluent_this(variants_this)] // Was keys_this
+#[fluent_this(origin)]
 #[fluent_kv(keys = ["description", "label"])]
 pub enum Country {
     USA(USAState),
@@ -67,7 +67,7 @@ pub enum CanadaProvince {
 }
 
 #[derive(EsFluent, EsFluentKv, EsFluentThis)]
-#[fluent_this(fields_this)] // Was keys_this
+#[fluent_this(fields)]
 #[fluent_kv(keys = ["description", "label"])]
 pub struct KvSplit {
     pub country: Country,

@@ -18,30 +18,27 @@ pub struct ThisOpts {
 /// Attribute arguments for `EsFluentThis`.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct ThisAttributeArgs {
-    /// If true, generates `ThisFtl` for the type itself.
     #[darling(default)]
-    this: Option<bool>,
-    /// If true, generates `ThisFtl` for the fields (replacing `keys_this`).
+    origin: Option<bool>,
     #[darling(default)]
-    fields_this: Option<bool>,
-    /// If true, generates `ThisFtl` for the enum variants.
+    fields: Option<bool>,
     #[darling(default)]
-    variants_this: Option<bool>,
+    variants: Option<bool>,
 }
 
 impl ThisAttributeArgs {
-    /// Returns `true` if `this` should be generated.
-    pub fn is_this(&self) -> bool {
-        self.this.unwrap_or(true)
+    /// Returns `true` if `origin` should be generated.
+    pub fn is_origin(&self) -> bool {
+        self.origin.unwrap_or(true)
     }
 
-    /// Returns `true` if `fields_this` should be generated.
-    pub fn is_fields_this(&self) -> bool {
-        self.fields_this.unwrap_or(false)
+    /// Returns `true` if `fields` should be generated.
+    pub fn is_fields(&self) -> bool {
+        self.fields.unwrap_or(false)
     }
 
-    /// Returns `true` if `variants_this` should be generated.
-    pub fn is_variants_this(&self) -> bool {
-        self.variants_this.unwrap_or(false)
+    /// Returns `true` if `variants` should be generated.
+    pub fn is_variants(&self) -> bool {
+        self.variants.unwrap_or(false)
     }
 }

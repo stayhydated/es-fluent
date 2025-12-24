@@ -1,21 +1,21 @@
 use es_fluent::{EsFluent, EsFluentKv, EsFluentThis, ThisFtl};
 
 #[derive(EsFluent, EsFluentThis)]
-#[fluent_this(this)]
+#[fluent_this(origin)]
 struct TestStruct {
     field: String,
 }
 
 #[derive(EsFluentKv, EsFluentThis)]
 #[fluent_kv(keys = ["label"])]
-#[fluent_this(fields_this)]
+#[fluent_this(fields)]
 struct TestKvStruct {
     field: String,
 }
 
 #[derive(EsFluentKv, EsFluentThis)]
 #[fluent_kv(keys = ["description"])]
-#[fluent_this(variants_this)]
+#[fluent_this(variants)]
 enum TestKvEnum {
     VariantA,
 }
@@ -30,12 +30,18 @@ fn test_derive_this_struct() {
 fn test_derive_this_fields() {
     // ThisFtl on generated KV enum for struct fields
     // Generated name: TestKvStruct + Label + KvFtl = TestKvStructLabelKvFtl
-    assert_eq!(TestKvStructLabelKvFtl::this_ftl(), "test_kv_struct_label_kv_ftl_this");
+    assert_eq!(
+        TestKvStructLabelKvFtl::this_ftl(),
+        "test_kv_struct_label_kv_ftl_this"
+    );
 }
 
 #[test]
 fn test_derive_this_variants() {
     // ThisFtl on generated KV enum for enum variants
     // Generated name: TestKvEnum + Description + KvFtl = TestKvEnumDescriptionKvFtl
-    assert_eq!(TestKvEnumDescriptionKvFtl::this_ftl(), "test_kv_enum_description_kv_ftl_this");
+    assert_eq!(
+        TestKvEnumDescriptionKvFtl::this_ftl(),
+        "test_kv_enum_description_kv_ftl_this"
+    );
 }
