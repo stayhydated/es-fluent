@@ -1,5 +1,3 @@
-//! Core types for tracking workspace crates and their states.
-
 use std::path::PathBuf;
 
 /// Information about a crate that uses es-fluent.

@@ -1,5 +1,4 @@
-//! Generator module - handles injecting temporary crate and running cargo
-
+use crate::mode::{FluentParseMode, FluentParseModeExt};
 use crate::templates::{CargoTomlTemplate, MainRsTemplate};
 use crate::types::CrateInfo;
 use anyhow::{Context, Result, bail};
@@ -12,7 +11,7 @@ const TEMP_DIR: &str = ".es-fluent";
 const TEMP_CRATE_NAME: &str = "es-fluent-gen";
 
 /// Generates FTL files for a crate using the CrateInfo struct.
-pub fn generate_for_crate(krate: &CrateInfo) -> Result<()> {
+pub fn generate_for_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<()> {
     if !krate.has_lib_rs {
         bail!(
             "Crate '{}' has no lib.rs - inventory requires a library target for linking",
@@ -20,7 +19,7 @@ pub fn generate_for_crate(krate: &CrateInfo) -> Result<()> {
         );
     }
 
-    let temp_dir = create_temp_crate(krate)?;
+    let temp_dir = create_temp_crate(krate, mode)?;
     run_cargo_bin(&temp_dir)
 }
 
@@ -53,7 +52,7 @@ fn get_es_fluent_dep(manifest_path: &Path) -> String {
 }
 
 /// Creates a temporary crate in .es-fluent/ that generates FTL.
-fn create_temp_crate(krate: &CrateInfo) -> Result<std::path::PathBuf> {
+fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::path::PathBuf> {
     let temp_dir = krate.manifest_dir.join(TEMP_DIR);
     let src_dir = temp_dir.join("src");
 
@@ -79,6 +78,7 @@ fn create_temp_crate(krate: &CrateInfo) -> Result<std::path::PathBuf> {
     let main_rs = MainRsTemplate {
         crate_ident: &crate_ident,
         i18n_toml_path: &i18n_toml_path_str,
+        parse_mode: mode.as_code(),
     };
     fs::write(src_dir.join("main.rs"), main_rs.render().unwrap())
         .context("Failed to write .es-fluent/src/main.rs")?;

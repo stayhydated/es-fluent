@@ -1,6 +1,3 @@
-//! UI module for console output with colored status display.
-//! Used by the `generate` command for raw terminal output.
-
 use crate::types::CrateInfo;
 use colored::Colorize;
 

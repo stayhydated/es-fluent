@@ -1,5 +1,3 @@
-//! TUI module for watch mode using ratatui.
-
 use crate::types::{CrateInfo, CrateState};
 use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers},
@@ -26,8 +24,6 @@ pub struct TuiApp<'a> {
     pub states: HashMap<String, CrateState>,
     /// Whether the app should quit.
     pub should_quit: bool,
-    /// Status message to display.
-    pub status_message: Option<String>,
 }
 
 impl<'a> TuiApp<'a> {
@@ -46,18 +42,12 @@ impl<'a> TuiApp<'a> {
             crates,
             states,
             should_quit: false,
-            status_message: None,
         }
     }
 
     /// Updates the state of a crate.
     pub fn set_state(&mut self, crate_name: &str, state: CrateState) {
         self.states.insert(crate_name.to_string(), state);
-    }
-
-    /// Sets the status message.
-    pub fn set_status(&mut self, message: Option<String>) {
-        self.status_message = message;
     }
 }
 
@@ -85,12 +75,11 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         .constraints([
             Constraint::Length(3), // Header
             Constraint::Min(0),    // Crate list
-            Constraint::Length(3), // Footer/status
         ])
         .split(frame.area());
 
     // Header
-    let header = Paragraph::new("es-fluent watch")
+    let header = Paragraph::new("es-fluent watch (q to quit)")
         .style(
             Style::default()
                 .fg(Color::Cyan)
@@ -110,7 +99,6 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
                 Some(CrateState::Generating) => ("*", "generating...", Color::Yellow),
                 Some(CrateState::Watching { resource_count }) => {
                     let text = format!("watching ({} resources)", resource_count);
-                    // We need to leak the string to get a &'static str, or use Span::raw with owned String
                     return ListItem::new(Line::from(vec![
                         Span::styled(
                             "✓ ",
@@ -171,16 +159,6 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
 
     let crate_list = List::new(items).block(Block::default().borders(Borders::ALL).title("Crates"));
     frame.render_widget(crate_list, chunks[1]);
-
-    // Footer/status
-    let status_text = app
-        .status_message
-        .as_deref()
-        .unwrap_or("Watching for changes... (q or Ctrl+C to quit)");
-    let footer = Paragraph::new(status_text)
-        .style(Style::default().fg(Color::DarkGray))
-        .block(Block::default().borders(Borders::TOP));
-    frame.render_widget(footer, chunks[2]);
 }
 
 /// Polls for keyboard events with a timeout.

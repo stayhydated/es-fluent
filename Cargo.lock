@@ -4383,11 +4383,13 @@ dependencies = [
  "colored",
  "crossterm 0.29.0",
  "ctrlc",
+ "es-fluent-generate",
  "es-fluent-toml",
  "humantime",
- "notify 7.0.0",
+ "notify 8.2.0",
  "notify-debouncer-mini",
  "ratatui",
+ "rayon",
  "tempfile",
  "walkdir",
 ]
@@ -8068,13 +8070,13 @@ dependencies = [
 
 [[package]]
 name = "notify-debouncer-mini"
-version = "0.5.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaa5a66d07ed97dce782be94dcf5ab4d1b457f4243f7566c7557f15cabc8c799"
+checksum = "17849edfaabd9a5fef1c606d99cfc615a8e99f7ac4366406d86c7942a3184cf2"
 dependencies = [
  "log",
- "notify 7.0.0",
- "notify-types 1.0.1",
+ "notify 8.2.0",
+ "notify-types 2.0.0",
  "tempfile",
 ]
 

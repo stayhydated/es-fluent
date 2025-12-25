@@ -1,5 +1,3 @@
-//! Askama templates for code generation
-
 use askama::Template;
 
 /// Template for the generated Cargo.toml
@@ -17,4 +15,5 @@ pub struct CargoTomlTemplate<'a> {
 pub struct MainRsTemplate<'a> {
     pub crate_ident: &'a str,
     pub i18n_toml_path: &'a str,
+    pub parse_mode: &'a str,
 }

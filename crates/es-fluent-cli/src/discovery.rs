@@ -1,5 +1,3 @@
-//! Workspace discovery - finds all crates with i18n.toml configuration.
-
 use crate::types::CrateInfo;
 use anyhow::{Context, Result};
 use cargo_metadata::MetadataCommand;
