@@ -34,27 +34,10 @@ es-fluent-manager-embedded = "*"
 es-fluent-manager-bevy = "*"
 ```
 
-To bootstrap `.ftl` files from your Rust types, add the build helper:
+To bootstrap `.ftl` files from your Rust types, install the CLI tool:
 
-```toml
-[build-dependencies]
-es-fluent-build = "*"
-```
-
-And create a `build.rs`:
-
-```rs
-// build.rs
-use es_fluent_build::FluentParseMode;
-
-fn main() {
-    if let Err(e) = es_fluent_build::FluentBuilder::new()
-        .mode(FluentParseMode::Conservative)
-        .build()
-    {
-        eprintln!("Error building FTL files: {e}");
-    }
-}
+```bash
+cargo install es-fluent-cli
 ```
 
 ## Project configuration
@@ -67,17 +50,34 @@ assets_dir = "i18n"         # where your localized files live
 fallback_language = "en"
 ```
 
-When you run a build, the builder will:
+## CLI Commands
 
-- Discover your crate name,
-- Parse Rust sources under `src/`,
-- Generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
+### Generate
+Run the generator to discover your crate name, parse Rust sources under `src/`, and generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
+
+```bash
+es-fluent generate
+```
+
+### Watch
+Automatically compile and run the generator whenever you modify your source code.
+
+```bash
+es-fluent watch
+```
+
+### Clean
+Remove orphan keys and groups that are no longer present in your source code.
+
+```bash
+es-fluent clean
+```
 
 For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the file would be `../i18n/en/{crate_name}.ftl`.
 
 ## Core derives
 
-### `#[derive(EsFluent)]` on enums
+### `#[derive(EsFluent)]`
 
 Annotate an enum or a struct to generate message IDs and implement `es_fluent::FluentDisplay`.
 
@@ -85,16 +85,22 @@ Annotate an enum or a struct to generate message IDs and implement `es_fluent::F
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
-pub struct HelloUser<'a>(&'a str);
-
-impl<'a> HelloUser<'a> {
-    pub fn new(user_name: &'a str) -> Self {
-        Self(user_name)
-    }
+pub enum TeaBlend {
+    EarlGrey,
+    EnglishBreakfast,
+    Darjeeling,
 }
-```
 
-Fields become Fluent arguments. The derive generates stable keys and formatting logic for you.
+#[derive(EsFluent)]
+pub enum Drink {
+    Tea { blend: TeaBlend },
+    Water,
+}
+
+#[derive(EsFluent)]
+pub struct Hello<'a>(pub &'a str);
+
+```
 
 ### Choices with `EsFluentChoice`
 
@@ -161,17 +167,14 @@ shared-Photos =
     }.
 ```
 
-
-
-### `#[derive(EsFluent)]` on structs (keys and “this”)
+### `#[derive(EsFluentKv)]`
 
 You can derive on structs to produce key enums (labels, descriptions, etc.). For example:
 
 ```rs
-use es_fluent::EsFluent;
+use es_fluent::EsFluentKv;
 
-#[derive(EsFluent)]
-#[fluent(this)] // generates `Address::this_ftl()`
+#[derive(EsFluentKv)]
 #[fluent(keys = ["description", "label"])]
 pub struct Address {
     pub street: String,
@@ -179,7 +182,40 @@ pub struct Address {
 }
 ```
 
-This expands to enums like `AddressLabelFtl` and `AddressDescriptionFtl` with variants for each field (`Street`, `PostalCode`). `this` adds a helper `Address::this_ftl()` that returns the ID of the parent.
+### `#[derive(EsFluentThis)]`
+
+Generates a helper method `this_ftl()` that returns the fluent representation of the parent.
+
+```rs
+use es_fluent::{EsFluent, EsFluentKv, EsFluentThis};
+
+#[derive(EsFluent, EsFluentThis)]
+#[fluent_this(origin)]
+pub enum TeaBlend {
+    EarlGrey,
+    EnglishBreakfast,
+    Darjeeling,
+}
+
+#[derive(EsFluent, EsFluentThis)]
+#[fluent_this(origin)]
+pub enum Drink {
+    Tea { blend: TeaBlend },
+    Water,
+}
+
+#[derive(EsFluent, EsFluentThis)]
+#[fluent_this(origin)]
+pub struct Hello<'a>(pub &'a str);
+
+#[derive(EsFluentKv, EsFluentThis)]
+#[fluent_this(origin, members)]
+#[fluent(keys = ["description", "label"])]
+pub struct Address {
+    pub street: String,
+    pub postal_code: String,
+}
+```
 
 ### `#[derive(EsFluentKv)]` on structs
 
@@ -273,19 +309,6 @@ user_label_kv_ftl-skip_me = Skip Me
 user_label_kv_ftl-subscribe_newsletter = Subscribe Newsletter
 user_label_kv_ftl-username = Username
 ```
-
-## Derive Macro Supported kinds
-
-### Enums
-
-- enum_unit
-- enum_named
-- enum_tuple
-
-### Structs
-
-- struct_named
-- struct_tuple
 
 ### Generics
 
