@@ -263,6 +263,10 @@ mod generate {
                 })
                 .unwrap_or_else(|| "src/".to_string());
 
+            for f in crate::__core::registry::get_all_ftl_type_infos() {
+                println!("{:?}", f);
+            }
+
             // Filter to only include types defined in this crate's src/ directory
             let type_infos: Vec<_> = crate::__core::registry::get_all_ftl_type_infos()
                 .into_iter()
