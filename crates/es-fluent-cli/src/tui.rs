@@ -161,6 +161,76 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
     frame.render_widget(crate_list, chunks[1]);
 }
 
+/// The TUI application state for logging (Clean command).
+pub struct LogApp {
+    pub logs: Vec<Line<'static>>,
+    pub should_quit: bool,
+    pub done: bool,
+}
+
+impl LogApp {
+    pub fn new() -> Self {
+        Self {
+            logs: Vec::new(),
+            should_quit: false,
+            done: false,
+        }
+    }
+
+    pub fn add_log(&mut self, line: Line<'static>) {
+        self.logs.push(line);
+    }
+}
+
+/// Draws the Log TUI.
+pub fn draw_log(frame: &mut Frame, app: &LogApp) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Header
+            Constraint::Min(0),    // Log list
+        ])
+        .split(frame.area());
+
+    // Header
+    let title = if app.done {
+        "es-fluent clean (done - press q to quit)"
+    } else {
+        "es-fluent clean (running...)"
+    };
+    
+    let header_style = if app.done {
+         Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+    } else {
+         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    };
+
+    let header = Paragraph::new(title)
+        .style(header_style)
+        .block(Block::default().borders(Borders::BOTTOM));
+    frame.render_widget(header, chunks[0]);
+
+    // Log list
+    let items: Vec<ListItem> = app
+        .logs
+        .iter()
+        .map(|line| ListItem::new(line.clone()))
+        .collect();
+
+    let log_list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Logs"));
+    
+    // Auto-scroll to bottom
+    let log_len = app.logs.len();
+    if log_len > 0 {
+       let mut state = ratatui::widgets::ListState::default();
+       state.select(Some(log_len - 1));
+       frame.render_stateful_widget(log_list, chunks[1], &mut state);
+    } else {
+       frame.render_widget(log_list, chunks[1]);
+    }
+}
+
 /// Polls for keyboard events with a timeout.
 /// Returns true if the user wants to quit.
 pub fn poll_quit_event(timeout: Duration) -> io::Result<bool> {
@@ -175,3 +245,4 @@ pub fn poll_quit_event(timeout: Duration) -> io::Result<bool> {
     }
     Ok(false)
 }
+

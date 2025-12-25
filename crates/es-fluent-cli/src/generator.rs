@@ -61,6 +61,11 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
     // Convert crate name to valid Rust identifier
     let crate_ident = krate.name.replace('-', "_");
 
+    // Ensure we use the absolute path to the config
+    let i18n_toml_path_str = krate.i18n_config_path.canonicalize()
+        .context("Failed to canonicalize i18n config path")?
+        .to_str().unwrap().to_string();
+
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
     let es_fluent_dep = get_es_fluent_dep(&manifest_path);
 
@@ -79,6 +84,8 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
         crate_ident: &crate_ident,
         i18n_toml_path: &i18n_toml_path_str,
         parse_mode: mode.as_code(),
+        crate_name: &krate.name,
+        crate_root: krate.manifest_dir.to_str().unwrap(),
     };
     fs::write(src_dir.join("main.rs"), main_rs.render().unwrap())
         .context("Failed to write .es-fluent/src/main.rs")?;
@@ -90,14 +97,23 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
 fn run_cargo_bin(temp_dir: &Path) -> Result<()> {
     let manifest_path = temp_dir.join("Cargo.toml");
 
-    let output = Command::new("cargo")
+    let status = Command::new("cargo")
         .arg("run")
         .arg("--manifest-path")
         .arg(&manifest_path)
         .arg("--quiet")
-        .output()
+        .status()
         .context("Failed to run cargo")?;
 
+    if status.success() {
+        Ok(())
+    } else {
+        bail!("Cargo build failed")
+    }
+}
+
+// Commented out original logic to avoid compilation errors
+/*
     if output.status.success() {
         Ok(())
     } else {
@@ -121,3 +137,4 @@ fn run_cargo_bin(temp_dir: &Path) -> Result<()> {
         }
     }
 }
+*/
