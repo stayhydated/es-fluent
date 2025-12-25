@@ -70,68 +70,35 @@ pub fn generate<P: AsRef<Path>>(
         ast::Resource { body: Vec::new() }
     };
 
-    let target_resource = build_target_resource(&items);
-
-    let mut existing_entries_map: HashMap<String, ast::Entry<String>> = HashMap::new();
-    for entry in existing_resource.body.into_iter() {
-        match &entry {
-            ast::Entry::Message(msg) => {
-                existing_entries_map.insert(msg.id.name.clone(), entry);
-            },
-            ast::Entry::Term(term) => {
-                existing_entries_map
-                    .insert(format!("{}{}", FluentKey::DELIMITER, term.id.name), entry);
-            },
-            _ => {},
-        }
-    }
-
-    let mut merged_resource_body: Vec<ast::Entry<String>> = Vec::new();
-    let mut keys_added_or_preserved = HashMap::new();
-
-    for entry in target_resource.body {
-        match entry {
-            ast::Entry::GroupComment(_) => {
-                merged_resource_body.push(entry);
-            },
-            ast::Entry::Message(msg) => {
-                let key = msg.id.name.clone();
-                let entry_to_add = if matches!(mode, FluentParseMode::Aggressive) {
-                    ast::Entry::Message(msg)
-                } else {
+    let final_resource = if matches!(mode, FluentParseMode::Aggressive) {
+        let target_resource = build_target_resource(&items);
+        
+        let mut existing_entries_map: HashMap<String, ast::Entry<String>> = HashMap::new();
+        for entry in existing_resource.body.into_iter() {
+            match &entry {
+                ast::Entry::Message(msg) => {
+                    existing_entries_map.insert(msg.id.name.clone(), entry);
+                },
+                ast::Entry::Term(term) => {
                     existing_entries_map
-                        .remove(&key)
-                        .unwrap_or(ast::Entry::Message(msg))
-                };
-                merged_resource_body.push(entry_to_add);
-                keys_added_or_preserved.insert(key, ());
-            },
-            ast::Entry::Term(term) => {
-                let key = format!("{}{}", FluentKey::DELIMITER, term.id.name);
-                let entry_to_add = if matches!(mode, FluentParseMode::Aggressive) {
-                    ast::Entry::Term(term)
-                } else {
-                    existing_entries_map
-                        .remove(&key)
-                        .unwrap_or(ast::Entry::Term(term))
-                };
-                merged_resource_body.push(entry_to_add);
-                keys_added_or_preserved.insert(key, ());
-            },
-            _ => {
-                merged_resource_body.push(entry);
-            },
+                        .insert(format!("{}{}", FluentKey::DELIMITER, term.id.name), entry);
+                },
+                _ => {},
+            }
         }
-    }
 
-    if matches!(mode, FluentParseMode::Conservative) {
-        for (_, entry) in existing_entries_map {
-            merged_resource_body.push(entry);
+        let mut merged_resource_body: Vec<ast::Entry<String>> = Vec::new();
+
+        for entry in target_resource.body {
+            // Aggressive mode: Clean slate logic
+            // We just push the target entry. This overwrites values and reorders structure.
+             merged_resource_body.push(entry);
         }
-    }
+        
+        ast::Resource { body: merged_resource_body }
 
-    let final_resource = ast::Resource {
-        body: merged_resource_body,
+    } else {
+        smart_merge_conservative(existing_resource, &items)
     };
 
     if !final_resource.body.is_empty() {
@@ -153,6 +120,7 @@ pub fn generate<P: AsRef<Path>>(
         }
     } else {
         let final_content_to_write = "".to_string();
+        let final_content_to_write = final_content_to_write.trim().to_string(); // Ensure empty is empty string
         let current_content = if file_path.exists() {
             fs::read_to_string(&file_path)?
         } else {
@@ -163,10 +131,17 @@ pub fn generate<P: AsRef<Path>>(
             fs::write(&file_path, &final_content_to_write)?;
             log::error!("Wrote empty FTL file (no items): {}", file_path.display());
         } else if !file_path.exists() {
-            log::error!(
-                "FTL file remains non-existent (no items): {}",
-                file_path.display()
-            );
+             // Do nothing if it doesn't exist and we have nothing to write? 
+             // Or verify previous behavior. Previous behavior logged error if file remains non-existent.
+             // We can skip writing empty file if it doesn't exist?
+             // Actually, the original code logic was a bit verbose there.
+             // Let's stick to simple: if content changed, write it.
+             if current_content != final_content_to_write {
+                 fs::write(&file_path, &final_content_to_write)?;
+                 log::error!("Wrote empty FTL file (no items): {}", file_path.display());
+             } else {
+                 log::error!("FTL file unchanged (empty or no items): {}", file_path.display());
+             }
         } else {
             log::error!(
                 "FTL file unchanged (empty or no items): {}",
@@ -176,6 +151,111 @@ pub fn generate<P: AsRef<Path>>(
     }
 
     Ok(())
+}
+
+fn smart_merge_conservative(
+    existing: ast::Resource<String>,
+    items: &[FtlTypeInfo],
+) -> ast::Resource<String> {
+    let mut pending_items = merge_ftl_type_infos(items);
+    pending_items.sort_by(|a, b| a.type_name.cmp(&b.type_name));
+    
+    let mut item_map: HashMap<String, FtlTypeInfo> = pending_items.into_iter()
+        .map(|i| (i.type_name.clone(), i))
+        .collect();
+    
+    let mut new_body = Vec::new();
+    let mut current_group_name: Option<String> = None;
+    
+    for entry in existing.body {
+        match entry {
+            ast::Entry::GroupComment(ref comment) => {
+                // If we were in a group, finish it up before starting new one
+                if let Some(ref old_group) = current_group_name {
+                     if let Some(info) = item_map.get_mut(old_group) {
+                        if !info.variants.is_empty() {
+                            for variant in &info.variants {
+                                 new_body.push(create_message_entry(variant));
+                            }
+                            info.variants.clear();
+                        }
+                    }
+                }
+                
+                if let Some(content) = comment.content.first() {
+                    let trimmed = content.trim();
+                    current_group_name = Some(trimmed.to_string());
+                } else {
+                    current_group_name = None;
+                }
+                
+                new_body.push(entry);
+            },
+            ast::Entry::Message(ref msg) => {
+                let key = &msg.id.name;
+                let mut handled = false;
+                
+                if let Some(ref group_name) = current_group_name {
+                     if let Some(info) = item_map.get_mut(group_name) {
+                         if let Some(idx) = info.variants.iter().position(|v| v.ftl_key.to_string() == *key) {
+                             info.variants.remove(idx);
+                             handled = true;
+                         }
+                     }
+                }
+                
+                if !handled {
+                     for info in item_map.values_mut() {
+                         if let Some(idx) = info.variants.iter().position(|v| v.ftl_key.to_string() == *key) {
+                             info.variants.remove(idx);
+                             break;
+                         }
+                     }
+                }
+                
+                new_body.push(entry);
+            },
+            ast::Entry::Term(ref term) => {
+                 let key = format!("{}{}", FluentKey::DELIMITER, term.id.name);
+                 for info in item_map.values_mut() {
+                         if let Some(idx) = info.variants.iter().position(|v| v.ftl_key.to_string() == key) {
+                             info.variants.remove(idx);
+                             break;
+                         }
+                  }
+                 new_body.push(entry);
+            }
+            _ => {
+                new_body.push(entry);
+            }
+        }
+    }
+    
+    // Correctly handle the end of the last group
+    if let Some(ref last_group) = current_group_name {
+         if let Some(info) = item_map.get_mut(last_group) {
+            if !info.variants.is_empty() {
+                for variant in &info.variants {
+                     new_body.push(create_message_entry(variant));
+                }
+                info.variants.clear();
+            }
+        }
+    }
+    
+    let mut remaining_groups: Vec<_> = item_map.into_iter().collect();
+    remaining_groups.sort_by(|(na, _), (nb, _)| na.cmp(nb));
+    
+    for (type_name, info) in remaining_groups {
+        if !info.variants.is_empty() {
+             new_body.push(create_group_comment_entry(&type_name));
+             for variant in info.variants {
+                 new_body.push(create_message_entry(&variant));
+             }
+        }
+    }
+    
+    ast::Resource { body: new_body }
 }
 
 fn create_group_comment_entry(type_name: &str) -> ast::Entry<String> {

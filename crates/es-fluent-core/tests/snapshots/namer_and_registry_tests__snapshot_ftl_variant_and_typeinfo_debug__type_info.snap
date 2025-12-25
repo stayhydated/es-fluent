@@ -20,4 +20,5 @@ FtlTypeInfo(
       args: [],
     ),
   ],
+  file_path: None,
 )

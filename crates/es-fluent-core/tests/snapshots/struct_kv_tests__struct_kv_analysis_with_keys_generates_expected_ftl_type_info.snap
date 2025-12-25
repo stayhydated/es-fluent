@@ -18,6 +18,7 @@ expression: "&infos"
         args: [],
       ),
     ],
+    file_path: None,
   ),
   FtlTypeInfo(
     type_kind: Enum,
@@ -34,5 +35,6 @@ expression: "&infos"
         args: [],
       ),
     ],
+    file_path: None,
   ),
 ]

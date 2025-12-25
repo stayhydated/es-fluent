@@ -13,6 +13,7 @@ expression: "&infos"
         args: [],
       ),
     ],
+    file_path: None,
   ),
   FtlTypeInfo(
     type_kind: Struct,
@@ -35,5 +36,6 @@ expression: "&infos"
         ],
       ),
     ],
+    file_path: None,
   ),
 ]
