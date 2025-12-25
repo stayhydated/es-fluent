@@ -9,7 +9,7 @@ mod watcher;
 
 use crate::discovery::{count_ftl_resources, discover_crates};
 use crate::mode::FluentParseMode;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use rayon::prelude::*;
 use std::path::PathBuf;
@@ -74,10 +74,8 @@ fn run_generate(args: CommonArgs) -> Result<()> {
 
     ui::print_header();
 
-    // Discover all crates with i18n.toml
     let crates = discover_crates(&path)?;
 
-    // Filter by package if specified
     let crates: Vec<_> = if let Some(ref pkg) = args.package {
         crates.into_iter().filter(|c| &c.name == pkg).collect()
     } else {
@@ -91,21 +89,17 @@ fn run_generate(args: CommonArgs) -> Result<()> {
 
     ui::print_discovered(&crates);
 
-    // Separate crates with and without lib.rs
     let (valid_crates, skipped_crates): (Vec<_>, Vec<_>) =
         crates.iter().partition(|k| k.has_lib_rs);
 
-    // Print skipped crates first
     for krate in &skipped_crates {
         ui::print_missing_lib_rs(&krate.name);
     }
 
-    // Print that we're generating for all valid crates
     for krate in &valid_crates {
         ui::print_generating(&krate.name);
     }
 
-    // Generate in parallel and collect results
     let mode = &args.mode;
     let results: Vec<GenerateResult> = valid_crates
         .par_iter()
@@ -128,7 +122,6 @@ fn run_generate(args: CommonArgs) -> Result<()> {
         })
         .collect();
 
-    // Print results in order
     let mut has_errors = false;
     for result in &results {
         if let Some(ref error) = result.error {
@@ -149,10 +142,8 @@ fn run_generate(args: CommonArgs) -> Result<()> {
 fn run_watch(args: CommonArgs) -> Result<()> {
     let path = args.path.unwrap_or_else(|| PathBuf::from("."));
 
-    // Discover all crates with i18n.toml
     let crates = discover_crates(&path)?;
 
-    // Filter by package if specified
     let crates: Vec<_> = if let Some(ref pkg) = args.package {
         crates.into_iter().filter(|c| &c.name == pkg).collect()
     } else {
@@ -165,7 +156,6 @@ fn run_watch(args: CommonArgs) -> Result<()> {
         return Ok(());
     }
 
-    // Run the TUI watcher
     watcher::watch_all(&crates, &args.mode)
 }
 
@@ -174,10 +164,8 @@ fn run_clean(args: CommonArgs) -> Result<()> {
 
     ui::print_header();
 
-    // Discover all crates with i18n.toml
     let crates = discover_crates(&path)?;
 
-    // Filter by package if specified
     let crates: Vec<_> = if let Some(ref pkg) = args.package {
         crates.into_iter().filter(|c| &c.name == pkg).collect()
     } else {
@@ -191,21 +179,17 @@ fn run_clean(args: CommonArgs) -> Result<()> {
 
     ui::print_discovered(&crates);
 
-    // Separate crates with and without lib.rs
     let (valid_crates, skipped_crates): (Vec<_>, Vec<_>) =
         crates.iter().partition(|k| k.has_lib_rs);
 
-    // Print skipped crates first
     for krate in &skipped_crates {
         ui::print_missing_lib_rs(&krate.name);
     }
 
-    // Print that we're cleaning for all valid crates
     for krate in &valid_crates {
         ui::print_cleaning(&krate.name);
     }
 
-    // Generate in parallel and collect results
     let mode = FluentParseMode::Clean;
     let results: Vec<GenerateResult> = valid_crates
         .par_iter()
@@ -228,7 +212,6 @@ fn run_clean(args: CommonArgs) -> Result<()> {
         })
         .collect();
 
-    // Print results in order
     let mut has_errors = false;
     for result in &results {
         if let Some(ref error) = result.error {

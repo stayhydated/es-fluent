@@ -1,10 +1,10 @@
 use es_fluent_core::meta::TypeKind;
 use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{generate, FluentParseMode};
+use es_fluent_generate::{FluentParseMode, generate};
 use proc_macro2::Span;
-use syn::Ident;
 use std::fs;
+use syn::Ident;
 use tempfile::TempDir;
 
 #[test]
@@ -49,14 +49,15 @@ group-a-key1 = Initial Value
         &i18n_path,
         vec![group_a],
         FluentParseMode::Conservative,
-    ).unwrap();
+    )
+    .unwrap();
 
     let content = fs::read_to_string(&ftl_file_path).unwrap();
     println!("Generated Content:\n{}", content);
 
     // Verify format
     // We expect Key2 to be under GroupA, likely adjacent to Key1
-    
+
     // Check order
     let key1_pos = content.find("group_a-Key1").expect("Key1 missing");
     let key2_pos = content.find("group_a-Key2").expect("Key2 missing");
@@ -64,7 +65,7 @@ group-a-key1 = Initial Value
 
     assert!(group_pos < key1_pos, "Group header should be before Key1");
     assert!(group_pos < key2_pos, "Group header should be before Key2");
-    
+
     // Verify they are close to each other (optional, but good for "respective parents")
     // If Key2 ended up at the very bottom far away, that might be the bug.
 }

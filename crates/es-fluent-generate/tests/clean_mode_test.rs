@@ -1,10 +1,10 @@
 use es_fluent_core::meta::TypeKind;
 use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{generate, FluentParseMode};
+use es_fluent_generate::{FluentParseMode, generate};
 use proc_macro2::Span;
-use syn::Ident;
 use std::fs;
+use syn::Ident;
 use tempfile::TempDir;
 
 #[test]
@@ -55,7 +55,8 @@ awdawd = awdwa
         &i18n_path,
         vec![group_a],
         FluentParseMode::Clean,
-    ).unwrap();
+    )
+    .unwrap();
 
     let content = fs::read_to_string(&ftl_file_path).unwrap();
     println!("Generated Content:\n{}", content);

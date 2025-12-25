@@ -4382,7 +4382,6 @@ dependencies = [
  "clap",
  "colored",
  "crossterm 0.29.0",
- "ctrlc",
  "es-fluent-generate",
  "es-fluent-toml",
  "humantime",

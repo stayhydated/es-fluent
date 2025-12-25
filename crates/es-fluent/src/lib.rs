@@ -262,8 +262,9 @@ mod generate {
             } else {
                 // Get the current crate's src directory to filter types
                 // file!() returns paths relative to workspace root, so we need to get the relative path
-                let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-                    .map_err(|_| GeneratorError::CrateName("CARGO_MANIFEST_DIR not set".to_string()))?;
+                let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+                    GeneratorError::CrateName("CARGO_MANIFEST_DIR not set".to_string())
+                })?;
 
                 // Get workspace root and compute relative path
                 let src_prefix = cargo_metadata::MetadataCommand::new()
@@ -279,7 +280,7 @@ mod generate {
                     })
                     .unwrap_or_else(|| "src/".to_string());
 
-                 crate::__core::registry::get_all_ftl_type_infos()
+                crate::__core::registry::get_all_ftl_type_infos()
                     .into_iter()
                     .filter(|info| {
                         info.file_path

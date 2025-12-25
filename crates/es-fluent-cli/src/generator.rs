@@ -1,8 +1,8 @@
-use crate::mode::{FluentParseMode, FluentParseModeExt};
+use crate::mode::{FluentParseMode, FluentParseModeExt as _};
 use crate::templates::{CargoTomlTemplate, MainRsTemplate};
 use crate::types::CrateInfo;
-use anyhow::{Context, Result, bail};
-use askama::Template;
+use anyhow::{Context as _, Result, bail};
+use askama::Template as _;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -33,7 +33,6 @@ fn get_es_fluent_dep(manifest_path: &Path) -> String {
         .ok();
 
     if let Some(ref meta) = metadata {
-        // Check if es-fluent is a local workspace member
         meta.packages
             .iter()
             .find(|p| p.name.as_str() == "es-fluent")
@@ -58,18 +57,11 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
 
     fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
 
-    // Convert crate name to valid Rust identifier
     let crate_ident = krate.name.replace('-', "_");
-
-    // Ensure we use the absolute path to the config
-    let i18n_toml_path_str = krate.i18n_config_path.canonicalize()
-        .context("Failed to canonicalize i18n config path")?
-        .to_str().unwrap().to_string();
 
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
     let es_fluent_dep = get_es_fluent_dep(&manifest_path);
 
-    // Create Cargo.toml
     let cargo_toml = CargoTomlTemplate {
         crate_name: TEMP_CRATE_NAME,
         parent_crate_name: &krate.name,
@@ -78,7 +70,6 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
     fs::write(temp_dir.join("Cargo.toml"), cargo_toml.render().unwrap())
         .context("Failed to write .es-fluent/Cargo.toml")?;
 
-    // Create main.rs
     let i18n_toml_path_str = krate.i18n_config_path.display().to_string();
     let main_rs = MainRsTemplate {
         crate_ident: &crate_ident,
@@ -93,7 +84,6 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
     Ok(temp_dir)
 }
 
-/// Runs the temp crate to generate FTL files.
 fn run_cargo_bin(temp_dir: &Path) -> Result<()> {
     let manifest_path = temp_dir.join("Cargo.toml");
 
@@ -112,30 +102,3 @@ fn run_cargo_bin(temp_dir: &Path) -> Result<()> {
         bail!("Cargo build failed")
     }
 }
-
-// Commented out original logic to avoid compilation errors
-/*
-    if output.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        // Filter out common cargo noise
-        let error_msg: String = stderr
-            .lines()
-            .filter(|line| {
-                !line.trim().is_empty()
-                    && !line.contains("Compiling")
-                    && !line.contains("Finished")
-                    && !line.contains("Running")
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        if error_msg.is_empty() {
-            bail!("Cargo build failed")
-        } else {
-            bail!("{}", error_msg)
-        }
-    }
-}
-*/

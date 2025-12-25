@@ -1,5 +1,5 @@
 use crate::types::CrateInfo;
-use colored::Colorize;
+use colored::Colorize as _;
 
 const PREFIX: &str = "[es-fluent]";
 

@@ -28,18 +28,6 @@ pub enum FluentParseMode {
 }
 
 /// Generates a Fluent translation file from a list of `FtlTypeInfo` objects.
-///
-/// # Arguments
-///
-/// * `crate_name` - The name of the crate.
-/// * `i18n_path` - The path to the i18n directory.
-/// * `items` - A list of `FtlTypeInfo` objects.
-/// * `mode` - The `FluentParseMode` to use.
-///
-/// # Errors
-///
-/// This function will return an error if the i18n directory cannot be created,
-/// or if the FTL file cannot be written.
 pub fn generate<P: AsRef<Path>>(
     crate_name: &str,
     i18n_path: P,
@@ -163,7 +151,6 @@ fn smart_merge(
     let mut current_group_name: Option<String> = None;
 
     for entry in existing.body {
-        // println!("[DEBUG] Processing entry: {:?}", entry); // Commented out to avoid too much noise, but can enable if needed.
         match entry {
             ast::Entry::GroupComment(ref comment) => {
                 if let Some(ref old_group) = current_group_name {
