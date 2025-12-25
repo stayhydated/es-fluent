@@ -86,9 +86,25 @@ impl I18nConfig {
 
     /// Returns the path to the assets directory from the manifest directory.
     pub fn assets_dir_from_manifest(&self) -> Result<PathBuf, I18nConfigError> {
-        let manifest_dir = env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
+        self.assets_dir_from_base(None)
+    }
 
-        Ok(Path::new(&manifest_dir).join(&self.assets_dir))
+    /// Returns the path to the assets directory from a base directory.
+    /// If `base_dir` is `None`, uses `CARGO_MANIFEST_DIR` environment variable.
+    pub fn assets_dir_from_base(
+        &self,
+        base_dir: Option<&Path>,
+    ) -> Result<PathBuf, I18nConfigError> {
+        let base = match base_dir {
+            Some(dir) => dir.to_path_buf(),
+            None => {
+                let manifest_dir =
+                    env::var("CARGO_MANIFEST_DIR").map_err(|_| I18nConfigError::NotFound)?;
+                PathBuf::from(manifest_dir)
+            },
+        };
+
+        Ok(base.join(&self.assets_dir))
     }
 
     /// Returns the configured fallback language as a `LanguageIdentifier`.
@@ -110,7 +126,16 @@ impl I18nConfig {
 
     /// Returns the languages available under the assets directory.
     pub fn available_languages(&self) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
-        let assets_path = self.assets_dir_from_manifest()?;
+        self.available_languages_from_base(None)
+    }
+
+    /// Returns the languages available under the assets directory from a base directory.
+    /// If `base_dir` is `None`, uses `CARGO_MANIFEST_DIR` environment variable.
+    pub fn available_languages_from_base(
+        &self,
+        base_dir: Option<&Path>,
+    ) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
+        let assets_path = self.assets_dir_from_base(base_dir)?;
         let mut languages: Vec<(String, LanguageIdentifier)> = Vec::new();
 
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
@@ -305,16 +330,14 @@ assets_dir = "i18n"
         fs::create_dir(assets.join("zh-Hans")).unwrap();
         fs::write(assets.join("README.txt"), "ignored file").unwrap();
 
-        unsafe { env::set_var("CARGO_MANIFEST_DIR", manifest_dir) };
-
         let config = I18nConfig {
             fallback_language: "en".to_string(),
             assets_dir: PathBuf::from("i18n"),
         };
 
-        let languages = config.available_languages().unwrap();
-
-        unsafe { env::remove_var("CARGO_MANIFEST_DIR") };
+        let languages = config
+            .available_languages_from_base(Some(manifest_dir))
+            .unwrap();
 
         let mut codes: Vec<String> = languages.into_iter().map(|lang| lang.to_string()).collect();
         codes.sort();
@@ -330,17 +353,15 @@ assets_dir = "i18n"
         fs::create_dir(&assets).unwrap();
         fs::create_dir(assets.join("en")).unwrap();
 
-        unsafe { env::set_var("CARGO_MANIFEST_DIR", manifest_dir) };
-
         let config = I18nConfig {
             fallback_language: "en".to_string(),
             assets_dir: PathBuf::from("i18n"),
         };
 
-        let languages = config.available_languages().unwrap();
+        let languages = config
+            .available_languages_from_base(Some(manifest_dir))
+            .unwrap();
         let codes: Vec<String> = languages.into_iter().map(|lang| lang.to_string()).collect();
-
-        unsafe { env::remove_var("CARGO_MANIFEST_DIR") };
 
         assert_eq!(codes, vec!["en"]);
     }

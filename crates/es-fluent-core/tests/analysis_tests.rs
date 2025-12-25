@@ -10,7 +10,6 @@ use syn::{DeriveInput, parse_quote};
 fn enum_analysis_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(this)]
         enum MyError {
             Unit,
             Data {
@@ -68,7 +67,7 @@ fn struct_analysis_tuple_struct_generates_expected_ftl_type_info() {
 fn struct_analysis_with_keys_and_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["error", "notice"], this)]
+        #[fluent_kv(keys = ["error", "notice"])]
         struct MyStruct {
             a: i32,
             #[fluent_kv(skip)]
@@ -90,7 +89,6 @@ fn struct_analysis_with_keys_and_this_generates_expected_ftl_type_info() {
 fn struct_analysis_no_keys_with_this_generates_expected_ftl_type_info() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this)]
         struct Fruit {
             name: String,
             color: String,
@@ -148,7 +146,7 @@ fn enum_analysis_only_struct_and_tuple_variants_no_this() {
 fn struct_analysis_all_fields_skipped_with_this_generates_this_variant() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(this, keys = ["a"])]
+        #[fluent_kv(keys = ["a"])]
         struct S {
             #[fluent_kv(skip)]
             a: i32,
@@ -161,11 +159,8 @@ fn struct_analysis_all_fields_skipped_with_this_generates_this_variant() {
     let mut infos = Vec::new();
     analysis::struct_kv::analyze_struct_kv(&opts, &mut infos).unwrap();
 
-    // When all fields are skipped but `this` is set, we still generate the `this` variant
-    assert_eq!(infos.len(), 1);
-    assert_eq!(infos[0].type_name, "S");
-    assert_eq!(infos[0].variants.len(), 1);
-    assert_eq!(infos[0].variants[0].name, "S");
+    // With 'this' logic removed from EsFluentKv, skipping all fields should result in no variants
+    assert_eq!(infos.len(), 0);
 }
 
 #[test]
@@ -192,7 +187,6 @@ fn struct_analysis_all_fields_skipped_without_this_returns_empty() {
 fn struct_analysis_no_keys_with_this() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(this)]
         struct MyStruct {
             a: i32,
         }

@@ -19,15 +19,4 @@ expression: "&infos"
       ),
     ],
   ),
-  FtlTypeInfo(
-    type_kind: Enum,
-    type_name: "Fruit",
-    variants: [
-      FtlVariant(
-        name: "Fruit",
-        ftl_key: FluentKey("fruit_this"),
-        args: [],
-      ),
-    ],
-  ),
 ]

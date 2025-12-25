@@ -8,11 +8,6 @@ expression: "&infos"
     type_name: "MyError",
     variants: [
       FtlVariant(
-        name: "MyError",
-        ftl_key: FluentKey("my_error_this"),
-        args: [],
-      ),
-      FtlVariant(
         name: "Unit",
         ftl_key: FluentKey("my_error-Unit"),
         args: [],
@@ -23,11 +18,6 @@ expression: "&infos"
     type_kind: Struct,
     type_name: "MyError",
     variants: [
-      FtlVariant(
-        name: "MyError",
-        ftl_key: FluentKey("my_error_this"),
-        args: [],
-      ),
       FtlVariant(
         name: "Data",
         ftl_key: FluentKey("my_error-Data"),

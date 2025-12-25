@@ -55,15 +55,4 @@ expression: "&infos"
       ),
     ],
   ),
-  FtlTypeInfo(
-    type_kind: Enum,
-    type_name: "Profile",
-    variants: [
-      FtlVariant(
-        name: "Profile",
-        ftl_key: FluentKey("profile_this"),
-        args: [],
-      ),
-    ],
-  ),
 ]

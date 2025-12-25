@@ -114,22 +114,10 @@ impl EnumOpts {
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct EnumFluentAttributeArgs {
     #[darling(default)]
-    choice: Option<bool>,
-    #[darling(default)]
-    this: Option<bool>,
-    #[darling(default)]
     resource: Option<String>,
 }
 
 impl EnumFluentAttributeArgs {
-    /// Returns `true` if the enum is a choice.
-    pub fn is_choice(&self) -> bool {
-        self.choice.unwrap_or(false)
-    }
-    /// Returns `true` if the enum should be passed as `this`.
-    pub fn is_this(&self) -> bool {
-        self.this.unwrap_or(false)
-    }
     /// Returns the explicit resource base key if provided.
     pub fn resource(&self) -> Option<&str> {
         self.resource.as_deref()
@@ -190,7 +178,7 @@ impl EnumKvVariantOpts {
 
 /// Options for an enum with EsFluentKv.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(enum_tuple), attributes(fluent_kv))]
+#[darling(supports(enum_unit, enum_named, enum_tuple), attributes(fluent_kv))]
 #[getset(get = "pub")]
 pub struct EnumKvOpts {
     /// The identifier of the enum.
@@ -267,27 +255,10 @@ impl EnumKvOpts {
 pub struct EnumKvFluentAttributeArgs {
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
-    /// If true, generates `this_ftl()` on the original type (e.g., `Country`).
-    /// Use this when the original type does NOT derive `EsFluent` with `this`.
-    #[darling(default)]
-    this: Option<bool>,
-    /// If true, generates `this_ftl()` on the generated KV enums (e.g., `CountryLabelKvFtl`).
-    #[darling(default)]
-    keys_this: Option<bool>,
     /// The traits to derive on the FTL enum.
     #[getset(get = "pub")]
     #[darling(default)]
     derive: darling::util::PathList,
 }
 
-impl EnumKvFluentAttributeArgs {
-    /// Returns `true` if the original type should have a `this_ftl()` method.
-    pub fn is_this(&self) -> bool {
-        self.this.unwrap_or(false)
-    }
-
-    /// Returns `true` if the generated KV enums should have a `this_ftl()` method.
-    pub fn is_keys_this(&self) -> bool {
-        self.keys_this.unwrap_or(false)
-    }
-}
+impl EnumKvFluentAttributeArgs {}

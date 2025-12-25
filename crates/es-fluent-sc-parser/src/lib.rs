@@ -178,7 +178,6 @@ pub enum TestEnum2 {
 use es_fluent::{EsFluent, EsFluentKv};
 
 #[derive(EsFluent, EsFluentKv)]
-#[fluent(this)]
 #[fluent_kv(keys = ["description", "label"])]
 pub enum Country {
     USA(USAState),

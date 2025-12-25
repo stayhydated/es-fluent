@@ -45,15 +45,4 @@ expression: "&infos"
       ),
     ],
   ),
-  FtlTypeInfo(
-    type_kind: Enum,
-    type_name: "SystemConfig",
-    variants: [
-      FtlVariant(
-        name: "SystemConfig",
-        ftl_key: FluentKey("system_config_this"),
-        args: [],
-      ),
-    ],
-  ),
 ]

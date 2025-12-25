@@ -100,9 +100,6 @@ StructOpts {
         },
     ),
     attr_args: StructFluentAttributeArgs {
-        this: Some(
-            true,
-        ),
         derive: PathList(
             [],
         ),

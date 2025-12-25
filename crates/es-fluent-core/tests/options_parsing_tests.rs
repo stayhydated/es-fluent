@@ -75,7 +75,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
 fn struct_kv_keys_parsing_and_field_skipping() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["error", "notice"], this)]
+        #[fluent_kv(keys = ["error", "notice"])]
         struct MyStruct {
             a: i32,
             #[fluent_kv(skip)]
@@ -108,9 +108,6 @@ fn struct_kv_keys_parsing_and_field_skipping() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 1);
     assert_eq!(fields[0].ident().as_ref().unwrap().to_string(), "a");
-
-    // 'this' flag was set
-    assert!(opts.attr_args().is_this());
 }
 
 #[test]
@@ -139,7 +136,6 @@ fn struct_kv_keys_must_be_lowercase_snake_case() {
 fn struct_fluent_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(this)]
         struct MyStruct {
             a: i32,
             #[fluent(skip)]

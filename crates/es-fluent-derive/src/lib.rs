@@ -21,3 +21,9 @@ pub fn derive_es_fluent_kv(input: proc_macro::TokenStream) -> proc_macro::TokenS
 pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_fluent_choice::from(input)
 }
+
+#[proc_macro_derive(EsFluentThis, attributes(fluent_this))]
+#[proc_macro_error]
+pub fn derive_es_fluent_this(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    macros::derive_es_fluent_this::from(input)
+}

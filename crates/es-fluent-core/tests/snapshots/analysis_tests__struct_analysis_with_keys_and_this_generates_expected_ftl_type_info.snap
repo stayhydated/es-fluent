@@ -25,15 +25,4 @@ expression: "&infos"
       ),
     ],
   ),
-  FtlTypeInfo(
-    type_kind: Enum,
-    type_name: "MyStruct",
-    variants: [
-      FtlVariant(
-        name: "MyStruct",
-        ftl_key: FluentKey("my_struct_this"),
-        args: [],
-      ),
-    ],
-  ),
 ]
