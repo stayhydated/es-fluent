@@ -30,12 +30,11 @@ fn es_fluent_enum_attributes_default_snapshot() {
     );
 }
 
-/// EsFluent on enums: enable `this`, and enum-level `choice` flag
+/// EsFluent on enums: with field-level `choice` attributes
 #[test]
 fn es_fluent_enum_attributes_this_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(choice)]
         enum Status {
             // unit
             Ok,

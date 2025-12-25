@@ -13,10 +13,7 @@ use syn::{Data, DeriveInput, parse_macro_input};
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let this_opts = match ThisOpts::from_derive_input(&input) {
-        Ok(opts) => Some(opts),
-        Err(_) => None, // Ignore errors, assume no relevant options if parsing fails (or let EsFluentThis handle validation)
-    };
+    let this_opts = ThisOpts::from_derive_input(&input).ok();
 
     let tokens = match &input.data {
         Data::Struct(data) => {
@@ -112,10 +109,10 @@ fn generate_unit_enum(
     let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
     // If fields_this is true, add EsFluentThis to derives
-    if let Some(this_opts) = this_opts {
-        if this_opts.attr_args().is_members() {
-            derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
-        }
+    if let Some(this_opts) = this_opts
+        && this_opts.attr_args().is_members()
+    {
+        derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
     }
 
     let derive_attr = if !derives.is_empty() {
@@ -224,10 +221,10 @@ fn generate_enum_unit_enum(
     let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
     // If variants_this is true, add EsFluentThis
-    if let Some(this_opts) = this_opts {
-        if this_opts.attr_args().is_members() {
-            derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
-        }
+    if let Some(this_opts) = this_opts
+        && this_opts.attr_args().is_members()
+    {
+        derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
     }
 
     let derive_attr = if !derives.is_empty() {
