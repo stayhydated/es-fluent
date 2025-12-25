@@ -248,6 +248,7 @@ fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
                 type_kind,
                 type_name,
                 variants,
+                file_path: None,
             }
         })
         .collect()
@@ -321,6 +322,7 @@ mod tests {
             type_kind: TypeKind::Enum,
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
+            file_path: None,
         };
 
         let result = generate(
@@ -362,6 +364,7 @@ mod tests {
             type_kind: TypeKind::Enum,
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
+            file_path: None,
         };
 
         let result = generate(
@@ -401,6 +404,7 @@ mod tests {
             type_kind: TypeKind::Enum,
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
+            file_path: None,
         };
 
         let result = generate(

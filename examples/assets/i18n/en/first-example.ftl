@@ -20,4 +20,3 @@ shared-Photos =
         [female] her stream
        *[other] their stream
     }.
-hello_user2 = Hello User2 { $f0 }

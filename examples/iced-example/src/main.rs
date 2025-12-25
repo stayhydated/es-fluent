@@ -1,4 +1,4 @@
-use es_fluent::{EsFluent, ToFluentString as _};
+use es_fluent::{EsFluent, EsFluentGenerator, ToFluentString as _};
 use example_shared_lib::{ButtonState, Languages};
 use iced::font::{Family, Font};
 use iced::widget::{button, center, mouse_area, row, text};
@@ -19,6 +19,10 @@ pub enum IcedScreenMessages {
 }
 
 pub fn main() -> iced::Result {
+    EsFluentGenerator::builder()
+        .build()
+        .generate()
+        .expect("Failed to generate FTL files");
     i18n::init();
     i18n::change_locale(Languages::default()).unwrap();
 

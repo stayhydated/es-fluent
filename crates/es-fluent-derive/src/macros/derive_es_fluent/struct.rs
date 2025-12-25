@@ -81,9 +81,50 @@ fn generate(opts: &StructOpts) -> TokenStream {
       value.to_fluent_string().into()
     };
 
+    // Generate inventory submission for all types
+    // FTL metadata is purely structural (type name, field names)
+    // and doesn't depend on generic type parameters
+    let inventory_submit = {
+        // Build static variant with args from struct fields
+        let arg_names: Vec<String> = indexed_fields
+            .iter()
+            .map(|(index, field_opt)| field_opt.fluent_arg_name(*index))
+            .collect();
+        let args_tokens: Vec<_> = arg_names.iter().map(|a| quote! { #a }).collect();
+
+        let type_name = original_ident.to_string();
+        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", original_ident);
+
+        quote! {
+            #[doc(hidden)]
+            mod #mod_name {
+                use super::*;
+
+                static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+                    ::es_fluent::__core::registry::StaticFtlVariant {
+                        name: #type_name,
+                        ftl_key: #ftl_key,
+                        args: &[#(#args_tokens),*],
+                    }
+                ];
+
+                static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
+                    ::es_fluent::__core::registry::StaticFtlTypeInfo {
+                        type_kind: ::es_fluent::__core::meta::TypeKind::Struct,
+                        type_name: #type_name,
+                        variants: VARIANTS,
+                        file_path: file!(),
+                    };
+
+                ::es_fluent::__inventory::submit!(&TYPE_INFO);
+            }
+        }
+    };
+
     quote! {
       #display_impl
 
+      #inventory_submit
 
       impl #impl_generics From<&#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
             fn from(value: &#original_ident #ty_generics) -> Self {

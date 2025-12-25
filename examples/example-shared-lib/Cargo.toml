@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 bevy = { optional = true, workspace = true }
-es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent = { features = [ "derive", "generate" ], workspace = true }
 es-fluent-lang = { workspace = true }
 es-fluent-manager-bevy = { optional = true, workspace = true }
 es-fluent-manager-embedded = { optional = true, workspace = true }
@@ -16,12 +16,12 @@ gpui = { optional = true, workspace = true }
 rust-embed = { optional = true, workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
-[build-dependencies]
-es-fluent-build = { workspace = true }
-log = { workspace = true }
-
 [lints]
 workspace = true
+
+[[bin]]
+name = "generate-ftl"
+path = "src/bin/generate_ftl.rs"
 
 [features]
 bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy", "es-fluent-lang/bevy" ]

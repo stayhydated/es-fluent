@@ -186,9 +186,93 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
       value.to_fluent_string().into()
     };
 
+    // Generate inventory submission for all non-empty types
+    // FTL metadata is purely structural (type name, field names, variant names)
+    // and doesn't depend on generic type parameters
+    let inventory_submit = if !is_empty {
+        // Build static variant array from the opts
+        let static_variants: Vec<_> = opts
+            .variants()
+            .iter()
+            .filter(|v| !v.is_skipped())
+            .map(|variant_opt| {
+                let variant_ident = variant_opt.ident();
+                let variant_name = variant_ident.to_string();
+                let variant_key_suffix = variant_opt
+                    .key()
+                    .map(|key| key.to_string())
+                    .unwrap_or_else(|| variant_ident.to_string());
+                let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
+
+                // Get args based on variant style
+                let args: Vec<String> = match variant_opt.style() {
+                    darling::ast::Style::Unit => vec![],
+                    darling::ast::Style::Tuple => {
+                        variant_opt
+                            .all_fields()
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, f)| {
+                                if f.is_skipped() {
+                                    None
+                                } else {
+                                    Some(namer::UnnamedItem::from(idx).to_string())
+                                }
+                            })
+                            .collect()
+                    },
+                    darling::ast::Style::Struct => {
+                        variant_opt
+                            .fields()
+                            .iter()
+                            .filter_map(|f| f.ident().as_ref().map(|id| id.to_string()))
+                            .collect()
+                    },
+                };
+
+                let args_tokens: Vec<_> = args.iter().map(|a| quote! { #a }).collect();
+
+                quote! {
+                    ::es_fluent::__core::registry::StaticFtlVariant {
+                        name: #variant_name,
+                        ftl_key: #ftl_key,
+                        args: &[#(#args_tokens),*],
+                    }
+                }
+            })
+            .collect();
+
+        let type_name = original_ident.to_string();
+        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", original_ident);
+
+        quote! {
+            #[doc(hidden)]
+            mod #mod_name {
+                use super::*;
+
+                static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+                    #(#static_variants),*
+                ];
+
+                static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
+                    ::es_fluent::__core::registry::StaticFtlTypeInfo {
+                        type_kind: ::es_fluent::__core::meta::TypeKind::Enum,
+                        type_name: #type_name,
+                        variants: VARIANTS,
+                        file_path: file!(),
+                    };
+
+                ::es_fluent::__inventory::submit!(&TYPE_INFO);
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
       #display_impl
 
+      #inventory_submit
 
       impl #impl_generics From<&#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
             fn from(value: &#original_ident #ty_generics) -> Self {
