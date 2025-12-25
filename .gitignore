@@ -3,3 +3,4 @@ target/
 .venv
 .ruff_cache
 .ropeproject
+.es-fluent

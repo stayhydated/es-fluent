@@ -360,4 +360,3 @@ fn generate_enum_unit_enum(
       }
     }
 }
-
