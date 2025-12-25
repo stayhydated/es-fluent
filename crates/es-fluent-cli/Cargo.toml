@@ -14,10 +14,10 @@ name = "es-fluent"
 path = "src/main.rs"
 
 [dependencies]
-askama = { workspace = true }
 anyhow = { workspace = true }
+askama = { workspace = true }
 cargo_metadata = { workspace = true }
-clap = { features = ["derive"], workspace = true }
+clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
 crossterm = { workspace = true }
 ctrlc = { workspace = true }
@@ -26,8 +26,8 @@ es-fluent-toml = { workspace = true }
 humantime = { workspace = true }
 notify = { workspace = true }
 notify-debouncer-mini = { workspace = true }
+ratatui = { features = [ "crossterm" ], workspace = true }
 rayon = { workspace = true }
-ratatui = { features = ["crossterm"], workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]

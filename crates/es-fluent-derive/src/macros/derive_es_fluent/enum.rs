@@ -202,32 +202,29 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .key()
                     .map(|key| key.to_string())
                     .unwrap_or_else(|| variant_ident.to_string());
-                let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
+                let ftl_key =
+                    namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
 
                 // Get args based on variant style
                 let args: Vec<String> = match variant_opt.style() {
                     darling::ast::Style::Unit => vec![],
-                    darling::ast::Style::Tuple => {
-                        variant_opt
-                            .all_fields()
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(idx, f)| {
-                                if f.is_skipped() {
-                                    None
-                                } else {
-                                    Some(namer::UnnamedItem::from(idx).to_string())
-                                }
-                            })
-                            .collect()
-                    },
-                    darling::ast::Style::Struct => {
-                        variant_opt
-                            .fields()
-                            .iter()
-                            .filter_map(|f| f.ident().as_ref().map(|id| id.to_string()))
-                            .collect()
-                    },
+                    darling::ast::Style::Tuple => variant_opt
+                        .all_fields()
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(idx, f)| {
+                            if f.is_skipped() {
+                                None
+                            } else {
+                                Some(namer::UnnamedItem::from(idx).to_string())
+                            }
+                        })
+                        .collect(),
+                    darling::ast::Style::Struct => variant_opt
+                        .fields()
+                        .iter()
+                        .filter_map(|f| f.ident().as_ref().map(|id| id.to_string()))
+                        .collect(),
                 };
 
                 let args_tokens: Vec<_> = args.iter().map(|a| quote! { #a }).collect();
