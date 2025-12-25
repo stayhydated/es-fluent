@@ -88,26 +88,25 @@ fn create_temp_crate(crate_path: &Path, crate_name: &str) -> Result<std::path::P
         .exec()
         .ok();
 
+    const CRATES_IO_DEP: &str = r#"es-fluent = { version = "*", features = ["generate"] }"#;
+
     let es_fluent_dep = if let Some(ref meta) = metadata {
         // Check if es-fluent is a local workspace member
-        if let Some(es_fluent_pkg) = meta
-            .packages
+        meta.packages
             .iter()
             .find(|p| p.name.as_str() == "es-fluent")
-        {
-            // Use path dependency to local es-fluent
-            let es_fluent_path = es_fluent_pkg.manifest_path.parent().unwrap();
-            format!(
-                r#"es-fluent = {{ path = "{}", features = ["generate"] }}"#,
-                es_fluent_path
-            )
-        } else {
-            // Use version from crates.io
-            r#"es-fluent = { version = "*", features = ["generate"] }"#.to_string()
-        }
+            .map(|es_fluent_pkg| {
+                // Use path dependency to local es-fluent
+                let es_fluent_path = es_fluent_pkg.manifest_path.parent().unwrap();
+                format!(
+                    r#"es-fluent = {{ path = "{}", features = ["generate"] }}"#,
+                    es_fluent_path
+                )
+            })
+            .unwrap_or_else(|| CRATES_IO_DEP.to_string())
     } else {
         // Fallback to crates.io
-        r#"es-fluent = { version = "*", features = ["generate"] }"#.to_string()
+        CRATES_IO_DEP.to_string()
     };
 
     // Create Cargo.toml for the temp crate (with empty [workspace] to be standalone)

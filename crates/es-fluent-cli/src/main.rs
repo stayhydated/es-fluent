@@ -17,37 +17,32 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Generate FTL files once
-    Generate {
-        /// Path to the crate (defaults to current directory)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
-
-        /// Package name in workspace (if in a workspace)
-        #[arg(short = 'P', long)]
-        package: Option<String>,
-    },
+    Generate(CommonArgs),
 
     /// Watch for changes and regenerate FTL files
-    Watch {
-        /// Path to the crate (defaults to current directory)
-        #[arg(short, long)]
-        path: Option<PathBuf>,
+    Watch(CommonArgs),
+}
 
-        /// Package name in workspace (if in a workspace)
-        #[arg(short = 'P', long)]
-        package: Option<String>,
-    },
+#[derive(Parser)]
+struct CommonArgs {
+    /// Path to the crate (defaults to current directory)
+    #[arg(short, long)]
+    path: Option<PathBuf>,
+
+    /// Package name in workspace (if in a workspace)
+    #[arg(short = 'P', long)]
+    package: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Generate { path, package } => {
+        Commands::Generate(CommonArgs { path, package }) => {
             let path = path.unwrap_or_else(|| PathBuf::from("."));
             generator::generate_once(&path, package.as_deref())?;
         },
-        Commands::Watch { path, package } => {
+        Commands::Watch(CommonArgs { path, package }) => {
             let path = path.unwrap_or_else(|| PathBuf::from("."));
             watcher::watch(&path, package.as_deref())?;
         },
