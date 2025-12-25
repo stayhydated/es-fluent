@@ -1,8 +1,8 @@
 //! UI module for console output with colored status display.
+//! Used by the `generate` command for raw terminal output.
 
-use crate::types::{CrateInfo, CrateState};
+use crate::types::CrateInfo;
 use colored::Colorize;
-use std::collections::HashMap;
 
 const PREFIX: &str = "[es-fluent]";
 
@@ -33,14 +33,13 @@ pub fn print_discovered(crates: &[CrateInfo]) {
     }
 }
 
-/// Prints a file change notification.
-pub fn print_file_changed(crate_name: &str, file_name: &str) {
+/// Prints a message that a crate is missing lib.rs.
+pub fn print_missing_lib_rs(crate_name: &str) {
     println!(
-        "{} {} {} in {}",
-        PREFIX.cyan().bold(),
-        "File changed:".dimmed(),
-        file_name.yellow(),
-        crate_name.white().bold()
+        "{} {} {}",
+        PREFIX.yellow().bold(),
+        "Skipping".dimmed(),
+        format!("{} (missing lib.rs)", crate_name).yellow()
     );
 }
 
@@ -74,41 +73,4 @@ pub fn print_generation_error(crate_name: &str, error: &str) {
         crate_name.white().bold(),
         error
     );
-}
-
-/// Prints the watching status message.
-pub fn print_watching() {
-    println!(
-        "{} {}",
-        PREFIX.cyan().bold(),
-        "Watching for changes... (Ctrl+C to stop)".dimmed()
-    );
-}
-
-/// Prints a shutdown message.
-pub fn print_shutdown() {
-    println!("\n{} {}", PREFIX.cyan().bold(), "Shutting down...".dimmed());
-}
-
-/// Prints a summary of all crate states.
-pub fn print_summary(crates: &[CrateInfo], states: &HashMap<String, CrateState>) {
-    println!();
-    for krate in crates {
-        let state = states.get(&krate.name);
-        let (symbol, status) = match state {
-            Some(CrateState::MissingLibRs) => ("!".red().bold(), "missing lib.rs".red()),
-            Some(CrateState::Generating) => ("*".yellow().bold(), "generating...".yellow()),
-            Some(CrateState::Watching { resource_count }) => (
-                "✓".green().bold(),
-                format!("watching ({} resources)", resource_count).green(),
-            ),
-            Some(CrateState::Error { message }) => {
-                ("✗".red().bold(), format!("error: {}", message).red())
-            },
-            None => ("-".dimmed(), "pending".dimmed()),
-        };
-
-        println!("  {} {} {}", symbol, krate.name.white().bold(), status);
-    }
-    println!();
 }

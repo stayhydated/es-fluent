@@ -2,8 +2,8 @@
 
 use crate::discovery::count_ftl_resources;
 use crate::generator;
+use crate::tui::{self, TuiApp};
 use crate::types::{CrateInfo, CrateState};
-use crate::ui;
 use anyhow::{Context, Result};
 use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
 use std::collections::HashMap;
@@ -11,8 +11,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 /// Compute a hash of all .rs files in the src directory.
@@ -40,31 +38,46 @@ fn compute_src_hash(src_dir: &Path) -> u64 {
 }
 
 /// Watch for changes and regenerate FTL files for all discovered crates.
-pub fn watch_all(crates: &[CrateInfo], running: Arc<AtomicBool>) -> Result<()> {
+/// Uses a TUI to display the current state of each crate.
+pub fn watch_all(crates: &[CrateInfo]) -> Result<()> {
     if crates.is_empty() {
         anyhow::bail!("No crates to watch");
     }
 
-    // Initialize states for all crates
-    let mut states: HashMap<String, CrateState> = HashMap::new();
+    // Initialize terminal
+    let mut terminal = tui::init_terminal().context("Failed to initialize terminal")?;
+
+    // Run the watch loop, ensuring we restore the terminal on exit
+    let result = run_watch_loop(&mut terminal, crates);
+
+    // Always restore terminal
+    if let Err(e) = tui::restore_terminal(&mut terminal) {
+        eprintln!("Failed to restore terminal: {}", e);
+    }
+
+    result
+}
+
+fn run_watch_loop(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    crates: &[CrateInfo],
+) -> Result<()> {
+    let mut app = TuiApp::new(crates);
     let mut src_hashes: HashMap<String, u64> = HashMap::new();
 
     // Map from watched path to crate name
     let mut path_to_crate: HashMap<std::path::PathBuf, String> = HashMap::new();
 
-    // Check which crates are valid (have lib.rs)
+    // Initialize hashes for valid crates
     for krate in crates {
-        if !krate.has_lib_rs {
-            states.insert(krate.name.clone(), CrateState::MissingLibRs);
-        } else {
-            states.insert(krate.name.clone(), CrateState::Generating);
+        if krate.has_lib_rs {
             src_hashes.insert(krate.name.clone(), compute_src_hash(&krate.src_dir));
             path_to_crate.insert(krate.src_dir.clone(), krate.name.clone());
         }
     }
 
-    // Print initial state
-    ui::print_summary(crates, &states);
+    // Draw initial state
+    terminal.draw(|f| tui::draw(f, &app))?;
 
     // Initial generation for all valid crates
     for krate in crates {
@@ -72,31 +85,39 @@ pub fn watch_all(crates: &[CrateInfo], running: Arc<AtomicBool>) -> Result<()> {
             continue;
         }
 
-        ui::print_generating(&krate.name);
-        let start = Instant::now();
+        app.set_status(Some(format!("Generating {}...", krate.name)));
+        terminal.draw(|f| tui::draw(f, &app))?;
 
+        let start = Instant::now();
         match generator::generate_for_crate(krate) {
             Ok(()) => {
                 let duration = start.elapsed();
                 let resource_count = count_ftl_resources(&krate.ftl_output_dir, &krate.name);
-                ui::print_generated(&krate.name, duration, resource_count);
-                states.insert(krate.name.clone(), CrateState::Watching { resource_count });
+                app.set_state(&krate.name, CrateState::Watching { resource_count });
+                app.set_status(Some(format!(
+                    "{} generated in {} ({} resources)",
+                    krate.name,
+                    humantime::format_duration(duration),
+                    resource_count
+                )));
             },
             Err(e) => {
-                ui::print_generation_error(&krate.name, &e.to_string());
-                states.insert(
-                    krate.name.clone(),
+                app.set_state(
+                    &krate.name,
                     CrateState::Error {
                         message: e.to_string(),
                     },
                 );
+                app.set_status(Some(format!("Error generating {}: {}", krate.name, e)));
             },
         }
+
+        terminal.draw(|f| tui::draw(f, &app))?;
     }
 
-    // Print summary after initial generation
-    ui::print_summary(crates, &states);
-    ui::print_watching();
+    // Clear status after initial generation
+    app.set_status(None);
+    terminal.draw(|f| tui::draw(f, &app))?;
 
     // Set up file watcher
     let (tx, rx) = std::sync::mpsc::channel();
@@ -127,8 +148,15 @@ pub fn watch_all(crates: &[CrateInfo], running: Arc<AtomicBool>) -> Result<()> {
     let mut is_building: HashMap<String, bool> = HashMap::new();
 
     // Main watch loop
-    while running.load(Ordering::SeqCst) {
-        match rx.recv_timeout(Duration::from_millis(100)) {
+    while !app.should_quit {
+        // Check for quit event
+        if tui::poll_quit_event(Duration::from_millis(50))? {
+            app.should_quit = true;
+            break;
+        }
+
+        // Check for file events
+        match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(Ok(events)) => {
                 // Group events by crate
                 let mut affected_crates: HashMap<String, Vec<String>> = HashMap::new();
@@ -189,13 +217,17 @@ pub fn watch_all(crates: &[CrateInfo], running: Arc<AtomicBool>) -> Result<()> {
                         continue;
                     }
 
-                    // Print file change notification
+                    // Update status with file change
                     let file_name = changed_files.first().map(String::as_str).unwrap_or("file");
-                    ui::print_file_changed(&crate_name, file_name);
+                    app.set_status(Some(format!(
+                        "File changed: {} in {}",
+                        file_name, crate_name
+                    )));
 
                     // Mark as building
                     is_building.insert(crate_name.clone(), true);
-                    states.insert(crate_name.clone(), CrateState::Generating);
+                    app.set_state(&crate_name, CrateState::Generating);
+                    terminal.draw(|f| tui::draw(f, &app))?;
 
                     // Generate
                     let start = Instant::now();
@@ -204,26 +236,30 @@ pub fn watch_all(crates: &[CrateInfo], running: Arc<AtomicBool>) -> Result<()> {
                             let duration = start.elapsed();
                             let resource_count =
                                 count_ftl_resources(&krate.ftl_output_dir, &krate.name);
-                            ui::print_generated(&crate_name, duration, resource_count);
-                            states.insert(
-                                crate_name.clone(),
-                                CrateState::Watching { resource_count },
-                            );
+                            app.set_state(&crate_name, CrateState::Watching { resource_count });
+                            app.set_status(Some(format!(
+                                "{} generated in {} ({} resources)",
+                                crate_name,
+                                humantime::format_duration(duration),
+                                resource_count
+                            )));
                         },
                         Err(e) => {
-                            ui::print_generation_error(&crate_name, &e.to_string());
-                            states.insert(
-                                crate_name.clone(),
+                            app.set_state(
+                                &crate_name,
                                 CrateState::Error {
                                     message: e.to_string(),
                                 },
                             );
+                            app.set_status(Some(format!("Error generating {}: {}", crate_name, e)));
                         },
                     }
 
                     // Update hash
                     src_hashes.insert(crate_name.clone(), compute_src_hash(&krate.src_dir));
                     is_building.insert(crate_name.clone(), false);
+
+                    terminal.draw(|f| tui::draw(f, &app))?;
 
                     // Check for pending rebuild
                     if pending_rebuilds.get(&crate_name).copied().unwrap_or(false) {
@@ -233,10 +269,12 @@ pub fn watch_all(crates: &[CrateInfo], running: Arc<AtomicBool>) -> Result<()> {
                 }
             },
             Ok(Err(e)) => {
-                eprintln!("Watch error: {:?}", e);
+                app.set_status(Some(format!("Watch error: {:?}", e)));
+                terminal.draw(|f| tui::draw(f, &app))?;
             },
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                // Normal timeout, continue
+                // Normal timeout, just redraw
+                terminal.draw(|f| tui::draw(f, &app))?;
             },
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                 break;

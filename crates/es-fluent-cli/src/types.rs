@@ -19,7 +19,7 @@ pub struct CrateInfo {
     pub has_lib_rs: bool,
 }
 
-/// The state of a crate in the workspace.
+/// The state of a crate in the workspace (used by TUI).
 #[derive(Clone, Debug)]
 pub enum CrateState {
     /// The crate is missing lib.rs, so generation cannot work.
@@ -36,13 +36,4 @@ pub enum CrateState {
         /// The error message.
         message: String,
     },
-}
-
-impl CrateState {
-    /// Returns whether the state represents a generation failure.
-    /// Note: MissingLibRs is not considered an error since it's an expected
-    /// limitation for binary-only crates.
-    pub fn is_generation_error(&self) -> bool {
-        matches!(self, CrateState::Error { .. })
-    }
 }
