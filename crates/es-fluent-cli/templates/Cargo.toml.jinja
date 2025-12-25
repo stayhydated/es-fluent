@@ -1,0 +1,11 @@
+[package]
+name = "{{ crate_name }}"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+{{ parent_crate_name }} = { path = ".." }
+{{ es_fluent_dep }}

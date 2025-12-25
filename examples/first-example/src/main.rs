@@ -5,10 +5,10 @@ use first_example::i18n;
 use strum::IntoEnumIterator as _;
 
 fn main() {
-    EsFluentGenerator::builder()
-        .build()
-        .generate()
-        .expect("Failed to generate FTL files");
+    // EsFluentGenerator::builder()
+    //     .build()
+    //     .generate()
+    //     .expect("Failed to generate FTL files");
 
     i18n::init();
     Languages::iter().for_each(run);

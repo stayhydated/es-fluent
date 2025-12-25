@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/es-fluent",
+  "crates/es-fluent-cli",
   "crates/es-fluent-core",
   "crates/es-fluent-toml",
   "crates/es-fluent-derive",
@@ -31,6 +32,7 @@ rust-version = "1.88"
 version = "0.3.0"
 
 [workspace.dependencies]
+askama = "0.15.0"
 anyhow = "1.0.98"
 bevy = "0.17.0"
 bon = "3.3.2"

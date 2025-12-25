@@ -314,3 +314,6 @@ mod generate {
 
 #[cfg(feature = "generate")]
 pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorError};
+
+#[cfg(feature = "generate")]
+pub use es_fluent_toml;
