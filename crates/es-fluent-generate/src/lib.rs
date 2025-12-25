@@ -23,6 +23,7 @@ pub enum FluentParseMode {
     #[default]
     Conservative,
     /// Clean orphan keys (unused in code) but preserve used translations.
+    #[clap(skip)]
     Clean,
 }
 

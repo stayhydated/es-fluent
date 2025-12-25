@@ -102,6 +102,7 @@ fn run_cargo_bin(temp_dir: &Path) -> Result<()> {
         .arg("--manifest-path")
         .arg(&manifest_path)
         .arg("--quiet")
+        .env("RUSTFLAGS", "-A warnings")
         .status()
         .context("Failed to run cargo")?;
 
