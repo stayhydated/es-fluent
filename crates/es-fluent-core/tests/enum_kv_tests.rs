@@ -155,7 +155,6 @@ fn enum_kv_analysis_with_this_and__generates_expected_ftl_type_info() {
     );
 }
 
-
 #[test]
 fn validate_empty_enum_kv_with_this_succeeds() {
     let input: DeriveInput = parse_quote! {
@@ -184,10 +183,14 @@ fn validate_enum_kv_non_tuple_variant_succeeds() {
 
     // This should now succeed because we relaxed validation to support all variants
     let opts = EnumKvOpts::from_derive_input(&input).expect("EnumKvOpts should parse");
-    validate_enum_kv(&opts, match &input.data {
-        syn::Data::Enum(data) => data,
-        _ => unreachable!(),
-    }).expect("Validation should succeed");
+    validate_enum_kv(
+        &opts,
+        match &input.data {
+            syn::Data::Enum(data) => data,
+            _ => unreachable!(),
+        },
+    )
+    .expect("Validation should succeed");
 }
 
 #[test]
@@ -202,8 +205,12 @@ fn validate_enum_kv_unit_variant_succeeds() {
 
     // This should now succeed because we relaxed validation to support all variants
     let opts = EnumKvOpts::from_derive_input(&input).expect("EnumKvOpts should parse");
-    validate_enum_kv(&opts, match &input.data {
-        syn::Data::Enum(data) => data,
-        _ => unreachable!(),
-    }).expect("Validation should succeed");
+    validate_enum_kv(
+        &opts,
+        match &input.data {
+            syn::Data::Enum(data) => data,
+            _ => unreachable!(),
+        },
+    )
+    .expect("Validation should succeed");
 }

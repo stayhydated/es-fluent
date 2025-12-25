@@ -114,8 +114,6 @@ impl EnumOpts {
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct EnumFluentAttributeArgs {
     #[darling(default)]
-    choice: Option<bool>,
-    #[darling(default)]
     resource: Option<String>,
 }
 

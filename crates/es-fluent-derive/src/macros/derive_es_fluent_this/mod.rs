@@ -1,4 +1,4 @@
-use darling::FromDeriveInput;
+use darling::FromDeriveInput as _;
 use es_fluent_core::{namer, options::this::ThisOpts};
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};

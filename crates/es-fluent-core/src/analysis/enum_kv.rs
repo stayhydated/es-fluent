@@ -11,10 +11,6 @@ pub fn analyze_enum_kv(
 ) -> EsFluentCoreResult<()> {
     let target_ident = opts.ident();
     let keyyed_idents = opts.keyyed_idents()?;
-    let has_keys = !keyyed_idents.is_empty();
-    // `this` generates this_ftl on the original type (e.g., Country)
-    let keyyed_idents = opts.keyyed_idents()?;
-    let has_keys = !keyyed_idents.is_empty();
 
     let variant_names: Vec<String> = opts
         .variants()
@@ -29,7 +25,7 @@ pub fn analyze_enum_kv(
 
     if keyyed_idents.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let mut variants: Vec<FtlVariant> = variant_names
+        let variants: Vec<FtlVariant> = variant_names
             .iter()
             .map(|name_str| {
                 let ftl_key = namer::FluentKey::new(&ftl_enum_ident, name_str);
@@ -39,7 +35,6 @@ pub fn analyze_enum_kv(
                     .build()
             })
             .collect();
-
 
         log::debug!(
             "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
@@ -57,7 +52,7 @@ pub fn analyze_enum_kv(
         );
     } else {
         for keyyed_ident in keyyed_idents {
-            let mut variants: Vec<FtlVariant> = variant_names
+            let variants: Vec<FtlVariant> = variant_names
                 .iter()
                 .map(|name_str| {
                     let ftl_key = namer::FluentKey::new(&keyyed_ident, name_str);
@@ -67,7 +62,6 @@ pub fn analyze_enum_kv(
                         .build()
                 })
                 .collect();
-
 
             log::debug!(
                 "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",

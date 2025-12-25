@@ -9,7 +9,7 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
     let opts_variants = opts.variants();
     let base_key = opts.base_key();
 
-    let mut unit_variants: Vec<FtlVariant> = opts_variants
+    let unit_variants: Vec<FtlVariant> = opts_variants
         .iter()
         .filter_map(|variant_opt| {
             if variant_opt.is_skipped() {
@@ -34,7 +34,6 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         })
         .collect();
 
-
     if !unit_variants.is_empty() {
         log::debug!(
             "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
@@ -52,7 +51,7 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
         );
     }
 
-    let mut struct_variants: Vec<FtlVariant> = opts_variants
+    let struct_variants: Vec<FtlVariant> = opts_variants
         .iter()
         .filter_map(|variant_opt| {
             if variant_opt.is_skipped() {
@@ -104,7 +103,6 @@ pub fn analyze_enum(opts: &EnumOpts, type_infos: &mut Vec<FtlTypeInfo>) {
             )
         })
         .collect();
-
 
     if !struct_variants.is_empty() {
         log::debug!(

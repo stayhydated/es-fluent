@@ -13,10 +13,7 @@ use syn::{Data, DeriveInput, parse_macro_input};
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let this_opts = match ThisOpts::from_derive_input(&input) {
-        Ok(opts) => Some(opts),
-        Err(_) => None, // Ignore errors, assume no relevant options if parsing fails (or let EsFluentThis handle validation)
-    };
+    let this_opts = ThisOpts::from_derive_input(&input).ok();
 
     let tokens = match &input.data {
         Data::Struct(data) => {
@@ -49,7 +46,11 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     tokens.into()
 }
 
-pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct, this_opts: Option<&ThisOpts>) -> TokenStream {
+pub fn process_struct(
+    opts: &StructKvOpts,
+    data: &syn::DataStruct,
+    this_opts: Option<&ThisOpts>,
+) -> TokenStream {
     let keys = match opts.keyyed_idents() {
         Ok(keys) => keys,
         Err(err) => err.abort(),
@@ -68,7 +69,9 @@ pub fn process_struct(opts: &StructKvOpts, data: &syn::DataStruct, this_opts: Op
             #ftl_enum
         }
     } else {
-        let enums = keys.iter().map(|key| generate_unit_enum(opts, data, key, this_opts));
+        let enums = keys
+            .iter()
+            .map(|key| generate_unit_enum(opts, data, key, this_opts));
 
         quote! {
             #(#enums)*
@@ -104,14 +107,14 @@ fn generate_unit_enum(
 
     let cleaned_variants = variants.iter().map(|(ident, _)| ident);
     let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
-    
+
     // If fields_this is true, add EsFluentThis to derives
-    if let Some(this_opts) = this_opts {
-        if this_opts.attr_args().is_members() {
-             derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
-        }
+    if let Some(this_opts) = this_opts
+        && this_opts.attr_args().is_members()
+    {
+        derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
     }
-    
+
     let derive_attr = if !derives.is_empty() {
         quote! { #[derive(#(#derives),*)] }
     } else {
@@ -179,7 +182,9 @@ pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStr
             #ftl_enum
         }
     } else {
-        let enums = keys.iter().map(|key| generate_enum_unit_enum(opts, key, this_opts));
+        let enums = keys
+            .iter()
+            .map(|key| generate_enum_unit_enum(opts, key, this_opts));
 
         quote! {
             #(#enums)*
@@ -187,7 +192,11 @@ pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStr
     }
 }
 
-fn generate_enum_unit_enum(opts: &EnumKvOpts, ident: &syn::Ident, this_opts: Option<&ThisOpts>) -> TokenStream {
+fn generate_enum_unit_enum(
+    opts: &EnumKvOpts,
+    ident: &syn::Ident,
+    this_opts: Option<&ThisOpts>,
+) -> TokenStream {
     let variant_opts = opts.variants();
 
     let variants: Vec<_> = variant_opts
@@ -212,10 +221,10 @@ fn generate_enum_unit_enum(opts: &EnumKvOpts, ident: &syn::Ident, this_opts: Opt
     let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
     // If variants_this is true, add EsFluentThis
-    if let Some(this_opts) = this_opts {
-        if this_opts.attr_args().is_members() {
-             derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
-        }
+    if let Some(this_opts) = this_opts
+        && this_opts.attr_args().is_members()
+    {
+        derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
     }
 
     let derive_attr = if !derives.is_empty() {

@@ -11,10 +11,6 @@ pub fn analyze_struct_kv(
 ) -> EsFluentCoreResult<()> {
     let target_ident = opts.ident();
     let keyyed_idents = opts.keyyed_idents()?;
-    let has_keys = !keyyed_idents.is_empty();
-    // `this` generates this_ftl on the original struct type
-    let keyyed_idents = opts.keyyed_idents()?;
-    let has_keys = !keyyed_idents.is_empty();
 
     let field_names: Vec<String> = opts
         .fields()
@@ -34,7 +30,7 @@ pub fn analyze_struct_kv(
 
     if keyyed_idents.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let mut variants: Vec<FtlVariant> = field_names
+        let variants: Vec<FtlVariant> = field_names
             .iter()
             .map(|name_str| {
                 let ftl_key = namer::FluentKey::new(&ftl_enum_ident, name_str);
@@ -44,7 +40,6 @@ pub fn analyze_struct_kv(
                     .build()
             })
             .collect();
-
 
         log::debug!(
             "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
@@ -62,7 +57,7 @@ pub fn analyze_struct_kv(
         );
     } else {
         for keyyed_ident in keyyed_idents {
-            let mut variants: Vec<FtlVariant> = field_names
+            let variants: Vec<FtlVariant> = field_names
                 .iter()
                 .map(|name_str| {
                     let ftl_key = namer::FluentKey::new(&keyyed_ident, name_str);
@@ -72,7 +67,6 @@ pub fn analyze_struct_kv(
                         .build()
                 })
                 .collect();
-
 
             log::debug!(
                 "Generating FtlTypeInfo ({}) for '{}' (keys based on '{}') during {}",
@@ -90,7 +84,6 @@ pub fn analyze_struct_kv(
             );
         }
     }
-
 
     Ok(())
 }

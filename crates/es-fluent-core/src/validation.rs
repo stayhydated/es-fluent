@@ -6,29 +6,26 @@ use crate::options::r#struct::{StructKvOpts, StructOpts};
 use syn::{DataEnum, DataStruct};
 
 /// Validates the `es-fluent` attributes on an enum.
-pub fn validate_enum(opts: &EnumOpts, data: &DataEnum) -> EsFluentCoreResult<()> {
+pub fn validate_enum(_opts: &EnumOpts, _data: &DataEnum) -> EsFluentCoreResult<()> {
     Ok(())
 }
 
 /// Validates the `es-fluent` attributes on a struct.
-pub fn validate_struct(opts: &StructOpts, data: &DataStruct) -> EsFluentCoreResult<()> {
+pub fn validate_struct(opts: &StructOpts, _data: &DataStruct) -> EsFluentCoreResult<()> {
     validate_struct_defaults(opts)?;
     Ok(())
 }
 
 /// Validates the `es-fluent_kv` attributes on a struct.
-pub fn validate_struct_kv(opts: &StructKvOpts, data: &DataStruct) -> EsFluentCoreResult<()> {
+pub fn validate_struct_kv(_opts: &StructKvOpts, _data: &DataStruct) -> EsFluentCoreResult<()> {
     Ok(())
 }
 
 /// Validates the `es-fluent_kv` attributes on an enum.
-pub fn validate_enum_kv(opts: &EnumKvOpts, data: &DataEnum) -> EsFluentCoreResult<()> {
+pub fn validate_enum_kv(opts: &EnumKvOpts, _data: &DataEnum) -> EsFluentCoreResult<()> {
     validate_enum_kv_variants(opts)?;
     Ok(())
 }
-
-
-
 
 fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
     let default_fields: Vec<_> = opts
@@ -57,7 +54,6 @@ fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
     }
     Ok(())
 }
-
 
 fn validate_enum_kv_variants(_opts: &EnumKvOpts) -> EsFluentCoreResult<()> {
     // We support all variant types now, as we only need the variant name for key generation.
