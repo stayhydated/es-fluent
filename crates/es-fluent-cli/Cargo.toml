@@ -20,10 +20,15 @@ cargo_metadata = { workspace = true }
 clap = { features = ["derive"], workspace = true }
 colored = { workspace = true }
 ctrlc = "3.4"
+es-fluent-toml = { workspace = true }
 humantime = { workspace = true }
 notify = "7"
 notify-debouncer-mini = "0.5"
 walkdir = "2"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
 
 [lints]
 workspace = true

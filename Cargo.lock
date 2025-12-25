@@ -4310,9 +4310,11 @@ dependencies = [
  "clap",
  "colored",
  "ctrlc",
+ "es-fluent-toml",
  "humantime",
  "notify 7.0.0",
  "notify-debouncer-mini",
+ "tempfile",
  "walkdir",
 ]
 
