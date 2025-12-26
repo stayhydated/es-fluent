@@ -223,7 +223,7 @@ fn ensure_supported_language_identifier(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{env, fs};
+    use std::fs;
     use tempfile::TempDir;
 
     #[test]

@@ -1,33 +1,22 @@
 //! This module provides functions for validating `es-fluent` attributes.
 
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
-use crate::options::r#enum::{EnumKvOpts, EnumOpts};
-use crate::options::r#struct::{StructKvOpts, StructOpts};
-use syn::{DataEnum, DataStruct};
-
-/// Validates the `es-fluent` attributes on an enum.
-pub fn validate_enum(_opts: &EnumOpts, _data: &DataEnum) -> EsFluentCoreResult<()> {
-    Ok(())
-}
+use crate::options::r#struct::StructOpts;
 
 /// Validates the `es-fluent` attributes on a struct.
-pub fn validate_struct(opts: &StructOpts, _data: &DataStruct) -> EsFluentCoreResult<()> {
-    validate_struct_defaults(opts)?;
-    Ok(())
-}
+/// Currently only checks that at most one field is marked `#[fluent(default)]`.
+pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
+    // Check for conflicting attributes on all fields
+    for field in opts.all_indexed_fields().into_iter().map(|(_, f)| f) {
+        if field.is_skipped() && field.is_default() {
+            return Err(EsFluentCoreError::FieldError {
+                message: "Cannot be both #[fluent(skip)] and #[fluent(default)]".to_string(),
+                field_name: field.ident().as_ref().map(|i| i.to_string()),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
+    }
 
-/// Validates the `es-fluent_kv` attributes on a struct.
-pub fn validate_struct_kv(_opts: &StructKvOpts, _data: &DataStruct) -> EsFluentCoreResult<()> {
-    Ok(())
-}
-
-/// Validates the `es-fluent_kv` attributes on an enum.
-pub fn validate_enum_kv(opts: &EnumKvOpts, _data: &DataEnum) -> EsFluentCoreResult<()> {
-    validate_enum_kv_variants(opts)?;
-    Ok(())
-}
-
-fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
     let default_fields: Vec<_> = opts
         .indexed_fields()
         .into_iter()
@@ -52,10 +41,5 @@ fn validate_struct_defaults(opts: &StructOpts) -> EsFluentCoreResult<()> {
             first_field_name
         )));
     }
-    Ok(())
-}
-
-fn validate_enum_kv_variants(_opts: &EnumKvOpts) -> EsFluentCoreResult<()> {
-    // We support all variant types now, as we only need the variant name for key generation.
     Ok(())
 }

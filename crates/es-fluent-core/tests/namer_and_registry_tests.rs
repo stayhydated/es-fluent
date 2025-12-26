@@ -83,7 +83,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
         .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
-    insta::assert_ron_snapshot!("snapshot_ftl_variant_and_typeinfo_debug__variant", &variant);
+    insta::assert_debug_snapshot!("snapshot_ftl_variant_and_typeinfo_debug__variant", &variant);
 
     let variant2 = FtlVariant::builder()
         .name("Io".to_string())
@@ -97,7 +97,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
         .variants(vec![variant.clone(), variant2.clone()])
         .build();
 
-    insta::assert_ron_snapshot!(
+    insta::assert_debug_snapshot!(
         "snapshot_ftl_variant_and_typeinfo_debug__type_info",
         &type_info
     );

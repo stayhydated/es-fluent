@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-core/tests/validation_tests.rs
+expression: err.to_string()
+---
+"Field 'field1' error: Cannot be both #[fluent(skip)] and #[fluent(default)]"
