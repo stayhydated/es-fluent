@@ -50,9 +50,13 @@ assets_dir = "i18n"         # where your localized files live
 fallback_language = "en"
 ```
 
-## CLI Commands
+## CLI
+
+[![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent-cli/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent-cli)
 
 ### Generate
+
 Run the generator to discover your crate name, parse Rust sources under `src/`, and generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
 
 ```bash
@@ -60,6 +64,7 @@ es-fluent generate
 ```
 
 ### Watch
+
 Automatically compile and run the generator whenever you modify your source code.
 
 ```bash
@@ -67,6 +72,7 @@ es-fluent watch
 ```
 
 ### Clean
+
 Remove orphan keys and groups that are no longer present in your source code.
 
 ```bash
@@ -81,7 +87,7 @@ For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the f
 
 Annotate an enum or a struct to generate message IDs and implement `es_fluent::FluentDisplay`.
 
-```rs
+```rust
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
@@ -99,14 +105,13 @@ pub enum Drink {
 
 #[derive(EsFluent)]
 pub struct Hello<'a>(pub &'a str);
-
 ```
 
 ### Choices with `EsFluentChoice`
 
 When a message needs to match on an enum (a Fluent select expression), implement `EsFluentChoice`. You can then mark a field with `#[fluent(choice)]` to pass its choice value instead of formatting it as a nested message.
 
-```rs
+```rust
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
@@ -171,11 +176,11 @@ shared-Photos =
 
 You can derive on structs to produce key enums (labels, descriptions, etc.). For example:
 
-```rs
+```rust
 use es_fluent::EsFluentKv;
 
 #[derive(EsFluentKv)]
-#[fluent(keys = ["description", "label"])]
+#[fluent_kv(keys = ["description", "label"])]
 pub struct Address {
     pub street: String,
     pub postal_code: String,
@@ -186,7 +191,7 @@ pub struct Address {
 
 Generates a helper method `this_ftl()` that returns the fluent representation of the parent.
 
-```rs
+```rust
 use es_fluent::{EsFluent, EsFluentKv, EsFluentThis};
 
 #[derive(EsFluent, EsFluentThis)]
@@ -210,7 +215,7 @@ pub struct Hello<'a>(pub &'a str);
 
 #[derive(EsFluentKv, EsFluentThis)]
 #[fluent_this(origin, members)]
-#[fluent(keys = ["description", "label"])]
+#[fluent_kv(keys = ["description", "label"])]
 pub struct Address {
     pub street: String,
     pub postal_code: String,
@@ -223,7 +228,7 @@ For key-value generation from structs, you can use `EsFluentKv`. This derive is 
 
 Here is an example of a `User` struct with various fields:
 
-```rs
+```rust
 use es_fluent::{EsFluent, EsFluentKv};
 use rust_decimal::Decimal;
 use strum::EnumIter;
@@ -245,7 +250,7 @@ pub enum EnumCountry {
 }
 
 #[derive(Clone, Debug, Default, EsFluentKv)]
-#[fluent_kv(this, keys_this, keys = ["description", "label"])]
+#[fluent_kv(keys = ["description", "label"])]
 pub struct User {
     pub username: Option<String>,
     pub email: String,
@@ -260,7 +265,7 @@ pub struct User {
 }
 ```
 
-The `#[fluent_kv(this, keys_this, keys = ["description", "label"])]` attribute instructs the derive to generate enums `UserDescriptionFtl` and `UserLabelFtl`. The `this` argument also generates a message ID for the struct itself and `keys_this` generates a message ID for the generated enums from the keys.
+The `#[fluent_kv(keys = ["description", "label"])]` attribute instructs the derive to generate enums `UserDescriptionFtl` and `UserLabelFtl`.
 
 This will generate the following FTL entries:
 
@@ -314,18 +319,30 @@ user_label_kv_ftl-username = Username
 
 Generic parameters must convert into Fluent values when used as arguments:
 
-```rs
-use es_fluent::EsFluent;
-use fluent_bundle::FluentValue;
+```rust
+use es_fluent::{EsFluent, FluentValue};
 
-#[derive(EsFluent)]
-pub enum GenericFluentDisplay<T>
+#[derive(Clone, EsFluent)]
+pub struct GenericStruct<T>
 where
-    for<'a> &'a T: Into<FluentValue<'a>>,
+    T: Into<FluentValue<'static>> + Clone,
 {
-    A(T),
-    B { c: T },
-    D,
+    pub field: T,
+}
+
+#[derive(Clone, EsFluent)]
+pub struct GenericTupleStruct<T>(pub T)
+where
+    T: Into<FluentValue<'static>> + Clone;
+
+#[derive(Clone, EsFluent)]
+pub enum GenericEnum<T>
+where
+    T: Into<FluentValue<'static>> + Clone,
+{
+    Variant(T),
+    StructVariant { field: T },
+    Unit,
 }
 ```
 
@@ -349,7 +366,7 @@ Then, apply the macro to an empty enum:
 
 ```rs
 use es_fluent::EsFluent;
-use es_fluent_lang_macro::es_fluent_language;
+use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
 #[es_fluent_language]

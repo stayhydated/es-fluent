@@ -23,9 +23,7 @@ pub enum Gender {
 pub enum Shared<'a> {
     Photos {
         user_name: &'a str,
-        /// of course! we get this data
-        /// from a reference to a reference to a reference to a reference to a u32
-        photo_count: &'a &'a &'a &'a u32,
+        photo_count: &'a u32,
         // this signals the macro to use the choice representation, since we'll
         // match against it in the ftl resource
         #[fluent(choice)]

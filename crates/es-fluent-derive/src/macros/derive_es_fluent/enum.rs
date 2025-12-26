@@ -63,25 +63,10 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         let value_expr = if is_choice {
                             quote! { #arg_name.as_fluent_choice() }
                         } else {
-                            let mut current_ty = field_ty;
-                            let mut deref_count = 0;
-                            while let syn::Type::Reference(type_ref) = current_ty {
-                                deref_count += 1;
-                                current_ty = &type_ref.elem;
-                            }
-
-                            if deref_count > 0 {
-                                let mut inner = quote! { #arg_name };
-                                for _ in 0..deref_count {
-                                    inner = quote! { (*#inner) };
-                                }
-                                inner
-                            } else {
-                                quote! { #arg_name }
-                            }
+                            quote! { #arg_name.clone() }
                         };
 
-                        Some(quote!{ args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); })
+                        Some(quote!{ args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); })
                     })
                     .collect();
 
@@ -111,25 +96,10 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         let value_expr = if is_choice {
                             quote! { #arg_name.as_fluent_choice() }
                         } else {
-                            let mut current_ty = field_ty;
-                            let mut deref_count = 0;
-                            while let syn::Type::Reference(type_ref) = current_ty {
-                                deref_count += 1;
-                                current_ty = &type_ref.elem;
-                            }
-
-                            if deref_count > 0 {
-                                let mut inner = quote! { #arg_name };
-                                for _ in 0..deref_count {
-                                    inner = quote! { (*#inner) };
-                                }
-                                inner
-                            } else {
-                                quote! { #arg_name }
-                            }
+                            quote! { #arg_name.clone() }
                         };
 
-                        quote!{ args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); }
+                        quote!{ args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
                     })
                     .collect();
 
