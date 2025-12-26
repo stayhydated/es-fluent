@@ -6,6 +6,17 @@ use crate::options::r#struct::StructOpts;
 /// Validates the `es-fluent` attributes on a struct.
 /// Currently only checks that at most one field is marked `#[fluent(default)]`.
 pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
+    // Check for conflicting attributes on all fields
+    for field in opts.all_indexed_fields().into_iter().map(|(_, f)| f) {
+        if field.is_skipped() && field.is_default() {
+            return Err(EsFluentCoreError::FieldError {
+                message: "Cannot be both #[fluent(skip)] and #[fluent(default)]".to_string(),
+                field_name: field.ident().as_ref().map(|i| i.to_string()),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
+    }
+
     let default_fields: Vec<_> = opts
         .indexed_fields()
         .into_iter()

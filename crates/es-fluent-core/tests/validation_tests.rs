@@ -68,3 +68,37 @@ fn validate_empty_named_struct_succeeds() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     validate_struct(&opts).expect("Validation should succeed");
 }
+
+#[test]
+fn validate_struct_single_default_succeeds() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        pub struct TestStruct {
+            #[fluent(default)]
+            field1: String,
+            field2: i32,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    validate_struct(&opts).expect("Validation should succeed");
+}
+
+#[test]
+fn validate_struct_skip_and_default_conflict_produces_error() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        pub struct TestStruct {
+            #[fluent(skip, default)]
+            field1: String,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    let err = validate_struct(&opts).expect_err("Expected validation error");
+
+    insta::assert_debug_snapshot!(
+        "validate_struct_skip_and_default_conflict_produces_error",
+        err.to_string()
+    );
+}

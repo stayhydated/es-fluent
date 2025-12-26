@@ -3,9 +3,9 @@ source: crates/es-fluent-core/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 EnumOpts {
-    ident: Ident(
-        ApiError,
-    ),
+    ident: Ident {
+        sym: ApiError,
+    },
     generics: Generics {
         lt_token: None,
         params: [],
@@ -15,14 +15,14 @@ EnumOpts {
     data: Enum(
         [
             VariantOpts {
-                ident: Ident(
-                    NotFound,
-                ),
+                ident: Ident {
+                    sym: NotFound,
+                },
                 fields: Fields {
                     style: Unit,
                     fields: [],
                     span: Some(
-                        Span,
+                        bytes(0..0),
                     ),
                     __nonexhaustive: (),
                 },
@@ -30,14 +30,14 @@ EnumOpts {
                 key: None,
             },
             VariantOpts {
-                ident: Ident(
-                    PermissionDenied,
-                ),
+                ident: Ident {
+                    sym: PermissionDenied,
+                },
                 fields: Fields {
                     style: Unit,
                     fields: [],
                     span: Some(
-                        Span,
+                        bytes(0..0),
                     ),
                     __nonexhaustive: (),
                 },
@@ -45,17 +45,17 @@ EnumOpts {
                 key: None,
             },
             VariantOpts {
-                ident: Ident(
-                    Data,
-                ),
+                ident: Ident {
+                    sym: Data,
+                },
                 fields: Fields {
                     style: Struct,
                     fields: [
                         EnumFieldOpts {
                             ident: Some(
-                                Ident(
-                                    id,
-                                ),
+                                Ident {
+                                    sym: id,
+                                },
                             ),
                             ty: Type::Path {
                                 qself: None,
@@ -63,9 +63,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                u64,
-                                            ),
+                                            ident: Ident {
+                                                sym: u64,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -76,9 +76,9 @@ EnumOpts {
                         },
                         EnumFieldOpts {
                             ident: Some(
-                                Ident(
-                                    internal,
-                                ),
+                                Ident {
+                                    sym: internal,
+                                },
                             ),
                             ty: Type::Path {
                                 qself: None,
@@ -86,9 +86,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                bool,
-                                            ),
+                                            ident: Ident {
+                                                sym: bool,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -101,7 +101,7 @@ EnumOpts {
                         },
                     ],
                     span: Some(
-                        Span,
+                        bytes(0..0),
                     ),
                     __nonexhaustive: (),
                 },
@@ -109,9 +109,9 @@ EnumOpts {
                 key: None,
             },
             VariantOpts {
-                ident: Ident(
-                    TupleVariant,
-                ),
+                ident: Ident {
+                    sym: TupleVariant,
+                },
                 fields: Fields {
                     style: Tuple,
                     fields: [
@@ -123,9 +123,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                String,
-                                            ),
+                                            ident: Ident {
+                                                sym: String,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -142,9 +142,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                i32,
-                                            ),
+                                            ident: Ident {
+                                                sym: i32,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -157,7 +157,7 @@ EnumOpts {
                         },
                     ],
                     span: Some(
-                        Span,
+                        bytes(0..0),
                     ),
                     __nonexhaustive: (),
                 },

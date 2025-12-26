@@ -3,9 +3,9 @@ source: crates/es-fluent-core/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 StructOpts {
-    ident: Ident(
-        MyStruct,
-    ),
+    ident: Ident {
+        sym: MyStruct,
+    },
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +18,9 @@ StructOpts {
             fields: [
                 StructFieldOpts {
                     ident: Some(
-                        Ident(
-                            a,
-                        ),
+                        Ident {
+                            sym: a,
+                        },
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,9 +28,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident(
-                                        i32,
-                                    ),
+                                    ident: Ident {
+                                        sym: i32,
+                                    },
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -42,9 +42,9 @@ StructOpts {
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident(
-                            b,
-                        ),
+                        Ident {
+                            sym: b,
+                        },
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -52,9 +52,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident(
-                                        String,
-                                    ),
+                                    ident: Ident {
+                                        sym: String,
+                                    },
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -68,9 +68,9 @@ StructOpts {
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident(
-                            c,
-                        ),
+                        Ident {
+                            sym: c,
+                        },
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -78,9 +78,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident(
-                                        bool,
-                                    ),
+                                    ident: Ident {
+                                        sym: bool,
+                                    },
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -94,7 +94,7 @@ StructOpts {
                 },
             ],
             span: Some(
-                Span,
+                bytes(0..0),
             ),
             __nonexhaustive: (),
         },
