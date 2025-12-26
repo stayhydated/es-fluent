@@ -3,9 +3,9 @@ source: crates/es-fluent-core/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 EnumChoiceOpts {
-    ident: Ident {
-        sym: Severity,
-    },
+    ident: Ident(
+        Severity,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],

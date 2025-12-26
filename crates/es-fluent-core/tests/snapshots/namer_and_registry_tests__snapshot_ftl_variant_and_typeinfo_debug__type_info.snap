@@ -2,23 +2,27 @@
 source: crates/es-fluent-core/tests/namer_and_registry_tests.rs
 expression: "&type_info"
 ---
-FtlTypeInfo(
-  type_kind: Struct,
-  type_name: "ErrorType",
-  variants: [
-    FtlVariant(
-      name: "Network",
-      ftl_key: FluentKey("error_type-Network"),
-      args: [
-        "code",
-        "message",
-      ],
-    ),
-    FtlVariant(
-      name: "Io",
-      ftl_key: FluentKey("error_type-Io"),
-      args: [],
-    ),
-  ],
-  file_path: None,
-)
+FtlTypeInfo {
+    type_kind: Struct,
+    type_name: "ErrorType",
+    variants: [
+        FtlVariant {
+            name: "Network",
+            ftl_key: FluentKey(
+                "error_type-Network",
+            ),
+            args: [
+                "code",
+                "message",
+            ],
+        },
+        FtlVariant {
+            name: "Io",
+            ftl_key: FluentKey(
+                "error_type-Io",
+            ),
+            args: [],
+        },
+    ],
+    file_path: None,
+}

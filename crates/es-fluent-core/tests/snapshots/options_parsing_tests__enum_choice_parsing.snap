@@ -3,9 +3,9 @@ source: crates/es-fluent-core/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 EnumChoiceOpts {
-    ident: Ident {
-        sym: MyEnum,
-    },
+    ident: Ident(
+        MyEnum,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],

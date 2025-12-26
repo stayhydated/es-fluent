@@ -8,7 +8,7 @@ fn attribute_error_message_snapshot() {
         span: None,
     };
 
-    insta::assert_ron_snapshot!(
+    insta::assert_debug_snapshot!(
         "error_messages__attribute_error_message_snapshot",
         err.to_string()
     );
@@ -24,7 +24,7 @@ fn variant_error_with_note_and_help_snapshot() {
     .with_note("Only unit or tuple variants are supported here".to_string())
     .with_help("Consider splitting 'Data' into unit + struct variants as needed".to_string());
 
-    insta::assert_ron_snapshot!(
+    insta::assert_debug_snapshot!(
         "error_messages__variant_error_with_note_and_help_snapshot",
         err.to_string()
     );
@@ -49,7 +49,7 @@ fn field_error_named_and_unnamed_snapshot() {
         ("unnamed", unnamed.to_string()),
     ];
 
-    insta::assert_ron_snapshot!(
+    insta::assert_debug_snapshot!(
         "error_messages__field_error_named_and_unnamed_snapshot",
         &cases
     );
@@ -63,7 +63,7 @@ fn transform_error_message_snapshot() {
     }
     .with_help("Implement TryFrom<Path<'a>> for String or adjust your types".to_string());
 
-    insta::assert_ron_snapshot!(
+    insta::assert_debug_snapshot!(
         "error_messages__transform_error_message_snapshot",
         err.to_string()
     );

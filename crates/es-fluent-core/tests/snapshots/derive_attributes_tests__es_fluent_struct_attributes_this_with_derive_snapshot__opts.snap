@@ -3,9 +3,9 @@ source: crates/es-fluent-core/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 StructOpts {
-    ident: Ident {
-        sym: Person,
-    },
+    ident: Ident(
+        Person,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +18,9 @@ StructOpts {
             fields: [
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: name,
-                        },
+                        Ident(
+                            name,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,9 +28,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -42,9 +42,9 @@ StructOpts {
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: password_hash,
-                        },
+                        Ident(
+                            password_hash,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -52,9 +52,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -68,9 +68,9 @@ StructOpts {
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: gender,
-                        },
+                        Ident(
+                            gender,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -78,9 +78,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: Gender,
-                                    },
+                                    ident: Ident(
+                                        Gender,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -94,7 +94,7 @@ StructOpts {
                 },
             ],
             span: Some(
-                bytes(0..0),
+                Span,
             ),
             __nonexhaustive: (),
         },
@@ -106,9 +106,9 @@ StructOpts {
                     leading_colon: None,
                     segments: [
                         PathSegment {
-                            ident: Ident {
-                                sym: Debug,
-                            },
+                            ident: Ident(
+                                Debug,
+                            ),
                             arguments: PathArguments::None,
                         },
                     ],
@@ -117,9 +117,9 @@ StructOpts {
                     leading_colon: None,
                     segments: [
                         PathSegment {
-                            ident: Ident {
-                                sym: Clone,
-                            },
+                            ident: Ident(
+                                Clone,
+                            ),
                             arguments: PathArguments::None,
                         },
                     ],

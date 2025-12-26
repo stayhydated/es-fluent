@@ -2,4 +2,4 @@
 source: crates/es-fluent-core/tests/error_messages_tests.rs
 expression: err.to_string()
 ---
-"Variant \'Data\' error: Unsupported variant style\nnote: Only unit or tuple variants are supported here\nhelp: Consider splitting \'Data\' into unit + struct variants as needed"
+"Variant 'Data' error: Unsupported variant style\nnote: Only unit or tuple variants are supported here\nhelp: Consider splitting 'Data' into unit + struct variants as needed"
