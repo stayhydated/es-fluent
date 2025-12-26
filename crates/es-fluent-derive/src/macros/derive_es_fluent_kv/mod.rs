@@ -3,7 +3,6 @@ use es_fluent_core::namer;
 use es_fluent_core::options::r#enum::EnumKvOpts;
 use es_fluent_core::options::r#struct::StructKvOpts;
 use es_fluent_core::options::this::ThisOpts;
-use es_fluent_core::validation;
 
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::TokenStream;
@@ -22,21 +21,13 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            if let Err(err) = validation::validate_struct_kv(&opts, data) {
-                err.abort();
-            }
-
             process_struct(&opts, data, this_opts.as_ref())
         },
-        Data::Enum(data) => {
+        Data::Enum(_data) => {
             let opts = match EnumKvOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors().into(),
             };
-
-            if let Err(err) = validation::validate_enum_kv(&opts, data) {
-                err.abort();
-            }
 
             process_enum(&opts, this_opts.as_ref())
         },
