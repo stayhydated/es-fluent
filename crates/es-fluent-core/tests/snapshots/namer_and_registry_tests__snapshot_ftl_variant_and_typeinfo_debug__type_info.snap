@@ -15,6 +15,7 @@ FtlTypeInfo {
                 "code",
                 "message",
             ],
+            is_this: false,
         },
         FtlVariant {
             name: "Io",
@@ -22,7 +23,9 @@ FtlTypeInfo {
                 "error_type-Io",
             ),
             args: [],
+            is_this: false,
         },
     ],
     file_path: None,
+    is_this: false,
 }
