@@ -1,5 +1,5 @@
 use crate::mode::{FluentParseMode, FluentParseModeExt as _};
-use crate::templates::{CargoTomlTemplate, MainRsTemplate};
+use crate::templates::{CargoTomlTemplate, GitignoreTemplate, MainRsTemplate};
 use crate::types::CrateInfo;
 use anyhow::{Context as _, Result, bail};
 use askama::Template as _;
@@ -33,7 +33,6 @@ fn get_es_fluent_dep(manifest_path: &Path) -> String {
         .ok();
 
     if let Some(ref meta) = metadata {
-        // Only use path dependency if es-fluent is a workspace member
         let es_fluent_workspace_member = meta
             .packages
             .iter()
@@ -59,6 +58,13 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
     let src_dir = temp_dir.join("src");
 
     fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
+
+    // Create .gitignore to exclude the entire directory
+    fs::write(
+        temp_dir.join(".gitignore"),
+        GitignoreTemplate.render().unwrap(),
+    )
+    .context("Failed to write .es-fluent/.gitignore")?;
 
     let crate_ident = krate.name.replace('-', "_");
 

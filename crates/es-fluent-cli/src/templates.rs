@@ -19,3 +19,8 @@ pub struct MainRsTemplate<'a> {
     pub crate_name: &'a str,
     pub crate_root: &'a str,
 }
+
+/// Template for the generated .gitignore
+#[derive(Template)]
+#[template(path = ".gitignore.jinja", escape = "none")]
+pub struct GitignoreTemplate;
