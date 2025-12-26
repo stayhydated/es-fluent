@@ -11,4 +11,5 @@ FtlVariant {
         "code",
         "message",
     ],
+    is_this: false,
 }

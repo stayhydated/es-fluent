@@ -56,21 +56,25 @@ what-Hi = Hi
             name: "Female".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Female"),
             args: vec![],
+            is_this: false,
         },
         FtlVariant {
             name: "Helicopter".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Helicopter"),
             args: vec![],
+            is_this: false,
         },
         FtlVariant {
             name: "Male".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Male"),
             args: vec![],
+            is_this: false,
         },
         FtlVariant {
             name: "Other".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Other"),
             args: vec![],
+            is_this: false,
         },
     ];
     let gender = FtlTypeInfo {
@@ -78,6 +82,7 @@ what-Hi = Hi
         type_name: "Gender".to_string(),
         variants: gender_variants,
         file_path: None,
+        is_this: false,
     };
 
     // 2. HelloUser (Complete)
@@ -85,12 +90,14 @@ what-Hi = Hi
         name: "hello_user".to_string(),
         ftl_key: FluentKey::new(&Ident::new("HelloUser", Span::call_site()), "hello_user"),
         args: vec!["f0".to_string()],
+        is_this: false,
     }];
     let hello_user = FtlTypeInfo {
         type_kind: TypeKind::Struct, // Assuming struct for single message
         type_name: "HelloUser".to_string(),
         variants: hello_user_variants,
         file_path: None,
+        is_this: false,
     };
 
     // 3. Shared (Adding 'Videos' new key)
@@ -103,12 +110,14 @@ what-Hi = Hi
                 "photo_count".to_string(),
                 "user_gender".to_string(),
             ],
+            is_this: false,
         },
         // NEW KEY
         FtlVariant {
             name: "Videos".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Videos"),
             args: vec![],
+            is_this: false,
         },
     ];
     let shared = FtlTypeInfo {
@@ -116,6 +125,7 @@ what-Hi = Hi
         type_name: "Shared".to_string(),
         variants: shared_variants,
         file_path: None,
+        is_this: false,
     };
 
     // 4. What (Complete)
@@ -123,12 +133,14 @@ what-Hi = Hi
         name: "Hi".to_string(),
         ftl_key: FluentKey::new(&Ident::new("What", Span::call_site()), "Hi"),
         args: vec![],
+        is_this: false,
     }];
     let what = FtlTypeInfo {
         type_kind: TypeKind::Enum,
         type_name: "What".to_string(),
         variants: what_variants,
         file_path: None,
+        is_this: false,
     };
 
     // Run generate in Conservative mode

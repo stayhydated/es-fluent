@@ -41,6 +41,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         name: #type_name,
                         ftl_key: #ftl_key_str,
                         args: &[],
+                        is_this: true,
                     }
                 ];
 
@@ -50,6 +51,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         type_name: #type_name,
                         variants: VARIANTS,
                         file_path: file!(),
+                        is_this: true,
                     };
 
                 ::es_fluent::__inventory::submit!(&TYPE_INFO);
