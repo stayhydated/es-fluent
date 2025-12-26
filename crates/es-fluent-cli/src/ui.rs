@@ -1,81 +1,94 @@
-use crate::app_state::AppState;
-use crate::core::{self as fluent_core, BuildOutcome};
-use ratatui::{
-    Frame,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem},
-};
+use crate::types::CrateInfo;
+use colored::Colorize as _;
 
-fn build_list_items(app: &'_ AppState) -> Vec<ListItem<'_>> {
-    let mut items: Vec<ListItem> = Vec::new();
-    let build_statuses_locked = app.build_statuses.lock().unwrap();
-    let active_builds_locked = app.active_builds.lock().unwrap();
+const PREFIX: &str = "[es-fluent]";
 
-    for krate in &app.crates {
-        let crate_name_str = krate.name().as_str();
-        let status_span: Span;
-
-        if active_builds_locked.contains(crate_name_str) {
-            status_span = Span::styled("Building...", Style::default().fg(Color::Yellow));
-        } else {
-            match build_statuses_locked.get(crate_name_str) {
-                Some(BuildOutcome::Success { duration }) => {
-                    status_span = Span::styled(
-                        format!("Built in {}", fluent_core::format_duration(*duration)),
-                        Style::default().fg(Color::Green),
-                    );
-                },
-                Some(BuildOutcome::Failure {
-                    error_message,
-                    duration,
-                }) => {
-                    status_span = Span::styled(
-                        format!(
-                            "Failed: {} (took {})",
-                            error_message,
-                            fluent_core::format_duration(*duration)
-                        ),
-                        Style::default().fg(Color::Red),
-                    );
-                },
-                None => {
-                    status_span =
-                        Span::styled("Status Unknown", Style::default().fg(Color::DarkGray));
-                },
-            }
-        }
-
-        let line_content = Line::from(vec![
-            Span::raw("• "),
-            Span::styled(
-                crate_name_str.to_string(),
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(": "),
-            status_span,
-        ]);
-        items.push(ListItem::new(line_content));
-    }
-
-    items
+/// Prints the CLI header.
+pub fn print_header() {
+    println!(
+        "{} {}",
+        PREFIX.cyan().bold(),
+        "Fluent FTL Generator".dimmed()
+    );
 }
 
-/// Renders the UI for the application.
-pub fn ui(f: &mut Frame, app: &AppState) {
-    let main_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0)].as_ref())
-        .split(f.area());
+/// Prints a message about discovered crates.
+pub fn print_discovered(crates: &[CrateInfo]) {
+    if crates.is_empty() {
+        println!(
+            "{} {}",
+            PREFIX.red().bold(),
+            "No crates with i18n.toml found.".red()
+        );
+    } else {
+        println!(
+            "{} {} {}",
+            PREFIX.cyan().bold(),
+            "Discovered".dimmed(),
+            format!("{} crate(s)", crates.len()).green()
+        );
+    }
+}
 
-    let list_items = build_list_items(app);
+/// Prints a message that a crate is missing lib.rs.
+pub fn print_missing_lib_rs(crate_name: &str) {
+    println!(
+        "{} {} {}",
+        PREFIX.yellow().bold(),
+        "Skipping".dimmed(),
+        format!("{} (missing lib.rs)", crate_name).yellow()
+    );
+}
 
-    let crate_list_widget = List::new(list_items)
-        .block(Block::default().borders(Borders::ALL).title("Crates"))
-        .highlight_style(Style::default().add_modifier(Modifier::ITALIC))
-        .highlight_symbol("❯ ");
-    f.render_widget(crate_list_widget, main_chunks[0]);
+/// Prints a generation started message.
+pub fn print_generating(crate_name: &str) {
+    println!(
+        "{} {} {}",
+        PREFIX.cyan().bold(),
+        "Generating FTL for".dimmed(),
+        crate_name.green()
+    );
+}
+
+/// Prints a generation completed message with duration.
+pub fn print_generated(crate_name: &str, duration: std::time::Duration, resource_count: usize) {
+    println!(
+        "{} {} {} ({} resources)",
+        PREFIX.cyan().bold(),
+        format!("{} generated in", crate_name).dimmed(),
+        humantime::format_duration(duration).to_string().green(),
+        resource_count.to_string().cyan()
+    );
+}
+
+/// Prints a cleaning started message.
+pub fn print_cleaning(crate_name: &str) {
+    println!(
+        "{} {} {}",
+        PREFIX.cyan().bold(),
+        "Cleaning FTL for".dimmed(),
+        crate_name.green()
+    );
+}
+
+/// Prints a cleaning completed message with duration.
+pub fn print_cleaned(crate_name: &str, duration: std::time::Duration, resource_count: usize) {
+    println!(
+        "{} {} {} ({} resources)",
+        PREFIX.cyan().bold(),
+        format!("{} cleaned in", crate_name).dimmed(),
+        humantime::format_duration(duration).to_string().green(),
+        resource_count.to_string().cyan()
+    );
+}
+
+/// Prints a generation error message.
+pub fn print_generation_error(crate_name: &str, error: &str) {
+    eprintln!(
+        "{} {} {}: {}",
+        PREFIX.red().bold(),
+        "Generation failed for".red(),
+        crate_name.white().bold(),
+        error
+    );
 }

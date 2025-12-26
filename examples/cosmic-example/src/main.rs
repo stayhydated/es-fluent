@@ -1,11 +1,16 @@
 #![allow(clippy::needless_lifetimes)]
 
+use es_fluent::EsFluentGenerator;
 use example_shared_lib::Languages;
 mod app;
 mod config;
 mod i18n;
 
 fn main() -> cosmic::iced::Result {
+    EsFluentGenerator::builder()
+        .build()
+        .generate()
+        .expect("Failed to generate FTL files");
     i18n::init();
     i18n::change_locale(Languages::default()).unwrap();
 

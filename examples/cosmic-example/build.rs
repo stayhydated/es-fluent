@@ -2,13 +2,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Rebuild if i18n files change
     println!("cargo:rerun-if-changed=i18n");
 
-    if let Err(e) = es_fluent_build::FluentBuilder::new()
-        .mode(es_fluent_build::FluentParseMode::Conservative)
-        .build()
-    {
-        log::error!("Error building FTL files: {}", e);
-    }
-
     // Emit version information (if not cached by just vendor)
     let mut vergen = vergen::EmitBuilder::builder();
 

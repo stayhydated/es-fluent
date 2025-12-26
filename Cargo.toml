@@ -1,13 +1,11 @@
 [workspace]
 members = [
   "crates/es-fluent",
+  "crates/es-fluent-cli",
   "crates/es-fluent-core",
   "crates/es-fluent-toml",
   "crates/es-fluent-derive",
-  "crates/es-fluent-build",
   "crates/es-fluent-generate",
-  "crates/es-fluent-sc-parser",
-  "crates/es-fluent-cli",
   "crates/es-fluent-lang",
   "crates/es-fluent-lang-macro",
   "crates/es-fluent-manager-core",
@@ -35,6 +33,8 @@ version = "0.3.0"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
+chrono = "0.4.42"
+askama = "0.15.0"
 bevy = "0.17.0"
 bon = "3.3.2"
 borrow = "1.3.0"
@@ -47,7 +47,6 @@ darling = "0.21.3"
 derive_more = "2.0.1"
 env_logger = "0.11"
 es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.3.0" }
-es-fluent-build = { path = "crates/es-fluent-build", version = "0.3.0" }
 es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.3.0" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.3.0" }
 es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.3.0" }
@@ -57,7 +56,6 @@ es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.
 es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.3.0" }
 es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.3.0" }
 es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.3.0" }
-es-fluent-sc-parser = { path = "crates/es-fluent-sc-parser", version = "0.3.0" }
 es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.3.0" }
 fluent = { version = "0.17.0" }
 fluent-bundle = "0.16.0"
@@ -69,15 +67,17 @@ gpui-component = "0.3.1"
 heck = "0.5.0"
 humantime = "2.2.0"
 iced = { default-features = false, version = "0.13.1" }
-insta = { features = [ "json" ], version = "1.43.2" }
+insta = { version = "1.43.2" }
 intl-memoizer = "0.5.3"
 inventory = "0.3.20"
 itertools = "0.14.0"
 log = "0.4"
 notify = "8.2"
+notify-debouncer-mini = "0.7"
 paste = "1.0.15"
 proc-macro-error2 = "2.0"
 proc-macro2 = "1.0.92"
+rust_decimal = "1.39.0"
 quote = "1.0.38"
 ratatui = "0.29.0"
 rayon = "1.10.0"

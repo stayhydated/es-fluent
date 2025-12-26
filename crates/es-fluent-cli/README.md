@@ -1,31 +1,54 @@
 # es-fluent-cli
 
-`es-fluent-cli` is a command-line tool that provides a Terminal User Interface (TUI) for managing Fluent translations. It automatically discovers crates with `i18n.toml` configuration, generates `.ftl` files, and watches for changes in your source code to trigger rebuilds.
+A command-line tool for managing Fluent translations in `es-fluent` projects.
 
-This tool is ideal for a "watch" mode during development, giving you instant feedback and generating translation keys as you write your code.
+## Installation
+
+```sh
+cargo install es-fluent-cli
+```
 
 ## Usage
 
-To start the CLI in its default watch mode, simply run the following command in your project's root directory:
+Run the tool from your project root or a sub-crate.
+
+### Commands
+
+#### `generate`
+
+Scans your Rust source code for `#[derive(EsFluent)]` and related macros, and updates or creates your FTL files.
 
 ```sh
-es-fluent-cli
+es-fluent generate
 ```
 
-The tool will scan for crates, perform an initial build, and then monitor for file changes.
+- **Default Behavior**: Adds new keys and updates existing ones. Preserves existing translations.
+- **Options**:
+    - `--mode aggressive`: Completely overwrites the file (WARNING: this deletes custom translations).
 
-### Modes
+#### `watch`
 
-You can control how the `.ftl` files are generated using the `--mode` flag.
+Watches your `src/` directory for changes and automatically runs the generator. This is ideal for development.
 
-- **Conservative Mode (Default)**: Adds new translation keys to your `.ftl` files while preserving any existing keys and their translations. This is the safest and default mode.
+```sh
+es-fluent watch
+```
 
-  ```sh
-  es-fluent-cli --mode conservative
-  ```
+#### `clean`
 
-- **Aggressive Mode**: Overwrites the existing `.ftl` file entirely with newly generated keys. This is useful for cleaning up stale keys but will erase any manual changes or translations in the file.
+Removes orphan keys and groups—translations that are defined in your FTL file but no longer found in your Rust code.
 
-  ```sh
-  es-fluent-cli --mode aggressive
-  ```
+```sh
+es-fluent clean
+```
+
+> **Note**: This will remove comments associated with orphan keys, and even entire groups if they become empty.
+
+## Configuration
+
+The CLI relies on an `i18n.toml` file in your crate root:
+
+```toml
+assets_dir = "i18n"         # Directory for FTL files
+fallback_language = "en"    # Default language
+```

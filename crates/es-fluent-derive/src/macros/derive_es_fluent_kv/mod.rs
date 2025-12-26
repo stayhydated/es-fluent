@@ -3,7 +3,6 @@ use es_fluent_core::namer;
 use es_fluent_core::options::r#enum::EnumKvOpts;
 use es_fluent_core::options::r#struct::StructKvOpts;
 use es_fluent_core::options::this::ThisOpts;
-use es_fluent_core::validation;
 
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::TokenStream;
@@ -22,21 +21,13 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            if let Err(err) = validation::validate_struct_kv(&opts, data) {
-                err.abort();
-            }
-
             process_struct(&opts, data, this_opts.as_ref())
         },
-        Data::Enum(data) => {
+        Data::Enum(_data) => {
             let opts = match EnumKvOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors().into(),
             };
-
-            if let Err(err) = validation::validate_enum_kv(&opts, data) {
-                err.abort();
-            }
 
             process_enum(&opts, this_opts.as_ref())
         },
@@ -90,9 +81,9 @@ fn generate_unit_enum(
     let variants: Vec<_> = field_opts
         .iter()
         .map(|field_opt| {
-            let ident = field_opt.ident().as_ref().unwrap();
-            let pascal_case_name = ident.to_string().to_pascal_case();
-            let variant_ident = syn::Ident::new(&pascal_case_name, ident.span());
+            let field_ident = field_opt.ident().as_ref().unwrap();
+            let pascal_case_name = field_ident.to_string().to_pascal_case();
+            let variant_ident = syn::Ident::new(&pascal_case_name, field_ident.span());
             (variant_ident, field_opt)
         })
         .collect();
@@ -143,10 +134,53 @@ fn generate_unit_enum(
         }
     };
 
+    // Generate inventory submission for the new enum
+    let static_variants: Vec<_> = variants
+        .iter()
+        .map(|(variant_ident, _)| {
+            let variant_name = variant_ident.to_string();
+            let base_key = variant_ident.to_string().to_snake_case();
+            let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
+            quote! {
+                ::es_fluent::__core::registry::StaticFtlVariant {
+                    name: #variant_name,
+                    ftl_key: #ftl_key,
+                    args: &[],
+                }
+            }
+        })
+        .collect();
+
+    let type_name = ident.to_string();
+    let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
+
+    let inventory_submit = quote! {
+        #[doc(hidden)]
+        mod #mod_name {
+            use super::*;
+
+            static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+                #(#static_variants),*
+            ];
+
+            static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
+                ::es_fluent::__core::registry::StaticFtlTypeInfo {
+                    type_kind: ::es_fluent::__core::meta::TypeKind::Enum,
+                    type_name: #type_name,
+                    variants: VARIANTS,
+                    file_path: file!(),
+                };
+
+            ::es_fluent::__inventory::submit!(&TYPE_INFO);
+        }
+    };
+
     quote! {
       #new_enum
 
       #display_impl
+
+      #inventory_submit
 
       impl From<& #ident> for ::es_fluent::FluentValue<'_> {
             fn from(value: & #ident) -> Self {
@@ -255,10 +289,53 @@ fn generate_enum_unit_enum(
         }
     };
 
+    // Generate inventory submission for the new enum
+    let static_variants: Vec<_> = variants
+        .iter()
+        .map(|(variant_ident, _)| {
+            let variant_name = variant_ident.to_string();
+            let base_key = variant_ident.to_string().to_snake_case();
+            let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
+            quote! {
+                ::es_fluent::__core::registry::StaticFtlVariant {
+                    name: #variant_name,
+                    ftl_key: #ftl_key,
+                    args: &[],
+                }
+            }
+        })
+        .collect();
+
+    let type_name = ident.to_string();
+    let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
+
+    let inventory_submit = quote! {
+        #[doc(hidden)]
+        mod #mod_name {
+            use super::*;
+
+            static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+                #(#static_variants),*
+            ];
+
+            static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
+                ::es_fluent::__core::registry::StaticFtlTypeInfo {
+                    type_kind: ::es_fluent::__core::meta::TypeKind::Enum,
+                    type_name: #type_name,
+                    variants: VARIANTS,
+                    file_path: file!(),
+                };
+
+            ::es_fluent::__inventory::submit!(&TYPE_INFO);
+        }
+    };
+
     quote! {
       #new_enum
 
       #display_impl
+
+      #inventory_submit
 
       impl From<& #ident> for ::es_fluent::FluentValue<'_> {
             fn from(value: & #ident) -> Self {

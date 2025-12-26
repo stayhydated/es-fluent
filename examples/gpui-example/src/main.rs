@@ -1,4 +1,4 @@
-use es_fluent::{EsFluent, ToFluentString as _};
+use es_fluent::{EsFluent, EsFluentGenerator, ToFluentString as _};
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui::{
     App, Application, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px,
@@ -13,6 +13,10 @@ pub enum GpuiScreenMessages {
 }
 
 fn main() {
+    EsFluentGenerator::builder()
+        .build()
+        .generate()
+        .expect("Failed to generate FTL files");
     Application::new().run(|cx: &mut App| {
         let default_language = Languages::default();
         cx.set_global(CurrentLanguage(default_language));

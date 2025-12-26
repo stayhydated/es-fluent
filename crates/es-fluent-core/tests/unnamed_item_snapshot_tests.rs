@@ -17,5 +17,5 @@ fn unnamed_item_formats_snapshot() {
         })
         .collect();
 
-    insta::assert_ron_snapshot!("unnamed_item_formats_snapshot", &cases);
+    insta::assert_debug_snapshot!("unnamed_item_formats_snapshot", &cases);
 }

@@ -15,7 +15,7 @@ fn fluent_key_formats_snapshot() {
         FluentKey::new(&ident("X"), ""),
     ];
 
-    insta::assert_ron_snapshot!("fluent_key_formats_snapshot", &cases);
+    insta::assert_debug_snapshot!("fluent_key_formats_snapshot", &cases);
 }
 
 #[test]

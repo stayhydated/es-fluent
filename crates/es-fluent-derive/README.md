@@ -4,7 +4,7 @@ The `es-fluent-derive` crate provides the procedural derive macros that power th
 
 ## Macros
 
-- **`#[derive(EsFluent)]`**: The primary macro that processes your types. It reads `#[fluent(...)]` attributes to understand how to generate translation keys and implement the `FluentDisplay` or `std::fmt::Display` traits.
+- **`#[derive(EsFluent)]`**: The primary macro that processes your types. It reads `#[fluent(...)]` attributes to understand how to generate translation keys and implement the `FluentDisplay` trait.
 
 - **`#[derive(EsFluentChoice)]`**: A specialized macro for enums that are used as selectable variants within a Fluent message (e.g., for gender or pluralization). It implements the `EsFluentChoice` trait, which converts enum variants into strings that Fluent can match against.
 
@@ -13,10 +13,10 @@ The `es-fluent-derive` crate provides the procedural derive macros that power th
 You typically won't use this crate directly. Instead, you'll enable the `derive` feature on the main `es-fluent` crate and use the macros through it.
 
 ```rs
-use es_fluent::{EsFluent, EsFluentChoice};
+use es_fluent::{EsFluentKv, EsFluent, EsFluentChoice};
 
-#[derive(EsFluent)]
-#[fluent(keys = ["label"])]
+#[derive(EsFluentKv)]
+#[fluent_kv(keys = ["label"])]
 pub struct User {
     pub name: String,
     pub age: u32,

@@ -1,5 +1,5 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
-use es_fluent::EsFluent;
+use es_fluent::{EsFluent, EsFluentGenerator};
 use es_fluent_manager_bevy::{
     CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
@@ -34,6 +34,10 @@ impl es_fluent_manager_bevy::RefreshForLocale for BevyScreenMessages {
 }
 
 fn main() {
+    EsFluentGenerator::builder()
+        .build()
+        .generate()
+        .expect("Failed to generate FTL files");
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
         watch_for_changes_override: Some(true),
