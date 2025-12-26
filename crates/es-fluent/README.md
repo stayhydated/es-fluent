@@ -36,7 +36,7 @@ es-fluent-manager-bevy = "*"
 
 To bootstrap `.ftl` files from your Rust types, install the CLI tool:
 
-```bash
+```sh
 cargo install es-fluent-cli
 ```
 
@@ -59,7 +59,7 @@ fallback_language = "en"
 
 Run the generator to discover your crate name, parse Rust sources under `src/`, and generate or update a base FTL file at `{assets_dir}/{fallback_language}/{crate_name}.ftl`.
 
-```bash
+```sh
 es-fluent generate
 ```
 
@@ -67,7 +67,7 @@ es-fluent generate
 
 Automatically compile and run the generator whenever you modify your source code.
 
-```bash
+```sh
 es-fluent watch
 ```
 
@@ -75,7 +75,7 @@ es-fluent watch
 
 Remove orphan keys and groups that are no longer present in your source code.
 
-```bash
+```sh
 es-fluent clean
 ```
 
