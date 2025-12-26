@@ -568,16 +568,5 @@ existing-key = Existing Value
 
         // Should contain existing content that is still valid
         assert!(content.contains("## ExistingGroup"));
-        // Note: The specific key 'existing-key' might be rewritten/reformatted or removed if not perfectly matching 'ExistingKey' logic.
-        // But in Clean mode, if we matched it, we keep it.
-        // Wait, 'existing-key' in file vs 'ExistingKey' generated.
-        // If they don't match, 'existing-key' is an orphan in 'ExistingGroup'.
-        // If 'ExistingGroup' is in items, its orphans are removed!
-        // So 'existing-key' will be removed if it's not in the items list for ExistingGroup.
-        // My test setup has 'ExistingKey' in items. 'existing-key' in file.
-        // 'ExistingKey' generates 'existing_group-ExistingKey' (by default, if not specified otherwise via attributes).
-        // Let's make sure the key matches.
-        // If I use `existing-key` in FtlKey, it should match.
-        // Let's just check that OrphanGroup is gone. That's the main test.
     }
 }
