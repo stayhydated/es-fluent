@@ -24,7 +24,7 @@ es-fluent generate
 
 - **Default Behavior**: Adds new keys and updates existing ones. Preserves existing translations.
 - **Options**:
-    - `--mode aggressive`: Completely overwrites the file (WARNING: this deletes custom translations).
+  - `--mode aggressive`: Completely overwrites the file (WARNING: this deletes custom translations).
 
 #### `watch`
 

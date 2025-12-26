@@ -18,6 +18,12 @@ This crate gives you:
 - [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
 - [iced](https://github.com/stayhydated/es-fluent/tree/master/examples/iced-example)
 
+## Used in
+
+- [gpui-form](https://github.com/stayhydated/gpui-form)
+- [gpui-table](https://github.com/stayhydated/gpui-table)
+- [gpui-storybook](https://github.com/stayhydated/gpui-storybook)
+
 ## Installation
 
 Add the crate with the `derive` feature to access the procedural macros:
