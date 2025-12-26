@@ -1,15 +1,10 @@
-use es_fluent::{EsFluentGenerator, ToFluentString as _};
+use es_fluent::ToFluentString as _;
 use example_shared_lib::Languages;
 use first_example::first_example::*;
 use first_example::i18n;
 use strum::IntoEnumIterator as _;
 
 fn main() {
-    // EsFluentGenerator::builder()
-    //     .build()
-    //     .generate()
-    //     .expect("Failed to generate FTL files");
-
     i18n::init();
     Languages::iter().for_each(run);
 }

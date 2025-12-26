@@ -152,7 +152,7 @@ fn generate_unit_enum(
         .collect();
 
     let type_name = ident.to_string();
-    let mod_name = quote::format_ident!("__es_fluent_inventory_{}", ident);
+    let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
     let inventory_submit = quote! {
         #[doc(hidden)]
@@ -307,7 +307,7 @@ fn generate_enum_unit_enum(
         .collect();
 
     let type_name = ident.to_string();
-    let mod_name = quote::format_ident!("__es_fluent_inventory_{}", ident);
+    let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
     let inventory_submit = quote! {
         #[doc(hidden)]

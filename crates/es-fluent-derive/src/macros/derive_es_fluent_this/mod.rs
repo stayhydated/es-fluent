@@ -1,5 +1,6 @@
 use darling::FromDeriveInput as _;
 use es_fluent_core::{namer, options::this::ThisOpts};
+use heck::ToSnakeCase as _;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
@@ -25,10 +26,10 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
-    let inventory_submit = if ftl_key.is_some() {
-        let ftl_key_str = ftl_key.as_ref().unwrap();
+    let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
         let type_name = original_ident.to_string();
-        let mod_name = quote::format_ident!("__es_fluent_this_inventory_{}", original_ident);
+        let mod_name =
+            quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
 
         quote! {
             #[doc(hidden)]

@@ -153,15 +153,14 @@ fn smart_merge(
     for entry in existing.body {
         match entry {
             ast::Entry::GroupComment(ref comment) => {
-                if let Some(ref old_group) = current_group_name {
-                    if let Some(info) = item_map.get_mut(old_group) {
-                        if !info.variants.is_empty() {
-                            for variant in &info.variants {
-                                new_body.push(create_message_entry(variant));
-                            }
-                            info.variants.clear();
-                        }
+                if let Some(ref old_group) = current_group_name
+                    && let Some(info) = item_map.get_mut(old_group)
+                    && !info.variants.is_empty()
+                {
+                    for variant in &info.variants {
+                        new_body.push(create_message_entry(variant));
                     }
+                    info.variants.clear();
                 }
 
                 if let Some(content) = comment.content.first() {
@@ -185,17 +184,15 @@ fn smart_merge(
                 let key = &msg.id.name;
                 let mut handled = false;
 
-                if let Some(ref group_name) = current_group_name {
-                    if let Some(info) = item_map.get_mut(group_name) {
-                        if let Some(idx) = info
-                            .variants
-                            .iter()
-                            .position(|v| v.ftl_key.to_string() == *key)
-                        {
-                            info.variants.remove(idx);
-                            handled = true;
-                        }
-                    }
+                if let Some(ref group_name) = current_group_name
+                    && let Some(info) = item_map.get_mut(group_name)
+                    && let Some(idx) = info
+                        .variants
+                        .iter()
+                        .position(|v| v.ftl_key.to_string() == *key)
+                {
+                    info.variants.remove(idx);
+                    handled = true;
                 }
 
                 if !handled {
@@ -245,15 +242,14 @@ fn smart_merge(
     }
 
     // Correctly handle the end of the last group
-    if let Some(ref last_group) = current_group_name {
-        if let Some(info) = item_map.get_mut(last_group) {
-            if !info.variants.is_empty() {
-                for variant in &info.variants {
-                    new_body.push(create_message_entry(variant));
-                }
-                info.variants.clear();
-            }
+    if let Some(ref last_group) = current_group_name
+        && let Some(info) = item_map.get_mut(last_group)
+        && !info.variants.is_empty()
+    {
+        for variant in &info.variants {
+            new_body.push(create_message_entry(variant));
         }
+        info.variants.clear();
     }
 
     let mut remaining_groups: Vec<_> = item_map.into_iter().collect();

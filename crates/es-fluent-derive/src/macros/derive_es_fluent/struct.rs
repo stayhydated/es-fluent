@@ -1,6 +1,7 @@
 use es_fluent_core::namer;
 use es_fluent_core::options::r#struct::StructOpts;
 
+use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -21,7 +22,6 @@ fn generate(opts: &StructOpts) -> TokenStream {
         .iter()
         .map(|(index, field_opt)| {
             let arg_key = field_opt.fluent_arg_name(*index);
-            let field_ty = field_opt.ty();
             let is_choice = field_opt.is_choice();
 
             let field_access = if let Some(ident) = field_opt.ident() {
@@ -75,7 +75,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
         let args_tokens: Vec<_> = arg_names.iter().map(|a| quote! { #a }).collect();
 
         let type_name = original_ident.to_string();
-        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", original_ident);
+        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
         quote! {
             #[doc(hidden)]
