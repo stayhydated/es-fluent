@@ -8,4 +8,3 @@ pub enum TypeKind {
     Enum,
     Struct,
 }
-

@@ -34,9 +34,9 @@ unic-langid = { features = [ "macros" ], workspace = true }
 
 [dev-dependencies]
 chrono = { workspace = true }
-strum = { workspace = true, features = ["derive"] }
-rust_decimal = { workspace = true }
 es-fluent-lang = { workspace = true }
+rust_decimal = { workspace = true }
+strum = { features = [ "derive" ], workspace = true }
 
 [lints]
 workspace = true
