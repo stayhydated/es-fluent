@@ -7,7 +7,7 @@ edition.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 [[bin]]
 name = "es-fluent"
@@ -20,7 +20,6 @@ cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
 crossterm = { workspace = true }
-ctrlc = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
 humantime = { workspace = true }

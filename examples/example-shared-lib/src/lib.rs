@@ -47,7 +47,7 @@ pub struct EmptyStructKv;
 #[derive(Clone, Copy, Debug, EsFluent, EsFluentThis)]
 pub enum EmptyEnum {}
 
-#[derive(EsFluent, EsFluentKv, EsFluentThis)]
+#[derive(Clone, EsFluent, EsFluentKv, EsFluentThis)]
 #[fluent_this(origin)]
 #[fluent_kv(keys = ["description", "label"])]
 pub enum Country {
@@ -55,12 +55,12 @@ pub enum Country {
     Canada(CanadaProvince),
 }
 
-#[derive(EsFluent, EsFluentThis)]
+#[derive(Clone, EsFluent, EsFluentThis)]
 pub enum USAState {
     A,
 }
 
-#[derive(EsFluent, EsFluentThis)]
+#[derive(Clone, EsFluent, EsFluentThis)]
 pub enum CanadaProvince {
     A,
     B,

@@ -35,29 +35,11 @@ fn generate(opts: &StructOpts) -> TokenStream {
                 let access = field_access.clone();
                 quote! { (#access).as_fluent_choice() }
             } else {
-                let mut current_ty = field_ty;
-                let mut deref_count = 0;
-                while let syn::Type::Reference(type_ref) = current_ty {
-                    deref_count += 1;
-                    current_ty = &type_ref.elem;
-                }
-
-                if deref_count > 0 {
-                    let mut inner = {
-                        let access = field_access.clone();
-                        quote! { &(#access) }
-                    };
-                    for _ in 0..deref_count {
-                        inner = quote! { (*#inner) };
-                    }
-                    inner
-                } else {
-                    let access = field_access.clone();
-                    quote! { &(#access) }
-                }
+                let access = field_access.clone();
+                quote! { (#access).clone() }
             };
 
-            quote! { args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); }
+            quote! { args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
         })
         .collect();
 

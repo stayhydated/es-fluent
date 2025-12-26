@@ -1,5 +1,5 @@
 use crate::types::CrateInfo;
-use colored::Colorize;
+use colored::Colorize as _;
 
 const PREFIX: &str = "[es-fluent]";
 
@@ -56,6 +56,27 @@ pub fn print_generated(crate_name: &str, duration: std::time::Duration, resource
         "{} {} {} ({} resources)",
         PREFIX.cyan().bold(),
         format!("{} generated in", crate_name).dimmed(),
+        humantime::format_duration(duration).to_string().green(),
+        resource_count.to_string().cyan()
+    );
+}
+
+/// Prints a cleaning started message.
+pub fn print_cleaning(crate_name: &str) {
+    println!(
+        "{} {} {}",
+        PREFIX.cyan().bold(),
+        "Cleaning FTL for".dimmed(),
+        crate_name.green()
+    );
+}
+
+/// Prints a cleaning completed message with duration.
+pub fn print_cleaned(crate_name: &str, duration: std::time::Duration, resource_count: usize) {
+    println!(
+        "{} {} {} ({} resources)",
+        PREFIX.cyan().bold(),
+        format!("{} cleaned in", crate_name).dimmed(),
         humantime::format_duration(duration).to_string().green(),
         resource_count.to_string().cyan()
     );

@@ -32,5 +32,11 @@ log = { workspace = true }
 rust-embed = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
+[dev-dependencies]
+chrono = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
+rust_decimal = { workspace = true }
+es-fluent-lang = { workspace = true }
+
 [lints]
 workspace = true

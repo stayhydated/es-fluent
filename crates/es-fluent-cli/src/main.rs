@@ -39,6 +39,9 @@ enum Commands {
 
     /// Watch for changes and regenerate FTL files (TUI mode)
     Watch(CommonArgs),
+
+    /// Clean orphan keys from FTL files (TUI mode)
+    Clean(CommonArgs),
 }
 
 #[derive(Parser)]
@@ -62,6 +65,7 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Generate(args) => run_generate(args),
         Commands::Watch(args) => run_watch(args),
+        Commands::Clean(args) => run_clean(args),
     }
 }
 
@@ -70,10 +74,8 @@ fn run_generate(args: CommonArgs) -> Result<()> {
 
     ui::print_header();
 
-    // Discover all crates with i18n.toml
     let crates = discover_crates(&path)?;
 
-    // Filter by package if specified
     let crates: Vec<_> = if let Some(ref pkg) = args.package {
         crates.into_iter().filter(|c| &c.name == pkg).collect()
     } else {
@@ -87,21 +89,17 @@ fn run_generate(args: CommonArgs) -> Result<()> {
 
     ui::print_discovered(&crates);
 
-    // Separate crates with and without lib.rs
     let (valid_crates, skipped_crates): (Vec<_>, Vec<_>) =
         crates.iter().partition(|k| k.has_lib_rs);
 
-    // Print skipped crates first
     for krate in &skipped_crates {
         ui::print_missing_lib_rs(&krate.name);
     }
 
-    // Print that we're generating for all valid crates
     for krate in &valid_crates {
         ui::print_generating(&krate.name);
     }
 
-    // Generate in parallel and collect results
     let mode = &args.mode;
     let results: Vec<GenerateResult> = valid_crates
         .par_iter()
@@ -124,7 +122,6 @@ fn run_generate(args: CommonArgs) -> Result<()> {
         })
         .collect();
 
-    // Print results in order
     let mut has_errors = false;
     for result in &results {
         if let Some(ref error) = result.error {
@@ -145,10 +142,8 @@ fn run_generate(args: CommonArgs) -> Result<()> {
 fn run_watch(args: CommonArgs) -> Result<()> {
     let path = args.path.unwrap_or_else(|| PathBuf::from("."));
 
-    // Discover all crates with i18n.toml
     let crates = discover_crates(&path)?;
 
-    // Filter by package if specified
     let crates: Vec<_> = if let Some(ref pkg) = args.package {
         crates.into_iter().filter(|c| &c.name == pkg).collect()
     } else {
@@ -161,6 +156,75 @@ fn run_watch(args: CommonArgs) -> Result<()> {
         return Ok(());
     }
 
-    // Run the TUI watcher
     watcher::watch_all(&crates, &args.mode)
+}
+
+fn run_clean(args: CommonArgs) -> Result<()> {
+    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
+
+    ui::print_header();
+
+    let crates = discover_crates(&path)?;
+
+    let crates: Vec<_> = if let Some(ref pkg) = args.package {
+        crates.into_iter().filter(|c| &c.name == pkg).collect()
+    } else {
+        crates
+    };
+
+    if crates.is_empty() {
+        ui::print_discovered(&[]);
+        return Ok(());
+    }
+
+    ui::print_discovered(&crates);
+
+    let (valid_crates, skipped_crates): (Vec<_>, Vec<_>) =
+        crates.iter().partition(|k| k.has_lib_rs);
+
+    for krate in &skipped_crates {
+        ui::print_missing_lib_rs(&krate.name);
+    }
+
+    for krate in &valid_crates {
+        ui::print_cleaning(&krate.name);
+    }
+
+    let mode = FluentParseMode::Clean;
+    let results: Vec<GenerateResult> = valid_crates
+        .par_iter()
+        .map(|krate| {
+            let start = Instant::now();
+            let result = generator::generate_for_crate(krate, &mode);
+            let duration = start.elapsed();
+            let resource_count = result
+                .as_ref()
+                .ok()
+                .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
+                .unwrap_or(0);
+
+            GenerateResult {
+                name: krate.name.clone(),
+                duration,
+                resource_count,
+                error: result.err().map(|e| e.to_string()),
+            }
+        })
+        .collect();
+
+    let mut has_errors = false;
+    for result in &results {
+        if let Some(ref error) = result.error {
+            ui::print_generation_error(&result.name, error);
+            has_errors = true;
+        } else {
+            ui::print_cleaned(&result.name, result.duration, result.resource_count);
+        }
+    }
+
+    if has_errors {
+        std::process::exit(1);
+    }
+
+    Ok(())
 }

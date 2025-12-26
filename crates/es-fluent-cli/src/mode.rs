@@ -6,6 +6,7 @@ impl FluentParseModeExt for FluentParseMode {
         match self {
             FluentParseMode::Aggressive => stringify!(FluentParseMode::Aggressive),
             FluentParseMode::Conservative => stringify!(FluentParseMode::Conservative),
+            FluentParseMode::Clean => stringify!(FluentParseMode::Clean),
         }
     }
 }

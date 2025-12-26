@@ -78,7 +78,6 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         ])
         .split(frame.area());
 
-    // Header
     let header = Paragraph::new("es-fluent watch (q to quit)")
         .style(
             Style::default()
@@ -88,7 +87,6 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         .block(Block::default().borders(Borders::BOTTOM));
     frame.render_widget(header, chunks[0]);
 
-    // Crate list
     let items: Vec<ListItem> = app
         .crates
         .iter()
@@ -164,14 +162,13 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
 /// Polls for keyboard events with a timeout.
 /// Returns true if the user wants to quit.
 pub fn poll_quit_event(timeout: Duration) -> io::Result<bool> {
-    if event::poll(timeout)? {
-        if let Event::Key(key) = event::read()? {
-            if key.code == KeyCode::Char('q')
-                || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('c'))
-            {
-                return Ok(true);
-            }
-        }
+    if event::poll(timeout)?
+        && let Event::Key(key) = event::read()?
+        && (key.code == KeyCode::Char('q')
+            || (key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('c')))
+    {
+        return Ok(true);
     }
+
     Ok(false)
 }

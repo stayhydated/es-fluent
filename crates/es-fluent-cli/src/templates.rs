@@ -16,4 +16,6 @@ pub struct MainRsTemplate<'a> {
     pub crate_ident: &'a str,
     pub i18n_toml_path: &'a str,
     pub parse_mode: &'a str,
+    pub crate_name: &'a str,
+    pub crate_root: &'a str,
 }

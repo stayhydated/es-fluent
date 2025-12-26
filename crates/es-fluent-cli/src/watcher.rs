@@ -3,13 +3,13 @@ use crate::generator;
 use crate::mode::FluentParseMode;
 use crate::tui::{self, TuiApp};
 use crate::types::{CrateInfo, CrateState};
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash as _, Hasher as _};
 use std::path::Path;
 use std::time::Duration;
 
@@ -45,19 +45,15 @@ fn compute_src_hash(src_dir: &Path) -> u64 {
 }
 
 /// Watch for changes and regenerate FTL files for all discovered crates.
-/// Uses a TUI to display the current state of each crate.
 pub fn watch_all(crates: &[CrateInfo], mode: &FluentParseMode) -> Result<()> {
     if crates.is_empty() {
         anyhow::bail!("No crates to watch");
     }
 
-    // Initialize terminal
     let mut terminal = tui::init_terminal().context("Failed to initialize terminal")?;
 
-    // Run the watch loop, ensuring we restore the terminal on exit
     let result = run_watch_loop(&mut terminal, crates, mode);
 
-    // Always restore terminal
     if let Err(e) = tui::restore_terminal(&mut terminal) {
         eprintln!("Failed to restore terminal: {}", e);
     }
@@ -73,30 +69,23 @@ fn run_watch_loop(
     let mut app = TuiApp::new(crates);
     let mut src_hashes: HashMap<String, u64> = HashMap::new();
 
-    // Map from watched path to crate name
     let mut path_to_crate: HashMap<std::path::PathBuf, String> = HashMap::new();
 
-    // Get valid crates (those with lib.rs)
     let valid_crates: Vec<_> = crates.iter().filter(|k| k.has_lib_rs).collect();
 
-    // Initialize hashes for valid crates
     for krate in &valid_crates {
         src_hashes.insert(krate.name.clone(), compute_src_hash(&krate.src_dir));
         path_to_crate.insert(krate.src_dir.clone(), krate.name.clone());
     }
 
-    // Draw initial state
     terminal.draw(|f| tui::draw(f, &app))?;
 
-    // Initial generation for all valid crates in parallel
     if !valid_crates.is_empty() {
-        // Mark all as generating
         for krate in &valid_crates {
             app.set_state(&krate.name, CrateState::Generating);
         }
         terminal.draw(|f| tui::draw(f, &app))?;
 
-        // Generate in parallel
         let results: Vec<GenerateResult> = valid_crates
             .par_iter()
             .map(|krate| {
@@ -115,7 +104,6 @@ fn run_watch_loop(
             })
             .collect();
 
-        // Apply results to app state
         for result in &results {
             if let Some(ref error) = result.error {
                 app.set_state(
@@ -137,12 +125,10 @@ fn run_watch_loop(
         terminal.draw(|f| tui::draw(f, &app))?;
     }
 
-    // Set up file watcher
     let (tx, rx) = std::sync::mpsc::channel();
     let mut debouncer =
         new_debouncer(Duration::from_millis(300), tx).context("Failed to create file watcher")?;
 
-    // Watch all src directories and i18n.toml files
     for krate in &valid_crates {
         debouncer
             .watcher()
@@ -157,34 +143,27 @@ fn run_watch_loop(
         }
     }
 
-    // Main watch loop
     while !app.should_quit {
-        // Check for quit event
         if tui::poll_quit_event(Duration::from_millis(50))? {
             app.should_quit = true;
             break;
         }
 
-        // Check for file events
         match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(Ok(events)) => {
-                // Collect affected crates
                 let mut affected_crate_names: HashMap<String, Vec<String>> = HashMap::new();
 
                 for event in &events {
                     let path = &event.path;
 
-                    // Skip files in any .es-fluent temp directory
                     if path.components().any(|c| c.as_os_str() == ".es-fluent") {
                         continue;
                     }
 
-                    // Skip .ftl files
                     if path.extension().is_some_and(|ext| ext == "ftl") {
                         continue;
                     }
 
-                    // Find which crate this file belongs to
                     for (src_dir, crate_name) in &path_to_crate {
                         if path.starts_with(src_dir) || path.ends_with("i18n.toml") {
                             let is_rs = path.extension().is_some_and(|ext| ext == "rs");
@@ -206,9 +185,8 @@ fn run_watch_loop(
                     }
                 }
 
-                // Filter to crates that actually changed
                 let mut crates_to_rebuild: Vec<&CrateInfo> = Vec::new();
-                for (crate_name, _) in &affected_crate_names {
+                for crate_name in affected_crate_names.keys() {
                     if let Some(krate) = valid_crates.iter().find(|k| &k.name == crate_name) {
                         let new_hash = compute_src_hash(&krate.src_dir);
                         let old_hash = src_hashes.get(crate_name).copied().unwrap_or(0);
@@ -219,13 +197,11 @@ fn run_watch_loop(
                 }
 
                 if !crates_to_rebuild.is_empty() {
-                    // Mark all as generating
                     for krate in &crates_to_rebuild {
                         app.set_state(&krate.name, CrateState::Generating);
                     }
                     terminal.draw(|f| tui::draw(f, &app))?;
 
-                    // Generate in parallel
                     let results: Vec<GenerateResult> = crates_to_rebuild
                         .par_iter()
                         .map(|krate| {
@@ -244,7 +220,6 @@ fn run_watch_loop(
                         })
                         .collect();
 
-                    // Apply results and update hashes
                     for result in &results {
                         if let Some(ref error) = result.error {
                             app.set_state(
@@ -262,7 +237,6 @@ fn run_watch_loop(
                             );
                         }
 
-                        // Update hash
                         if let Some(krate) =
                             crates_to_rebuild.iter().find(|k| k.name == result.name)
                         {
@@ -275,7 +249,6 @@ fn run_watch_loop(
                 }
             },
             Ok(Err(e)) => {
-                // Log error but continue
                 eprintln!("Watch error: {:?}", e);
             },
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {

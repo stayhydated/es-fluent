@@ -28,22 +28,22 @@ fn run(locale: Languages) {
 
     let shared1 = Shared::Photos {
         user_name: "Bob",
-        photo_count: &&&&1,
+        photo_count: &1,
         user_gender: &Gender::Male,
     };
     let shared2 = Shared::Photos {
         user_name: "Carol",
-        photo_count: &&&&2,
+        photo_count: &2,
         user_gender: &Gender::Female,
     };
     let shared3 = Shared::Photos {
         user_name: "Eve",
-        photo_count: &&&&5,
+        photo_count: &5,
         user_gender: &Gender::Other,
     };
     let shared4 = Shared::Photos {
         user_name: "Helicopter",
-        photo_count: &&&&5,
+        photo_count: &67,
         user_gender: &Gender::Helicopter,
     };
 

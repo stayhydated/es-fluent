@@ -1,10 +1,10 @@
 use es_fluent_core::meta::TypeKind;
 use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{generate, FluentParseMode};
+use es_fluent_generate::{FluentParseMode, generate};
 use proc_macro2::Span;
-use syn::Ident;
 use std::fs;
+use syn::Ident;
 use tempfile::TempDir;
 
 #[test]
@@ -49,13 +49,29 @@ what-Hi = Hi
     // Define items.
     // We will mimic the existing items to ensure they are "handled" (preserved).
     // And add a NEW key to "Shared".
-    
+
     // 1. Gender Group (Complete)
     let gender_variants = vec![
-        FtlVariant { name: "Female".to_string(), ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Female"), args: vec![] },
-        FtlVariant { name: "Helicopter".to_string(), ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Helicopter"), args: vec![] },
-        FtlVariant { name: "Male".to_string(), ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Male"), args: vec![] },
-        FtlVariant { name: "Other".to_string(), ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Other"), args: vec![] },
+        FtlVariant {
+            name: "Female".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Female"),
+            args: vec![],
+        },
+        FtlVariant {
+            name: "Helicopter".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Helicopter"),
+            args: vec![],
+        },
+        FtlVariant {
+            name: "Male".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Male"),
+            args: vec![],
+        },
+        FtlVariant {
+            name: "Other".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Other"),
+            args: vec![],
+        },
     ];
     let gender = FtlTypeInfo {
         type_kind: TypeKind::Enum,
@@ -65,9 +81,11 @@ what-Hi = Hi
     };
 
     // 2. HelloUser (Complete)
-    let hello_user_variants = vec![
-        FtlVariant { name: "hello_user".to_string(), ftl_key: FluentKey::new(&Ident::new("HelloUser", Span::call_site()), "hello_user"), args: vec!["f0".to_string()] },
-    ];
+    let hello_user_variants = vec![FtlVariant {
+        name: "hello_user".to_string(),
+        ftl_key: FluentKey::new(&Ident::new("HelloUser", Span::call_site()), "hello_user"),
+        args: vec!["f0".to_string()],
+    }];
     let hello_user = FtlTypeInfo {
         type_kind: TypeKind::Struct, // Assuming struct for single message
         type_name: "HelloUser".to_string(),
@@ -77,9 +95,21 @@ what-Hi = Hi
 
     // 3. Shared (Adding 'Videos' new key)
     let shared_variants = vec![
-        FtlVariant { name: "Photos".to_string(), ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Photos"), args: vec!["user_name".to_string(), "photo_count".to_string(), "user_gender".to_string()] },
+        FtlVariant {
+            name: "Photos".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Photos"),
+            args: vec![
+                "user_name".to_string(),
+                "photo_count".to_string(),
+                "user_gender".to_string(),
+            ],
+        },
         // NEW KEY
-        FtlVariant { name: "Videos".to_string(), ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Videos"), args: vec![] },
+        FtlVariant {
+            name: "Videos".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Videos"),
+            args: vec![],
+        },
     ];
     let shared = FtlTypeInfo {
         type_kind: TypeKind::Enum,
@@ -89,9 +119,11 @@ what-Hi = Hi
     };
 
     // 4. What (Complete)
-    let what_variants = vec![
-        FtlVariant { name: "Hi".to_string(), ftl_key: FluentKey::new(&Ident::new("What", Span::call_site()), "Hi"), args: vec![] },
-    ];
+    let what_variants = vec![FtlVariant {
+        name: "Hi".to_string(),
+        ftl_key: FluentKey::new(&Ident::new("What", Span::call_site()), "Hi"),
+        args: vec![],
+    }];
     let what = FtlTypeInfo {
         type_kind: TypeKind::Enum,
         type_name: "What".to_string(),
@@ -105,15 +137,25 @@ what-Hi = Hi
         &i18n_path,
         vec![gender, hello_user, shared, what],
         FluentParseMode::Conservative,
-    ).unwrap();
+    )
+    .unwrap();
 
     let content = fs::read_to_string(&ftl_file_path).unwrap();
     println!("Generated Content:\n{}", content);
 
     // Verify Shared-Photos is preserved exactly (checking a distinctive part)
-    assert!(content.contains("[one] added a new photo"), "Complex selector 'one' missing");
-    assert!(content.contains("*[other] added { $photo_count } new photos"), "Complex selector 'other' missing");
-    assert!(content.contains("[female] her stream"), "Nested/Second selector missing");
+    assert!(
+        content.contains("[one] added a new photo"),
+        "Complex selector 'one' missing"
+    );
+    assert!(
+        content.contains("*[other] added { $photo_count } new photos"),
+        "Complex selector 'other' missing"
+    );
+    assert!(
+        content.contains("[female] her stream"),
+        "Nested/Second selector missing"
+    );
 
     // Verify new key injection in Shared group
     let photos_pos = content.find("shared-Photos").expect("Photos key missing");
@@ -121,12 +163,24 @@ what-Hi = Hi
     let shared_group_pos = content.find("## Shared").expect("Shared group missing");
     let what_group_pos = content.find("## What").expect("What group missing");
 
-    assert!(shared_group_pos < photos_pos, "Photos should be after Shared header");
-    assert!(photos_pos < what_group_pos, "Photos should be before What header");
-    
-    // Videos should be injected in Shared group. 
+    assert!(
+        shared_group_pos < photos_pos,
+        "Photos should be after Shared header"
+    );
+    assert!(
+        photos_pos < what_group_pos,
+        "Photos should be before What header"
+    );
+
+    // Videos should be injected in Shared group.
     // Since Photos was matched and removed from pending, Videos is the remaining variant.
     // It should be injected at the end of the group (before ## What).
-    assert!(shared_group_pos < videos_pos, "Videos should be after Shared header");
-    assert!(videos_pos < what_group_pos, "Videos should be before What header");
+    assert!(
+        shared_group_pos < videos_pos,
+        "Videos should be after Shared header"
+    );
+    assert!(
+        videos_pos < what_group_pos,
+        "Videos should be before What header"
+    );
 }

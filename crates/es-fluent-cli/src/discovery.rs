@@ -1,14 +1,9 @@
 use crate::types::CrateInfo;
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 use cargo_metadata::MetadataCommand;
 use std::path::Path;
 
 /// Discovers all crates in a workspace (or single crate) that have i18n.toml.
-///
-/// This function will:
-/// 1. Run `cargo metadata` to find all workspace members
-/// 2. Filter to only crates that have an `i18n.toml` config file
-/// 3. Check if each crate has a `lib.rs` (required for inventory linking)
 pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
     let root_dir = root_dir
         .canonicalize()
@@ -24,13 +19,11 @@ pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
     for package in metadata.workspace_packages() {
         let manifest_dir: std::path::PathBuf = package.manifest_path.parent().unwrap().into();
 
-        // Check if this crate has an i18n.toml
         let i18n_config_path = manifest_dir.join("i18n.toml");
         if !i18n_config_path.exists() {
             continue;
         }
 
-        // Read the i18n config to get the output path
         let i18n_config = es_fluent_toml::I18nConfig::read_from_path(&i18n_config_path)
             .with_context(|| format!("Failed to read {}", i18n_config_path.display()))?;
 
@@ -58,12 +51,7 @@ pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
 }
 
 /// Counts the number of FTL resources (message keys) for a specific crate.
-///
-/// This reads the crate's specific .ftl file (named `{crate_name}.ftl`) in the
-/// output directory and counts the number of message definitions. This ensures
-/// we only count resources defined in this crate, not those from dependencies.
 pub fn count_ftl_resources(ftl_output_dir: &Path, crate_name: &str) -> usize {
-    // The FTL file is named after the crate
     let ftl_file = ftl_output_dir.join(format!("{}.ftl", crate_name));
 
     if !ftl_file.exists() {
