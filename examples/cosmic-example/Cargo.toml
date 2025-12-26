@@ -7,7 +7,6 @@ license = "Unlicense"
 publish = false
 
 [build-dependencies]
-es-fluent-build = { workspace = true }
 log = { workspace = true }
 vergen = { features = [ "git", "gitcl" ], version = "8" }
 

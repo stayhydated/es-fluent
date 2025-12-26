@@ -1,6 +1,7 @@
 use es_fluent_core::namer;
 use es_fluent_core::options::r#struct::StructOpts;
 
+use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -21,7 +22,6 @@ fn generate(opts: &StructOpts) -> TokenStream {
         .iter()
         .map(|(index, field_opt)| {
             let arg_key = field_opt.fluent_arg_name(*index);
-            let field_ty = field_opt.ty();
             let is_choice = field_opt.is_choice();
 
             let field_access = if let Some(ident) = field_opt.ident() {
@@ -35,29 +35,11 @@ fn generate(opts: &StructOpts) -> TokenStream {
                 let access = field_access.clone();
                 quote! { (#access).as_fluent_choice() }
             } else {
-                let mut current_ty = field_ty;
-                let mut deref_count = 0;
-                while let syn::Type::Reference(type_ref) = current_ty {
-                    deref_count += 1;
-                    current_ty = &type_ref.elem;
-                }
-
-                if deref_count > 0 {
-                    let mut inner = {
-                        let access = field_access.clone();
-                        quote! { &(#access) }
-                    };
-                    for _ in 0..deref_count {
-                        inner = quote! { (*#inner) };
-                    }
-                    inner
-                } else {
-                    let access = field_access.clone();
-                    quote! { &(#access) }
-                }
+                let access = field_access.clone();
+                quote! { (#access).clone() }
             };
 
-            quote! { args.insert(#arg_key, ::es_fluent::FluentValue::from(#value_expr)); }
+            quote! { args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
         })
         .collect();
 
@@ -81,23 +63,50 @@ fn generate(opts: &StructOpts) -> TokenStream {
       value.to_fluent_string().into()
     };
 
-    let this_ftl_key = if opts.attr_args().is_this() {
-        let this_ident = quote::format_ident!("{}_this", original_ident);
-        Some(namer::FluentKey::new(&this_ident, "").to_string())
-    } else {
-        None
-    };
+    // Generate inventory submission for all types
+    // FTL metadata is purely structural (type name, field names)
+    // and doesn't depend on generic type parameters
+    let inventory_submit = {
+        // Build static variant with args from struct fields
+        let arg_names: Vec<String> = indexed_fields
+            .iter()
+            .map(|(index, field_opt)| field_opt.fluent_arg_name(*index))
+            .collect();
+        let args_tokens: Vec<_> = arg_names.iter().map(|a| quote! { #a }).collect();
 
-    let this_ftl_impl = crate::macros::utils::generate_this_ftl_impl(
-        original_ident,
-        opts.generics(),
-        this_ftl_key.as_deref(),
-    );
+        let type_name = original_ident.to_string();
+        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
+
+        quote! {
+            #[doc(hidden)]
+            mod #mod_name {
+                use super::*;
+
+                static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+                    ::es_fluent::__core::registry::StaticFtlVariant {
+                        name: #type_name,
+                        ftl_key: #ftl_key,
+                        args: &[#(#args_tokens),*],
+                    }
+                ];
+
+                static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
+                    ::es_fluent::__core::registry::StaticFtlTypeInfo {
+                        type_kind: ::es_fluent::__core::meta::TypeKind::Struct,
+                        type_name: #type_name,
+                        variants: VARIANTS,
+                        file_path: file!(),
+                    };
+
+                ::es_fluent::__inventory::submit!(&TYPE_INFO);
+            }
+        }
+    };
 
     quote! {
       #display_impl
 
-      #this_ftl_impl
+      #inventory_submit
 
       impl #impl_generics From<&#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
             fn from(value: &#original_ident #ty_generics) -> Self {

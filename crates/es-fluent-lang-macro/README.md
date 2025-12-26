@@ -33,7 +33,7 @@ pub enum Languages {}
 
 // Now you can use the generated enum:
 fn main() {
-    let default_lang: Language = Language::default();
+    let default_lang = Languages::default();
     let lang_id: LanguageIdentifier = default_lang.into();
     println!("Default language is: {}", lang_id);
 

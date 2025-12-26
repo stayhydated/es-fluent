@@ -18,10 +18,6 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            if let Err(err) = validation::validate_enum(&opts, data) {
-                err.abort();
-            }
-
             r#enum::process_enum(&opts, data)
         },
         Data::Struct(data) => {
@@ -30,7 +26,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            if let Err(err) = validation::validate_struct(&opts, data) {
+            if let Err(err) = validation::validate_struct(&opts) {
                 err.abort();
             }
 

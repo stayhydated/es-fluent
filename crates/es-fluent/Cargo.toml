@@ -14,17 +14,29 @@ repository.workspace = true
 readme.workspace = true
 
 [features]
-default = [ "derive" ]
+default = [ "derive", "generate" ]
 derive = [ "dep:es-fluent-derive" ]
+generate = [ "dep:bon", "dep:cargo_metadata", "dep:es-fluent-generate", "dep:es-fluent-toml" ]
 
 [dependencies]
+bon = { optional = true, workspace = true }
+cargo_metadata = { optional = true, workspace = true }
+es-fluent-core = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
+es-fluent-generate = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
+es-fluent-toml = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 log = { workspace = true }
 rust-embed = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true }
+es-fluent-lang = { workspace = true }
+rust_decimal = { workspace = true }
+strum = { features = [ "derive" ], workspace = true }
 
 [lints]
 workspace = true

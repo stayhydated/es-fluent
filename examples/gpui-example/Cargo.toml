@@ -16,9 +16,5 @@ rust-embed = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
 
-[build-dependencies]
-es-fluent-build = { workspace = true }
-log = { workspace = true }
-
 [lints]
 workspace = true

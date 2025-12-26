@@ -124,10 +124,6 @@ StructKvOpts {
                 },
             ],
         ),
-        this: Some(
-            true,
-        ),
-        keys_this: None,
         derive: PathList(
             [
                 Path {

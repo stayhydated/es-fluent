@@ -3,10 +3,22 @@ source: crates/es-fluent-core/tests/namer_tests.rs
 expression: "&cases"
 ---
 [
-  FluentKey("my_struct"),
-  FluentKey("my_struct-Field"),
-  FluentKey("http_server"),
-  FluentKey("my_enum-Variant"),
-  FluentKey("already_snake-field_name"),
-  FluentKey("x"),
+    FluentKey(
+        "my_struct",
+    ),
+    FluentKey(
+        "my_struct-Field",
+    ),
+    FluentKey(
+        "http_server",
+    ),
+    FluentKey(
+        "my_enum-Variant",
+    ),
+    FluentKey(
+        "already_snake-field_name",
+    ),
+    FluentKey(
+        "x",
+    ),
 ]

@@ -18,15 +18,13 @@ country-USA = Usa { $f0 }
 
 ## CountryDescriptionKvFtl
 
-country_description_kv_ftl_this = Country Description Kv Ftl
-country_description_kv_ftl-Canada = Canada
-country_description_kv_ftl-USA = Usa
+country_description_kv_ftl-canada = Canada
+country_description_kv_ftl-usa = Usa
 
 ## CountryLabelKvFtl
 
-country_label_kv_ftl_this = Country Label Kv Ftl
-country_label_kv_ftl-Canada = Canada
-country_label_kv_ftl-USA = Usa
+country_label_kv_ftl-canada = Canada
+country_label_kv_ftl-usa = Usa
 
 ## EmptyEnum
 
@@ -35,6 +33,7 @@ empty_enum_this = Empty Enum
 ## EmptyStruct
 
 empty_struct_this = Empty Struct
+empty_struct = Empty Struct
 
 ## EmptyStructKv
 
@@ -42,8 +41,8 @@ empty_struct_kv_this = Empty Struct Kv
 
 ## KvSplit
 
-kv_split_this = Kv Split
 kv_split = Kv Split { $country }
+kv_split_this = Kv Split
 
 ## KvSplitDescriptionKvFtl
 
@@ -54,6 +53,12 @@ kv_split_description_kv_ftl-country = Country
 
 kv_split_label_kv_ftl_this = Kv Split Label Kv Ftl
 kv_split_label_kv_ftl-country = Country
+
+## Languages
+
+es-fluent-lang-en = En
+es-fluent-lang-fr = Fr
+es-fluent-lang-zh-CN = Zh Cn
 
 ## USAState
 

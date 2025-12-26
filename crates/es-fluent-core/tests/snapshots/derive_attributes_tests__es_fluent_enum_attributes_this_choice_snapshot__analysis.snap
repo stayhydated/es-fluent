@@ -154,12 +154,6 @@ EnumOpts {
         ],
     ),
     attr_args: EnumFluentAttributeArgs {
-        choice: Some(
-            true,
-        ),
-        this: Some(
-            true,
-        ),
         resource: None,
     },
 }
