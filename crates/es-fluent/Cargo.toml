@@ -14,7 +14,7 @@ repository.workspace = true
 readme.workspace = true
 
 [features]
-default = [ "derive", "generate" ]
+default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
 generate = [ "dep:bon", "dep:cargo_metadata", "dep:es-fluent-generate", "dep:es-fluent-toml" ]
 
