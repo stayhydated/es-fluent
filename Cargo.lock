@@ -4508,7 +4508,6 @@ name = "es-fluent-generate"
 version = "0.4.2"
 dependencies = [
  "clap",
- "es-fluent",
  "es-fluent-core",
  "fluent-syntax",
  "heck 0.5.0",
