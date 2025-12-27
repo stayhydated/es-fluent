@@ -25,5 +25,9 @@ quote = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 syn = { features = [ "full" ], workspace = true }
 
+[dev-dependencies]
+insta = { workspace = true }
+syn = { features = [ "full" ], workspace = true }
+
 [lints]
 workspace = true

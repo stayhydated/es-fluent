@@ -1,10 +1,10 @@
 ---
-source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 StructOpts {
     ident: Ident {
-        sym: Label,
+        sym: Person,
     },
     generics: Generics {
         lt_token: None,
@@ -19,7 +19,7 @@ StructOpts {
                 StructFieldOpts {
                     ident: Some(
                         Ident {
-                            sym: text,
+                            sym: name,
                         },
                     ),
                     ty: Type::Path {
@@ -37,15 +37,13 @@ StructOpts {
                         },
                     },
                     skip: None,
-                    default: Some(
-                        true,
-                    ),
+                    default: None,
                     choice: None,
                 },
                 StructFieldOpts {
                     ident: Some(
                         Ident {
-                            sym: style,
+                            sym: password_hash,
                         },
                     ),
                     ty: Type::Path {
@@ -55,33 +53,7 @@ StructOpts {
                             segments: [
                                 PathSegment {
                                     ident: Ident {
-                                        sym: Emphasis,
-                                    },
-                                    arguments: PathArguments::None,
-                                },
-                            ],
-                        },
-                    },
-                    skip: None,
-                    default: None,
-                    choice: Some(
-                        true,
-                    ),
-                },
-                StructFieldOpts {
-                    ident: Some(
-                        Ident {
-                            sym: developer_only_flag,
-                        },
-                    ),
-                    ty: Type::Path {
-                        qself: None,
-                        path: Path {
-                            leading_colon: None,
-                            segments: [
-                                PathSegment {
-                                    ident: Ident {
-                                        sym: bool,
+                                        sym: String,
                                     },
                                     arguments: PathArguments::None,
                                 },
@@ -94,6 +66,32 @@ StructOpts {
                     default: None,
                     choice: None,
                 },
+                StructFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: gender,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: Gender,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                    choice: Some(
+                        true,
+                    ),
+                },
             ],
             span: Some(
                 bytes(0..0),
@@ -103,7 +101,30 @@ StructOpts {
     ),
     attr_args: StructFluentAttributeArgs {
         derive: PathList(
-            [],
+            [
+                Path {
+                    leading_colon: None,
+                    segments: [
+                        PathSegment {
+                            ident: Ident {
+                                sym: Debug,
+                            },
+                            arguments: PathArguments::None,
+                        },
+                    ],
+                },
+                Path {
+                    leading_colon: None,
+                    segments: [
+                        PathSegment {
+                            ident: Ident {
+                                sym: Clone,
+                            },
+                            arguments: PathArguments::None,
+                        },
+                    ],
+                },
+            ],
         ),
     },
 }

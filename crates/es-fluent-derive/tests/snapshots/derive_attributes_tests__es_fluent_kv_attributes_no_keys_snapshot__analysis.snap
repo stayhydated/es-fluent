@@ -1,10 +1,10 @@
 ---
-source: crates/es-fluent-core/tests/options_parsing_tests.rs
+source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
-StructOpts {
+StructKvOpts {
     ident: Ident {
-        sym: MyStruct,
+        sym: Config,
     },
     generics: Generics {
         lt_token: None,
@@ -16,34 +16,10 @@ StructOpts {
         Fields {
             style: Struct,
             fields: [
-                StructFieldOpts {
+                StructKvFieldOpts {
                     ident: Some(
                         Ident {
-                            sym: a,
-                        },
-                    ),
-                    ty: Type::Path {
-                        qself: None,
-                        path: Path {
-                            leading_colon: None,
-                            segments: [
-                                PathSegment {
-                                    ident: Ident {
-                                        sym: i32,
-                                    },
-                                    arguments: PathArguments::None,
-                                },
-                            ],
-                        },
-                    },
-                    skip: None,
-                    default: None,
-                    choice: None,
-                },
-                StructFieldOpts {
-                    ident: Some(
-                        Ident {
-                            sym: b,
+                            sym: host,
                         },
                     ),
                     ty: Type::Path {
@@ -60,16 +36,34 @@ StructOpts {
                             ],
                         },
                     },
-                    skip: Some(
-                        true,
-                    ),
-                    default: None,
-                    choice: None,
+                    skip: None,
                 },
-                StructFieldOpts {
+                StructKvFieldOpts {
                     ident: Some(
                         Ident {
-                            sym: c,
+                            sym: port,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: u16,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                },
+                StructKvFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: deprecated,
                         },
                     ),
                     ty: Type::Path {
@@ -86,9 +80,7 @@ StructOpts {
                             ],
                         },
                     },
-                    skip: None,
-                    default: None,
-                    choice: Some(
+                    skip: Some(
                         true,
                     ),
                 },
@@ -99,7 +91,8 @@ StructOpts {
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructFluentAttributeArgs {
+    attr_args: StructKvFluentAttributeArgs {
+        keys: None,
         derive: PathList(
             [],
         ),

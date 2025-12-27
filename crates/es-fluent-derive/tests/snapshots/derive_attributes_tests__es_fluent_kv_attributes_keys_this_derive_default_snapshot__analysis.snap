@@ -1,10 +1,10 @@
 ---
-source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
-StructOpts {
+StructKvOpts {
     ident: Ident {
-        sym: Person,
+        sym: Profile,
     },
     generics: Generics {
         lt_token: None,
@@ -16,10 +16,32 @@ StructOpts {
         Fields {
             style: Struct,
             fields: [
-                StructFieldOpts {
+                StructKvFieldOpts {
                     ident: Some(
                         Ident {
-                            sym: name,
+                            sym: id,
+                        },
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident {
+                                        sym: u64,
+                                    },
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                },
+                StructKvFieldOpts {
+                    ident: Some(
+                        Ident {
+                            sym: username,
                         },
                     ),
                     ty: Type::Path {
@@ -37,13 +59,11 @@ StructOpts {
                         },
                     },
                     skip: None,
-                    default: None,
-                    choice: None,
                 },
-                StructFieldOpts {
+                StructKvFieldOpts {
                     ident: Some(
                         Ident {
-                            sym: password_hash,
+                            sym: secret_token,
                         },
                     ),
                     ty: Type::Path {
@@ -63,13 +83,11 @@ StructOpts {
                     skip: Some(
                         true,
                     ),
-                    default: None,
-                    choice: None,
                 },
-                StructFieldOpts {
+                StructKvFieldOpts {
                     ident: Some(
                         Ident {
-                            sym: gender,
+                            sym: active,
                         },
                     ),
                     ty: Type::Path {
@@ -79,7 +97,7 @@ StructOpts {
                             segments: [
                                 PathSegment {
                                     ident: Ident {
-                                        sym: Gender,
+                                        sym: bool,
                                     },
                                     arguments: PathArguments::None,
                                 },
@@ -87,10 +105,6 @@ StructOpts {
                         },
                     },
                     skip: None,
-                    default: None,
-                    choice: Some(
-                        true,
-                    ),
                 },
             ],
             span: Some(
@@ -99,7 +113,17 @@ StructOpts {
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructFluentAttributeArgs {
+    attr_args: StructKvFluentAttributeArgs {
+        keys: Some(
+            [
+                LitStr {
+                    token: "primary",
+                },
+                LitStr {
+                    token: "secondary",
+                },
+            ],
+        ),
         derive: PathList(
             [
                 Path {
@@ -118,7 +142,7 @@ StructOpts {
                     segments: [
                         PathSegment {
                             ident: Ident {
-                                sym: Clone,
+                                sym: PartialEq,
                             },
                             arguments: PathArguments::None,
                         },

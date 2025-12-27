@@ -1,5 +1,5 @@
 ---
-source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 EnumChoiceOpts {
