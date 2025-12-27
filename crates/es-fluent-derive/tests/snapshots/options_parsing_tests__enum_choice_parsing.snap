@@ -1,5 +1,5 @@
 ---
-source: crates/es-fluent-core/tests/options_parsing_tests.rs
+source: crates/es-fluent-derive/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 EnumChoiceOpts {
