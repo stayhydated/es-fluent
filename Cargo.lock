@@ -4432,7 +4432,6 @@ dependencies = [
  "es-fluent-core",
  "es-fluent-derive",
  "es-fluent-generate",
- "es-fluent-lang",
  "es-fluent-manager-core",
  "es-fluent-toml",
  "fluent-bundle",

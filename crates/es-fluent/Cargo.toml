@@ -35,7 +35,6 @@ unic-langid = { features = [ "macros" ], workspace = true }
 [dev-dependencies]
 chrono = { workspace = true }
 es-fluent-generate = { workspace = true }
-es-fluent-lang = { workspace = true }
 rust_decimal = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 tempfile = { workspace = true }
