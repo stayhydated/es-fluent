@@ -33,6 +33,7 @@ updates:
 
   - package-ecosystem: "cargo"
     directory: "/"
+
     schedule:
       interval: "monthly"
       day: "monday"
@@ -40,7 +41,7 @@ updates:
       timezone: "America/New_York"
 
     groups:
-      all-cargo-dependencies:
+      all-cargo-majors:
         patterns:
           - "*"
 
