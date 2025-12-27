@@ -78,25 +78,30 @@ fn generate_unit_enum(
 ) -> TokenStream {
     let field_opts = opts.fields();
 
+    // For structs, we store (variant_ident, original_field_name, field_opt)
+    // variant_ident is PascalCase for the enum, original_field_name is snake_case for FTL key
     let variants: Vec<_> = field_opts
         .iter()
         .map(|field_opt| {
             let field_ident = field_opt.ident().as_ref().unwrap();
-            let pascal_case_name = field_ident.to_string().to_pascal_case();
+            let original_field_name = field_ident.to_string(); // Keep original snake_case
+            let pascal_case_name = original_field_name.to_pascal_case();
             let variant_ident = syn::Ident::new(&pascal_case_name, field_ident.span());
-            (variant_ident, field_opt)
+            (variant_ident, original_field_name, field_opt)
         })
         .collect();
 
-    let match_arms = variants.iter().map(|(variant_ident, _)| {
-        let base_key = variant_ident.to_string().to_snake_case();
-        let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
-        quote! {
-            Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
-        }
-    });
+    let match_arms = variants
+        .iter()
+        .map(|(variant_ident, original_field_name, _)| {
+            // Use original field name (snake_case) for FTL key
+            let ftl_key = namer::FluentKey::new(ident, original_field_name).to_string();
+            quote! {
+                Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
+            }
+        });
 
-    let cleaned_variants = variants.iter().map(|(ident, _)| ident);
+    let cleaned_variants = variants.iter().map(|(ident, _, _)| ident);
     let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
     // If fields_this is true, add EsFluentThis to derives
@@ -137,15 +142,16 @@ fn generate_unit_enum(
     // Generate inventory submission for the new enum
     let static_variants: Vec<_> = variants
         .iter()
-        .map(|(variant_ident, _)| {
+        .map(|(variant_ident, original_field_name, _)| {
             let variant_name = variant_ident.to_string();
-            let base_key = variant_ident.to_string().to_snake_case();
-            let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
+            // Use original field name (snake_case) for FTL key
+            let ftl_key = namer::FluentKey::new(ident, original_field_name).to_string();
             quote! {
                 ::es_fluent::__core::registry::StaticFtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
+                    is_this: false,
                 }
             }
         })
@@ -169,6 +175,7 @@ fn generate_unit_enum(
                     type_name: #type_name,
                     variants: VARIANTS,
                     file_path: file!(),
+                    is_this: false,
                 };
 
             ::es_fluent::__inventory::submit!(&TYPE_INFO);
@@ -237,14 +244,14 @@ fn generate_enum_unit_enum(
         .iter()
         .map(|variant_opt| {
             let variant_ident = variant_opt.ident();
-            let pascal_case_name = variant_ident.to_string().to_pascal_case();
-            let new_variant_ident = syn::Ident::new(&pascal_case_name, variant_ident.span());
-            (new_variant_ident, variant_opt)
+            // Keep original variant name (PascalCase for enums)
+            (variant_ident.clone(), variant_opt)
         })
         .collect();
 
     let match_arms = variants.iter().map(|(variant_ident, _)| {
-        let base_key = variant_ident.to_string().to_snake_case();
+        // Use original variant name for the key (preserves PascalCase)
+        let base_key = variant_ident.to_string();
         let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
         quote! {
             Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
@@ -294,13 +301,15 @@ fn generate_enum_unit_enum(
         .iter()
         .map(|(variant_ident, _)| {
             let variant_name = variant_ident.to_string();
-            let base_key = variant_ident.to_string().to_snake_case();
+            // Use original variant name for the key (preserves PascalCase for enums)
+            let base_key = variant_ident.to_string();
             let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
             quote! {
                 ::es_fluent::__core::registry::StaticFtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
+                    is_this: false,
                 }
             }
         })
@@ -324,6 +333,7 @@ fn generate_enum_unit_enum(
                     type_name: #type_name,
                     variants: VARIANTS,
                     file_path: file!(),
+                    is_this: false,
                 };
 
             ::es_fluent::__inventory::submit!(&TYPE_INFO);

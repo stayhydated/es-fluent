@@ -134,13 +134,22 @@ pub fn generate<P: AsRef<Path>>(
     Ok(())
 }
 
+/// Compares two type infos, putting "this" types first.
+fn compare_type_infos(a: &FtlTypeInfo, b: &FtlTypeInfo) -> std::cmp::Ordering {
+    match (a.is_this, b.is_this) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.type_name.cmp(&b.type_name),
+    }
+}
+
 fn smart_merge(
     existing: ast::Resource<String>,
     items: &[FtlTypeInfo],
     cleanup: bool,
 ) -> ast::Resource<String> {
     let mut pending_items = merge_ftl_type_infos(items);
-    pending_items.sort_by(|a, b| a.type_name.cmp(&b.type_name));
+    pending_items.sort_by(compare_type_infos);
 
     let mut item_map: HashMap<String, FtlTypeInfo> = pending_items
         .into_iter()
@@ -253,7 +262,7 @@ fn smart_merge(
     }
 
     let mut remaining_groups: Vec<_> = item_map.into_iter().collect();
-    remaining_groups.sort_by(|(na, _), (nb, _)| na.cmp(nb));
+    remaining_groups.sort_by(|(_, a), (_, b)| compare_type_infos(a, b));
 
     for (type_name, info) in remaining_groups {
         if !info.variants.is_empty() {
@@ -307,25 +316,26 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
 fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by type_name
-    let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>)> = BTreeMap::new();
+    // Group by type_name, also track is_this flag
+    let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>, bool)> = BTreeMap::new();
 
     for item in items {
         let entry = grouped
             .entry(item.type_name.clone())
-            .or_insert_with(|| (item.type_kind.clone(), Vec::new()));
+            .or_insert_with(|| (item.type_kind.clone(), Vec::new(), false));
         entry.1.extend(item.variants.clone());
+        // If any item with the same type_name has is_this=true, propagate it
+        if item.is_this {
+            entry.2 = true;
+        }
     }
 
     grouped
         .into_iter()
-        .map(|(type_name, (type_kind, mut variants))| {
+        .map(|(type_name, (type_kind, mut variants, is_this))| {
             variants.sort_by(|a, b| {
-                // Put "this" variants (those without a dash in the key) first
-                let a_is_this = !a.ftl_key.to_string().contains(FluentKey::DELIMITER);
-                let b_is_this = !b.ftl_key.to_string().contains(FluentKey::DELIMITER);
-
-                match (a_is_this, b_is_this) {
+                // Put "this" variants first
+                match (a.is_this, b.is_this) {
                     (true, false) => std::cmp::Ordering::Less,
                     (false, true) => std::cmp::Ordering::Greater,
                     _ => a.name.cmp(&b.name),
@@ -338,6 +348,7 @@ fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
                 type_name,
                 variants,
                 file_path: None,
+                is_this,
             }
         })
         .collect()
@@ -347,7 +358,7 @@ fn build_target_resource(items: &[FtlTypeInfo]) -> ast::Resource<String> {
     let items = merge_ftl_type_infos(items);
     let mut body: Vec<ast::Entry<String>> = Vec::new();
     let mut sorted_items = items.to_vec();
-    sorted_items.sort_by(|a, b| a.type_name.cmp(&b.type_name));
+    sorted_items.sort_by(compare_type_infos);
 
     for info in &sorted_items {
         body.push(create_group_comment_entry(&info.type_name));
@@ -405,6 +416,7 @@ mod tests {
             name: "variant1".to_string(),
             ftl_key,
             args: Vec::new(),
+            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -412,6 +424,7 @@ mod tests {
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
             file_path: None,
+            is_this: false,
         };
 
         let result = generate(
@@ -447,6 +460,7 @@ mod tests {
             name: "variant1".to_string(),
             ftl_key,
             args: Vec::new(),
+            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -454,6 +468,7 @@ mod tests {
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
             file_path: None,
+            is_this: false,
         };
 
         let result = generate(
@@ -487,6 +502,7 @@ mod tests {
             name: "variant1".to_string(),
             ftl_key,
             args: Vec::new(),
+            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -494,6 +510,7 @@ mod tests {
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
             file_path: None,
+            is_this: false,
         };
 
         let result = generate(
@@ -538,6 +555,7 @@ existing-key = Existing Value
             name: "ExistingKey".to_string(),
             ftl_key,
             args: Vec::new(),
+            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -545,6 +563,7 @@ existing-key = Existing Value
             type_name: "ExistingGroup".to_string(),
             variants: vec![variant],
             file_path: None,
+            is_this: false,
         };
 
         let result = generate(
@@ -564,5 +583,163 @@ existing-key = Existing Value
 
         // Should contain existing content that is still valid
         assert!(content.contains("## ExistingGroup"));
+    }
+
+    #[test]
+    fn test_this_types_sorted_first() {
+        let temp_dir = TempDir::new().unwrap();
+        let i18n_path = temp_dir.path().join("i18n");
+
+        // Create types: Apple, Banana, Banana_this (should come first)
+        let apple_variant = FtlVariant {
+            name: "Red".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Apple", proc_macro2::Span::call_site()), "Red"),
+            args: Vec::new(),
+            is_this: false,
+        };
+        let apple = FtlTypeInfo {
+            type_kind: TypeKind::Enum,
+            type_name: "Apple".to_string(),
+            variants: vec![apple_variant],
+            file_path: None,
+            is_this: false,
+        };
+
+        let banana_variant = FtlVariant {
+            name: "Yellow".to_string(),
+            ftl_key: FluentKey::new(
+                &Ident::new("Banana", proc_macro2::Span::call_site()),
+                "Yellow",
+            ),
+            args: Vec::new(),
+            is_this: false,
+        };
+        let banana = FtlTypeInfo {
+            type_kind: TypeKind::Enum,
+            type_name: "Banana".to_string(),
+            variants: vec![banana_variant],
+            file_path: None,
+            is_this: false,
+        };
+
+        // This type should come first despite alphabetical order
+        let banana_this_variant = FtlVariant {
+            name: "this".to_string(),
+            ftl_key: FluentKey::new(
+                &Ident::new("BananaThis", proc_macro2::Span::call_site()),
+                "",
+            ),
+            args: Vec::new(),
+            is_this: true,
+        };
+        let banana_this = FtlTypeInfo {
+            type_kind: TypeKind::Struct,
+            type_name: "BananaThis".to_string(),
+            variants: vec![banana_this_variant],
+            file_path: None,
+            is_this: true,
+        };
+
+        let result = generate(
+            "test_crate",
+            &i18n_path,
+            vec![apple.clone(), banana.clone(), banana_this.clone()],
+            FluentParseMode::Aggressive,
+        );
+        assert!(result.is_ok());
+
+        let ftl_file_path = i18n_path.join("test_crate.ftl");
+        let content = fs::read_to_string(&ftl_file_path).unwrap();
+
+        // BananaThis (is_this=true) should come before Apple and Banana
+        let banana_this_pos = content.find("## BananaThis").expect("BananaThis missing");
+        let apple_pos = content.find("## Apple").expect("Apple missing");
+        let banana_pos = content.find("## Banana\n").expect("Banana missing");
+
+        assert!(
+            banana_this_pos < apple_pos,
+            "BananaThis (is_this=true) should come before Apple"
+        );
+        assert!(
+            banana_this_pos < banana_pos,
+            "BananaThis (is_this=true) should come before Banana"
+        );
+        // Apple should come before Banana alphabetically
+        assert!(apple_pos < banana_pos, "Apple should come before Banana");
+    }
+
+    #[test]
+    fn test_this_variants_sorted_first_within_group() {
+        let temp_dir = TempDir::new().unwrap();
+        let i18n_path = temp_dir.path().join("i18n");
+
+        // Create a type with multiple variants, one being a "this" variant
+        let this_variant = FtlVariant {
+            name: "this".to_string(),
+            ftl_key: FluentKey::new(&Ident::new("Fruit", proc_macro2::Span::call_site()), ""),
+            args: Vec::new(),
+            is_this: true,
+        };
+        let apple_variant = FtlVariant {
+            name: "Apple".to_string(),
+            ftl_key: FluentKey::new(
+                &Ident::new("Fruit", proc_macro2::Span::call_site()),
+                "Apple",
+            ),
+            args: Vec::new(),
+            is_this: false,
+        };
+        let banana_variant = FtlVariant {
+            name: "Banana".to_string(),
+            ftl_key: FluentKey::new(
+                &Ident::new("Fruit", proc_macro2::Span::call_site()),
+                "Banana",
+            ),
+            args: Vec::new(),
+            is_this: false,
+        };
+
+        let fruit = FtlTypeInfo {
+            type_kind: TypeKind::Enum,
+            type_name: "Fruit".to_string(),
+            // Deliberately put variants in wrong order
+            variants: vec![
+                banana_variant.clone(),
+                this_variant.clone(),
+                apple_variant.clone(),
+            ],
+            file_path: None,
+            is_this: false,
+        };
+
+        let result = generate(
+            "test_crate",
+            &i18n_path,
+            vec![fruit],
+            FluentParseMode::Aggressive,
+        );
+        assert!(result.is_ok());
+
+        let ftl_file_path = i18n_path.join("test_crate.ftl");
+        let content = fs::read_to_string(&ftl_file_path).unwrap();
+
+        // The "this" variant (fruit) should come first, then Apple, then Banana
+        let this_pos = content
+            .find("fruit =")
+            .expect("this variant (fruit) missing");
+        let apple_pos = content.find("fruit-Apple").expect("Apple variant missing");
+        let banana_pos = content
+            .find("fruit-Banana")
+            .expect("Banana variant missing");
+
+        assert!(
+            this_pos < apple_pos,
+            "This variant should come before Apple"
+        );
+        assert!(
+            this_pos < banana_pos,
+            "This variant should come before Banana"
+        );
+        assert!(apple_pos < banana_pos, "Apple should come before Banana");
     }
 }

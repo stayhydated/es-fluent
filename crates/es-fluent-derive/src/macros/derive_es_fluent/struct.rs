@@ -87,6 +87,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
                         name: #type_name,
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
+                        is_this: false,
                     }
                 ];
 
@@ -96,6 +97,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
                         type_name: #type_name,
                         variants: VARIANTS,
                         file_path: file!(),
+                        is_this: false,
                     };
 
                 ::es_fluent::__inventory::submit!(&TYPE_INFO);

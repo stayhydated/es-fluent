@@ -1,10 +1,10 @@
 ---
-source: crates/es-fluent-core/tests/derive_attributes_tests.rs
+source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 EnumChoiceOpts {
     ident: Ident {
-        sym: Emphasis,
+        sym: Gender,
     },
     generics: Generics {
         lt_token: None,
@@ -17,12 +17,9 @@ EnumChoiceOpts {
             Ignored,
             Ignored,
             Ignored,
-            Ignored,
         ],
     ),
     attr_args: EnumChoiceAttributeArgs {
-        serialize_all: Some(
-            "SCREAMING_SNAKE_CASE",
-        ),
+        serialize_all: None,
     },
 }
