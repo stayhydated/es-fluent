@@ -159,10 +159,11 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
       value.to_fluent_string().into()
     };
 
-    // Generate inventory submission for all non-empty types
+    // Generate inventory submission for all non-empty types unless skip_inventory is set
     // FTL metadata is purely structural (type name, field names, variant names)
     // and doesn't depend on generic type parameters
-    let inventory_submit = if !is_empty {
+    let skip_inventory = opts.attr_args().skip_inventory();
+    let inventory_submit = if !is_empty && !skip_inventory {
         // Build static variant array from the opts
         let static_variants: Vec<_> = opts
             .variants()

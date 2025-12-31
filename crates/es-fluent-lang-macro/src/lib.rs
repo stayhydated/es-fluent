@@ -62,12 +62,30 @@ fn is_supported_language(
 
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
 /// Which generates variants for each language in the i18n folder structure.
+///
+/// By default, this macro:
+/// - Links to the bundled `es-fluent-lang.ftl` file for language name translations
+/// - Does NOT register the enum with inventory (since it's a language selector, not a translatable item)
+///
+/// Use `#[es_fluent_language(custom)]` to:
+/// - NOT link to the bundled `es-fluent-lang.ftl` file (you provide your own translations)
+/// - Register the enum with inventory (so it appears in generated FTL files)
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
-    if !attr.is_empty() {
-        abort_call_site!("#[es_fluent_language] does not accept any arguments");
-    }
+    let custom_mode = if attr.is_empty() {
+        false
+    } else {
+        let attr_str = attr.to_string();
+        if attr_str.trim() == "custom" {
+            true
+        } else {
+            abort_call_site!(
+                "#[es_fluent_language] only accepts `custom` as an argument; found `{}`",
+                attr_str
+            );
+        }
+    };
 
     let mut input_enum = parse_macro_input!(item as ItemEnum);
     let enum_ident = input_enum.ident.clone();
@@ -148,9 +166,16 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut language_literals = Vec::with_capacity(language_entries.len());
     let mut fallback_variant_ident = None;
 
-    input_enum
-        .attrs
-        .push(parse_quote!(#[fluent(resource = "es-fluent-lang")]));
+    // In default mode: use bundled es-fluent-lang.ftl and skip inventory registration
+    // In custom mode: don't add resource attribute (user provides translations) and register with inventory
+    if custom_mode {
+        // No resource attribute - user provides their own translations
+        // No skip_inventory - enum will be registered with inventory
+    } else {
+        input_enum
+            .attrs
+            .push(parse_quote!(#[fluent(resource = "es-fluent-lang", skip_inventory)]));
+    }
 
     input_enum.variants.clear();
 
