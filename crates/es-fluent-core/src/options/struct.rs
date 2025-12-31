@@ -26,6 +26,33 @@ pub struct StructFieldOpts {
     /// Whether this field is a choice.
     #[darling(default)]
     choice: Option<bool>,
+    /// A value transformation expression.
+    #[darling(default)]
+    value: Option<ValueAttr>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ValueAttr(pub syn::Expr);
+
+impl darling::FromMeta for ValueAttr {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        match item {
+            syn::Meta::List(list) => {
+                let expr: syn::Expr = syn::parse2(list.tokens.clone())?;
+                Ok(ValueAttr(expr))
+            }
+            syn::Meta::NameValue(nv) => {
+                // Also support value = "expr" for convenience?
+                 if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), .. }) = &nv.value {
+                    let expr: syn::Expr = s.parse()?;
+                    Ok(ValueAttr(expr))
+                } else {
+                     Err(darling::Error::unexpected_type("non-string literal"))
+                }
+            }
+             _ => Err(darling::Error::unsupported_format("list or name-value")),
+        }
+    }
 }
 
 impl StructFieldOpts {
@@ -50,6 +77,11 @@ impl StructFieldOpts {
             .as_ref()
             .map(|ident| ident.to_string())
             .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
+    }
+
+    /// Returns the value expression if present.
+    pub fn value(&self) -> Option<&syn::Expr> {
+        self.value.as_ref().map(|v| &v.0)
     }
 }
 

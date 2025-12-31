@@ -31,7 +31,9 @@ fn generate(opts: &StructOpts) -> TokenStream {
                 quote! { self.#field_index }
             };
 
-            let value_expr = if is_choice {
+            let value_expr = if let Some(expr) = field_opt.value() {
+                quote! { (#expr)(&(#field_access)) }
+            } else if is_choice {
                 let access = field_access.clone();
                 quote! { (#access).as_fluent_choice() }
             } else {
