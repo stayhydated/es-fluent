@@ -53,6 +53,11 @@ pub struct I18nConfig {
     /// Path to the assets directory containing translation files.
     /// Expected structure: {assets_dir}/{language}/{domain}.ftl
     pub assets_dir: PathBuf,
+    /// Optional feature flag that enables es-fluent derives in the crate.
+    /// If specified, the CLI will enable this feature when generating FTL files.
+    /// Example: `fluent_feature = "fluent"` for crates that gate es-fluent behind a feature.
+    #[serde(default)]
+    pub fluent_feature: Option<String>,
 }
 
 impl I18nConfig {
@@ -275,6 +280,7 @@ assets_dir = "i18n"
         let config = I18nConfig {
             fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("locales"),
+            fluent_feature: None,
         };
 
         assert_eq!(config.assets_dir_path(), PathBuf::from("locales"));
@@ -285,6 +291,7 @@ assets_dir = "i18n"
         let config = I18nConfig {
             fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
         };
 
         assert_eq!(config.fallback_language_id(), "en-US");
@@ -295,6 +302,7 @@ assets_dir = "i18n"
         let config = I18nConfig {
             fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
         };
 
         let lang = config.fallback_language_identifier().unwrap();
@@ -307,6 +315,7 @@ assets_dir = "i18n"
         let config = I18nConfig {
             fallback_language: "invalid-lang!".to_string(),
             assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
         };
 
         let result = config.fallback_language_identifier();
@@ -333,6 +342,7 @@ assets_dir = "i18n"
         let config = I18nConfig {
             fallback_language: "en".to_string(),
             assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
         };
 
         let languages = config
@@ -356,6 +366,7 @@ assets_dir = "i18n"
         let config = I18nConfig {
             fallback_language: "en".to_string(),
             assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
         };
 
         let languages = config

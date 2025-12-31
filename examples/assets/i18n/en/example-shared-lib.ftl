@@ -20,11 +20,15 @@ country-USA = Usa { $f0 }
 
 country_description_kv_ftl-canada = Canada
 country_description_kv_ftl-usa = Usa
+country_description_kv_ftl-Canada = Canada
+country_description_kv_ftl-USA = Usa
 
 ## CountryLabelKvFtl
 
 country_label_kv_ftl-canada = Canada
 country_label_kv_ftl-usa = Usa
+country_label_kv_ftl-Canada = Canada
+country_label_kv_ftl-USA = Usa
 
 ## EmptyEnum
 
