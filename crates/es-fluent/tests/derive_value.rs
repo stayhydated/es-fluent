@@ -50,7 +50,9 @@ fn test_len_validation() {
 
 #[test]
 fn test_string_box() {
-    let val = StringBox { value: "hello".to_string() };
+    let val = StringBox {
+        value: "hello".to_string(),
+    };
     let s = val.to_fluent_string();
     println!("Result: {}", s);
 }
