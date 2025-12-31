@@ -22,6 +22,9 @@ pub struct EnumFieldOpts {
     /// Whether this field is a choice.
     #[darling(default)]
     choice: Option<bool>,
+    /// A value transformation expression.
+    #[darling(default)]
+    value: Option<super::ValueAttr>,
 }
 
 impl EnumFieldOpts {
@@ -32,6 +35,10 @@ impl EnumFieldOpts {
     /// Returns `true` if the field is a choice.
     pub fn is_choice(&self) -> bool {
         self.choice.unwrap_or(false)
+    }
+    /// Returns the value expression if present.
+    pub fn value(&self) -> Option<&syn::Expr> {
+        self.value.as_ref().map(|v| &v.0)
     }
 }
 

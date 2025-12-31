@@ -56,3 +56,21 @@ fn test_string_box() {
     let s = val.to_fluent_string();
     println!("Result: {}", s);
 }
+
+#[derive(EsFluent)]
+enum EnumLenValidation<T: HasLen> {
+    Tuple(#[fluent(value(|x: &T| x.len()))] T),
+    Struct {
+        #[fluent(value(|x: &T| x.len()))]
+        val: T,
+    },
+}
+
+#[test]
+fn test_enum_len_validation() {
+    let t = EnumLenValidation::Tuple(vec![1, 2]);
+    let _ = t.to_fluent_string();
+
+    let s = EnumLenValidation::Struct { val: vec![1, 2, 3] };
+    let _ = s.to_fluent_string();
+}
