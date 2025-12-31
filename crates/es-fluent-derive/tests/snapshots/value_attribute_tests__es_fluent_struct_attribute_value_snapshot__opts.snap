@@ -1,0 +1,173 @@
+---
+source: crates/es-fluent-derive/tests/value_attribute_tests.rs
+expression: "&opts"
+---
+StructOpts {
+    ident: Ident(
+        LenValidation,
+    ),
+    generics: Generics {
+        lt_token: Some(
+            Lt,
+        ),
+        params: [
+            GenericParam::Type(
+                TypeParam {
+                    attrs: [],
+                    ident: Ident(
+                        T,
+                    ),
+                    colon_token: None,
+                    bounds: [],
+                    eq_token: None,
+                    default: None,
+                },
+            ),
+        ],
+        gt_token: Some(
+            Gt,
+        ),
+        where_clause: None,
+    },
+    data: Struct(
+        Fields {
+            style: Struct,
+            fields: [
+                StructFieldOpts {
+                    ident: Some(
+                        Ident(
+                            min,
+                        ),
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident(
+                                        usize,
+                                    ),
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                    choice: None,
+                    value: None,
+                },
+                StructFieldOpts {
+                    ident: Some(
+                        Ident(
+                            max,
+                        ),
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident(
+                                        usize,
+                                    ),
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                    choice: None,
+                    value: None,
+                },
+                StructFieldOpts {
+                    ident: Some(
+                        Ident(
+                            actual,
+                        ),
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident(
+                                        T,
+                                    ),
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                    choice: None,
+                    value: Some(
+                        ValueAttr(
+                            Expr::Closure {
+                                attrs: [],
+                                lifetimes: None,
+                                constness: None,
+                                movability: None,
+                                asyncness: None,
+                                capture: None,
+                                or1_token: Or,
+                                inputs: [
+                                    Pat::Ident {
+                                        attrs: [],
+                                        by_ref: None,
+                                        mutability: None,
+                                        ident: Ident(
+                                            x,
+                                        ),
+                                        subpat: None,
+                                    },
+                                ],
+                                or2_token: Or,
+                                output: ReturnType::Default,
+                                body: Expr::MethodCall {
+                                    attrs: [],
+                                    receiver: Expr::Path {
+                                        attrs: [],
+                                        qself: None,
+                                        path: Path {
+                                            leading_colon: None,
+                                            segments: [
+                                                PathSegment {
+                                                    ident: Ident(
+                                                        x,
+                                                    ),
+                                                    arguments: PathArguments::None,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    dot_token: Dot,
+                                    method: Ident(
+                                        len,
+                                    ),
+                                    turbofish: None,
+                                    paren_token: Paren,
+                                    args: [],
+                                },
+                            },
+                        ),
+                    ),
+                },
+            ],
+            span: Some(
+                Span,
+            ),
+            __nonexhaustive: (),
+        },
+    ),
+    attr_args: StructFluentAttributeArgs {
+        derive: PathList(
+            [],
+        ),
+    },
+}

@@ -73,6 +73,7 @@ EnumOpts {
                             },
                             skip: None,
                             choice: None,
+                            value: None,
                         },
                         EnumFieldOpts {
                             ident: Some(
@@ -98,6 +99,7 @@ EnumOpts {
                                 true,
                             ),
                             choice: None,
+                            value: None,
                         },
                     ],
                     span: Some(
@@ -133,6 +135,7 @@ EnumOpts {
                             },
                             skip: None,
                             choice: None,
+                            value: None,
                         },
                         EnumFieldOpts {
                             ident: None,
@@ -154,6 +157,7 @@ EnumOpts {
                                 true,
                             ),
                             choice: None,
+                            value: None,
                         },
                     ],
                     span: Some(

@@ -1,5 +1,7 @@
 target/
+.es-fluent/
 .expanded.rs
 .venv
 .ruff_cache
 .ropeproject
+*.snap.new

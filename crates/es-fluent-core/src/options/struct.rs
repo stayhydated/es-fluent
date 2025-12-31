@@ -26,6 +26,9 @@ pub struct StructFieldOpts {
     /// Whether this field is a choice.
     #[darling(default)]
     choice: Option<bool>,
+    /// A value transformation expression.
+    #[darling(default)]
+    value: Option<super::ValueAttr>,
 }
 
 impl StructFieldOpts {
@@ -50,6 +53,11 @@ impl StructFieldOpts {
             .as_ref()
             .map(|ident| ident.to_string())
             .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
+    }
+
+    /// Returns the value expression if present.
+    pub fn value(&self) -> Option<&syn::Expr> {
+        self.value.as_ref().map(|v| &v.0)
     }
 }
 

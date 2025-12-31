@@ -56,6 +56,7 @@ EnumOpts {
                             choice: Some(
                                 true,
                             ),
+                            value: None,
                         },
                         EnumFieldOpts {
                             ident: None,
@@ -77,6 +78,7 @@ EnumOpts {
                                 true,
                             ),
                             choice: None,
+                            value: None,
                         },
                     ],
                     span: Some(
@@ -118,6 +120,7 @@ EnumOpts {
                             choice: Some(
                                 true,
                             ),
+                            value: None,
                         },
                         EnumFieldOpts {
                             ident: Some(
@@ -141,6 +144,7 @@ EnumOpts {
                             },
                             skip: None,
                             choice: None,
+                            value: None,
                         },
                     ],
                     span: Some(
