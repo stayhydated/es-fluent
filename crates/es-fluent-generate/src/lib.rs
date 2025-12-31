@@ -95,7 +95,7 @@ pub fn generate<P: AsRef<Path>>(
     if !final_resource.body.is_empty() {
         let final_output = serializer::serialize(&final_resource);
 
-        let final_content_to_write = final_output.trim_end();
+        let final_content_to_write = format!("{}\n", final_output.trim_end());
 
         let current_content = if file_path.exists() {
             fs::read_to_string(&file_path)?
@@ -104,7 +104,7 @@ pub fn generate<P: AsRef<Path>>(
         };
 
         if current_content != final_content_to_write {
-            fs::write(&file_path, final_content_to_write)?;
+            fs::write(&file_path, &final_content_to_write)?;
             log::error!("Updated FTL file: {}", file_path.display());
         } else {
             log::error!("FTL file unchanged: {}", file_path.display());
