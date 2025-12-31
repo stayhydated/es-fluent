@@ -37,12 +37,14 @@ manual-key = Contains manual stuff
         name: "Key1".to_string(),
         ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key1"),
         args: vec![],
+        module_path: "test".to_string(),
         is_this: false,
     };
     let key_a_2 = FtlVariant {
         name: "Key2".to_string(),
         ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key2"),
         args: vec![],
+        module_path: "test".to_string(),
         is_this: false,
     };
     let group_a = FtlTypeInfo {
@@ -50,6 +52,7 @@ manual-key = Contains manual stuff
         type_name: "GroupA".to_string(),
         variants: vec![key_a_1, key_a_2],
         file_path: None,
+        module_path: "test".to_string(),
         is_this: false,
     };
 
@@ -57,6 +60,7 @@ manual-key = Contains manual stuff
         name: "Key1".to_string(),
         ftl_key: FluentKey::new(&Ident::new("GroupB", Span::call_site()), "Key1"),
         args: vec![],
+        module_path: "test".to_string(),
         is_this: false,
     };
     let group_b = FtlTypeInfo {
@@ -64,6 +68,7 @@ manual-key = Contains manual stuff
         type_name: "GroupB".to_string(),
         variants: vec![key_b_1],
         file_path: None,
+        module_path: "test".to_string(),
         is_this: false,
     };
 

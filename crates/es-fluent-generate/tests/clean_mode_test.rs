@@ -40,6 +40,7 @@ awdawd = awdwa
         name: "Key1".to_string(),
         ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key1"),
         args: vec![],
+        module_path: "test".to_string(),
         is_this: false,
     };
 
@@ -48,6 +49,7 @@ awdawd = awdwa
         type_name: "GroupA".to_string(),
         variants: vec![key1],
         file_path: None,
+        module_path: "test".to_string(),
         is_this: false,
     };
 

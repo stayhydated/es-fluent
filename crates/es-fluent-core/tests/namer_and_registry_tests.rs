@@ -61,12 +61,14 @@ fn registry_structs_equality() {
     let info = FtlTypeInfo::builder()
         .type_kind(TypeKind::Struct)
         .type_name("ErrorType".to_string())
+        .module_path("test".to_string())
         .variants(vec![v1.clone(), v2.clone()])
         .build();
 
     let info_dup = FtlTypeInfo::builder()
         .type_kind(TypeKind::Struct)
         .type_name("ErrorType".to_string())
+        .module_path("test".to_string())
         .variants(vec![v1, v2])
         .build();
 
@@ -94,6 +96,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
     let type_info = FtlTypeInfo::builder()
         .type_kind(TypeKind::Struct)
         .type_name("ErrorType".to_string())
+        .module_path("test".to_string())
         .variants(vec![variant.clone(), variant2.clone()])
         .build();
 

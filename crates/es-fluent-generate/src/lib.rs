@@ -316,13 +316,18 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
 fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by type_name, also track is_this flag
-    let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>, bool)> = BTreeMap::new();
+    // Group by type_name, also track is_this flag and module_path
+    let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>, bool, String)> = BTreeMap::new();
 
     for item in items {
-        let entry = grouped
-            .entry(item.type_name.clone())
-            .or_insert_with(|| (item.type_kind.clone(), Vec::new(), false));
+        let entry = grouped.entry(item.type_name.clone()).or_insert_with(|| {
+            (
+                item.type_kind.clone(),
+                Vec::new(),
+                false,
+                item.module_path.clone(),
+            )
+        });
         entry.1.extend(item.variants.clone());
         // If any item with the same type_name has is_this=true, propagate it
         if item.is_this {
@@ -332,25 +337,28 @@ fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
 
     grouped
         .into_iter()
-        .map(|(type_name, (type_kind, mut variants, is_this))| {
-            variants.sort_by(|a, b| {
-                // Put "this" variants first
-                match (a.is_this, b.is_this) {
-                    (true, false) => std::cmp::Ordering::Less,
-                    (false, true) => std::cmp::Ordering::Greater,
-                    _ => a.name.cmp(&b.name),
-                }
-            });
-            variants.dedup();
+        .map(
+            |(type_name, (type_kind, mut variants, is_this, module_path))| {
+                variants.sort_by(|a, b| {
+                    // Put "this" variants first
+                    match (a.is_this, b.is_this) {
+                        (true, false) => std::cmp::Ordering::Less,
+                        (false, true) => std::cmp::Ordering::Greater,
+                        _ => a.name.cmp(&b.name),
+                    }
+                });
+                variants.dedup();
 
-            FtlTypeInfo {
-                type_kind,
-                type_name,
-                variants,
-                file_path: None,
-                is_this,
-            }
-        })
+                FtlTypeInfo {
+                    type_kind,
+                    type_name,
+                    variants,
+                    file_path: None,
+                    module_path,
+                    is_this,
+                }
+            },
+        )
         .collect()
 }
 
@@ -416,6 +424,7 @@ mod tests {
             name: "variant1".to_string(),
             ftl_key,
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -424,6 +433,7 @@ mod tests {
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -460,6 +470,7 @@ mod tests {
             name: "variant1".to_string(),
             ftl_key,
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -468,6 +479,7 @@ mod tests {
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -502,6 +514,7 @@ mod tests {
             name: "variant1".to_string(),
             ftl_key,
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -510,6 +523,7 @@ mod tests {
             type_name: "TestEnum".to_string(),
             variants: vec![variant],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -555,6 +569,7 @@ existing-key = Existing Value
             name: "ExistingKey".to_string(),
             ftl_key,
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -563,6 +578,7 @@ existing-key = Existing Value
             type_name: "ExistingGroup".to_string(),
             variants: vec![variant],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -595,6 +611,7 @@ existing-key = Existing Value
             name: "Red".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Apple", proc_macro2::Span::call_site()), "Red"),
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
         let apple = FtlTypeInfo {
@@ -602,6 +619,7 @@ existing-key = Existing Value
             type_name: "Apple".to_string(),
             variants: vec![apple_variant],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -612,6 +630,7 @@ existing-key = Existing Value
                 "Yellow",
             ),
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
         let banana = FtlTypeInfo {
@@ -619,6 +638,7 @@ existing-key = Existing Value
             type_name: "Banana".to_string(),
             variants: vec![banana_variant],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -630,6 +650,7 @@ existing-key = Existing Value
                 "",
             ),
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: true,
         };
         let banana_this = FtlTypeInfo {
@@ -637,6 +658,7 @@ existing-key = Existing Value
             type_name: "BananaThis".to_string(),
             variants: vec![banana_this_variant],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: true,
         };
 
@@ -678,6 +700,7 @@ existing-key = Existing Value
             name: "this".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Fruit", proc_macro2::Span::call_site()), ""),
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: true,
         };
         let apple_variant = FtlVariant {
@@ -687,6 +710,7 @@ existing-key = Existing Value
                 "Apple",
             ),
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
         let banana_variant = FtlVariant {
@@ -696,6 +720,7 @@ existing-key = Existing Value
                 "Banana",
             ),
             args: Vec::new(),
+            module_path: "test".to_string(),
             is_this: false,
         };
 
@@ -709,6 +734,7 @@ existing-key = Existing Value
                 apple_variant.clone(),
             ],
             file_path: None,
+            module_path: "test".to_string(),
             is_this: false,
         };
 

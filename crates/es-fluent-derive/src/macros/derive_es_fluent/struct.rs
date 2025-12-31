@@ -89,6 +89,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
                         name: #type_name,
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
+                        module_path: module_path!(),
                         is_this: false,
                     }
                 ];
@@ -99,6 +100,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
                         type_name: #type_name,
                         variants: VARIANTS,
                         file_path: file!(),
+                        module_path: module_path!(),
                         is_this: false,
                     };
 
