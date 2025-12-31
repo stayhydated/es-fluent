@@ -75,6 +75,8 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
         crate_name: TEMP_CRATE_NAME,
         parent_crate_name: &krate.name,
         es_fluent_dep: &es_fluent_dep,
+        has_fluent_feature: krate.fluent_feature.is_some(),
+        fluent_feature: krate.fluent_feature.as_deref().unwrap_or(""),
     };
     fs::write(temp_dir.join("Cargo.toml"), cargo_toml.render().unwrap())
         .context("Failed to write .es-fluent/Cargo.toml")?;
@@ -85,7 +87,6 @@ fn create_temp_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<std::p
         i18n_toml_path: &i18n_toml_path_str,
         parse_mode: mode.as_code(),
         crate_name: &krate.name,
-        crate_root: krate.manifest_dir.to_str().unwrap(),
     };
     fs::write(src_dir.join("main.rs"), main_rs.render().unwrap())
         .context("Failed to write .es-fluent/src/main.rs")?;

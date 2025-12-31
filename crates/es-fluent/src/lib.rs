@@ -226,11 +226,6 @@ mod generate {
         /// Override the output path (defaults to reading from i18n.toml).
         #[builder(into)]
         output_path: Option<PathBuf>,
-
-        /// Override the crate root directory for filtering source files.
-        /// If not provided, defaults to the current crate's src/ directory logic.
-        #[builder(into)]
-        crate_root: Option<PathBuf>,
     }
 
     impl EsFluentGenerator {
@@ -249,46 +244,14 @@ mod generate {
                 },
             };
 
-            let type_infos = if let Some(root) = &self.crate_root {
-                // Filter by explicitly provided root
-                crate::__core::registry::get_all_ftl_type_infos()
-                    .into_iter()
-                    .filter(|info| {
-                        info.file_path
-                            .as_ref()
-                            .is_some_and(|path| path.starts_with(root.to_str().unwrap_or_default()))
-                    })
-                    .collect::<Vec<_>>()
-            } else {
-                // Get the current crate's src directory to filter types
-                // file!() returns paths relative to workspace root, so we need to get the relative path
-                let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
-                    GeneratorError::CrateName("CARGO_MANIFEST_DIR not set".to_string())
-                })?;
-
-                // Get workspace root and compute relative path
-                let src_prefix = cargo_metadata::MetadataCommand::new()
-                    .exec()
-                    .ok()
-                    .and_then(|metadata| {
-                        let workspace_root = metadata.workspace_root.as_std_path();
-                        let manifest_dir_path = std::path::Path::new(&manifest_dir);
-                        manifest_dir_path
-                            .strip_prefix(workspace_root)
-                            .ok()
-                            .map(|rel| format!("{}/src/", rel.display()))
-                    })
-                    .unwrap_or_else(|| "src/".to_string());
-
-                crate::__core::registry::get_all_ftl_type_infos()
-                    .into_iter()
-                    .filter(|info| {
-                        info.file_path
-                            .as_ref()
-                            .is_some_and(|path| path.starts_with(&src_prefix))
-                    })
-                    .collect()
-            };
+            let crate_ident = crate_name.replace('-', "_");
+            let type_infos = crate::__core::registry::get_all_ftl_type_infos()
+                .into_iter()
+                .filter(|info| {
+                    info.module_path == crate_ident
+                        || info.module_path.starts_with(&format!("{}::", crate_ident))
+                })
+                .collect::<Vec<_>>();
 
             log::info!(
                 "Generating FTL files for {} types in crate '{}'",

@@ -21,6 +21,7 @@ members = [
   "examples/first-example",
   "examples/thiserror-example",
   "examples/example-shared-lib",
+  "examples/feature-gated-example",
   "examples/bevy-example",
   "examples/gpui-example",
   "examples/iced-example",
@@ -35,7 +36,7 @@ publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
 rust-version = "1.88"
-version = "0.4.2"
+version = "0.4.3"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
@@ -49,20 +50,20 @@ clap = "4.5.38"
 colored = "3.0.0"
 crate-paths = "0.1.1"
 crossterm = "0.29.0"
-darling = "0.21.3"
+darling = "0.23.0"
 derive_more = "2.0.1"
 env_logger = "0.11"
-es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.4.2" }
-es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.4.2" }
-es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.4.2" }
-es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.4.2" }
-es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.4.2" }
-es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.4.2" }
-es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.17.17" }
-es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.4.2" }
-es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.4.2" }
-es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.4.2" }
-es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.4.2" }
+es-fluent = { default-features = false, path = "crates/es-fluent", version = "0.4.3" }
+es-fluent-core = { default-features = false, path = "crates/es-fluent-core", version = "0.4.3" }
+es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.4.3" }
+es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.4.3" }
+es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.4.3" }
+es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.4.3" }
+es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.17.18" }
+es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.4.3" }
+es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.4.3" }
+es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.4.3" }
+es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.4.3" }
 fluent = { version = "0.17.0" }
 fluent-bundle = "0.16.0"
 fluent-syntax = "0.12"
@@ -84,7 +85,7 @@ paste = "1.0.15"
 proc-macro-error2 = "2.0"
 proc-macro2 = "1.0.92"
 quote = "1.0.38"
-ratatui = "0.29.0"
+ratatui = "0.30.0"
 rayon = "1.10.0"
 rust-embed = "8.5.0"
 rust_decimal = "1.39.0"

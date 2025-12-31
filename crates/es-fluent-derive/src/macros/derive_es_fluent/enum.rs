@@ -60,7 +60,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         let arg_key = arg_name.to_string();
                         let is_choice = field.is_choice();
 
-                        let value_expr = if is_choice {
+                        let value_expr = if let Some(expr) = field.value() {
+                            quote! { (#expr)(#arg_name) }
+                        } else if is_choice {
                             quote! { #arg_name.as_fluent_choice() }
                         } else {
                             quote! { #arg_name.clone() }
@@ -92,7 +94,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         let arg_key = arg_name.to_string();
                         let is_choice = field_opt.is_choice();
 
-                        let value_expr = if is_choice {
+                        let value_expr = if let Some(expr) = field_opt.value() {
+                            quote! { (#expr)(#arg_name) }
+                        } else if is_choice {
                             quote! { #arg_name.as_fluent_choice() }
                         } else {
                             quote! { #arg_name.clone() }
@@ -203,6 +207,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         name: #variant_name,
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
+                        module_path: module_path!(),
                         is_this: false,
                     }
                 }
@@ -227,6 +232,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         type_name: #type_name,
                         variants: VARIANTS,
                         file_path: file!(),
+                        module_path: module_path!(),
                         is_this: false,
                     };
 

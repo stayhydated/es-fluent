@@ -41,6 +41,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         name: #type_name,
                         ftl_key: #ftl_key_str,
                         args: &[],
+                        module_path: module_path!(),
                         is_this: true,
                     }
                 ];
@@ -51,6 +52,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         type_name: #type_name,
                         variants: VARIANTS,
                         file_path: file!(),
+                        module_path: module_path!(),
                         is_this: true,
                     };
 

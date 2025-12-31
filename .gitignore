@@ -4,3 +4,4 @@ target/
 .venv
 .ruff_cache
 .ropeproject
+*.snap.new

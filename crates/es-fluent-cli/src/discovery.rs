@@ -41,6 +41,7 @@ pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
             i18n_config_path,
             ftl_output_dir,
             has_lib_rs,
+            fluent_feature: i18n_config.fluent_feature.clone(),
         });
     }
 

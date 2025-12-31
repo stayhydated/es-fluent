@@ -1,0 +1,12 @@
+[package]
+name = "feature-gated-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+es-fluent = { features = [ "derive" ], optional = true, workspace = true }
+
+[features]
+default = [  ]
+fluent = [ "dep:es-fluent" ]
