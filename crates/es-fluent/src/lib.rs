@@ -226,11 +226,6 @@ mod generate {
         /// Override the output path (defaults to reading from i18n.toml).
         #[builder(into)]
         output_path: Option<PathBuf>,
-
-        /// Override the crate root directory for filtering source files.
-        /// If not provided, defaults to the current crate's src/ directory logic.
-        #[builder(into)]
-        crate_root: Option<PathBuf>,
     }
 
     impl EsFluentGenerator {

@@ -21,7 +21,6 @@ pub struct MainRsTemplate<'a> {
     pub i18n_toml_path: &'a str,
     pub parse_mode: &'a str,
     pub crate_name: &'a str,
-    pub crate_root: &'a str,
 }
 
 /// Template for the generated .gitignore

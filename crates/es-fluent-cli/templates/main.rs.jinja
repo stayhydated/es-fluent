@@ -18,7 +18,6 @@ fn main() {
         .output_path(output_path)
         .mode({{ parse_mode }})
         .crate_name("{{ crate_name }}")
-        .crate_root("{{ crate_root }}")
         .build()
         .generate()
         .expect("Failed to generate FTL files");
