@@ -4787,6 +4787,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "feature-gated-example"
+version = "0.1.0"
+dependencies = [
+ "es-fluent",
+]
+
+[[package]]
 name = "file-id"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

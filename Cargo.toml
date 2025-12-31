@@ -21,6 +21,7 @@ members = [
   "examples/first-example",
   "examples/thiserror-example",
   "examples/example-shared-lib",
+  "examples/feature-gated-example",
   "examples/bevy-example",
   "examples/gpui-example",
   "examples/iced-example",
