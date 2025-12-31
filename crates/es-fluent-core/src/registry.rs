@@ -9,6 +9,9 @@ pub struct FtlVariant {
     pub ftl_key: crate::namer::FluentKey,
     #[builder(default)]
     pub args: Vec<String>,
+    /// The module path where this type is defined.
+    #[builder(default)]
+    pub module_path: String,
     /// Whether this variant is a "this" variant (represents the type itself).
     #[builder(default)]
     pub is_this: bool,
@@ -25,6 +28,9 @@ pub struct FtlTypeInfo {
     /// The file path where this type is defined.
     pub file_path: Option<String>,
 
+    /// The module path where this type is defined.
+    pub module_path: String,
+
     /// Whether this type info is for a "this" type (e.g., `Foo_this`).
     #[builder(default)]
     pub is_this: bool,
@@ -39,6 +45,8 @@ pub struct StaticFtlVariant {
     pub name: &'static str,
     pub ftl_key: &'static str,
     pub args: &'static [&'static str],
+    /// The module path from `module_path!()`.
+    pub module_path: &'static str,
     /// Whether this variant is a "this" variant (represents the type itself).
     pub is_this: bool,
 }
@@ -52,6 +60,8 @@ pub struct StaticFtlTypeInfo {
     pub variants: &'static [StaticFtlVariant],
     /// The file path where this type is defined (from `file!()` macro).
     pub file_path: &'static str,
+    /// The module path where this type is defined (from `module_path!()` macro).
+    pub module_path: &'static str,
     /// Whether this type info is for a "this" type (e.g., `Foo_this`).
     pub is_this: bool,
 }
@@ -78,10 +88,12 @@ impl From<&StaticFtlTypeInfo> for FtlTypeInfo {
                     name: v.name.to_string(),
                     ftl_key: crate::namer::FluentKey(v.ftl_key.to_string()),
                     args: v.args.iter().map(|s| s.to_string()).collect(),
+                    module_path: v.module_path.to_string(),
                     is_this: v.is_this,
                 })
                 .collect(),
             file_path: Some(static_info.file_path.to_string()),
+            module_path: static_info.module_path.to_string(),
             is_this: static_info.is_this,
         }
     }

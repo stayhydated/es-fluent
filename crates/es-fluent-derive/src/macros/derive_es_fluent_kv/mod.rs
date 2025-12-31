@@ -151,6 +151,7 @@ fn generate_unit_enum(
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
+                    module_path: module_path!(),
                     is_this: false,
                 }
             }
@@ -175,6 +176,7 @@ fn generate_unit_enum(
                     type_name: #type_name,
                     variants: VARIANTS,
                     file_path: file!(),
+                    module_path: module_path!(),
                     is_this: false,
                 };
 
@@ -309,6 +311,7 @@ fn generate_enum_unit_enum(
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
+                    module_path: module_path!(),
                     is_this: false,
                 }
             }
@@ -333,6 +336,7 @@ fn generate_enum_unit_enum(
                     type_name: #type_name,
                     variants: VARIANTS,
                     file_path: file!(),
+                    module_path: module_path!(),
                     is_this: false,
                 };
 

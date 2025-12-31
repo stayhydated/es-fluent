@@ -56,24 +56,28 @@ what-Hi = Hi
             name: "Female".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Female"),
             args: vec![],
+            module_path: "test".to_string(),
             is_this: false,
         },
         FtlVariant {
             name: "Helicopter".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Helicopter"),
             args: vec![],
+            module_path: "test".to_string(),
             is_this: false,
         },
         FtlVariant {
             name: "Male".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Male"),
             args: vec![],
+            module_path: "test".to_string(),
             is_this: false,
         },
         FtlVariant {
             name: "Other".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Other"),
             args: vec![],
+            module_path: "test".to_string(),
             is_this: false,
         },
     ];
@@ -82,6 +86,7 @@ what-Hi = Hi
         type_name: "Gender".to_string(),
         variants: gender_variants,
         file_path: None,
+        module_path: "test".to_string(),
         is_this: false,
     };
 
@@ -90,6 +95,7 @@ what-Hi = Hi
         name: "hello_user".to_string(),
         ftl_key: FluentKey::new(&Ident::new("HelloUser", Span::call_site()), "hello_user"),
         args: vec!["f0".to_string()],
+        module_path: "test".to_string(),
         is_this: false,
     }];
     let hello_user = FtlTypeInfo {
@@ -97,6 +103,7 @@ what-Hi = Hi
         type_name: "HelloUser".to_string(),
         variants: hello_user_variants,
         file_path: None,
+        module_path: "test".to_string(),
         is_this: false,
     };
 
@@ -110,6 +117,7 @@ what-Hi = Hi
                 "photo_count".to_string(),
                 "user_gender".to_string(),
             ],
+            module_path: "test".to_string(),
             is_this: false,
         },
         // NEW KEY
@@ -117,6 +125,7 @@ what-Hi = Hi
             name: "Videos".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Videos"),
             args: vec![],
+            module_path: "test".to_string(),
             is_this: false,
         },
     ];
@@ -125,6 +134,7 @@ what-Hi = Hi
         type_name: "Shared".to_string(),
         variants: shared_variants,
         file_path: None,
+        module_path: "test".to_string(),
         is_this: false,
     };
 
@@ -133,6 +143,7 @@ what-Hi = Hi
         name: "Hi".to_string(),
         ftl_key: FluentKey::new(&Ident::new("What", Span::call_site()), "Hi"),
         args: vec![],
+        module_path: "test".to_string(),
         is_this: false,
     }];
     let what = FtlTypeInfo {
@@ -140,6 +151,7 @@ what-Hi = Hi
         type_name: "What".to_string(),
         variants: what_variants,
         file_path: None,
+        module_path: "test".to_string(),
         is_this: false,
     };
 
