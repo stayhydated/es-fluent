@@ -122,12 +122,21 @@ impl EnumOpts {
 pub struct EnumFluentAttributeArgs {
     #[darling(default)]
     resource: Option<String>,
+    /// Whether to skip inventory registration for this enum.
+    /// Used by `#[es_fluent_language]` to prevent language enums from being registered.
+    #[darling(default)]
+    skip_inventory: Option<bool>,
 }
 
 impl EnumFluentAttributeArgs {
     /// Returns the explicit resource base key if provided.
     pub fn resource(&self) -> Option<&str> {
         self.resource.as_deref()
+    }
+
+    /// Returns `true` if inventory registration should be skipped.
+    pub fn skip_inventory(&self) -> bool {
+        self.skip_inventory.unwrap_or(false)
     }
 }
 

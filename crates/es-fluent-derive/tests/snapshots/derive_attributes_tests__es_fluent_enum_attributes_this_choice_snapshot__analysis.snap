@@ -159,5 +159,6 @@ EnumOpts {
     ),
     attr_args: EnumFluentAttributeArgs {
         resource: None,
+        skip_inventory: None,
     },
 }
