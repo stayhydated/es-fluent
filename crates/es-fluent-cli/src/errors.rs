@@ -351,6 +351,7 @@ pub fn find_key_span(source: &str, key: &str) -> Option<SourceSpan> {
 }
 
 /// Find all lines containing a message definition for a key.
+#[allow(dead_code)]
 pub fn find_message_span(source: &str, key: &str) -> Option<SourceSpan> {
     let mut in_message = false;
     let mut start_offset = 0;

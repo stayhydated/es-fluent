@@ -23,6 +23,17 @@ pub struct MainRsTemplate<'a> {
     pub crate_name: &'a str,
 }
 
+/// Template for the check command main.rs
+#[derive(Template)]
+#[template(path = "check.rs.jinja", escape = "none")]
+pub struct CheckRsTemplate<'a> {
+    pub crate_ident: &'a str,
+    pub i18n_toml_path: &'a str,
+    pub crate_name: &'a str,
+    /// Whether to check all locales or just the fallback
+    pub check_all: bool,
+}
+
 /// Template for the generated .gitignore
 #[derive(Template)]
 #[template(path = ".gitignore.jinja", escape = "none")]

@@ -24,7 +24,7 @@ pub fn generate_for_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<(
 }
 
 /// Get the es-fluent dependency string, preferring local path if in workspace.
-fn get_es_fluent_dep(manifest_path: &Path) -> String {
+pub fn get_es_fluent_dep(manifest_path: &Path) -> String {
     const CRATES_IO_DEP: &str = r#"es-fluent = { version = "*", features = ["generate"] }"#;
 
     let metadata = cargo_metadata::MetadataCommand::new()
