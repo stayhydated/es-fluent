@@ -92,3 +92,12 @@ pub fn print_generation_error(crate_name: &str, error: &str) {
         error
     );
 }
+
+/// Prints a message that cleaning is applied to all locales.
+pub fn print_cleaning_all_locales() {
+    println!(
+        "{} {}",
+        PREFIX.cyan().bold(),
+        "Cleaning all locales...".dimmed()
+    );
+}
