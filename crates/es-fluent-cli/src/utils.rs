@@ -1,12 +1,10 @@
 //! Common utility functions shared across CLI commands.
 
 use crate::types::CrateInfo;
+use crate::ui;
 use anyhow::{Context as _, Result};
-use colored::Colorize as _;
 use std::fs;
 use std::path::Path;
-
-const PREFIX: &str = "[es-fluent]";
 
 /// Filter crates by package name if specified.
 ///
@@ -20,12 +18,7 @@ pub fn filter_crates_by_package(
         Some(pkg) => {
             let filtered: Vec<_> = crates.into_iter().filter(|c| &c.name == pkg).collect();
             if filtered.is_empty() {
-                eprintln!(
-                    "{} {} '{}'",
-                    PREFIX.yellow().bold(),
-                    "No crate found matching package filter:".yellow(),
-                    pkg.white().bold()
-                );
+                ui::print_package_not_found(pkg);
             }
             filtered
         },

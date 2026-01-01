@@ -6,16 +6,14 @@
 use crate::discovery::discover_crates;
 use crate::errors::{CliError, SyncMissingKey};
 use crate::types::CrateInfo;
+use crate::ui;
 use crate::utils::{filter_crates_by_package, get_all_locales};
 use anyhow::{Context as _, Result};
-use colored::Colorize as _;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const PREFIX: &str = "[es-fluent]";
 
 /// Arguments for the sync command.
 #[derive(clap::Parser, Debug)]
@@ -56,28 +54,20 @@ pub struct SyncLocaleResult {
 pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let path = args.path.unwrap_or_else(|| PathBuf::from("."));
 
-    println!("{} {}", PREFIX.cyan().bold(), "Fluent FTL Sync".dimmed());
+    ui::print_sync_header();
 
     let crates = discover_crates(&path)?;
     let crates = filter_crates_by_package(crates, args.package.as_ref());
 
     if crates.is_empty() {
-        println!(
-            "{} {}",
-            PREFIX.red().bold(),
-            "No crates with i18n.toml found.".red()
-        );
+        ui::print_no_crates_found();
         return Ok(());
     }
 
     let target_locales: Option<HashSet<String>> = if args.all {
         None // Will sync to all locales
     } else if args.locale.is_empty() {
-        println!(
-            "{} {}",
-            PREFIX.yellow().bold(),
-            "No locales specified. Use --locale <LOCALE> or --all".yellow()
-        );
+        ui::print_no_locales_specified();
         return Ok(());
     } else {
         Some(args.locale.into_iter().collect())
@@ -88,12 +78,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let mut all_synced_keys: Vec<SyncMissingKey> = Vec::new();
 
     for krate in &crates {
-        println!(
-            "{} {} {}",
-            PREFIX.cyan().bold(),
-            "Syncing".dimmed(),
-            krate.name.green()
-        );
+        ui::print_syncing(&krate.name);
 
         let results = sync_crate(krate, target_locales.as_ref(), args.dry_run)?;
 
@@ -103,25 +88,13 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
                 total_keys_added += result.keys_added;
 
                 if args.dry_run {
-                    println!(
-                        "{} {} {} key(s) to {}",
-                        PREFIX.yellow().bold(),
-                        "Would add".yellow(),
-                        result.keys_added,
-                        result.locale.cyan()
-                    );
+                    ui::print_would_add_keys(result.keys_added, &result.locale);
                 } else {
-                    println!(
-                        "{} {} {} key(s) to {}",
-                        PREFIX.green().bold(),
-                        "Added".green(),
-                        result.keys_added,
-                        result.locale.cyan()
-                    );
+                    ui::print_added_keys(result.keys_added, &result.locale);
                 }
 
                 for key in &result.added_keys {
-                    println!("  {} {}", "→".dimmed(), key);
+                    ui::print_synced_key(key);
                     all_synced_keys.push(SyncMissingKey {
                         key: key.clone(),
                         target_locale: result.locale.clone(),
@@ -133,30 +106,13 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     }
 
     if total_keys_added == 0 {
-        println!(
-            "{} {}",
-            PREFIX.green().bold(),
-            "All locales are in sync!".green()
-        );
+        ui::print_all_in_sync();
         Ok(())
     } else if args.dry_run {
-        println!(
-            "{} {} {} key(s) across {} locale(s)",
-            PREFIX.yellow().bold(),
-            "Would sync".yellow(),
-            total_keys_added,
-            total_locales_affected
-        );
-        // Return as report for visibility but not as error in dry-run
+        ui::print_sync_dry_run_summary(total_keys_added, total_locales_affected);
         Ok(())
     } else {
-        println!(
-            "{} {} {} key(s) synced to {} locale(s)",
-            PREFIX.green().bold(),
-            "Done:".green(),
-            total_keys_added,
-            total_locales_affected
-        );
+        ui::print_sync_summary(total_keys_added, total_locales_affected);
         Ok(())
     }
 }

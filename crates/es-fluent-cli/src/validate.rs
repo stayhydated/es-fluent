@@ -21,7 +21,6 @@ use crate::ui;
 use crate::utils::{filter_crates_by_package, get_all_locales, partition_by_lib_rs};
 use anyhow::{Context as _, Result};
 use askama::Template as _;
-use colored::Colorize as _;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::ast;
 use fluent_syntax::parser::{self, ParserError};
@@ -44,7 +43,6 @@ struct InventoryData {
     expected_keys: Vec<ExpectedKey>,
 }
 
-const PREFIX: &str = "[es-fluent]";
 const TEMP_CRATE_NAME: &str = "es-fluent-check";
 
 /// Arguments for the check command.
@@ -67,17 +65,13 @@ pub struct CheckArgs {
 pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     let path = args.path.unwrap_or_else(|| PathBuf::from("."));
 
-    println!("{} {}", PREFIX.cyan().bold(), "Fluent FTL Checker".dimmed());
+    ui::print_check_header();
 
     let crates = discover_crates(&path)?;
     let crates = filter_crates_by_package(crates, args.package.as_ref());
 
     if crates.is_empty() {
-        println!(
-            "{} {}",
-            PREFIX.red().bold(),
-            "No crates with i18n.toml found.".red()
-        );
+        ui::print_no_crates_found();
         return Ok(());
     }
 
@@ -90,23 +84,12 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
     for krate in &valid_crates {
-        println!(
-            "{} {} {}",
-            PREFIX.cyan().bold(),
-            "Checking".dimmed(),
-            krate.name.green()
-        );
+        ui::print_checking(&krate.name);
 
         match check_crate(krate, args.all) {
             Ok(issues) => all_issues.extend(issues),
             Err(e) => {
-                println!(
-                    "{} {} {}: {}",
-                    PREFIX.red().bold(),
-                    "Check failed for".red(),
-                    krate.name.white().bold(),
-                    e
-                );
+                ui::print_check_error(&krate.name, &e.to_string());
             },
         }
     }
@@ -126,7 +109,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         .count();
 
     if all_issues.is_empty() {
-        println!("{} {}", PREFIX.green().bold(), "No issues found!".green());
+        ui::print_check_success();
         Ok(())
     } else {
         Err(CliError::Validation(ValidationReport {

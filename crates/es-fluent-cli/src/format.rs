@@ -6,16 +6,14 @@
 use crate::discovery::discover_crates;
 use crate::errors::{CliError, FormatError, FormatReport};
 use crate::types::CrateInfo;
+use crate::ui;
 use crate::utils::{filter_crates_by_package, get_all_locales};
 use anyhow::{Context as _, Result};
-use colored::Colorize as _;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const PREFIX: &str = "[es-fluent]";
 
 /// Arguments for the format command.
 #[derive(clap::Parser, Debug)]
@@ -52,21 +50,13 @@ pub struct FormatResult {
 pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let path = args.path.unwrap_or_else(|| PathBuf::from("."));
 
-    println!(
-        "{} {}",
-        PREFIX.cyan().bold(),
-        "Fluent FTL Formatter".dimmed()
-    );
+    ui::print_format_header();
 
     let crates = discover_crates(&path)?;
     let crates = filter_crates_by_package(crates, args.package.as_ref());
 
     if crates.is_empty() {
-        println!(
-            "{} {}",
-            PREFIX.red().bold(),
-            "No crates with i18n.toml found.".red()
-        );
+        ui::print_no_crates_found();
         return Ok(());
     }
 
@@ -86,19 +76,9 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
             } else if result.changed {
                 total_formatted += 1;
                 if args.dry_run {
-                    println!(
-                        "{} {} {}",
-                        PREFIX.yellow().bold(),
-                        "Would format:".yellow(),
-                        result.path.display()
-                    );
+                    ui::print_would_format(&result.path);
                 } else {
-                    println!(
-                        "{} {} {}",
-                        PREFIX.green().bold(),
-                        "Formatted:".green(),
-                        result.path.display()
-                    );
+                    ui::print_formatted(&result.path);
                 }
             } else {
                 total_unchanged += 1;
@@ -108,20 +88,9 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
 
     if errors.is_empty() {
         if args.dry_run && total_formatted > 0 {
-            println!(
-                "{} {} {} file(s) would be formatted",
-                PREFIX.yellow().bold(),
-                "Dry run:".yellow(),
-                total_formatted
-            );
+            ui::print_format_dry_run_summary(total_formatted);
         } else {
-            println!(
-                "{} {} {} formatted, {} unchanged",
-                PREFIX.green().bold(),
-                "Done:".green(),
-                total_formatted,
-                total_unchanged
-            );
+            ui::print_format_summary(total_formatted, total_unchanged);
         }
         Ok(())
     } else {
