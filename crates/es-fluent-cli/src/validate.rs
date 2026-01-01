@@ -1,7 +1,8 @@
 //! Check command for validating FTL files against inventory-registered types.
 //!
 //! This module provides functionality to check FTL files by:
-//! - Running a temp crate that collects inventory registrations
+//! - Running a temp crate that collects inventory registrations (expected keys/variables)
+//! - Parsing FTL files directly using fluent-syntax (for proper ParserError handling)
 //! - Comparing FTL files against the expected keys and variables from Rust code
 //! - Reporting missing keys as errors
 //! - Reporting missing variables as warnings
@@ -11,17 +12,35 @@ use crate::errors::{
     CliError, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
     ValidationReport,
 };
-use crate::generator::get_es_fluent_dep;
+use crate::generator::get_es_fluent_dep_with_feature;
 use crate::templates::{CargoTomlTemplate, CheckRsTemplate, GitignoreTemplate};
 use crate::types::CrateInfo;
 use crate::ui;
 use anyhow::{Context as _, Result, bail};
 use askama::Template as _;
 use colored::Colorize as _;
+use es_fluent_toml::I18nConfig;
+use fluent_syntax::ast;
+use fluent_syntax::parser::{self, ParserError};
 use miette::{NamedSource, SourceSpan};
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Expected key information from inventory (deserialized from temp crate output).
+#[derive(Deserialize)]
+struct ExpectedKey {
+    key: String,
+    variables: Vec<String>,
+}
+
+/// The inventory data output from the temp crate.
+#[derive(Deserialize)]
+struct InventoryData {
+    expected_keys: Vec<ExpectedKey>,
+}
 
 const PREFIX: &str = "[es-fluent]";
 const TEMP_DIR: &str = ".es-fluent";
@@ -123,15 +142,19 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 }
 
-/// Check a single crate by running a temp crate that collects inventory.
+/// Check a single crate by running a temp crate to collect inventory, then validating FTL files.
 fn check_crate(krate: &CrateInfo, check_all: bool) -> Result<Vec<ValidationIssue>> {
-    let temp_dir = create_temp_check_crate(krate, check_all)?;
-    let output = run_check_crate(&temp_dir)?;
-    parse_check_output(&output, krate)
+    // Step 1: Get expected keys from inventory via temp crate
+    let temp_dir = create_temp_check_crate(krate)?;
+    run_check_crate(&temp_dir)?;
+    let expected_keys = read_inventory_file(&temp_dir)?;
+
+    // Step 2: Parse FTL files and validate against expected keys
+    validate_ftl_files(krate, &expected_keys, check_all)
 }
 
-/// Creates a temporary crate for checking FTL files.
-fn create_temp_check_crate(krate: &CrateInfo, check_all: bool) -> Result<PathBuf> {
+/// Creates a temporary crate for collecting inventory data.
+fn create_temp_check_crate(krate: &CrateInfo) -> Result<PathBuf> {
     let temp_dir = krate.manifest_dir.join(TEMP_DIR);
     let src_dir = temp_dir.join("src");
 
@@ -147,27 +170,21 @@ fn create_temp_check_crate(krate: &CrateInfo, check_all: bool) -> Result<PathBuf
     let crate_ident = krate.name.replace('-', "_");
 
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    let es_fluent_dep = get_es_fluent_dep(&manifest_path);
-
-    // Add fluent-syntax dependency
-    let es_fluent_dep_with_syntax = format!("{}\nfluent-syntax = \"0.12\"", es_fluent_dep);
+    let es_fluent_dep = get_es_fluent_dep_with_feature(&manifest_path, "cli");
 
     let cargo_toml = CargoTomlTemplate {
         crate_name: TEMP_CRATE_NAME,
         parent_crate_name: &krate.name,
-        es_fluent_dep: &es_fluent_dep_with_syntax,
+        es_fluent_dep: &es_fluent_dep,
         has_fluent_features: !krate.fluent_features.is_empty(),
         fluent_features: &krate.fluent_features,
     };
     fs::write(temp_dir.join("Cargo.toml"), cargo_toml.render().unwrap())
         .context("Failed to write .es-fluent/Cargo.toml")?;
 
-    let i18n_toml_path_str = krate.i18n_config_path.display().to_string();
     let check_rs = CheckRsTemplate {
         crate_ident: &crate_ident,
-        i18n_toml_path: &i18n_toml_path_str,
         crate_name: &krate.name,
-        check_all,
     };
     fs::write(src_dir.join("main.rs"), check_rs.render().unwrap())
         .context("Failed to write .es-fluent/src/main.rs")?;
@@ -175,8 +192,8 @@ fn create_temp_check_crate(krate: &CrateInfo, check_all: bool) -> Result<PathBuf
     Ok(temp_dir)
 }
 
-/// Run the check crate and capture its output.
-fn run_check_crate(temp_dir: &PathBuf) -> Result<String> {
+/// Run the check crate to generate inventory.json.
+fn run_check_crate(temp_dir: &PathBuf) -> Result<()> {
     let manifest_path = temp_dir.join("Cargo.toml");
 
     let output = Command::new("cargo")
@@ -184,107 +201,168 @@ fn run_check_crate(temp_dir: &PathBuf) -> Result<String> {
         .arg("--manifest-path")
         .arg(&manifest_path)
         .arg("--quiet")
+        .current_dir(temp_dir)
         .env("RUSTFLAGS", "-A warnings")
         .output()
         .context("Failed to run cargo")?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    // The check results are in stdout, but we also want to capture any build errors
-    if !output.status.success() && !stdout.contains("---ES_FLUENT_CHECK_RESULTS---") {
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("Cargo build failed: {}", stderr);
     }
 
-    Ok(stdout)
+    Ok(())
 }
 
-/// Parse the output from the check crate into ValidationIssues.
-fn parse_check_output(output: &str, krate: &CrateInfo) -> Result<Vec<ValidationIssue>> {
-    let mut issues = Vec::new();
+/// Read inventory data from the generated inventory.json file.
+fn read_inventory_file(temp_dir: &PathBuf) -> Result<HashMap<String, HashSet<String>>> {
+    let inventory_path = temp_dir.join("inventory.json");
+    let json_str = fs::read_to_string(&inventory_path)
+        .with_context(|| format!("Failed to read {}", inventory_path.display()))?;
 
-    // Find the results section
-    let start_marker = "---ES_FLUENT_CHECK_RESULTS---";
-    let end_marker = "---ES_FLUENT_CHECK_END---";
+    let data: InventoryData =
+        serde_json::from_str(&json_str).context("Failed to parse inventory JSON")?;
 
-    let start = output.find(start_marker);
-    let end = output.find(end_marker);
+    // Convert to HashMap for easier lookup
+    let mut expected_keys = HashMap::new();
+    for key_info in data.expected_keys {
+        expected_keys.insert(key_info.key, key_info.variables.into_iter().collect());
+    }
 
-    let (Some(start), Some(end)) = (start, end) else {
-        // No results section found - might be a build error
-        return Ok(issues);
+    Ok(expected_keys)
+}
+
+/// Validate FTL files against expected keys using fluent-syntax directly.
+fn validate_ftl_files(
+    krate: &CrateInfo,
+    expected_keys: &HashMap<String, HashSet<String>>,
+    check_all: bool,
+) -> Result<Vec<ValidationIssue>> {
+    let config = I18nConfig::read_from_path(&krate.i18n_config_path)
+        .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
+
+    let assets_dir = krate.manifest_dir.join(&config.assets_dir);
+
+    let locales: Vec<String> = if check_all {
+        get_all_locales(&assets_dir)?
+    } else {
+        vec![config.fallback_language.clone()]
     };
 
-    let results_section = &output[start + start_marker.len()..end];
+    let mut issues = Vec::new();
 
-    for line in results_section.lines() {
-        let line = line.trim();
+    for locale in &locales {
+        let locale_dir = assets_dir.join(locale);
+        let ftl_file = locale_dir.join(format!("{}.ftl", krate.name));
 
-        if line.starts_with("E:MISSING_KEY|") {
-            // E:MISSING_KEY|locale|key|file_path
-            let parts: Vec<&str> = line[14..].splitn(3, '|').collect();
-            if parts.len() >= 3 {
-                let locale = parts[0];
-                let key = parts[1];
-                let file_path = parts[2];
-
-                // Try to read the file content for source display
-                let content = fs::read_to_string(file_path).unwrap_or_default();
-
+        if !ftl_file.exists() {
+            // Report all keys as missing for this locale
+            for key in expected_keys.keys() {
                 issues.push(ValidationIssue::MissingKey(MissingKeyError {
-                    src: NamedSource::new(format!("{}/{}.ftl", locale, krate.name), content),
-                    key: key.to_string(),
-                    locale: locale.to_string(),
+                    src: NamedSource::new(format!("{}/{}.ftl", locale, krate.name), String::new()),
+                    key: key.clone(),
+                    locale: locale.clone(),
                     help: format!(
                         "Add translation for '{}' in {}/{}.ftl",
                         key, locale, krate.name
                     ),
                 }));
             }
-        } else if line.starts_with("E:SYNTAX_ERROR|") {
-            // E:SYNTAX_ERROR|locale|file_path|error_kind
-            let parts: Vec<&str> = line[15..].splitn(3, '|').collect();
-            if parts.len() >= 3 {
-                let locale = parts[0];
-                let file_path = parts[1];
-                let error_kind = parts[2];
+            continue;
+        }
 
-                let content = fs::read_to_string(file_path).unwrap_or_default();
-                let file_name = format!("{}/{}.ftl", locale, krate.name);
-
+        let content = match fs::read_to_string(&ftl_file) {
+            Ok(c) => c,
+            Err(e) => {
                 issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
-                    src: NamedSource::new(file_name.clone(), content),
+                    src: NamedSource::new(format!("{}/{}.ftl", locale, krate.name), String::new()),
                     span: SourceSpan::new(0_usize.into(), 1_usize),
-                    locale: locale.to_string(),
-                    file_name,
-                    help: error_kind.to_string(),
+                    locale: locale.clone(),
+                    file_name: format!("{}/{}.ftl", locale, krate.name),
+                    help: format!("Failed to read file: {}", e),
                 }));
+                continue;
+            },
+        };
+
+        let file_name = format!("{}/{}.ftl", locale, krate.name);
+
+        // Track keys that have syntax errors (found in Junk entries)
+        let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
+
+        // Parse the FTL file using fluent-syntax
+        let resource = match parser::parse(content.clone()) {
+            Ok(res) => res,
+            Err((res, parse_errors)) => {
+                // Convert ParserErrors to ValidationIssues
+                for err in parse_errors {
+                    issues.push(parser_error_to_issue(
+                        &err,
+                        &content,
+                        locale,
+                        &file_name,
+                        &mut keys_with_syntax_errors,
+                    ));
+                }
+                res
+            },
+        };
+
+        // Also scan Junk entries to find keys with errors
+        for entry in &resource.body {
+            if let ast::Entry::Junk { content: junk } = entry {
+                if let Some(key) = extract_key_from_junk(junk) {
+                    keys_with_syntax_errors.insert(key);
+                }
             }
-        } else if line.starts_with("W:MISSING_VAR|") {
-            // W:MISSING_VAR|locale|key|var|file_path
-            let parts: Vec<&str> = line[14..].splitn(4, '|').collect();
-            if parts.len() >= 4 {
-                let locale = parts[0];
-                let key = parts[1];
-                let var = parts[2];
-                let file_path = parts[3];
+        }
 
-                let content = fs::read_to_string(file_path).unwrap_or_default();
-                let file_name = format!("{}/{}.ftl", locale, krate.name);
+        // Build map of actual keys and their variables in the FTL file
+        let mut actual_keys: HashMap<String, HashSet<String>> = HashMap::new();
+        for entry in &resource.body {
+            if let ast::Entry::Message(msg) = entry {
+                let key = msg.id.name.clone();
+                let vars = extract_variables_from_message(msg);
+                actual_keys.insert(key, vars);
+            }
+        }
 
-                // Try to find the span for this key
-                let span = find_key_span(&content, key)
-                    .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
+        // Check for missing keys (but skip keys that have syntax errors)
+        for (key, expected_vars) in expected_keys {
+            // Skip keys that have syntax errors - they're already reported
+            if keys_with_syntax_errors.contains(key) {
+                continue;
+            }
 
-                issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
-                    src: NamedSource::new(file_name, content),
-                    span,
-                    variable: var.to_string(),
-                    key: key.to_string(),
-                    locale: locale.to_string(),
+            if let Some(actual_vars) = actual_keys.get(key) {
+                // Key exists, check for missing variables
+                for var in expected_vars {
+                    if !actual_vars.contains(var) {
+                        let span = find_key_span(&content, key)
+                            .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
+
+                        issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
+                            src: NamedSource::new(file_name.clone(), content.clone()),
+                            span,
+                            variable: var.clone(),
+                            key: key.clone(),
+                            locale: locale.clone(),
+                            help: format!(
+                                "The Rust code expects variable '${}' but the translation omits it",
+                                var
+                            ),
+                        }));
+                    }
+                }
+            } else {
+                // Key is missing
+                issues.push(ValidationIssue::MissingKey(MissingKeyError {
+                    src: NamedSource::new(file_name.clone(), content.clone()),
+                    key: key.clone(),
+                    locale: locale.clone(),
                     help: format!(
-                        "The Rust code expects variable '${}' but the translation omits it",
-                        var
+                        "Add translation for '{}' in {}/{}.ftl",
+                        key, locale, krate.name
                     ),
                 }));
             }
@@ -292,6 +370,145 @@ fn parse_check_output(output: &str, krate: &CrateInfo) -> Result<Vec<ValidationI
     }
 
     Ok(issues)
+}
+
+/// Convert a fluent-syntax ParserError to a ValidationIssue.
+fn parser_error_to_issue(
+    err: &ParserError,
+    content: &str,
+    locale: &str,
+    file_name: &str,
+    keys_with_syntax_errors: &mut HashSet<String>,
+) -> ValidationIssue {
+    // Try to extract message key from the junk slice if available
+    if let Some(ref slice) = err.slice {
+        let junk_content = &content[slice.clone()];
+        if let Some(key) = extract_key_from_junk(junk_content) {
+            keys_with_syntax_errors.insert(key);
+        }
+    }
+
+    // Calculate span from ParserError position
+    let span_len = if err.pos.end > err.pos.start {
+        err.pos.end - err.pos.start
+    } else {
+        1
+    };
+
+    ValidationIssue::SyntaxError(FtlSyntaxError {
+        src: NamedSource::new(file_name.to_string(), content.to_string()),
+        span: SourceSpan::new(err.pos.start.into(), span_len),
+        locale: locale.to_string(),
+        file_name: file_name.to_string(),
+        help: err.kind.to_string(),
+    })
+}
+
+/// Get all locale directories from the assets directory.
+fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
+    let mut locales = Vec::new();
+
+    if !assets_dir.exists() {
+        return Ok(locales);
+    }
+
+    for entry in fs::read_dir(assets_dir)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir()
+            && let Some(name) = entry.file_name().to_str()
+        {
+            locales.push(name.to_string());
+        }
+    }
+
+    locales.sort();
+    Ok(locales)
+}
+
+/// Try to extract a message key from junk content.
+/// Junk typically starts with the message identifier like "message-key = ..."
+fn extract_key_from_junk(junk: &str) -> Option<String> {
+    let trimmed = junk.trim_start();
+
+    // Skip comments
+    if trimmed.starts_with('#') {
+        return None;
+    }
+
+    // Find the identifier (sequence of valid FTL identifier chars before '=' or whitespace)
+    let mut key = String::new();
+    for ch in trimmed.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+            key.push(ch);
+        } else {
+            break;
+        }
+    }
+
+    if key.is_empty() { None } else { Some(key) }
+}
+
+/// Extract variables from a message.
+fn extract_variables_from_message(msg: &ast::Message<String>) -> HashSet<String> {
+    let mut variables = HashSet::new();
+    if let Some(ref value) = msg.value {
+        extract_variables_from_pattern(value, &mut variables);
+    }
+    for attr in &msg.attributes {
+        extract_variables_from_pattern(&attr.value, &mut variables);
+    }
+    variables
+}
+
+/// Extract variables from a pattern.
+fn extract_variables_from_pattern(pattern: &ast::Pattern<String>, variables: &mut HashSet<String>) {
+    for element in &pattern.elements {
+        if let ast::PatternElement::Placeable { expression } = element {
+            extract_variables_from_expression(expression, variables);
+        }
+    }
+}
+
+/// Extract variables from an expression.
+fn extract_variables_from_expression(
+    expression: &ast::Expression<String>,
+    variables: &mut HashSet<String>,
+) {
+    match expression {
+        ast::Expression::Inline(inline) => {
+            extract_variables_from_inline(inline, variables);
+        },
+        ast::Expression::Select { selector, variants } => {
+            extract_variables_from_inline(selector, variables);
+            for variant in variants {
+                extract_variables_from_pattern(&variant.value, variables);
+            }
+        },
+    }
+}
+
+/// Extract variables from an inline expression.
+fn extract_variables_from_inline(
+    inline: &ast::InlineExpression<String>,
+    variables: &mut HashSet<String>,
+) {
+    match inline {
+        ast::InlineExpression::VariableReference { id } => {
+            variables.insert(id.name.clone());
+        },
+        ast::InlineExpression::FunctionReference { arguments, .. } => {
+            for arg in &arguments.positional {
+                extract_variables_from_inline(arg, variables);
+            }
+            for arg in &arguments.named {
+                extract_variables_from_inline(&arg.value, variables);
+            }
+        },
+        ast::InlineExpression::Placeable { expression } => {
+            extract_variables_from_expression(expression, variables);
+        },
+        _ => {},
+    }
 }
 
 /// Find the byte offset and length of a key in the FTL source.
@@ -326,5 +543,34 @@ mod tests {
         let source = "hello = Hello";
         let span = find_key_span(source, "goodbye");
         assert!(span.is_none());
+    }
+
+    #[test]
+    fn test_extract_key_from_junk() {
+        assert_eq!(
+            extract_key_from_junk("my-key = some value"),
+            Some("my-key".to_string())
+        );
+        assert_eq!(
+            extract_key_from_junk("  spaced-key = value"),
+            Some("spaced-key".to_string())
+        );
+        assert_eq!(extract_key_from_junk("# comment"), None);
+        assert_eq!(extract_key_from_junk(""), None);
+    }
+
+    #[test]
+    fn test_extract_variables() {
+        let content = "hello = Hello { $name }, you have { $count } messages";
+        let resource = parser::parse(content.to_string()).unwrap();
+
+        if let ast::Entry::Message(msg) = &resource.body[0] {
+            let vars = extract_variables_from_message(msg);
+            assert!(vars.contains("name"));
+            assert!(vars.contains("count"));
+            assert_eq!(vars.len(), 2);
+        } else {
+            panic!("Expected a message");
+        }
     }
 }

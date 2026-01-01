@@ -24,8 +24,17 @@ pub fn generate_for_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<(
 }
 
 /// Get the es-fluent dependency string, preferring local path if in workspace.
+/// Uses the "generate" feature by default.
 pub fn get_es_fluent_dep(manifest_path: &Path) -> String {
-    const CRATES_IO_DEP: &str = r#"es-fluent = { version = "*", features = ["generate"] }"#;
+    get_es_fluent_dep_with_feature(manifest_path, "generate")
+}
+
+/// Get the es-fluent dependency string with a specific feature.
+pub fn get_es_fluent_dep_with_feature(manifest_path: &Path, feature: &str) -> String {
+    let crates_io_dep = format!(
+        r#"es-fluent = {{ version = "*", features = ["{}"] }}"#,
+        feature
+    );
 
     let metadata = cargo_metadata::MetadataCommand::new()
         .manifest_path(manifest_path)
@@ -42,13 +51,13 @@ pub fn get_es_fluent_dep(manifest_path: &Path) -> String {
             .map(|es_fluent_pkg| {
                 let es_fluent_path = es_fluent_pkg.manifest_path.parent().unwrap();
                 format!(
-                    r#"es-fluent = {{ path = "{}", features = ["generate"] }}"#,
-                    es_fluent_path
+                    r#"es-fluent = {{ path = "{}", features = ["{}"] }}"#,
+                    es_fluent_path, feature
                 )
             })
-            .unwrap_or_else(|| CRATES_IO_DEP.to_string())
+            .unwrap_or_else(|| crates_io_dep.clone())
     } else {
-        CRATES_IO_DEP.to_string()
+        crates_io_dep
     }
 }
 
