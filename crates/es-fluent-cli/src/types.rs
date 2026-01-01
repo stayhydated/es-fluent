@@ -15,8 +15,8 @@ pub struct CrateInfo {
     pub ftl_output_dir: PathBuf,
     /// Whether the crate has a lib.rs (required for inventory linking).
     pub has_lib_rs: bool,
-    /// Optional feature flag that enables es-fluent derives in the crate.
-    pub fluent_feature: Option<String>,
+    /// Feature flags that enable es-fluent derives in the crate.
+    pub fluent_features: Vec<String>,
 }
 
 /// The state of a crate in the workspace (used by TUI).
