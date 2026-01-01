@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 /// Information about a crate that uses es-fluent.
 #[derive(Clone, Debug)]
@@ -17,6 +18,41 @@ pub struct CrateInfo {
     pub has_lib_rs: bool,
     /// Feature flags that enable es-fluent derives in the crate.
     pub fluent_features: Vec<String>,
+}
+
+/// Result of generating FTL for a single crate.
+#[derive(Clone, Debug)]
+pub struct GenerateResult {
+    /// The name of the crate.
+    pub name: String,
+    /// How long the generation took.
+    pub duration: Duration,
+    /// Number of FTL resource keys generated.
+    pub resource_count: usize,
+    /// Error message if generation failed.
+    pub error: Option<String>,
+}
+
+impl GenerateResult {
+    /// Create a new successful result.
+    pub fn success(name: String, duration: Duration, resource_count: usize) -> Self {
+        Self {
+            name,
+            duration,
+            resource_count,
+            error: None,
+        }
+    }
+
+    /// Create a new error result.
+    pub fn failure(name: String, duration: Duration, error: String) -> Self {
+        Self {
+            name,
+            duration,
+            resource_count: 0,
+            error: Some(error),
+        }
+    }
 }
 
 /// The state of a crate in the workspace (used by TUI).

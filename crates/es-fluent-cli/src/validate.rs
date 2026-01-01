@@ -12,11 +12,14 @@ use crate::errors::{
     CliError, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
     ValidationReport,
 };
-use crate::generator::get_es_fluent_dep_with_feature;
-use crate::templates::{CargoTomlTemplate, CheckRsTemplate, GitignoreTemplate};
+use crate::temp_crate::{
+    create_temp_dir, get_es_fluent_dep, run_cargo_with_output, write_cargo_toml, write_main_rs,
+};
+use crate::templates::{CargoTomlTemplate, CheckRsTemplate};
 use crate::types::CrateInfo;
 use crate::ui;
-use anyhow::{Context as _, Result, bail};
+use crate::utils::{filter_crates_by_package, get_all_locales, partition_by_lib_rs};
+use anyhow::{Context as _, Result};
 use askama::Template as _;
 use colored::Colorize as _;
 use es_fluent_toml::I18nConfig;
@@ -26,8 +29,7 @@ use miette::{NamedSource, SourceSpan};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::PathBuf;
 
 /// Expected key information from inventory (deserialized from temp crate output).
 #[derive(Deserialize)]
@@ -43,7 +45,6 @@ struct InventoryData {
 }
 
 const PREFIX: &str = "[es-fluent]";
-const TEMP_DIR: &str = ".es-fluent";
 const TEMP_CRATE_NAME: &str = "es-fluent-check";
 
 /// Arguments for the check command.
@@ -69,12 +70,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     println!("{} {}", PREFIX.cyan().bold(), "Fluent FTL Checker".dimmed());
 
     let crates = discover_crates(&path)?;
-
-    let crates: Vec<_> = if let Some(ref pkg) = args.package {
-        crates.into_iter().filter(|c| &c.name == pkg).collect()
-    } else {
-        crates
-    };
+    let crates = filter_crates_by_package(crates, args.package.as_ref());
 
     if crates.is_empty() {
         println!(
@@ -85,8 +81,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         return Ok(());
     }
 
-    let (valid_crates, skipped_crates): (Vec<_>, Vec<_>) =
-        crates.iter().partition(|k| k.has_lib_rs);
+    let (valid_crates, skipped_crates) = partition_by_lib_rs(&crates);
 
     for krate in &skipped_crates {
         ui::print_missing_lib_rs(&krate.name);
@@ -155,22 +150,11 @@ fn check_crate(krate: &CrateInfo, check_all: bool) -> Result<Vec<ValidationIssue
 
 /// Creates a temporary crate for collecting inventory data.
 fn create_temp_check_crate(krate: &CrateInfo) -> Result<PathBuf> {
-    let temp_dir = krate.manifest_dir.join(TEMP_DIR);
-    let src_dir = temp_dir.join("src");
-
-    fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
-
-    // Create .gitignore to exclude the entire directory
-    fs::write(
-        temp_dir.join(".gitignore"),
-        GitignoreTemplate.render().unwrap(),
-    )
-    .context("Failed to write .es-fluent/.gitignore")?;
+    let temp_dir = create_temp_dir(krate)?;
 
     let crate_ident = krate.name.replace('-', "_");
-
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    let es_fluent_dep = get_es_fluent_dep_with_feature(&manifest_path, "cli");
+    let es_fluent_dep = get_es_fluent_dep(&manifest_path, "cli");
 
     let cargo_toml = CargoTomlTemplate {
         crate_name: TEMP_CRATE_NAME,
@@ -179,43 +163,25 @@ fn create_temp_check_crate(krate: &CrateInfo) -> Result<PathBuf> {
         has_fluent_features: !krate.fluent_features.is_empty(),
         fluent_features: &krate.fluent_features,
     };
-    fs::write(temp_dir.join("Cargo.toml"), cargo_toml.render().unwrap())
-        .context("Failed to write .es-fluent/Cargo.toml")?;
+    write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
 
     let check_rs = CheckRsTemplate {
         crate_ident: &crate_ident,
         crate_name: &krate.name,
     };
-    fs::write(src_dir.join("main.rs"), check_rs.render().unwrap())
-        .context("Failed to write .es-fluent/src/main.rs")?;
+    write_main_rs(&temp_dir, &check_rs.render().unwrap())?;
 
     Ok(temp_dir)
 }
 
 /// Run the check crate to generate inventory.json.
-fn run_check_crate(temp_dir: &PathBuf) -> Result<()> {
-    let manifest_path = temp_dir.join("Cargo.toml");
-
-    let output = Command::new("cargo")
-        .arg("run")
-        .arg("--manifest-path")
-        .arg(&manifest_path)
-        .arg("--quiet")
-        .current_dir(temp_dir)
-        .env("RUSTFLAGS", "-A warnings")
-        .output()
-        .context("Failed to run cargo")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("Cargo build failed: {}", stderr);
-    }
-
+fn run_check_crate(temp_dir: &std::path::Path) -> Result<()> {
+    run_cargo_with_output(temp_dir)?;
     Ok(())
 }
 
 /// Read inventory data from the generated inventory.json file.
-fn read_inventory_file(temp_dir: &PathBuf) -> Result<HashMap<String, HashSet<String>>> {
+fn read_inventory_file(temp_dir: &std::path::Path) -> Result<HashMap<String, HashSet<String>>> {
     let inventory_path = temp_dir.join("inventory.json");
     let json_str = fs::read_to_string(&inventory_path)
         .with_context(|| format!("Failed to read {}", inventory_path.display()))?;
@@ -310,10 +276,10 @@ fn validate_ftl_files(
 
         // Also scan Junk entries to find keys with errors
         for entry in &resource.body {
-            if let ast::Entry::Junk { content: junk } = entry {
-                if let Some(key) = extract_key_from_junk(junk) {
-                    keys_with_syntax_errors.insert(key);
-                }
+            if let ast::Entry::Junk { content: junk } = entry
+                && let Some(key) = extract_key_from_junk(junk)
+            {
+                keys_with_syntax_errors.insert(key);
             }
         }
 
@@ -396,33 +362,12 @@ fn parser_error_to_issue(
     };
 
     ValidationIssue::SyntaxError(FtlSyntaxError {
-        src: NamedSource::new(file_name.to_string(), content.to_string()),
+        src: NamedSource::new(file_name, content.to_string()),
         span: SourceSpan::new(err.pos.start.into(), span_len),
         locale: locale.to_string(),
         file_name: file_name.to_string(),
         help: err.kind.to_string(),
     })
-}
-
-/// Get all locale directories from the assets directory.
-fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
-    let mut locales = Vec::new();
-
-    if !assets_dir.exists() {
-        return Ok(locales);
-    }
-
-    for entry in fs::read_dir(assets_dir)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir()
-            && let Some(name) = entry.file_name().to_str()
-        {
-            locales.push(name.to_string());
-        }
-    }
-
-    locales.sort();
-    Ok(locales)
 }
 
 /// Try to extract a message key from junk content.
@@ -515,12 +460,12 @@ fn extract_variables_from_inline(
 fn find_key_span(source: &str, key: &str) -> Option<SourceSpan> {
     for (line_idx, line) in source.lines().enumerate() {
         let trimmed = line.trim_start();
-        if let Some(rest) = trimmed.strip_prefix(key) {
-            if rest.starts_with(" =") || rest.starts_with('=') {
-                let line_start: usize = source.lines().take(line_idx).map(|l| l.len() + 1).sum();
-                let key_start = line_start + (line.len() - trimmed.len());
-                return Some(SourceSpan::new(key_start.into(), key.len()));
-            }
+        if let Some(rest) = trimmed.strip_prefix(key)
+            && (rest.starts_with(" =") || rest.starts_with('='))
+        {
+            let line_start: usize = source.lines().take(line_idx).map(|l| l.len() + 1).sum();
+            let key_start = line_start + (line.len() - trimmed.len());
+            return Some(SourceSpan::new(key_start.into(), key.len()));
         }
     }
     None

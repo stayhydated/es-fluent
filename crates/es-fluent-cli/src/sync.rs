@@ -6,6 +6,7 @@
 use crate::discovery::discover_crates;
 use crate::errors::{CliError, SyncMissingKey};
 use crate::types::CrateInfo;
+use crate::utils::{filter_crates_by_package, get_all_locales};
 use anyhow::{Context as _, Result};
 use colored::Colorize as _;
 use es_fluent_toml::I18nConfig;
@@ -58,12 +59,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     println!("{} {}", PREFIX.cyan().bold(), "Fluent FTL Sync".dimmed());
 
     let crates = discover_crates(&path)?;
-
-    let crates: Vec<_> = if let Some(ref pkg) = args.package {
-        crates.into_iter().filter(|c| &c.name == pkg).collect()
-    } else {
-        crates
-    };
+    let crates = filter_crates_by_package(crates, args.package.as_ref());
 
     if crates.is_empty() {
         println!(
@@ -199,9 +195,10 @@ fn sync_crate(
 
         // Filter by target locales if specified
         if let Some(targets) = target_locales
-            && !targets.contains(locale) {
-                continue;
-            }
+            && !targets.contains(locale)
+        {
+            continue;
+        }
 
         let locale_dir = assets_dir.join(locale);
         let result = sync_locale(
@@ -217,26 +214,6 @@ fn sync_crate(
     }
 
     Ok(results)
-}
-
-/// Get all locale directories from the assets directory.
-fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
-    let mut locales = Vec::new();
-
-    if !assets_dir.exists() {
-        return Ok(locales);
-    }
-
-    for entry in fs::read_dir(assets_dir)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir()
-            && let Some(name) = entry.file_name().to_str() {
-                locales.push(name.to_string());
-            }
-    }
-
-    locales.sort();
-    Ok(locales)
 }
 
 /// Parse an FTL file and return the resource.
@@ -286,10 +263,9 @@ fn sync_locale(
     let ftl_file = locale_dir.join(format!("{}.ftl", crate_name));
 
     // Ensure the locale directory exists
-    if !locale_dir.exists()
-        && !dry_run {
-            fs::create_dir_all(locale_dir)?;
-        }
+    if !locale_dir.exists() && !dry_run {
+        fs::create_dir_all(locale_dir)?;
+    }
 
     // Parse existing locale file
     let existing_resource = parse_ftl_file(locale_dir, crate_name)?;
@@ -438,19 +414,6 @@ mod tests {
         assert!(keys.contains("hello"));
         assert!(keys.contains("world"));
         assert_eq!(keys.len(), 2);
-    }
-
-    #[test]
-    fn test_get_all_locales() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let assets = temp_dir.path();
-
-        fs::create_dir(assets.join("en")).unwrap();
-        fs::create_dir(assets.join("fr")).unwrap();
-        fs::create_dir(assets.join("de")).unwrap();
-
-        let locales = get_all_locales(assets).unwrap();
-        assert_eq!(locales, vec!["de", "en", "fr"]);
     }
 
     #[test]

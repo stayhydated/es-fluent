@@ -2,7 +2,7 @@ use crate::discovery::count_ftl_resources;
 use crate::generator;
 use crate::mode::FluentParseMode;
 use crate::tui::{self, TuiApp};
-use crate::types::{CrateInfo, CrateState};
+use crate::types::{CrateInfo, CrateState, GenerateResult};
 use anyhow::{Context as _, Result};
 use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
 use rayon::prelude::*;
@@ -11,14 +11,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash as _, Hasher as _};
 use std::path::Path;
-use std::time::Duration;
-
-/// Result of generating FTL for a single crate.
-struct GenerateResult {
-    name: String,
-    resource_count: usize,
-    error: Option<String>,
-}
+use std::time::{Duration, Instant};
 
 /// Compute a hash of all .rs files in the src directory.
 fn compute_src_hash(src_dir: &Path) -> u64 {
@@ -89,17 +82,18 @@ fn run_watch_loop(
         let results: Vec<GenerateResult> = valid_crates
             .par_iter()
             .map(|krate| {
+                let start = Instant::now();
                 let result = generator::generate_for_crate(krate, mode);
+                let duration = start.elapsed();
                 let resource_count = result
                     .as_ref()
                     .ok()
                     .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
                     .unwrap_or(0);
 
-                GenerateResult {
-                    name: krate.name.clone(),
-                    resource_count,
-                    error: result.err().map(|e| e.to_string()),
+                match result {
+                    Ok(()) => GenerateResult::success(krate.name.clone(), duration, resource_count),
+                    Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
                 }
             })
             .collect();
@@ -205,17 +199,26 @@ fn run_watch_loop(
                     let results: Vec<GenerateResult> = crates_to_rebuild
                         .par_iter()
                         .map(|krate| {
+                            let start = Instant::now();
                             let result = generator::generate_for_crate(krate, mode);
+                            let duration = start.elapsed();
                             let resource_count = result
                                 .as_ref()
                                 .ok()
                                 .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
                                 .unwrap_or(0);
 
-                            GenerateResult {
-                                name: krate.name.clone(),
-                                resource_count,
-                                error: result.err().map(|e| e.to_string()),
+                            match result {
+                                Ok(()) => GenerateResult::success(
+                                    krate.name.clone(),
+                                    duration,
+                                    resource_count,
+                                ),
+                                Err(e) => GenerateResult::failure(
+                                    krate.name.clone(),
+                                    duration,
+                                    e.to_string(),
+                                ),
                             }
                         })
                         .collect();

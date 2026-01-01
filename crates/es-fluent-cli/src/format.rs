@@ -6,6 +6,7 @@
 use crate::discovery::discover_crates;
 use crate::errors::{CliError, FormatError, FormatReport};
 use crate::types::CrateInfo;
+use crate::utils::{filter_crates_by_package, get_all_locales};
 use anyhow::{Context as _, Result};
 use colored::Colorize as _;
 use es_fluent_toml::I18nConfig;
@@ -58,12 +59,7 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     );
 
     let crates = discover_crates(&path)?;
-
-    let crates: Vec<_> = if let Some(ref pkg) = args.package {
-        crates.into_iter().filter(|c| &c.name == pkg).collect()
-    } else {
-        crates
-    };
+    let crates = filter_crates_by_package(crates, args.package.as_ref());
 
     if crates.is_empty() {
         println!(
@@ -172,27 +168,6 @@ fn format_crate(
     }
 
     Ok(results)
-}
-
-/// Get all locale directories from the assets directory.
-fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
-    let mut locales = Vec::new();
-
-    if !assets_dir.exists() {
-        return Ok(locales);
-    }
-
-    for entry in fs::read_dir(assets_dir)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir()
-            && let Some(name) = entry.file_name().to_str()
-        {
-            locales.push(name.to_string());
-        }
-    }
-
-    locales.sort();
-    Ok(locales)
 }
 
 /// Format a single FTL file by sorting entries A-Z.
@@ -349,18 +324,5 @@ apple = Apple"#;
             apple_pos < zebra_pos,
             "Apple group should come before Zebra group"
         );
-    }
-
-    #[test]
-    fn test_get_all_locales() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let assets = temp_dir.path();
-
-        fs::create_dir(assets.join("en")).unwrap();
-        fs::create_dir(assets.join("fr")).unwrap();
-        fs::create_dir(assets.join("de")).unwrap();
-
-        let locales = get_all_locales(assets).unwrap();
-        assert_eq!(locales, vec!["de", "en", "fr"]);
     }
 }
