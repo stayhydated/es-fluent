@@ -7,8 +7,8 @@ publish = false
 [workspace]
 
 [dependencies]
-{% if has_fluent_feature %}
-{{ parent_crate_name }} = { path = "..", features = ["{{ fluent_feature }}"] }
+{% if has_fluent_features %}
+{{ parent_crate_name }} = { path = "..", features = [{% for feature in fluent_features %}"{{ feature }}"{% if !loop.last %}, {% endif %}{% endfor %}] }
 {% else %}
 {{ parent_crate_name }} = { path = ".." }
 {% endif %}
