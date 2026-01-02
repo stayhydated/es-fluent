@@ -7,17 +7,16 @@
 //! - Reporting missing keys as errors
 //! - Reporting missing variables as warnings
 
+use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{
     CliError, CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
-    ValidationReport,
+    ValidationReport, find_key_span,
 };
 use crate::generation::{
     CargoTomlTemplate, CheckRsTemplate, create_temp_dir, get_es_fluent_dep, run_cargo_with_output,
     write_cargo_toml, write_main_rs,
 };
-use crate::utils::{
-    discover_crates, filter_crates_by_package, get_all_locales, partition_by_lib_rs, ui,
-};
+use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use askama::Template as _;
 use clap::Parser;
@@ -48,13 +47,8 @@ const TEMP_CRATE_NAME: &str = "es-fluent-check";
 /// Arguments for the check command.
 #[derive(Debug, Parser)]
 pub struct CheckArgs {
-    /// Path to the crate or workspace root (defaults to current directory).
-    #[arg(short, long)]
-    pub path: Option<PathBuf>,
-
-    /// Package name to filter (if in a workspace, only process this package).
-    #[arg(short = 'P', long)]
-    pub package: Option<String>,
+    #[command(flatten)]
+    pub workspace: WorkspaceArgs,
 
     /// Check all locales, not just the fallback language.
     #[arg(long)]
@@ -63,27 +57,16 @@ pub struct CheckArgs {
 
 /// Run the check command.
 pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
-    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
+    let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    ui::print_check_header();
-
-    let crates = discover_crates(&path)?;
-    let crates = filter_crates_by_package(crates, args.package.as_ref());
-
-    if crates.is_empty() {
+    if !workspace.print_discovery(ui::print_check_header) {
         ui::print_no_crates_found();
         return Ok(());
     }
 
-    let (valid_crates, skipped_crates) = partition_by_lib_rs(&crates);
-
-    for krate in &skipped_crates {
-        ui::print_missing_lib_rs(&krate.name);
-    }
-
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
-    for krate in &valid_crates {
+    for krate in &workspace.valid {
         ui::print_checking(&krate.name);
 
         match check_crate(krate, args.all) {
@@ -437,21 +420,6 @@ fn extract_variables_from_inline(
         },
         _ => {},
     }
-}
-
-/// Find the byte offset and length of a key in the FTL source.
-fn find_key_span(source: &str, key: &str) -> Option<SourceSpan> {
-    for (line_idx, line) in source.lines().enumerate() {
-        let trimmed = line.trim_start();
-        if let Some(rest) = trimmed.strip_prefix(key)
-            && (rest.starts_with(" =") || rest.starts_with('='))
-        {
-            let line_start: usize = source.lines().take(line_idx).map(|l| l.len() + 1).sum();
-            let key_start = line_start + (line.len() - trimmed.len());
-            return Some(SourceSpan::new(key_start.into(), key.len()));
-        }
-    }
-    None
 }
 
 #[cfg(test)]

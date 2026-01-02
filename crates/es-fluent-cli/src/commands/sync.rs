@@ -3,26 +3,22 @@
 //! This module provides functionality to sync missing translation keys
 //! from the fallback language to other locales, preserving existing translations.
 
+use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, LocaleNotFoundError, SyncMissingKey};
-use crate::utils::{discover_crates, filter_crates_by_package, get_all_locales, ui};
+use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Arguments for the sync command.
 #[derive(Debug, Parser)]
 pub struct SyncArgs {
-    /// Path to the crate or workspace root (defaults to current directory).
-    #[arg(short, long)]
-    pub path: Option<PathBuf>,
-
-    /// Package name to filter (if in a workspace, only process this package).
-    #[arg(short = 'P', long)]
-    pub package: Option<String>,
+    #[command(flatten)]
+    pub workspace: WorkspaceArgs,
 
     /// Specific locale(s) to sync to (can be specified multiple times).
     #[arg(short, long)]
@@ -50,12 +46,11 @@ pub struct SyncLocaleResult {
 
 /// Run the sync command.
 pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
-    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
+    let workspace = WorkspaceCrates::discover(args.workspace)?;
 
     ui::print_sync_header();
 
-    let crates = discover_crates(&path)?;
-    let crates = filter_crates_by_package(crates, args.package.as_ref());
+    let crates = workspace.crates;
 
     if crates.is_empty() {
         ui::print_no_crates_found();

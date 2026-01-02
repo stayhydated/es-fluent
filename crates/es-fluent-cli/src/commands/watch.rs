@@ -1,21 +1,16 @@
 //! Watch command implementation.
 
+use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, FluentParseMode};
 use crate::tui::watch_all;
-use crate::utils::{discover_crates, filter_crates_by_package, ui};
+use crate::utils::ui;
 use clap::Parser;
-use std::path::PathBuf;
 
 /// Arguments for the watch command.
 #[derive(Parser)]
 pub struct WatchArgs {
-    /// Path to the crate or workspace root (defaults to current directory)
-    #[arg(short, long)]
-    pub path: Option<PathBuf>,
-
-    /// Package name to filter (if in a workspace, only process this package)
-    #[arg(short = 'P', long)]
-    pub package: Option<String>,
+    #[command(flatten)]
+    pub workspace: WorkspaceArgs,
 
     /// Parse mode for FTL generation
     #[arg(short, long, value_enum, default_value_t = FluentParseMode::default())]
@@ -24,16 +19,11 @@ pub struct WatchArgs {
 
 /// Run the watch command.
 pub fn run_watch(args: WatchArgs) -> Result<(), CliError> {
-    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
+    let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    let crates = discover_crates(&path)?;
-    let crates = filter_crates_by_package(crates, args.package.as_ref());
-
-    if crates.is_empty() {
-        ui::print_header();
-        ui::print_discovered(&[]);
+    if !workspace.print_discovery(ui::print_header) {
         return Ok(());
     }
 
-    watch_all(&crates, &args.mode).map_err(CliError::from)
+    watch_all(&workspace.valid, &args.mode).map_err(CliError::from)
 }

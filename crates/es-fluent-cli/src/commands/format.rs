@@ -3,8 +3,9 @@
 //! This module provides functionality to format FTL files by sorting
 //! message keys alphabetically while preserving group comments.
 
+use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
-use crate::utils::{discover_crates, filter_crates_by_package, get_all_locales, ui};
+use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
@@ -16,13 +17,8 @@ use std::path::{Path, PathBuf};
 /// Arguments for the format command.
 #[derive(Debug, Parser)]
 pub struct FormatArgs {
-    /// Path to the crate or workspace root (defaults to current directory).
-    #[arg(short, long)]
-    pub path: Option<PathBuf>,
-
-    /// Package name to filter (if in a workspace, only process this package).
-    #[arg(short = 'P', long)]
-    pub package: Option<String>,
+    #[command(flatten)]
+    pub workspace: WorkspaceArgs,
 
     /// Format all locales, not just the fallback language.
     #[arg(long)]
@@ -46,14 +42,9 @@ pub struct FormatResult {
 
 /// Run the format command.
 pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
-    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
+    let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    ui::print_format_header();
-
-    let crates = discover_crates(&path)?;
-    let crates = filter_crates_by_package(crates, args.package.as_ref());
-
-    if crates.is_empty() {
+    if !workspace.print_discovery(ui::print_format_header) {
         ui::print_no_crates_found();
         return Ok(());
     }
@@ -62,7 +53,7 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let mut total_unchanged = 0;
     let mut errors: Vec<FormatError> = Vec::new();
 
-    for krate in &crates {
+    for krate in &workspace.crates {
         let results = format_crate(krate, args.all, args.dry_run)?;
 
         for result in results {
