@@ -86,6 +86,8 @@ pub fn write_main_rs(temp_dir: &Path, main_rs_content: &str) -> Result<()> {
 ///
 /// Returns Ok(()) if cargo succeeds, or an error if it fails.
 pub fn run_cargo(temp_dir: &Path) -> Result<()> {
+    use std::process::Stdio;
+
     let manifest_path = temp_dir.join("Cargo.toml");
 
     let status = Command::new("cargo")
@@ -93,15 +95,13 @@ pub fn run_cargo(temp_dir: &Path) -> Result<()> {
         .arg("--manifest-path")
         .arg(&manifest_path)
         .arg("--quiet")
+        .stderr(Stdio::null())
         .env("RUSTFLAGS", "-A warnings")
         .status()
         .context("Failed to run cargo")?;
 
-    if status.success() {
-        Ok(())
-    } else {
-        bail!("Cargo build failed")
-    }
+    anyhow::ensure!(status.success(), "Cargo build failed");
+    Ok(())
 }
 
 /// Run `cargo run` on a temporary crate and capture output.
