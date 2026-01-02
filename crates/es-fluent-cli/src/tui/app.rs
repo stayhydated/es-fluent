@@ -1,4 +1,4 @@
-use crate::types::{CrateInfo, CrateState};
+use crate::core::{CrateInfo, CrateState};
 use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers},
     execute,
@@ -99,7 +99,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
                     let text = format!("watching ({} resources)", resource_count);
                     return ListItem::new(Line::from(vec![
                         Span::styled(
-                            "✓ ",
+                            "V ",
                             Style::default()
                                 .fg(Color::Green)
                                 .add_modifier(Modifier::BOLD),
@@ -117,7 +117,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
                 Some(CrateState::Error { message }) => {
                     return ListItem::new(Line::from(vec![
                         Span::styled(
-                            "✗ ",
+                            "X ",
                             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                         ),
                         Span::styled(

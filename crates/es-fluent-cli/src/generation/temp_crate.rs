@@ -3,8 +3,8 @@
 //! Both the generator and validator commands create temporary crates in `.es-fluent/`
 //! to leverage Rust's inventory mechanism. This module consolidates that shared logic.
 
-use crate::templates::GitignoreTemplate;
-use crate::types::CrateInfo;
+use crate::core::CrateInfo;
+use crate::generation::GitignoreTemplate;
 use anyhow::{Context as _, Result, bail};
 use askama::Template as _;
 use std::fs;

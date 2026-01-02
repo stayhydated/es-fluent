@@ -1,7 +1,7 @@
 //! Common utility functions shared across CLI commands.
 
-use crate::types::CrateInfo;
-use crate::ui;
+use crate::core::CrateInfo;
+use crate::utils::ui;
 use anyhow::{Context as _, Result};
 use std::fs;
 use std::path::Path;

@@ -7,10 +7,6 @@ use miette::{Diagnostic, NamedSource, SourceSpan};
 use std::path::PathBuf;
 use thiserror::Error;
 
-// ============================================================================
-// Configuration Errors (i18n.toml)
-// ============================================================================
-
 /// Error when the i18n.toml configuration file is not found.
 #[derive(Debug, Error, Diagnostic)]
 #[error("i18n.toml configuration file not found")]
@@ -80,10 +76,6 @@ pub struct InvalidLanguageError {
     /// The invalid language identifier.
     pub identifier: String,
 }
-
-// ============================================================================
-// Validation Errors
-// ============================================================================
 
 /// A single missing key diagnostic.
 #[derive(Debug, Error, Diagnostic)]
@@ -156,10 +148,6 @@ pub struct FtlSyntaxError {
     pub help: String,
 }
 
-// ============================================================================
-// Validation Report (aggregated)
-// ============================================================================
-
 /// Aggregated validation report containing multiple issues.
 #[derive(Debug, Error, Diagnostic)]
 #[error("validation found {error_count} error(s) and {warning_count} warning(s)")]
@@ -192,10 +180,6 @@ pub enum ValidationIssue {
     SyntaxError(#[from] FtlSyntaxError),
 }
 
-// ============================================================================
-// Format Errors
-// ============================================================================
-
 /// Error when formatting fails for an FTL file.
 #[derive(Debug, Error, Diagnostic)]
 #[error("failed to format {path}")]
@@ -224,10 +208,6 @@ pub struct FormatReport {
     #[related]
     pub errors: Vec<FormatError>,
 }
-
-// ============================================================================
-// Sync Errors
-// ============================================================================
 
 /// Warning when a key needs to be synced to another locale.
 #[derive(Debug, Error, Diagnostic)]
@@ -260,11 +240,6 @@ pub struct SyncReport {
     pub synced_keys: Vec<SyncMissingKey>,
 }
 
-// ============================================================================
-// CLI Errors
-// ============================================================================
-
-/// Top-level CLI error.
 #[derive(Debug, Error, Diagnostic)]
 pub enum CliError {
     #[error(transparent)]
@@ -313,10 +288,6 @@ impl From<anyhow::Error> for CliError {
         CliError::Other(err.to_string())
     }
 }
-
-// ============================================================================
-// Helper functions for creating diagnostics
-// ============================================================================
 
 /// Calculate SourceSpan from line and column in source text.
 #[allow(dead_code)]

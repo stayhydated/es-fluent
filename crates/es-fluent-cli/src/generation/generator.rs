@@ -1,9 +1,8 @@
-use crate::mode::{FluentParseMode, FluentParseModeExt as _};
-use crate::temp_crate::{
-    create_temp_dir, get_es_fluent_dep, run_cargo, write_cargo_toml, write_main_rs,
+use crate::core::{CrateInfo, FluentParseMode, FluentParseModeExt as _};
+use crate::generation::{
+    CargoTomlTemplate, MainRsTemplate, create_temp_dir, get_es_fluent_dep, run_cargo,
+    write_cargo_toml, write_main_rs,
 };
-use crate::templates::{CargoTomlTemplate, MainRsTemplate};
-use crate::types::CrateInfo;
 use anyhow::{Result, bail};
 use askama::Template as _;
 
@@ -44,5 +43,3 @@ pub fn generate_for_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<(
 
     run_cargo(&temp_dir)
 }
-
-// Tests for temp crate creation are in temp_crate.rs

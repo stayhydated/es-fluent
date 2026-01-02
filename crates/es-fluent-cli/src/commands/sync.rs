@@ -3,12 +3,10 @@
 //! This module provides functionality to sync missing translation keys
 //! from the fallback language to other locales, preserving existing translations.
 
-use crate::discovery::discover_crates;
-use crate::errors::{CliError, SyncMissingKey};
-use crate::types::CrateInfo;
-use crate::ui;
-use crate::utils::{filter_crates_by_package, get_all_locales};
+use crate::core::{CliError, CrateInfo, SyncMissingKey};
+use crate::utils::{discover_crates, filter_crates_by_package, get_all_locales, ui};
 use anyhow::{Context as _, Result};
+use clap::Parser;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::{BTreeMap, HashSet};
@@ -16,7 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Arguments for the sync command.
-#[derive(clap::Parser, Debug)]
+#[derive(Parser, Debug)]
 pub struct SyncArgs {
     /// Path to the crate or workspace root (defaults to current directory).
     #[arg(short, long)]

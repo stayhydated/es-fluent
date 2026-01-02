@@ -1,4 +1,4 @@
-use crate::types::CrateInfo;
+use crate::core::CrateInfo;
 use anyhow::{Context as _, Result};
 use cargo_metadata::MetadataCommand;
 use std::path::Path;

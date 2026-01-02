@@ -7,20 +7,20 @@
 //! - Reporting missing keys as errors
 //! - Reporting missing variables as warnings
 
-use crate::discovery::discover_crates;
-use crate::errors::{
-    CliError, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
+use crate::core::{
+    CliError, CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
     ValidationReport,
 };
-use crate::temp_crate::{
-    create_temp_dir, get_es_fluent_dep, run_cargo_with_output, write_cargo_toml, write_main_rs,
+use crate::generation::{
+    CargoTomlTemplate, CheckRsTemplate, create_temp_dir, get_es_fluent_dep, run_cargo_with_output,
+    write_cargo_toml, write_main_rs,
 };
-use crate::templates::{CargoTomlTemplate, CheckRsTemplate};
-use crate::types::CrateInfo;
-use crate::ui;
-use crate::utils::{filter_crates_by_package, get_all_locales, partition_by_lib_rs};
+use crate::utils::{
+    discover_crates, filter_crates_by_package, get_all_locales, partition_by_lib_rs, ui,
+};
 use anyhow::{Context as _, Result};
 use askama::Template as _;
+use clap::Parser;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::ast;
 use fluent_syntax::parser::{self, ParserError};
@@ -46,7 +46,7 @@ struct InventoryData {
 const TEMP_CRATE_NAME: &str = "es-fluent-check";
 
 /// Arguments for the check command.
-#[derive(clap::Parser, Debug)]
+#[derive(Parser, Debug)]
 pub struct CheckArgs {
     /// Path to the crate or workspace root (defaults to current directory).
     #[arg(short, long)]

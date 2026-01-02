@@ -1,8 +1,7 @@
-use crate::discovery::count_ftl_resources;
-use crate::generator;
-use crate::mode::FluentParseMode;
+use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult};
+use crate::generation::generate_for_crate;
 use crate::tui::{self, TuiApp};
-use crate::types::{CrateInfo, CrateState, GenerateResult};
+use crate::utils::count_ftl_resources;
 use anyhow::{Context as _, Result};
 use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
 use rayon::prelude::*;
@@ -83,7 +82,7 @@ fn run_watch_loop(
             .par_iter()
             .map(|krate| {
                 let start = Instant::now();
-                let result = generator::generate_for_crate(krate, mode);
+                let result = generate_for_crate(krate, mode);
                 let duration = start.elapsed();
                 let resource_count = result
                     .as_ref()
@@ -200,7 +199,7 @@ fn run_watch_loop(
                         .par_iter()
                         .map(|krate| {
                             let start = Instant::now();
-                            let result = generator::generate_for_crate(krate, mode);
+                            let result = generate_for_crate(krate, mode);
                             let duration = start.elapsed();
                             let resource_count = result
                                 .as_ref()

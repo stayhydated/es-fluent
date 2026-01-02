@@ -2,7 +2,7 @@
 //!
 //! This module provides a `Status` enum for consistent, styled CLI output.
 
-use crate::types::CrateInfo;
+use crate::core::CrateInfo;
 use colored::{ColoredString, Colorize as _};
 use std::fmt;
 use std::path::Path;
@@ -40,10 +40,6 @@ impl Status {
         eprintln!("{} {}", self.prefix(), message);
     }
 }
-
-// ============================================================================
-// Generate/Clean command output
-// ============================================================================
 
 pub fn print_header() {
     Status::Info.print("Fluent FTL Generator".dimmed());
@@ -120,10 +116,6 @@ pub fn print_package_not_found(package: &str) {
     ));
 }
 
-// ============================================================================
-// Check command output
-// ============================================================================
-
 pub fn print_check_header() {
     Status::Info.print("Fluent FTL Checker".dimmed());
 }
@@ -144,10 +136,6 @@ pub fn print_check_error(crate_name: &str, error: &str) {
 pub fn print_check_success() {
     Status::Success.print("No issues found!".green());
 }
-
-// ============================================================================
-// Format command output
-// ============================================================================
 
 pub fn print_format_header() {
     Status::Info.print("Fluent FTL Formatter".dimmed());
@@ -178,10 +166,6 @@ pub fn print_format_summary(formatted: usize, unchanged: usize) {
     ));
 }
 
-// ============================================================================
-// Sync command output
-// ============================================================================
-
 pub fn print_sync_header() {
     Status::Info.print("Fluent FTL Sync".dimmed());
 }
@@ -209,7 +193,7 @@ pub fn print_added_keys(count: usize, locale: &str) {
 }
 
 pub fn print_synced_key(key: &str) {
-    println!("  {} {}", "→".dimmed(), key);
+    println!("  {} {}", "->".dimmed(), key);
 }
 
 pub fn print_all_in_sync() {
@@ -237,10 +221,6 @@ pub fn print_sync_summary(keys: usize, locales: usize) {
 pub fn print_no_locales_specified() {
     Status::Warning.print("No locales specified. Use --locale <LOCALE> or --all".yellow());
 }
-
-// ============================================================================
-// Common messages
-// ============================================================================
 
 pub fn print_no_crates_found() {
     Status::Error.print("No crates with i18n.toml found.".red());
