@@ -225,3 +225,17 @@ pub fn print_no_locales_specified() {
 pub fn print_no_crates_found() {
     Status::Error.print("No crates with i18n.toml found.".red());
 }
+
+pub fn print_locale_not_found(locale: &str, available: &[String]) {
+    let available_str = if available.is_empty() {
+        "none".to_string()
+    } else {
+        available.join(", ")
+    };
+    Status::Error.eprint(format!(
+        "{} '{}'. Available locales: {}",
+        "Locale not found:".red(),
+        locale.white().bold(),
+        available_str.cyan()
+    ));
+}

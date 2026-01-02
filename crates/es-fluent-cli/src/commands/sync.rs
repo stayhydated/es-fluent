@@ -3,7 +3,7 @@
 //! This module provides functionality to sync missing translation keys
 //! from the fallback language to other locales, preserving existing translations.
 
-use crate::core::{CliError, CrateInfo, SyncMissingKey};
+use crate::core::{CliError, CrateInfo, LocaleNotFoundError, SyncMissingKey};
 use crate::utils::{discover_crates, filter_crates_by_package, get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
@@ -68,8 +68,25 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
         ui::print_no_locales_specified();
         return Ok(());
     } else {
-        Some(args.locale.into_iter().collect())
+        Some(args.locale.iter().cloned().collect())
     };
+
+    // Validate that specified locales exist
+    if let Some(ref targets) = target_locales {
+        let all_available_locales = collect_all_available_locales(&crates)?;
+
+        for locale in targets {
+            if !all_available_locales.contains(locale) {
+                let mut available: Vec<String> = all_available_locales.into_iter().collect();
+                available.sort();
+                ui::print_locale_not_found(locale, &available);
+                return Err(CliError::LocaleNotFound(LocaleNotFoundError {
+                    locale: locale.clone(),
+                    available: available.join(", "),
+                }));
+            }
+        }
+    }
 
     let mut total_keys_added = 0;
     let mut total_locales_affected = 0;
@@ -355,6 +372,25 @@ fn merge_missing_keys(
     ast::Resource { body }
 }
 
+/// Collect all available locales across all crates.
+fn collect_all_available_locales(crates: &[CrateInfo]) -> Result<HashSet<String>> {
+    let mut all_locales = HashSet::new();
+
+    for krate in crates {
+        let config = I18nConfig::read_from_path(&krate.i18n_config_path)
+            .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
+
+        let assets_dir = krate.manifest_dir.join(&config.assets_dir);
+        let locales = get_all_locales(&assets_dir)?;
+
+        for locale in locales {
+            all_locales.insert(locale);
+        }
+    }
+
+    Ok(all_locales)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,5 +428,44 @@ mod tests {
         // The merged resource should have all 3 messages
         let merged_keys = extract_message_keys(&merged);
         assert_eq!(merged_keys.len(), 3);
+    }
+
+    #[test]
+    fn test_collect_all_available_locales() {
+        use std::path::PathBuf;
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let assets = temp_dir.path().join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join("en")).unwrap();
+        fs::create_dir(assets.join("fr")).unwrap();
+        fs::create_dir(assets.join("de")).unwrap();
+
+        // Create a minimal i18n.toml
+        let config_path = temp_dir.path().join("i18n.toml");
+        fs::write(
+            &config_path,
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .unwrap();
+
+        let crates = vec![CrateInfo {
+            name: "test-crate".to_string(),
+            manifest_dir: temp_dir.path().to_path_buf(),
+            src_dir: PathBuf::new(),
+            i18n_config_path: config_path,
+            ftl_output_dir: PathBuf::new(),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        }];
+
+        let locales = collect_all_available_locales(&crates).unwrap();
+
+        assert!(locales.contains("en"));
+        assert!(locales.contains("fr"));
+        assert!(locales.contains("de"));
+        assert_eq!(locales.len(), 3);
+        assert!(!locales.contains("awd"));
     }
 }

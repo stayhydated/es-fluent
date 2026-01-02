@@ -77,6 +77,20 @@ pub struct InvalidLanguageError {
     pub identifier: String,
 }
 
+/// Error when a specified locale doesn't exist.
+#[derive(Debug, Error, Diagnostic)]
+#[error("locale '{locale}' not found")]
+#[diagnostic(
+    code(es_fluent::config::locale_not_found),
+    help("Available locales: {available}")
+)]
+pub struct LocaleNotFoundError {
+    /// The locale that was specified but not found.
+    pub locale: String,
+    /// Comma-separated list of available locales.
+    pub available: String,
+}
+
 /// A single missing key diagnostic.
 #[derive(Debug, Error, Diagnostic)]
 #[error("missing translation key")]
@@ -261,6 +275,10 @@ pub enum CliError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     InvalidLanguage(#[from] InvalidLanguageError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    LocaleNotFound(#[from] LocaleNotFoundError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
