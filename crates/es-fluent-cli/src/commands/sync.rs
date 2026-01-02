@@ -5,11 +5,12 @@
 
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, LocaleNotFoundError, SyncMissingKey};
+use crate::ftl::{extract_message_keys, parse_ftl_file};
 use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
-use fluent_syntax::{ast, parser, serializer};
+use fluent_syntax::{ast, serializer};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::Path;
@@ -145,7 +146,8 @@ fn sync_crate(
     }
 
     // Parse fallback locale to get reference messages
-    let fallback_resource = parse_ftl_file(&fallback_dir, &krate.name)?;
+    let fallback_ftl = fallback_dir.join(format!("{}.ftl", krate.name));
+    let fallback_resource = parse_ftl_file(&fallback_ftl)?;
     let fallback_keys = extract_message_keys(&fallback_resource);
 
     let mut results = Vec::new();
@@ -182,40 +184,7 @@ fn sync_crate(
     Ok(results)
 }
 
-/// Parse an FTL file and return the resource.
-fn parse_ftl_file(locale_dir: &Path, crate_name: &str) -> Result<ast::Resource<String>> {
-    let ftl_file = locale_dir.join(format!("{}.ftl", crate_name));
-
-    if !ftl_file.exists() {
-        return Ok(ast::Resource { body: Vec::new() });
-    }
-
-    let content = fs::read_to_string(&ftl_file)?;
-
-    if content.trim().is_empty() {
-        return Ok(ast::Resource { body: Vec::new() });
-    }
-
-    match parser::parse(content) {
-        Ok(res) => Ok(res),
-        Err((res, _)) => Ok(res), // Use partial result
-    }
-}
-
-/// Extract message keys from a resource.
-fn extract_message_keys(resource: &ast::Resource<String>) -> HashSet<String> {
-    resource
-        .body
-        .iter()
-        .filter_map(|entry| {
-            if let ast::Entry::Message(msg) = entry {
-                Some(msg.id.name.clone())
-            } else {
-                None
-            }
-        })
-        .collect()
-}
+// parse_ftl_file and extract_message_keys moved to crate::ftl module
 
 /// Sync a single locale with missing keys from the fallback.
 fn sync_locale(
@@ -234,7 +203,7 @@ fn sync_locale(
     }
 
     // Parse existing locale file
-    let existing_resource = parse_ftl_file(locale_dir, crate_name)?;
+    let existing_resource = parse_ftl_file(&ftl_file)?;
     let existing_keys = extract_message_keys(&existing_resource);
 
     // Find missing keys
@@ -389,6 +358,7 @@ fn collect_all_available_locales(crates: &[CrateInfo]) -> Result<HashSet<String>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fluent_syntax::parser;
 
     #[test]
     fn test_extract_message_keys() {

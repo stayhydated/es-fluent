@@ -41,6 +41,82 @@ impl Status {
     }
 }
 
+/// CLI action type for unified output formatting.
+///
+/// This enum provides a consistent way to print action status messages
+/// across different commands with similar patterns.
+#[derive(Clone, Copy, Debug)]
+pub enum Action {
+    Generate,
+    Clean,
+    Check,
+    Sync,
+    Format,
+}
+
+impl Action {
+    /// Returns the action verb for "starting" messages.
+    fn verb_start(self) -> &'static str {
+        match self {
+            Action::Generate => "Generating FTL for",
+            Action::Clean => "Cleaning FTL for",
+            Action::Check => "Checking",
+            Action::Sync => "Syncing",
+            Action::Format => "Formatting",
+        }
+    }
+
+    /// Returns the action verb for "completed" messages.
+    fn verb_done(self) -> &'static str {
+        match self {
+            Action::Generate => "generated in",
+            Action::Clean => "cleaned in",
+            Action::Check => "checked in",
+            Action::Sync => "synced in",
+            Action::Format => "formatted in",
+        }
+    }
+
+    /// Returns the action verb for "failed" messages.
+    fn verb_failed(self) -> &'static str {
+        match self {
+            Action::Generate | Action::Clean => "Generation failed for",
+            Action::Check => "Check failed for",
+            Action::Sync => "Sync failed for",
+            Action::Format => "Format failed for",
+        }
+    }
+
+    /// Print a "starting action" message.
+    pub fn print_start(self, crate_name: &str) {
+        Status::Info.print(format!(
+            "{} {}",
+            self.verb_start().dimmed(),
+            crate_name.green()
+        ));
+    }
+
+    /// Print a "completed action" message with duration and resource count.
+    pub fn print_done(self, crate_name: &str, duration: Duration, resource_count: usize) {
+        Status::Info.print(format!(
+            "{} {} ({} resources)",
+            format!("{} {}", crate_name, self.verb_done()).dimmed(),
+            humantime::format_duration(duration).to_string().green(),
+            resource_count.to_string().cyan()
+        ));
+    }
+
+    /// Print an "action failed" error message.
+    pub fn print_error(self, crate_name: &str, error: &str) {
+        Status::Error.eprint(format!(
+            "{} {}: {}",
+            self.verb_failed().red(),
+            crate_name.white().bold(),
+            error
+        ));
+    }
+}
+
 pub fn print_header() {
     Status::Info.print("Fluent FTL Generator".dimmed());
 }

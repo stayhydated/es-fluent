@@ -18,6 +18,20 @@ pub struct WorkspaceArgs {
     pub package: Option<String>,
 }
 
+/// Common arguments for locale-based processing commands.
+///
+/// Used by format, check, and sync commands.
+#[derive(Debug, Clone, Args)]
+pub struct LocaleProcessingArgs {
+    /// Process all locales, not just the fallback language.
+    #[arg(long)]
+    pub all: bool,
+
+    /// Dry run - show what would change without making changes.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
 /// Represents a resolved set of crates for a command to operate on.
 #[derive(Debug, Clone)]
 pub struct WorkspaceCrates {
