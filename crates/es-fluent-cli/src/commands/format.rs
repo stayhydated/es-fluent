@@ -14,7 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Arguments for the format command.
-#[derive(Parser, Debug)]
+#[derive(Debug, Parser)]
 pub struct FormatArgs {
     /// Path to the crate or workspace root (defaults to current directory).
     #[arg(short, long)]

@@ -1,8 +1,5 @@
 [workspace]
-default-members = [
-  "examples/bevy-example",
-  "examples/gpui-example",
-]
+default-members = [ "examples/bevy-example", "examples/gpui-example" ]
 members = [
   "crates/es-fluent",
   "crates/es-fluent-cli",
@@ -35,7 +32,6 @@ rust-version = "1.88"
 version = "0.4.3"
 
 [workspace.dependencies]
-miette = "7.6.0"
 anyhow = "1.0.98"
 askama = "0.15.0"
 bevy = "0.17.0"
@@ -75,6 +71,7 @@ intl-memoizer = "0.5.3"
 inventory = "0.3.20"
 itertools = "0.14.0"
 log = "0.4"
+miette = "7.6.0"
 notify = "8.2"
 notify-debouncer-mini = "0.7"
 paris = "1.5.15"

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 /// Error when the i18n.toml configuration file is not found.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("i18n.toml configuration file not found")]
 #[diagnostic(
     code(es_fluent::config::not_found),
@@ -24,7 +24,7 @@ pub struct ConfigNotFoundError {
 }
 
 /// Error when parsing the i18n.toml configuration file.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("failed to parse i18n.toml configuration")]
 #[diagnostic(code(es_fluent::config::parse_error))]
 pub struct ConfigParseError {
@@ -42,7 +42,7 @@ pub struct ConfigParseError {
 }
 
 /// Error when the assets directory doesn't exist.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("assets directory not found: {path}")]
 #[diagnostic(
     code(es_fluent::config::assets_not_found),
@@ -54,7 +54,7 @@ pub struct AssetsNotFoundError {
 }
 
 /// Error when the fallback language directory doesn't exist.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("fallback language directory not found: {language}")]
 #[diagnostic(
     code(es_fluent::config::fallback_not_found),
@@ -66,7 +66,7 @@ pub struct FallbackLanguageNotFoundError {
 }
 
 /// Error when a language identifier is invalid.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("invalid language identifier: {identifier}")]
 #[diagnostic(
     code(es_fluent::config::invalid_language),
@@ -78,7 +78,7 @@ pub struct InvalidLanguageError {
 }
 
 /// Error when a specified locale doesn't exist.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("locale '{locale}' not found")]
 #[diagnostic(
     code(es_fluent::config::locale_not_found),
@@ -92,7 +92,7 @@ pub struct LocaleNotFoundError {
 }
 
 /// A single missing key diagnostic.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("missing translation key")]
 #[diagnostic(code(es_fluent::validate::missing_key), severity(Error))]
 pub struct MissingKeyError {
@@ -112,7 +112,7 @@ pub struct MissingKeyError {
 }
 
 /// A single missing variable diagnostic (warning).
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("translation omits variable")]
 #[diagnostic(code(es_fluent::validate::missing_variable), severity(Warning))]
 pub struct MissingVariableWarning {
@@ -139,7 +139,7 @@ pub struct MissingVariableWarning {
 }
 
 /// Error when an FTL file has syntax errors.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("FTL syntax error in {locale}/{file_name}")]
 #[diagnostic(code(es_fluent::validate::syntax_error))]
 pub struct FtlSyntaxError {
@@ -163,7 +163,7 @@ pub struct FtlSyntaxError {
 }
 
 /// Aggregated validation report containing multiple issues.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("validation found {error_count} error(s) and {warning_count} warning(s)")]
 #[diagnostic(code(es_fluent::validate::report))]
 pub struct ValidationReport {
@@ -179,7 +179,7 @@ pub struct ValidationReport {
 }
 
 /// A validation issue (either error or warning).
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 pub enum ValidationIssue {
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -195,7 +195,7 @@ pub enum ValidationIssue {
 }
 
 /// Error when formatting fails for an FTL file.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("failed to format {path}")]
 #[diagnostic(code(es_fluent::format::failed))]
 pub struct FormatError {
@@ -208,7 +208,7 @@ pub struct FormatError {
 }
 
 /// Report for format command results.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("formatted {formatted_count} file(s), {error_count} error(s)")]
 #[diagnostic(code(es_fluent::format::report))]
 pub struct FormatReport {
@@ -224,7 +224,7 @@ pub struct FormatReport {
 }
 
 /// Warning when a key needs to be synced to another locale.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("missing translation for key '{key}' in locale '{target_locale}'")]
 #[diagnostic(code(es_fluent::sync::missing), severity(Warning))]
 pub struct SyncMissingKey {
@@ -239,7 +239,7 @@ pub struct SyncMissingKey {
 }
 
 /// Report for sync command results.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 #[error("sync: added {added_count} key(s) to {locale_count} locale(s)")]
 #[diagnostic(code(es_fluent::sync::report))]
 pub struct SyncReport {
@@ -254,7 +254,7 @@ pub struct SyncReport {
     pub synced_keys: Vec<SyncMissingKey>,
 }
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Diagnostic, Error)]
 pub enum CliError {
     #[error(transparent)]
     #[diagnostic(transparent)]

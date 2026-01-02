@@ -46,7 +46,7 @@ struct InventoryData {
 const TEMP_CRATE_NAME: &str = "es-fluent-check";
 
 /// Arguments for the check command.
-#[derive(Parser, Debug)]
+#[derive(Debug, Parser)]
 pub struct CheckArgs {
     /// Path to the crate or workspace root (defaults to current directory).
     #[arg(short, long)]

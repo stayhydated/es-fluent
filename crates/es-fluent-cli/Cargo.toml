@@ -15,7 +15,6 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
-miette = { features = [ "fancy" ], workspace = true }
 askama = { workspace = true }
 cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
@@ -25,6 +24,7 @@ es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
 humantime = { workspace = true }
+miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
 notify-debouncer-mini = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
