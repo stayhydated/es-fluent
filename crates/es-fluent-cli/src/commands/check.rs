@@ -14,12 +14,10 @@ use crate::core::{
 };
 use crate::ftl::extract_variables_from_message;
 use crate::generation::{
-    CargoTomlTemplate, CheckRsTemplate, create_temp_dir, get_es_fluent_dep, run_cargo_with_output,
-    write_cargo_toml, write_main_rs,
+    prepare_temp_crate, run_cargo_with_output,
 };
 use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
-use askama::Template as _;
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::ast;
@@ -29,7 +27,6 @@ use regex::Regex;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
 use std::sync::LazyLock;
 
 /// Expected key information from inventory (deserialized from temp crate output).
@@ -44,8 +41,6 @@ struct ExpectedKey {
 struct InventoryData {
     expected_keys: Vec<ExpectedKey>,
 }
-
-const TEMP_CRATE_NAME: &str = "es-fluent-check";
 
 /// Arguments for the check command.
 #[derive(Debug, Parser)]
@@ -120,7 +115,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 /// Check a single crate by running a temp crate to collect inventory, then validating FTL files.
 fn check_crate(krate: &CrateInfo, check_all: bool) -> Result<Vec<ValidationIssue>> {
     // Step 1: Get expected keys from inventory via temp crate
-    let temp_dir = create_temp_check_crate(krate)?;
+    let temp_dir = prepare_temp_crate(krate)?;
     run_check_crate(&temp_dir)?;
     let expected_keys = read_inventory_file(&temp_dir)?;
 
@@ -128,35 +123,9 @@ fn check_crate(krate: &CrateInfo, check_all: bool) -> Result<Vec<ValidationIssue
     validate_ftl_files(krate, &expected_keys, check_all)
 }
 
-/// Creates a temporary crate for collecting inventory data.
-fn create_temp_check_crate(krate: &CrateInfo) -> Result<PathBuf> {
-    let temp_dir = create_temp_dir(krate)?;
-
-    let crate_ident = krate.name.replace('-', "_");
-    let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    let es_fluent_dep = get_es_fluent_dep(&manifest_path, "cli");
-
-    let cargo_toml = CargoTomlTemplate {
-        crate_name: TEMP_CRATE_NAME,
-        parent_crate_name: &krate.name,
-        es_fluent_dep: &es_fluent_dep,
-        has_fluent_features: !krate.fluent_features.is_empty(),
-        fluent_features: &krate.fluent_features,
-    };
-    write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
-
-    let check_rs = CheckRsTemplate {
-        crate_ident: &crate_ident,
-        crate_name: &krate.name,
-    };
-    write_main_rs(&temp_dir, &check_rs.render().unwrap())?;
-
-    Ok(temp_dir)
-}
-
 /// Run the check crate to generate inventory.json.
 fn run_check_crate(temp_dir: &std::path::Path) -> Result<()> {
-    run_cargo_with_output(temp_dir)?;
+    run_cargo_with_output(temp_dir, Some("check"), &[])?;
     Ok(())
 }
 

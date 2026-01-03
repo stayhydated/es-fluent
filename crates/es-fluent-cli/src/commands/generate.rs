@@ -3,7 +3,7 @@
 use crate::commands::{
     WorkspaceArgs, WorkspaceCrates, parallel_generate, render_generation_results,
 };
-use crate::core::{CliError, FluentParseMode};
+use crate::core::{CliError, FluentParseMode, GenerationAction};
 use crate::utils::ui;
 use clap::Parser;
 
@@ -30,7 +30,7 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
         ui::print_generating(&krate.name);
     }
 
-    let results = parallel_generate(&workspace.valid, &args.mode);
+    let results = parallel_generate(&workspace.valid, &GenerationAction::Generate(args.mode));
     let has_errors = render_generation_results(
         &results,
         |result| ui::print_generated(&result.name, result.duration, result.resource_count),

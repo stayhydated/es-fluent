@@ -1,6 +1,6 @@
 //! File watcher and main TUI event loop.
 
-use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult};
+use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerationAction, GenerateResult};
 use crate::generation::generate_for_crate;
 use crate::tui::{self, Message, TuiApp};
 use crate::utils::count_ftl_resources;
@@ -42,7 +42,7 @@ fn compute_src_hash(src_dir: &Path) -> blake3::Hash {
 fn spawn_generation(krate: CrateInfo, mode: FluentParseMode, result_tx: Sender<GenerateResult>) {
     thread::spawn(move || {
         let start = Instant::now();
-        let result = generate_for_crate(&krate, &mode);
+        let result = generate_for_crate(&krate, &GenerationAction::Generate(mode));
         let duration = start.elapsed();
         let resource_count = result
             .as_ref()

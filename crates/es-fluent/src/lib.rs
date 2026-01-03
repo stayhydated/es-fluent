@@ -197,19 +197,11 @@ mod generate {
     /// use es_fluent::EsFluentGenerator;
     ///
     /// fn main() {
-    ///     // Uses defaults from i18n.toml and auto-detects crate name
+    ///     // Parse arguments from command line
     ///     EsFluentGenerator::builder()
     ///         .build()
-    ///         .generate()
-    ///         .expect("Failed to generate FTL files");
-    ///
-    ///     // Or with custom settings
-    ///     EsFluentGenerator::builder()
-    ///         .mode(es_fluent::FluentParseMode::Aggressive)
-    ///         .output_path("custom/path")
-    ///         .build()
-    ///         .generate()
-    ///         .expect("Failed to generate FTL files");
+    ///         .run_cli()
+    ///         .expect("Failed to run generator");
     /// }
     /// ```
     #[derive(bon::Builder)]
@@ -226,9 +218,56 @@ mod generate {
         /// Override the output path (defaults to reading from i18n.toml).
         #[builder(into)]
         output_path: Option<PathBuf>,
+
+        /// Override the assets directory (defaults to reading from i18n.toml).
+        #[builder(into)]
+        assets_dir: Option<PathBuf>,
+    }
+
+    /// Command line arguments for the generator.
+    #[derive(clap::Parser)]
+    pub struct GeneratorArgs {
+        #[command(subcommand)]
+        action: Action,
+    }
+
+    #[derive(clap::Subcommand)]
+    enum Action {
+        /// Generate FTL files
+        Generate {
+            /// Parse mode
+            #[arg(long, default_value_t = FluentParseMode::default())]
+            mode: FluentParseMode,
+        },
+        /// Clean FTL files (remove orphans)
+        Clean {
+            /// Clean all locales
+            #[arg(long)]
+            all: bool,
+            /// Dry run (don't write changes)
+            #[arg(long)]
+            dry_run: bool,
+        },
     }
 
     impl EsFluentGenerator {
+        /// Runs the generator based on command line arguments.
+        pub fn run_cli(self) -> Result<(), GeneratorError> {
+            use clap::Parser;
+            let args = GeneratorArgs::parse();
+
+            match args.action {
+                Action::Generate { mode } => {
+                    let mut generator = self;
+                    generator.mode = mode;
+                    generator.generate()
+                }
+                Action::Clean { all, dry_run } => {
+                    self.clean(all, dry_run)
+                }
+            }
+        }
+
         /// Generates FTL files from all registered types.
         pub fn generate(&self) -> Result<(), GeneratorError> {
             let crate_name = match &self.crate_name {
@@ -264,6 +303,79 @@ mod generate {
             Ok(())
         }
 
+        /// Cleans FTL files by removing orphan keys while preserving existing translations.
+        pub fn clean(&self, all_locales: bool, dry_run: bool) -> Result<(), GeneratorError> {
+            let crate_name = match &self.crate_name {
+                Some(name) => name.clone(),
+                None => Self::detect_crate_name()?,
+            };
+
+            // Determine assets_dir
+            let assets_dir = if let Some(path) = &self.assets_dir {
+                path.clone()
+            } else {
+                 es_fluent_toml::I18nConfig::read_from_manifest_dir()?.assets_dir
+            };
+
+            // Determine which paths to clean
+            let paths = if all_locales {
+                 match std::fs::read_dir(&assets_dir) {
+                    Ok(entries) => {
+                         entries
+                            .filter_map(|e| e.ok())
+                            .filter(|e| e.path().is_dir())
+                            .map(|e| e.path())
+                            .collect()
+                    }
+                    Err(_) => {
+                        // If output_path is set, fallback to it?
+                        if let Some(path) = &self.output_path {
+                             vec![path.clone()]
+                        } else {
+                             // Can't do much if assets_dir fails and no output_path
+                             vec![]
+                        }
+                    }
+                 }
+            } else if let Some(path) = &self.output_path {
+                 vec![path.clone()]
+            } else {
+                 // Fallback to reading config again? We already read it if assets_dir was missing.
+                 // Ideally we keep config if read.
+                 // For now, simple re-read is fine or minimal logic.
+                 let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()?;
+                 vec![config.assets_dir.join(&config.fallback_language)]
+            };
+
+            let crate_ident = crate_name.replace('-', "_");
+            let type_infos = crate::__core::registry::get_all_ftl_type_infos()
+                .into_iter()
+                .filter(|info| {
+                    info.module_path == crate_ident
+                        || info.module_path.starts_with(&format!("{}::", crate_ident))
+                })
+                .collect::<Vec<_>>();
+
+            for output_path in paths {
+                if !dry_run {
+                     log::info!(
+                        "Cleaning FTL files for {} types in crate '{}' at {}",
+                        type_infos.len(),
+                        crate_name,
+                        output_path.display()
+                    );
+                }
+
+                es_fluent_generate::clean::clean(
+                    &crate_name,
+                    output_path,
+                    type_infos.clone(),
+                    dry_run,
+                )?;
+            }
+
+            Ok(())
+        }
         /// Auto-detects the crate name from Cargo.toml using cargo_metadata.
         fn detect_crate_name() -> Result<String, GeneratorError> {
             let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")

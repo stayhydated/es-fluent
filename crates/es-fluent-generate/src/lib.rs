@@ -8,6 +8,7 @@ use fluent_syntax::{ast, parser};
 use std::collections::HashMap;
 use std::{fs, path::Path};
 
+pub mod clean;
 pub mod error;
 pub mod formatting;
 pub mod value;
@@ -23,9 +24,15 @@ pub enum FluentParseMode {
     /// Preserve existing translations.
     #[default]
     Conservative,
-    /// Clean orphan keys (unused in code) but preserve used translations.
-    #[clap(skip)]
-    Clean,
+}
+
+impl std::fmt::Display for FluentParseMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Aggressive => write!(f, "aggressive"),
+            Self::Conservative => write!(f, "conservative"),
+        }
+    }
 }
 
 /// Generates a Fluent translation file from a list of `FtlTypeInfo` objects.
@@ -89,8 +96,7 @@ pub fn generate<P: AsRef<Path>>(
             body: merged_resource_body,
         }
     } else {
-        let cleanup = matches!(mode, FluentParseMode::Clean);
-        smart_merge(existing_resource, &items, cleanup)
+        smart_merge(existing_resource, &items, MergeBehavior::Append)
     };
 
     if !final_resource.body.is_empty() {
@@ -148,10 +154,18 @@ fn compare_type_infos(a: &FtlTypeInfo, b: &FtlTypeInfo) -> std::cmp::Ordering {
     formatting::compare_with_this_priority(a_is_this, &a.type_name, b_is_this, &b.type_name)
 }
 
-fn smart_merge(
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum MergeBehavior {
+    /// Add new keys and preserve existing ones.
+    Append,
+    /// Remove orphan keys and empty groups, do not add new keys.
+    Clean,
+}
+
+pub(crate) fn smart_merge(
     existing: ast::Resource<String>,
     items: &[FtlTypeInfo],
-    cleanup: bool,
+    behavior: MergeBehavior,
 ) -> ast::Resource<String> {
     let mut pending_items = merge_ftl_type_infos(items);
     pending_items.sort_by(compare_type_infos);
@@ -163,6 +177,7 @@ fn smart_merge(
 
     let mut new_body = Vec::new();
     let mut current_group_name: Option<String> = None;
+    let cleanup = matches!(behavior, MergeBehavior::Clean);
 
     for entry in existing.body {
         match entry {
@@ -171,8 +186,11 @@ fn smart_merge(
                     && let Some(info) = item_map.get_mut(old_group)
                     && !info.variants.is_empty()
                 {
-                    for variant in &info.variants {
-                        new_body.push(create_message_entry(variant));
+                    // Only append missing variants if we are appending
+                    if matches!(behavior, MergeBehavior::Append) {
+                        for variant in &info.variants {
+                            new_body.push(create_message_entry(variant));
+                        }
                     }
                     info.variants.clear();
                 }
@@ -260,20 +278,26 @@ fn smart_merge(
         && let Some(info) = item_map.get_mut(last_group)
         && !info.variants.is_empty()
     {
-        for variant in &info.variants {
-            new_body.push(create_message_entry(variant));
+        // Only append missing variants if we are appending
+        if matches!(behavior, MergeBehavior::Append) {
+            for variant in &info.variants {
+                new_body.push(create_message_entry(variant));
+            }
         }
         info.variants.clear();
     }
 
-    let mut remaining_groups: Vec<_> = item_map.into_iter().collect();
-    remaining_groups.sort_by(|(_, a), (_, b)| compare_type_infos(a, b));
+    // Only append remaining new groups if we are appending
+    if matches!(behavior, MergeBehavior::Append) {
+        let mut remaining_groups: Vec<_> = item_map.into_iter().collect();
+        remaining_groups.sort_by(|(_, a), (_, b)| compare_type_infos(a, b));
 
-    for (type_name, info) in remaining_groups {
-        if !info.variants.is_empty() {
-            new_body.push(create_group_comment_entry(&type_name));
-            for variant in info.variants {
-                new_body.push(create_message_entry(&variant));
+        for (type_name, info) in remaining_groups {
+            if !info.variants.is_empty() {
+                new_body.push(create_group_comment_entry(&type_name));
+                for variant in info.variants {
+                    new_body.push(create_message_entry(&variant));
+                }
             }
         }
     }
@@ -570,11 +594,11 @@ existing-key = Existing Value
             module_path: "test".to_string(),
         };
 
-        let result = generate(
+        let result = crate::clean::clean(
             "test_crate",
             &i18n_path,
             vec![type_info],
-            FluentParseMode::Clean,
+            false,
         );
         assert!(result.is_ok());
 

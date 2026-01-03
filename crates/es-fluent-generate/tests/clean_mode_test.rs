@@ -1,7 +1,6 @@
 use es_fluent_core::meta::TypeKind;
 use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{FluentParseMode, generate};
 use proc_macro2::Span;
 use std::fs;
 use syn::Ident;
@@ -51,14 +50,8 @@ awdawd = awdwa
         module_path: "test".to_string(),
     };
 
-    // Run generate in Clean mode
-    generate(
-        crate_name,
-        &i18n_path,
-        vec![group_a],
-        FluentParseMode::Clean,
-    )
-    .unwrap();
+    // Run clean
+    es_fluent_generate::clean::clean(crate_name, &i18n_path, vec![group_a], false).unwrap();
 
     let content = fs::read_to_string(&ftl_file_path).unwrap();
     println!("Generated Content:\n{}", content);

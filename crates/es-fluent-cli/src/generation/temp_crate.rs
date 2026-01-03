@@ -15,10 +15,17 @@ use std::process::Command;
 pub const TEMP_DIR: &str = ".es-fluent";
 
 /// Get the es-fluent dependency string, preferring local path if in workspace.
-pub fn get_es_fluent_dep(manifest_path: &Path, feature: &str) -> String {
+/// Get the es-fluent dependency string, preferring local path if in workspace.
+pub fn get_es_fluent_dep(manifest_path: &Path, features: &[&str]) -> String {
+    let features_str = features
+        .iter()
+        .map(|f| format!(r#""{}""#, f))
+        .collect::<Vec<_>>()
+        .join(", ");
+
     let crates_io_dep = format!(
-        r#"es-fluent = {{ version = "*", features = ["{}"] }}"#,
-        feature
+        r#"es-fluent = {{ version = "*", features = [{}] }}"#,
+        features_str
     );
 
     let metadata = cargo_metadata::MetadataCommand::new()
@@ -36,8 +43,8 @@ pub fn get_es_fluent_dep(manifest_path: &Path, feature: &str) -> String {
             .map(|es_fluent_pkg| {
                 let es_fluent_path = es_fluent_pkg.manifest_path.parent().unwrap();
                 format!(
-                    r#"es-fluent = {{ path = "{}", features = ["{}"] }}"#,
-                    es_fluent_path, feature
+                    r#"es-fluent = {{ path = "{}", features = [{}] }}"#,
+                    es_fluent_path, features_str
                 )
             })
             .unwrap_or(crates_io_dep)
@@ -70,53 +77,106 @@ pub fn create_temp_dir(krate: &CrateInfo) -> Result<PathBuf> {
     Ok(temp_dir)
 }
 
+use crate::generation::{CargoTomlTemplate, CheckRsTemplate, MainRsTemplate};
+
+/// Prepare the temporary crate with both generate and check binaries.
+pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
+    let temp_dir = create_temp_dir(krate)?;
+
+    let crate_ident = krate.name.replace('-', "_");
+    let manifest_path = krate.manifest_dir.join("Cargo.toml");
+    // Enable both generate and cli features
+    let es_fluent_dep = get_es_fluent_dep(&manifest_path, &["generate", "cli"]);
+
+    let cargo_toml = CargoTomlTemplate {
+        crate_name: "es-fluent-temp", // Use a generic name
+        parent_crate_name: &krate.name,
+        es_fluent_dep: &es_fluent_dep,
+        has_fluent_features: !krate.fluent_features.is_empty(),
+        fluent_features: &krate.fluent_features,
+    };
+    write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
+
+    // Write generate binary
+    let i18n_toml_path_str = krate.i18n_config_path.display().to_string();
+    let main_rs = MainRsTemplate {
+        crate_ident: &crate_ident,
+        i18n_toml_path: &i18n_toml_path_str,
+        crate_name: &krate.name,
+    };
+    write_bin_rs(&temp_dir, "generate.rs", &main_rs.render().unwrap())?;
+
+    // Write check binary
+    let check_rs = CheckRsTemplate {
+        crate_ident: &crate_ident,
+        crate_name: &krate.name,
+    };
+    write_bin_rs(&temp_dir, "check.rs", &check_rs.render().unwrap())?;
+
+    Ok(temp_dir)
+}
+
+/// Write a binary source file to the temporary crate.
+fn write_bin_rs(temp_dir: &Path, filename: &str, content: &str) -> Result<()> {
+    fs::write(temp_dir.join("src").join(filename), content)
+        .with_context(|| format!("Failed to write .es-fluent/src/{}", filename))
+}
+
 /// Write the Cargo.toml for a temporary crate.
 pub fn write_cargo_toml(temp_dir: &Path, cargo_toml_content: &str) -> Result<()> {
     fs::write(temp_dir.join("Cargo.toml"), cargo_toml_content)
         .context("Failed to write .es-fluent/Cargo.toml")
 }
 
-/// Write the main.rs for a temporary crate.
-pub fn write_main_rs(temp_dir: &Path, main_rs_content: &str) -> Result<()> {
-    fs::write(temp_dir.join("src").join("main.rs"), main_rs_content)
-        .context("Failed to write .es-fluent/src/main.rs")
-}
-
 /// Run `cargo run` on a temporary crate.
 ///
 /// Returns Ok(()) if cargo succeeds, or an error if it fails.
-pub fn run_cargo(temp_dir: &Path) -> Result<()> {
-    use std::process::Stdio;
-
+pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Result<()> {
     let manifest_path = temp_dir.join("Cargo.toml");
 
-    let status = Command::new("cargo")
-        .arg("run")
-        .arg("--manifest-path")
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run");
+    if let Some(bin) = bin_name {
+        cmd.arg("--bin").arg(bin);
+    }
+    cmd.arg("--manifest-path")
         .arg(&manifest_path)
         .arg("--quiet")
-        .stderr(Stdio::null())
-        .env("RUSTFLAGS", "-A warnings")
-        .status()
+        .arg("--")
+        .args(args)
+        .env("RUSTFLAGS", "-A warnings");
+
+    let output = cmd
+        .output()
         .context("Failed to run cargo")?;
 
-    anyhow::ensure!(status.success(), "Cargo build failed");
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Cargo run failed: {}", stderr)
+    }
     Ok(())
 }
 
 /// Run `cargo run` on a temporary crate and capture output.
 ///
 /// Returns the command output if successful, or an error with stderr if it fails.
-pub fn run_cargo_with_output(temp_dir: &Path) -> Result<std::process::Output> {
+pub fn run_cargo_with_output(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Result<std::process::Output> {
     let manifest_path = temp_dir.join("Cargo.toml");
 
-    let output = Command::new("cargo")
-        .arg("run")
-        .arg("--manifest-path")
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run");
+    if let Some(bin) = bin_name {
+        cmd.arg("--bin").arg(bin);
+    }
+    cmd.arg("--manifest-path")
         .arg(&manifest_path)
         .arg("--quiet")
+        .arg("--") // Add -- to pass args to the binary
+        .args(args)
         .current_dir(temp_dir)
-        .env("RUSTFLAGS", "-A warnings")
+        .env("RUSTFLAGS", "-A warnings");
+
+    let output = cmd
         .output()
         .context("Failed to run cargo")?;
 
@@ -124,7 +184,7 @@ pub fn run_cargo_with_output(temp_dir: &Path) -> Result<std::process::Output> {
         Ok(output)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("Cargo build failed: {}", stderr)
+        bail!("Cargo run failed: {}", stderr)
     }
 }
 
@@ -139,13 +199,13 @@ mod tests {
 
     #[test]
     fn test_get_es_fluent_dep_nonexistent_manifest() {
-        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"), "generate");
+        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"), &["generate"]);
         assert_eq!(result, CRATES_IO_DEP_GENERATE);
     }
 
     #[test]
     fn test_get_es_fluent_dep_cli_feature() {
-        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"), "cli");
+        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"), &["cli"]);
         assert_eq!(result, CRATES_IO_DEP_CLI);
     }
 
@@ -170,7 +230,7 @@ es-fluent = { version = "*", features = ["generate"] }
         fs::create_dir_all(&src_dir).unwrap();
         fs::write(src_dir.join("lib.rs"), "").unwrap();
 
-        let result = get_es_fluent_dep(&manifest_path, "generate");
+        let result = get_es_fluent_dep(&manifest_path, &["generate"]);
         assert_eq!(result, CRATES_IO_DEP_GENERATE);
     }
 }

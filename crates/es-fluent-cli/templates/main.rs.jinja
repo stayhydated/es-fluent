@@ -14,9 +14,9 @@ fn main() {
 
     EsFluentGenerator::builder()
         .output_path(output_path)
-        .mode({{ parse_mode }})
+        .assets_dir(assets_dir)
         .crate_name("{{ crate_name }}")
         .build()
-        .generate()
-        .expect("Failed to generate FTL files");
+        .run_cli()
+        .expect("Failed to run generator");
 }

@@ -3825,6 +3825,7 @@ dependencies = [
  "bon",
  "cargo_metadata",
  "chrono",
+ "clap",
  "es-fluent-core",
  "es-fluent-derive",
  "es-fluent-generate",

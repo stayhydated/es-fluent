@@ -1,4 +1,4 @@
-use crate::core::{CliError, CrateInfo, FluentParseMode, GenerateResult};
+use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction};
 use crate::generation::generate_for_crate;
 use crate::utils::{
     count_ftl_resources, discover_crates, filter_crates_by_package, partition_by_lib_rs, ui,
@@ -87,12 +87,12 @@ impl WorkspaceCrates {
 ///
 /// This mirrors the pattern used by both `generate` and `clean` commands, where
 /// each crate is processed concurrently and the results are aggregated.
-pub fn parallel_generate(crates: &[CrateInfo], mode: &FluentParseMode) -> Vec<GenerateResult> {
+pub fn parallel_generate(crates: &[CrateInfo], action: &GenerationAction) -> Vec<GenerateResult> {
     crates
         .par_iter()
         .map(|krate| {
             let start = Instant::now();
-            let result = generate_for_crate(krate, mode);
+            let result = generate_for_crate(krate, action);
             let duration = start.elapsed();
             let resource_count = result
                 .as_ref()
