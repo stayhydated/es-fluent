@@ -1,271 +1,146 @@
-//! CLI output formatting with consistent styling.
-//!
-//! This module provides a `Status` enum for consistent, styled CLI output.
+// CLI output formatting with consistent styling using indicatif and colored.
+// We stick to standard println!/eprintln! for textual output to ensure ANSI color compatibility.
 
 use crate::core::CrateInfo;
-use colored::{ColoredString, Colorize as _};
-use std::fmt;
 use std::path::Path;
 use std::time::Duration;
+use indicatif::{ProgressBar, ProgressStyle};
+use colored::Colorize;
 
-const PREFIX: &str = "[es-fluent]";
-
-/// Status level for CLI output messages.
-#[derive(Clone, Copy)]
-pub enum Status {
-    Info,
-    Success,
-    Warning,
-    Error,
+pub fn init_logging() {
+    // No-op: we rely on standard output for CLI presentation.
+    // Kept to avoid breaking main.rs calls.
 }
 
-impl Status {
-    /// Returns the colored prefix for this status level.
-    fn prefix(self) -> ColoredString {
-        match self {
-            Status::Info => PREFIX.cyan().bold(),
-            Status::Success => PREFIX.green().bold(),
-            Status::Warning => PREFIX.yellow().bold(),
-            Status::Error => PREFIX.red().bold(),
-        }
-    }
-
-    /// Print a message with this status level.
-    pub fn print(self, message: impl fmt::Display) {
-        println!("{} {}", self.prefix(), message);
-    }
-
-    /// Print a message to stderr with this status level.
-    pub fn eprint(self, message: impl fmt::Display) {
-        eprintln!("{} {}", self.prefix(), message);
-    }
+pub fn create_spinner(msg: &str) -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap()
+            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+    );
+    pb.set_message(msg.to_string());
+    pb
 }
 
-/// CLI action type for unified output formatting.
-///
-/// This enum provides a consistent way to print action status messages
-/// across different commands with similar patterns.
-#[derive(Clone, Copy, Debug)]
-pub enum Action {
-    Generate,
-    Clean,
-    Check,
-    Sync,
-    Format,
+pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
+    let pb = ProgressBar::new(len);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} {msg} [{bar:40.cyan/blue}] {pos}/{len}")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+    pb.set_message(msg.to_string());
+    pb
 }
 
-impl Action {
-    /// Returns the action verb for "starting" messages.
-    fn verb_start(self) -> &'static str {
-        match self {
-            Action::Generate => "Generating FTL for",
-            Action::Clean => "Cleaning FTL for",
-            Action::Check => "Checking",
-            Action::Sync => "Syncing",
-            Action::Format => "Formatting",
-        }
-    }
-
-    /// Returns the action verb for "completed" messages.
-    fn verb_done(self) -> &'static str {
-        match self {
-            Action::Generate => "generated in",
-            Action::Clean => "cleaned in",
-            Action::Check => "checked in",
-            Action::Sync => "synced in",
-            Action::Format => "formatted in",
-        }
-    }
-
-    /// Returns the action verb for "failed" messages.
-    fn verb_failed(self) -> &'static str {
-        match self {
-            Action::Generate | Action::Clean => "Generation failed for",
-            Action::Check => "Check failed for",
-            Action::Sync => "Sync failed for",
-            Action::Format => "Format failed for",
-        }
-    }
-
-    /// Print a "starting action" message.
-    pub fn print_start(self, crate_name: &str) {
-        Status::Info.print(format!(
-            "{} {}",
-            self.verb_start().dimmed(),
-            crate_name.green()
-        ));
-    }
-
-    /// Print a "completed action" message with duration and resource count.
-    pub fn print_done(self, crate_name: &str, duration: Duration, resource_count: usize) {
-        Status::Info.print(format!(
-            "{} {} ({} resources)",
-            format!("{} {}", crate_name, self.verb_done()).dimmed(),
-            humantime::format_duration(duration).to_string().green(),
-            resource_count.to_string().cyan()
-        ));
-    }
-
-    /// Print an "action failed" error message.
-    pub fn print_error(self, crate_name: &str, error: &str) {
-        Status::Error.eprint(format!(
-            "{} {}: {}",
-            self.verb_failed().red(),
-            crate_name.white().bold(),
-            error
-        ));
-    }
-}
+// Deprecated/Legacy output helpers - redirected to println/eprintln to preserve formatting
+// Tracing proved problematic for raw ANSI passthrough in some environments or configs.
 
 pub fn print_header() {
-    Status::Info.print("Fluent FTL Generator".dimmed());
+    println!("{}", "Fluent FTL Generator".dimmed());
 }
 
 pub fn print_discovered(crates: &[CrateInfo]) {
     if crates.is_empty() {
-        Status::Error.print("No crates with i18n.toml found.".red());
+        eprintln!("{}", "No crates with i18n.toml found.".red());
     } else {
-        Status::Info.print(format!(
-            "{} {}",
-            "Discovered".dimmed(),
-            format!("{} crate(s)", crates.len()).green()
-        ));
+        println!("{} {}", "Discovered".dimmed(), format!("{} crate(s)", crates.len()).green());
     }
 }
 
 pub fn print_missing_lib_rs(crate_name: &str) {
-    Status::Warning.print(format!(
-        "{} {}",
-        "Skipping".dimmed(),
-        format!("{} (missing lib.rs)", crate_name).yellow()
-    ));
+    println!("{} {}", "Skipping".dimmed(), format!("{} (missing lib.rs)", crate_name).yellow());
 }
 
+// Action-specific printers
+
 pub fn print_generating(crate_name: &str) {
-    Status::Info.print(format!(
-        "{} {}",
-        "Generating FTL for".dimmed(),
-        crate_name.green()
-    ));
+    println!("{} {}", "Generating FTL for".dimmed(), crate_name.green());
 }
 
 pub fn print_generated(crate_name: &str, duration: Duration, resource_count: usize) {
-    Status::Info.print(format!(
+    println!(
         "{} {} ({} resources)",
         format!("{} generated in", crate_name).dimmed(),
         humantime::format_duration(duration).to_string().green(),
         resource_count.to_string().cyan()
-    ));
+    );
 }
 
 pub fn print_cleaning(crate_name: &str) {
-    Status::Info.print(format!(
-        "{} {}",
-        "Cleaning FTL for".dimmed(),
-        crate_name.green()
-    ));
+    println!("{} {}", "Cleaning FTL for".dimmed(), crate_name.green());
 }
 
 pub fn print_cleaned(crate_name: &str, duration: Duration, resource_count: usize) {
-    Status::Info.print(format!(
+    println!(
         "{} {} ({} resources)",
         format!("{} cleaned in", crate_name).dimmed(),
         humantime::format_duration(duration).to_string().green(),
         resource_count.to_string().cyan()
-    ));
+    );
 }
 
 pub fn print_generation_error(crate_name: &str, error: &str) {
-    Status::Error.eprint(format!(
-        "{} {}: {}",
-        "Generation failed for".red(),
-        crate_name.white().bold(),
-        error
-    ));
+    eprintln!("{} {}: {}", "Generation failed for".red(), crate_name.white().bold(), error);
 }
 
 pub fn print_package_not_found(package: &str) {
-    Status::Warning.print(format!(
-        "{} '{}'",
-        "No crate found matching package filter:".yellow(),
-        package.white().bold()
-    ));
+    println!("{} '{}'", "No crate found matching package filter:".yellow(), package.white().bold());
 }
 
 pub fn print_check_header() {
-    Status::Info.print("Fluent FTL Checker".dimmed());
+    println!("{}", "Fluent FTL Checker".dimmed());
 }
 
 pub fn print_checking(crate_name: &str) {
-    Status::Info.print(format!("{} {}", "Checking".dimmed(), crate_name.green()));
+    println!("{} {}", "Checking".dimmed(), crate_name.green());
 }
 
 pub fn print_check_error(crate_name: &str, error: &str) {
-    Status::Error.eprint(format!(
-        "{} {}: {}",
-        "Check failed for".red(),
-        crate_name.white().bold(),
-        error
-    ));
+    eprintln!("{} {}: {}", "Check failed for".red(), crate_name.white().bold(), error);
 }
 
 pub fn print_check_success() {
-    Status::Success.print("No issues found!".green());
+    println!("{}", "No issues found!".green());
 }
 
 pub fn print_format_header() {
-    Status::Info.print("Fluent FTL Formatter".dimmed());
+    println!("{}", "Fluent FTL Formatter".dimmed());
 }
 
 pub fn print_would_format(path: &Path) {
-    Status::Warning.print(format!("{} {}", "Would format:".yellow(), path.display()));
+    println!("{} {}", "Would format:".yellow(), path.display());
 }
 
 pub fn print_formatted(path: &Path) {
-    Status::Success.print(format!("{} {}", "Formatted:".green(), path.display()));
+    println!("{} {}", "Formatted:".green(), path.display());
 }
 
 pub fn print_format_dry_run_summary(count: usize) {
-    Status::Warning.print(format!(
-        "{} {} file(s) would be formatted",
-        "Dry run:".yellow(),
-        count
-    ));
+    println!("{} {} file(s) would be formatted", "Dry run:".yellow(), count);
 }
 
 pub fn print_format_summary(formatted: usize, unchanged: usize) {
-    Status::Success.print(format!(
-        "{} {} formatted, {} unchanged",
-        "Done:".green(),
-        formatted,
-        unchanged
-    ));
+    println!("{} {} formatted, {} unchanged", "Done:".green(), formatted, unchanged);
 }
 
 pub fn print_sync_header() {
-    Status::Info.print("Fluent FTL Sync".dimmed());
+    println!("{}", "Fluent FTL Sync".dimmed());
 }
 
 pub fn print_syncing(crate_name: &str) {
-    Status::Info.print(format!("{} {}", "Syncing".dimmed(), crate_name.green()));
+    println!("{} {}", "Syncing".dimmed(), crate_name.green());
 }
 
 pub fn print_would_add_keys(count: usize, locale: &str) {
-    Status::Warning.print(format!(
-        "{} {} key(s) to {}",
-        "Would add".yellow(),
-        count,
-        locale.cyan()
-    ));
+    println!("{} {} key(s) to {}", "Would add".yellow(), count, locale.cyan());
 }
 
 pub fn print_added_keys(count: usize, locale: &str) {
-    Status::Success.print(format!(
-        "{} {} key(s) to {}",
-        "Added".green(),
-        count,
-        locale.cyan()
-    ));
+    println!("{} {} key(s) to {}", "Added".green(), count, locale.cyan());
 }
 
 pub fn print_synced_key(key: &str) {
@@ -273,33 +148,23 @@ pub fn print_synced_key(key: &str) {
 }
 
 pub fn print_all_in_sync() {
-    Status::Success.print("All locales are in sync!".green());
+    println!("{}", "All locales are in sync!".green());
 }
 
 pub fn print_sync_dry_run_summary(keys: usize, locales: usize) {
-    Status::Warning.print(format!(
-        "{} {} key(s) across {} locale(s)",
-        "Would sync".yellow(),
-        keys,
-        locales
-    ));
+    println!("{} {} key(s) across {} locale(s)", "Would sync".yellow(), keys, locales);
 }
 
 pub fn print_sync_summary(keys: usize, locales: usize) {
-    Status::Success.print(format!(
-        "{} {} key(s) synced to {} locale(s)",
-        "Done:".green(),
-        keys,
-        locales
-    ));
+    println!("{} {} key(s) synced to {} locale(s)", "Done:".green(), keys, locales);
 }
 
 pub fn print_no_locales_specified() {
-    Status::Warning.print("No locales specified. Use --locale <LOCALE> or --all".yellow());
+    println!("{}", "No locales specified. Use --locale <LOCALE> or --all".yellow());
 }
 
 pub fn print_no_crates_found() {
-    Status::Error.print("No crates with i18n.toml found.".red());
+    eprintln!("{}", "No crates with i18n.toml found.".red());
 }
 
 pub fn print_locale_not_found(locale: &str, available: &[String]) {
@@ -308,10 +173,10 @@ pub fn print_locale_not_found(locale: &str, available: &[String]) {
     } else {
         available.join(", ")
     };
-    Status::Error.eprint(format!(
+    eprintln!(
         "{} '{}'. Available locales: {}",
         "Locale not found:".red(),
         locale.white().bold(),
         available_str.cyan()
-    ));
+    );
 }

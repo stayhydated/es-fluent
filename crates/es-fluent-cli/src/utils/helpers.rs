@@ -3,7 +3,7 @@
 use crate::core::CrateInfo;
 use crate::utils::ui;
 use anyhow::{Context as _, Result};
-use std::fs;
+use glob;
 use std::path::Path;
 
 /// Filter crates by package name if specified.
@@ -43,12 +43,21 @@ pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
         return Ok(locales);
     }
 
-    for entry in fs::read_dir(assets_dir).context("Failed to read assets directory")? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir()
-            && let Some(name) = entry.file_name().to_str()
-        {
-            locales.push(name.to_string());
+    let pattern = assets_dir.join("*");
+    let pattern_str = pattern.to_str().context("Invalid path for glob pattern")?;
+
+    for entry in glob::glob(pattern_str).context("Failed to read glob pattern")? {
+        match entry {
+            Ok(path) => {
+                if path.is_dir() {
+                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                        locales.push(name.to_string());
+                    }
+                }
+            },
+            Err(e) => {
+                panic!("Glob error: {}", e);
+            },
         }
     }
 
@@ -59,6 +68,7 @@ pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
     use std::path::PathBuf;
 
     fn make_crate_info(name: &str, has_lib_rs: bool) -> CrateInfo {

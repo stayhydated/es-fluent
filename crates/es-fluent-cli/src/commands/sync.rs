@@ -88,8 +88,10 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let mut total_locales_affected = 0;
     let mut all_synced_keys: Vec<SyncMissingKey> = Vec::new();
 
+    let pb = ui::create_progress_bar(crates.len() as u64, "Syncing crates...");
+
     for krate in &crates {
-        ui::print_syncing(&krate.name);
+        pb.set_message(format!("Syncing {}", krate.name));
 
         let results = sync_crate(krate, target_locales.as_ref(), args.dry_run)?;
 
@@ -98,23 +100,27 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
                 total_locales_affected += 1;
                 total_keys_added += result.keys_added;
 
-                if args.dry_run {
-                    ui::print_would_add_keys(result.keys_added, &result.locale);
-                } else {
-                    ui::print_added_keys(result.keys_added, &result.locale);
-                }
+                pb.suspend(|| {
+                    if args.dry_run {
+                        ui::print_would_add_keys(result.keys_added, &result.locale);
+                    } else {
+                        ui::print_added_keys(result.keys_added, &result.locale);
+                    }
 
-                for key in &result.added_keys {
-                    ui::print_synced_key(key);
-                    all_synced_keys.push(SyncMissingKey {
-                        key: key.clone(),
-                        target_locale: result.locale.clone(),
-                        source_locale: "fallback".to_string(),
-                    });
-                }
+                    for key in &result.added_keys {
+                        ui::print_synced_key(key);
+                        all_synced_keys.push(SyncMissingKey {
+                            key: key.clone(),
+                            target_locale: result.locale.clone(),
+                            source_locale: "fallback".to_string(),
+                        });
+                    }
+                });
             }
         }
+        pb.inc(1);
     }
+    pb.finish_and_clear();
 
     if total_keys_added == 0 {
         ui::print_all_in_sync();

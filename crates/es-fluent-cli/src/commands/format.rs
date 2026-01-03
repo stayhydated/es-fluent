@@ -53,7 +53,10 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let mut total_unchanged = 0;
     let mut errors: Vec<FormatError> = Vec::new();
 
+    let pb = ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...");
+
     for krate in &workspace.crates {
+        pb.set_message(format!("Formatting {}", krate.name));
         let results = format_crate(krate, args.all, args.dry_run)?;
 
         for result in results {
@@ -64,16 +67,20 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
                 });
             } else if result.changed {
                 total_formatted += 1;
-                if args.dry_run {
-                    ui::print_would_format(&result.path);
-                } else {
-                    ui::print_formatted(&result.path);
-                }
+                pb.suspend(|| {
+                    if args.dry_run {
+                        ui::print_would_format(&result.path);
+                    } else {
+                        ui::print_formatted(&result.path);
+                    }
+                });
             } else {
                 total_unchanged += 1;
             }
         }
+        pb.inc(1);
     }
+    pb.finish_and_clear();
 
     if errors.is_empty() {
         if args.dry_run && total_formatted > 0 {

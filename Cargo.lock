@@ -2850,6 +2850,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "console"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03e45a4a8926227e4197636ba97a9fc9b00477e9f4bd711395687c5f0734bec4"
+dependencies = [
+ "encode_unicode",
+ "libc",
+ "once_cell",
+ "unicode-width 0.2.0",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "console_error_panic_hook"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3843,12 +3856,15 @@ dependencies = [
  "es-fluent-generate",
  "es-fluent-toml",
  "fluent-syntax",
+ "glob",
  "humantime",
+ "indicatif",
  "miette",
  "notify 8.2.0",
  "notify-debouncer-full 0.6.0",
  "ratatui",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
@@ -3868,7 +3884,6 @@ dependencies = [
  "heck 0.5.0",
  "insta",
  "inventory",
- "log",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
@@ -5456,6 +5471,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "indicatif"
+version = "0.18.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9375e112e4b463ec1b1c6c011953545c65a30164fbab5b581df32b3abf0dcb88"
+dependencies = [
+ "console 0.16.2",
+ "portable-atomic",
+ "unicode-width 0.2.0",
+ "unit-prefix",
+ "web-time",
+]
+
+[[package]]
 name = "indoc"
 version = "2.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5517,7 +5545,7 @@ version = "1.44.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfd3461e1f00283105bdf97c3a1aca2b3f8456eb809a96938d2b190cd4dbc6d2"
 dependencies = [
- "console",
+ "console 0.15.11",
  "once_cell",
  "similar",
 ]
@@ -10063,6 +10091,12 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
+
+[[package]]
+name = "unit-prefix"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81e544489bf3d8ef66c953931f56617f423cd4b5494be343d9b9d3dda037b9a3"
 
 [[package]]
 name = "unsafe-libyaml"

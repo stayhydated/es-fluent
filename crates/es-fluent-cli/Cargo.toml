@@ -24,12 +24,15 @@ crossterm = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
+glob = { workspace = true }
 humantime = { workspace = true }
+indicatif = { workspace = true }
 miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
 notify-debouncer-full = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
 rayon = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -50,6 +50,9 @@ fn main() -> MietteResult<()> {
     .ok();
 
     let cli = Cli::parse();
+    
+    // Initialize logging
+    es_fluent_cli::utils::ui::init_logging();
 
     let result = match cli.command {
         Commands::Generate(args) => run_generate(args),

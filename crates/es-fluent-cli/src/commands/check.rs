@@ -67,16 +67,27 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
+    let pb = ui::create_progress_bar(workspace.valid.len() as u64, "Checking crates...");
+
     for krate in &workspace.valid {
-        ui::print_checking(&krate.name);
+        pb.set_message(format!("Checking {}", krate.name));
+        // ui::print_checking(&krate.name); // Using progress bar instead
 
         match check_crate(krate, args.all) {
-            Ok(issues) => all_issues.extend(issues),
+            Ok(issues) => {
+                all_issues.extend(issues);
+            },
             Err(e) => {
-                ui::print_check_error(&krate.name, &e.to_string());
+                // If error, print above progress bar
+                pb.suspend(|| {
+                     ui::print_check_error(&krate.name, &e.to_string());
+                });
             },
         }
+        pb.inc(1);
     }
+    
+    pb.finish_and_clear();
 
     let error_count = all_issues
         .iter()
@@ -340,24 +351,13 @@ fn parser_error_to_issue(
 /// Try to extract a message key from junk content.
 /// Junk typically starts with the message identifier like "message-key = ..."
 fn extract_key_from_junk(junk: &str) -> Option<String> {
-    let trimmed = junk.trim_start();
+    use regex::Regex;
+    use std::sync::OnceLock;
 
-    // Skip comments
-    if trimmed.starts_with('#') {
-        return None;
-    }
+    static KEY_REGEX: OnceLock<Regex> = OnceLock::new();
+    let re = KEY_REGEX.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+").unwrap());
 
-    // Find the identifier (sequence of valid FTL identifier chars before '=' or whitespace)
-    let mut key = String::new();
-    for ch in trimmed.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-            key.push(ch);
-        } else {
-            break;
-        }
-    }
-
-    if key.is_empty() { None } else { Some(key) }
+    re.find(junk.trim_start()).map(|m| m.as_str().to_string())
 }
 
 // extract_variables_* functions moved to crate::ftl module
