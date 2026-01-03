@@ -32,6 +32,7 @@ rust-version = "1.88"
 version = "0.4.3"
 
 [workspace.dependencies]
+throbber-widgets-tui = "0.10.0"
 anyhow = "1.0.98"
 askama = "0.15.0"
 bevy = "0.17.0"

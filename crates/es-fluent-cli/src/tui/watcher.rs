@@ -4,12 +4,13 @@ use crate::tui::{self, TuiApp};
 use crate::utils::count_ftl_resources;
 use anyhow::{Context as _, Result};
 use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
-use rayon::prelude::*;
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash as _, Hasher as _};
 use std::path::Path;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
 use std::time::{Duration, Instant};
 
 /// Compute a hash of all .rs files in the src directory.
@@ -34,6 +35,32 @@ fn compute_src_hash(src_dir: &Path) -> u64 {
     }
 
     hasher.finish()
+}
+
+/// Spawn a thread to generate for a single crate.
+fn spawn_generation(
+    krate: CrateInfo,
+    mode: FluentParseMode,
+    result_tx: Sender<GenerateResult>,
+) {
+    thread::spawn(move || {
+        let start = Instant::now();
+        let result = generate_for_crate(&krate, &mode);
+        let duration = start.elapsed();
+        let resource_count = result
+            .as_ref()
+            .ok()
+            .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
+            .unwrap_or(0);
+
+        let gen_result = match result {
+            Ok(()) => GenerateResult::success(krate.name.clone(), duration, resource_count),
+            Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
+        };
+
+        // Ignore send error - receiver may have been dropped if user quit
+        let _ = result_tx.send(gen_result);
+    });
 }
 
 /// Watch for changes and regenerate FTL files for all discovered crates.
@@ -70,57 +97,29 @@ fn run_watch_loop(
         path_to_crate.insert(krate.src_dir.clone(), krate.name.clone());
     }
 
+    // Channel for receiving generation results from background threads
+    let (result_tx, result_rx): (Sender<GenerateResult>, Receiver<GenerateResult>) =
+        mpsc::channel();
+
+    // Track how many crates are currently being generated
+    let mut pending_count: usize = 0;
+
     terminal.draw(|f| tui::draw(f, &app))?;
 
+    // Spawn initial generation for all valid crates
     if !valid_crates.is_empty() {
         for krate in &valid_crates {
             app.set_state(&krate.name, CrateState::Generating);
+            spawn_generation((*krate).clone(), mode.clone(), result_tx.clone());
+            pending_count += 1;
         }
-        terminal.draw(|f| tui::draw(f, &app))?;
-
-        let results: Vec<GenerateResult> = valid_crates
-            .par_iter()
-            .map(|krate| {
-                let start = Instant::now();
-                let result = generate_for_crate(krate, mode);
-                let duration = start.elapsed();
-                let resource_count = result
-                    .as_ref()
-                    .ok()
-                    .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
-                    .unwrap_or(0);
-
-                match result {
-                    Ok(()) => GenerateResult::success(krate.name.clone(), duration, resource_count),
-                    Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
-                }
-            })
-            .collect();
-
-        for result in &results {
-            if let Some(ref error) = result.error {
-                app.set_state(
-                    &result.name,
-                    CrateState::Error {
-                        message: error.clone(),
-                    },
-                );
-            } else {
-                app.set_state(
-                    &result.name,
-                    CrateState::Watching {
-                        resource_count: result.resource_count,
-                    },
-                );
-            }
-        }
-
         terminal.draw(|f| tui::draw(f, &app))?;
     }
 
-    let (tx, rx) = std::sync::mpsc::channel();
+    // Set up file watcher
+    let (file_tx, file_rx) = mpsc::channel();
     let mut debouncer =
-        new_debouncer(Duration::from_millis(300), tx).context("Failed to create file watcher")?;
+        new_debouncer(Duration::from_millis(300), file_tx).context("Failed to create file watcher")?;
 
     for krate in &valid_crates {
         debouncer
@@ -136,13 +135,45 @@ fn run_watch_loop(
         }
     }
 
+    // Main event loop with animation
     while !app.should_quit {
-        if tui::poll_quit_event(Duration::from_millis(50))? {
+        // Advance throbber animation on each loop iteration
+        app.tick();
+
+        // Check for quit events (short timeout)
+        if tui::poll_quit_event(Duration::from_millis(16))? {
             app.should_quit = true;
             break;
         }
 
-        match rx.recv_timeout(Duration::from_millis(50)) {
+        // Check for generation results (non-blocking)
+        while let Ok(result) = result_rx.try_recv() {
+            pending_count = pending_count.saturating_sub(1);
+
+            if let Some(ref error) = result.error {
+                app.set_state(
+                    &result.name,
+                    CrateState::Error {
+                        message: error.clone(),
+                    },
+                );
+            } else {
+                app.set_state(
+                    &result.name,
+                    CrateState::Watching {
+                        resource_count: result.resource_count,
+                    },
+                );
+            }
+
+            // Update hash after successful generation
+            if let Some(krate) = valid_crates.iter().find(|k| k.name == result.name) {
+                src_hashes.insert(result.name.clone(), compute_src_hash(&krate.src_dir));
+            }
+        }
+
+        // Check for file change events (short timeout)
+        match file_rx.recv_timeout(Duration::from_millis(16)) {
             Ok(Ok(events)) => {
                 let mut affected_crate_names: HashMap<String, Vec<String>> = HashMap::new();
 
@@ -178,89 +209,37 @@ fn run_watch_loop(
                     }
                 }
 
-                let mut crates_to_rebuild: Vec<&CrateInfo> = Vec::new();
+                // Spawn rebuilds for affected crates with changed content
                 for crate_name in affected_crate_names.keys() {
                     if let Some(krate) = valid_crates.iter().find(|k| &k.name == crate_name) {
+                        // Skip if already generating
+                        if matches!(app.states.get(crate_name), Some(CrateState::Generating)) {
+                            continue;
+                        }
+
                         let new_hash = compute_src_hash(&krate.src_dir);
                         let old_hash = src_hashes.get(crate_name).copied().unwrap_or(0);
                         if new_hash != old_hash {
-                            crates_to_rebuild.push(krate);
+                            app.set_state(&krate.name, CrateState::Generating);
+                            spawn_generation((*krate).clone(), mode.clone(), result_tx.clone());
+                            pending_count += 1;
                         }
                     }
-                }
-
-                if !crates_to_rebuild.is_empty() {
-                    for krate in &crates_to_rebuild {
-                        app.set_state(&krate.name, CrateState::Generating);
-                    }
-                    terminal.draw(|f| tui::draw(f, &app))?;
-
-                    let results: Vec<GenerateResult> = crates_to_rebuild
-                        .par_iter()
-                        .map(|krate| {
-                            let start = Instant::now();
-                            let result = generate_for_crate(krate, mode);
-                            let duration = start.elapsed();
-                            let resource_count = result
-                                .as_ref()
-                                .ok()
-                                .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
-                                .unwrap_or(0);
-
-                            match result {
-                                Ok(()) => GenerateResult::success(
-                                    krate.name.clone(),
-                                    duration,
-                                    resource_count,
-                                ),
-                                Err(e) => GenerateResult::failure(
-                                    krate.name.clone(),
-                                    duration,
-                                    e.to_string(),
-                                ),
-                            }
-                        })
-                        .collect();
-
-                    for result in &results {
-                        if let Some(ref error) = result.error {
-                            app.set_state(
-                                &result.name,
-                                CrateState::Error {
-                                    message: error.clone(),
-                                },
-                            );
-                        } else {
-                            app.set_state(
-                                &result.name,
-                                CrateState::Watching {
-                                    resource_count: result.resource_count,
-                                },
-                            );
-                        }
-
-                        if let Some(krate) =
-                            crates_to_rebuild.iter().find(|k| k.name == result.name)
-                        {
-                            src_hashes
-                                .insert(result.name.clone(), compute_src_hash(&krate.src_dir));
-                        }
-                    }
-
-                    terminal.draw(|f| tui::draw(f, &app))?;
                 }
             },
             Ok(Err(e)) => {
                 eprintln!("Watch error: {:?}", e);
             },
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                // Normal timeout, just redraw
-                terminal.draw(|f| tui::draw(f, &app))?;
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                // Normal timeout, continue animation loop
             },
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
                 break;
             },
         }
+
+        // Redraw the UI
+        terminal.draw(|f| tui::draw(f, &app))?;
     }
 
     Ok(())

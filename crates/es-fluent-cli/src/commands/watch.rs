@@ -25,5 +25,5 @@ pub fn run_watch(args: WatchArgs) -> Result<(), CliError> {
         return Ok(());
     }
 
-    watch_all(&workspace.valid, &args.mode).map_err(CliError::from)
+    watch_all(&workspace.crates, &args.mode).map_err(CliError::from)
 }

@@ -14,7 +14,10 @@ use ratatui::{
 };
 use std::collections::HashMap;
 use std::io::{self, Stdout};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use throbber_widgets_tui::{BRAILLE_SIX, ThrobberState};
+
+const DEFAULT_TICK_INTERVAL_MS: u64 = 100;
 
 /// The TUI application state.
 pub struct TuiApp<'a> {
@@ -24,6 +27,12 @@ pub struct TuiApp<'a> {
     pub states: HashMap<String, CrateState>,
     /// Whether the app should quit.
     pub should_quit: bool,
+    /// Throbber state for the "generating" animation.
+    pub throbber_state: ThrobberState,
+    /// How often to advance the animation.
+    pub tick_interval: Duration,
+    /// Last time the animation was advanced.
+    last_tick: Instant,
 }
 
 impl<'a> TuiApp<'a> {
@@ -42,12 +51,23 @@ impl<'a> TuiApp<'a> {
             crates,
             states,
             should_quit: false,
+            throbber_state: ThrobberState::default(),
+            tick_interval: Duration::from_millis(DEFAULT_TICK_INTERVAL_MS),
+            last_tick: Instant::now(),
         }
     }
 
     /// Updates the state of a crate.
     pub fn set_state(&mut self, crate_name: &str, state: CrateState) {
         self.states.insert(crate_name.to_string(), state);
+    }
+
+    /// Advance the throbber animation if enough time has passed.
+    pub fn tick(&mut self) {
+        if self.last_tick.elapsed() >= self.tick_interval {
+            self.throbber_state.calc_next();
+            self.last_tick = Instant::now();
+        }
     }
 }
 
@@ -66,6 +86,13 @@ pub fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> io
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     Ok(())
+}
+
+/// Get the current throbber symbol based on state.
+fn get_throbber_symbol(state: &ThrobberState) -> &'static str {
+    let symbols = BRAILLE_SIX.symbols;
+    let idx = state.index().rem_euclid(symbols.len() as i8) as usize;
+    symbols[idx]
 }
 
 /// Draws the TUI.
@@ -87,6 +114,8 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         .block(Block::default().borders(Borders::BOTTOM));
     frame.render_widget(header, chunks[0]);
 
+    let throbber_symbol = get_throbber_symbol(&app.throbber_state);
+
     let items: Vec<ListItem> = app
         .crates
         .iter()
@@ -94,12 +123,12 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
             let state = app.states.get(&krate.name);
             let (symbol, status_text, status_color) = match state {
                 Some(CrateState::MissingLibRs) => ("!", "missing lib.rs", Color::Red),
-                Some(CrateState::Generating) => ("*", "generating...", Color::Yellow),
+                Some(CrateState::Generating) => (throbber_symbol, "generating...", Color::Yellow),
                 Some(CrateState::Watching { resource_count }) => {
                     let text = format!("watching ({} resources)", resource_count);
                     return ListItem::new(Line::from(vec![
                         Span::styled(
-                            "V ",
+                            "✓ ",
                             Style::default()
                                 .fg(Color::Green)
                                 .add_modifier(Modifier::BOLD),
@@ -117,7 +146,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
                 Some(CrateState::Error { message }) => {
                     return ListItem::new(Line::from(vec![
                         Span::styled(
-                            "X ",
+                            "✗ ",
                             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                         ),
                         Span::styled(
