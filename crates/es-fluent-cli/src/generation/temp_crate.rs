@@ -77,7 +77,7 @@ pub fn create_temp_dir(krate: &CrateInfo) -> Result<PathBuf> {
     Ok(temp_dir)
 }
 
-use crate::generation::{CargoTomlTemplate, CheckRsTemplate, MainRsTemplate};
+use crate::generation::{CargoTomlTemplate, CheckRsTemplate, GenerateRsTemplate};
 
 /// Prepare the temporary crate with both generate and check binaries.
 pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
@@ -99,12 +99,12 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
 
     // Write generate binary
     let i18n_toml_path_str = krate.i18n_config_path.display().to_string();
-    let main_rs = MainRsTemplate {
+    let generate_rs = GenerateRsTemplate {
         crate_ident: &crate_ident,
         i18n_toml_path: &i18n_toml_path_str,
         crate_name: &krate.name,
     };
-    write_bin_rs(&temp_dir, "generate.rs", &main_rs.render().unwrap())?;
+    write_bin_rs(&temp_dir, "generate.rs", &generate_rs.render().unwrap())?;
 
     // Write check binary
     let check_rs = CheckRsTemplate {
@@ -146,9 +146,7 @@ pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Re
         .args(args)
         .env("RUSTFLAGS", "-A warnings");
 
-    let output = cmd
-        .output()
-        .context("Failed to run cargo")?;
+    let output = cmd.output().context("Failed to run cargo")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -160,7 +158,11 @@ pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Re
 /// Run `cargo run` on a temporary crate and capture output.
 ///
 /// Returns the command output if successful, or an error with stderr if it fails.
-pub fn run_cargo_with_output(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Result<std::process::Output> {
+pub fn run_cargo_with_output(
+    temp_dir: &Path,
+    bin_name: Option<&str>,
+    args: &[String],
+) -> Result<std::process::Output> {
     let manifest_path = temp_dir.join("Cargo.toml");
 
     let mut cmd = Command::new("cargo");
@@ -176,9 +178,7 @@ pub fn run_cargo_with_output(temp_dir: &Path, bin_name: Option<&str>, args: &[St
         .current_dir(temp_dir)
         .env("RUSTFLAGS", "-A warnings");
 
-    let output = cmd
-        .output()
-        .context("Failed to run cargo")?;
+    let output = cmd.output().context("Failed to run cargo")?;
 
     if output.status.success() {
         Ok(output)
