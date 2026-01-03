@@ -57,28 +57,24 @@ what-Hi = Hi
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Female"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
         FtlVariant {
             name: "Helicopter".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Helicopter"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
         FtlVariant {
             name: "Male".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Male"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
         FtlVariant {
             name: "Other".to_string(),
             ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Other"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
     ];
     let gender = FtlTypeInfo {
@@ -87,7 +83,6 @@ what-Hi = Hi
         variants: gender_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // 2. HelloUser (Complete)
@@ -96,7 +91,6 @@ what-Hi = Hi
         ftl_key: FluentKey::new(&Ident::new("HelloUser", Span::call_site()), "hello_user"),
         args: vec!["f0".to_string()],
         module_path: "test".to_string(),
-        is_this: false,
     }];
     let hello_user = FtlTypeInfo {
         type_kind: TypeKind::Struct, // Assuming struct for single message
@@ -104,7 +98,6 @@ what-Hi = Hi
         variants: hello_user_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // 3. Shared (Adding 'Videos' new key)
@@ -118,7 +111,6 @@ what-Hi = Hi
                 "user_gender".to_string(),
             ],
             module_path: "test".to_string(),
-            is_this: false,
         },
         // NEW KEY
         FtlVariant {
@@ -126,7 +118,6 @@ what-Hi = Hi
             ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Videos"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
     ];
     let shared = FtlTypeInfo {
@@ -135,7 +126,6 @@ what-Hi = Hi
         variants: shared_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // 4. What (Complete)
@@ -144,7 +134,6 @@ what-Hi = Hi
         ftl_key: FluentKey::new(&Ident::new("What", Span::call_site()), "Hi"),
         args: vec![],
         module_path: "test".to_string(),
-        is_this: false,
     }];
     let what = FtlTypeInfo {
         type_kind: TypeKind::Enum,
@@ -152,7 +141,6 @@ what-Hi = Hi
         variants: what_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // Run generate in Conservative mode

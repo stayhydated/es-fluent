@@ -41,7 +41,6 @@ awdawd = awdwa
         ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key1"),
         args: vec![],
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     let group_a = FtlTypeInfo {
@@ -50,7 +49,6 @@ awdawd = awdwa
         variants: vec![key1],
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // Run generate in Clean mode

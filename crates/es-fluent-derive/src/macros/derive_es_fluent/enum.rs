@@ -209,7 +209,6 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
                         module_path: module_path!(),
-                        is_this: false,
                     }
                 }
             })
@@ -234,7 +233,6 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         variants: VARIANTS,
                         file_path: file!(),
                         module_path: module_path!(),
-                        is_this: false,
                     };
 
                 ::es_fluent::__inventory::submit!(&TYPE_INFO);

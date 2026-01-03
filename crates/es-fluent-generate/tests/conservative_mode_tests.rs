@@ -30,14 +30,12 @@ group-a-key1 = Initial Value
         ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key1"),
         args: vec![],
         module_path: "test".to_string(),
-        is_this: false,
     };
     let key2 = FtlVariant {
         name: "Key2".to_string(),
         ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key2"),
         args: vec![],
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     let group_a = FtlTypeInfo {
@@ -46,7 +44,6 @@ group-a-key1 = Initial Value
         variants: vec![key1, key2],
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // Run generate in Conservative mode

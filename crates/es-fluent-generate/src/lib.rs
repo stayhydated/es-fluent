@@ -4,7 +4,7 @@ use clap::ValueEnum;
 use es_fluent_core::meta::TypeKind;
 use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
-use fluent_syntax::{ast, parser, serializer};
+use fluent_syntax::{ast, parser};
 use std::collections::HashMap;
 use std::{fs, path::Path};
 
@@ -94,9 +94,7 @@ pub fn generate<P: AsRef<Path>>(
     };
 
     if !final_resource.body.is_empty() {
-        let final_output = serializer::serialize(&final_resource);
-
-        let final_content_to_write = format!("{}\n", final_output.trim_end());
+        let final_content_to_write = formatting::sort_ftl_resource(&final_resource);
 
         let current_content = if file_path.exists() {
             fs::read_to_string(&file_path)?
@@ -104,7 +102,7 @@ pub fn generate<P: AsRef<Path>>(
             String::new()
         };
 
-        if current_content != final_content_to_write {
+        if current_content.trim() != final_content_to_write.trim() {
             fs::write(&file_path, &final_content_to_write)?;
             log::error!("Updated FTL file: {}", file_path.display());
         } else {
@@ -137,11 +135,17 @@ pub fn generate<P: AsRef<Path>>(
 
 /// Compares two type infos, putting "this" types first.
 fn compare_type_infos(a: &FtlTypeInfo, b: &FtlTypeInfo) -> std::cmp::Ordering {
-    match (a.is_this, b.is_this) {
-        (true, false) => std::cmp::Ordering::Less,
-        (false, true) => std::cmp::Ordering::Greater,
-        _ => a.type_name.cmp(&b.type_name),
-    }
+    // Infer is_this from variants
+    let a_is_this = a
+        .variants
+        .iter()
+        .any(|v| v.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX));
+    let b_is_this = b
+        .variants
+        .iter()
+        .any(|v| v.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX));
+
+    formatting::compare_with_this_priority(a_is_this, &a.type_name, b_is_this, &b.type_name)
 }
 
 fn smart_merge(
@@ -231,11 +235,11 @@ fn smart_merge(
                         .variants
                         .iter()
                         .position(|v| v.ftl_key.to_string() == key)
-                    {
-                        info.variants.remove(idx);
-                        handled = true;
-                        break;
-                    }
+                {
+                    info.variants.remove(idx);
+                    handled = true;
+                    break;
+                }
                 }
 
                 if handled || !cleanup {
@@ -317,36 +321,28 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
 fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by type_name, also track is_this flag and module_path
-    let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>, bool, String)> = BTreeMap::new();
+    // Group by type_name, also track module_path
+    let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>, String)> = BTreeMap::new();
 
     for item in items {
         let entry = grouped.entry(item.type_name.clone()).or_insert_with(|| {
             (
                 item.type_kind.clone(),
                 Vec::new(),
-                false,
                 item.module_path.clone(),
             )
         });
         entry.1.extend(item.variants.clone());
-        // If any item with the same type_name has is_this=true, propagate it
-        if item.is_this {
-            entry.2 = true;
-        }
     }
 
     grouped
         .into_iter()
         .map(
-            |(type_name, (type_kind, mut variants, is_this, module_path))| {
+            |(type_name, (type_kind, mut variants, module_path))| {
                 variants.sort_by(|a, b| {
-                    // Put "this" variants first
-                    match (a.is_this, b.is_this) {
-                        (true, false) => std::cmp::Ordering::Less,
-                        (false, true) => std::cmp::Ordering::Greater,
-                        _ => a.name.cmp(&b.name),
-                    }
+                    let a_is_this = a.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
+                    let b_is_this = b.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
+                    formatting::compare_with_this_priority(a_is_this, &a.name, b_is_this, &b.name)
                 });
                 variants.dedup();
 
@@ -356,7 +352,6 @@ fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
                     variants,
                     file_path: None,
                     module_path,
-                    is_this,
                 }
             },
         )
@@ -426,7 +421,6 @@ mod tests {
             ftl_key,
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -435,7 +429,6 @@ mod tests {
             variants: vec![variant],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let result = generate(
@@ -472,7 +465,6 @@ mod tests {
             ftl_key,
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -481,7 +473,6 @@ mod tests {
             variants: vec![variant],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let result = generate(
@@ -516,7 +507,6 @@ mod tests {
             ftl_key,
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -525,7 +515,6 @@ mod tests {
             variants: vec![variant],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let result = generate(
@@ -571,7 +560,6 @@ existing-key = Existing Value
             ftl_key,
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let type_info = FtlTypeInfo {
@@ -580,7 +568,6 @@ existing-key = Existing Value
             variants: vec![variant],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let result = generate(
@@ -613,7 +600,6 @@ existing-key = Existing Value
             ftl_key: FluentKey::new(&Ident::new("Apple", proc_macro2::Span::call_site()), "Red"),
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
         let apple = FtlTypeInfo {
             type_kind: TypeKind::Enum,
@@ -621,7 +607,6 @@ existing-key = Existing Value
             variants: vec![apple_variant],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let banana_variant = FtlVariant {
@@ -632,7 +617,6 @@ existing-key = Existing Value
             ),
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
         let banana = FtlTypeInfo {
             type_kind: TypeKind::Enum,
@@ -640,19 +624,18 @@ existing-key = Existing Value
             variants: vec![banana_variant],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         // This type should come first despite alphabetical order
+        // Use proper 'this' key suffix for inference!
+        let banana_this_ident = Ident::new("BananaThis", proc_macro2::Span::call_site());
+        let banana_this_key = FluentKey::new_this(&banana_this_ident); // "banana_this_this" effectively or similar
+
         let banana_this_variant = FtlVariant {
             name: "this".to_string(),
-            ftl_key: FluentKey::new(
-                &Ident::new("BananaThis", proc_macro2::Span::call_site()),
-                "",
-            ),
+            ftl_key: banana_this_key,
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: true,
         };
         let banana_this = FtlTypeInfo {
             type_kind: TypeKind::Struct,
@@ -660,7 +643,6 @@ existing-key = Existing Value
             variants: vec![banana_this_variant],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: true,
         };
 
         let result = generate(
@@ -697,32 +679,33 @@ existing-key = Existing Value
         let i18n_path = temp_dir.path().join("i18n");
 
         // Create a type with multiple variants, one being a "this" variant
+        // Ensure keys have proper suffixes for inference
+        let fruit_ident = Ident::new("Fruit", proc_macro2::Span::call_site());
+        let this_key = FluentKey::new_this(&fruit_ident); // e.g. fruit_this
+
         let this_variant = FtlVariant {
             name: "this".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Fruit", proc_macro2::Span::call_site()), ""),
+            ftl_key: this_key,
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: true,
         };
         let apple_variant = FtlVariant {
             name: "Apple".to_string(),
             ftl_key: FluentKey::new(
-                &Ident::new("Fruit", proc_macro2::Span::call_site()),
+                &fruit_ident,
                 "Apple",
             ),
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
         let banana_variant = FtlVariant {
             name: "Banana".to_string(),
             ftl_key: FluentKey::new(
-                &Ident::new("Fruit", proc_macro2::Span::call_site()),
+                &fruit_ident,
                 "Banana",
             ),
             args: Vec::new(),
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let fruit = FtlTypeInfo {
@@ -736,7 +719,6 @@ existing-key = Existing Value
             ],
             file_path: None,
             module_path: "test".to_string(),
-            is_this: false,
         };
 
         let result = generate(
@@ -752,8 +734,8 @@ existing-key = Existing Value
 
         // The "this" variant (fruit) should come first, then Apple, then Banana
         let this_pos = content
-            .find("fruit =")
-            .expect("this variant (fruit) missing");
+            .find("fruit_this =")
+            .expect("this variant (fruit_this) missing");
         let apple_pos = content.find("fruit-Apple").expect("Apple variant missing");
         let banana_pos = content
             .find("fruit-Banana")

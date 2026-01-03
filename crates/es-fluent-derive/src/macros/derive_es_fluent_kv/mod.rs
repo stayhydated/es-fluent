@@ -152,7 +152,6 @@ fn generate_unit_enum(
                     ftl_key: #ftl_key,
                     args: &[],
                     module_path: module_path!(),
-                    is_this: false,
                 }
             }
         })
@@ -177,7 +176,6 @@ fn generate_unit_enum(
                     variants: VARIANTS,
                     file_path: file!(),
                     module_path: module_path!(),
-                    is_this: false,
                 };
 
             ::es_fluent::__inventory::submit!(&TYPE_INFO);
@@ -312,7 +310,6 @@ fn generate_enum_unit_enum(
                     ftl_key: #ftl_key,
                     args: &[],
                     module_path: module_path!(),
-                    is_this: false,
                 }
             }
         })
@@ -337,7 +334,6 @@ fn generate_enum_unit_enum(
                     variants: VARIANTS,
                     file_path: file!(),
                     module_path: module_path!(),
-                    is_this: false,
                 };
 
             ::es_fluent::__inventory::submit!(&TYPE_INFO);
