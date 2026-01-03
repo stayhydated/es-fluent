@@ -14,9 +14,9 @@ name = "es-fluent"
 path = "src/main.rs"
 
 [dependencies]
-throbber-widgets-tui = { workspace = true }
 anyhow = { workspace = true }
 askama = { workspace = true }
+blake3 = { workspace = true }
 cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
@@ -27,12 +27,13 @@ fluent-syntax = { workspace = true }
 humantime = { workspace = true }
 miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
-notify-debouncer-mini = { workspace = true }
+notify-debouncer-full = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+throbber-widgets-tui = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]

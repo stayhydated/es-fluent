@@ -1,19 +1,17 @@
+//! TUI application state and rendering.
+
 use crate::core::{CrateInfo, CrateState};
-use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
+use crate::tui::Message;
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
-    Frame, Terminal,
-    backend::CrosstermBackend,
+    Frame,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 use std::collections::HashMap;
-use std::io::{self, Stdout};
+use std::io;
 use std::time::{Duration, Instant};
 use throbber_widgets_tui::{BRAILLE_SIX, ThrobberState};
 
@@ -69,23 +67,57 @@ impl<'a> TuiApp<'a> {
             self.last_tick = Instant::now();
         }
     }
-}
 
-/// Initializes the terminal for TUI mode.
-pub fn init_terminal() -> io::Result<Terminal<CrosstermBackend<Stdout>>> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    Terminal::new(backend)
-}
-
-/// Restores the terminal to normal mode.
-pub fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> io::Result<()> {
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-    Ok(())
+    /// Process a message and update application state (Elm-style update).
+    ///
+    /// Returns `true` if the message was handled and requires a redraw.
+    pub fn update(&mut self, msg: Message) -> bool {
+        match msg {
+            Message::Tick => {
+                self.tick();
+                true
+            },
+            Message::Quit => {
+                self.should_quit = true;
+                false
+            },
+            Message::FileChanged { crate_name } => {
+                // Only matters if we're not already generating
+                if !matches!(self.states.get(&crate_name), Some(CrateState::Generating)) {
+                    self.set_state(&crate_name, CrateState::Generating);
+                    true
+                } else {
+                    false
+                }
+            },
+            Message::GenerationStarted { crate_name } => {
+                self.set_state(&crate_name, CrateState::Generating);
+                true
+            },
+            Message::GenerationComplete { result } => {
+                if let Some(ref error) = result.error {
+                    self.set_state(
+                        &result.name,
+                        CrateState::Error {
+                            message: error.clone(),
+                        },
+                    );
+                } else {
+                    self.set_state(
+                        &result.name,
+                        CrateState::Watching {
+                            resource_count: result.resource_count,
+                        },
+                    );
+                }
+                true
+            },
+            Message::WatchError { error: _ } => {
+                // Errors are already visible in the crate state
+                false
+            },
+        }
+    }
 }
 
 /// Get the current throbber symbol based on state.
@@ -105,6 +137,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         ])
         .split(frame.area());
 
+    // Header
     let header = Paragraph::new("es-fluent watch (q to quit)")
         .style(
             Style::default()
@@ -114,6 +147,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         .block(Block::default().borders(Borders::BOTTOM));
     frame.render_widget(header, chunks[0]);
 
+    // Crate list
     let throbber_symbol = get_throbber_symbol(&app.throbber_state);
 
     let items: Vec<ListItem> = app

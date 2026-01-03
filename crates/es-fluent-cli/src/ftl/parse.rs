@@ -58,7 +58,10 @@ pub fn extract_variables_from_message(msg: &ast::Message<String>) -> HashSet<Str
 }
 
 /// Extract variables from a pattern.
-pub fn extract_variables_from_pattern(pattern: &ast::Pattern<String>, variables: &mut HashSet<String>) {
+pub fn extract_variables_from_pattern(
+    pattern: &ast::Pattern<String>,
+    variables: &mut HashSet<String>,
+) {
     for element in &pattern.elements {
         if let ast::PatternElement::Placeable { expression } = element {
             extract_variables_from_expression(expression, variables);

@@ -13,7 +13,7 @@ use std::path::PathBuf;
 ///
 /// Encapsulates the common pattern of loading i18n config and iterating
 /// over locale directories used by format, check, and sync commands.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct LocaleContext {
     /// The assets directory (e.g., `<crate>/i18n/`).
     pub assets_dir: PathBuf,

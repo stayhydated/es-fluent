@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use std::path::PathBuf;
 use std::time::Instant;
 
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 pub struct WorkspaceArgs {
     /// Path to the crate or workspace root (defaults to current directory).
     #[arg(short, long)]
@@ -21,7 +21,7 @@ pub struct WorkspaceArgs {
 /// Common arguments for locale-based processing commands.
 ///
 /// Used by format, check, and sync commands.
-#[derive(Debug, Clone, Args)]
+#[derive(Args, Clone, Debug)]
 pub struct LocaleProcessingArgs {
     /// Process all locales, not just the fallback language.
     #[arg(long)]
@@ -33,7 +33,7 @@ pub struct LocaleProcessingArgs {
 }
 
 /// Represents a resolved set of crates for a command to operate on.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct WorkspaceCrates {
     /// The user-supplied (or default) root path.
     pub path: PathBuf,
