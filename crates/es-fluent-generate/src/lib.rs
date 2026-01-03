@@ -9,10 +9,11 @@ use std::collections::HashMap;
 use std::{fs, path::Path};
 
 pub mod error;
-mod formatter;
+pub mod formatting;
+pub mod value;
 
 use error::FluentGenerateError;
-use formatter::value::ValueFormatter;
+use value::ValueFormatter;
 
 /// The mode to use when parsing Fluent files.
 #[derive(Clone, Debug, Default, PartialEq, ValueEnum)]

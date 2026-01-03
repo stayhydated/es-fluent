@@ -20,6 +20,7 @@ This crate gives you:
 
 ## Used in
 
+- [koruma](https://github.com/stayhydated/koruma)
 - [gpui-form](https://github.com/stayhydated/gpui-form)
 - [gpui-table](https://github.com/stayhydated/gpui-table)
 - [gpui-storybook](https://github.com/stayhydated/gpui-storybook)

@@ -9,6 +9,7 @@ pub struct FluentKey(pub String);
 
 impl FluentKey {
     pub const DELIMITER: &str = "-";
+    pub const THIS_SUFFIX: &str = "_this";
 
     pub fn new(ftl_name: &syn::Ident, sub_name: &str) -> Self {
         let normalized_name = ftl_name.to_string().to_snake_case();
@@ -23,14 +24,9 @@ impl FluentKey {
         }
     }
 
-    pub fn this(ftl_name: &syn::Ident) -> Self {
-        let this_ident = quote::format_ident!("{}_this", ftl_name);
+    pub fn new_this(ftl_name: &syn::Ident) -> Self {
+        let this_ident = quote::format_ident!("{}{}", ftl_name, Self::THIS_SUFFIX);
         Self::new(&this_ident, "")
-    }
-
-    pub fn this_from_base(base: &str) -> Self {
-        let this_base = format!("{}_this", base);
-        Self::with_base(&this_base, "")
     }
 }
 
