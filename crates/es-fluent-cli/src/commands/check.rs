@@ -25,10 +25,12 @@ use es_fluent_toml::I18nConfig;
 use fluent_syntax::ast;
 use fluent_syntax::parser::{self, ParserError};
 use miette::{NamedSource, SourceSpan};
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 /// Expected key information from inventory (deserialized from temp crate output).
 #[derive(Deserialize)]
@@ -351,13 +353,11 @@ fn parser_error_to_issue(
 /// Try to extract a message key from junk content.
 /// Junk typically starts with the message identifier like "message-key = ..."
 fn extract_key_from_junk(junk: &str) -> Option<String> {
-    use regex::Regex;
-    use std::sync::OnceLock;
+    static KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]+").unwrap());
 
-    static KEY_REGEX: OnceLock<Regex> = OnceLock::new();
-    let re = KEY_REGEX.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+").unwrap());
-
-    re.find(junk.trim_start()).map(|m| m.as_str().to_string())
+    KEY_REGEX
+        .find(junk.trim_start())
+        .map(|m| m.as_str().to_string())
 }
 
 // extract_variables_* functions moved to crate::ftl module
