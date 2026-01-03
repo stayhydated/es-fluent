@@ -9,8 +9,7 @@ use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
-use fluent_syntax::{ast, parser, serializer};
-use std::collections::BTreeMap;
+use fluent_syntax::parser;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -164,7 +163,8 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
         },
     };
 
-    let formatted = sort_ftl_resource(&resource);
+    // Use shared formatting logic from es-fluent-generate
+    let formatted = es_fluent_generate::formatting::sort_ftl_resource(&resource);
     let formatted_content = format!("{}\n", formatted.trim_end());
 
     let changed = content != formatted_content;
@@ -184,110 +184,5 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
         path: path.to_path_buf(),
         changed,
         error: None,
-    }
-}
-
-/// Sort an FTL resource's entries alphabetically.
-///
-/// The sorting preserves group comments (## Comment) by associating them
-/// with the messages that follow, then sorting by message key.
-fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
-    // Group entries: each group starts with optional comments and contains messages/terms
-    let mut groups: BTreeMap<String, Vec<ast::Entry<String>>> = BTreeMap::new();
-    let mut current_comments: Vec<ast::Entry<String>> = Vec::new();
-    let mut standalone_comments: Vec<ast::Entry<String>> = Vec::new();
-
-    for entry in &resource.body {
-        match entry {
-            ast::Entry::GroupComment(_) => {
-                // Group comments start a new group
-                // If we have pending comments with no message, save them as standalone
-                standalone_comments.append(&mut current_comments);
-                current_comments.push(entry.clone());
-            },
-            ast::Entry::ResourceComment(_) => {
-                // Resource comments go at the top
-                standalone_comments.push(entry.clone());
-            },
-            ast::Entry::Comment(_) => {
-                // Regular comments attach to the next message
-                current_comments.push(entry.clone());
-            },
-            ast::Entry::Message(msg) => {
-                let key = msg.id.name.clone();
-                let mut entries = std::mem::take(&mut current_comments);
-                entries.push(entry.clone());
-                groups.insert(key, entries);
-            },
-            ast::Entry::Term(term) => {
-                let key = format!("-{}", term.id.name);
-                let mut entries = std::mem::take(&mut current_comments);
-                entries.push(entry.clone());
-                groups.insert(key, entries);
-            },
-            ast::Entry::Junk { .. } => {
-                // Skip junk entries (parse errors)
-            },
-        }
-    }
-
-    // Append any remaining comments
-    standalone_comments.append(&mut current_comments);
-
-    // Build the sorted resource
-    let mut sorted_body: Vec<ast::Entry<String>> = Vec::new();
-
-    // Add standalone/resource comments first
-    sorted_body.extend(standalone_comments);
-
-    // Add sorted groups
-    for (_key, entries) in groups {
-        sorted_body.extend(entries);
-    }
-
-    let sorted_resource = ast::Resource { body: sorted_body };
-    serializer::serialize(&sorted_resource)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sort_ftl_simple() {
-        let content = "zebra = Zebra\napple = Apple\nbanana = Banana";
-        let resource = parser::parse(content.to_string()).unwrap();
-        let sorted = sort_ftl_resource(&resource);
-
-        // Messages should be sorted A-Z
-        let lines: Vec<&str> = sorted.lines().collect();
-        assert!(
-            lines.iter().position(|l| l.starts_with("apple")).unwrap()
-                < lines.iter().position(|l| l.starts_with("banana")).unwrap()
-        );
-        assert!(
-            lines.iter().position(|l| l.starts_with("banana")).unwrap()
-                < lines.iter().position(|l| l.starts_with("zebra")).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_sort_ftl_with_group_comments() {
-        let content = r#"## Zebras
-zebra = Zebra
-
-## Apples
-apple = Apple"#;
-
-        let resource = parser::parse(content.to_string()).unwrap();
-        let sorted = sort_ftl_resource(&resource);
-
-        // Apple group should come before Zebra group
-        let apple_pos = sorted.find("## Apples").unwrap_or(usize::MAX);
-        let zebra_pos = sorted.find("## Zebras").unwrap_or(usize::MAX);
-        assert!(
-            apple_pos < zebra_pos,
-            "Apple group should come before Zebra group"
-        );
     }
 }
