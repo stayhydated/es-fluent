@@ -190,8 +190,6 @@ fn sync_crate(
     Ok(results)
 }
 
-// parse_ftl_file and extract_message_keys moved to crate::ftl module
-
 /// Sync a single locale with missing keys from the fallback.
 fn sync_locale(
     locale_dir: &Path,

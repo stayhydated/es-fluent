@@ -360,8 +360,6 @@ fn extract_key_from_junk(junk: &str) -> Option<String> {
         .map(|m| m.as_str().to_string())
 }
 
-// extract_variables_* functions moved to crate::ftl module
-
 #[cfg(test)]
 mod tests {
     use super::*;
