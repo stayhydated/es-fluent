@@ -15,7 +15,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let original_ident = opts.ident();
     let generics = opts.generics();
     let ftl_key = if opts.attr_args().is_origin() {
-        Some(namer::FluentKey::new_this(&original_ident).to_string())
+        Some(namer::FluentKey::new_this(original_ident).to_string())
     } else {
         None
     };

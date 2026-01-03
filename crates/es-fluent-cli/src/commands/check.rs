@@ -80,13 +80,13 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
             Err(e) => {
                 // If error, print above progress bar
                 pb.suspend(|| {
-                     ui::print_check_error(&krate.name, &e.to_string());
+                    ui::print_check_error(&krate.name, &e.to_string());
                 });
             },
         }
         pb.inc(1);
     }
-    
+
     pb.finish_and_clear();
 
     let error_count = all_issues

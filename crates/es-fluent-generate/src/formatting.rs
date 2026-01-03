@@ -43,8 +43,7 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
 
     // Helper to normalize strings for matching (remove non-alphanumeric, lowercase)
     let normalize = |s: &str| -> String {
-        s
-            .chars()
+        s.chars()
             .filter(|c| c.is_alphanumeric())
             .flat_map(|c| c.to_lowercase())
             .collect()
@@ -55,17 +54,17 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
             ast::Entry::GroupComment(comment) => {
                 // Finish current section
                 sections.push(std::mem::take(&mut current_section));
-                
+
                 // Start new section with this header
                 current_section.header.push(entry.clone());
                 let name = get_group_name(comment);
                 current_section.header_sort_key = name.clone();
                 current_section.matcher_key = normalize(&name);
-                
+
                 // Adopt pending comments
                 if !current_comments.is_empty() {
-                     let comments = std::mem::take(&mut current_comments);
-                     current_section.header.splice(0..0, comments);
+                    let comments = std::mem::take(&mut current_comments);
+                    current_section.header.splice(0..0, comments);
                 }
             },
             ast::Entry::ResourceComment(_) => {
@@ -80,7 +79,7 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
                 let key = msg.id.name.clone();
                 let mut entries = std::mem::take(&mut current_comments);
                 entries.push(entry.clone());
-                
+
                 current_section.messages.push(MessageEntry {
                     key,
                     entries,
@@ -91,7 +90,7 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
                 let key = format!("-{}", term.id.name);
                 let mut entries = std::mem::take(&mut current_comments);
                 entries.push(entry.clone());
-                
+
                 current_section.messages.push(MessageEntry {
                     key,
                     entries,
@@ -115,7 +114,7 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
 
     for msg in all_messages {
         let msg_clean = normalize(&msg.key);
-        
+
         let mut best_score = 0;
         let mut best_section_idx = None;
 
@@ -148,15 +147,15 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
     sections.sort_by(|a, b| {
         let a_key = &a.header_sort_key;
         let b_key = &b.header_sort_key;
-        
+
         if a_key.is_empty() && b_key.is_empty() {
-             std::cmp::Ordering::Equal 
+            std::cmp::Ordering::Equal
         } else if a_key.is_empty() {
-             std::cmp::Ordering::Less 
+            std::cmp::Ordering::Less
         } else if b_key.is_empty() {
-             std::cmp::Ordering::Greater
+            std::cmp::Ordering::Greater
         } else {
-             a_key.cmp(b_key)
+            a_key.cmp(b_key)
         }
     });
 
@@ -166,7 +165,7 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
             // Check for _this suffix
             let a_is_this = a.key.ends_with(FluentKey::THIS_SUFFIX);
             let b_is_this = b.key.ends_with(FluentKey::THIS_SUFFIX);
-            
+
             match (a_is_this, b_is_this) {
                 (true, false) => std::cmp::Ordering::Less, // _this comes first
                 (false, true) => std::cmp::Ordering::Greater,
@@ -177,14 +176,14 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
 
     // Reconstruct
     let mut sorted_body: Vec<ast::Entry<String>> = Vec::new();
-    
+
     for section in sections {
         sorted_body.extend(section.header);
         for msg in section.messages {
             sorted_body.extend(msg.entries);
         }
     }
-    
+
     // Append any final trailing comments (rare)
     sorted_body.extend(current_comments);
 
@@ -266,13 +265,13 @@ usa_state_this = Usa State"#;
 
         let resource = parser::parse(content.to_string()).unwrap();
         let sorted = sort_ftl_resource(&resource);
-        
+
         println!("Sorted output:\n{}", sorted);
 
         // _this should come BEFORE -A
         let a_pos = sorted.find("usa_state-A").unwrap();
         let this_pos = sorted.find("usa_state_this").unwrap();
-        
+
         assert!(this_pos < a_pos, "_this should be sorted to top of group");
     }
 }

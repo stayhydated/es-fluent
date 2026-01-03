@@ -49,10 +49,10 @@ pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
     for entry in glob::glob(pattern_str).context("Failed to read glob pattern")? {
         match entry {
             Ok(path) => {
-                if path.is_dir() {
-                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        locales.push(name.to_string());
-                    }
+                if path.is_dir()
+                    && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                {
+                    locales.push(name.to_string());
                 }
             },
             Err(e) => {

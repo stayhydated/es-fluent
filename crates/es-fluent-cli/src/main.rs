@@ -26,7 +26,7 @@ enum Commands {
     Clean(CleanArgs),
 
     /// Format FTL files (sort keys A-Z)
-    Format(FormatArgs),
+    Fmt(FormatArgs),
 
     /// Check FTL files for missing keys and variables
     Check(CheckArgs),
@@ -50,7 +50,7 @@ fn main() -> MietteResult<()> {
     .ok();
 
     let cli = Cli::parse();
-    
+
     // Initialize logging
     es_fluent_cli::utils::ui::init_logging();
 
@@ -58,7 +58,7 @@ fn main() -> MietteResult<()> {
         Commands::Generate(args) => run_generate(args),
         Commands::Watch(args) => run_watch(args),
         Commands::Clean(args) => run_clean(args),
-        Commands::Format(args) => run_format(args),
+        Commands::Fmt(args) => run_format(args),
         Commands::Check(args) => run_check(args),
         Commands::Sync(args) => run_sync(args),
     };

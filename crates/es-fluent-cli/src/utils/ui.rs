@@ -2,10 +2,10 @@
 // We stick to standard println!/eprintln! for textual output to ensure ANSI color compatibility.
 
 use crate::core::CrateInfo;
+use colored::Colorize as _;
+use indicatif::{ProgressBar, ProgressStyle};
 use std::path::Path;
 use std::time::Duration;
-use indicatif::{ProgressBar, ProgressStyle};
-use colored::Colorize;
 
 pub fn init_logging() {
     // No-op: we rely on standard output for CLI presentation.
@@ -47,12 +47,20 @@ pub fn print_discovered(crates: &[CrateInfo]) {
     if crates.is_empty() {
         eprintln!("{}", "No crates with i18n.toml found.".red());
     } else {
-        println!("{} {}", "Discovered".dimmed(), format!("{} crate(s)", crates.len()).green());
+        println!(
+            "{} {}",
+            "Discovered".dimmed(),
+            format!("{} crate(s)", crates.len()).green()
+        );
     }
 }
 
 pub fn print_missing_lib_rs(crate_name: &str) {
-    println!("{} {}", "Skipping".dimmed(), format!("{} (missing lib.rs)", crate_name).yellow());
+    println!(
+        "{} {}",
+        "Skipping".dimmed(),
+        format!("{} (missing lib.rs)", crate_name).yellow()
+    );
 }
 
 // Action-specific printers
@@ -84,11 +92,20 @@ pub fn print_cleaned(crate_name: &str, duration: Duration, resource_count: usize
 }
 
 pub fn print_generation_error(crate_name: &str, error: &str) {
-    eprintln!("{} {}: {}", "Generation failed for".red(), crate_name.white().bold(), error);
+    eprintln!(
+        "{} {}: {}",
+        "Generation failed for".red(),
+        crate_name.white().bold(),
+        error
+    );
 }
 
 pub fn print_package_not_found(package: &str) {
-    println!("{} '{}'", "No crate found matching package filter:".yellow(), package.white().bold());
+    println!(
+        "{} '{}'",
+        "No crate found matching package filter:".yellow(),
+        package.white().bold()
+    );
 }
 
 pub fn print_check_header() {
@@ -100,7 +117,12 @@ pub fn print_checking(crate_name: &str) {
 }
 
 pub fn print_check_error(crate_name: &str, error: &str) {
-    eprintln!("{} {}: {}", "Check failed for".red(), crate_name.white().bold(), error);
+    eprintln!(
+        "{} {}: {}",
+        "Check failed for".red(),
+        crate_name.white().bold(),
+        error
+    );
 }
 
 pub fn print_check_success() {
@@ -120,11 +142,20 @@ pub fn print_formatted(path: &Path) {
 }
 
 pub fn print_format_dry_run_summary(count: usize) {
-    println!("{} {} file(s) would be formatted", "Dry run:".yellow(), count);
+    println!(
+        "{} {} file(s) would be formatted",
+        "Dry run:".yellow(),
+        count
+    );
 }
 
 pub fn print_format_summary(formatted: usize, unchanged: usize) {
-    println!("{} {} formatted, {} unchanged", "Done:".green(), formatted, unchanged);
+    println!(
+        "{} {} formatted, {} unchanged",
+        "Done:".green(),
+        formatted,
+        unchanged
+    );
 }
 
 pub fn print_sync_header() {
@@ -136,7 +167,12 @@ pub fn print_syncing(crate_name: &str) {
 }
 
 pub fn print_would_add_keys(count: usize, locale: &str) {
-    println!("{} {} key(s) to {}", "Would add".yellow(), count, locale.cyan());
+    println!(
+        "{} {} key(s) to {}",
+        "Would add".yellow(),
+        count,
+        locale.cyan()
+    );
 }
 
 pub fn print_added_keys(count: usize, locale: &str) {
@@ -152,15 +188,28 @@ pub fn print_all_in_sync() {
 }
 
 pub fn print_sync_dry_run_summary(keys: usize, locales: usize) {
-    println!("{} {} key(s) across {} locale(s)", "Would sync".yellow(), keys, locales);
+    println!(
+        "{} {} key(s) across {} locale(s)",
+        "Would sync".yellow(),
+        keys,
+        locales
+    );
 }
 
 pub fn print_sync_summary(keys: usize, locales: usize) {
-    println!("{} {} key(s) synced to {} locale(s)", "Done:".green(), keys, locales);
+    println!(
+        "{} {} key(s) synced to {} locale(s)",
+        "Done:".green(),
+        keys,
+        locales
+    );
 }
 
 pub fn print_no_locales_specified() {
-    println!("{}", "No locales specified. Use --locale <LOCALE> or --all".yellow());
+    println!(
+        "{}",
+        "No locales specified. Use --locale <LOCALE> or --all".yellow()
+    );
 }
 
 pub fn print_no_crates_found() {
