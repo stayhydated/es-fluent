@@ -202,6 +202,7 @@ fn write_or_preview(
         };
         println!("{}", msg);
         print_diff(current_content, final_content);
+        println!();
         return Ok(());
     }
 

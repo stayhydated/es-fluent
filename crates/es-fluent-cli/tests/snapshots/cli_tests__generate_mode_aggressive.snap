@@ -32,9 +32,13 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
 + 
 + ## Shared
 + 
-+ shared-Photos = Photos { $user_name } { $photo_count } { $user_gender }Would update FTL file: [TEMP_DIR]/i18n/en/test-lib-b.ftl
++ shared-Photos = Photos { $user_name } { $photo_count } { $user_gender }
+
+Would update FTL file: [TEMP_DIR]/i18n/en/test-lib-b.ftl
 - hello_b = Hello from Lib B
 + ## HelloB
 + 
 + hello_b = Hello B
+
+
 STDERR:

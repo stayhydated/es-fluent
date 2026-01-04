@@ -29,4 +29,6 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
 - 
 - 
 + z_last = Last
+
+
 STDERR:

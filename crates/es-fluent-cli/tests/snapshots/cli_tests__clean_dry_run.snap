@@ -24,6 +24,8 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
   gender-Female = Female
   gender-Other = Other
 - 
--Unchanged: test-lib-b
+- 
+
+Unchanged: test-lib-b
 
 STDERR:
