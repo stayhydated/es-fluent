@@ -41,6 +41,38 @@ pub struct FormatResult {
     pub diff_info: Option<(String, String)>,
 }
 
+impl FormatResult {
+    /// Create an error result.
+    fn error(path: &Path, msg: impl Into<String>) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            changed: false,
+            error: Some(msg.into()),
+            diff_info: None,
+        }
+    }
+
+    /// Create an unchanged result.
+    fn unchanged(path: &Path) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            changed: false,
+            error: None,
+            diff_info: None,
+        }
+    }
+
+    /// Create a changed result with optional diff info.
+    fn changed(path: &Path, diff: Option<(String, String)>) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            changed: true,
+            error: None,
+            diff_info: diff,
+        }
+    }
+}
+
 /// Run the format command.
 pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
@@ -147,61 +179,36 @@ fn format_crate(
 fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(e) => {
-            return FormatResult {
-                path: path.to_path_buf(),
-                changed: false,
-                error: Some(format!("Failed to read file: {}", e)),
-                diff_info: None,
-            };
-        },
+        Err(e) => return FormatResult::error(path, format!("Failed to read file: {}", e)),
     };
 
     if content.trim().is_empty() {
-        return FormatResult {
-            path: path.to_path_buf(),
-            changed: false,
-            error: None,
-            diff_info: None,
-        };
+        return FormatResult::unchanged(path);
     }
 
     let resource = match parser::parse(content.clone()) {
         Ok(res) => res,
-        Err((res, _errors)) => {
-            // Use the partial result even with errors
-            res
-        },
+        Err((res, _errors)) => res, // Use the partial result even with errors
     };
 
     // Use shared formatting logic from es-fluent-generate
     let formatted = es_fluent_generate::formatting::sort_ftl_resource(&resource);
     let formatted_content = format!("{}\n", formatted.trim_end());
 
-    let changed = content != formatted_content;
-
-    if changed
-        && !check_only
-        && let Err(e) = fs::write(path, &formatted_content)
-    {
-        return FormatResult {
-            path: path.to_path_buf(),
-            changed: false,
-            error: Some(format!("Failed to write file: {}", e)),
-            diff_info: None,
-        };
+    if content == formatted_content {
+        return FormatResult::unchanged(path);
     }
 
-    let diff_info = if changed && check_only {
+    // Try to write if not in check-only mode
+    if !check_only && let Err(e) = fs::write(path, &formatted_content) {
+        return FormatResult::error(path, format!("Failed to write file: {}", e));
+    }
+
+    let diff = if check_only {
         Some((content, formatted_content))
     } else {
         None
     };
 
-    FormatResult {
-        path: path.to_path_buf(),
-        changed,
-        error: None,
-        diff_info,
-    }
+    FormatResult::changed(path, diff)
 }

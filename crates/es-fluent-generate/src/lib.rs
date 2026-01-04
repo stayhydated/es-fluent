@@ -133,7 +133,8 @@ fn write_updated_resource(
     dry_run: bool,
     formatter: impl Fn(&ast::Resource<String>) -> String,
 ) -> Result<bool, FluentGenerateError> {
-    let final_content = if resource.body.is_empty() {
+    let is_empty = resource.body.is_empty();
+    let final_content = if is_empty {
         String::new()
     } else {
         formatter(resource)
@@ -146,54 +147,70 @@ fn write_updated_resource(
     };
 
     // Determine if content has changed
-    let has_changed = if resource.body.is_empty() {
-        // For empty resources, only consider it changed if we're clearing a non-empty file
-        current_content != final_content && !current_content.trim().is_empty()
-    } else {
-        // For non-empty resources, compare trimmed content
-        current_content.trim() != final_content.trim()
+    let has_changed = match is_empty {
+        true => current_content != final_content && !current_content.trim().is_empty(),
+        false => current_content.trim() != final_content.trim(),
     };
 
     if !has_changed {
-        // No change needed
-        if !dry_run {
-            if resource.body.is_empty() {
-                tracing::debug!(
-                    "FTL file unchanged (empty or no items): {}",
-                    file_path.display()
-                );
-            } else {
-                tracing::debug!("FTL file unchanged: {}", file_path.display());
-            }
-        }
+        log_unchanged(file_path, is_empty, dry_run);
         return Ok(false);
     }
 
-    // Content has changed
+    write_or_preview(
+        file_path,
+        &current_content,
+        &final_content,
+        is_empty,
+        dry_run,
+    )?;
+    Ok(true)
+}
+
+/// Log that a file was unchanged (only when not in dry-run mode).
+fn log_unchanged(file_path: &Path, is_empty: bool, dry_run: bool) {
     if dry_run {
-        if resource.body.is_empty() {
-            if !current_content.trim().is_empty() {
-                println!(
-                    "Would write empty FTL file (no items): {}",
-                    file_path.display()
-                );
-            } else {
-                println!("Would write empty FTL file: {}", file_path.display());
-            }
-        } else {
-            println!("Would update FTL file: {}", file_path.display());
-        }
-        print_diff(&current_content, &final_content);
-    } else {
-        fs::write(file_path, &final_content)?;
-        if resource.body.is_empty() {
-            tracing::info!("Wrote empty FTL file (no items): {}", file_path.display());
-        } else {
-            tracing::info!("Updated FTL file: {}", file_path.display());
-        }
+        return;
+    }
+    let msg = match is_empty {
+        true => format!(
+            "FTL file unchanged (empty or no items): {}",
+            file_path.display()
+        ),
+        false => format!("FTL file unchanged: {}", file_path.display()),
+    };
+    tracing::debug!("{}", msg);
+}
+
+/// Write changes to disk or preview them in dry-run mode.
+fn write_or_preview(
+    file_path: &Path,
+    current_content: &str,
+    final_content: &str,
+    is_empty: bool,
+    dry_run: bool,
+) -> Result<(), FluentGenerateError> {
+    if dry_run {
+        let msg = match (is_empty, !current_content.trim().is_empty()) {
+            (true, true) => format!(
+                "Would write empty FTL file (no items): {}",
+                file_path.display()
+            ),
+            (true, false) => format!("Would write empty FTL file: {}", file_path.display()),
+            (false, _) => format!("Would update FTL file: {}", file_path.display()),
+        };
+        println!("{}", msg);
+        print_diff(current_content, final_content);
+        return Ok(());
     }
 
-    Ok(true)
+    fs::write(file_path, final_content)?;
+    let msg = match is_empty {
+        true => format!("Wrote empty FTL file (no items): {}", file_path.display()),
+        false => format!("Updated FTL file: {}", file_path.display()),
+    };
+    tracing::info!("{}", msg);
+    Ok(())
 }
 
 /// Compares two type infos, putting "this" types first.

@@ -271,6 +271,32 @@ fn sync_locale(
     })
 }
 
+/// Classification of an FTL entry for merge operations.
+enum EntryKind<'a> {
+    /// Group or resource comment (section header).
+    SectionComment,
+    /// Regular comment.
+    Comment,
+    /// Message with key.
+    Message(std::borrow::Cow<'a, str>),
+    /// Term with key (prefixed with -).
+    Term(std::borrow::Cow<'a, str>),
+    /// Junk or other entries.
+    Other,
+}
+
+/// Classify an FTL entry for merge operations.
+fn classify_entry(entry: &ast::Entry<String>) -> EntryKind<'_> {
+    use std::borrow::Cow;
+    match entry {
+        ast::Entry::GroupComment(_) | ast::Entry::ResourceComment(_) => EntryKind::SectionComment,
+        ast::Entry::Comment(_) => EntryKind::Comment,
+        ast::Entry::Message(msg) => EntryKind::Message(Cow::Borrowed(&msg.id.name)),
+        ast::Entry::Term(term) => EntryKind::Term(Cow::Owned(format!("-{}", term.id.name))),
+        _ => EntryKind::Other,
+    }
+}
+
 /// Merge missing keys from the fallback into the existing resource.
 fn merge_missing_keys(
     existing: &ast::Resource<String>,
@@ -287,27 +313,25 @@ fn merge_missing_keys(
 
     // Process existing entries
     for entry in &existing.body {
-        match entry {
-            ast::Entry::GroupComment(_) | ast::Entry::ResourceComment(_) => {
+        match classify_entry(entry) {
+            EntryKind::SectionComment => {
                 standalone_comments.append(&mut current_comments);
                 current_comments.push(entry.clone());
             },
-            ast::Entry::Comment(_) => {
+            EntryKind::Comment => {
                 current_comments.push(entry.clone());
             },
-            ast::Entry::Message(msg) => {
-                let key = msg.id.name.clone();
+            EntryKind::Message(key) => {
                 let mut entries = std::mem::take(&mut current_comments);
                 entries.push(entry.clone());
-                entries_by_key.insert(key, entries);
+                entries_by_key.insert(key.to_string(), entries);
             },
-            ast::Entry::Term(term) => {
-                let key = format!("-{}", term.id.name);
+            EntryKind::Term(key) => {
                 let mut entries = std::mem::take(&mut current_comments);
                 entries.push(entry.clone());
-                entries_by_key.insert(key, entries);
+                entries_by_key.insert(key.to_string(), entries);
             },
-            ast::Entry::Junk { .. } => {},
+            EntryKind::Other => {},
         }
     }
 
@@ -315,37 +339,29 @@ fn merge_missing_keys(
     let mut fallback_comments: Vec<ast::Entry<String>> = Vec::new();
 
     for entry in &fallback.body {
-        match entry {
-            ast::Entry::GroupComment(_) => {
-                fallback_comments.clear();
+        match classify_entry(entry) {
+            EntryKind::SectionComment => {
+                // ResourceComment is skipped in original, GroupComment starts fresh
+                if matches!(entry, ast::Entry::GroupComment(_)) {
+                    fallback_comments.clear();
+                    fallback_comments.push(entry.clone());
+                }
+            },
+            EntryKind::Comment => {
                 fallback_comments.push(entry.clone());
             },
-            ast::Entry::Comment(_) => {
-                fallback_comments.push(entry.clone());
-            },
-            ast::Entry::ResourceComment(_) => {},
-            ast::Entry::Message(msg) => {
-                if missing_set.contains(&msg.id.name) {
-                    added_keys.push(msg.id.name.clone());
+            EntryKind::Message(key) | EntryKind::Term(key) => {
+                let key_str = key.to_string();
+                if missing_set.contains(&key_str) {
+                    added_keys.push(key_str.clone());
                     let mut entries = std::mem::take(&mut fallback_comments);
                     entries.push(entry.clone());
-                    entries_by_key.insert(msg.id.name.clone(), entries);
+                    entries_by_key.insert(key_str, entries);
                 } else {
                     fallback_comments.clear();
                 }
             },
-            ast::Entry::Term(term) => {
-                let key = format!("-{}", term.id.name);
-                if missing_set.contains(&key) {
-                    added_keys.push(key.clone());
-                    let mut entries = std::mem::take(&mut fallback_comments);
-                    entries.push(entry.clone());
-                    entries_by_key.insert(key, entries);
-                } else {
-                    fallback_comments.clear();
-                }
-            },
-            _ => {},
+            EntryKind::Other => {},
         }
     }
 

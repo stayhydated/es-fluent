@@ -14,7 +14,35 @@ use std::process::Command;
 /// The directory name for temporary crates.
 pub const TEMP_DIR: &str = ".es-fluent";
 
-/// Get the es-fluent dependency string, preferring local path if in workspace.
+/// Generic workspace dependency resolver.
+///
+/// Checks if the specified crate is a workspace member and returns a path-based
+/// dependency if so, otherwise returns the crates.io fallback.
+fn get_workspace_dep(
+    manifest_path: &Path,
+    crate_name: &str,
+    crates_io_dep: &str,
+    local_dep_template: impl Fn(&str) -> String,
+) -> String {
+    let metadata = cargo_metadata::MetadataCommand::new()
+        .manifest_path(manifest_path)
+        .exec()
+        .ok();
+
+    let Some(meta) = metadata else {
+        return crates_io_dep.to_string();
+    };
+
+    meta.packages
+        .iter()
+        .find(|p| p.name.as_str() == crate_name && meta.workspace_members.contains(&p.id))
+        .map(|pkg| {
+            let path = pkg.manifest_path.parent().unwrap();
+            local_dep_template(path.as_ref())
+        })
+        .unwrap_or_else(|| crates_io_dep.to_string())
+}
+
 /// Get the es-fluent dependency string, preferring local path if in workspace.
 pub fn get_es_fluent_dep(manifest_path: &Path, features: &[&str]) -> String {
     let features_str = features
@@ -28,54 +56,22 @@ pub fn get_es_fluent_dep(manifest_path: &Path, features: &[&str]) -> String {
         features_str
     );
 
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(manifest_path)
-        .exec()
-        .ok();
-
-    if let Some(ref meta) = metadata {
-        let es_fluent_workspace_member = meta
-            .packages
-            .iter()
-            .find(|p| p.name.as_str() == "es-fluent" && meta.workspace_members.contains(&p.id));
-
-        es_fluent_workspace_member
-            .map(|es_fluent_pkg| {
-                let es_fluent_path = es_fluent_pkg.manifest_path.parent().unwrap();
-                format!(
-                    r#"es-fluent = {{ path = "{}", features = [{}] }}"#,
-                    es_fluent_path, features_str
-                )
-            })
-            .unwrap_or(crates_io_dep)
-    } else {
-        crates_io_dep
-    }
+    get_workspace_dep(manifest_path, "es-fluent", &crates_io_dep, |path| {
+        format!(
+            r#"es-fluent = {{ path = "{}", features = [{}] }}"#,
+            path, features_str
+        )
+    })
 }
 
 /// Get the es-fluent-cli-helpers dependency string, preferring local path if in workspace.
 pub fn get_es_fluent_cli_helpers_dep(manifest_path: &Path) -> String {
-    let crates_io_dep = r#"es-fluent-cli-helpers = { version = "*" }"#.to_string();
-
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(manifest_path)
-        .exec()
-        .ok();
-
-    if let Some(ref meta) = metadata {
-        let cli_helpers_workspace_member = meta.packages.iter().find(|p| {
-            p.name.as_str() == "es-fluent-cli-helpers" && meta.workspace_members.contains(&p.id)
-        });
-
-        cli_helpers_workspace_member
-            .map(|helpers_pkg| {
-                let helpers_path = helpers_pkg.manifest_path.parent().unwrap();
-                format!(r#"es-fluent-cli-helpers = {{ path = "{}" }}"#, helpers_path)
-            })
-            .unwrap_or(crates_io_dep)
-    } else {
-        crates_io_dep
-    }
+    get_workspace_dep(
+        manifest_path,
+        "es-fluent-cli-helpers",
+        r#"es-fluent-cli-helpers = { version = "*" }"#,
+        |path| format!(r#"es-fluent-cli-helpers = {{ path = "{}" }}"#, path),
+    )
 }
 
 /// Create the base temporary crate directory structure.

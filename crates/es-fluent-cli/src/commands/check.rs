@@ -25,6 +25,7 @@ use regex::Regex;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::path::Path;
 use std::sync::LazyLock;
 
 /// Expected key information from inventory (deserialized from temp crate output).
@@ -145,6 +146,45 @@ fn read_inventory_file(temp_dir: &std::path::Path) -> Result<HashMap<String, Has
     Ok(expected_keys)
 }
 
+/// Result of loading an FTL file for a locale.
+enum LocaleLoadResult {
+    /// File doesn't exist.
+    NotFound,
+    /// Failed to read the file.
+    ReadError(String),
+    /// Successfully loaded.
+    Loaded {
+        content: String,
+        resource: ast::Resource<String>,
+        parse_errors: Vec<ParserError>,
+    },
+}
+
+/// Load an FTL file for a locale.
+fn load_locale_ftl(assets_dir: &Path, locale: &str, crate_name: &str) -> LocaleLoadResult {
+    let ftl_file = assets_dir.join(locale).join(format!("{}.ftl", crate_name));
+
+    if !ftl_file.exists() {
+        return LocaleLoadResult::NotFound;
+    }
+
+    let content = match fs::read_to_string(&ftl_file) {
+        Ok(c) => c,
+        Err(e) => return LocaleLoadResult::ReadError(e.to_string()),
+    };
+
+    let (resource, parse_errors) = match parser::parse(content.clone()) {
+        Ok(res) => (res, vec![]),
+        Err((res, errors)) => (res, errors),
+    };
+
+    LocaleLoadResult::Loaded {
+        content,
+        resource,
+        parse_errors,
+    }
+}
+
 /// Validate FTL files against expected keys using fluent-syntax directly.
 fn validate_ftl_files(
     krate: &CrateInfo,
@@ -165,124 +205,155 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locales {
-        let locale_dir = assets_dir.join(locale);
-        let ftl_file = locale_dir.join(format!("{}.ftl", krate.name));
-
-        if !ftl_file.exists() {
-            // Report all keys as missing for this locale
-            for key in expected_keys.keys() {
-                issues.push(ValidationIssue::MissingKey(MissingKeyError {
-                    src: NamedSource::new(format!("{}/{}.ftl", locale, krate.name), String::new()),
-                    key: key.clone(),
-                    locale: locale.clone(),
-                    help: format!(
-                        "Add translation for '{}' in {}/{}.ftl",
-                        key, locale, krate.name
-                    ),
-                }));
-            }
-            continue;
-        }
-
-        let content = match fs::read_to_string(&ftl_file) {
-            Ok(c) => c,
-            Err(e) => {
-                issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
-                    src: NamedSource::new(format!("{}/{}.ftl", locale, krate.name), String::new()),
-                    span: SourceSpan::new(0_usize.into(), 1_usize),
-                    locale: locale.clone(),
-                    file_name: format!("{}/{}.ftl", locale, krate.name),
-                    help: format!("Failed to read file: {}", e),
-                }));
-                continue;
-            },
-        };
-
         let file_name = format!("{}/{}.ftl", locale, krate.name);
 
-        // Track keys that have syntax errors (found in Junk entries)
-        let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
-
-        // Parse the FTL file using fluent-syntax
-        let resource = match parser::parse(content.clone()) {
-            Ok(res) => res,
-            Err((res, parse_errors)) => {
-                // Convert ParserErrors to ValidationIssues
-                for err in parse_errors {
-                    issues.push(parser_error_to_issue(
-                        &err,
-                        &content,
-                        locale,
-                        &file_name,
-                        &mut keys_with_syntax_errors,
-                    ));
-                }
-                res
-            },
-        };
-
-        // Also scan Junk entries to find keys with errors
-        for entry in &resource.body {
-            if let ast::Entry::Junk { content: junk } = entry
-                && let Some(key) = extract_key_from_junk(junk)
-            {
-                keys_with_syntax_errors.insert(key);
-            }
-        }
-
-        // Build map of actual keys and their variables in the FTL file
-        let mut actual_keys: HashMap<String, HashSet<String>> = HashMap::new();
-        for entry in &resource.body {
-            if let ast::Entry::Message(msg) = entry {
-                let key = msg.id.name.clone();
-                let vars = extract_variables_from_message(msg);
-                actual_keys.insert(key, vars);
-            }
-        }
-
-        // Check for missing keys (but skip keys that have syntax errors)
-        for (key, expected_vars) in expected_keys {
-            // Skip keys that have syntax errors - they're already reported
-            if keys_with_syntax_errors.contains(key) {
+        match load_locale_ftl(&assets_dir, locale, &krate.name) {
+            LocaleLoadResult::NotFound => {
+                issues.extend(missing_file_issues(expected_keys, locale, &krate.name));
                 continue;
-            }
-
-            if let Some(actual_vars) = actual_keys.get(key) {
-                // Key exists, check for missing variables
-                for var in expected_vars {
-                    if !actual_vars.contains(var) {
-                        let span = find_key_span(&content, key)
-                            .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
-
-                        issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
-                            src: NamedSource::new(file_name.clone(), content.clone()),
-                            span,
-                            variable: var.clone(),
-                            key: key.clone(),
-                            locale: locale.clone(),
-                            help: format!(
-                                "The Rust code generated by es-fluent declares variable '${}' but the translation omits it",
-                                var
-                            ),
-                        }));
-                    }
-                }
-            } else {
-                // Key is missing
-                issues.push(ValidationIssue::MissingKey(MissingKeyError {
-                    src: NamedSource::new(file_name.clone(), content.clone()),
-                    key: key.clone(),
+            },
+            LocaleLoadResult::ReadError(err) => {
+                issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
+                    src: NamedSource::new(file_name.clone(), String::new()),
+                    span: SourceSpan::new(0_usize.into(), 1_usize),
                     locale: locale.clone(),
-                    help: format!(
-                        "Add translation for '{}' in {}/{}.ftl",
-                        key, locale, krate.name
-                    ),
+                    file_name,
+                    help: format!("Failed to read file: {}", err),
                 }));
-            }
+                continue;
+            },
+            LocaleLoadResult::Loaded {
+                content,
+                resource,
+                parse_errors,
+            } => {
+                issues.extend(validate_loaded_ftl(
+                    &content,
+                    &resource,
+                    &parse_errors,
+                    expected_keys,
+                    locale,
+                    &file_name,
+                    &krate.name,
+                ));
+            },
         }
     }
 
     Ok(issues)
+}
+
+/// Generate missing key issues when an FTL file doesn't exist.
+fn missing_file_issues(
+    expected_keys: &HashMap<String, HashSet<String>>,
+    locale: &str,
+    crate_name: &str,
+) -> Vec<ValidationIssue> {
+    expected_keys
+        .keys()
+        .map(|key| {
+            ValidationIssue::MissingKey(MissingKeyError {
+                src: NamedSource::new(format!("{}/{}.ftl", locale, crate_name), String::new()),
+                key: key.clone(),
+                locale: locale.to_string(),
+                help: format!(
+                    "Add translation for '{}' in {}/{}.ftl",
+                    key, locale, crate_name
+                ),
+            })
+        })
+        .collect()
+}
+
+/// Validate a loaded FTL file against expected keys.
+fn validate_loaded_ftl(
+    content: &str,
+    resource: &ast::Resource<String>,
+    parse_errors: &[ParserError],
+    expected_keys: &HashMap<String, HashSet<String>>,
+    locale: &str,
+    file_name: &str,
+    crate_name: &str,
+) -> Vec<ValidationIssue> {
+    let mut issues = Vec::new();
+    let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
+
+    // Convert parse errors to issues
+    for err in parse_errors {
+        issues.push(parser_error_to_issue(
+            err,
+            content,
+            locale,
+            file_name,
+            &mut keys_with_syntax_errors,
+        ));
+    }
+
+    // Scan Junk entries to find keys with errors
+    for entry in &resource.body {
+        if let ast::Entry::Junk { content: junk } = entry
+            && let Some(key) = extract_key_from_junk(junk)
+        {
+            keys_with_syntax_errors.insert(key);
+        }
+    }
+
+    // Build map of actual keys and their variables
+    let actual_keys: HashMap<String, HashSet<String>> = resource
+        .body
+        .iter()
+        .filter_map(|entry| match entry {
+            ast::Entry::Message(msg) => {
+                Some((msg.id.name.clone(), extract_variables_from_message(msg)))
+            },
+            _ => None,
+        })
+        .collect();
+
+    // Check for missing keys and variables
+    for (key, expected_vars) in expected_keys {
+        // Skip keys that have syntax errors - they're already reported
+        if keys_with_syntax_errors.contains(key) {
+            continue;
+        }
+
+        let Some(actual_vars) = actual_keys.get(key) else {
+            // Key is missing
+            issues.push(ValidationIssue::MissingKey(MissingKeyError {
+                src: NamedSource::new(file_name, content.to_string()),
+                key: key.clone(),
+                locale: locale.to_string(),
+                help: format!(
+                    "Add translation for '{}' in {}/{}.ftl",
+                    key, locale, crate_name
+                ),
+            }));
+            continue;
+        };
+
+        // Check for missing variables
+        for var in expected_vars {
+            if actual_vars.contains(var) {
+                continue;
+            }
+            let span = find_key_span(content, key)
+                .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
+
+            issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
+                src: NamedSource::new(file_name, content.to_string()),
+                span,
+                variable: var.clone(),
+                key: key.clone(),
+                locale: locale.to_string(),
+                help: format!(
+                    "The Rust code generated by es-fluent declares variable '${}' but the translation omits it",
+                    var
+                ),
+            }));
+        }
+    }
+
+    issues
 }
 
 /// Convert a fluent-syntax ParserError to a ValidationIssue.

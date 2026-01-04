@@ -1,5 +1,6 @@
 //! FTL file generation functionality.
 
+use es_fluent_core::registry::FtlTypeInfo;
 use std::path::PathBuf;
 
 pub use es_fluent_generate::FluentParseMode;
@@ -95,29 +96,59 @@ impl EsFluentGenerator {
         }
     }
 
+    // --- Resolution helpers (DRY) ---
+
+    /// Resolve the crate name, using override or auto-detection.
+    fn resolve_crate_name(&self) -> Result<String, GeneratorError> {
+        self.crate_name
+            .clone()
+            .map_or_else(Self::detect_crate_name, Ok)
+    }
+
+    /// Resolve the output path for the fallback locale.
+    fn resolve_output_path(&self) -> Result<PathBuf, GeneratorError> {
+        if let Some(path) = &self.output_path {
+            return Ok(path.clone());
+        }
+        let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()?;
+        Ok(config.assets_dir.join(&config.fallback_language))
+    }
+
+    /// Resolve the assets directory.
+    fn resolve_assets_dir(&self) -> Result<PathBuf, GeneratorError> {
+        if let Some(path) = &self.assets_dir {
+            return Ok(path.clone());
+        }
+        let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()?;
+        Ok(config.assets_dir)
+    }
+
+    /// Resolve the paths to clean based on configuration.
+    fn resolve_clean_paths(&self, all_locales: bool) -> Result<Vec<PathBuf>, GeneratorError> {
+        if !all_locales {
+            return Ok(vec![self.resolve_output_path()?]);
+        }
+
+        let assets_dir = self.resolve_assets_dir()?;
+        let paths = std::fs::read_dir(&assets_dir)
+            .ok()
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| e.path().is_dir())
+                    .map(|e| e.path())
+                    .collect()
+            })
+            .unwrap_or_else(|| self.output_path.clone().into_iter().collect());
+
+        Ok(paths)
+    }
+
     /// Generates FTL files from all registered types.
     pub fn generate(&self) -> Result<bool, GeneratorError> {
-        let crate_name = match &self.crate_name {
-            Some(name) => name.clone(),
-            None => Self::detect_crate_name()?,
-        };
-
-        let output_path = match &self.output_path {
-            Some(path) => path.clone(),
-            None => {
-                let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()?;
-                config.assets_dir.join(&config.fallback_language)
-            },
-        };
-
-        let crate_ident = crate_name.replace('-', "_");
-        let type_infos = es_fluent_core::registry::get_all_ftl_type_infos()
-            .into_iter()
-            .filter(|info| {
-                info.module_path == crate_ident
-                    || info.module_path.starts_with(&format!("{}::", crate_ident))
-            })
-            .collect::<Vec<_>>();
+        let crate_name = self.resolve_crate_name()?;
+        let output_path = self.resolve_output_path()?;
+        let type_infos = collect_type_infos(&crate_name);
 
         tracing::info!(
             "Generating FTL files for {} types in crate '{}'",
@@ -138,54 +169,9 @@ impl EsFluentGenerator {
 
     /// Cleans FTL files by removing orphan keys while preserving existing translations.
     pub fn clean(&self, all_locales: bool, dry_run: bool) -> Result<bool, GeneratorError> {
-        let crate_name = match &self.crate_name {
-            Some(name) => name.clone(),
-            None => Self::detect_crate_name()?,
-        };
-
-        // Determine assets_dir
-        let assets_dir = if let Some(path) = &self.assets_dir {
-            path.clone()
-        } else {
-            es_fluent_toml::I18nConfig::read_from_manifest_dir()?.assets_dir
-        };
-
-        // Determine which paths to clean
-        let paths = if all_locales {
-            match std::fs::read_dir(&assets_dir) {
-                Ok(entries) => entries
-                    .filter_map(|e| e.ok())
-                    .filter(|e| e.path().is_dir())
-                    .map(|e| e.path())
-                    .collect(),
-                Err(_) => {
-                    // If output_path is set, fallback to it?
-                    if let Some(path) = &self.output_path {
-                        vec![path.clone()]
-                    } else {
-                        // Can't do much if assets_dir fails and no output_path
-                        vec![]
-                    }
-                },
-            }
-        } else if let Some(path) = &self.output_path {
-            vec![path.clone()]
-        } else {
-            // Fallback to reading config again? We already read it if assets_dir was missing.
-            // Ideally we keep config if read.
-            // For now, simple re-read is fine or minimal logic.
-            let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()?;
-            vec![config.assets_dir.join(&config.fallback_language)]
-        };
-
-        let crate_ident = crate_name.replace('-', "_");
-        let type_infos = es_fluent_core::registry::get_all_ftl_type_infos()
-            .into_iter()
-            .filter(|info| {
-                info.module_path == crate_ident
-                    || info.module_path.starts_with(&format!("{}::", crate_ident))
-            })
-            .collect::<Vec<_>>();
+        let crate_name = self.resolve_crate_name()?;
+        let paths = self.resolve_clean_paths(all_locales)?;
+        let type_infos = collect_type_infos(&crate_name);
 
         let mut any_changed = false;
         for output_path in paths {
@@ -230,4 +216,16 @@ impl EsFluentGenerator {
             .or_else(|| std::env::var("CARGO_PKG_NAME").ok())
             .ok_or_else(|| GeneratorError::CrateName("Could not determine crate name".to_string()))
     }
+}
+
+/// Collect all registered type infos for a given crate.
+fn collect_type_infos(crate_name: &str) -> Vec<FtlTypeInfo> {
+    let crate_ident = crate_name.replace('-', "_");
+    es_fluent_core::registry::get_all_ftl_type_infos()
+        .into_iter()
+        .filter(|info| {
+            info.module_path == crate_ident
+                || info.module_path.starts_with(&format!("{}::", crate_ident))
+        })
+        .collect()
 }
