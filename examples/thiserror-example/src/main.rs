@@ -1,5 +1,5 @@
-mod error;
-pub mod i18n;
+use thiserror_example::error;
+use thiserror_example::i18n;
 
 use error::TransactionError;
 use es_fluent::ToFluentString as _;

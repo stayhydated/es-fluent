@@ -191,16 +191,18 @@ fn write_or_preview(
     dry_run: bool,
 ) -> Result<(), FluentGenerateError> {
     if dry_run {
+        let display_path = fs::canonicalize(file_path).unwrap_or_else(|_| file_path.to_path_buf());
         let msg = match (is_empty, !current_content.trim().is_empty()) {
             (true, true) => format!(
                 "Would write empty FTL file (no items): {}",
-                file_path.display()
+                display_path.display()
             ),
-            (true, false) => format!("Would write empty FTL file: {}", file_path.display()),
-            (false, _) => format!("Would update FTL file: {}", file_path.display()),
+            (true, false) => format!("Would write empty FTL file: {}", display_path.display()),
+            (false, _) => format!("Would update FTL file: {}", display_path.display()),
         };
         println!("{}", msg);
         print_diff(current_content, final_content);
+        println!();
         return Ok(());
     }
 

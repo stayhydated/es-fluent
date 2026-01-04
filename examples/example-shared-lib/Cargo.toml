@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 bevy = { optional = true, workspace = true }
-es-fluent = { features = [ "derive", "generate" ], workspace = true }
+es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { workspace = true }
 es-fluent-manager-bevy = { optional = true, workspace = true }
 es-fluent-manager-embedded = { optional = true, workspace = true }
@@ -23,3 +23,6 @@ workspace = true
 bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy", "es-fluent-lang/bevy" ]
 embedded = [ "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
 gpui = [ "dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
+
+[package.metadata.cargo-machete]
+ignored = [ "rust-embed" ]

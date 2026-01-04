@@ -1,0 +1,12 @@
+[package]
+name = "test-lib-b"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-cli-helpers = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = [ "es-fluent-cli-helpers" ]

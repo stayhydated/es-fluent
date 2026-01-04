@@ -12,6 +12,10 @@ use miette::Result as MietteResult;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Enable E2E testing mode
+    #[arg(long, global = true, hide = true)]
+    e2e: bool,
 }
 
 #[derive(Subcommand)]
@@ -36,6 +40,13 @@ enum Commands {
 }
 
 fn main() -> MietteResult<()> {
+    // Parse first to check for e2e flag before setting up miette/logging
+    let cli = Cli::parse();
+
+    if cli.e2e {
+        es_fluent_cli::utils::ui::set_e2e_mode(true);
+    }
+
     miette::set_hook(Box::new(|_| {
         Box::new(
             miette::MietteHandlerOpts::new()
@@ -43,13 +54,11 @@ fn main() -> MietteResult<()> {
                 .unicode(true)
                 .context_lines(2)
                 .tab_width(4)
-                .color(true)
+                .color(!es_fluent_cli::utils::ui::is_e2e()) // Respond to E2E mode
                 .build(),
         )
     }))
     .ok();
-
-    let cli = Cli::parse();
 
     // Initialize logging
     es_fluent_cli::utils::ui::init_logging();

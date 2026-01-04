@@ -35,7 +35,7 @@ fn get_workspace_dep(
 
     meta.packages
         .iter()
-        .find(|p| p.name.as_str() == crate_name && meta.workspace_members.contains(&p.id))
+        .find(|p| p.name.as_str() == crate_name && p.source.is_none())
         .map(|pkg| {
             let path = pkg.manifest_path.parent().unwrap();
             local_dep_template(path.as_ref())
@@ -106,8 +106,8 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
 
     let crate_ident = krate.name.replace('-', "_");
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    // Enable both generate and cli features
-    let es_fluent_dep = get_es_fluent_dep(&manifest_path, &["generate", "cli"]);
+    // Enable cli feature
+    let es_fluent_dep = get_es_fluent_dep(&manifest_path, &[]);
     let es_fluent_cli_helpers_dep = get_es_fluent_cli_helpers_dep(&manifest_path);
 
     let cargo_toml = CargoTomlTemplate {
@@ -168,9 +168,12 @@ pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Re
         .arg("--")
         .args(args)
         .current_dir(temp_dir)
-        .env("RUSTFLAGS", "-A warnings")
-        // Force colored output even though we are capturing stdout
-        .env("CLICOLOR_FORCE", "1");
+        .env("RUSTFLAGS", "-A warnings");
+
+    // Force colored output only if NO_COLOR is NOT set
+    if std::env::var("NO_COLOR").is_err() {
+        cmd.env("CLICOLOR_FORCE", "1");
+    }
 
     // Capture stdout/stderr
     let output = cmd.output().context("Failed to run cargo")?;
@@ -223,7 +226,7 @@ mod tests {
 
     const CRATES_IO_DEP_GENERATE: &str =
         r#"es-fluent = { version = "*", features = ["generate"] }"#;
-    const CRATES_IO_DEP_CLI: &str = r#"es-fluent = { version = "*", features = ["cli"] }"#;
+    const CRATES_IO_DEP_CLI: &str = r#"es-fluent = { version = "*" }"#;
 
     #[test]
     fn test_get_es_fluent_dep_nonexistent_manifest() {

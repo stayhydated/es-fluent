@@ -129,8 +129,6 @@ pub fn parallel_generate(crates: &[CrateInfo], action: &GenerationAction) -> Vec
                     let temp_dir = krate.manifest_dir.join(".es-fluent");
                     let changed = read_changed_status(&temp_dir);
 
-                    // Cleanup the output (remove any trailing newlines)
-                    let output = output.trim();
                     let output_opt = if output.is_empty() {
                         None
                     } else {

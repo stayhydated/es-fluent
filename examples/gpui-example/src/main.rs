@@ -5,7 +5,7 @@ use gpui::{
     size,
 };
 use gpui_component::button::Button;
-mod i18n;
+use gpui_example::i18n;
 
 #[derive(Clone, Copy, Debug, EsFluent)]
 pub enum GpuiScreenMessages {
