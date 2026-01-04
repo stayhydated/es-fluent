@@ -894,7 +894,6 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-bevy",
  "example-shared-lib",
- "strum 0.27.2",
  "unic-langid",
 ]
 
@@ -3874,8 +3873,6 @@ dependencies = [
  "inventory",
  "rust-embed",
  "rust_decimal",
- "serde",
- "serde_json",
  "strum 0.27.2",
  "tempfile",
  "tracing",
@@ -3928,7 +3925,6 @@ dependencies = [
  "es-fluent-core",
  "es-fluent-generate",
  "es-fluent-toml",
- "inventory",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
@@ -5086,7 +5082,6 @@ dependencies = [
  "gpui",
  "gpui-component",
  "rust-embed",
- "strum 0.27.2",
  "unic-langid",
 ]
 

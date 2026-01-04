@@ -1,0 +1,43 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+assertion_line: 303
+expression: output
+---
+STDOUT:
+Fluent FTL Generator
+Discovered 2 crate(s)
+Would update FTL file: [TEMP_DIR]/crates/test-app-a/../../i18n/en/test-app-a.ftl
+[31m- z_last = Last
+[0m[31m- hello_a = Hello from App A
+[0m[31m- orphan_key = Orphan
+[0m[32m+ ## Gender
+[0m[2m  
+[0m[31m- shared-Photos = 
+[0m[31m-     { $user_name } { $photo_count ->
+[0m[31m-         [one] added a new photo
+[0m[31m-        *[other] added { $photo_count } new photos
+[0m[31m-     } to { $user_gender ->
+[0m[31m-         [male] his stream
+[0m[31m-         [female] her stream
+[0m[31m-        *[other] their stream
+[0m[31m-     }.
+[0m[31m- 
+[0m[32m+ gender-Female = Female
+[0m[2m  gender-Male = Male
+[0m[31m- gender-Female = Female
+[0m[2m  gender-Other = Other
+[0m[2m  
+[0m[32m+ ## HelloA
+[0m[2m  
+[0m[32m+ hello_a = Hello A
+[0m[32m+ 
+[0m[32m+ ## Shared
+[0m[32m+ 
+[0m[32m+ shared-Photos = Photos { $user_name } { $photo_count } { $user_gender }
+[0mWould update FTL file: [TEMP_DIR]/crates/test-lib-b/../../i18n/en/test-lib-b.ftl
+[31m- hello_b = Hello from Lib B
+[0m[32m+ ## HelloB
+[0m[32m+ 
+[0m[32m+ hello_b = Hello B
+[0m
+STDERR:

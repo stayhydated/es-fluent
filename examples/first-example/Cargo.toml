@@ -16,3 +16,6 @@ unic-langid = { workspace = true }
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-machete]
+ignored = ["rust-embed"]

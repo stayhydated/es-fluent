@@ -9,7 +9,6 @@ mod generate;
 
 use std::path::Path;
 
-// Re-export public items from modules
 pub use cli::{ExpectedKey, InventoryData, write_inventory_for_crate};
 pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs, GeneratorError};
 

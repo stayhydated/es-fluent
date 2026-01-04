@@ -68,8 +68,11 @@ fn run_cli(temp_dir: &assert_fs::TempDir, args: &[&str]) -> String {
     // Set current dir to the temp dir root, or specifically the workspace root in temp?
     // TEST_DATA_DIR is the root of examples-tests.
     cmd.current_dir(temp_dir.path());
-    cmd.args(args);
-    // cmd.env("CLICOLOR_FORCE", "1"); // User requested NO color
+
+    // Inject --e2e flag for deterministic output
+    let mut new_args = args.to_vec();
+    new_args.push("--e2e");
+    cmd.args(&new_args);
 
     let assert = cmd.assert();
     let output = assert.get_output();
@@ -82,22 +85,9 @@ fn run_cli(temp_dir: &assert_fs::TempDir, args: &[&str]) -> String {
 }
 
 fn normalize_output(output: &str, cwd: &Path) -> String {
-    use regex::Regex;
-
-    // Strip ANSI escape codes
-    let re_ansi = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
-    let output = re_ansi.replace_all(output, "");
-
     // Normalize temp dir path
+    // We only need to normalize path separators if windows, but robust replacement handles strings.
     let output = output.replace(cwd.to_str().unwrap(), "[TEMP_DIR]");
-
-    // Normalize durations (e.g. "123ms", "1.23s", "1s 500ms", "42us") -> "[DURATION]"
-    // Support s, ms, us, ns
-    let re_duration = Regex::new(r"(?:\d+(?:\.\d+)?(?:s|ms|us|ns)\s*)+").unwrap();
-    let output = re_duration.replace_all(&output, "[DURATION]");
-
-    // Normalize progress bar state if captured
-    let output = output.replace(r"⠠", r""); // Spinner
 
     output.to_string()
 }
@@ -129,8 +119,6 @@ fn test_clean_dry_run() {
     let output = run_cli(&temp, &["clean", "--dry-run"]);
     assert_snapshot!(output);
 }
-
-
 
 #[test]
 fn test_sync_locales() {
@@ -237,13 +225,19 @@ fn test_sync_new_locale() {
     let output = run_cli(&temp, &["sync", "-l", "fr"]);
     assert_snapshot!(output);
 
-
     // Verify fr exists (at i18n/fr)
     let fr_path = temp.path().join("i18n/fr/test-app-a.ftl");
-    assert!(fr_path.exists(), "fr ftl should exist at path: {:?}", fr_path);
-    
+    assert!(
+        fr_path.exists(),
+        "fr ftl should exist at path: {:?}",
+        fr_path
+    );
+
     let content = std::fs::read_to_string(&fr_path).expect("read fr");
-    assert!(content.contains("hello_a = Hello from App A"), "fr should contain content");
+    assert!(
+        content.contains("hello_a = Hello from App A"),
+        "fr should contain content"
+    );
 }
 
 static FIXTURES_DIR: LazyLock<PathBuf> =
@@ -295,13 +289,134 @@ fn test_check_warning_missing_arg() {
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
     cmd.current_dir(temp.path());
     cmd.args(&["check"]);
-    
+
     // Expect failure due to warning
     let assert = cmd.assert().failure();
     let output = assert.get_output();
     let stderr = String::from_utf8_lossy(&output.stderr);
-    
+
     // Check for warning message in stderr (miette usually prints to stderr)
-    assert!(stderr.contains("user_name"), "Should warn about missing user_name variable in stderr");
-    assert!(stderr.contains("warning(s)"), "Should mention warnings count");
+    assert!(
+        stderr.contains("user_name"),
+        "Should warn about missing user_name variable in stderr"
+    );
+    assert!(
+        stderr.contains("warning(s)"),
+        "Should mention warnings count"
+    );
+}
+
+#[test]
+fn test_generate_mode_aggressive() {
+    let temp = setup_test_env();
+    let output = run_cli(&temp, &["generate", "--mode", "aggressive", "--dry-run"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_clean_all() {
+    let temp = setup_test_env();
+
+    // Create orphan key in 'es' locale (not fallback)
+    let ftl_path = temp.path().join("i18n/es/test-app-a.ftl");
+    // Ensure 'es' folder exists and has content (sync test might have created it, but tests are isolated)
+    // We need to make sure we have an 'es' file to clean.
+    // Let's create one based on 'en' if it doesn't exist, or just append to it.
+    if !ftl_path.exists() {
+        std::fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+        std::fs::write(&ftl_path, "hello = Hola\norphan-key = Huerfano\n").unwrap();
+    } else {
+        let content = std::fs::read_to_string(&ftl_path).unwrap();
+        let new_content = format!("{}\norphan-key = Huerfano\n", content);
+        std::fs::write(&ftl_path, new_content).unwrap();
+    }
+
+    let output = run_cli(&temp, &["clean", "--all", "--dry-run"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_fmt_all() {
+    let temp = setup_test_env();
+
+    // Create messy file in 'es' locale
+    let ftl_path = temp.path().join("i18n/es/test-app-a.ftl");
+    if !ftl_path.exists() {
+        std::fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+        std::fs::write(&ftl_path, "b=2\na=1\n").unwrap();
+    } else {
+        std::fs::write(&ftl_path, "b=2\na=1\n").unwrap();
+    }
+
+    let output = run_cli(&temp, &["fmt", "--all", "--dry-run"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_check_all() {
+    let temp = setup_test_env();
+
+    // Create missing key in 'es' locale
+    let ftl_path_en = temp.path().join("i18n/en/test-app-a.ftl");
+    // Assume EN has some keys.
+    // Create ES file that is empty, so it's missing everything.
+    let ftl_path_es = temp.path().join("i18n/es/test-app-a.ftl");
+    std::fs::create_dir_all(ftl_path_es.parent().unwrap()).unwrap();
+    std::fs::write(&ftl_path_es, "# Empty").unwrap();
+
+    // Check with --all should fail because ES is missing keys present in EN (inventory)
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["check", "--all"]);
+    cmd.assert().failure();
+}
+
+#[test]
+fn test_sync_dry_run() {
+    let temp = setup_test_env();
+
+    // Add new key to EN
+    let en_path = temp.path().join("i18n/en/test-app-a.ftl");
+    let mut content = std::fs::read_to_string(&en_path).unwrap();
+    content.push_str("\nnew-sync-key = Sync Me\n");
+    std::fs::write(&en_path, content).unwrap();
+
+    // Run sync --dry-run
+    let output = run_cli(&temp, &["sync", "-l", "es", "--dry-run"]);
+    assert_snapshot!(output);
+
+    // Verify ES file NOT changed
+    let es_path = temp.path().join("i18n/es/test-app-a.ftl");
+    if es_path.exists() {
+        let es_content = std::fs::read_to_string(&es_path).unwrap();
+        assert!(
+            !es_content.contains("new-sync-key"),
+            "ES should NOT contain new key in dry-run"
+        );
+    }
+}
+
+#[test]
+fn test_workspace_package() {
+    let temp = setup_test_env();
+    // Only generate for test-app-a, ignoring test-lib-b
+    let output = run_cli(&temp, &["generate", "--package", "test-app-a", "--dry-run"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_workspace_path() {
+    let temp = setup_test_env();
+    // Point explicitly to the crate dir
+    let crate_path = temp.path().join("crates/test-app-a");
+    let output = run_cli(
+        &temp,
+        &[
+            "generate",
+            "--path",
+            crate_path.to_str().unwrap(),
+            "--dry-run",
+        ],
+    );
+    assert_snapshot!(output);
 }

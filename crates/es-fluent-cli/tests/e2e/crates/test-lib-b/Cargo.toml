@@ -7,3 +7,6 @@ edition.workspace = true
 [dependencies]
 es-fluent = { workspace = true, features = ["derive"] }
 es-fluent-cli-helpers = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = ["es-fluent-cli-helpers"]

@@ -1,11 +1,11 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-assertion_line: 99
+assertion_line: 391
 expression: output
 ---
 STDOUT:
 Fluent FTL Generator
-Discovered 2 crate(s)
+Discovered 1 crate(s)
 Would update FTL file: [TEMP_DIR]/crates/test-app-a/../../i18n/en/test-app-a.ftl
 [31m- z_last = Last
 [0m[32m+ gender-Female = Female
@@ -30,6 +30,5 @@ Would update FTL file: [TEMP_DIR]/crates/test-app-a/../../i18n/en/test-app-a.ftl
 [0m[31m- 
 [0m[31m- 
 [0m[32m+ z_last = Last
-[0mUnchanged: test-lib-b
-
+[0m
 STDERR:

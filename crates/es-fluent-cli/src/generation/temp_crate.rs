@@ -107,7 +107,7 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
     let crate_ident = krate.name.replace('-', "_");
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
     // Enable cli feature
-    let es_fluent_dep = get_es_fluent_dep(&manifest_path, &["cli"]);
+    let es_fluent_dep = get_es_fluent_dep(&manifest_path, &[]);
     let es_fluent_cli_helpers_dep = get_es_fluent_cli_helpers_dep(&manifest_path);
 
     let cargo_toml = CargoTomlTemplate {
@@ -223,7 +223,7 @@ mod tests {
 
     const CRATES_IO_DEP_GENERATE: &str =
         r#"es-fluent = { version = "*", features = ["generate"] }"#;
-    const CRATES_IO_DEP_CLI: &str = r#"es-fluent = { version = "*", features = ["cli"] }"#;
+    const CRATES_IO_DEP_CLI: &str = r#"es-fluent = { version = "*" }"#;
 
     #[test]
     fn test_get_es_fluent_dep_nonexistent_manifest() {

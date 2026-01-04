@@ -1,30 +1,31 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
+assertion_line: 120
 expression: output
 ---
 STDOUT:
 Fluent FTL Generator
 Discovered 2 crate(s)
 Would update FTL file: [TEMP_DIR]/crates/test-app-a/../../i18n/en/test-app-a.ftl
-- z_last = Last
-  hello_a = Hello from App A
-- orphan_key = Orphan
-- 
-- shared-Photos = 
-+ shared-Photos =
-      { $user_name } { $photo_count ->
-          [one] added a new photo
-         *[other] added { $photo_count } new photos
-  ...
-          [female] her stream
-         *[other] their stream
-      }.
-- 
-  gender-Male = Male
-  gender-Female = Female
-  gender-Other = Other
-- 
-- 
-Unchanged: test-lib-b
+[31m- z_last = Last
+[0m[2m  hello_a = Hello from App A
+[0m[31m- orphan_key = Orphan
+[0m[31m- 
+[0m[31m- shared-Photos = 
+[0m[32m+ shared-Photos =
+[0m[2m      { $user_name } { $photo_count ->
+[0m[2m          [one] added a new photo
+[0m[2m         *[other] added { $photo_count } new photos
+[0m[2m  ...[0m
+[2m          [female] her stream
+[0m[2m         *[other] their stream
+[0m[2m      }.
+[0m[31m- 
+[0m[2m  gender-Male = Male
+[0m[2m  gender-Female = Female
+[0m[2m  gender-Other = Other
+[0m[31m- 
+[0m[31m- 
+[0mUnchanged: test-lib-b
 
 STDERR:

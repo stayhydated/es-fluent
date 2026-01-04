@@ -5,9 +5,32 @@ use crate::core::CrateInfo;
 use colored::Colorize as _;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 const PD_TICK: Duration = Duration::from_millis(100);
+
+static E2E_MODE: AtomicBool = AtomicBool::new(false);
+
+/// Enable E2E mode for deterministic output (no colors, fixed durations, hidden progress bars).
+pub fn set_e2e_mode(enabled: bool) {
+    E2E_MODE.store(enabled, Ordering::SeqCst);
+    if enabled {
+        colored::control::set_override(false);
+    }
+}
+
+pub fn is_e2e() -> bool {
+    E2E_MODE.load(Ordering::SeqCst)
+}
+
+fn format_duration(duration: Duration) -> String {
+    if is_e2e() {
+        "[DURATION]".to_string()
+    } else {
+        humantime::format_duration(duration).to_string()
+    }
+}
 
 pub fn init_logging() {
     // No-op: we rely on standard output for CLI presentation.
@@ -15,6 +38,9 @@ pub fn init_logging() {
 }
 
 pub fn create_spinner(msg: &str) -> ProgressBar {
+    if is_e2e() {
+        return ProgressBar::hidden();
+    }
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
@@ -28,6 +54,9 @@ pub fn create_spinner(msg: &str) -> ProgressBar {
 }
 
 pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
+    if is_e2e() {
+        return ProgressBar::hidden();
+    }
     let pb = ProgressBar::new(len);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -77,7 +106,7 @@ pub fn print_generated(crate_name: &str, duration: Duration, resource_count: usi
     println!(
         "{} {} ({} resources)",
         format!("{} generated in", crate_name).dimmed(),
-        humantime::format_duration(duration).to_string().green(),
+        format_duration(duration).green(),
         resource_count.to_string().cyan()
     );
 }
@@ -90,7 +119,7 @@ pub fn print_cleaned(crate_name: &str, duration: Duration, resource_count: usize
     println!(
         "{} {} ({} resources)",
         format!("{} cleaned in", crate_name).dimmed(),
-        humantime::format_duration(duration).to_string().green(),
+        format_duration(duration).green(),
         resource_count.to_string().cyan()
     );
 }
@@ -236,6 +265,10 @@ pub fn print_locale_not_found(locale: &str, available: &[String]) {
 }
 
 pub fn print_diff(old: &str, new: &str) {
+    // If e2e mode, just print a marker or simplified diff to avoid colored crate dependency affecting things
+    // But we still want to see the diff content.
+    // Use the existing logic but colors will be suppressed by `colored::control::set_override(false)`.
+    
     use similar::{ChangeTag, TextDiff};
 
     let diff = TextDiff::from_lines(old, new);

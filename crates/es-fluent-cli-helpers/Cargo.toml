@@ -14,7 +14,6 @@ clap = { features = [ "derive" ], workspace = true }
 es-fluent-core = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
-inventory = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

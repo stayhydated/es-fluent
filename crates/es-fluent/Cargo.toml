@@ -14,7 +14,6 @@ repository.workspace = true
 readme.workspace = true
 
 [features]
-cli = [ "dep:serde", "dep:serde_json" ]
 default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
 
@@ -25,8 +24,6 @@ es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 rust-embed = { workspace = true }
-serde = { features = [ "derive" ], optional = true, workspace = true }
-serde_json = { optional = true, workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
