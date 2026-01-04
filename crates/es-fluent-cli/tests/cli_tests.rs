@@ -130,27 +130,7 @@ fn test_clean_dry_run() {
     assert_snapshot!(output);
 }
 
-#[test]
-fn test_check_complex_args() {
-    let temp = setup_test_env();
-    // Initially check should pass
-    let output = run_cli(&temp, &["check"]);
-    assert_snapshot!(output);
-}
 
-#[test]
-fn test_check_complex_args_missing_variant() {
-    let temp = setup_test_env();
-    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
-
-    // Modify the FTL file to remove the default variant for user_gender
-    let content = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
-    let new_content = content.replace("       *[other] their stream", "");
-    std::fs::write(&ftl_path, new_content).expect("failed to write ftl file");
-
-    let output = run_cli(&temp, &["check"]);
-    assert_snapshot!(output);
-}
 
 #[test]
 fn test_sync_locales() {
@@ -174,32 +154,6 @@ fn test_generate_real() {
     // es-fluent generate updates FTL files from code.
     let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
     assert!(ftl_path.exists(), "FTL file should exist");
-}
-
-#[test]
-fn test_check_failure() {
-    let temp = setup_test_env();
-    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
-
-    // Modify the FTL file to produce a syntax error (blatantly invalid)
-    let content = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
-    // Modify the FTL file to produce a usage error (missing key handled by inventory)
-    // Actually, check verifies keys against inventory.
-    // If we remove a key from FTL that is required, it should fail.
-
-    // Read original
-    let content = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
-
-    // Remove the key 'hello_a'
-    // The key 'hello_a' is required by the code.
-    let new_content = content.replace("hello_a = Hello from App A", "");
-    std::fs::write(&ftl_path, new_content).expect("failed to write ftl file");
-
-    // We expect this to fail
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
-    cmd.current_dir(temp.path());
-    cmd.args(&["check"]);
-    cmd.assert().failure();
 }
 
 #[test]
@@ -283,17 +237,71 @@ fn test_sync_new_locale() {
     let output = run_cli(&temp, &["sync", "-l", "fr"]);
     assert_snapshot!(output);
 
+
     // Verify fr exists (at i18n/fr)
     let fr_path = temp.path().join("i18n/fr/test-app-a.ftl");
-    assert!(
-        fr_path.exists(),
-        "fr ftl should exist at path: {:?}",
-        fr_path
-    );
-
+    assert!(fr_path.exists(), "fr ftl should exist at path: {:?}", fr_path);
+    
     let content = std::fs::read_to_string(&fr_path).expect("read fr");
-    assert!(
-        content.contains("hello_a = Hello from App A"),
-        "fr should contain content"
-    );
+    assert!(content.contains("hello_a = Hello from App A"), "fr should contain content");
+}
+
+static FIXTURES_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures"));
+
+#[test]
+fn test_check_syntax_error() {
+    let temp = setup_test_env();
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+
+    // Copy fixture with syntax error
+    let fixture_path = FIXTURES_DIR.join("check-syntax-error/test-app-a.ftl");
+    std::fs::copy(&fixture_path, &ftl_path).expect("failed to copy fixture");
+
+    // Run check, expect failure
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["check"]);
+    cmd.assert().failure();
+}
+
+#[test]
+fn test_check_missing_key() {
+    let temp = setup_test_env();
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+
+    // Copy fixture with missing mandatory key
+    let fixture_path = FIXTURES_DIR.join("check-missing-key/test-app-a.ftl");
+    std::fs::copy(&fixture_path, &ftl_path).expect("failed to copy fixture");
+
+    // Run check, expect failure
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["check"]);
+    cmd.assert().failure();
+}
+
+#[test]
+fn test_check_warning_missing_arg() {
+    let temp = setup_test_env();
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+
+    // Copy fixture with missing argument (warning)
+    let fixture_path = FIXTURES_DIR.join("check-missing-arg/test-app-a.ftl");
+    std::fs::copy(&fixture_path, &ftl_path).expect("failed to copy fixture");
+
+    // Run check, expect failure (exit code 1) because warnings are treated as issues by default logic in check.rs
+    // "validation found 0 error(s) and 1 warning(s)" -> returns Err(CliError::Validation(...))
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["check"]);
+    
+    // Expect failure due to warning
+    let assert = cmd.assert().failure();
+    let output = assert.get_output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    
+    // Check for warning message in stderr (miette usually prints to stderr)
+    assert!(stderr.contains("user_name"), "Should warn about missing user_name variable in stderr");
+    assert!(stderr.contains("warning(s)"), "Should mention warnings count");
 }
