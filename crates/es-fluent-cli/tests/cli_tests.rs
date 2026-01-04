@@ -1,14 +1,9 @@
-use assert_cmd::Command;
 use insta::assert_snapshot;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-
-
-static TEST_DATA_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/e2e")
-});
+static TEST_DATA_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e"));
 
 fn setup_test_env() -> assert_fs::TempDir {
     let temp = assert_fs::TempDir::new().unwrap();
@@ -31,11 +26,7 @@ fn fix_cargo_manifests(root: &Path) {
 
     // Calculate repo root from CARGO_MANIFEST_DIR (crates/es-fluent-cli) -> ../.. -> root
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let repo_root = manifest_dir
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
+    let repo_root = manifest_dir.parent().unwrap().parent().unwrap();
     let crates_path = repo_root.join("crates");
     // Ensure we use properly escaped path string for TOML if on Windows, but mainly we just need absolute path.
     // On Linux/macOS simple string replacement works.
@@ -72,7 +63,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 fn run_cli(temp_dir: &assert_fs::TempDir, args: &[&str]) -> String {
-    let mut cmd = Command::cargo_bin("es-fluent").unwrap();
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
 
     // Set current dir to the temp dir root, or specifically the workspace root in temp?
     // TEST_DATA_DIR is the root of examples-tests.
@@ -167,4 +158,142 @@ fn test_sync_locales() {
     // Test -l and --all
     let output = run_cli(&temp, &["sync", "-l", "es"]);
     assert_snapshot!(output);
+}
+
+#[test]
+fn test_generate_real() {
+    let temp = setup_test_env();
+    // Run generate command (not dry-run)
+    let output = run_cli(&temp, &["generate"]);
+    assert_snapshot!(output);
+
+    // Verify files are created
+    // generated files are inside the crate's src/generated
+    // Verify FTL file exists (it should have been updated or verified)
+    // The previous assertion that it creates src/generated was wrong.
+    // es-fluent generate updates FTL files from code.
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+    assert!(ftl_path.exists(), "FTL file should exist");
+}
+
+#[test]
+fn test_check_failure() {
+    let temp = setup_test_env();
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+
+    // Modify the FTL file to produce a syntax error (blatantly invalid)
+    let content = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
+    // Modify the FTL file to produce a usage error (missing key handled by inventory)
+    // Actually, check verifies keys against inventory.
+    // If we remove a key from FTL that is required, it should fail.
+
+    // Read original
+    let content = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
+
+    // Remove the key 'hello_a'
+    // The key 'hello_a' is required by the code.
+    let new_content = content.replace("hello_a = Hello from App A", "");
+    std::fs::write(&ftl_path, new_content).expect("failed to write ftl file");
+
+    // We expect this to fail
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["check"]);
+    cmd.assert().failure();
+}
+
+#[test]
+fn test_fmt_real() {
+    let temp = setup_test_env();
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+
+    // Read original content
+    let original = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
+
+    // Make it ugly (remove spaces around equals)
+    let ugly = original.replace(" = ", "=");
+    std::fs::write(&ftl_path, &ugly).expect("failed to write ftl file");
+
+    // Run fmt
+    let output = run_cli(&temp, &["fmt"]);
+    assert_snapshot!(output);
+
+    // Read back and verify it's formatted (spaces restored)
+    let formatted = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
+    assert_ne!(
+        formatted, ugly,
+        "File should have changed from ugly version"
+    );
+    assert!(
+        formatted.contains(" = "),
+        "Formatted file should contain spaces around equals"
+    );
+}
+
+#[test]
+fn test_clean_real() {
+    let temp = setup_test_env();
+
+    // Create an orphan key
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+    let content = std::fs::read_to_string(&ftl_path).expect("read");
+    let new_content = format!("{}\norphan-key = Orphan\n", content);
+    std::fs::write(&ftl_path, new_content).expect("write");
+
+    // Now clean
+    let output = run_cli(&temp, &["clean"]);
+    assert_snapshot!(output);
+
+    // Verify orphan is gone
+    let cleaned_content = std::fs::read_to_string(&ftl_path).expect("read");
+    assert!(
+        !cleaned_content.contains("orphan-key"),
+        "orphan key should be removed"
+    );
+}
+
+#[test]
+fn test_sync_all() {
+    let temp = setup_test_env();
+
+    // We need to set up a situation where sync does something.
+    let en_path = temp.path().join("i18n/en/test-app-a.ftl");
+    let mut content = std::fs::read_to_string(&en_path).expect("read en");
+    content.push_str("\nnew-key = New Message\n");
+    std::fs::write(&en_path, content).expect("write en");
+
+    // Run sync all
+    let output = run_cli(&temp, &["sync", "--all"]);
+    assert_snapshot!(output);
+
+    // Verify es/test-app-a.ftl has the new key
+    let es_path = temp.path().join("i18n/es/test-app-a.ftl");
+    let es_content = std::fs::read_to_string(&es_path).expect("read es");
+    assert!(
+        es_content.contains("new-key = New Message"),
+        "es should contain new key"
+    );
+}
+
+#[test]
+fn test_sync_new_locale() {
+    let temp = setup_test_env();
+
+    // Sync to a new locale 'fr'
+    let output = run_cli(&temp, &["sync", "-l", "fr"]);
+    assert_snapshot!(output);
+
+    // Verify fr exists (at i18n/fr)
+    let fr_path = temp.path().join("i18n/fr/test-app-a.ftl");
+    assert!(
+        fr_path.exists(),
+        "fr ftl should exist at path: {:?}",
+        fr_path
+    );
+
+    let content = std::fs::read_to_string(&fr_path).expect("read fr");
+    assert!(
+        content.contains("hello_a = Hello from App A"),
+        "fr should contain content"
+    );
 }
