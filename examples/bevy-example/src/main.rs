@@ -6,6 +6,7 @@ use es_fluent_manager_bevy::{
 use example_shared_lib::{ButtonState, Languages};
 
 #[allow(unused_imports)]
+#[allow(clippy::single_component_path_imports)]
 use bevy_example;
 
 #[derive(Clone, Component, Copy, Debug, EsFluent)]

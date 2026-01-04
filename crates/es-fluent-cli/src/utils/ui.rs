@@ -268,7 +268,7 @@ pub fn print_diff(old: &str, new: &str) {
     // If e2e mode, just print a marker or simplified diff to avoid colored crate dependency affecting things
     // But we still want to see the diff content.
     // Use the existing logic but colors will be suppressed by `colored::control::set_override(false)`.
-    
+
     use similar::{ChangeTag, TextDiff};
 
     let diff = TextDiff::from_lines(old, new);

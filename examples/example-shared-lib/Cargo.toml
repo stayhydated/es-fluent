@@ -25,4 +25,4 @@ embedded = [ "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
 gpui = [ "dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
 
 [package.metadata.cargo-machete]
-ignored = ["rust-embed"]
+ignored = [ "rust-embed" ]

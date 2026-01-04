@@ -18,4 +18,4 @@ unic-langid = { workspace = true }
 workspace = true
 
 [package.metadata.cargo-machete]
-ignored = ["rust-embed"]
+ignored = [ "rust-embed" ]
