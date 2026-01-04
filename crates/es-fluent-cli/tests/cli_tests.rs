@@ -74,6 +74,9 @@ fn run_cli(temp_dir: &assert_fs::TempDir, args: &[&str]) -> String {
     new_args.push("--e2e");
     cmd.args(&new_args);
 
+    // Disable all colors via standard env var
+    cmd.env("NO_COLOR", "1");
+
     let assert = cmd.assert();
     let output = assert.get_output();
     let stdout = String::from_utf8_lossy(&output.stdout);

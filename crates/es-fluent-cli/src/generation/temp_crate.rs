@@ -168,9 +168,12 @@ pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Re
         .arg("--")
         .args(args)
         .current_dir(temp_dir)
-        .env("RUSTFLAGS", "-A warnings")
-        // Force colored output even though we are capturing stdout
-        .env("CLICOLOR_FORCE", "1");
+        .env("RUSTFLAGS", "-A warnings");
+
+    // Force colored output only if NO_COLOR is NOT set
+    if std::env::var("NO_COLOR").is_err() {
+        cmd.env("CLICOLOR_FORCE", "1");
+    }
 
     // Capture stdout/stderr
     let output = cmd.output().context("Failed to run cargo")?;
