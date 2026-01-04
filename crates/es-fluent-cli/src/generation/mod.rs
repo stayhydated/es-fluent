@@ -8,8 +8,5 @@ mod temp_crate;
 mod templates;
 
 pub use generator::generate_for_crate;
-pub use temp_crate::{
-    create_temp_dir, get_es_fluent_dep, run_cargo, run_cargo_with_output, write_cargo_toml,
-    write_main_rs,
-};
-pub use templates::{CargoTomlTemplate, CheckRsTemplate, GitignoreTemplate, MainRsTemplate};
+pub use temp_crate::{prepare_temp_crate, run_cargo, run_cargo_with_output};
+pub use templates::{CargoTomlTemplate, CheckRsTemplate, GenerateRsTemplate, GitignoreTemplate};

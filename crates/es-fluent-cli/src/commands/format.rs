@@ -37,6 +37,40 @@ pub struct FormatResult {
     pub changed: bool,
     /// Error if formatting failed.
     pub error: Option<String>,
+    /// Diff info (original, new) if dry run and changed.
+    pub diff_info: Option<(String, String)>,
+}
+
+impl FormatResult {
+    /// Create an error result.
+    fn error(path: &Path, msg: impl Into<String>) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            changed: false,
+            error: Some(msg.into()),
+            diff_info: None,
+        }
+    }
+
+    /// Create an unchanged result.
+    fn unchanged(path: &Path) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            changed: false,
+            error: None,
+            diff_info: None,
+        }
+    }
+
+    /// Create a changed result with optional diff info.
+    fn changed(path: &Path, diff: Option<(String, String)>) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            changed: true,
+            error: None,
+            diff_info: diff,
+        }
+    }
 }
 
 /// Run the format command.
@@ -67,10 +101,18 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
             } else if result.changed {
                 total_formatted += 1;
                 pb.suspend(|| {
+                    let display_path = std::env::current_dir()
+                        .ok()
+                        .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
+                        .unwrap_or(&result.path);
+
                     if args.dry_run {
-                        ui::print_would_format(&result.path);
+                        ui::print_would_format(display_path);
+                        if let Some((old, new)) = &result.diff_info {
+                            ui::print_diff(old, new);
+                        }
                     } else {
-                        ui::print_formatted(&result.path);
+                        ui::print_formatted(display_path);
                     }
                 });
             } else {
@@ -126,6 +168,7 @@ fn format_crate(
         // Format only the FTL file for this crate
         let ftl_file = locale_dir.join(format!("{}.ftl", krate.name));
         if ftl_file.exists() {
+            let ftl_file = fs::canonicalize(&ftl_file).unwrap_or(ftl_file);
             let result = format_ftl_file(&ftl_file, check_only);
             results.push(result);
         }
@@ -138,51 +181,36 @@ fn format_crate(
 fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
     let content = match fs::read_to_string(path) {
         Ok(c) => c,
-        Err(e) => {
-            return FormatResult {
-                path: path.to_path_buf(),
-                changed: false,
-                error: Some(format!("Failed to read file: {}", e)),
-            };
-        },
+        Err(e) => return FormatResult::error(path, format!("Failed to read file: {}", e)),
     };
 
     if content.trim().is_empty() {
-        return FormatResult {
-            path: path.to_path_buf(),
-            changed: false,
-            error: None,
-        };
+        return FormatResult::unchanged(path);
     }
 
     let resource = match parser::parse(content.clone()) {
         Ok(res) => res,
-        Err((res, _errors)) => {
-            // Use the partial result even with errors
-            res
-        },
+        Err((res, _errors)) => res, // Use the partial result even with errors
     };
 
     // Use shared formatting logic from es-fluent-generate
     let formatted = es_fluent_generate::formatting::sort_ftl_resource(&resource);
     let formatted_content = format!("{}\n", formatted.trim_end());
 
-    let changed = content != formatted_content;
-
-    if changed
-        && !check_only
-        && let Err(e) = fs::write(path, &formatted_content)
-    {
-        return FormatResult {
-            path: path.to_path_buf(),
-            changed: false,
-            error: Some(format!("Failed to write file: {}", e)),
-        };
+    if content == formatted_content {
+        return FormatResult::unchanged(path);
     }
 
-    FormatResult {
-        path: path.to_path_buf(),
-        changed,
-        error: None,
+    // Try to write if not in check-only mode
+    if !check_only && let Err(e) = fs::write(path, &formatted_content) {
+        return FormatResult::error(path, format!("Failed to write file: {}", e));
     }
+
+    let diff = if check_only {
+        Some((content, formatted_content))
+    } else {
+        None
+    };
+
+    FormatResult::changed(path, diff)
 }

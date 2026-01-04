@@ -143,34 +143,13 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         }
     }
 
-    // Sort sections
-    sections.sort_by(|a, b| {
-        let a_key = &a.header_sort_key;
-        let b_key = &b.header_sort_key;
-
-        if a_key.is_empty() && b_key.is_empty() {
-            std::cmp::Ordering::Equal
-        } else if a_key.is_empty() {
-            std::cmp::Ordering::Less
-        } else if b_key.is_empty() {
-            std::cmp::Ordering::Greater
-        } else {
-            a_key.cmp(b_key)
-        }
-    });
-
     // Sort messages within sections
     for section in &mut sections {
         section.messages.sort_by(|a, b| {
             // Check for _this suffix
             let a_is_this = a.key.ends_with(FluentKey::THIS_SUFFIX);
             let b_is_this = b.key.ends_with(FluentKey::THIS_SUFFIX);
-
-            match (a_is_this, b_is_this) {
-                (true, false) => std::cmp::Ordering::Less, // _this comes first
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.key.cmp(&b.key),
-            }
+            compare_with_this_priority(a_is_this, &a.key, b_is_this, &b.key)
         });
     }
 
@@ -189,6 +168,20 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
 
     let sorted_resource = ast::Resource { body: sorted_body };
     serializer::serialize(&sorted_resource)
+}
+
+/// Compare two items, prioritizing those marked as "this".
+pub fn compare_with_this_priority(
+    a_is_this: bool,
+    a_key: &str,
+    b_is_this: bool,
+    b_key: &str,
+) -> std::cmp::Ordering {
+    match (a_is_this, b_is_this) {
+        (true, false) => std::cmp::Ordering::Less, // _this comes first
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a_key.cmp(b_key),
+    }
 }
 
 #[cfg(test)]
@@ -225,12 +218,12 @@ apple = Apple"#;
         let resource = parser::parse(content.to_string()).unwrap();
         let sorted = sort_ftl_resource(&resource);
 
-        // Apple group should come before Zebra group
+        // Zebra group should come before Apple group (input order preserved)
         let apple_pos = sorted.find("## Apples").unwrap_or(usize::MAX);
         let zebra_pos = sorted.find("## Zebras").unwrap_or(usize::MAX);
         assert!(
-            apple_pos < zebra_pos,
-            "Apple group should come before Zebra group"
+            zebra_pos < apple_pos,
+            "Zebra group should come before Apple group (input order preserved)"
         );
     }
 

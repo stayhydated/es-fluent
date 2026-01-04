@@ -1,11 +1,13 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
-use es_fluent::{EsFluent, EsFluentGenerator};
+use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
     CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
 };
 use example_shared_lib::{ButtonState, Languages};
 
-es_fluent_manager_bevy::define_i18n_module!();
+#[allow(unused_imports)]
+#[allow(clippy::single_component_path_imports)]
+use bevy_example;
 
 #[derive(Clone, Component, Copy, Debug, EsFluent)]
 pub enum KbKeys {
@@ -34,10 +36,6 @@ impl es_fluent_manager_bevy::RefreshForLocale for BevyScreenMessages {
 }
 
 fn main() {
-    EsFluentGenerator::builder()
-        .build()
-        .generate()
-        .expect("Failed to generate FTL files");
     let mut app = App::new();
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
         watch_for_changes_override: Some(true),

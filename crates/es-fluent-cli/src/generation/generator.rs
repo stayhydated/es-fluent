@@ -1,15 +1,9 @@
-use crate::core::{CrateInfo, FluentParseMode, FluentParseModeExt as _};
-use crate::generation::{
-    CargoTomlTemplate, MainRsTemplate, create_temp_dir, get_es_fluent_dep, run_cargo,
-    write_cargo_toml, write_main_rs,
-};
+use crate::core::{CrateInfo, GenerationAction};
+use crate::generation::{prepare_temp_crate, run_cargo};
 use anyhow::{Result, bail};
-use askama::Template as _;
-
-const TEMP_CRATE_NAME: &str = "es-fluent-gen";
 
 /// Generates FTL files for a crate using the CrateInfo struct.
-pub fn generate_for_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<()> {
+pub fn generate_for_crate(krate: &CrateInfo, action: &GenerationAction) -> Result<String> {
     if !krate.has_lib_rs {
         bail!(
             "Crate '{}' has no lib.rs - inventory requires a library target for linking",
@@ -17,29 +11,35 @@ pub fn generate_for_crate(krate: &CrateInfo, mode: &FluentParseMode) -> Result<(
         );
     }
 
-    let temp_dir = create_temp_dir(krate)?;
+    let temp_dir = prepare_temp_crate(krate)?;
 
-    let crate_ident = krate.name.replace('-', "_");
-    let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    let es_fluent_dep = get_es_fluent_dep(&manifest_path, "generate");
-
-    let cargo_toml = CargoTomlTemplate {
-        crate_name: TEMP_CRATE_NAME,
-        parent_crate_name: &krate.name,
-        es_fluent_dep: &es_fluent_dep,
-        has_fluent_features: !krate.fluent_features.is_empty(),
-        fluent_features: &krate.fluent_features,
+    let args = match action {
+        GenerationAction::Generate { mode, dry_run } => {
+            // FluentParseMode Display implementation typically matches clap ValueEnum (lowercase)
+            let mut args = vec![
+                "generate".to_string(),
+                "--mode".to_string(),
+                mode.to_string().to_lowercase(),
+            ];
+            if *dry_run {
+                args.push("--dry-run".to_string());
+            }
+            args
+        },
+        GenerationAction::Clean {
+            all_locales,
+            dry_run,
+        } => {
+            let mut args = vec!["clean".to_string()];
+            if *all_locales {
+                args.push("--all".to_string());
+            }
+            if *dry_run {
+                args.push("--dry-run".to_string());
+            }
+            args
+        },
     };
-    write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
 
-    let i18n_toml_path_str = krate.i18n_config_path.display().to_string();
-    let main_rs = MainRsTemplate {
-        crate_ident: &crate_ident,
-        i18n_toml_path: &i18n_toml_path_str,
-        parse_mode: mode.as_code(),
-        crate_name: &krate.name,
-    };
-    write_main_rs(&temp_dir, &main_rs.render().unwrap())?;
-
-    run_cargo(&temp_dir)
+    run_cargo(&temp_dir, Some("generate"), &args)
 }

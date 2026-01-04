@@ -50,6 +50,7 @@ fn test_enum_kv_preserves_pascal_case_in_ftl_output() {
         &i18n_path,
         usa_state_infos,
         FluentParseMode::Aggressive,
+        false,
     );
     assert!(result.is_ok());
 
@@ -109,6 +110,7 @@ fn test_struct_kv_preserves_snake_case_in_ftl_output() {
         &i18n_path,
         user_profile_infos,
         FluentParseMode::Aggressive,
+        false,
     );
     assert!(result.is_ok());
 

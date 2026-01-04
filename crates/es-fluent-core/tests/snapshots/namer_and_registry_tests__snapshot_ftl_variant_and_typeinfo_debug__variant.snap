@@ -12,5 +12,4 @@ FtlVariant {
         "message",
     ],
     module_path: "",
-    is_this: false,
 }

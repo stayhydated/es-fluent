@@ -193,39 +193,15 @@ impl I18nConfig {
         base_dir: Option<&Path>,
     ) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
         let assets_path = self.assets_dir_from_base(base_dir)?;
-        let mut languages: Vec<(String, LanguageIdentifier)> = Vec::new();
-
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
 
-        for entry in entries {
-            let entry = entry.map_err(I18nConfigError::ReadError)?;
-            if !entry
-                .file_type()
-                .map_err(I18nConfigError::ReadError)?
-                .is_dir()
-            {
-                continue;
-            }
-
-            let raw_name = entry.file_name();
-            let name = raw_name.into_string().map_err(|raw| {
-                I18nConfigError::ReadError(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Assets directory contains a non UTF-8 entry: {:?}", raw),
-                ))
-            })?;
-
-            let lang = name.parse::<LanguageIdentifier>().map_err(|source| {
-                I18nConfigError::InvalidLanguageIdentifier {
-                    name: name.clone(),
-                    source,
-                }
-            })?;
-
-            ensure_supported_language_identifier(&lang, &name)?;
-
-            languages.push((lang.to_string(), lang));
-        }
+        let mut languages: Vec<(String, LanguageIdentifier)> = entries
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| parse_language_entry(entry).transpose())
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(|lang| (lang.to_string(), lang))
+            .collect();
 
         languages.sort_by(|a, b| a.0.cmp(&b.0));
         languages.dedup_by(|a, b| a.0 == b.0);
@@ -261,6 +237,39 @@ impl I18nConfig {
     pub fn fallback_language_id(&self) -> &str {
         &self.fallback_language
     }
+}
+
+/// Parse a directory entry as a language identifier.
+///
+/// Returns `Ok(None)` if the entry is not a directory.
+fn parse_language_entry(
+    entry: fs::DirEntry,
+) -> Result<Option<LanguageIdentifier>, I18nConfigError> {
+    if !entry
+        .file_type()
+        .map_err(I18nConfigError::ReadError)?
+        .is_dir()
+    {
+        return Ok(None);
+    }
+
+    let raw_name = entry.file_name();
+    let name = raw_name.into_string().map_err(|raw| {
+        I18nConfigError::ReadError(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Assets directory contains a non UTF-8 entry: {:?}", raw),
+        ))
+    })?;
+
+    let lang = name.parse::<LanguageIdentifier>().map_err(|source| {
+        I18nConfigError::InvalidLanguageIdentifier {
+            name: name.clone(),
+            source,
+        }
+    })?;
+
+    ensure_supported_language_identifier(&lang, &name)?;
+    Ok(Some(lang))
 }
 
 fn ensure_supported_language_identifier(

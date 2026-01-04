@@ -68,7 +68,7 @@ impl Localizer for EsFluentLanguageLocalizer {
         let lang = self.current_lang.read().expect("lock poisoned").clone();
         let mut bundle = FluentBundle::new(vec![lang]);
         if let Err(err) = bundle.add_resource(self.resource.clone()) {
-            log::error!("Failed to add es-fluent-lang resource: {:?}", err);
+            tracing::error!("Failed to add es-fluent-lang resource: {:?}", err);
             return None;
         }
 
@@ -89,7 +89,7 @@ impl Localizer for EsFluentLanguageLocalizer {
         if errors.is_empty() {
             Some(formatted.into_owned())
         } else {
-            log::error!(
+            tracing::error!(
                 "Formatting errors while localizing '{}' from es-fluent-lang: {:?}",
                 id,
                 errors

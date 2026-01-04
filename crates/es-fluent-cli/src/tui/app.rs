@@ -15,7 +15,7 @@ use std::io;
 use std::time::{Duration, Instant};
 use throbber_widgets_tui::{BRAILLE_SIX, ThrobberState};
 
-const DEFAULT_TICK_INTERVAL_MS: u64 = 100;
+const DEFAULT_TICK_INTERVAL: Duration = Duration::from_millis(100);
 
 /// The TUI application state.
 pub struct TuiApp<'a> {
@@ -50,7 +50,7 @@ impl<'a> TuiApp<'a> {
             states,
             should_quit: false,
             throbber_state: ThrobberState::default(),
-            tick_interval: Duration::from_millis(DEFAULT_TICK_INTERVAL_MS),
+            tick_interval: DEFAULT_TICK_INTERVAL,
             last_tick: Instant::now(),
         }
     }
@@ -157,7 +157,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
             let state = app.states.get(&krate.name);
             let (symbol, status_text, status_color) = match state {
                 Some(CrateState::MissingLibRs) => ("!", "missing lib.rs", Color::Red),
-                Some(CrateState::Generating) => (throbber_symbol, "generating...", Color::Yellow),
+                Some(CrateState::Generating) => (throbber_symbol, "generating", Color::Yellow),
                 Some(CrateState::Watching { resource_count }) => {
                     let text = format!("watching ({} resources)", resource_count);
                     return ListItem::new(Line::from(vec![

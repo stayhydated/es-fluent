@@ -13,3 +13,12 @@ publish = false
 {{ parent_crate_name }} = { path = ".." }
 {% endif %}
 {{ es_fluent_dep }}
+{{ es_fluent_cli_helpers_dep }}
+
+[[bin]]
+name = "generate"
+path = "src/generate.rs"
+
+[[bin]]
+name = "check"
+path = "src/check.rs"

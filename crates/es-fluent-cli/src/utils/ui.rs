@@ -5,7 +5,32 @@ use crate::core::CrateInfo;
 use colored::Colorize as _;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
+
+const PD_TICK: Duration = Duration::from_millis(100);
+
+static E2E_MODE: AtomicBool = AtomicBool::new(false);
+
+/// Enable E2E mode for deterministic output (no colors, fixed durations, hidden progress bars).
+pub fn set_e2e_mode(enabled: bool) {
+    E2E_MODE.store(enabled, Ordering::SeqCst);
+    if enabled {
+        colored::control::set_override(false);
+    }
+}
+
+pub fn is_e2e() -> bool {
+    E2E_MODE.load(Ordering::SeqCst)
+}
+
+fn format_duration(duration: Duration) -> String {
+    if is_e2e() {
+        "[DURATION]".to_string()
+    } else {
+        humantime::format_duration(duration).to_string()
+    }
+}
 
 pub fn init_logging() {
     // No-op: we rely on standard output for CLI presentation.
@@ -13,6 +38,9 @@ pub fn init_logging() {
 }
 
 pub fn create_spinner(msg: &str) -> ProgressBar {
+    if is_e2e() {
+        return ProgressBar::hidden();
+    }
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()
@@ -21,10 +49,14 @@ pub fn create_spinner(msg: &str) -> ProgressBar {
             .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
     );
     pb.set_message(msg.to_string());
+    pb.enable_steady_tick(PD_TICK);
     pb
 }
 
 pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
+    if is_e2e() {
+        return ProgressBar::hidden();
+    }
     let pb = ProgressBar::new(len);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -33,6 +65,7 @@ pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
             .progress_chars("#>-"),
     );
     pb.set_message(msg.to_string());
+    pb.enable_steady_tick(PD_TICK);
     pb
 }
 
@@ -73,7 +106,7 @@ pub fn print_generated(crate_name: &str, duration: Duration, resource_count: usi
     println!(
         "{} {} ({} resources)",
         format!("{} generated in", crate_name).dimmed(),
-        humantime::format_duration(duration).to_string().green(),
+        format_duration(duration).green(),
         resource_count.to_string().cyan()
     );
 }
@@ -86,7 +119,7 @@ pub fn print_cleaned(crate_name: &str, duration: Duration, resource_count: usize
     println!(
         "{} {} ({} resources)",
         format!("{} cleaned in", crate_name).dimmed(),
-        humantime::format_duration(duration).to_string().green(),
+        format_duration(duration).green(),
         resource_count.to_string().cyan()
     );
 }
@@ -166,12 +199,13 @@ pub fn print_syncing(crate_name: &str) {
     println!("{} {}", "Syncing".dimmed(), crate_name.green());
 }
 
-pub fn print_would_add_keys(count: usize, locale: &str) {
+pub fn print_would_add_keys(count: usize, locale: &str, crate_name: &str) {
     println!(
-        "{} {} key(s) to {}",
+        "{} {} key(s) to {} ({})",
         "Would add".yellow(),
         count,
-        locale.cyan()
+        locale.cyan(),
+        crate_name.bold()
     );
 }
 
@@ -228,4 +262,35 @@ pub fn print_locale_not_found(locale: &str, available: &[String]) {
         locale.white().bold(),
         available_str.cyan()
     );
+}
+
+pub fn print_diff(old: &str, new: &str) {
+    // If e2e mode, just print a marker or simplified diff to avoid colored crate dependency affecting things
+    // But we still want to see the diff content.
+    // Use the existing logic but colors will be suppressed by `colored::control::set_override(false)`.
+
+    use similar::{ChangeTag, TextDiff};
+
+    let diff = TextDiff::from_lines(old, new);
+
+    for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+        if idx > 0 {
+            println!("{}", "  ...".dimmed());
+        }
+        for op in group {
+            for change in diff.iter_changes(op) {
+                let sign = match change.tag() {
+                    ChangeTag::Delete => "-",
+                    ChangeTag::Insert => "+",
+                    ChangeTag::Equal => " ",
+                };
+                let line = format!("{} {}", sign, change);
+                match change.tag() {
+                    ChangeTag::Delete => print!("{}", line.red()),
+                    ChangeTag::Insert => print!("{}", line.green()),
+                    ChangeTag::Equal => print!("{}", line.dimmed()),
+                }
+            }
+        }
+    }
 }

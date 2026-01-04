@@ -1,4 +1,4 @@
-use crate::core::{CliError, CrateInfo, FluentParseMode, GenerateResult};
+use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction};
 use crate::generation::generate_for_crate;
 use crate::utils::{
     count_ftl_resources, discover_crates, filter_crates_by_package, partition_by_lib_rs, ui,
@@ -83,17 +83,41 @@ impl WorkspaceCrates {
     }
 }
 
+/// Read the changed status from the temporary crate's result.json file.
+///
+/// Returns `true` if the file indicates changes were made, `false` otherwise.
+fn read_changed_status(temp_dir: &std::path::Path) -> bool {
+    let result_json_path = temp_dir.join("result.json");
+
+    if !result_json_path.exists() {
+        return false;
+    }
+
+    match std::fs::read_to_string(&result_json_path) {
+        Ok(json_str) => match serde_json::from_str::<serde_json::Value>(&json_str) {
+            Ok(json) => json["changed"].as_bool().unwrap_or(false),
+            Err(_) => false,
+        },
+        Err(_) => false,
+    }
+}
+
 /// Run generation-like work in parallel for a set of crates.
 ///
 /// This mirrors the pattern used by both `generate` and `clean` commands, where
 /// each crate is processed concurrently and the results are aggregated.
-pub fn parallel_generate(crates: &[CrateInfo], mode: &FluentParseMode) -> Vec<GenerateResult> {
+pub fn parallel_generate(crates: &[CrateInfo], action: &GenerationAction) -> Vec<GenerateResult> {
+    let pb = ui::create_progress_bar(crates.len() as u64, "Processing crates...");
+
     crates
         .par_iter()
         .map(|krate| {
             let start = Instant::now();
-            let result = generate_for_crate(krate, mode);
+            let result = generate_for_crate(krate, action);
             let duration = start.elapsed();
+
+            pb.inc(1);
+
             let resource_count = result
                 .as_ref()
                 .ok()
@@ -101,7 +125,24 @@ pub fn parallel_generate(crates: &[CrateInfo], mode: &FluentParseMode) -> Vec<Ge
                 .unwrap_or(0);
 
             match result {
-                Ok(()) => GenerateResult::success(krate.name.clone(), duration, resource_count),
+                Ok(output) => {
+                    let temp_dir = krate.manifest_dir.join(".es-fluent");
+                    let changed = read_changed_status(&temp_dir);
+
+                    let output_opt = if output.is_empty() {
+                        None
+                    } else {
+                        Some(output.to_string())
+                    };
+
+                    GenerateResult::success(
+                        krate.name.clone(),
+                        duration,
+                        resource_count,
+                        output_opt,
+                        changed,
+                    )
+                },
                 Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
             }
         })

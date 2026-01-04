@@ -35,11 +35,16 @@ rayon = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+similar = { workspace = true }
 thiserror = { workspace = true }
 throbber-widgets-tui = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]
+assert_cmd = { workspace = true }
+assert_fs = { workspace = true }
+insta = { workspace = true }
+predicates = { workspace = true }
 tempfile = { workspace = true }
 
 
