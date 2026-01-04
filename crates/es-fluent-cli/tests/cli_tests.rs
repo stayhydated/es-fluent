@@ -3,15 +3,11 @@ use insta::assert_snapshot;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-const CLI_E2E_DIR: &str = "es-fluent-cli-e2e";
+
 
 static TEST_DATA_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .join(CLI_E2E_DIR)
+        .join("tests/e2e")
 });
 
 fn setup_test_env() -> assert_fs::TempDir {
@@ -33,7 +29,13 @@ fn fix_cargo_manifests(root: &Path) {
     let cargo_toml_path = root.join("Cargo.toml");
     let content = std::fs::read_to_string(&cargo_toml_path).expect("failed to read Cargo.toml");
 
-    let repo_root = TEST_DATA_DIR.parent().unwrap();
+    // Calculate repo root from CARGO_MANIFEST_DIR (crates/es-fluent-cli) -> ../.. -> root
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repo_root = manifest_dir
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
     let crates_path = repo_root.join("crates");
     // Ensure we use properly escaped path string for TOML if on Windows, but mainly we just need absolute path.
     // On Linux/macOS simple string replacement works.
