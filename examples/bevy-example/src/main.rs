@@ -5,7 +5,8 @@ use es_fluent_manager_bevy::{
 };
 use example_shared_lib::{ButtonState, Languages};
 
-es_fluent_manager_bevy::define_i18n_module!();
+#[allow(unused_imports)]
+use bevy_example;
 
 #[derive(Clone, Component, Copy, Debug, EsFluent)]
 pub enum KbKeys {
