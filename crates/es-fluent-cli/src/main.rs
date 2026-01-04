@@ -13,7 +13,7 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Enable E2E testing mode (deterministic output, no colors)
+    /// Enable E2E testing mode
     #[arg(long, global = true, hide = true)]
     e2e: bool,
 }

@@ -5,7 +5,7 @@ expression: output
 STDOUT:
 Fluent FTL Generator
 Discovered 2 crate(s)
-Would update FTL file: [TEMP_DIR]/crates/test-app-a/../../i18n/en/test-app-a.ftl
+Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
 - z_last = Last
   hello_a = Hello from App A
 - orphan_key = Orphan
