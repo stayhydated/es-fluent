@@ -505,10 +505,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let i18n_path = temp_dir.path().join("i18n");
 
-        let ftl_key = FluentKey::new(
-            &Ident::new("TestEnum", proc_macro2::Span::call_site()),
-            "Variant1",
-        );
+        let ftl_key = FluentKey::from(&Ident::new("TestEnum", proc_macro2::Span::call_site()))
+            .join("Variant1");
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
@@ -550,10 +548,8 @@ mod tests {
         fs::create_dir_all(&i18n_path).unwrap();
         fs::write(&ftl_file_path, "existing-message = Existing Content").unwrap();
 
-        let ftl_key = FluentKey::new(
-            &Ident::new("TestEnum", proc_macro2::Span::call_site()),
-            "Variant1",
-        );
+        let ftl_key = FluentKey::from(&Ident::new("TestEnum", proc_macro2::Span::call_site()))
+            .join("Variant1");
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
@@ -593,10 +589,8 @@ mod tests {
         fs::create_dir_all(&i18n_path).unwrap();
         fs::write(&ftl_file_path, "existing-message = Existing Content").unwrap();
 
-        let ftl_key = FluentKey::new(
-            &Ident::new("TestEnum", proc_macro2::Span::call_site()),
-            "Variant1",
-        );
+        let ftl_key = FluentKey::from(&Ident::new("TestEnum", proc_macro2::Span::call_site()))
+            .join("Variant1");
         let variant = FtlVariant {
             name: "variant1".to_string(),
             ftl_key,
@@ -647,10 +641,8 @@ existing-key = Existing Value
         fs::write(&ftl_file_path, initial_content).unwrap();
 
         // Define items that match ExistingGroup but NOT OrphanGroup
-        let ftl_key = FluentKey::new(
-            &Ident::new("ExistingGroup", proc_macro2::Span::call_site()),
-            "ExistingKey",
-        );
+        let ftl_key = FluentKey::from(&Ident::new("ExistingGroup", proc_macro2::Span::call_site()))
+            .join("ExistingKey");
         let variant = FtlVariant {
             name: "ExistingKey".to_string(),
             ftl_key,
@@ -688,7 +680,8 @@ existing-key = Existing Value
         // Create types: Apple, Banana, Banana_this (should come first)
         let apple_variant = FtlVariant {
             name: "Red".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Apple", proc_macro2::Span::call_site()), "Red"),
+            ftl_key: FluentKey::from(&Ident::new("Apple", proc_macro2::Span::call_site()))
+                .join("Red"),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -702,10 +695,8 @@ existing-key = Existing Value
 
         let banana_variant = FtlVariant {
             name: "Yellow".to_string(),
-            ftl_key: FluentKey::new(
-                &Ident::new("Banana", proc_macro2::Span::call_site()),
-                "Yellow",
-            ),
+            ftl_key: FluentKey::from(&Ident::new("Banana", proc_macro2::Span::call_site()))
+                .join("Yellow"),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -783,13 +774,13 @@ existing-key = Existing Value
         };
         let apple_variant = FtlVariant {
             name: "Apple".to_string(),
-            ftl_key: FluentKey::new(&fruit_ident, "Apple"),
+            ftl_key: FluentKey::from(&fruit_ident).join("Apple"),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
         let banana_variant = FtlVariant {
             name: "Banana".to_string(),
-            ftl_key: FluentKey::new(&fruit_ident, "Banana"),
+            ftl_key: FluentKey::from(&fruit_ident).join("Banana"),
             args: Vec::new(),
             module_path: "test".to_string(),
         };

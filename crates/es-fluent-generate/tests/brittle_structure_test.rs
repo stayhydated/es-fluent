@@ -35,13 +35,13 @@ manual-key = Contains manual stuff
     // Add a NEW key to GroupA (Key2)
     let key_a_1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key1"),
         args: vec![],
         module_path: "test".to_string(),
     };
     let key_a_2 = FtlVariant {
         name: "Key2".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key2"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key2"),
         args: vec![],
         module_path: "test".to_string(),
     };
@@ -55,7 +55,7 @@ manual-key = Contains manual stuff
 
     let key_b_1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("GroupB", Span::call_site()), "Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupB", Span::call_site())).join("Key1"),
         args: vec![],
         module_path: "test".to_string(),
     };

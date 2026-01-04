@@ -8,15 +8,15 @@ use syn::Ident;
 fn fluent_key_new_with_and_without_subname() {
     let ident = Ident::new("TestName", Span::call_site());
 
-    let key_with_sub = FluentKey::new(&ident, "sub_part");
+    let key_with_sub = FluentKey::from(&ident).join("sub_part");
     assert_eq!(key_with_sub.to_string(), "test_name-sub_part");
 
-    let key_without_sub = FluentKey::new(&ident, "");
+    let key_without_sub = FluentKey::from(&ident);
     assert_eq!(key_without_sub.to_string(), "test_name");
 
-    let same_key = FluentKey::new(&ident, "");
+    let same_key = FluentKey::from(&ident);
     assert_eq!(key_without_sub, same_key);
-    let different_key = FluentKey::new(&ident, "x");
+    let different_key = FluentKey::from(&ident).join("x");
     assert_ne!(key_without_sub, different_key);
 }
 
@@ -39,19 +39,19 @@ fn registry_structs_equality() {
 
     let v1 = FtlVariant::builder()
         .name("Network".to_string())
-        .ftl_key(FluentKey::new(&ident, "Network"))
+        .ftl_key(FluentKey::from(&ident).join("Network"))
         .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     let v1_dup = FtlVariant::builder()
         .name("Network".to_string())
-        .ftl_key(FluentKey::new(&ident, "Network"))
+        .ftl_key(FluentKey::from(&ident).join("Network"))
         .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     let v2 = FtlVariant::builder()
         .name("Io".to_string())
-        .ftl_key(FluentKey::new(&ident, "Io"))
+        .ftl_key(FluentKey::from(&ident).join("Io"))
         .maybe_args(None)
         .build();
 
@@ -81,7 +81,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
 
     let variant = FtlVariant::builder()
         .name("Network".to_string())
-        .ftl_key(FluentKey::new(&ident, "Network"))
+        .ftl_key(FluentKey::from(&ident).join("Network"))
         .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
@@ -89,7 +89,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
 
     let variant2 = FtlVariant::builder()
         .name("Io".to_string())
-        .ftl_key(FluentKey::new(&ident, "Io"))
+        .ftl_key(FluentKey::from(&ident).join("Io"))
         .maybe_args(None)
         .build();
 

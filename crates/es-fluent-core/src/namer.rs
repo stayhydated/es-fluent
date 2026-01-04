@@ -7,26 +7,40 @@ use quote::format_ident;
 #[derive(Clone, Debug, Deref, Display, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize)]
 pub struct FluentKey(pub String);
 
+impl From<String> for FluentKey {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for FluentKey {
+    fn from(s: &str) -> Self {
+        Self::from(s.to_string())
+    }
+}
+
+impl From<&syn::Ident> for FluentKey {
+    fn from(ident: &syn::Ident) -> Self {
+        Self(ident.to_string().to_snake_case())
+    }
+}
+
 impl FluentKey {
     pub const DELIMITER: &str = "-";
     pub const THIS_SUFFIX: &str = "_this";
 
-    pub fn new(ftl_name: &syn::Ident, sub_name: &str) -> Self {
-        let normalized_name = ftl_name.to_string().to_snake_case();
-        Self::with_base(&normalized_name, sub_name)
-    }
-
-    pub fn with_base(base: &str, sub_name: &str) -> Self {
-        if sub_name.is_empty() {
-            FluentKey(base.to_string())
+    pub fn join(&self, suffix: impl std::fmt::Display) -> Self {
+        let suffix_str = suffix.to_string();
+        if suffix_str.is_empty() {
+            self.clone()
         } else {
-            FluentKey(format!("{}{}{}", base, Self::DELIMITER, sub_name))
+            Self(format!("{}{}{}", self.0, Self::DELIMITER, suffix_str))
         }
     }
 
     pub fn new_this(ftl_name: &syn::Ident) -> Self {
         let this_ident = quote::format_ident!("{}{}", ftl_name, Self::THIS_SUFFIX);
-        Self::new(&this_ident, "")
+        Self::from(&this_ident)
     }
 }
 

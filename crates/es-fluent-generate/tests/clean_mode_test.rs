@@ -37,7 +37,7 @@ awdawd = awdwa
     // 2. Define valid items (only GroupA Key1)
     let key1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key1"),
         args: vec![],
         module_path: "test".to_string(),
     };

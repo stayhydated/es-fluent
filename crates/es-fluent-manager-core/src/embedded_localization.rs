@@ -100,37 +100,38 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         let resource_arc = self.current_resource.read().unwrap();
-        if let Some(resource) = resource_arc.as_ref() {
-            let lang_guard = self.current_lang.read().unwrap();
-            let lang = lang_guard
-                .as_ref()
-                .expect("Language not selected before localization");
+        let resource = resource_arc.as_ref()?;
 
-            let mut bundle = FluentBundle::new(vec![lang.clone()]);
-            bundle
-                .add_resource(resource.clone())
-                .expect("Failed to add resource");
+        let lang_guard = self.current_lang.read().unwrap();
+        let lang = lang_guard
+            .as_ref()
+            .expect("Language not selected before localization");
 
-            if let Some(message) = bundle.get_message(id)
-                && let Some(pattern) = message.value()
-            {
-                let mut errors = Vec::new();
-                let fluent_args = args.map(|args| {
-                    let mut fa = FluentArgs::new();
-                    for (key, value) in args {
-                        fa.set(*key, value.clone());
-                    }
-                    fa
-                });
-                let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
-                if errors.is_empty() {
-                    return Some(value.into_owned());
-                } else {
-                    tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
-                }
+        let mut bundle = FluentBundle::new(vec![lang.clone()]);
+        bundle
+            .add_resource(resource.clone())
+            .expect("Failed to add resource");
+
+        let message = bundle.get_message(id)?;
+        let pattern = message.value()?;
+
+        let fluent_args = args.map(|args| {
+            let mut fa = FluentArgs::new();
+            for (key, value) in args {
+                fa.set(*key, value.clone());
             }
+            fa
+        });
+
+        let mut errors = Vec::new();
+        let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+
+        if !errors.is_empty() {
+            tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+            return None;
         }
-        None
+
+        Some(value.into_owned())
     }
 }
 

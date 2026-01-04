@@ -16,7 +16,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
 
     let indexed_fields = opts.indexed_fields();
 
-    let ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+    let ftl_key = namer::FluentKey::from(original_ident).to_string();
 
     let args: Vec<_> = indexed_fields
         .iter()
