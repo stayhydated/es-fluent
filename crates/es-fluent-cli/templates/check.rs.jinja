@@ -2,5 +2,5 @@
 extern crate {{ crate_ident }};
 
 fn main() {
-    es_fluent::write_inventory_for_crate("{{ crate_name }}");
+    es_fluent_cli_helpers::run_check("{{ crate_name }}");
 }

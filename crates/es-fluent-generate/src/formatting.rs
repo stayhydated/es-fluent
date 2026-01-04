@@ -143,8 +143,6 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         }
     }
 
-
-
     // Sort messages within sections
     for section in &mut sections {
         section.messages.sort_by(|a, b| {

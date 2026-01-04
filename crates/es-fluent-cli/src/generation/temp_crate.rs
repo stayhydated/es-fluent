@@ -53,6 +53,31 @@ pub fn get_es_fluent_dep(manifest_path: &Path, features: &[&str]) -> String {
     }
 }
 
+/// Get the es-fluent-cli-helpers dependency string, preferring local path if in workspace.
+pub fn get_es_fluent_cli_helpers_dep(manifest_path: &Path) -> String {
+    let crates_io_dep = r#"es-fluent-cli-helpers = { version = "*" }"#.to_string();
+
+    let metadata = cargo_metadata::MetadataCommand::new()
+        .manifest_path(manifest_path)
+        .exec()
+        .ok();
+
+    if let Some(ref meta) = metadata {
+        let cli_helpers_workspace_member = meta.packages.iter().find(|p| {
+            p.name.as_str() == "es-fluent-cli-helpers" && meta.workspace_members.contains(&p.id)
+        });
+
+        cli_helpers_workspace_member
+            .map(|helpers_pkg| {
+                let helpers_path = helpers_pkg.manifest_path.parent().unwrap();
+                format!(r#"es-fluent-cli-helpers = {{ path = "{}" }}"#, helpers_path)
+            })
+            .unwrap_or(crates_io_dep)
+    } else {
+        crates_io_dep
+    }
+}
+
 /// Create the base temporary crate directory structure.
 ///
 /// This creates:
@@ -87,11 +112,13 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
     // Enable both generate and cli features
     let es_fluent_dep = get_es_fluent_dep(&manifest_path, &["generate", "cli"]);
+    let es_fluent_cli_helpers_dep = get_es_fluent_cli_helpers_dep(&manifest_path);
 
     let cargo_toml = CargoTomlTemplate {
         crate_name: "es-fluent-temp", // Use a generic name
         parent_crate_name: &krate.name,
         es_fluent_dep: &es_fluent_dep,
+        es_fluent_cli_helpers_dep: &es_fluent_cli_helpers_dep,
         has_fluent_features: !krate.fluent_features.is_empty(),
         fluent_features: &krate.fluent_features,
     };
@@ -130,8 +157,8 @@ pub fn write_cargo_toml(temp_dir: &Path, cargo_toml_content: &str) -> Result<()>
 
 /// Run `cargo run` on a temporary crate.
 ///
-/// Returns Ok(()) if cargo succeeds, or an error if it fails.
-pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Result<()> {
+/// Returns the command stdout if cargo succeeds (captured to support diffs), or an error if it fails.
+pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Result<String> {
     let manifest_path = temp_dir.join("Cargo.toml");
 
     let mut cmd = Command::new("cargo");
@@ -144,15 +171,19 @@ pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Re
         .arg("--quiet")
         .arg("--")
         .args(args)
-        .env("RUSTFLAGS", "-A warnings");
+        .env("RUSTFLAGS", "-A warnings")
+        // Force colored output even though we are capturing stdout
+        .env("CLICOLOR_FORCE", "1");
 
+    // Capture stdout/stderr
     let output = cmd.output().context("Failed to run cargo")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("Cargo run failed: {}", stderr)
     }
-    Ok(())
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 /// Run `cargo run` on a temporary crate and capture output.

@@ -37,6 +37,8 @@ pub struct FormatResult {
     pub changed: bool,
     /// Error if formatting failed.
     pub error: Option<String>,
+    /// Diff info (original, new) if dry run and changed.
+    pub diff_info: Option<(String, String)>,
 }
 
 /// Run the format command.
@@ -68,7 +70,14 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
                 total_formatted += 1;
                 pb.suspend(|| {
                     if args.dry_run {
-                        ui::print_would_format(&result.path);
+                        let display_path = std::env::current_dir()
+                            .ok()
+                            .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
+                            .unwrap_or(&result.path);
+                        ui::print_would_format(display_path);
+                        if let Some((old, new)) = &result.diff_info {
+                            ui::print_diff(old, new);
+                        }
                     } else {
                         ui::print_formatted(&result.path);
                     }
@@ -143,6 +152,7 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
                 path: path.to_path_buf(),
                 changed: false,
                 error: Some(format!("Failed to read file: {}", e)),
+                diff_info: None,
             };
         },
     };
@@ -152,6 +162,7 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
             path: path.to_path_buf(),
             changed: false,
             error: None,
+            diff_info: None,
         };
     }
 
@@ -177,12 +188,20 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
             path: path.to_path_buf(),
             changed: false,
             error: Some(format!("Failed to write file: {}", e)),
+            diff_info: None,
         };
     }
+
+    let diff_info = if changed && check_only {
+        Some((content, formatted_content))
+    } else {
+        None
+    };
 
     FormatResult {
         path: path.to_path_buf(),
         changed,
         error: None,
+        diff_info,
     }
 }

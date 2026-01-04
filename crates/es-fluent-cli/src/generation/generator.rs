@@ -3,7 +3,7 @@ use crate::generation::{prepare_temp_crate, run_cargo};
 use anyhow::{Result, bail};
 
 /// Generates FTL files for a crate using the CrateInfo struct.
-pub fn generate_for_crate(krate: &CrateInfo, action: &GenerationAction) -> Result<()> {
+pub fn generate_for_crate(krate: &CrateInfo, action: &GenerationAction) -> Result<String> {
     if !krate.has_lib_rs {
         bail!(
             "Crate '{}' has no lib.rs - inventory requires a library target for linking",
@@ -14,13 +14,17 @@ pub fn generate_for_crate(krate: &CrateInfo, action: &GenerationAction) -> Resul
     let temp_dir = prepare_temp_crate(krate)?;
 
     let args = match action {
-        GenerationAction::Generate(mode) => {
+        GenerationAction::Generate { mode, dry_run } => {
             // FluentParseMode Display implementation typically matches clap ValueEnum (lowercase)
-            vec![
+            let mut args = vec![
                 "generate".to_string(),
                 "--mode".to_string(),
                 mode.to_string().to_lowercase(),
-            ]
+            ];
+            if *dry_run {
+                args.push("--dry-run".to_string());
+            }
+            args
         },
         GenerationAction::Clean {
             all_locales,

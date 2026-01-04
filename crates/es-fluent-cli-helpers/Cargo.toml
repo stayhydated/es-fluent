@@ -1,0 +1,21 @@
+[package]
+name = "es-fluent-cli-helpers"
+version = "0.4.3"
+edition = "2024"
+authors = [ "Mark Hudnall <me@markhudnall.com>" ]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/stayhydrated/es-fluent"
+description = "Helper functions for es-fluent CLI temporary crate binaries"
+
+[dependencies]
+bon = { workspace = true }
+cargo_metadata = { workspace = true }
+clap = { features = [ "derive" ], workspace = true }
+es-fluent-core = { workspace = true }
+es-fluent-generate = { workspace = true }
+es-fluent-toml = { workspace = true }
+inventory = { workspace = true }
+serde = { features = [ "derive" ], workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

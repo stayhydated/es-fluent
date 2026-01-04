@@ -13,9 +13,7 @@ use crate::core::{
     ValidationReport, find_key_span,
 };
 use crate::ftl::extract_variables_from_message;
-use crate::generation::{
-    prepare_temp_crate, run_cargo_with_output,
-};
+use crate::generation::{prepare_temp_crate, run_cargo_with_output};
 use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;

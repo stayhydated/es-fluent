@@ -52,6 +52,7 @@ group-a-key1 = Initial Value
         &i18n_path,
         vec![group_a],
         FluentParseMode::Conservative,
+        false,
     )
     .unwrap();
 

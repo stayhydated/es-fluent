@@ -4,10 +4,10 @@ use crate::core::FluentParseMode;
 #[derive(Clone, Debug)]
 pub enum GenerationAction {
     /// Generate FTL files with the specified mode.
-    Generate(FluentParseMode),
-    /// Clean orphan keys from FTL files.
-    Clean {
-        all_locales: bool,
+    Generate {
+        mode: FluentParseMode,
         dry_run: bool,
     },
+    /// Clean orphan keys from FTL files.
+    Clean { all_locales: bool, dry_run: bool },
 }

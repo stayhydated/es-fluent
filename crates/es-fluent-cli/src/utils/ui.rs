@@ -166,12 +166,13 @@ pub fn print_syncing(crate_name: &str) {
     println!("{} {}", "Syncing".dimmed(), crate_name.green());
 }
 
-pub fn print_would_add_keys(count: usize, locale: &str) {
+pub fn print_would_add_keys(count: usize, locale: &str, crate_name: &str) {
     println!(
-        "{} {} key(s) to {}",
+        "{} {} key(s) to {} ({})",
         "Would add".yellow(),
         count,
-        locale.cyan()
+        locale.cyan(),
+        crate_name.bold()
     );
 }
 
@@ -228,4 +229,31 @@ pub fn print_locale_not_found(locale: &str, available: &[String]) {
         locale.white().bold(),
         available_str.cyan()
     );
+}
+
+pub fn print_diff(old: &str, new: &str) {
+    use similar::{ChangeTag, TextDiff};
+
+    let diff = TextDiff::from_lines(old, new);
+
+    for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+        if idx > 0 {
+            println!("{}", "  ...".dimmed());
+        }
+        for op in group {
+            for change in diff.iter_changes(op) {
+                let sign = match change.tag() {
+                    ChangeTag::Delete => "-",
+                    ChangeTag::Insert => "+",
+                    ChangeTag::Equal => " ",
+                };
+                let line = format!("{} {}", sign, change);
+                match change.tag() {
+                    ChangeTag::Delete => print!("{}", line.red()),
+                    ChangeTag::Insert => print!("{}", line.green()),
+                    ChangeTag::Equal => print!("{}", line.dimmed()),
+                }
+            }
+        }
+    }
 }

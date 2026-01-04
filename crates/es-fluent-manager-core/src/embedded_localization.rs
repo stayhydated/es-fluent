@@ -126,7 +126,7 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
                 if errors.is_empty() {
                     return Some(value.into_owned());
                 } else {
-                    log::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+                    tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
                 }
             }
         }

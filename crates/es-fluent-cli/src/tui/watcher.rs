@@ -1,6 +1,6 @@
 //! File watcher and main TUI event loop.
 
-use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerationAction, GenerateResult};
+use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, GenerationAction};
 use crate::generation::generate_for_crate;
 use crate::tui::{self, Message, TuiApp};
 use crate::utils::count_ftl_resources;
@@ -42,7 +42,13 @@ fn compute_src_hash(src_dir: &Path) -> blake3::Hash {
 fn spawn_generation(krate: CrateInfo, mode: FluentParseMode, result_tx: Sender<GenerateResult>) {
     thread::spawn(move || {
         let start = Instant::now();
-        let result = generate_for_crate(&krate, &GenerationAction::Generate(mode));
+        let result = generate_for_crate(
+            &krate,
+            &GenerationAction::Generate {
+                mode,
+                dry_run: false,
+            },
+        );
         let duration = start.elapsed();
         let resource_count = result
             .as_ref()
@@ -51,7 +57,40 @@ fn spawn_generation(krate: CrateInfo, mode: FluentParseMode, result_tx: Sender<G
             .unwrap_or(0);
 
         let gen_result = match result {
-            Ok(()) => GenerateResult::success(krate.name.clone(), duration, resource_count),
+            Ok(output) => {
+                // Read the result JSON file from the temp directory
+                let temp_dir = krate.manifest_dir.join(".es-fluent");
+                let result_json_path = temp_dir.join("result.json");
+                let changed = if result_json_path.exists() {
+                    match std::fs::read_to_string(&result_json_path) {
+                        Ok(json_str) => {
+                            match serde_json::from_str::<serde_json::Value>(&json_str) {
+                                Ok(json) => json["changed"].as_bool().unwrap_or(false),
+                                Err(_) => false,
+                            }
+                        },
+                        Err(_) => false,
+                    }
+                } else {
+                    false
+                };
+
+                // Cleanup the output
+                let output = output.trim();
+                let output_opt = if output.is_empty() {
+                    None
+                } else {
+                    Some(output.to_string())
+                };
+
+                GenerateResult::success(
+                    krate.name.clone(),
+                    duration,
+                    resource_count,
+                    output_opt,
+                    changed,
+                )
+            },
             Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
         };
 

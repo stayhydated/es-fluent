@@ -83,6 +83,25 @@ impl WorkspaceCrates {
     }
 }
 
+/// Read the changed status from the temporary crate's result.json file.
+///
+/// Returns `true` if the file indicates changes were made, `false` otherwise.
+fn read_changed_status(temp_dir: &std::path::Path) -> bool {
+    let result_json_path = temp_dir.join("result.json");
+
+    if !result_json_path.exists() {
+        return false;
+    }
+
+    match std::fs::read_to_string(&result_json_path) {
+        Ok(json_str) => match serde_json::from_str::<serde_json::Value>(&json_str) {
+            Ok(json) => json["changed"].as_bool().unwrap_or(false),
+            Err(_) => false,
+        },
+        Err(_) => false,
+    }
+}
+
 /// Run generation-like work in parallel for a set of crates.
 ///
 /// This mirrors the pattern used by both `generate` and `clean` commands, where
@@ -101,7 +120,26 @@ pub fn parallel_generate(crates: &[CrateInfo], action: &GenerationAction) -> Vec
                 .unwrap_or(0);
 
             match result {
-                Ok(()) => GenerateResult::success(krate.name.clone(), duration, resource_count),
+                Ok(output) => {
+                    let temp_dir = krate.manifest_dir.join(".es-fluent");
+                    let changed = read_changed_status(&temp_dir);
+
+                    // Cleanup the output (remove any trailing newlines)
+                    let output = output.trim();
+                    let output_opt = if output.is_empty() {
+                        None
+                    } else {
+                        Some(output.to_string())
+                    };
+
+                    GenerateResult::success(
+                        krate.name.clone(),
+                        duration,
+                        resource_count,
+                        output_opt,
+                        changed,
+                    )
+                },
                 Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
             }
         })

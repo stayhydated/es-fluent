@@ -149,6 +149,7 @@ what-Hi = Hi
         &i18n_path,
         vec![gender, hello_user, shared, what],
         FluentParseMode::Conservative,
+        false,
     )
     .unwrap();
 

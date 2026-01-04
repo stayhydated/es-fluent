@@ -41,102 +41,159 @@ pub fn generate<P: AsRef<Path>>(
     i18n_path: P,
     items: Vec<FtlTypeInfo>,
     mode: FluentParseMode,
-) -> Result<(), FluentGenerateError> {
+    dry_run: bool,
+) -> Result<bool, FluentGenerateError> {
     let i18n_path = i18n_path.as_ref();
 
-    fs::create_dir_all(i18n_path)?;
+    if !dry_run {
+        fs::create_dir_all(i18n_path)?;
+    }
 
     let file_path = i18n_path.join(format!("{}.ftl", crate_name));
 
-    let existing_resource = if file_path.exists() {
-        let content = fs::read_to_string(&file_path)?;
-        if content.trim().is_empty() {
-            ast::Resource { body: Vec::new() }
-        } else {
-            match parser::parse(content) {
-                Ok(res) => res,
-                Err((res, errors)) => {
-                    log::warn!(
-                        "Warning: Encountered parsing errors in {}: {:?}",
-                        file_path.display(),
-                        errors
-                    );
-                    res
-                },
-            }
-        }
-    } else {
-        ast::Resource { body: Vec::new() }
-    };
+    let existing_resource = read_existing_resource(&file_path)?;
 
     let final_resource = if matches!(mode, FluentParseMode::Aggressive) {
-        let target_resource = build_target_resource(&items);
-
-        let mut existing_entries_map: HashMap<String, ast::Entry<String>> = HashMap::new();
-        for entry in existing_resource.body.into_iter() {
-            match &entry {
-                ast::Entry::Message(msg) => {
-                    existing_entries_map.insert(msg.id.name.clone(), entry);
-                },
-                ast::Entry::Term(term) => {
-                    existing_entries_map
-                        .insert(format!("{}{}", FluentKey::DELIMITER, term.id.name), entry);
-                },
-                _ => {},
-            }
-        }
-
-        let mut merged_resource_body: Vec<ast::Entry<String>> = Vec::new();
-
-        for entry in target_resource.body {
-            merged_resource_body.push(entry);
-        }
-
-        ast::Resource {
-            body: merged_resource_body,
-        }
+        // In aggressive mode, completely replace with new content
+        build_target_resource(&items)
     } else {
+        // In conservative mode, merge with existing content
         smart_merge(existing_resource, &items, MergeBehavior::Append)
     };
 
-    if !final_resource.body.is_empty() {
-        let final_content_to_write = formatting::sort_ftl_resource(&final_resource);
+    write_updated_resource(
+        &file_path,
+        &final_resource,
+        dry_run,
+        formatting::sort_ftl_resource,
+    )
+}
 
-        let current_content = if file_path.exists() {
-            fs::read_to_string(&file_path)?
-        } else {
-            String::new()
-        };
+pub(crate) fn print_diff(old: &str, new: &str) {
+    use colored::Colorize as _;
+    use similar::{ChangeTag, TextDiff};
 
-        if current_content.trim() != final_content_to_write.trim() {
-            fs::write(&file_path, &final_content_to_write)?;
-            log::error!("Updated FTL file: {}", file_path.display());
-        } else {
-            log::error!("FTL file unchanged: {}", file_path.display());
+    let diff = TextDiff::from_lines(old, new);
+
+    for (idx, group) in diff.grouped_ops(3).iter().enumerate() {
+        if idx > 0 {
+            println!("{}", "  ...".dimmed());
         }
-    } else {
-        let final_content_to_write = "".to_string();
-        let current_content = if file_path.exists() {
-            fs::read_to_string(&file_path)?
-        } else {
-            String::new()
-        };
-
-        if current_content != final_content_to_write && !current_content.trim().is_empty() {
-            fs::write(&file_path, &final_content_to_write)?;
-            log::error!("Wrote empty FTL file (no items): {}", file_path.display());
-        } else {
-            if current_content != final_content_to_write {
-                fs::write(&file_path, &final_content_to_write)?;
+        for op in group {
+            for change in diff.iter_changes(op) {
+                let sign = match change.tag() {
+                    ChangeTag::Delete => "-",
+                    ChangeTag::Insert => "+",
+                    ChangeTag::Equal => " ",
+                };
+                let line = format!("{} {}", sign, change);
+                match change.tag() {
+                    ChangeTag::Delete => print!("{}", line.red()),
+                    ChangeTag::Insert => print!("{}", line.green()),
+                    ChangeTag::Equal => print!("{}", line.dimmed()),
+                }
             }
-            log::error!(
-                "FTL file unchanged (empty or no items): {}",
-                file_path.display()
+        }
+    }
+}
+
+/// Read and parse an existing FTL resource file.
+///
+/// Returns an empty resource if the file doesn't exist or is empty.
+/// Logs warnings for parsing errors but continues with partial parse.
+fn read_existing_resource(file_path: &Path) -> Result<ast::Resource<String>, FluentGenerateError> {
+    if !file_path.exists() {
+        return Ok(ast::Resource { body: Vec::new() });
+    }
+
+    let content = fs::read_to_string(file_path)?;
+    if content.trim().is_empty() {
+        return Ok(ast::Resource { body: Vec::new() });
+    }
+
+    match parser::parse(content) {
+        Ok(res) => Ok(res),
+        Err((res, errors)) => {
+            tracing::warn!(
+                "Warning: Encountered parsing errors in {}: {:?}",
+                file_path.display(),
+                errors
             );
+            Ok(res)
+        },
+    }
+}
+
+/// Write an updated resource to disk, handling change detection and dry-run mode.
+///
+/// Returns `true` if the file was changed (or would be changed in dry-run mode).
+fn write_updated_resource(
+    file_path: &Path,
+    resource: &ast::Resource<String>,
+    dry_run: bool,
+    formatter: impl Fn(&ast::Resource<String>) -> String,
+) -> Result<bool, FluentGenerateError> {
+    let final_content = if resource.body.is_empty() {
+        String::new()
+    } else {
+        formatter(resource)
+    };
+
+    let current_content = if file_path.exists() {
+        fs::read_to_string(file_path)?
+    } else {
+        String::new()
+    };
+
+    // Determine if content has changed
+    let has_changed = if resource.body.is_empty() {
+        // For empty resources, only consider it changed if we're clearing a non-empty file
+        current_content != final_content && !current_content.trim().is_empty()
+    } else {
+        // For non-empty resources, compare trimmed content
+        current_content.trim() != final_content.trim()
+    };
+
+    if !has_changed {
+        // No change needed
+        if !dry_run {
+            if resource.body.is_empty() {
+                tracing::debug!(
+                    "FTL file unchanged (empty or no items): {}",
+                    file_path.display()
+                );
+            } else {
+                tracing::debug!("FTL file unchanged: {}", file_path.display());
+            }
+        }
+        return Ok(false);
+    }
+
+    // Content has changed
+    if dry_run {
+        if resource.body.is_empty() {
+            if !current_content.trim().is_empty() {
+                println!(
+                    "Would write empty FTL file (no items): {}",
+                    file_path.display()
+                );
+            } else {
+                println!("Would write empty FTL file: {}", file_path.display());
+            }
+        } else {
+            println!("Would update FTL file: {}", file_path.display());
+        }
+        print_diff(&current_content, &final_content);
+    } else {
+        fs::write(file_path, &final_content)?;
+        if resource.body.is_empty() {
+            tracing::info!("Wrote empty FTL file (no items): {}", file_path.display());
+        } else {
+            tracing::info!("Updated FTL file: {}", file_path.display());
         }
     }
 
-    Ok(())
+    Ok(true)
 }
 
 /// Compares two type infos, putting "this" types first.
@@ -253,11 +310,11 @@ pub(crate) fn smart_merge(
                         .variants
                         .iter()
                         .position(|v| v.ftl_key.to_string() == key)
-                {
-                    info.variants.remove(idx);
-                    handled = true;
-                    break;
-                }
+                    {
+                        info.variants.remove(idx);
+                        handled = true;
+                        break;
+                    }
                 }
 
                 if handled || !cleanup {
@@ -349,36 +406,30 @@ fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
     let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>, String)> = BTreeMap::new();
 
     for item in items {
-        let entry = grouped.entry(item.type_name.clone()).or_insert_with(|| {
-            (
-                item.type_kind.clone(),
-                Vec::new(),
-                item.module_path.clone(),
-            )
-        });
+        let entry = grouped
+            .entry(item.type_name.clone())
+            .or_insert_with(|| (item.type_kind.clone(), Vec::new(), item.module_path.clone()));
         entry.1.extend(item.variants.clone());
     }
 
     grouped
         .into_iter()
-        .map(
-            |(type_name, (type_kind, mut variants, module_path))| {
-                variants.sort_by(|a, b| {
-                    let a_is_this = a.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
-                    let b_is_this = b.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
-                    formatting::compare_with_this_priority(a_is_this, &a.name, b_is_this, &b.name)
-                });
-                variants.dedup();
+        .map(|(type_name, (type_kind, mut variants, module_path))| {
+            variants.sort_by(|a, b| {
+                let a_is_this = a.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
+                let b_is_this = b.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
+                formatting::compare_with_this_priority(a_is_this, &a.name, b_is_this, &b.name)
+            });
+            variants.dedup();
 
-                FtlTypeInfo {
-                    type_kind,
-                    type_name,
-                    variants,
-                    file_path: None,
-                    module_path,
-                }
-            },
-        )
+            FtlTypeInfo {
+                type_kind,
+                type_name,
+                variants,
+                file_path: None,
+                module_path,
+            }
+        })
         .collect()
 }
 
@@ -424,6 +475,7 @@ mod tests {
             &i18n_path,
             vec![],
             FluentParseMode::Conservative,
+            false,
         );
         assert!(result.is_ok());
 
@@ -460,6 +512,7 @@ mod tests {
             &i18n_path,
             vec![type_info],
             FluentParseMode::Conservative,
+            false,
         );
         assert!(result.is_ok());
 
@@ -504,6 +557,7 @@ mod tests {
             &i18n_path,
             vec![type_info],
             FluentParseMode::Aggressive,
+            false,
         );
         assert!(result.is_ok());
 
@@ -546,6 +600,7 @@ mod tests {
             &i18n_path,
             vec![type_info],
             FluentParseMode::Conservative,
+            false,
         );
         assert!(result.is_ok());
 
@@ -594,12 +649,7 @@ existing-key = Existing Value
             module_path: "test".to_string(),
         };
 
-        let result = crate::clean::clean(
-            "test_crate",
-            &i18n_path,
-            vec![type_info],
-            false,
-        );
+        let result = crate::clean::clean("test_crate", &i18n_path, vec![type_info], false);
         assert!(result.is_ok());
 
         let content = fs::read_to_string(&ftl_file_path).unwrap();
@@ -674,6 +724,7 @@ existing-key = Existing Value
             &i18n_path,
             vec![apple.clone(), banana.clone(), banana_this.clone()],
             FluentParseMode::Aggressive,
+            false,
         );
         assert!(result.is_ok());
 
@@ -715,19 +766,13 @@ existing-key = Existing Value
         };
         let apple_variant = FtlVariant {
             name: "Apple".to_string(),
-            ftl_key: FluentKey::new(
-                &fruit_ident,
-                "Apple",
-            ),
+            ftl_key: FluentKey::new(&fruit_ident, "Apple"),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
         let banana_variant = FtlVariant {
             name: "Banana".to_string(),
-            ftl_key: FluentKey::new(
-                &fruit_ident,
-                "Banana",
-            ),
+            ftl_key: FluentKey::new(&fruit_ident, "Banana"),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -750,6 +795,7 @@ existing-key = Existing Value
             &i18n_path,
             vec![fruit],
             FluentParseMode::Aggressive,
+            false,
         );
         assert!(result.is_ok());
 

@@ -31,16 +31,28 @@ pub struct GenerateResult {
     pub resource_count: usize,
     /// Error message if generation failed.
     pub error: Option<String>,
+    /// Captured stdout from the generation process (e.g. diffs).
+    pub output: Option<String>,
+    /// Whether any files were changed.
+    pub changed: bool,
 }
 
 impl GenerateResult {
     /// Create a new successful result.
-    pub fn success(name: String, duration: Duration, resource_count: usize) -> Self {
+    pub fn success(
+        name: String,
+        duration: Duration,
+        resource_count: usize,
+        output: Option<String>,
+        changed: bool,
+    ) -> Self {
         Self {
             name,
             duration,
             resource_count,
             error: None,
+            output,
+            changed,
         }
     }
 
@@ -51,6 +63,8 @@ impl GenerateResult {
             duration,
             resource_count: 0,
             error: Some(error),
+            output: None,
+            changed: false,
         }
     }
 }

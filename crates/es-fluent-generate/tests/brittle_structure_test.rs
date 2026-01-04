@@ -73,6 +73,7 @@ manual-key = Contains manual stuff
         &i18n_path,
         vec![group_a, group_b],
         FluentParseMode::Conservative,
+        false,
     )
     .unwrap();
 

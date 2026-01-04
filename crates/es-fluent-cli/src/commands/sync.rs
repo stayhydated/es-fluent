@@ -10,7 +10,7 @@ use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
-use fluent_syntax::{ast, serializer};
+use fluent_syntax::{ast, parser, serializer};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::Path;
@@ -43,6 +43,8 @@ pub struct SyncLocaleResult {
     pub keys_added: usize,
     /// The keys that were added.
     pub added_keys: Vec<String>,
+    /// Diff info (original, new) if dry run and changed.
+    pub diff_info: Option<(String, String)>,
 }
 
 /// Run the sync command.
@@ -102,18 +104,20 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 
                 pb.suspend(|| {
                     if args.dry_run {
-                        ui::print_would_add_keys(result.keys_added, &result.locale);
+                        ui::print_would_add_keys(result.keys_added, &result.locale, &krate.name);
+                        if let Some((old, new)) = &result.diff_info {
+                            ui::print_diff(old, new);
+                        }
                     } else {
                         ui::print_added_keys(result.keys_added, &result.locale);
-                    }
-
-                    for key in &result.added_keys {
-                        ui::print_synced_key(key);
-                        all_synced_keys.push(SyncMissingKey {
-                            key: key.clone(),
-                            target_locale: result.locale.clone(),
-                            source_locale: "fallback".to_string(),
-                        });
+                        for key in &result.added_keys {
+                            ui::print_synced_key(key);
+                            all_synced_keys.push(SyncMissingKey {
+                                key: key.clone(),
+                                target_locale: result.locale.clone(),
+                                source_locale: "fallback".to_string(),
+                            });
+                        }
                     }
                 });
             }
@@ -207,7 +211,17 @@ fn sync_locale(
     }
 
     // Parse existing locale file
-    let existing_resource = parse_ftl_file(&ftl_file)?;
+    // Read content first to allow diffing later
+    let existing_content = if ftl_file.exists() {
+        fs::read_to_string(&ftl_file)?
+    } else {
+        String::new()
+    };
+
+    let existing_resource = parser::parse(existing_content.clone())
+        .map_err(|(res, _)| res)
+        .unwrap_or_else(|res| res);
+
     let existing_keys = extract_message_keys(&existing_resource);
 
     // Find missing keys
@@ -221,32 +235,39 @@ fn sync_locale(
             locale: locale.to_string(),
             keys_added: 0,
             added_keys: Vec::new(),
+            diff_info: None,
         });
     }
 
     // Build the merged resource
     let mut added_keys: Vec<String> = Vec::new();
 
-    if !dry_run {
-        let merged = merge_missing_keys(
-            &existing_resource,
-            fallback_resource,
-            &missing_keys,
-            &mut added_keys,
-        );
+    let merged = merge_missing_keys(
+        &existing_resource,
+        fallback_resource,
+        &missing_keys,
+        &mut added_keys,
+    );
+    // Serialize and write
+    let content = serializer::serialize(&merged);
+    let final_content = format!("{}\n", content.trim_end());
 
-        // Serialize and write
-        let content = serializer::serialize(&merged);
-        let final_content = format!("{}\n", content.trim_end());
-        fs::write(&ftl_file, final_content)?;
-    } else {
-        added_keys = missing_keys.iter().map(|k| (*k).clone()).collect();
+    if !dry_run {
+        fs::write(&ftl_file, &final_content)?;
     }
+
+    // If dry run and we have changes (missing_keys was not empty), compute diff
+    let diff_info = if dry_run && !missing_keys.is_empty() {
+        Some((existing_content, final_content))
+    } else {
+        None
+    };
 
     Ok(SyncLocaleResult {
         locale: locale.to_string(),
         keys_added: added_keys.len(),
         added_keys,
+        diff_info,
     })
 }
 

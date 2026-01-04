@@ -3,6 +3,7 @@ default-members = [ "examples/bevy-example", "examples/gpui-example" ]
 members = [
   "crates/es-fluent",
   "crates/es-fluent-cli",
+  "crates/es-fluent-cli-helpers",
   "crates/es-fluent-core",
   "crates/es-fluent-toml",
   "crates/es-fluent-derive",
@@ -67,7 +68,6 @@ indicatif = "0.18.3"
 insta = { version = "1.43.2" }
 intl-memoizer = "0.5.3"
 inventory = "0.3.20"
-log = { features = [ "std" ], version = "0.4" }
 miette = "7.6.0"
 notify = "8.2"
 notify-debouncer-full = "0.6.0"
@@ -81,12 +81,14 @@ rust-embed = "8.5.0"
 rust_decimal = "1.39.0"
 serde = "1.0.217"
 serde_json = "1.0"
+similar = "2.7.0"
 strum = "0.27.2"
 syn = "2.0.92"
 tempfile = "3.23.0"
 thiserror = "2.0.12"
 throbber-widgets-tui = "0.10.0"
 toml = "0.9.5"
+tracing = "0.1.44"
 unic-langid = "0.9.6"
 walkdir = "2.5.0"
 

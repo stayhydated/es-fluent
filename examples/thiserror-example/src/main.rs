@@ -2,7 +2,7 @@ mod error;
 pub mod i18n;
 
 use error::TransactionError;
-use es_fluent::{EsFluentGenerator, ToFluentString as _};
+use es_fluent::ToFluentString as _;
 use strum::IntoEnumIterator as _;
 
 use crate::error::{LockedReason, NetworkError, NotFoundReason};
@@ -42,11 +42,6 @@ fn debit_account(
 }
 
 fn main() {
-    EsFluentGenerator::builder()
-        .build()
-        .generate()
-        .expect("Failed to generate FTL files");
-    i18n::init();
     Languages::iter().for_each(run);
 }
 

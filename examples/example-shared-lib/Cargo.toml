@@ -19,10 +19,6 @@ strum = { features = [ "derive" ], workspace = true }
 [lints]
 workspace = true
 
-[[bin]]
-name = "generate-ftl"
-path = "src/bin/generate_ftl.rs"
-
 [features]
 bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy", "es-fluent-lang/bevy" ]
 embedded = [ "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
