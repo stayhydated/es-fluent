@@ -31,10 +31,6 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
         return Ok(());
     }
 
-    for krate in &workspace.valid {
-        ui::print_generating(&krate.name);
-    }
-
     let results = parallel_generate(
         &workspace.valid,
         &GenerationAction::Generate {

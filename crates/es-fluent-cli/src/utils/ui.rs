@@ -7,6 +7,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::path::Path;
 use std::time::Duration;
 
+const PD_TICK: Duration = Duration::from_millis(100);
+
 pub fn init_logging() {
     // No-op: we rely on standard output for CLI presentation.
     // Kept to avoid breaking main.rs calls.
@@ -21,6 +23,7 @@ pub fn create_spinner(msg: &str) -> ProgressBar {
             .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
     );
     pb.set_message(msg.to_string());
+    pb.enable_steady_tick(PD_TICK);
     pb
 }
 
@@ -33,6 +36,7 @@ pub fn create_progress_bar(len: u64, msg: &str) -> ProgressBar {
             .progress_chars("#>-"),
     );
     pb.set_message(msg.to_string());
+    pb.enable_steady_tick(PD_TICK);
     pb
 }
 

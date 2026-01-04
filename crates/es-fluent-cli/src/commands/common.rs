@@ -107,12 +107,17 @@ fn read_changed_status(temp_dir: &std::path::Path) -> bool {
 /// This mirrors the pattern used by both `generate` and `clean` commands, where
 /// each crate is processed concurrently and the results are aggregated.
 pub fn parallel_generate(crates: &[CrateInfo], action: &GenerationAction) -> Vec<GenerateResult> {
+    let pb = ui::create_progress_bar(crates.len() as u64, "Processing crates...");
+
     crates
         .par_iter()
         .map(|krate| {
             let start = Instant::now();
             let result = generate_for_crate(krate, action);
             let duration = start.elapsed();
+
+            pb.inc(1);
+
             let resource_count = result
                 .as_ref()
                 .ok()

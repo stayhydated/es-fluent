@@ -167,6 +167,7 @@ pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Re
         .arg("--quiet")
         .arg("--")
         .args(args)
+        .current_dir(temp_dir)
         .env("RUSTFLAGS", "-A warnings")
         // Force colored output even though we are capturing stdout
         .env("CLICOLOR_FORCE", "1");

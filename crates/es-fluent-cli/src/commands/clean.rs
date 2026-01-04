@@ -31,10 +31,6 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
         return Ok(());
     }
 
-    for krate in &workspace.valid {
-        ui::print_cleaning(&krate.name);
-    }
-
     let action = GenerationAction::Clean {
         all_locales: args.all,
         dry_run: args.dry_run,
