@@ -6,7 +6,7 @@ license = "Unlicense"
 publish = false
 
 [dependencies]
-es-fluent = { features = [ "derive", "generate" ], workspace = true }
+es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-embedded = { workspace = true }
 example-shared-lib = { features = [ "embedded" ], path = "../example-shared-lib" }
 rust-embed = { workspace = true }

@@ -1,0 +1,9 @@
+[package]
+name = "test-lib-b"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+
+[dependencies]
+es-fluent = { workspace = true, features = ["derive"] }
+es-fluent-cli-helpers = { workspace = true }

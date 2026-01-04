@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 bevy = { optional = true, workspace = true }
-es-fluent = { features = [ "derive", "generate" ], workspace = true }
+es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { workspace = true }
 es-fluent-manager-bevy = { optional = true, workspace = true }
 es-fluent-manager-embedded = { optional = true, workspace = true }
