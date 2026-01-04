@@ -101,17 +101,18 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
             } else if result.changed {
                 total_formatted += 1;
                 pb.suspend(|| {
+                    let display_path = std::env::current_dir()
+                        .ok()
+                        .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
+                        .unwrap_or(&result.path);
+
                     if args.dry_run {
-                        let display_path = std::env::current_dir()
-                            .ok()
-                            .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
-                            .unwrap_or(&result.path);
                         ui::print_would_format(display_path);
                         if let Some((old, new)) = &result.diff_info {
                             ui::print_diff(old, new);
                         }
                     } else {
-                        ui::print_formatted(&result.path);
+                        ui::print_formatted(display_path);
                     }
                 });
             } else {
@@ -167,6 +168,7 @@ fn format_crate(
         // Format only the FTL file for this crate
         let ftl_file = locale_dir.join(format!("{}.ftl", krate.name));
         if ftl_file.exists() {
+            let ftl_file = fs::canonicalize(&ftl_file).unwrap_or(ftl_file);
             let result = format_ftl_file(&ftl_file, check_only);
             results.push(result);
         }
