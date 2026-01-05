@@ -6,6 +6,9 @@ publish = false
 
 [workspace]
 
+[build]
+target-dir = "{{ target_dir }}"
+
 [dependencies]
 {% if has_fluent_features %}
 {{ parent_crate_name }} = { path = "..", features = [{% for feature in fluent_features %}"{{ feature }}"{% if !loop.last %}, {% endif %}{% endfor %}] }

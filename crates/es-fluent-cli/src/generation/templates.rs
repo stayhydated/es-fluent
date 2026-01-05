@@ -12,6 +12,8 @@ pub struct CargoTomlTemplate<'a> {
     pub has_fluent_features: bool,
     /// The fluent feature names (only meaningful if has_fluent_features is true)
     pub fluent_features: &'a [String],
+    /// The target directory to use, enabling reuse of parent's compiled deps
+    pub target_dir: &'a str,
 }
 
 /// Template for the ftl generation command main.rs

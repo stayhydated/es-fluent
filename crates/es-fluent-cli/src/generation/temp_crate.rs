@@ -63,6 +63,31 @@ pub fn get_es_fluent_cli_helpers_dep(manifest_path: &Path) -> String {
     )
 }
 
+/// Get the target directory to use for the temp crate.
+///
+/// This enables reusing the parent's compiled dependencies for faster builds.
+/// Checks in order:
+/// 1. `CARGO_TARGET_DIR` environment variable
+/// 2. Workspace target directory from cargo metadata
+/// 3. Falls back to `../target` (parent's default target dir)
+pub fn get_target_dir(manifest_path: &Path) -> String {
+    // Check CARGO_TARGET_DIR first
+    if let Ok(target_dir) = std::env::var("CARGO_TARGET_DIR") {
+        return target_dir;
+    }
+
+    // Try to get from cargo metadata (handles .cargo/config.toml settings)
+    if let Ok(meta) = cargo_metadata::MetadataCommand::new()
+        .manifest_path(manifest_path)
+        .exec()
+    {
+        return meta.target_directory.to_string();
+    }
+
+    // Fall back to parent's default target directory
+    "../target".to_string()
+}
+
 /// Create the base temporary crate directory structure.
 ///
 /// This creates:
@@ -97,6 +122,7 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
     let es_fluent_dep = get_es_fluent_dep(&manifest_path);
     let es_fluent_cli_helpers_dep = get_es_fluent_cli_helpers_dep(&manifest_path);
+    let target_dir = get_target_dir(&manifest_path);
 
     let cargo_toml = CargoTomlTemplate {
         crate_name: "es-fluent-temp", // Use a generic name
@@ -105,6 +131,7 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
         es_fluent_cli_helpers_dep: &es_fluent_cli_helpers_dep,
         has_fluent_features: !krate.fluent_features.is_empty(),
         fluent_features: &krate.fluent_features,
+        target_dir: &target_dir,
     };
     write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
 
