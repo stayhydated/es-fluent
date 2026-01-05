@@ -266,28 +266,31 @@ pub fn run_monolithic(
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
     let binary_path = get_monolithic_binary_path(workspace);
 
-    // If binary exists, run it directly (fast path)
+
+    // If binary exists, check if it's stale
     if binary_path.exists() {
-        let mut cmd = Command::new(&binary_path);
-        cmd.arg(command)
-            .args(extra_args) // Put extra_args (including i18n_path) first
-            .arg("--crate")
-            .arg(crate_name)
-            .current_dir(&temp_dir);
+        if !is_runner_stale(workspace, &binary_path) {
+            let mut cmd = Command::new(&binary_path);
+            cmd.arg(command)
+                .args(extra_args) // Put extra_args (including i18n_path) first
+                .arg("--crate")
+                .arg(crate_name)
+                .current_dir(&temp_dir);
 
-        // Force colored output only if NO_COLOR is NOT set
-        if std::env::var("NO_COLOR").is_err() {
-            cmd.env("CLICOLOR_FORCE", "1");
+            // Force colored output only if NO_COLOR is NOT set
+            if std::env::var("NO_COLOR").is_err() {
+                cmd.env("CLICOLOR_FORCE", "1");
+            }
+
+            let output = cmd.output().context("Failed to run monolithic binary")?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                bail!("Monolithic binary failed: {}", stderr);
+            }
+
+            return Ok(String::from_utf8_lossy(&output.stdout).to_string());
         }
-
-        let output = cmd.output().context("Failed to run monolithic binary")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("Monolithic binary failed: {}", stderr);
-        }
-
-        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
     }
 
     // Otherwise, fall back to cargo run (will build)
@@ -297,6 +300,37 @@ pub fn run_monolithic(
     args.push("--crate".to_string());
     args.push(crate_name.to_string());
     run_cargo(&temp_dir, Some("es-fluent-runner"), &args)
+}
+
+/// Check if the runner binary is stale compared to workspace source files.
+///
+/// Returns true if any source file in any workspace crate is newer than the binary.
+fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
+    let runner_mtime = match fs::metadata(runner_path).and_then(|m| m.modified()) {
+        Ok(t) => t,
+        Err(_) => return true, // Treat as stale if we can't read metadata
+    };
+
+    for krate in &workspace.crates {
+        if !krate.src_dir.exists() {
+            continue;
+        }
+
+        let walker = walkdir::WalkDir::new(&krate.src_dir);
+        for entry in walker.into_iter().filter_map(|e| e.ok()) {
+            if entry.path().is_file() {
+                if let Ok(metadata) = entry.metadata() {
+                    if let Ok(mtime) = metadata.modified() {
+                        if mtime > runner_mtime {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    false
 }
 
 #[cfg(test)]

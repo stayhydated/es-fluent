@@ -213,6 +213,42 @@ macro_rules! define_e2e_suite {
                 let output = run_cli(&temp, &["generate", "--mode", "aggressive", "--dry-run"]);
                 assert_snapshot!(output);
             }
+            #[test]
+            fn test_generate_incremental() {
+                let temp = $setup_fn();
+                let output = run_cli(&temp, &["generate"]);
+                assert_snapshot!(output);
+
+                // Add a new struct to the crate
+                // Sleep to ensure file mtime passes (cargo mtime resolution)
+                std::thread::sleep(std::time::Duration::from_secs(1));
+
+                let src_path_workspace = temp.path().join("crates/test-app-a/src/lib.rs");
+                let src_path_package = temp.path().join("src/lib.rs");
+                
+                let src_path = if src_path_workspace.exists() {
+                    src_path_workspace
+                } else {
+                    src_path_package
+                };
+
+                let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
+                content.push_str("\n\n#[derive(EsFluent)]\npub struct IncrementalTest;\n");
+                std::fs::write(&src_path, content).expect("write lib.rs");
+
+                // Run generate again
+                let output_incremental = run_cli(&temp, &["generate"]);
+                // println!("Incremental Output: {}", output_incremental);
+                assert_snapshot!(output_incremental);
+
+                let ftl_path = temp.path().join($ftl_path);
+                let ftl_content = std::fs::read_to_string(&ftl_path).expect("read ftl");
+                
+                assert!(
+                    ftl_content.contains("incremental_test"),
+                    "FTL should contain the new struct's key after incremental generation"
+                );
+            }
         }
     };
 }
