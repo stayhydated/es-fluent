@@ -225,7 +225,7 @@ macro_rules! define_e2e_suite {
 
                 let src_path_workspace = temp.path().join("crates/test-app-a/src/lib.rs");
                 let src_path_package = temp.path().join("src/lib.rs");
-                
+
                 let src_path = if src_path_workspace.exists() {
                     src_path_workspace
                 } else {
@@ -243,7 +243,7 @@ macro_rules! define_e2e_suite {
 
                 let ftl_path = temp.path().join($ftl_path);
                 let ftl_content = std::fs::read_to_string(&ftl_path).expect("read ftl");
-                
+
                 assert!(
                     ftl_content.contains("incremental_test"),
                     "FTL should contain the new struct's key after incremental generation"
@@ -436,8 +436,6 @@ fn test_fmt_all() {
 fn test_check_all() {
     let temp = setup_workspace_env();
 
-    // Create missing key in 'es' locale
-    let ftl_path_en = temp.path().join("i18n/en/test-app-a.ftl");
     // Assume EN has some keys.
     // Create ES file that is empty, so it's missing everything.
     let ftl_path_es = temp.path().join("i18n/es/test-app-a.ftl");

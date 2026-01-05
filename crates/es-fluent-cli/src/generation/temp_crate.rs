@@ -266,31 +266,28 @@ pub fn run_monolithic(
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
     let binary_path = get_monolithic_binary_path(workspace);
 
-
     // If binary exists, check if it's stale
-    if binary_path.exists() {
-        if !is_runner_stale(workspace, &binary_path) {
-            let mut cmd = Command::new(&binary_path);
-            cmd.arg(command)
+    if binary_path.exists() && !is_runner_stale(workspace, &binary_path) {
+        let mut cmd = Command::new(&binary_path);
+        cmd.arg(command)
                 .args(extra_args) // Put extra_args (including i18n_path) first
                 .arg("--crate")
                 .arg(crate_name)
                 .current_dir(&temp_dir);
 
-            // Force colored output only if NO_COLOR is NOT set
-            if std::env::var("NO_COLOR").is_err() {
-                cmd.env("CLICOLOR_FORCE", "1");
-            }
-
-            let output = cmd.output().context("Failed to run monolithic binary")?;
-
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                bail!("Monolithic binary failed: {}", stderr);
-            }
-
-            return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+        // Force colored output only if NO_COLOR is NOT set
+        if std::env::var("NO_COLOR").is_err() {
+            cmd.env("CLICOLOR_FORCE", "1");
         }
+
+        let output = cmd.output().context("Failed to run monolithic binary")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("Monolithic binary failed: {}", stderr);
+        }
+
+        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
     }
 
     // Otherwise, fall back to cargo run (will build)
@@ -318,14 +315,12 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
 
         let walker = walkdir::WalkDir::new(&krate.src_dir);
         for entry in walker.into_iter().filter_map(|e| e.ok()) {
-            if entry.path().is_file() {
-                if let Ok(metadata) = entry.metadata() {
-                    if let Ok(mtime) = metadata.modified() {
-                        if mtime > runner_mtime {
-                            return true;
-                        }
-                    }
-                }
+            if entry.path().is_file()
+                && let Ok(metadata) = entry.metadata()
+                && let Ok(mtime) = metadata.modified()
+                && mtime > runner_mtime
+            {
+                return true;
             }
         }
     }
@@ -337,8 +332,6 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
 mod tests {
     use super::*;
     use std::io::Write;
-
-    const CRATES_IO_ES_FLUENT: &str = r#"es-fluent = { version = "*" }"#;
 
     #[test]
     fn test_temp_crate_config_nonexistent_manifest() {
