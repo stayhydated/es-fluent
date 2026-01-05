@@ -14,78 +14,63 @@ use std::process::Command;
 /// The directory name for temporary crates.
 pub const TEMP_DIR: &str = ".es-fluent";
 
-/// Generic workspace dependency resolver.
+/// Configuration derived from cargo metadata for temp crate generation.
 ///
-/// Checks if the specified crate is a workspace member and returns a path-based
-/// dependency if so, otherwise returns the crates.io fallback.
-fn get_workspace_dep(
-    manifest_path: &Path,
-    crate_name: &str,
-    crates_io_dep: &str,
-    local_dep_template: impl Fn(&str) -> String,
-) -> String {
-    let metadata = cargo_metadata::MetadataCommand::new()
-        .manifest_path(manifest_path)
-        .exec()
-        .ok();
-
-    let Some(meta) = metadata else {
-        return crates_io_dep.to_string();
-    };
-
-    meta.packages
-        .iter()
-        .find(|p| p.name.as_str() == crate_name && p.source.is_none())
-        .map(|pkg| {
-            let path = pkg.manifest_path.parent().unwrap();
-            local_dep_template(path.as_ref())
-        })
-        .unwrap_or_else(|| crates_io_dep.to_string())
+/// This calls cargo_metadata once and extracts all needed information:
+/// - es-fluent dependency string
+/// - es-fluent-cli-helpers dependency string  
+/// - target directory for sharing compiled dependencies
+pub struct TempCrateConfig {
+    pub es_fluent_dep: String,
+    pub es_fluent_cli_helpers_dep: String,
+    pub target_dir: String,
 }
 
-/// Get the es-fluent dependency string, preferring local path if in workspace.
-pub fn get_es_fluent_dep(manifest_path: &Path) -> String {
-    get_workspace_dep(
-        manifest_path,
-        "es-fluent",
-        r#"es-fluent = { version = "*" }"#,
-        |path| format!(r#"es-fluent = {{ path = "{}" }}"#, path),
-    )
-}
+impl TempCrateConfig {
+    /// Create config by querying cargo metadata once.
+    pub fn from_manifest(manifest_path: &Path) -> Self {
+        // Check CARGO_TARGET_DIR env first (doesn't need metadata)
+        let target_dir_from_env = std::env::var("CARGO_TARGET_DIR").ok();
 
-/// Get the es-fluent-cli-helpers dependency string, preferring local path if in workspace.
-pub fn get_es_fluent_cli_helpers_dep(manifest_path: &Path) -> String {
-    get_workspace_dep(
-        manifest_path,
-        "es-fluent-cli-helpers",
-        r#"es-fluent-cli-helpers = { version = "*" }"#,
-        |path| format!(r#"es-fluent-cli-helpers = {{ path = "{}" }}"#, path),
-    )
-}
+        // Try cargo metadata once for everything
+        let metadata = cargo_metadata::MetadataCommand::new()
+            .manifest_path(manifest_path)
+            .exec()
+            .ok();
 
-/// Get the target directory to use for the temp crate.
-///
-/// This enables reusing the parent's compiled dependencies for faster builds.
-/// Checks in order:
-/// 1. `CARGO_TARGET_DIR` environment variable
-/// 2. Workspace target directory from cargo metadata
-/// 3. Falls back to `../target` (parent's default target dir)
-pub fn get_target_dir(manifest_path: &Path) -> String {
-    // Check CARGO_TARGET_DIR first
-    if let Ok(target_dir) = std::env::var("CARGO_TARGET_DIR") {
-        return target_dir;
+        let (es_fluent_dep, es_fluent_cli_helpers_dep, target_dir) = match metadata {
+            Some(meta) => {
+                let es_fluent = Self::find_local_dep(&meta, "es-fluent")
+                    .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string());
+                let helpers = Self::find_local_dep(&meta, "es-fluent-cli-helpers")
+                    .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string());
+                let target = target_dir_from_env
+                    .unwrap_or_else(|| meta.target_directory.to_string());
+                (es_fluent, helpers, target)
+            }
+            None => (
+                r#"es-fluent = { version = "*" }"#.to_string(),
+                r#"es-fluent-cli-helpers = { version = "*" }"#.to_string(),
+                target_dir_from_env.unwrap_or_else(|| "../target".to_string()),
+            ),
+        };
+
+        Self {
+            es_fluent_dep,
+            es_fluent_cli_helpers_dep,
+            target_dir,
+        }
     }
 
-    // Try to get from cargo metadata (handles .cargo/config.toml settings)
-    if let Ok(meta) = cargo_metadata::MetadataCommand::new()
-        .manifest_path(manifest_path)
-        .exec()
-    {
-        return meta.target_directory.to_string();
+    fn find_local_dep(meta: &cargo_metadata::Metadata, crate_name: &str) -> Option<String> {
+        meta.packages
+            .iter()
+            .find(|p| p.name.as_str() == crate_name && p.source.is_none())
+            .map(|pkg| {
+                let path = pkg.manifest_path.parent().unwrap();
+                format!(r#"{} = {{ path = "{}" }}"#, crate_name, path)
+            })
     }
-
-    // Fall back to parent's default target directory
-    "../target".to_string()
 }
 
 /// Create the base temporary crate directory structure.
@@ -120,18 +105,18 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
 
     let crate_ident = krate.name.replace('-', "_");
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    let es_fluent_dep = get_es_fluent_dep(&manifest_path);
-    let es_fluent_cli_helpers_dep = get_es_fluent_cli_helpers_dep(&manifest_path);
-    let target_dir = get_target_dir(&manifest_path);
+    
+    // Get all config from single cargo_metadata call
+    let config = TempCrateConfig::from_manifest(&manifest_path);
 
     let cargo_toml = CargoTomlTemplate {
         crate_name: "es-fluent-temp", // Use a generic name
         parent_crate_name: &krate.name,
-        es_fluent_dep: &es_fluent_dep,
-        es_fluent_cli_helpers_dep: &es_fluent_cli_helpers_dep,
+        es_fluent_dep: &config.es_fluent_dep,
+        es_fluent_cli_helpers_dep: &config.es_fluent_cli_helpers_dep,
         has_fluent_features: !krate.fluent_features.is_empty(),
         fluent_features: &krate.fluent_features,
-        target_dir: &target_dir,
+        target_dir: &config.target_dir,
     };
     write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
 
@@ -239,16 +224,17 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    const CRATES_IO_DEP: &str = r#"es-fluent = { version = "*" }"#;
+    const CRATES_IO_ES_FLUENT: &str = r#"es-fluent = { version = "*" }"#;
 
     #[test]
-    fn test_get_es_fluent_dep_nonexistent_manifest() {
-        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"));
-        assert_eq!(result, CRATES_IO_DEP);
+    fn test_temp_crate_config_nonexistent_manifest() {
+        let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"));
+        assert_eq!(config.es_fluent_dep, CRATES_IO_ES_FLUENT);
+        assert_eq!(config.target_dir, "../target");
     }
 
     #[test]
-    fn test_get_es_fluent_dep_non_workspace_member() {
+    fn test_temp_crate_config_non_workspace_member() {
         let temp_dir = tempfile::tempdir().unwrap();
         let manifest_path = temp_dir.path().join("Cargo.toml");
 
@@ -268,7 +254,7 @@ es-fluent = { version = "*" }
         fs::create_dir_all(&src_dir).unwrap();
         fs::write(src_dir.join("lib.rs"), "").unwrap();
 
-        let result = get_es_fluent_dep(&manifest_path);
-        assert_eq!(result, CRATES_IO_DEP);
+        let config = TempCrateConfig::from_manifest(&manifest_path);
+        assert_eq!(config.es_fluent_dep, CRATES_IO_ES_FLUENT);
     }
 }
