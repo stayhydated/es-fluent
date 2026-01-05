@@ -88,8 +88,11 @@ impl WorkspaceCrates {
 /// Read the changed status from the temporary crate's result.json file.
 ///
 /// Returns `true` if the file indicates changes were made, `false` otherwise.
-fn read_changed_status(temp_dir: &std::path::Path) -> bool {
-    let result_json_path = temp_dir.join("result.json");
+/// Read the changed status from the temporary crate's result.json file.
+///
+/// Returns `true` if the file indicates changes were made, `false` otherwise.
+fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
+    let result_json_path = temp_dir.join("metadata").join(crate_name).join("result.json");
 
     if !result_json_path.exists() {
         return false;
@@ -147,7 +150,7 @@ pub fn parallel_generate(
                 Ok(output) => {
                     // For monolithic, result.json is at workspace root
                     let temp_dir = workspace.root_dir.join(".es-fluent");
-                    let changed = read_changed_status(&temp_dir);
+                    let changed = read_changed_status(&temp_dir, &krate.name);
 
                     let output_opt = if output.is_empty() {
                         None

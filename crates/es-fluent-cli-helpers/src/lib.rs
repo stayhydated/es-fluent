@@ -43,8 +43,15 @@ pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
 
     // Write result to JSON file for CLI to read
     let result = serde_json::json!({ "changed": changed });
-    std::fs::write("result.json", serde_json::to_string(&result).unwrap())
-        .expect("Failed to write result.json");
+    
+    let metadata_dir = std::path::Path::new("metadata").join(crate_name);
+    std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
+    
+    std::fs::write(
+        metadata_dir.join("result.json"),
+        serde_json::to_string(&result).unwrap(),
+    )
+    .expect("Failed to write result file");
 
     changed
 }
@@ -79,8 +86,15 @@ pub fn run_generate_with_options(
         .expect("Failed to run generator");
 
     let result = serde_json::json!({ "changed": changed });
-    std::fs::write("result.json", serde_json::to_string(&result).unwrap())
-        .expect("Failed to write result.json");
+    
+    let metadata_dir = std::path::Path::new("metadata").join(crate_name);
+    std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
+    
+    std::fs::write(
+        metadata_dir.join("result.json"),
+        serde_json::to_string(&result).unwrap(),
+    )
+    .expect("Failed to write result file");
 
     changed
 }
@@ -121,8 +135,15 @@ pub fn run_clean_with_options(
         .expect("Failed to run clean");
 
     let result = serde_json::json!({ "changed": changed });
-    std::fs::write("result.json", serde_json::to_string(&result).unwrap())
-        .expect("Failed to write result.json");
+    
+    let metadata_dir = std::path::Path::new("metadata").join(crate_name);
+    std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
+    
+    std::fs::write(
+        metadata_dir.join("result.json"),
+        serde_json::to_string(&result).unwrap(),
+    )
+    .expect("Failed to write result file");
 
     changed
 }
