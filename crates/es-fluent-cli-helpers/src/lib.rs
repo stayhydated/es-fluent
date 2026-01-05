@@ -127,3 +127,54 @@ pub fn run_clean_with_options(
     changed
 }
 
+/// Main entry point for the monolithic binary.
+///
+/// Parses command-line arguments and dispatches to the appropriate handler.
+/// This minimizes the code needed in the generated binary template.
+pub fn run() {
+    let args: Vec<String> = std::env::args().collect();
+    
+    let command = args.get(1).map(|s| s.as_str()).unwrap_or("check");
+    let i18n_path = args.get(2).map(|s| s.as_str());
+    
+    let target_crate = args.iter()
+        .position(|s| s == "--crate")
+        .and_then(|i| args.get(i + 1))
+        .map(|s| s.as_str());
+    
+    let mode_str = args.iter()
+        .position(|s| s == "--mode")
+        .and_then(|i| args.get(i + 1))
+        .map(|s| s.as_str())
+        .unwrap_or("conservative");
+    
+    let dry_run = args.iter().any(|s| s == "--dry-run");
+    let all_locales = args.iter().any(|s| s == "--all");
+    
+    match command {
+        "generate" => {
+            let path = i18n_path.expect("Missing i18n.toml path");
+            let name = target_crate.expect("Missing --crate argument");
+            let mode = match mode_str {
+                "aggressive" => FluentParseMode::Aggressive,
+                _ => FluentParseMode::Conservative,
+            };
+            run_generate_with_options(path, name, mode, dry_run);
+        }
+        "clean" => {
+            let path = i18n_path.expect("Missing i18n.toml path");
+            let name = target_crate.expect("Missing --crate argument");
+            run_clean_with_options(path, name, all_locales, dry_run);
+        }
+        "check" => {
+            let name = target_crate.expect("Missing --crate argument");
+            run_check(name);
+        }
+        _ => {
+            eprintln!("Unknown command: {}", command);
+            std::process::exit(1);
+        }
+    }
+}
+
+
