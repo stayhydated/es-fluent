@@ -33,8 +33,10 @@ impl TempCrateConfig {
         let target_dir_from_env = std::env::var("CARGO_TARGET_DIR").ok();
 
         // Try cargo metadata once for everything
+        // Use no_deps() to skip full dependency resolution - we only need workspace packages
         let metadata = cargo_metadata::MetadataCommand::new()
             .manifest_path(manifest_path)
+            .no_deps()
             .exec()
             .ok();
 
