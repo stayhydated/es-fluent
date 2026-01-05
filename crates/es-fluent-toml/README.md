@@ -14,4 +14,8 @@ The `i18n.toml` file defines the basic settings required for the build tools to 
 ```toml
 fallback_language = "en"
 assets_dir = "i18n"
+# If your es-fluent derives are behind a feature flag:
+# fluent_feature = "i18n"     # Single feature
+# Or multiple features:
+# fluent_feature = ["i18n", "translations"]
 ```

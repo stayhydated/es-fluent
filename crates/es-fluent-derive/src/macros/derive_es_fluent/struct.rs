@@ -16,7 +16,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
 
     let indexed_fields = opts.indexed_fields();
 
-    let ftl_key = namer::FluentKey::new(original_ident, "").to_string();
+    let ftl_key = namer::FluentKey::from(original_ident).to_string();
 
     let args: Vec<_> = indexed_fields
         .iter()
@@ -90,7 +90,6 @@ fn generate(opts: &StructOpts) -> TokenStream {
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
                         module_path: module_path!(),
-                        is_this: false,
                     }
                 ];
 
@@ -101,7 +100,6 @@ fn generate(opts: &StructOpts) -> TokenStream {
                         variants: VARIANTS,
                         file_path: file!(),
                         module_path: module_path!(),
-                        is_this: false,
                     };
 
                 ::es_fluent::__inventory::submit!(&TYPE_INFO);

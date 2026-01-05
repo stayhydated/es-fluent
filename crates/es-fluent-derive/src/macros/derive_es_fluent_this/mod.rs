@@ -15,8 +15,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let original_ident = opts.ident();
     let generics = opts.generics();
     let ftl_key = if opts.attr_args().is_origin() {
-        let this_ident = quote::format_ident!("{}_this", original_ident);
-        Some(namer::FluentKey::new(&this_ident, "").to_string())
+        Some(namer::FluentKey::new_this(original_ident).to_string())
     } else {
         None
     };
@@ -42,7 +41,6 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         ftl_key: #ftl_key_str,
                         args: &[],
                         module_path: module_path!(),
-                        is_this: true,
                     }
                 ];
 
@@ -53,7 +51,6 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         variants: VARIANTS,
                         file_path: file!(),
                         module_path: module_path!(),
-                        is_this: true,
                     };
 
                 ::es_fluent::__inventory::submit!(&TYPE_INFO);

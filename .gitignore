@@ -5,3 +5,4 @@ target/
 .ruff_cache
 .ropeproject
 *.snap.new
+*.pending-snap

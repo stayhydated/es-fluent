@@ -21,7 +21,7 @@ es-fluent-lang-macro = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
-log = { workspace = true }
+tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [lints]

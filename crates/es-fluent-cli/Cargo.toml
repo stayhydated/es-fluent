@@ -16,20 +16,35 @@ path = "src/main.rs"
 [dependencies]
 anyhow = { workspace = true }
 askama = { workspace = true }
+blake3 = { workspace = true }
 cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
 crossterm = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
+fluent-syntax = { workspace = true }
+glob = { workspace = true }
 humantime = { workspace = true }
+indicatif = { workspace = true }
+miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
-notify-debouncer-mini = { workspace = true }
+notify-debouncer-full = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
 rayon = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+similar = { workspace = true }
+thiserror = { workspace = true }
+throbber-widgets-tui = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]
+assert_cmd = { workspace = true }
+assert_fs = { workspace = true }
+insta = { workspace = true }
+predicates = { workspace = true }
 tempfile = { workspace = true }
 
 

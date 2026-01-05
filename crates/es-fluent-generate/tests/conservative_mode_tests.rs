@@ -27,17 +27,15 @@ group-a-key1 = Initial Value
     // 2. New State: GroupA with Key1 AND Key2
     let key1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key1"),
         args: vec![],
         module_path: "test".to_string(),
-        is_this: false,
     };
     let key2 = FtlVariant {
         name: "Key2".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("GroupA", Span::call_site()), "Key2"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key2"),
         args: vec![],
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     let group_a = FtlTypeInfo {
@@ -46,7 +44,6 @@ group-a-key1 = Initial Value
         variants: vec![key1, key2],
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // Run generate in Conservative mode
@@ -55,6 +52,7 @@ group-a-key1 = Initial Value
         &i18n_path,
         vec![group_a],
         FluentParseMode::Conservative,
+        false,
     )
     .unwrap();
 

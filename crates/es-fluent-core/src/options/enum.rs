@@ -1,10 +1,10 @@
 use bon::Builder;
 use darling::{FromDeriveInput, FromField, FromMeta, FromVariant};
 use getset::Getters;
-use heck::{ToPascalCase as _, ToSnakeCase as _};
+use heck::ToSnakeCase as _;
 use quote::format_ident;
 
-use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::error::EsFluentCoreResult;
 
 /// Options for an enum field.
 #[derive(Clone, Debug, FromField, Getters)]
@@ -221,7 +221,7 @@ impl EnumKvOpts {
             |keys| {
                 keys.into_iter()
                     .map(|key| {
-                        let pascal_key = Self::validate_key(&key)?;
+                        let pascal_key = super::validate_snake_case_key(&key)?;
                         Ok(format_ident!(
                             "{}{}{}",
                             &self.ident,
@@ -242,27 +242,6 @@ impl EnumKvOpts {
             },
             _ => unreachable!("Unexpected data type for enum"),
         }
-    }
-
-    fn validate_key(key: &syn::LitStr) -> EsFluentCoreResult<String> {
-        let key_str = key.value();
-        let snake_cased = key_str.to_snake_case();
-        let is_lower_snake = !key_str.is_empty()
-            && key_str == snake_cased
-            && key_str == key_str.to_ascii_lowercase();
-
-        if !is_lower_snake {
-            return Err(EsFluentCoreError::AttributeError {
-                message: format!(
-                    "keys in #[fluent_kv] must be lowercase snake_case; found \"{}\"",
-                    key_str
-                ),
-                span: Some(key.span()),
-            }
-            .with_help("Use values like \"description\" or \"label\".".to_string()));
-        }
-
-        Ok(key_str.to_pascal_case())
     }
 }
 

@@ -30,7 +30,7 @@ pub fn init() {
     if GENERIC_MANAGER.set(manager_arc.clone()).is_ok() {
         set_shared_context(manager_arc);
     } else {
-        log::warn!("Generic fluent manager already initialized.");
+        tracing::warn!("Generic fluent manager already initialized.");
     }
 }
 
@@ -48,6 +48,6 @@ pub fn select_language<L: Into<LanguageIdentifier>>(lang: L) {
         let mut manager = manager_arc.write().unwrap();
         manager.select_language(&lang.into());
     } else {
-        log::error!("Generic fluent manager not initialized. Call init() first.");
+        tracing::error!("Generic fluent manager not initialized. Call init() first.");
     }
 }

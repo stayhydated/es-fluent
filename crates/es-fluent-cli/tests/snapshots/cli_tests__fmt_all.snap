@@ -1,0 +1,40 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+assertion_line: 352
+expression: output
+---
+STDOUT:
+Fluent FTL Formatter
+Discovered 2 crate(s)
+Would format: i18n/en/test-app-a.ftl
+- z_last = Last
++ gender-Female = Female
++ gender-Male = Male
++ gender-Other = Other
+  hello_a = Hello from App A
+  orphan_key = Orphan
+- 
+- shared-Photos = 
++ shared-Photos =
+      { $user_name } { $photo_count ->
+          [one] added a new photo
+         *[other] added { $photo_count } new photos
+  ...
+          [female] her stream
+         *[other] their stream
+      }.
+- 
+- gender-Male = Male
+- gender-Female = Female
+- gender-Other = Other
+- 
+- 
++ z_last = Last
+Would format: i18n/es/test-app-a.ftl
+- b=2
+- a=1
++ a = 1
++ b = 2
+Dry run: 2 file(s) would be formatted
+
+STDERR:
