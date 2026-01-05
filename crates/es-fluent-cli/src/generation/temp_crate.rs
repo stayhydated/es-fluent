@@ -7,8 +7,8 @@ use crate::generation::templates::{
     ConfigTomlTemplate, GitignoreTemplate, MonolithicCargoTomlTemplate, MonolithicCrateDep,
     MonolithicMainRsTemplate,
 };
-use anyhow::{Context, Result, bail};
-use askama::Template;
+use anyhow::{Context as _, Result, bail};
+use askama::Template as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{env, fs};
@@ -19,7 +19,7 @@ pub const TEMP_DIR: &str = ".es-fluent";
 ///
 /// This calls cargo_metadata once and extracts all needed information:
 /// - es-fluent dependency string
-/// - es-fluent-cli-helpers dependency string  
+/// - es-fluent-cli-helpers dependency string
 /// - target directory for sharing compiled dependencies
 pub struct TempCrateConfig {
     pub es_fluent_dep: String,
@@ -49,10 +49,10 @@ impl TempCrateConfig {
                 let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")
                     .or_else(Self::find_cli_workspace_dep_helpers)
                     .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string());
-                let target = target_dir_from_env
-                    .unwrap_or_else(|| meta.target_directory.to_string());
+                let target =
+                    target_dir_from_env.unwrap_or_else(|| meta.target_directory.to_string());
                 (es_fluent, helpers, target)
-            }
+            },
             None => (
                 Self::find_cli_workspace_dep_es_fluent()
                     .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string()),
@@ -85,7 +85,10 @@ impl TempCrateConfig {
         let cli_path = Path::new(cli_manifest_dir);
         let es_fluent_path = cli_path.parent()?.join("es-fluent");
         if es_fluent_path.join("Cargo.toml").exists() {
-            Some(format!(r#"es-fluent = {{ path = "{}" }}"#, es_fluent_path.display()))
+            Some(format!(
+                r#"es-fluent = {{ path = "{}" }}"#,
+                es_fluent_path.display()
+            ))
         } else {
             None
         }
@@ -97,7 +100,10 @@ impl TempCrateConfig {
         let cli_path = Path::new(cli_manifest_dir);
         let helpers_path = cli_path.parent()?.join("es-fluent-cli-helpers");
         if helpers_path.join("Cargo.toml").exists() {
-            Some(format!(r#"es-fluent-cli-helpers = {{ path = "{}" }}"#, helpers_path.display()))
+            Some(format!(
+                r#"es-fluent-cli-helpers = {{ path = "{}" }}"#,
+                helpers_path.display()
+            ))
         } else {
             None
         }
@@ -238,9 +244,7 @@ pub fn prepare_monolithic_temp_crate(workspace: &WorkspaceInfo) -> Result<PathBu
     write_cargo_config(&temp_dir, &config_toml.render().unwrap())?;
 
     // Write main.rs
-    let main_rs = MonolithicMainRsTemplate {
-        crates: crate_deps,
-    };
+    let main_rs = MonolithicMainRsTemplate { crates: crate_deps };
     fs::write(src_dir.join("main.rs"), main_rs.render().unwrap())
         .context("Failed to write .es-fluent/src/main.rs")?;
 

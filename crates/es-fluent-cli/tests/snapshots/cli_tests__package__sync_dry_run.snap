@@ -1,0 +1,13 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Sync
+
+STDERR:
+Locale not found: 'es'. Available locales: en
+Error: es_fluent::config::locale_not_found
+
+  × locale 'es' not found
+  help: Available locales: en

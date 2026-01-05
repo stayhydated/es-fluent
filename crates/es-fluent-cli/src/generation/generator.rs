@@ -21,9 +21,7 @@ pub fn generate_for_crate_monolithic(
 
     let (command, extra_args) = match action {
         GenerationAction::Generate { mode, dry_run } => {
-            let mut args = vec![
-                krate.i18n_config_path.display().to_string(),
-            ];
+            let mut args = vec![krate.i18n_config_path.display().to_string()];
             args.push("--mode".to_string());
             args.push(mode.to_string().to_lowercase());
             if *dry_run {
@@ -35,9 +33,7 @@ pub fn generate_for_crate_monolithic(
             all_locales,
             dry_run,
         } => {
-            let mut args = vec![
-                krate.i18n_config_path.display().to_string(),
-            ];
+            let mut args = vec![krate.i18n_config_path.display().to_string()];
             if *all_locales {
                 args.push("--all".to_string());
             }

@@ -43,10 +43,10 @@ pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
 
     // Write result to JSON file for CLI to read
     let result = serde_json::json!({ "changed": changed });
-    
+
     let metadata_dir = std::path::Path::new("metadata").join(crate_name);
     std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
-    
+
     std::fs::write(
         metadata_dir.join("result.json"),
         serde_json::to_string(&result).unwrap(),
@@ -86,10 +86,10 @@ pub fn run_generate_with_options(
         .expect("Failed to run generator");
 
     let result = serde_json::json!({ "changed": changed });
-    
+
     let metadata_dir = std::path::Path::new("metadata").join(crate_name);
     std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
-    
+
     std::fs::write(
         metadata_dir.join("result.json"),
         serde_json::to_string(&result).unwrap(),
@@ -135,10 +135,10 @@ pub fn run_clean_with_options(
         .expect("Failed to run clean");
 
     let result = serde_json::json!({ "changed": changed });
-    
+
     let metadata_dir = std::path::Path::new("metadata").join(crate_name);
     std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
-    
+
     std::fs::write(
         metadata_dir.join("result.json"),
         serde_json::to_string(&result).unwrap(),
@@ -154,24 +154,26 @@ pub fn run_clean_with_options(
 /// This minimizes the code needed in the generated binary template.
 pub fn run() {
     let args: Vec<String> = std::env::args().collect();
-    
+
     let command = args.get(1).map(|s| s.as_str()).unwrap_or("check");
     let i18n_path = args.get(2).map(|s| s.as_str());
-    
-    let target_crate = args.iter()
+
+    let target_crate = args
+        .iter()
         .position(|s| s == "--crate")
         .and_then(|i| args.get(i + 1))
         .map(|s| s.as_str());
-    
-    let mode_str = args.iter()
+
+    let mode_str = args
+        .iter()
         .position(|s| s == "--mode")
         .and_then(|i| args.get(i + 1))
         .map(|s| s.as_str())
         .unwrap_or("conservative");
-    
+
     let dry_run = args.iter().any(|s| s == "--dry-run");
     let all_locales = args.iter().any(|s| s == "--all");
-    
+
     match command {
         "generate" => {
             let path = i18n_path.expect("Missing i18n.toml path");
@@ -181,21 +183,19 @@ pub fn run() {
                 _ => FluentParseMode::Conservative,
             };
             run_generate_with_options(path, name, mode, dry_run);
-        }
+        },
         "clean" => {
             let path = i18n_path.expect("Missing i18n.toml path");
             let name = target_crate.expect("Missing --crate argument");
             run_clean_with_options(path, name, all_locales, dry_run);
-        }
+        },
         "check" => {
             let name = target_crate.expect("Missing --crate argument");
             run_check(name);
-        }
+        },
         _ => {
             eprintln!("Unknown command: {}", command);
             std::process::exit(1);
-        }
+        },
     }
 }
-
-

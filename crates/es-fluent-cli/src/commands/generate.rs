@@ -1,6 +1,8 @@
 //! Generate command implementation.
 
-use crate::commands::{WorkspaceArgs, WorkspaceCrates, parallel_generate, render_generation_results};
+use crate::commands::{
+    WorkspaceArgs, WorkspaceCrates, parallel_generate, render_generation_results,
+};
 use crate::core::{CliError, FluentParseMode, GenerationAction};
 use crate::utils::ui;
 use clap::Parser;

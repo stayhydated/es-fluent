@@ -117,7 +117,11 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 use crate::core::WorkspaceInfo;
 
 /// Check a single crate by running the monolithic binary to collect inventory, then validating FTL files.
-fn check_crate(krate: &CrateInfo, workspace: &WorkspaceInfo, check_all: bool) -> Result<Vec<ValidationIssue>> {
+fn check_crate(
+    krate: &CrateInfo,
+    workspace: &WorkspaceInfo,
+    check_all: bool,
+) -> Result<Vec<ValidationIssue>> {
     // Step 1: Get expected keys from inventory via monolithic binary
     let temp_dir = workspace.root_dir.join(".es-fluent");
     run_monolithic(workspace, "check", &krate.name, &[])?;
@@ -128,8 +132,14 @@ fn check_crate(krate: &CrateInfo, workspace: &WorkspaceInfo, check_all: bool) ->
 }
 
 /// Read inventory data from the generated inventory.json file.
-fn read_inventory_file(temp_dir: &std::path::Path, crate_name: &str) -> Result<HashMap<String, HashSet<String>>> {
-    let inventory_path = temp_dir.join("metadata").join(crate_name).join("inventory.json");
+fn read_inventory_file(
+    temp_dir: &std::path::Path,
+    crate_name: &str,
+) -> Result<HashMap<String, HashSet<String>>> {
+    let inventory_path = temp_dir
+        .join("metadata")
+        .join(crate_name)
+        .join("inventory.json");
     let json_str = fs::read_to_string(&inventory_path)
         .with_context(|| format!("Failed to read {}", inventory_path.display()))?;
 

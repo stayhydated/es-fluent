@@ -1,0 +1,15 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Generator
+Discovered 1 crate(s)
+Would update FTL file: [TEMP_DIR]/i18n/en/test-app-package.ftl
+- hello = Hello World
++ ## Dictionary
++ 
++ test-app-package.ftl-hello = Hello
+
+
+STDERR:

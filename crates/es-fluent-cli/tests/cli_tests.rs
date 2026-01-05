@@ -3,20 +3,22 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 static TEST_DATA_DIR: LazyLock<PathBuf> =
-    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e"));
+    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e_workspace"));
 
-fn setup_test_env() -> assert_fs::TempDir {
+static TEST_DATA_PACKAGE_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e_package"));
+
+fn setup_workspace_env() -> assert_fs::TempDir {
     let temp = assert_fs::TempDir::new().unwrap();
-
-    // Copy examples-tests content to temp dir
-    // We use a simple recursive copy since assert_fs::copy_of might not be available or sufficient
-    // for deep copying without extra dependencies like `fs_extra`.
-    // Actually, let's use the `fs_extra` crate if available, or just walkdir.
-    // Since we don't have fs_extra, let's use a helper.
     copy_dir_recursive(&TEST_DATA_DIR, temp.path()).expect("failed to copy test data");
-
     fix_cargo_manifests(temp.path());
+    temp
+}
 
+fn setup_package_env() -> assert_fs::TempDir {
+    let temp = assert_fs::TempDir::new().unwrap();
+    copy_dir_recursive(&TEST_DATA_PACKAGE_DIR, temp.path()).expect("failed to copy test data");
+    fix_cargo_manifests(temp.path());
     temp
 }
 
@@ -24,19 +26,20 @@ fn fix_cargo_manifests(root: &Path) {
     let cargo_toml_path = root.join("Cargo.toml");
     let content = std::fs::read_to_string(&cargo_toml_path).expect("failed to read Cargo.toml");
 
-    // Calculate repo root from CARGO_MANIFEST_DIR (crates/es-fluent-cli) -> ../.. -> root
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let repo_root = manifest_dir.parent().unwrap().parent().unwrap();
     let crates_path = repo_root.join("crates");
-    // Ensure we use properly escaped path string for TOML if on Windows, but mainly we just need absolute path.
-    // On Linux/macOS simple string replacement works.
     let crates_path_str = crates_path.to_str().unwrap();
 
-    // Replace `path = "../crates/` with `path = "/absolute/path/to/crates/`
-    let new_content = content.replace(
-        "path = \"../crates/",
-        &format!("path = \"{}/", crates_path_str),
-    );
+    let new_content = content
+        .replace(
+            "path = \"../crates/",
+            &format!("path = \"{}/", crates_path_str),
+        )
+        .replace(
+            "path = \"../../../crates/",
+            &format!("path = \"{}/", crates_path_str),
+        );
 
     std::fs::write(cargo_toml_path, new_content).expect("failed to write Cargo.toml");
 }
@@ -95,111 +98,156 @@ fn normalize_output(output: &str, cwd: &Path) -> String {
     output.to_string()
 }
 
+macro_rules! define_e2e_suite {
+    ($mod_name:ident, $setup_fn:ident, $ftl_path:expr) => {
+        mod $mod_name {
+            use super::*;
+
+            #[test]
+            fn test_generate_dry_run() {
+                let temp = $setup_fn();
+                let output = run_cli(&temp, &["generate", "--dry-run"]);
+                assert_snapshot!(output);
+            }
+
+            #[test]
+            fn test_check() {
+                let temp = $setup_fn();
+                let output = run_cli(&temp, &["check"]);
+                assert_snapshot!(output);
+            }
+
+            #[test]
+            fn test_fmt_dry_run() {
+                let temp = $setup_fn();
+                let output = run_cli(&temp, &["fmt", "--dry-run"]);
+                assert_snapshot!(output);
+            }
+
+            #[test]
+            fn test_clean_dry_run() {
+                let temp = $setup_fn();
+                let output = run_cli(&temp, &["clean", "--dry-run"]);
+                assert_snapshot!(output);
+            }
+
+            #[test]
+            fn test_generate_real() {
+                let temp = $setup_fn();
+                let output = run_cli(&temp, &["generate"]);
+                assert_snapshot!(output);
+
+                let ftl_path = temp.path().join($ftl_path);
+                assert!(ftl_path.exists(), "FTL file should exist");
+            }
+
+            #[test]
+            fn test_fmt_real() {
+                let temp = $setup_fn();
+                let ftl_path = temp.path().join($ftl_path);
+
+                let original = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
+                let ugly = original.replace(" = ", "=");
+                std::fs::write(&ftl_path, &ugly).expect("failed to write ftl file");
+
+                let output = run_cli(&temp, &["fmt"]);
+                assert_snapshot!(output);
+
+                let formatted =
+                    std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
+                assert_ne!(
+                    formatted, ugly,
+                    "File should have changed from ugly version"
+                );
+                assert!(
+                    formatted.contains(" = "),
+                    "Formatted file should contain spaces around equals"
+                );
+            }
+
+            #[test]
+            fn test_clean_real() {
+                let temp = $setup_fn();
+                let ftl_path = temp.path().join($ftl_path);
+                let content = std::fs::read_to_string(&ftl_path).expect("read");
+                let new_content = format!("{}\norphan-key = Orphan\n", content);
+                std::fs::write(&ftl_path, new_content).expect("write");
+
+                let output = run_cli(&temp, &["clean"]);
+                assert_snapshot!(output);
+
+                let cleaned_content = std::fs::read_to_string(&ftl_path).expect("read");
+                assert!(
+                    !cleaned_content.contains("orphan-key"),
+                    "orphan key should be removed"
+                );
+            }
+
+            #[test]
+            fn test_sync_dry_run() {
+                let temp = $setup_fn();
+                let ftl_path = temp.path().join($ftl_path);
+                let mut content = std::fs::read_to_string(&ftl_path).unwrap();
+                content.push_str("\nnew-sync-key = Sync Me\n");
+                std::fs::write(&ftl_path, content).unwrap();
+
+                let output = run_cli(&temp, &["sync", "-l", "es", "--dry-run"]);
+                assert_snapshot!(output);
+
+                let es_path = temp
+                    .path()
+                    .join("i18n/es")
+                    .join($ftl_path.split('/').last().unwrap());
+                if es_path.exists() {
+                    let es_content = std::fs::read_to_string(&es_path).unwrap();
+                    assert!(
+                        !es_content.contains("new-sync-key"),
+                        "ES should NOT contain new key in dry-run"
+                    );
+                }
+            }
+
+            #[test]
+            fn test_generate_mode_aggressive() {
+                let temp = $setup_fn();
+                let output = run_cli(&temp, &["generate", "--mode", "aggressive", "--dry-run"]);
+                assert_snapshot!(output);
+            }
+        }
+    };
+}
+
+define_e2e_suite!(workspace, setup_workspace_env, "i18n/en/test-app-a.ftl");
+define_e2e_suite!(package, setup_package_env, "i18n/en/test-app-package.ftl");
+
 #[test]
-fn test_generate() {
-    let temp = setup_test_env();
-    let output = run_cli(&temp, &["generate", "--dry-run"]);
+fn test_workspace_package() {
+    let temp = setup_workspace_env();
+    // Only generate for test-app-a, ignoring test-lib-b
+    let output = run_cli(&temp, &["generate", "--package", "test-app-a", "--dry-run"]);
     assert_snapshot!(output);
 }
 
 #[test]
-fn test_check() {
-    let temp = setup_test_env();
-    let output = run_cli(&temp, &["check"]);
-    assert_snapshot!(output);
-}
-
-#[test]
-fn test_fmt_dry_run() {
-    let temp = setup_test_env();
-    let output = run_cli(&temp, &["fmt", "--dry-run"]);
-    assert_snapshot!(output);
-}
-
-#[test]
-fn test_clean_dry_run() {
-    let temp = setup_test_env();
-    let output = run_cli(&temp, &["clean", "--dry-run"]);
-    assert_snapshot!(output);
-}
-
-#[test]
-fn test_sync_locales() {
-    let temp = setup_test_env();
-    // Test -l and --all
-    let output = run_cli(&temp, &["sync", "-l", "es"]);
-    assert_snapshot!(output);
-}
-
-#[test]
-fn test_generate_real() {
-    let temp = setup_test_env();
-    // Run generate command (not dry-run)
-    let output = run_cli(&temp, &["generate"]);
-    assert_snapshot!(output);
-
-    // Verify files are created
-    // generated files are inside the crate's src/generated
-    // Verify FTL file exists (it should have been updated or verified)
-    // The previous assertion that it creates src/generated was wrong.
-    // es-fluent generate updates FTL files from code.
-    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
-    assert!(ftl_path.exists(), "FTL file should exist");
-}
-
-#[test]
-fn test_fmt_real() {
-    let temp = setup_test_env();
-    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
-
-    // Read original content
-    let original = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
-
-    // Make it ugly (remove spaces around equals)
-    let ugly = original.replace(" = ", "=");
-    std::fs::write(&ftl_path, &ugly).expect("failed to write ftl file");
-
-    // Run fmt
-    let output = run_cli(&temp, &["fmt"]);
-    assert_snapshot!(output);
-
-    // Read back and verify it's formatted (spaces restored)
-    let formatted = std::fs::read_to_string(&ftl_path).expect("failed to read ftl file");
-    assert_ne!(
-        formatted, ugly,
-        "File should have changed from ugly version"
+fn test_workspace_path() {
+    let temp = setup_workspace_env();
+    // Point explicitly to the crate dir
+    let crate_path = temp.path().join("crates/test-app-a");
+    let output = run_cli(
+        &temp,
+        &[
+            "generate",
+            "--path",
+            crate_path.to_str().unwrap(),
+            "--dry-run",
+        ],
     );
-    assert!(
-        formatted.contains(" = "),
-        "Formatted file should contain spaces around equals"
-    );
-}
-
-#[test]
-fn test_clean_real() {
-    let temp = setup_test_env();
-
-    // Create an orphan key
-    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
-    let content = std::fs::read_to_string(&ftl_path).expect("read");
-    let new_content = format!("{}\norphan-key = Orphan\n", content);
-    std::fs::write(&ftl_path, new_content).expect("write");
-
-    // Now clean
-    let output = run_cli(&temp, &["clean"]);
     assert_snapshot!(output);
-
-    // Verify orphan is gone
-    let cleaned_content = std::fs::read_to_string(&ftl_path).expect("read");
-    assert!(
-        !cleaned_content.contains("orphan-key"),
-        "orphan key should be removed"
-    );
 }
 
 #[test]
 fn test_sync_all() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
 
     // We need to set up a situation where sync does something.
     let en_path = temp.path().join("i18n/en/test-app-a.ftl");
@@ -222,7 +270,7 @@ fn test_sync_all() {
 
 #[test]
 fn test_sync_new_locale() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
 
     // Sync to a new locale 'fr'
     let output = run_cli(&temp, &["sync", "-l", "fr"]);
@@ -248,7 +296,7 @@ static FIXTURES_DIR: LazyLock<PathBuf> =
 
 #[test]
 fn test_check_syntax_error() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
     let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
 
     // Copy fixture with syntax error
@@ -264,7 +312,7 @@ fn test_check_syntax_error() {
 
 #[test]
 fn test_check_missing_key() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
     let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
 
     // Copy fixture with missing mandatory key
@@ -280,7 +328,7 @@ fn test_check_missing_key() {
 
 #[test]
 fn test_check_warning_missing_arg() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
     let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
 
     // Copy fixture with missing argument (warning)
@@ -310,15 +358,8 @@ fn test_check_warning_missing_arg() {
 }
 
 #[test]
-fn test_generate_mode_aggressive() {
-    let temp = setup_test_env();
-    let output = run_cli(&temp, &["generate", "--mode", "aggressive", "--dry-run"]);
-    assert_snapshot!(output);
-}
-
-#[test]
 fn test_clean_all() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
 
     // Create orphan key in 'es' locale (not fallback)
     let ftl_path = temp.path().join("i18n/es/test-app-a.ftl");
@@ -340,7 +381,7 @@ fn test_clean_all() {
 
 #[test]
 fn test_fmt_all() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
 
     // Create messy file in 'es' locale
     let ftl_path = temp.path().join("i18n/es/test-app-a.ftl");
@@ -357,7 +398,7 @@ fn test_fmt_all() {
 
 #[test]
 fn test_check_all() {
-    let temp = setup_test_env();
+    let temp = setup_workspace_env();
 
     // Create missing key in 'es' locale
     let ftl_path_en = temp.path().join("i18n/en/test-app-a.ftl");
@@ -372,54 +413,4 @@ fn test_check_all() {
     cmd.current_dir(temp.path());
     cmd.args(&["check", "--all"]);
     cmd.assert().failure();
-}
-
-#[test]
-fn test_sync_dry_run() {
-    let temp = setup_test_env();
-
-    // Add new key to EN
-    let en_path = temp.path().join("i18n/en/test-app-a.ftl");
-    let mut content = std::fs::read_to_string(&en_path).unwrap();
-    content.push_str("\nnew-sync-key = Sync Me\n");
-    std::fs::write(&en_path, content).unwrap();
-
-    // Run sync --dry-run
-    let output = run_cli(&temp, &["sync", "-l", "es", "--dry-run"]);
-    assert_snapshot!(output);
-
-    // Verify ES file NOT changed
-    let es_path = temp.path().join("i18n/es/test-app-a.ftl");
-    if es_path.exists() {
-        let es_content = std::fs::read_to_string(&es_path).unwrap();
-        assert!(
-            !es_content.contains("new-sync-key"),
-            "ES should NOT contain new key in dry-run"
-        );
-    }
-}
-
-#[test]
-fn test_workspace_package() {
-    let temp = setup_test_env();
-    // Only generate for test-app-a, ignoring test-lib-b
-    let output = run_cli(&temp, &["generate", "--package", "test-app-a", "--dry-run"]);
-    assert_snapshot!(output);
-}
-
-#[test]
-fn test_workspace_path() {
-    let temp = setup_test_env();
-    // Point explicitly to the crate dir
-    let crate_path = temp.path().join("crates/test-app-a");
-    let output = run_cli(
-        &temp,
-        &[
-            "generate",
-            "--path",
-            crate_path.to_str().unwrap(),
-            "--dry-run",
-        ],
-    );
-    assert_snapshot!(output);
 }

@@ -1,6 +1,8 @@
 //! File watcher and main TUI event loop.
 
-use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, GenerationAction, WorkspaceInfo};
+use crate::core::{
+    CrateInfo, CrateState, FluentParseMode, GenerateResult, GenerationAction, WorkspaceInfo,
+};
 use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_temp_crate};
 use crate::tui::{self, Message, TuiApp};
 use crate::utils::count_ftl_resources;
@@ -10,8 +12,8 @@ use notify_debouncer_full::{DebouncedEvent, new_debouncer};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -107,7 +109,11 @@ fn spawn_generation(
 }
 
 /// Watch for changes and regenerate FTL files for all discovered crates.
-pub fn watch_all(crates: &[CrateInfo], workspace: &WorkspaceInfo, mode: &FluentParseMode) -> Result<()> {
+pub fn watch_all(
+    crates: &[CrateInfo],
+    workspace: &WorkspaceInfo,
+    mode: &FluentParseMode,
+) -> Result<()> {
     if crates.is_empty() {
         anyhow::bail!("No crates to watch");
     }
@@ -160,7 +166,12 @@ fn run_watch_loop(
             app.update(Message::GenerationStarted {
                 crate_name: krate.name.clone(),
             });
-            spawn_generation((*krate).clone(), workspace_arc.clone(), mode.clone(), result_tx.clone());
+            spawn_generation(
+                (*krate).clone(),
+                workspace_arc.clone(),
+                mode.clone(),
+                result_tx.clone(),
+            );
             pending_count += 1;
         }
         terminal.draw(|f| tui::draw(f, &app))?;
@@ -227,7 +238,12 @@ fn run_watch_loop(
                             app.update(Message::GenerationStarted {
                                 crate_name: krate.name.clone(),
                             });
-                            spawn_generation((*krate).clone(), workspace_arc.clone(), mode.clone(), result_tx.clone());
+                            spawn_generation(
+                                (*krate).clone(),
+                                workspace_arc.clone(),
+                                mode.clone(),
+                                result_tx.clone(),
+                            );
                             pending_count += 1;
                         }
                     }

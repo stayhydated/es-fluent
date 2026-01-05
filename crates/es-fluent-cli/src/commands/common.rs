@@ -92,7 +92,10 @@ impl WorkspaceCrates {
 ///
 /// Returns `true` if the file indicates changes were made, `false` otherwise.
 fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
-    let result_json_path = temp_dir.join("metadata").join(crate_name).join("result.json");
+    let result_json_path = temp_dir
+        .join("metadata")
+        .join(crate_name)
+        .join("result.json");
 
     if !result_json_path.exists() {
         return false;
@@ -123,7 +126,9 @@ pub fn parallel_generate(
         // If preparation fails, return error results for all crates
         return crates
             .iter()
-            .map(|k| GenerateResult::failure(k.name.clone(), std::time::Duration::ZERO, e.to_string()))
+            .map(|k| {
+                GenerateResult::failure(k.name.clone(), std::time::Duration::ZERO, e.to_string())
+            })
             .collect();
     }
 
