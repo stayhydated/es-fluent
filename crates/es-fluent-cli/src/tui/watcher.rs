@@ -10,7 +10,6 @@ use anyhow::{Context as _, Result};
 use notify::RecursiveMode;
 use notify_debouncer_full::{DebouncedEvent, new_debouncer};
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -18,27 +17,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// Compute a hash of all .rs files in the src directory using blake3.
-fn compute_src_hash(src_dir: &Path) -> blake3::Hash {
-    let mut hasher = blake3::Hasher::new();
-
-    let mut paths: Vec<_> = walkdir::WalkDir::new(src_dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
-
-    // Sort for deterministic ordering
-    paths.sort();
-
-    for path in paths {
-        if let Ok(content) = fs::read_to_string(&path) {
-            hasher.update(path.to_string_lossy().as_bytes());
-            hasher.update(content.as_bytes());
-        }
-    }
-
-    hasher.finalize()
+/// Delegates to the shared ContentCache implementation.
+fn compute_src_hash(src_dir: &Path) -> String {
+    use crate::generation::cache::ContentCache;
+    ContentCache::compute_content_hash(&[src_dir])
 }
 
 /// Spawn a thread to generate for a single crate using the monolithic approach.
@@ -140,7 +122,7 @@ fn run_watch_loop(
 ) -> Result<()> {
     let workspace_arc = Arc::new(workspace.clone());
     let mut app = TuiApp::new(crates);
-    let mut src_hashes: HashMap<String, blake3::Hash> = HashMap::new();
+    let mut src_hashes: HashMap<String, String> = HashMap::new();
 
     let mut path_to_crate: HashMap<std::path::PathBuf, String> = HashMap::new();
 

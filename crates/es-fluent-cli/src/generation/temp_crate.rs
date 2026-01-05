@@ -28,12 +28,29 @@ pub struct TempCrateConfig {
 }
 
 impl TempCrateConfig {
-    /// Create config by querying cargo metadata once.
+    /// Create config by querying cargo metadata once, or from cache if valid.
     pub fn from_manifest(manifest_path: &Path) -> Self {
+        use super::cache::MetadataCache;
+
         // Check CARGO_TARGET_DIR env first (doesn't need metadata)
         let target_dir_from_env = std::env::var("CARGO_TARGET_DIR").ok();
 
-        // Try cargo metadata once for everything
+        // Determine workspace root and temp directory for caching
+        let workspace_root = manifest_path.parent().unwrap_or(Path::new("."));
+        let temp_dir = workspace_root.join(TEMP_DIR);
+
+        // Try to use cached metadata if Cargo.lock hasn't changed
+        if let Some(cache) = MetadataCache::load(&temp_dir) {
+            if cache.is_valid(workspace_root) {
+                return Self {
+                    es_fluent_dep: cache.es_fluent_dep,
+                    es_fluent_cli_helpers_dep: cache.es_fluent_cli_helpers_dep,
+                    target_dir: target_dir_from_env.unwrap_or(cache.target_dir),
+                };
+            }
+        }
+
+        // Cache miss or invalid, run cargo metadata
         // Use no_deps() to skip full dependency resolution - we only need workspace packages
         let metadata = cargo_metadata::MetadataCommand::new()
             .manifest_path(manifest_path)
@@ -50,7 +67,7 @@ impl TempCrateConfig {
                     .or_else(Self::find_cli_workspace_dep_helpers)
                     .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string());
                 let target =
-                    target_dir_from_env.unwrap_or_else(|| meta.target_directory.to_string());
+                    target_dir_from_env.clone().unwrap_or_else(|| meta.target_directory.to_string());
                 (es_fluent, helpers, target)
             },
             None => (
@@ -58,9 +75,21 @@ impl TempCrateConfig {
                     .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string()),
                 Self::find_cli_workspace_dep_helpers()
                     .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string()),
-                target_dir_from_env.unwrap_or_else(|| "../target".to_string()),
+                target_dir_from_env.clone().unwrap_or_else(|| "../target".to_string()),
             ),
         };
+
+        // Save to cache for next time
+        if let Some(cargo_lock_hash) = MetadataCache::hash_cargo_lock(workspace_root) {
+            let _ = std::fs::create_dir_all(&temp_dir);
+            let cache = MetadataCache {
+                cargo_lock_hash,
+                es_fluent_dep: es_fluent_dep.clone(),
+                es_fluent_cli_helpers_dep: es_fluent_cli_helpers_dep.clone(),
+                target_dir: target_dir.clone(),
+            };
+            let _ = cache.save(&temp_dir);
+        }
 
         Self {
             es_fluent_dep,
@@ -296,36 +325,94 @@ pub fn run_monolithic(
     args.extend(extra_args.iter().cloned());
     args.push("--crate".to_string());
     args.push(crate_name.to_string());
-    run_cargo(&temp_dir, Some("es-fluent-runner"), &args)
+    let result = run_cargo(&temp_dir, Some("es-fluent-runner"), &args);
+
+    // After successful cargo run, write content cache with current state
+    if result.is_ok() {
+        use super::cache::ContentCache;
+        
+        let binary_path = get_monolithic_binary_path(workspace);
+        if let Ok(meta) = fs::metadata(&binary_path) {
+            if let Ok(mtime) = meta.modified() {
+                let runner_mtime_secs = mtime
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+
+                let src_dirs: Vec<&Path> = workspace
+                    .crates
+                    .iter()
+                    .filter(|c| c.src_dir.exists())
+                    .map(|c| c.src_dir.as_path())
+                    .collect();
+
+                let content_hash = ContentCache::compute_content_hash(&src_dirs);
+                let cache = ContentCache {
+                    content_hash,
+                    runner_mtime: runner_mtime_secs,
+                };
+                let _ = cache.save(&temp_dir);
+            }
+        }
+    }
+
+    result
 }
 
 /// Check if the runner binary is stale compared to workspace source files.
 ///
-/// Returns true if any source file in any workspace crate is newer than the binary.
+/// Uses blake3 content hashing to detect actual changes - saving a file without
+/// modifications won't trigger a rebuild.
 fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
+    use super::cache::ContentCache;
+
     let runner_mtime = match fs::metadata(runner_path).and_then(|m| m.modified()) {
         Ok(t) => t,
         Err(_) => return true, // Treat as stale if we can't read metadata
     };
 
-    for krate in &workspace.crates {
-        if !krate.src_dir.exists() {
-            continue;
+    let runner_mtime_secs = runner_mtime
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let temp_dir = workspace.root_dir.join(TEMP_DIR);
+
+    // Collect source directories
+    let src_dirs: Vec<&Path> = workspace
+        .crates
+        .iter()
+        .filter(|c| c.src_dir.exists())
+        .map(|c| c.src_dir.as_path())
+        .collect();
+
+    // Compute current content hash
+    let current_hash = ContentCache::compute_content_hash(&src_dirs);
+
+    // Check cache
+    if let Some(cache) = ContentCache::load(&temp_dir) {
+        if cache.runner_mtime == runner_mtime_secs {
+            // Runner hasn't been rebuilt - check if content changed
+            if current_hash == cache.content_hash {
+                // Content unchanged, runner is fresh
+                return false;
+            }
+            // Content changed, runner is stale
+            return true;
         }
 
-        let walker = walkdir::WalkDir::new(&krate.src_dir);
-        for entry in walker.into_iter().filter_map(|e| e.ok()) {
-            if entry.path().is_file()
-                && let Ok(metadata) = entry.metadata()
-                && let Ok(mtime) = metadata.modified()
-                && mtime > runner_mtime
-            {
-                return true;
-            }
-        }
+        // Runner was rebuilt - update cache with current content hash
+        let new_cache = ContentCache {
+            content_hash: current_hash,
+            runner_mtime: runner_mtime_secs,
+        };
+        let _ = new_cache.save(&temp_dir);
+        return false;
     }
 
-    false
+    // No cache exists - be conservative and trigger rebuild
+    // The cache will be created after the rebuild completes
+    true
 }
 
 #[cfg(test)]
