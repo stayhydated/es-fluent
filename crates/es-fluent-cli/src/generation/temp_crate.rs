@@ -44,24 +44,13 @@ fn get_workspace_dep(
 }
 
 /// Get the es-fluent dependency string, preferring local path if in workspace.
-pub fn get_es_fluent_dep(manifest_path: &Path, features: &[&str]) -> String {
-    let features_str = features
-        .iter()
-        .map(|f| format!(r#""{}""#, f))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let crates_io_dep = format!(
-        r#"es-fluent = {{ version = "*", features = [{}] }}"#,
-        features_str
-    );
-
-    get_workspace_dep(manifest_path, "es-fluent", &crates_io_dep, |path| {
-        format!(
-            r#"es-fluent = {{ path = "{}", features = [{}] }}"#,
-            path, features_str
-        )
-    })
+pub fn get_es_fluent_dep(manifest_path: &Path) -> String {
+    get_workspace_dep(
+        manifest_path,
+        "es-fluent",
+        r#"es-fluent = { version = "*" }"#,
+        |path| format!(r#"es-fluent = {{ path = "{}" }}"#, path),
+    )
 }
 
 /// Get the es-fluent-cli-helpers dependency string, preferring local path if in workspace.
@@ -106,8 +95,7 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
 
     let crate_ident = krate.name.replace('-', "_");
     let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    // Enable cli feature
-    let es_fluent_dep = get_es_fluent_dep(&manifest_path, &[]);
+    let es_fluent_dep = get_es_fluent_dep(&manifest_path);
     let es_fluent_cli_helpers_dep = get_es_fluent_cli_helpers_dep(&manifest_path);
 
     let cargo_toml = CargoTomlTemplate {
@@ -224,20 +212,12 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    const CRATES_IO_DEP_GENERATE: &str =
-        r#"es-fluent = { version = "*", features = ["generate"] }"#;
-    const CRATES_IO_DEP_CLI: &str = r#"es-fluent = { version = "*" }"#;
+    const CRATES_IO_DEP: &str = r#"es-fluent = { version = "*" }"#;
 
     #[test]
     fn test_get_es_fluent_dep_nonexistent_manifest() {
-        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"), &["generate"]);
-        assert_eq!(result, CRATES_IO_DEP_GENERATE);
-    }
-
-    #[test]
-    fn test_get_es_fluent_dep_cli_feature() {
-        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"), &["cli"]);
-        assert_eq!(result, CRATES_IO_DEP_CLI);
+        let result = get_es_fluent_dep(Path::new("/nonexistent/Cargo.toml"));
+        assert_eq!(result, CRATES_IO_DEP);
     }
 
     #[test]
@@ -252,7 +232,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-es-fluent = { version = "*", features = ["generate"] }
+es-fluent = { version = "*" }
 "#;
         let mut file = fs::File::create(&manifest_path).unwrap();
         file.write_all(cargo_toml.as_bytes()).unwrap();
@@ -261,7 +241,7 @@ es-fluent = { version = "*", features = ["generate"] }
         fs::create_dir_all(&src_dir).unwrap();
         fs::write(src_dir.join("lib.rs"), "").unwrap();
 
-        let result = get_es_fluent_dep(&manifest_path, &["generate"]);
-        assert_eq!(result, CRATES_IO_DEP_GENERATE);
+        let result = get_es_fluent_dep(&manifest_path);
+        assert_eq!(result, CRATES_IO_DEP);
     }
 }
