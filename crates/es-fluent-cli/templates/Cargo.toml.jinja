@@ -6,8 +6,16 @@ publish = false
 
 [workspace]
 
-[build]
-target-dir = "{{ target_dir }}"
+# Ultra-fast compile profile - prioritize compile speed over runtime
+# Since we only collect inventory items, runtime perf is irrelevant
+[profile.dev]
+opt-level = 0
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = false
+codegen-units = 256
+incremental = true
 
 [dependencies]
 {% if has_fluent_features %}

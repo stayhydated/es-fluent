@@ -99,6 +99,7 @@ pub fn create_temp_dir(krate: &CrateInfo) -> Result<PathBuf> {
     Ok(temp_dir)
 }
 
+use crate::generation::templates::ConfigTomlTemplate;
 use crate::generation::{CargoTomlTemplate, CheckRsTemplate, GenerateRsTemplate};
 
 /// Prepare the temporary crate with both generate and check binaries.
@@ -118,9 +119,14 @@ pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
         es_fluent_cli_helpers_dep: &config.es_fluent_cli_helpers_dep,
         has_fluent_features: !krate.fluent_features.is_empty(),
         fluent_features: &krate.fluent_features,
-        target_dir: &config.target_dir,
     };
     write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
+
+    // Write .cargo/config.toml for target-dir setting
+    let config_toml = ConfigTomlTemplate {
+        target_dir: &config.target_dir,
+    };
+    write_cargo_config(&temp_dir, &config_toml.render().unwrap())?;
 
     // Write generate binary
     let i18n_toml_path_str = krate.i18n_config_path.display().to_string();
@@ -151,6 +157,15 @@ fn write_bin_rs(temp_dir: &Path, filename: &str, content: &str) -> Result<()> {
 pub fn write_cargo_toml(temp_dir: &Path, cargo_toml_content: &str) -> Result<()> {
     fs::write(temp_dir.join("Cargo.toml"), cargo_toml_content)
         .context("Failed to write .es-fluent/Cargo.toml")
+}
+
+/// Write the .cargo/config.toml for a temporary crate.
+/// This is needed because target-dir doesn't work in Cargo.toml.
+fn write_cargo_config(temp_dir: &Path, config_content: &str) -> Result<()> {
+    let cargo_dir = temp_dir.join(".cargo");
+    fs::create_dir_all(&cargo_dir).context("Failed to create .es-fluent/.cargo directory")?;
+    fs::write(cargo_dir.join("config.toml"), config_content)
+        .context("Failed to write .es-fluent/.cargo/config.toml")
 }
 
 /// Run `cargo run` on a temporary crate.

@@ -12,7 +12,12 @@ pub struct CargoTomlTemplate<'a> {
     pub has_fluent_features: bool,
     /// The fluent feature names (only meaningful if has_fluent_features is true)
     pub fluent_features: &'a [String],
-    /// The target directory to use, enabling reuse of parent's compiled deps
+}
+
+/// Template for the .cargo/config.toml (target-dir setting)
+#[derive(Template)]
+#[template(path = "config.toml.jinja", escape = "none")]
+pub struct ConfigTomlTemplate<'a> {
     pub target_dir: &'a str,
 }
 
@@ -37,3 +42,4 @@ pub struct CheckRsTemplate<'a> {
 #[derive(Template)]
 #[template(path = ".gitignore.jinja", escape = "none")]
 pub struct GitignoreTemplate;
+
