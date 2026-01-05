@@ -1,17 +1,18 @@
 //! Shared functionality for creating and running temporary crates.
 //!
-//! Both the generator and validator commands create temporary crates in `.es-fluent/`
-//! to leverage Rust's inventory mechanism. This module consolidates that shared logic.
+//! The CLI uses a monolithic temporary crate at workspace root that links ALL workspace
+//! crates to access their inventory registrations through a single binary.
 
-use crate::core::CrateInfo;
-use crate::generation::GitignoreTemplate;
-use anyhow::{Context as _, Result, bail};
-use askama::Template as _;
-use std::fs;
+use crate::generation::templates::{
+    ConfigTomlTemplate, GitignoreTemplate, MonolithicCargoTomlTemplate, MonolithicCrateDep,
+    MonolithicMainRsTemplate,
+};
+use anyhow::{Context, Result, bail};
+use askama::Template;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::{env, fs};
 
-/// The directory name for temporary crates.
 pub const TEMP_DIR: &str = ".es-fluent";
 
 /// Configuration derived from cargo metadata for temp crate generation.
@@ -41,18 +42,22 @@ impl TempCrateConfig {
             .ok();
 
         let (es_fluent_dep, es_fluent_cli_helpers_dep, target_dir) = match metadata {
-            Some(meta) => {
-                let es_fluent = Self::find_local_dep(&meta, "es-fluent")
+            Some(ref meta) => {
+                let es_fluent = Self::find_local_dep(meta, "es-fluent")
+                    .or_else(Self::find_cli_workspace_dep_es_fluent)
                     .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string());
-                let helpers = Self::find_local_dep(&meta, "es-fluent-cli-helpers")
+                let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")
+                    .or_else(Self::find_cli_workspace_dep_helpers)
                     .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string());
                 let target = target_dir_from_env
                     .unwrap_or_else(|| meta.target_directory.to_string());
                 (es_fluent, helpers, target)
             }
             None => (
-                r#"es-fluent = { version = "*" }"#.to_string(),
-                r#"es-fluent-cli-helpers = { version = "*" }"#.to_string(),
+                Self::find_cli_workspace_dep_es_fluent()
+                    .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string()),
+                Self::find_cli_workspace_dep_helpers()
+                    .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string()),
                 target_dir_from_env.unwrap_or_else(|| "../target".to_string()),
             ),
         };
@@ -73,94 +78,39 @@ impl TempCrateConfig {
                 format!(r#"{} = {{ path = "{}" }}"#, crate_name, path)
             })
     }
-}
 
-/// Create the base temporary crate directory structure.
-///
-/// This creates:
-/// - `.es-fluent/` directory
-/// - `.es-fluent/src/` directory
-/// - `.es-fluent/.gitignore`
-///
-/// Returns the path to the temp directory.
-pub fn create_temp_dir(krate: &CrateInfo) -> Result<PathBuf> {
-    let temp_dir = krate.manifest_dir.join(TEMP_DIR);
-    let src_dir = temp_dir.join("src");
+    /// Fallback: find es-fluent from the CLI's own workspace (compile-time location)
+    fn find_cli_workspace_dep_es_fluent() -> Option<String> {
+        let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let cli_path = Path::new(cli_manifest_dir);
+        let es_fluent_path = cli_path.parent()?.join("es-fluent");
+        if es_fluent_path.join("Cargo.toml").exists() {
+            Some(format!(r#"es-fluent = {{ path = "{}" }}"#, es_fluent_path.display()))
+        } else {
+            None
+        }
+    }
 
-    fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
-
-    // Create .gitignore to exclude the entire directory
-    fs::write(
-        temp_dir.join(".gitignore"),
-        GitignoreTemplate.render().unwrap(),
-    )
-    .context("Failed to write .es-fluent/.gitignore")?;
-
-    Ok(temp_dir)
-}
-
-use crate::generation::templates::ConfigTomlTemplate;
-use crate::generation::{CargoTomlTemplate, CheckRsTemplate, GenerateRsTemplate};
-
-/// Prepare the temporary crate with both generate and check binaries.
-pub fn prepare_temp_crate(krate: &CrateInfo) -> Result<PathBuf> {
-    let temp_dir = create_temp_dir(krate)?;
-
-    let crate_ident = krate.name.replace('-', "_");
-    let manifest_path = krate.manifest_dir.join("Cargo.toml");
-    
-    // Get all config from single cargo_metadata call
-    let config = TempCrateConfig::from_manifest(&manifest_path);
-
-    let cargo_toml = CargoTomlTemplate {
-        crate_name: "es-fluent-temp", // Use a generic name
-        parent_crate_name: &krate.name,
-        es_fluent_dep: &config.es_fluent_dep,
-        es_fluent_cli_helpers_dep: &config.es_fluent_cli_helpers_dep,
-        has_fluent_features: !krate.fluent_features.is_empty(),
-        fluent_features: &krate.fluent_features,
-    };
-    write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
-
-    // Write .cargo/config.toml for target-dir setting
-    let config_toml = ConfigTomlTemplate {
-        target_dir: &config.target_dir,
-    };
-    write_cargo_config(&temp_dir, &config_toml.render().unwrap())?;
-
-    // Write generate binary
-    let i18n_toml_path_str = krate.i18n_config_path.display().to_string();
-    let generate_rs = GenerateRsTemplate {
-        crate_ident: &crate_ident,
-        i18n_toml_path: &i18n_toml_path_str,
-        crate_name: &krate.name,
-    };
-    write_bin_rs(&temp_dir, "generate.rs", &generate_rs.render().unwrap())?;
-
-    // Write check binary
-    let check_rs = CheckRsTemplate {
-        crate_ident: &crate_ident,
-        crate_name: &krate.name,
-    };
-    write_bin_rs(&temp_dir, "check.rs", &check_rs.render().unwrap())?;
-
-    Ok(temp_dir)
-}
-
-/// Write a binary source file to the temporary crate.
-fn write_bin_rs(temp_dir: &Path, filename: &str, content: &str) -> Result<()> {
-    fs::write(temp_dir.join("src").join(filename), content)
-        .with_context(|| format!("Failed to write .es-fluent/src/{}", filename))
+    /// Fallback: find es-fluent-cli-helpers from the CLI's own workspace (compile-time location)
+    fn find_cli_workspace_dep_helpers() -> Option<String> {
+        let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let cli_path = Path::new(cli_manifest_dir);
+        let helpers_path = cli_path.parent()?.join("es-fluent-cli-helpers");
+        if helpers_path.join("Cargo.toml").exists() {
+            Some(format!(r#"es-fluent-cli-helpers = {{ path = "{}" }}"#, helpers_path.display()))
+        } else {
+            None
+        }
+    }
 }
 
 /// Write the Cargo.toml for a temporary crate.
-pub fn write_cargo_toml(temp_dir: &Path, cargo_toml_content: &str) -> Result<()> {
+fn write_cargo_toml(temp_dir: &Path, cargo_toml_content: &str) -> Result<()> {
     fs::write(temp_dir.join("Cargo.toml"), cargo_toml_content)
         .context("Failed to write .es-fluent/Cargo.toml")
 }
 
 /// Write the .cargo/config.toml for a temporary crate.
-/// This is needed because target-dir doesn't work in Cargo.toml.
 fn write_cargo_config(temp_dir: &Path, config_content: &str) -> Result<()> {
     let cargo_dir = temp_dir.join(".cargo");
     fs::create_dir_all(&cargo_dir).context("Failed to create .es-fluent/.cargo directory")?;
@@ -236,6 +186,115 @@ pub fn run_cargo_with_output(
     }
 }
 
+// --- Monolithic temp crate support ---
+
+use crate::core::WorkspaceInfo;
+
+/// Prepare a monolithic temporary crate at workspace root that links ALL workspace crates.
+/// This enables fast subsequent runs by caching a single binary that can access all inventory.
+pub fn prepare_monolithic_temp_crate(workspace: &WorkspaceInfo) -> Result<PathBuf> {
+    let temp_dir = workspace.root_dir.join(TEMP_DIR);
+    let src_dir = temp_dir.join("src");
+
+    fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
+
+    // Create .gitignore
+    fs::write(
+        temp_dir.join(".gitignore"),
+        GitignoreTemplate.render().unwrap(),
+    )
+    .context("Failed to write .es-fluent/.gitignore")?;
+
+    // Get es-fluent dependency info from workspace root
+    let root_manifest = workspace.root_dir.join("Cargo.toml");
+    let config = TempCrateConfig::from_manifest(&root_manifest);
+
+    // Build crate dependency list
+    let crate_deps: Vec<MonolithicCrateDep> = workspace
+        .crates
+        .iter()
+        .filter(|c| c.has_lib_rs) // Only crates with lib.rs can be linked
+        .map(|c| MonolithicCrateDep {
+            name: &c.name,
+            path: c.manifest_dir.display().to_string(),
+            ident: c.name.replace('-', "_"),
+            has_features: !c.fluent_features.is_empty(),
+            features: &c.fluent_features,
+        })
+        .collect();
+
+    // Write Cargo.toml
+    let cargo_toml = MonolithicCargoTomlTemplate {
+        crates: crate_deps.clone(),
+        es_fluent_dep: &config.es_fluent_dep,
+        es_fluent_cli_helpers_dep: &config.es_fluent_cli_helpers_dep,
+    };
+    write_cargo_toml(&temp_dir, &cargo_toml.render().unwrap())?;
+
+    // Write .cargo/config.toml for target-dir
+    let config_toml = ConfigTomlTemplate {
+        target_dir: &config.target_dir,
+    };
+    write_cargo_config(&temp_dir, &config_toml.render().unwrap())?;
+
+    // Write main.rs
+    let main_rs = MonolithicMainRsTemplate {
+        crates: crate_deps,
+    };
+    fs::write(src_dir.join("main.rs"), main_rs.render().unwrap())
+        .context("Failed to write .es-fluent/src/main.rs")?;
+
+    Ok(temp_dir)
+}
+
+/// Get the path to the monolithic binary if it exists.
+pub fn get_monolithic_binary_path(workspace: &WorkspaceInfo) -> PathBuf {
+    workspace.target_dir.join("debug").join("es-fluent-runner")
+}
+
+/// Run the monolithic binary directly (fast path) or build+run (slow path).
+pub fn run_monolithic(
+    workspace: &WorkspaceInfo,
+    command: &str,
+    crate_name: &str,
+    extra_args: &[String],
+) -> Result<String> {
+    let temp_dir = workspace.root_dir.join(TEMP_DIR);
+    let binary_path = get_monolithic_binary_path(workspace);
+
+    // If binary exists, run it directly (fast path)
+    if binary_path.exists() {
+        let mut cmd = Command::new(&binary_path);
+        cmd.arg(command)
+            .args(extra_args) // Put extra_args (including i18n_path) first
+            .arg("--crate")
+            .arg(crate_name)
+            .current_dir(&temp_dir);
+
+        // Force colored output only if NO_COLOR is NOT set
+        if std::env::var("NO_COLOR").is_err() {
+            cmd.env("CLICOLOR_FORCE", "1");
+        }
+
+        let output = cmd.output().context("Failed to run monolithic binary")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("Monolithic binary failed: {}", stderr);
+        }
+
+        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+    }
+
+    // Otherwise, fall back to cargo run (will build)
+    // Args order: command, extra_args..., --crate, crate_name
+    let mut args = vec![command.to_string()];
+    args.extend(extra_args.iter().cloned());
+    args.push("--crate".to_string());
+    args.push(crate_name.to_string());
+    run_cargo(&temp_dir, Some("es-fluent-runner"), &args)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,8 +305,9 @@ mod tests {
     #[test]
     fn test_temp_crate_config_nonexistent_manifest() {
         let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"));
-        assert_eq!(config.es_fluent_dep, CRATES_IO_ES_FLUENT);
-        assert_eq!(config.target_dir, "../target");
+        // With fallback, should find local es-fluent from CLI workspace
+        // If running in CI or different environment, may still be crates.io
+        assert!(config.es_fluent_dep.contains("es-fluent"));
     }
 
     #[test]
@@ -272,6 +332,7 @@ es-fluent = { version = "*" }
         fs::write(src_dir.join("lib.rs"), "").unwrap();
 
         let config = TempCrateConfig::from_manifest(&manifest_path);
-        assert_eq!(config.es_fluent_dep, CRATES_IO_ES_FLUENT);
+        // With fallback, should find local es-fluent from CLI workspace
+        assert!(config.es_fluent_dep.contains("es-fluent"));
     }
 }

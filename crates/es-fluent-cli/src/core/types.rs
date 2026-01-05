@@ -20,6 +20,19 @@ pub struct CrateInfo {
     pub fluent_features: Vec<String>,
 }
 
+/// Information about a workspace containing es-fluent crates.
+/// Used for the monolithic temp crate approach where one temp crate
+/// links all workspace members for efficient inventory collection.
+#[derive(Clone, Debug)]
+pub struct WorkspaceInfo {
+    /// The workspace root directory (where the root Cargo.toml is).
+    pub root_dir: PathBuf,
+    /// The target directory for the workspace.
+    pub target_dir: PathBuf,
+    /// All crates in the workspace that have i18n.toml.
+    pub crates: Vec<CrateInfo>,
+}
+
 /// Result of generating FTL for a single crate.
 #[derive(Clone, Debug)]
 pub struct GenerateResult {

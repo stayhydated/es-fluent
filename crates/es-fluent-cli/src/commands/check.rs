@@ -13,7 +13,7 @@ use crate::core::{
     ValidationReport, find_key_span,
 };
 use crate::ftl::extract_variables_from_message;
-use crate::generation::{prepare_temp_crate, run_cargo_with_output};
+use crate::generation::{prepare_monolithic_temp_crate, run_monolithic};
 use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
@@ -61,15 +61,18 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         return Ok(());
     }
 
+    // Prepare monolithic temp crate once for all checks
+    prepare_monolithic_temp_crate(&workspace.workspace_info)
+        .map_err(|e| CliError::Other(e.to_string()))?;
+
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
     let pb = ui::create_progress_bar(workspace.valid.len() as u64, "Checking crates...");
 
     for krate in &workspace.valid {
         pb.set_message(format!("Checking {}", krate.name));
-        // ui::print_checking(&krate.name); // Using progress bar instead
 
-        match check_crate(krate, args.all) {
+        match check_crate(krate, &workspace.workspace_info, args.all) {
             Ok(issues) => {
                 all_issues.extend(issues);
             },
@@ -111,21 +114,17 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 }
 
-/// Check a single crate by running a temp crate to collect inventory, then validating FTL files.
-fn check_crate(krate: &CrateInfo, check_all: bool) -> Result<Vec<ValidationIssue>> {
-    // Step 1: Get expected keys from inventory via temp crate
-    let temp_dir = prepare_temp_crate(krate)?;
-    run_check_crate(&temp_dir)?;
+use crate::core::WorkspaceInfo;
+
+/// Check a single crate by running the monolithic binary to collect inventory, then validating FTL files.
+fn check_crate(krate: &CrateInfo, workspace: &WorkspaceInfo, check_all: bool) -> Result<Vec<ValidationIssue>> {
+    // Step 1: Get expected keys from inventory via monolithic binary
+    let temp_dir = workspace.root_dir.join(".es-fluent");
+    run_monolithic(workspace, "check", &krate.name, &[])?;
     let expected_keys = read_inventory_file(&temp_dir)?;
 
     // Step 2: Parse FTL files and validate against expected keys
     validate_ftl_files(krate, &expected_keys, check_all)
-}
-
-/// Run the check crate to generate inventory.json.
-fn run_check_crate(temp_dir: &std::path::Path) -> Result<()> {
-    run_cargo_with_output(temp_dir, Some("check"), &[])?;
-    Ok(())
 }
 
 /// Read inventory data from the generated inventory.json file.

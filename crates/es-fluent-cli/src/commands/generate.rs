@@ -1,8 +1,6 @@
 //! Generate command implementation.
 
-use crate::commands::{
-    WorkspaceArgs, WorkspaceCrates, parallel_generate, render_generation_results,
-};
+use crate::commands::{WorkspaceArgs, WorkspaceCrates, parallel_generate, render_generation_results};
 use crate::core::{CliError, FluentParseMode, GenerationAction};
 use crate::utils::ui;
 use clap::Parser;
@@ -32,6 +30,7 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
     }
 
     let results = parallel_generate(
+        &workspace.workspace_info,
         &workspace.valid,
         &GenerationAction::Generate {
             mode: args.mode,

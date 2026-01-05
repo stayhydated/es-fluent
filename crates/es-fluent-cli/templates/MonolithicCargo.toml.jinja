@@ -1,5 +1,5 @@
 [package]
-name = "{{ crate_name }}"
+name = "es-fluent-temp"
 version = "0.0.0"
 edition = "2024"
 publish = false
@@ -18,18 +18,15 @@ codegen-units = 256
 incremental = true
 
 [dependencies]
-{% if has_fluent_features %}
-{{ parent_crate_name }} = { path = "..", features = [{% for feature in fluent_features %}"{{ feature }}"{% if !loop.last %}, {% endif %}{% endfor %}] }
-{% else %}
-{{ parent_crate_name }} = { path = ".." }
-{% endif %}
+# All workspace crates that have i18n.toml
+{% for dep in crates %}
+{{ dep.name }} = { path = "{{ dep.path }}"{% if dep.has_features %}, features = [{% for feature in dep.features %}"{{ feature }}"{% if !loop.last %}, {% endif %}{% endfor %}]{% endif %} }
+{% endfor %}
+
+# es-fluent dependencies
 {{ es_fluent_dep }}
 {{ es_fluent_cli_helpers_dep }}
 
 [[bin]]
-name = "generate"
-path = "src/generate.rs"
-
-[[bin]]
-name = "check"
-path = "src/check.rs"
+name = "es-fluent-runner"
+path = "src/main.rs"

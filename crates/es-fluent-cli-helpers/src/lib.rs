@@ -49,9 +49,81 @@ pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
     changed
 }
 
+/// Run the FTL generation process with explicit options (no CLI parsing).
+///
+/// This is used by the monolithic binary to avoid conflicting clap argument parsing.
+pub fn run_generate_with_options(
+    i18n_toml_path: &str,
+    crate_name: &str,
+    mode: FluentParseMode,
+    dry_run: bool,
+) -> bool {
+    let i18n_toml_path = Path::new(i18n_toml_path);
+    let config = es_fluent_toml::I18nConfig::read_from_path(i18n_toml_path)
+        .expect("Failed to read i18n.toml");
+
+    let i18n_dir = i18n_toml_path
+        .parent()
+        .expect("Failed to get i18n directory");
+    let assets_dir = i18n_dir.join(&config.assets_dir);
+    let output_path = assets_dir.join(&config.fallback_language);
+
+    let changed = EsFluentGenerator::builder()
+        .output_path(output_path)
+        .assets_dir(assets_dir)
+        .crate_name(crate_name)
+        .mode(mode)
+        .dry_run(dry_run)
+        .build()
+        .generate()
+        .expect("Failed to run generator");
+
+    let result = serde_json::json!({ "changed": changed });
+    std::fs::write("result.json", serde_json::to_string(&result).unwrap())
+        .expect("Failed to write result.json");
+
+    changed
+}
+
 /// Run the inventory check process for a crate.
 ///
 /// This writes the collected inventory data for the specified crate.
 pub fn run_check(crate_name: &str) {
     write_inventory_for_crate(crate_name);
 }
+
+/// Run the FTL clean process with explicit options (no CLI parsing).
+///
+/// This is used by the monolithic binary to avoid conflicting clap argument parsing.
+pub fn run_clean_with_options(
+    i18n_toml_path: &str,
+    crate_name: &str,
+    all_locales: bool,
+    dry_run: bool,
+) -> bool {
+    let i18n_toml_path = Path::new(i18n_toml_path);
+    let config = es_fluent_toml::I18nConfig::read_from_path(i18n_toml_path)
+        .expect("Failed to read i18n.toml");
+
+    let i18n_dir = i18n_toml_path
+        .parent()
+        .expect("Failed to get i18n directory");
+    let assets_dir = i18n_dir.join(&config.assets_dir);
+    let output_path = assets_dir.join(&config.fallback_language);
+
+    let changed = EsFluentGenerator::builder()
+        .output_path(output_path)
+        .assets_dir(assets_dir)
+        .crate_name(crate_name)
+        .dry_run(dry_run)
+        .build()
+        .clean(all_locales, dry_run)
+        .expect("Failed to run clean");
+
+    let result = serde_json::json!({ "changed": changed });
+    std::fs::write("result.json", serde_json::to_string(&result).unwrap())
+        .expect("Failed to write result.json");
+
+    changed
+}
+
