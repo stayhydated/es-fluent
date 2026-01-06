@@ -1,0 +1,10 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Generator
+Discovered 1 crate(s)
+test-app-package generated in [DURATION] (2 resources)
+
+STDERR:

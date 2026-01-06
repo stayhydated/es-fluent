@@ -1,10 +1,6 @@
-use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction};
-use crate::generation::generate_for_crate;
-use crate::utils::{
-    count_ftl_resources, discover_crates, filter_crates_by_package, partition_by_lib_rs, ui,
-};
+use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
+use crate::utils::{count_ftl_resources, filter_crates_by_package, partition_by_lib_rs, ui};
 use clap::Args;
-use rayon::prelude::*;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -37,6 +33,8 @@ pub struct LocaleProcessingArgs {
 pub struct WorkspaceCrates {
     /// The user-supplied (or default) root path.
     pub path: PathBuf,
+    /// Workspace information (root dir, target dir, all crates).
+    pub workspace_info: WorkspaceInfo,
     /// All crates discovered (after optional package filtering).
     pub crates: Vec<CrateInfo>,
     /// Crates that are eligible for operations (contain `lib.rs`).
@@ -48,14 +46,18 @@ pub struct WorkspaceCrates {
 impl WorkspaceCrates {
     /// Discover crates for a command, applying the common filtering and partitioning logic.
     pub fn discover(args: WorkspaceArgs) -> Result<Self, CliError> {
+        use crate::utils::discover_workspace;
+
         let path = args.path.unwrap_or_else(|| PathBuf::from("."));
-        let crates = filter_crates_by_package(discover_crates(&path)?, args.package.as_ref());
+        let workspace_info = discover_workspace(&path)?;
+        let crates = filter_crates_by_package(workspace_info.crates.clone(), args.package.as_ref());
         let (valid_refs, skipped_refs) = partition_by_lib_rs(&crates);
         let valid = valid_refs.into_iter().cloned().collect();
         let skipped = skipped_refs.into_iter().cloned().collect();
 
         Ok(Self {
             path,
+            workspace_info,
             crates,
             valid,
             skipped,
@@ -83,11 +85,17 @@ impl WorkspaceCrates {
     }
 }
 
-/// Read the changed status from the temporary crate's result.json file.
+/// Read the changed status from the runner crate's result.json file.
 ///
 /// Returns `true` if the file indicates changes were made, `false` otherwise.
-fn read_changed_status(temp_dir: &std::path::Path) -> bool {
-    let result_json_path = temp_dir.join("result.json");
+/// Read the changed status from the runner crate's result.json file.
+///
+/// Returns `true` if the file indicates changes were made, `false` otherwise.
+fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
+    let result_json_path = temp_dir
+        .join("metadata")
+        .join(crate_name)
+        .join("result.json");
 
     if !result_json_path.exists() {
         return false;
@@ -102,18 +110,37 @@ fn read_changed_status(temp_dir: &std::path::Path) -> bool {
     }
 }
 
-/// Run generation-like work in parallel for a set of crates.
+/// Run generation-like work using the monolithic temp crate approach.
 ///
-/// This mirrors the pattern used by both `generate` and `clean` commands, where
-/// each crate is processed concurrently and the results are aggregated.
-pub fn parallel_generate(crates: &[CrateInfo], action: &GenerationAction) -> Vec<GenerateResult> {
+/// This prepares a single temp crate at workspace root that links all workspace crates,
+/// then runs the binary for each crate. Much faster on subsequent runs.
+pub fn parallel_generate(
+    workspace: &WorkspaceInfo,
+    crates: &[CrateInfo],
+    action: &GenerationAction,
+) -> Vec<GenerateResult> {
+    use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_runner_crate};
+
+    // Prepare the monolithic temp crate once upfront
+    if let Err(e) = prepare_monolithic_runner_crate(workspace) {
+        // If preparation fails, return error results for all crates
+        return crates
+            .iter()
+            .map(|k| {
+                GenerateResult::failure(k.name.clone(), std::time::Duration::ZERO, e.to_string())
+            })
+            .collect();
+    }
+
     let pb = ui::create_progress_bar(crates.len() as u64, "Processing crates...");
 
+    // Process sequentially since they share the same binary
+    // (parallel could cause contention on first build)
     crates
-        .par_iter()
+        .iter()
         .map(|krate| {
             let start = Instant::now();
-            let result = generate_for_crate(krate, action);
+            let result = generate_for_crate_monolithic(krate, workspace, action);
             let duration = start.elapsed();
 
             pb.inc(1);
@@ -126,8 +153,9 @@ pub fn parallel_generate(crates: &[CrateInfo], action: &GenerationAction) -> Vec
 
             match result {
                 Ok(output) => {
-                    let temp_dir = krate.manifest_dir.join(".es-fluent");
-                    let changed = read_changed_status(&temp_dir);
+                    // For monolithic, result.json is at workspace root
+                    let temp_dir = workspace.root_dir.join(".es-fluent");
+                    let changed = read_changed_status(&temp_dir, &krate.name);
 
                     let output_opt = if output.is_empty() {
                         None

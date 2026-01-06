@@ -32,6 +32,7 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
     }
 
     let results = parallel_generate(
+        &workspace.workspace_info,
         &workspace.valid,
         &GenerationAction::Generate {
             mode: args.mode,

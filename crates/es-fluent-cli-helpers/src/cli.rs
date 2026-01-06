@@ -63,5 +63,10 @@ pub fn write_inventory_for_crate(crate_name: &str) {
 
     // Write inventory data to file
     let json = serde_json::to_string(&data).expect("Failed to serialize inventory data");
-    std::fs::write("inventory.json", json).expect("Failed to write inventory.json");
+
+    let metadata_dir = std::path::Path::new("metadata").join(crate_name);
+    std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
+
+    std::fs::write(metadata_dir.join("inventory.json"), json)
+        .expect("Failed to write inventory file");
 }

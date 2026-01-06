@@ -1,23 +1,28 @@
-use crate::core::CrateInfo;
+use crate::core::{CrateInfo, WorkspaceInfo};
 use anyhow::{Context as _, Result};
 use cargo_metadata::MetadataCommand;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-/// Discovers all crates in a workspace (or single crate) that have i18n.toml.
-pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
+/// Discovers workspace information including root, target dir, and all crates with i18n.toml.
+/// This is used by the monolithic temp crate approach for efficient inventory collection.
+pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
     let root_dir = root_dir
         .canonicalize()
         .context("Failed to canonicalize root directory")?;
 
     let metadata = MetadataCommand::new()
         .current_dir(&root_dir)
+        .no_deps()
         .exec()
         .context("Failed to get cargo metadata")?;
+
+    let workspace_root: PathBuf = metadata.workspace_root.clone().into();
+    let target_dir: PathBuf = metadata.target_directory.clone().into();
 
     let mut crates = Vec::new();
 
     for package in metadata.workspace_packages() {
-        let manifest_dir: std::path::PathBuf = package.manifest_path.parent().unwrap().into();
+        let manifest_dir: PathBuf = package.manifest_path.parent().unwrap().into();
 
         let i18n_config_path = manifest_dir.join("i18n.toml");
         if !i18n_config_path.exists() {
@@ -52,7 +57,17 @@ pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
     // Sort by name for consistent ordering
     crates.sort_by(|a, b| a.name.cmp(&b.name));
 
-    Ok(crates)
+    Ok(WorkspaceInfo {
+        root_dir: workspace_root,
+        target_dir,
+        crates,
+    })
+}
+
+/// Discovers all crates in a workspace (or single crate) that have i18n.toml.
+/// This is a convenience wrapper around discover_workspace that returns just the crates.
+pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
+    discover_workspace(root_dir).map(|ws| ws.crates)
 }
 
 /// Counts the number of FTL resources (message keys) for a specific crate.

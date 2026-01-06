@@ -36,7 +36,7 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
         dry_run: args.dry_run,
     };
 
-    let results = parallel_generate(&workspace.valid, &action);
+    let results = parallel_generate(&workspace.workspace_info, &workspace.valid, &action);
     let has_errors = render_generation_results(
         &results,
         |result| {

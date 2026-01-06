@@ -1,0 +1,11 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Formatter
+Discovered 1 crate(s)
+Formatted: i18n/en/test-app-package.ftl
+Done: 1 formatted, 0 unchanged
+
+STDERR:

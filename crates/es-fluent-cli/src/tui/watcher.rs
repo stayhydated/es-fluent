@@ -1,49 +1,40 @@
 //! File watcher and main TUI event loop.
 
-use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, GenerationAction};
-use crate::generation::generate_for_crate;
+use crate::core::{
+    CrateInfo, CrateState, FluentParseMode, GenerateResult, GenerationAction, WorkspaceInfo,
+};
+use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_runner_crate};
 use crate::tui::{self, Message, TuiApp};
 use crate::utils::count_ftl_resources;
 use anyhow::{Context as _, Result};
 use notify::RecursiveMode;
 use notify_debouncer_full::{DebouncedEvent, new_debouncer};
 use std::collections::HashMap;
-use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
 /// Compute a hash of all .rs files in the src directory using blake3.
-fn compute_src_hash(src_dir: &Path) -> blake3::Hash {
-    let mut hasher = blake3::Hasher::new();
-
-    let mut paths: Vec<_> = walkdir::WalkDir::new(src_dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
-        .map(|e| e.path().to_path_buf())
-        .collect();
-
-    // Sort for deterministic ordering
-    paths.sort();
-
-    for path in paths {
-        if let Ok(content) = fs::read_to_string(&path) {
-            hasher.update(path.to_string_lossy().as_bytes());
-            hasher.update(content.as_bytes());
-        }
-    }
-
-    hasher.finalize()
+/// Delegates to the shared CrateContentCache implementation.
+fn compute_src_hash(src_dir: &Path) -> String {
+    use crate::generation::cache::CrateContentCache;
+    CrateContentCache::compute_hash(src_dir)
 }
 
-/// Spawn a thread to generate for a single crate.
-fn spawn_generation(krate: CrateInfo, mode: FluentParseMode, result_tx: Sender<GenerateResult>) {
+/// Spawn a thread to generate for a single crate using the monolithic approach.
+fn spawn_generation(
+    krate: CrateInfo,
+    workspace: Arc<WorkspaceInfo>,
+    mode: FluentParseMode,
+    result_tx: Sender<GenerateResult>,
+) {
     thread::spawn(move || {
         let start = Instant::now();
-        let result = generate_for_crate(
+        let result = generate_for_crate_monolithic(
             &krate,
+            &workspace,
             &GenerationAction::Generate {
                 mode,
                 dry_run: false,
@@ -58,8 +49,8 @@ fn spawn_generation(krate: CrateInfo, mode: FluentParseMode, result_tx: Sender<G
 
         let gen_result = match result {
             Ok(output) => {
-                // Read the result JSON file from the temp directory
-                let temp_dir = krate.manifest_dir.join(".es-fluent");
+                // Read the result JSON file from the workspace temp directory
+                let temp_dir = workspace.root_dir.join(".es-fluent");
                 let result_json_path = temp_dir.join("result.json");
                 let changed = if result_json_path.exists() {
                     match std::fs::read_to_string(&result_json_path) {
@@ -100,15 +91,22 @@ fn spawn_generation(krate: CrateInfo, mode: FluentParseMode, result_tx: Sender<G
 }
 
 /// Watch for changes and regenerate FTL files for all discovered crates.
-pub fn watch_all(crates: &[CrateInfo], mode: &FluentParseMode) -> Result<()> {
+pub fn watch_all(
+    crates: &[CrateInfo],
+    workspace: &WorkspaceInfo,
+    mode: &FluentParseMode,
+) -> Result<()> {
     if crates.is_empty() {
         anyhow::bail!("No crates to watch");
     }
 
+    // Prepare monolithic temp crate upfront
+    prepare_monolithic_runner_crate(workspace)?;
+
     // Use ratatui's built-in terminal initialization
     let mut terminal = ratatui::init();
 
-    let result = run_watch_loop(&mut terminal, crates, mode);
+    let result = run_watch_loop(&mut terminal, crates, workspace, mode);
 
     // Use ratatui's built-in terminal restoration
     ratatui::restore();
@@ -119,10 +117,12 @@ pub fn watch_all(crates: &[CrateInfo], mode: &FluentParseMode) -> Result<()> {
 fn run_watch_loop(
     terminal: &mut ratatui::DefaultTerminal,
     crates: &[CrateInfo],
+    workspace: &WorkspaceInfo,
     mode: &FluentParseMode,
 ) -> Result<()> {
+    let workspace_arc = Arc::new(workspace.clone());
     let mut app = TuiApp::new(crates);
-    let mut src_hashes: HashMap<String, blake3::Hash> = HashMap::new();
+    let mut src_hashes: HashMap<String, String> = HashMap::new();
 
     let mut path_to_crate: HashMap<std::path::PathBuf, String> = HashMap::new();
 
@@ -148,7 +148,12 @@ fn run_watch_loop(
             app.update(Message::GenerationStarted {
                 crate_name: krate.name.clone(),
             });
-            spawn_generation((*krate).clone(), mode.clone(), result_tx.clone());
+            spawn_generation(
+                (*krate).clone(),
+                workspace_arc.clone(),
+                mode.clone(),
+                result_tx.clone(),
+            );
             pending_count += 1;
         }
         terminal.draw(|f| tui::draw(f, &app))?;
@@ -215,7 +220,12 @@ fn run_watch_loop(
                             app.update(Message::GenerationStarted {
                                 crate_name: krate.name.clone(),
                             });
-                            spawn_generation((*krate).clone(), mode.clone(), result_tx.clone());
+                            spawn_generation(
+                                (*krate).clone(),
+                                workspace_arc.clone(),
+                                mode.clone(),
+                                result_tx.clone(),
+                            );
                             pending_count += 1;
                         }
                     }

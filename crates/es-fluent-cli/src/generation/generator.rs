@@ -1,9 +1,14 @@
-use crate::core::{CrateInfo, GenerationAction};
-use crate::generation::{prepare_temp_crate, run_cargo};
+use crate::core::{CrateInfo, GenerationAction, WorkspaceInfo};
+use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
 use anyhow::{Result, bail};
 
-/// Generates FTL files for a crate using the CrateInfo struct.
-pub fn generate_for_crate(krate: &CrateInfo, action: &GenerationAction) -> Result<String> {
+/// Generates FTL files for a crate using the monolithic temp crate approach.
+/// This is faster on subsequent runs because it reuses a single pre-built binary.
+pub fn generate_for_crate_monolithic(
+    krate: &CrateInfo,
+    workspace: &WorkspaceInfo,
+    action: &GenerationAction,
+) -> Result<String> {
     if !krate.has_lib_rs {
         bail!(
             "Crate '{}' has no lib.rs - inventory requires a library target for linking",
@@ -11,35 +16,33 @@ pub fn generate_for_crate(krate: &CrateInfo, action: &GenerationAction) -> Resul
         );
     }
 
-    let temp_dir = prepare_temp_crate(krate)?;
+    // Ensure monolithic temp crate is prepared (idempotent)
+    prepare_monolithic_runner_crate(workspace)?;
 
-    let args = match action {
+    let (command, extra_args) = match action {
         GenerationAction::Generate { mode, dry_run } => {
-            // FluentParseMode Display implementation typically matches clap ValueEnum (lowercase)
-            let mut args = vec![
-                "generate".to_string(),
-                "--mode".to_string(),
-                mode.to_string().to_lowercase(),
-            ];
+            let mut args = vec![krate.i18n_config_path.display().to_string()];
+            args.push("--mode".to_string());
+            args.push(mode.to_string().to_lowercase());
             if *dry_run {
                 args.push("--dry-run".to_string());
             }
-            args
+            ("generate", args)
         },
         GenerationAction::Clean {
             all_locales,
             dry_run,
         } => {
-            let mut args = vec!["clean".to_string()];
+            let mut args = vec![krate.i18n_config_path.display().to_string()];
             if *all_locales {
                 args.push("--all".to_string());
             }
             if *dry_run {
                 args.push("--dry-run".to_string());
             }
-            args
+            ("clean", args)
         },
     };
 
-    run_cargo(&temp_dir, Some("generate"), &args)
+    run_monolithic(workspace, command, &krate.name, &extra_args)
 }

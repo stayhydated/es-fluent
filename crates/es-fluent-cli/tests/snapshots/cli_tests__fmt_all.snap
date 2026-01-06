@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-assertion_line: 352
 expression: output
 ---
 STDOUT:

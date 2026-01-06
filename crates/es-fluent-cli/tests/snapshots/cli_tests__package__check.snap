@@ -1,0 +1,18 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Checker
+Discovered 1 crate(s)
+
+STDERR:
+Error: es_fluent::validate::report
+
+  × validation found 1 error(s) and 0 warning(s)
+
+Error: es_fluent::validate::missing_key
+
+  × missing translation key
+  help: Add translation for 'test-app-package.ftl-hello' in en/test-app-
+        package.ftl

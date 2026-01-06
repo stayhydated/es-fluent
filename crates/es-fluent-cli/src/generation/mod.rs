@@ -1,12 +1,14 @@
 //! FTL generation functionality.
 //!
-//! This module handles creating temporary crates and generating FTL files
-//! using Rust's inventory mechanism.
+//! This module handles generating FTL files using a monolithic runner
+//! crate that links all workspace crates via Rust's inventory mechanism.
 
+pub mod cache;
 mod generator;
-mod temp_crate;
+mod runner;
 mod templates;
 
-pub use generator::generate_for_crate;
-pub use temp_crate::{prepare_temp_crate, run_cargo, run_cargo_with_output};
-pub use templates::{CargoTomlTemplate, CheckRsTemplate, GenerateRsTemplate, GitignoreTemplate};
+pub use generator::generate_for_crate_monolithic;
+pub use runner::{
+    prepare_monolithic_runner_crate, run_cargo, run_cargo_with_output, run_monolithic,
+};
