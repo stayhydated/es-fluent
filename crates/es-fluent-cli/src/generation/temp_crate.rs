@@ -40,14 +40,14 @@ impl TempCrateConfig {
         let temp_dir = workspace_root.join(TEMP_DIR);
 
         // Try to use cached metadata if Cargo.lock hasn't changed
-        if let Some(cache) = MetadataCache::load(&temp_dir) {
-            if cache.is_valid(workspace_root) {
-                return Self {
-                    es_fluent_dep: cache.es_fluent_dep,
-                    es_fluent_cli_helpers_dep: cache.es_fluent_cli_helpers_dep,
-                    target_dir: target_dir_from_env.unwrap_or(cache.target_dir),
-                };
-            }
+        if let Some(cache) = MetadataCache::load(&temp_dir)
+            && cache.is_valid(workspace_root)
+        {
+            return Self {
+                es_fluent_dep: cache.es_fluent_dep,
+                es_fluent_cli_helpers_dep: cache.es_fluent_cli_helpers_dep,
+                target_dir: target_dir_from_env.unwrap_or(cache.target_dir),
+            };
         }
 
         // Cache miss or invalid, run cargo metadata
@@ -66,8 +66,9 @@ impl TempCrateConfig {
                 let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")
                     .or_else(Self::find_cli_workspace_dep_helpers)
                     .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string());
-                let target =
-                    target_dir_from_env.clone().unwrap_or_else(|| meta.target_directory.to_string());
+                let target = target_dir_from_env
+                    .clone()
+                    .unwrap_or_else(|| meta.target_directory.to_string());
                 (es_fluent, helpers, target)
             },
             None => (
@@ -75,7 +76,9 @@ impl TempCrateConfig {
                     .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string()),
                 Self::find_cli_workspace_dep_helpers()
                     .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string()),
-                target_dir_from_env.clone().unwrap_or_else(|| "../target".to_string()),
+                target_dir_from_env
+                    .clone()
+                    .unwrap_or_else(|| "../target".to_string()),
             ),
         };
 
@@ -327,32 +330,33 @@ pub fn run_monolithic(
     args.push(crate_name.to_string());
     let result = run_cargo(&temp_dir, Some("es-fluent-runner"), &args);
 
-    // After successful cargo run, write content cache with current state
+    // After successful cargo run, write runner cache with current per-crate hashes
     if result.is_ok() {
-        use super::cache::ContentCache;
-        
+        use super::cache::{CrateContentCache, RunnerCache};
+
         let binary_path = get_monolithic_binary_path(workspace);
-        if let Ok(meta) = fs::metadata(&binary_path) {
-            if let Ok(mtime) = meta.modified() {
-                let runner_mtime_secs = mtime
-                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
+        if let Ok(meta) = fs::metadata(&binary_path)
+            && let Ok(mtime) = meta.modified()
+        {
+            let runner_mtime_secs = mtime
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
 
-                let src_dirs: Vec<&Path> = workspace
-                    .crates
-                    .iter()
-                    .filter(|c| c.src_dir.exists())
-                    .map(|c| c.src_dir.as_path())
-                    .collect();
-
-                let content_hash = ContentCache::compute_content_hash(&src_dirs);
-                let cache = ContentCache {
-                    content_hash,
-                    runner_mtime: runner_mtime_secs,
-                };
-                let _ = cache.save(&temp_dir);
+            // Compute per-crate content hashes
+            let mut crate_hashes = std::collections::HashMap::new();
+            for krate in &workspace.crates {
+                if krate.src_dir.exists() {
+                    let hash = CrateContentCache::compute_hash(&krate.src_dir);
+                    crate_hashes.insert(krate.name.clone(), hash);
+                }
             }
+
+            let cache = RunnerCache {
+                crate_hashes,
+                runner_mtime: runner_mtime_secs,
+            };
+            let _ = cache.save(&temp_dir);
         }
     }
 
@@ -361,10 +365,11 @@ pub fn run_monolithic(
 
 /// Check if the runner binary is stale compared to workspace source files.
 ///
-/// Uses blake3 content hashing to detect actual changes - saving a file without
-/// modifications won't trigger a rebuild.
+/// Uses per-crate blake3 content hashing to detect actual changes - saving a file
+/// without modifications won't trigger a rebuild. Hashes are stored per-crate in
+/// metadata/{crate_name}/content_hash.json.
 fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
-    use super::cache::ContentCache;
+    use super::cache::{CrateContentCache, RunnerCache};
 
     let runner_mtime = match fs::metadata(runner_path).and_then(|m| m.modified()) {
         Ok(t) => t,
@@ -378,32 +383,38 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
 
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
 
-    // Collect source directories
-    let src_dirs: Vec<&Path> = workspace
-        .crates
-        .iter()
-        .filter(|c| c.src_dir.exists())
-        .map(|c| c.src_dir.as_path())
-        .collect();
+    // Compute current content hashes for each crate
+    let mut current_hashes = std::collections::HashMap::new();
+    for krate in &workspace.crates {
+        if krate.src_dir.exists() {
+            let hash = CrateContentCache::compute_hash(&krate.src_dir);
+            current_hashes.insert(krate.name.clone(), hash);
+        }
+    }
 
-    // Compute current content hash
-    let current_hash = ContentCache::compute_content_hash(&src_dirs);
-
-    // Check cache
-    if let Some(cache) = ContentCache::load(&temp_dir) {
+    // Check runner cache
+    if let Some(cache) = RunnerCache::load(&temp_dir) {
         if cache.runner_mtime == runner_mtime_secs {
-            // Runner hasn't been rebuilt - check if content changed
-            if current_hash == cache.content_hash {
-                // Content unchanged, runner is fresh
-                return false;
+            // Runner hasn't been rebuilt - check if any crate content changed
+            for (name, current_hash) in &current_hashes {
+                match cache.crate_hashes.get(name) {
+                    Some(cached_hash) if cached_hash == current_hash => continue,
+                    _ => return true, // Hash mismatch or new crate
+                }
             }
-            // Content changed, runner is stale
-            return true;
+            // Also check for removed crates
+            for cached_name in cache.crate_hashes.keys() {
+                if !current_hashes.contains_key(cached_name) {
+                    return true;
+                }
+            }
+            // All hashes match, runner is fresh
+            return false;
         }
 
-        // Runner was rebuilt - update cache with current content hash
-        let new_cache = ContentCache {
-            content_hash: current_hash,
+        // Runner was rebuilt - update cache with current hashes
+        let new_cache = RunnerCache {
+            crate_hashes: current_hashes,
             runner_mtime: runner_mtime_secs,
         };
         let _ = new_cache.save(&temp_dir);
@@ -411,7 +422,6 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
     }
 
     // No cache exists - be conservative and trigger rebuild
-    // The cache will be created after the rebuild completes
     true
 }
 
