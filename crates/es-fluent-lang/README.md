@@ -1,3 +1,6 @@
+[![Docs](https://docs.rs/es-fluent-lang/badge.svg)](https://docs.rs/es-fluent-lang/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-lang.svg)](https://crates.io/crates/es-fluent-lang)
+
 # es-fluent-lang
 
 Runtime support for `es-fluent` language management.

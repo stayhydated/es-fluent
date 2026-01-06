@@ -1,3 +1,6 @@
+[![Docs](https://docs.rs/es-fluent-cli/badge.svg)](https://docs.rs/es-fluent-cli/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-cli.svg)](https://crates.io/crates/es-fluent-cli)
+
 # es-fluent-cli
 
 The official command-line tool for `es-fluent`.

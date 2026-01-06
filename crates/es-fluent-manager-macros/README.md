@@ -1,3 +1,6 @@
+[![Docs](https://docs.rs/es-fluent-manager-macros/badge.svg)](https://docs.rs/es-fluent-manager-macros/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-macros.svg)](https://crates.io/crates/es-fluent-manager-macros)
+
 # es-fluent-manager-macros
 
 The `es-fluent-manager-macros` crate provides the procedural macros that help automate the setup of translation modules for `es-fluent-manager`.

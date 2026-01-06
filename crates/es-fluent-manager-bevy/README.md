@@ -1,3 +1,6 @@
+[![Docs](https://docs.rs/es-fluent-manager-bevy/badge.svg)](https://docs.rs/es-fluent-manager-bevy/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-bevy.svg)](https://crates.io/crates/es-fluent-manager-bevy)
+
 # es-fluent-manager-bevy
 
 Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`.

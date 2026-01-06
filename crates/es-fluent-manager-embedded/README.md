@@ -1,3 +1,6 @@
+[![Docs](https://docs.rs/es-fluent-manager-embedded/badge.svg)](https://docs.rs/es-fluent-manager-embedded/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-manager-embedded.svg)](https://crates.io/crates/es-fluent-manager-embedded)
+
 # es-fluent-manager-embedded
 
 A zero-setup, global localization manager for `es-fluent`.

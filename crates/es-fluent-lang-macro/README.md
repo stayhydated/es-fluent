@@ -1,3 +1,6 @@
+[![Docs](https://docs.rs/es-fluent-lang-macro/badge.svg)](https://docs.rs/es-fluent-lang-macro/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-lang-macro.svg)](https://crates.io/crates/es-fluent-lang-macro)
+
 # es-fluent-lang-macro
 
 Procedural macro for finding and enumerating supported languages.

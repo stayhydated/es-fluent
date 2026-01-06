@@ -1,3 +1,6 @@
+[![Docs](https://docs.rs/es-fluent-derive/badge.svg)](https://docs.rs/es-fluent-derive/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-derive.svg)](https://crates.io/crates/es-fluent-derive)
+
 # es-fluent-derive
 
 Procedural macros for the `es-fluent` localization system.
