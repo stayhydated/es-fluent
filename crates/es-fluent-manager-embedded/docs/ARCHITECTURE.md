@@ -55,6 +55,25 @@ Calls to `init()`:
 
 This enables the use of `es_fluent::localize!` anywhere in the application code without passing a manager context around.
 
+## Macro
+
+The `define_i18n_module!` macro is re-exported from `es_fluent_manager_macros::define_embedded_i18n_module`. It:
+
+1. Scans the `assets_dir` from `i18n.toml` for language subdirectories.
+2. Generates a struct implementing `RustEmbed` to embed the FTL files.
+3. Creates a static `EmbeddedModuleData` with the module metadata.
+4. Registers the module via `inventory::submit!`.
+
+This macro requires the `macros` feature, which is enabled by default.
+
+## Initialization Behavior
+
+The `init()` function is idempotent:
+- First call: Initializes the manager and sets the global context.
+- Subsequent calls: Logs a warning via `tracing` and has no effect.
+
+If `select_language()` is called before `init()`, a warning is logged and the call has no effect.
+
 ## Usage
 
 ```rs

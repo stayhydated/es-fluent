@@ -53,12 +53,16 @@ workspace_root/
 
 The detailed steps are:
 
-1. **Read Configuration**: The macro reads `i18n.toml` from the workspace root (using `es-fluent-toml`) to determine the `assets_dir`.
-1. **Scan Assets**: It scans the configured assets directory for subdirectories.
-1. **Identify Languages**: Each subdirectory name is parsed as a BCP-47 language code (e.g., `en`, `zh-CN`).
+1. **Read Configuration**: The macro reads `i18n.toml` from the workspace root (using `es-fluent-toml`) to determine the `assets_dir` and `fallback_language`.
+1. **Scan Assets**: It scans the configured assets directory for subdirectories containing `.ftl` files.
+1. **Validate Languages**: Each subdirectory name is validated against a list of known BCP-47 language codes (`SUPPORTED_LANGUAGE_KEYS`). Unrecognized language codes will cause a **compile-time error**.
+1. **Canonicalize**: Language codes are matched using multiple canonicalization forms (full form, without variants, without region, without script, base language only).
+1. **Auto-Insert Fallback**: If the `fallback_language` from `i18n.toml` is not found in the assets directory, it is automatically added to the enum.
+1. **Deduplicate**: Languages are sorted alphabetically and deduplicated by their string representation.
 1. **Generate Enum**:
    - The user provides an **empty enum**.
-   - The macro populates it with variants corresponding to the discovered language codes.
+   - The macro populates it with variants corresponding to the discovered language codes (converted to PascalCase).
+   - Each variant receives a `#[fluent(key = "...")]` attribute with the canonical language code.
    - It implements helper traits for converting between the enum and string representations.
    - It implements `Default` based on the fallback language defined in `i18n.toml`.
 

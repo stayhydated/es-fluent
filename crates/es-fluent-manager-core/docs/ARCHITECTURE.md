@@ -62,7 +62,25 @@ Responsible for the actual string formatting logic.
 
 ### `EmbeddedAssets`
 
-A trait (typically implemented via `rust_embed`) that provides access to encoded file content. This abstracts the file system access for `EmbeddedI18nModule`.
+A trait that provides access to encoded file content for embedded translations.
+
+- Requires implementing `RustEmbed` (typically via `#[derive(RustEmbed)]`).
+- The `domain()` method returns the base name for FTL files (e.g., `"my-crate"` for `my-crate.ftl`).
+
+### `I18nAssetModule`
+
+A trait for asset-based (filesystem/Bevy) translation modules.
+
+- Registered via `inventory` for automatic discovery.
+- Used by `es-fluent-manager-bevy` for runtime asset loading.
+
+### `StaticI18nResource`
+
+A trait for injecting pre-parsed Fluent resources directly into localization bundles.
+
+- Useful for language-agnostic resources or resources that should be available for all languages.
+- Registered via `inventory` for automatic discovery.
+- The `matches_language()` method can filter resources by language (defaults to matching all).
 
 ## Modules
 

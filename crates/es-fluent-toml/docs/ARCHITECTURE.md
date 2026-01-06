@@ -47,8 +47,11 @@ fallback_language = "en-US"
 # Path to FTL assets relative to the config file (required)
 assets_dir = "assets/locales"
 
-# Features to enable if the crate’s es-fluent derives are gated behind a feature (optional)
-fluent_feature = ["my-feature"]
+# Features to enable if the crate's es-fluent derives are gated behind a feature (optional)
+# Can be a single string or an array of strings:
+fluent_feature = "my-feature"
+# or
+fluent_feature = ["my-feature", "another-feature"]
 ```
 
 ## Key Responsibilities
@@ -56,8 +59,8 @@ fluent_feature = ["my-feature"]
 1. **Path Resolution**:
    It resolves `assets_dir` relative to the `i18n.toml` location (usually the workspace root), ensuring that CLI tools and build scripts (proc-macros) see the same path regardless of their Current Working Directory.
 
-1. **Language Discovery**:
-   It scans the `assets_dir` to find all subdirectories that correspond to valid BCP-47 language codes. This allows the ecosystem to auto-discover available languages without manual registration.
+2. **Language Discovery**:
+   It scans the `assets_dir` to find all subdirectories that correspond to valid BCP-47 language codes. This allows the ecosystem to auto-discover available languages without manual registration. Languages are sorted alphabetically and deduplicated.
 
-1. **Validation**:
-   It ensures that paths exist and that language codes are spec-compliant (e.g., rejecting invalid BCP-47 tags).
+3. **Validation**:
+   It ensures that paths exist and that language codes are spec-compliant. Note that language identifiers with variant subtags are not supported and will be rejected. Non-UTF8 directory names are also rejected with a clear error message.

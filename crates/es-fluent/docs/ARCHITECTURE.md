@@ -6,7 +6,7 @@ This document details the architecture of the `es-fluent` crate, which serves as
 
 `es-fluent` ties together the core components (`core`, `derive`, `manager`) into a cohesive API. It provides:
 
-1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `ToFluentString`, `ThisFtl`) and derive macros.
+1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `EsFluentKv`, `EsFluentThis`, `ToFluentString`, `ThisFtl`) and derive macros.
 1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic localization macros.
 1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
 1. **Traits**: Standard definitions for how types invoke the localization system.
@@ -73,12 +73,6 @@ static CUSTOM_LOCALIZER: OnceLock<Box<dyn Fn(...) -> Option<String> ...>> = Once
 
 The primary trait for converting a type into a localized string.
 
-```rs
-pub trait ToFluentString {
-    fn to_fluent_string(&self) -> String;
-}
-```
-
 ### `FluentDisplay`
 
 A helper trait that `#[derive(EsFluent)]` implements. It handles the logic of looking up the correct key and passing arguments to the `localize` function.
@@ -87,21 +81,9 @@ A helper trait that `#[derive(EsFluent)]` implements. It handles the logic of lo
 
 Used to convert an enum into a string that can be used as a Fluent choice (selector).
 
-```rs
-pub trait EsFluentChoice {
-    fn as_fluent_choice(&self) -> &'static str;
-}
-```
-
 ### `ThisFtl`
 
 A trait for types that have a "this" fluent key representing the type itself, typically implemented via `#[derive(EsFluent)]` with `#[fluent(this)]`.
-
-```rs
-pub trait ThisFtl {
-    fn this_ftl() -> String;
-}
-```
 
 ## Integration
 
@@ -115,11 +97,24 @@ es-fluent = { version = "...", features = ["derive"] }
 And then use the derive macros:
 
 ```rs
-use es_fluent::{EsFluent, EsFluentChoice};
+use es_fluent::{EsFluent, EsFluentChoice, EsFluentKv, EsFluentThis};
 
 #[derive(EsFluent)]
-#[fluent(message = "hello-world")]
 struct Hello;
+
+#[derive(EsFluentKv)]
+#[fluent_kv(keys = ["label", "placeholder"])]
+struct MyForm {
+    username: String,
+    password: String,
+}
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin)]
+enum Gender {
+    Male,
+    Female,
+}
 ```
 
-> **Note**: Consumers should rely on the `#[derive(EsFluent)]` macro and the `ToFluentString` trait. Direct usage of the internal `localize!` macro or function is discouraged and generally not necessary.
+> **Note**: Consumers should rely on the `#[derive(EsFluent)]` macro and the `ToFluentString` trait. The trait only needs to be in scope to enable calling `to_fluent_string`. Direct usage of the internal `localize!` macro or function is discouraged and generally not necessary.

@@ -15,7 +15,7 @@ flowchart TD
     end
 
     subgraph CLI["es-fluent-cli"]
-        CMD[Commands: generate, check, clean, watch, format, sync]
+        CMD[Commands]
         JINJA[Jinja Templates]
         CACHE[Caching Layer]
     end
@@ -49,14 +49,14 @@ flowchart TD
 
 The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers` via the runner crate.
 
-| Command | Goal | Mechanism |
-| :--- | :--- | :--- |
-| `generate` | **Create/Update FTL** | Collects inventory. Merges new keys into existing `.ftl` files using `fluent-syntax`. Preserves comments & formatting. |
-| `check` | **Validate Integrity** | Collects inventory. Verifies all keys exist in `.ftl` files. Errors if keys are missing or variables mismatch. |
-| `clean` | **Remove Obsolete** | Collects inventory. Removes keys from `.ftl` files that are no longer present in the Rust code. |
-| `format` | **Standardize Style** | Parses and re-serializes all `.ftl` files using standard `fluent-syntax` rules to ensure consistent formatting. |
-| `sync` | **Propagate Keys** | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. |
-| `watch` | **Dev Loop** | Watches `.rs` files for changes. Re-runs `generate` automatically on save. |
+| Command | Goal | Mechanism | Flags |
+| :--- | :--- | :--- | :--- |
+| `generate` | **Create/Update FTL** | Collects inventory. Merges new keys into existing `.ftl` files using `fluent-syntax`. Preserves comments & formatting. | `--dry-run` |
+| `check` | **Validate Integrity** | Collects inventory. Verifies all keys exist in `.ftl` files. Errors if keys are missing or variables mismatch. | `--all` (check all locales) |
+| `clean` | **Remove Obsolete** | Collects inventory. Removes keys from `.ftl` files that are no longer present in the Rust code. | `--dry-run` |
+| `format` | **Standardize Style** | Parses and re-serializes all `.ftl` files using standard `fluent-syntax` rules to ensure consistent formatting. | `--dry-run`, `--all` (format all locales) |
+| `sync` | **Propagate Keys** | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. | `--locale <LANG>`, `--all` |
+| `watch` | **Dev Loop** | Watches `.rs` files for changes. Re-runs `generate` automatically on save. | — |
 
 ## Jinja Templates
 

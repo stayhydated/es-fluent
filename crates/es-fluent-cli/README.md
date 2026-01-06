@@ -38,9 +38,11 @@ This will:
    - **Changed items**: Variables updated (e.g. if you added a field).
    - **Existing translations**: Preserved untouched.
 
+Use `--dry-run` to preview changes without writing them.
+
 ### Watch
 
-While iterating on your code, keep the watcher running to auto-update FTL files as you type:
+Same as `generate`, but runs in watch mode, updating FTL files as you type:
 
 ```sh
 es-fluent watch
@@ -54,6 +56,8 @@ To ensure all your translations are valid and no keys are missing:
 es-fluent check
 ```
 
+Use `--all` to check all locales, not just the fallback language.
+
 ### Clean
 
 Remove orphan keys and groups that are no longer present in your source code:
@@ -61,6 +65,8 @@ Remove orphan keys and groups that are no longer present in your source code:
 ```sh
 es-fluent clean
 ```
+
+Use `--dry-run` to preview changes without writing them.
 
 ### Format
 
@@ -70,6 +76,8 @@ Standardize the formatting of your FTL files using `fluent-syntax` rules:
 es-fluent format
 ```
 
+Use `--dry-run` to preview changes without writing them. Use `--all` to format all locales.
+
 ### Sync
 
 Propagate keys from your fallback language to other languages (e.g., from `en-US` to `fr` and `de`), creating placeholders for missing translations:
@@ -77,3 +85,5 @@ Propagate keys from your fallback language to other languages (e.g., from `en-US
 ```sh
 es-fluent sync
 ```
+
+Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.

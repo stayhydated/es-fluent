@@ -71,14 +71,8 @@ Holds the current active language. Setting this triggers the update pipeline.
 
 A component wrapper for localizable data.
 
-```rs
-#[derive(Component)]
-pub struct FluentText<T: ToFluentString + Clone> {
-    pub value: T,
-}
-```
 
-When `LocaleChangedEvent` fires, systems iterate over all `FluentText` components and re-render the string data.
+When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change` system iterates over all `FluentText` components and re-renders the string data. Additionally, `update_fluent_text_system` handles initial rendering and updates when `FluentText` components are added or modified.
 
 ### `define_i18n_module!`
 
@@ -90,5 +84,5 @@ Re-exported from `es_fluent_manager_macros`, this registers the crate's assets w
 1. **Loading**: Bevy loads all `.ftl` assets defined by registered modules.
 1. **Compilation**: `I18nBundle` creates `FluentBundle`s from loaded assets.
 1. **Localization**:
-   - **Components**: `FluentText` components update automatically via `update_values_on_locale_change`.
+   - **Components**: `FluentText` components update automatically via `update_all_fluent_text_on_locale_change`.
    - **Manual/Macro**: `localize!("my-id")` works anywhere because the global hook calls back into the Bevy state.
