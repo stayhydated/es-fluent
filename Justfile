@@ -8,7 +8,7 @@ fmt:
     uv format
 
 clippy:
-    cargo clippy --workspace --all-features --exclude cosmic-example
+    cargo clippy --workspace --all-features
 
 test-publish:
-  cargo publish --workspace --dry-run --allow-dirty
+    cargo publish --workspace --dry-run --allow-dirty
