@@ -47,7 +47,6 @@ flowchart TD
     CLI -->|reads| OUTPUT
 ```
 
-
 ## Commands
 
 The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers` via the runner crate.
@@ -62,7 +61,6 @@ The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers`
 | `watch` | **Dev Loop** | Watches `.rs` files for changes. Re-runs `generate` automatically on save. |
 
 ## Jinja Templates
-
 
 | Template | Output | Purpose |
 |----------|--------|---------|

@@ -7,7 +7,7 @@ This crate provides a "Just Works" experience for adding localization to standar
 ## Features
 
 - **Embedded Assets**: Compiles your FTL files into the binary (using `rust-embed` under the hood).
-- **Global Access**: Once initialized, you can call `to_fluent_string() anywhere in your code without passing context around.
+- **Global Access**: Once initialized, you can call \`to_fluent_string() anywhere in your code without passing context around.
 - **Thread Safe**: Uses `OnceLock` and atomic swaps for safe concurrent access.
 
 ## Quick Start

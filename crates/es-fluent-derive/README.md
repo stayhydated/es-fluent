@@ -6,7 +6,7 @@ This crate is the engine that transforms your Rust structs and enums into Fluent
 
 All macros provided by this crate are fully independent and composable. You can use them individually or together on the same type depending on your needs.
 
-## Features 
+## Features
 
 ### `#[derive(EsFluent)]`
 

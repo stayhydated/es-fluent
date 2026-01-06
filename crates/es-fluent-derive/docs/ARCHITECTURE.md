@@ -109,12 +109,12 @@ mod __es_fluent_inventory_my_message {
 - **`es-fluent-core`**: Provides the runtime target types (`StaticFtlTypeInfo`) that the specific macro generates code for.
 
 ## Macros
- 
+
 All macros are designed to be orthogonal and independent. Code generation for one does not rely on another.
 
- | Macro | Purpose | Code Generation Logic |
- | :--- | :--- | :--- |
- | `#[derive(EsFluent)]` | **Primary Messaging** | Generates a specific message ID for the struct (or one per enum variant). Implements `FluentDisplay` which calls `localize()` with those IDs. Registers `FtlTypeInfo` to inventory for FTL generation. |
- | `#[derive(EsFluentChoice)]` | **Select Expressions** | Does *not* generate a message ID. Instead, implements `EsFluentChoice` so the type can be passed as a variable to *other* messages (e.g. `$gender ->`). The inventory registration marks it as a "Choice" type. |
- | `#[derive(EsFluentKv)]` | **Key-Value Pairs** | Generates companion enums (e.g. `MyStructLabel`) where each variant corresponds to a field of the struct. Useful for form labels, placeholders, etc. |
- | `#[derive(EsFluentThis)]` | **Self-Referencing** | Implements the `ThisFtl` trait. Registers the type's top-level name as a key (similar to how `EsFluentKv` registers fields). |
+| Macro | Purpose | Code Generation Logic |
+| :--- | :--- | :--- |
+| `#[derive(EsFluent)]` | **Primary Messaging** | Generates a specific message ID for the struct (or one per enum variant). Implements `FluentDisplay` which calls `localize()` with those IDs. Registers `FtlTypeInfo` to inventory for FTL generation. |
+| `#[derive(EsFluentChoice)]` | **Select Expressions** | Does *not* generate a message ID. Instead, implements `EsFluentChoice` so the type can be passed as a variable to *other* messages (e.g. `$gender ->`). The inventory registration marks it as a "Choice" type. |
+| `#[derive(EsFluentKv)]` | **Key-Value Pairs** | Generates companion enums (e.g. `MyStructLabel`) where each variant corresponds to a field of the struct. Useful for form labels, placeholders, etc. |
+| `#[derive(EsFluentThis)]` | **Self-Referencing** | Implements the `ThisFtl` trait. Registers the type's top-level name as a key (similar to how `EsFluentKv` registers fields). |
