@@ -57,12 +57,7 @@ This enables the use of `es_fluent::localize!` anywhere in the application code 
 
 ## Macro
 
-The `define_i18n_module!` macro is re-exported from `es_fluent_manager_macros::define_embedded_i18n_module`. It:
-
-1. Scans the `assets_dir` from `i18n.toml` for language subdirectories.
-2. Generates a struct implementing `RustEmbed` to embed the FTL files.
-3. Creates a static `EmbeddedModuleData` with the module metadata.
-4. Registers the module via `inventory::submit!`.
+The `define_i18n_module!` macro is re-exported from `es-fluent-manager-macros::define_embedded_i18n_module`. See the [es-fluent-manager-macros architecture](../../es-fluent-manager-macros/docs/ARCHITECTURE.md) for details on how the macro discovers languages and generates module data.
 
 This macro requires the `macros` feature, which is enabled by default.
 

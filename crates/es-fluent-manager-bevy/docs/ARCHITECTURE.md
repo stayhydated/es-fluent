@@ -76,7 +76,7 @@ When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change` s
 
 ### `define_i18n_module!`
 
-Re-exported from `es_fluent_manager_macros`, this registers the crate's assets with the system so Bevy knows which domains to load.
+Re-exported from `es-fluent-manager-macros::define_bevy_i18n_module`. See the [es-fluent-manager-macros architecture](../../es-fluent-manager-macros/docs/ARCHITECTURE.md) for details on how the macro discovers languages and generates module data. This macro registers the crate's assets with the system so Bevy knows which domains to load.
 
 ## Flow
 
