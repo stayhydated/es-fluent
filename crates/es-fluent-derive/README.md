@@ -19,7 +19,7 @@ Turns an enum or struct into a localizable message.
 - **Structs**: The struct itself becomes the message ID (e.g., `MyStruct` -> `my_struct`).
 - **Fields**: Fields are automatically exposed as arguments to the Fluent message.
 
-```rust
+```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
@@ -33,7 +33,7 @@ pub enum LoginError {
 
 Allows an enum to be used *inside* another message as a selector (e.g., for gender or status).
 
-```rust
+```rs
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
@@ -56,7 +56,7 @@ pub struct UserProfile<'a> {
 
 Generates key-value pair enums for struct fields. This is perfect for generating UI labels, placeholders, or descriptions for a form object.
 
-```rust
+```rs
 use es_fluent::EsFluentKv;
 
 #[derive(EsFluentKv)]
@@ -77,7 +77,7 @@ Generates a helper implementation of the `ThisFtl` trait and registers the type'
 - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
 - `#[fluent_this(members)]`: Can be combined with `Kv` derives to generate keys for members.
 
-```rust
+```rs
 use es_fluent::EsFluentThis;
 
 #[derive(EsFluentThis)]

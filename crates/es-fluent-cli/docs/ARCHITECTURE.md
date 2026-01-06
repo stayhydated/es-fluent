@@ -33,7 +33,6 @@ flowchart TD
     subgraph OUTPUT["JSON Outputs"]
         INV[metadata/*/inventory.json]
         RES[metadata/*/result.json]
-        HASH[metadata/*/content_hash.json]
     end
 
     CMD --> JINJA
@@ -43,7 +42,6 @@ flowchart TD
     UC -->|extern crate| BIN
     BIN --> HELPERS
     HELPERS --> INV & RES
-    CACHE --> HASH
     CLI -->|reads| OUTPUT
 ```
 
@@ -122,11 +120,10 @@ flowchart LR
 .es-fluent/
 ├── Cargo.toml              # Generated from MonolithicCargo.toml.jinja
 ├── src/main.rs             # Generated from monolithic_main.rs.jinja
-├── runner_cache.json       # Maps crate → content hash
+├── runner_cache.json       # Maps crate → content hash (for staleness detection)
 ├── metadata_cache.json     # Cached cargo_metadata results
 └── metadata/
     └── {crate_name}/
         ├── inventory.json  # Expected keys + variables (from check)
-        ├── result.json     # {"changed": bool} (from generate/clean)
-        └── content_hash.json  # Per-crate blake3 hash
+        └── result.json     # {"changed": bool} (from generate/clean)
 ```

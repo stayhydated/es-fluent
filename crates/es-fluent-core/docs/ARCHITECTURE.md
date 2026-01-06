@@ -77,7 +77,7 @@ The registry module exposes the mechanism to collect distributed type informatio
 1. **Registration**:
    Derive macros expand to:
 
-   ```rust
+   ```rs
    inventory::submit! {
        &StaticFtlTypeInfo { ... }
    }
@@ -86,7 +86,7 @@ The registry module exposes the mechanism to collect distributed type informatio
 1. **Collection**:
    The runtime (specifically the Runner Crate) calls:
 
-   ```rust
+   ```rs
    pub fn get_all_ftl_type_infos() -> Vec<FtlTypeInfo>
    ```
 

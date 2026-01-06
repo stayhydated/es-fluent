@@ -19,7 +19,7 @@ This crate provides a "Just Works" experience for adding localization to standar
 
 In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
 
-```rust
+```rs
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_embedded::define_embedded_i18n_module!();
 ```
@@ -28,7 +28,7 @@ es_fluent_manager_embedded::define_embedded_i18n_module!();
 
 In your application entry point:
 
-```rust
+```rs
 use es_fluent::ToFluentString;
 use unic_langid::langid;
 

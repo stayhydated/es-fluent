@@ -70,7 +70,7 @@ By default, the macro links the generated enum to the embedded translations prov
 
 It generates:
 
-```rust
+```rs
 #[es_fluent_language]
 pub enum Languages {}
 // Becomes ->
@@ -91,7 +91,7 @@ pub enum Languages {
 
 If you want to provide your own translations for language names, use the `custom` argument:
 
-```rust
+```rs
 #[es_fluent_language(custom)]
 enum Languages {}
 ```

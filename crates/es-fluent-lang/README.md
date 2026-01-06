@@ -13,7 +13,7 @@ This crate provides the core language types (re-exporting `unic-langid`) and the
 
 Generates a strongly-typed enum of all available languages in your project. It automatically scans your `i18n.toml` assets directory to find supported locales.
 
-```rust
+```rs
 use es_fluent_lang::es_fluent_language;
 use es_fluent::EsFluent;
 
@@ -25,7 +25,7 @@ pub enum Languages {}
 
 If your `assets_dir` contains `en`, `fr`, and `de` folders, this generates:
 
-```rust
+```rs
 pub enum Languages {
     En,
     Fr,

@@ -2,7 +2,7 @@
 //!
 //! This module provides caching for expensive operations like:
 //! - Cargo metadata results
-//! - Per-crate source file content hashing (for staleness detection)
+//! - Runner binary staleness detection via content hashing
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -55,70 +55,38 @@ impl MetadataCache {
     }
 }
 
-/// Per-crate content hash cache for staleness detection.
+/// Compute blake3 hash of all .rs files in a source directory.
 ///
-/// Stored in `metadata/{crate_name}/content_hash.json` alongside inventory.json and result.json.
-/// This allows efficient per-crate change detection without hashing all crates.
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct CrateContentCache {
-    /// Blake3 hash of all .rs files in this crate's src directory
-    pub content_hash: String,
-}
+/// Used for staleness detection - saving a file without modifications
+/// won't change the hash, avoiding unnecessary rebuilds.
+pub fn compute_content_hash(src_dir: &Path) -> String {
+    use blake3::Hasher;
 
-impl CrateContentCache {
-    const CACHE_FILE: &'static str = "content_hash.json";
+    let mut hasher = Hasher::new();
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
 
-    /// Get the cache directory for a specific crate.
-    fn cache_dir(temp_dir: &Path, crate_name: &str) -> std::path::PathBuf {
-        temp_dir.join("metadata").join(crate_name)
-    }
-
-    /// Load cache for a specific crate.
-    pub fn load(temp_dir: &Path, crate_name: &str) -> Option<Self> {
-        let cache_path = Self::cache_dir(temp_dir, crate_name).join(Self::CACHE_FILE);
-        let content = std::fs::read_to_string(&cache_path).ok()?;
-        serde_json::from_str(&content).ok()
-    }
-
-    /// Save cache for a specific crate.
-    pub fn save(&self, temp_dir: &Path, crate_name: &str) -> std::io::Result<()> {
-        let cache_dir = Self::cache_dir(temp_dir, crate_name);
-        std::fs::create_dir_all(&cache_dir)?;
-        let cache_path = cache_dir.join(Self::CACHE_FILE);
-        let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(cache_path, content)
-    }
-
-    /// Compute blake3 hash of all .rs files in a source directory.
-    pub fn compute_hash(src_dir: &Path) -> String {
-        use blake3::Hasher;
-
-        let mut hasher = Hasher::new();
-        let mut files: Vec<std::path::PathBuf> = Vec::new();
-
-        if src_dir.exists() {
-            let walker = walkdir::WalkDir::new(src_dir);
-            for entry in walker.into_iter().filter_map(|e| e.ok()) {
-                let path = entry.path();
-                if path.is_file() && path.extension().is_some_and(|e| e == "rs") {
-                    files.push(path.to_path_buf());
-                }
+    if src_dir.exists() {
+        let walker = walkdir::WalkDir::new(src_dir);
+        for entry in walker.into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_file() && path.extension().is_some_and(|e| e == "rs") {
+                files.push(path.to_path_buf());
             }
         }
-
-        // Sort for deterministic order
-        files.sort();
-
-        // Hash path + content for each file
-        for path in files {
-            if let Ok(content) = std::fs::read(&path) {
-                hasher.update(path.to_string_lossy().as_bytes());
-                hasher.update(&content);
-            }
-        }
-
-        hasher.finalize().to_hex().to_string()
     }
+
+    // Sort for deterministic order
+    files.sort();
+
+    // Hash path + content for each file
+    for path in files {
+        if let Ok(content) = std::fs::read(&path) {
+            hasher.update(path.to_string_lossy().as_bytes());
+            hasher.update(&content);
+        }
+    }
+
+    hasher.finalize().to_hex().to_string()
 }
 
 /// Runner binary cache tracking which content hashes it was built with.
@@ -148,13 +116,4 @@ impl RunnerCache {
         let content = serde_json::to_string_pretty(self)?;
         std::fs::write(cache_path, content)
     }
-}
-
-// Keep the old ContentCache for backward compatibility with watcher.rs
-// TODO: Migrate watcher.rs to use CrateContentCache directly
-
-/// Compute combined hash of all source files in the given directories.
-/// Used by watcher.rs for per-crate change detection.
-pub fn compute_content_hash(src_dir: &Path) -> String {
-    CrateContentCache::compute_hash(src_dir)
 }

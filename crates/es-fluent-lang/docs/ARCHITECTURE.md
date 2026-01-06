@@ -47,7 +47,7 @@ The crate includes `es-fluent-lang.ftl`, which contains translations for common 
 
 It automatically registers itself with `es-fluent-manager-core` using `inventory::submit!`.
 
-```rust
+```rs
 inventory::submit! {
     &EsFluentLanguageModule as &dyn I18nModule
 }

@@ -46,7 +46,7 @@ flowchart TD
 
 To allow `Display` implementations (which can't easily pass arguments) to access translations, `es-fluent` uses a `OnceLock`-protected global context.
 
-```rust
+```rs
 static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 ```
 
@@ -58,7 +58,7 @@ static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 
 A custom localizer can be registered to intercept translation requests. This is useful for testing, special environments, or implementing fallbacks.
 
-```rust
+```rs
 static CUSTOM_LOCALIZER: OnceLock<Box<dyn Fn(...) -> Option<String> ...>> = OnceLock::new();
 ```
 
@@ -73,7 +73,7 @@ static CUSTOM_LOCALIZER: OnceLock<Box<dyn Fn(...) -> Option<String> ...>> = Once
 
 The primary trait for converting a type into a localized string.
 
-```rust
+```rs
 pub trait ToFluentString {
     fn to_fluent_string(&self) -> String;
 }
@@ -87,7 +87,7 @@ A helper trait that `#[derive(EsFluent)]` implements. It handles the logic of lo
 
 Used to convert an enum into a string that can be used as a Fluent choice (selector).
 
-```rust
+```rs
 pub trait EsFluentChoice {
     fn as_fluent_choice(&self) -> &'static str;
 }
@@ -97,7 +97,7 @@ pub trait EsFluentChoice {
 
 A trait for types that have a "this" fluent key representing the type itself, typically implemented via `#[derive(EsFluent)]` with `#[fluent(this)]`.
 
-```rust
+```rs
 pub trait ThisFtl {
     fn this_ftl() -> String;
 }
@@ -114,7 +114,7 @@ es-fluent = { version = "...", features = ["derive"] }
 
 And then use the derive macros:
 
-```rust
+```rs
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent)]

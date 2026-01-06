@@ -11,7 +11,7 @@ This crate helps you generate a standardized `Language` enum for your applicatio
 
 You should usually access this macro via the `es-fluent-lang` crate.
 
-```rust
+```rs
 use es_fluent_lang::es_fluent_language;
 
 #[es_fluent_language]

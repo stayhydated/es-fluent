@@ -94,7 +94,7 @@ For example, with `assets_dir = "../i18n"` and `fallback_language = "en"`, the f
 
 Annotate an enum or a struct to generate message IDs and implement `es_fluent::FluentDisplay`.
 
-```rust
+```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
@@ -118,7 +118,7 @@ pub struct Hello<'a>(pub &'a str);
 
 When a message needs to match on an enum (a Fluent select expression), implement `EsFluentChoice`. You can then mark a field with `#[fluent(choice)]` to pass its choice value instead of formatting it as a nested message.
 
-```rust
+```rs
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
@@ -183,7 +183,7 @@ shared-Photos =
 
 You can derive on structs to produce key enums (labels, descriptions, etc.). For example:
 
-```rust
+```rs
 use es_fluent::EsFluentKv;
 
 #[derive(EsFluentKv)]
@@ -198,7 +198,7 @@ pub struct Address {
 
 Generates a helper method `this_ftl()` that returns the fluent representation of the parent.
 
-```rust
+```rs
 use es_fluent::{EsFluent, EsFluentKv, EsFluentThis};
 
 #[derive(EsFluent, EsFluentThis)]
@@ -235,7 +235,7 @@ For key-value generation from structs, you can use `EsFluentKv`. This derive is 
 
 Here is an example of a `User` struct with various fields:
 
-```rust
+```rs
 use es_fluent::{EsFluent, EsFluentKv};
 use rust_decimal::Decimal;
 use strum::EnumIter;
@@ -326,7 +326,7 @@ user_label_kv_ftl-username = Username
 
 Generic parameters must convert into Fluent values when used as arguments:
 
-```rust
+```rs
 use es_fluent::{EsFluent, FluentValue};
 
 #[derive(Clone, EsFluent)]

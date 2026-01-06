@@ -17,10 +17,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// Compute a hash of all .rs files in the src directory using blake3.
-/// Delegates to the shared CrateContentCache implementation.
 fn compute_src_hash(src_dir: &Path) -> String {
-    use crate::generation::cache::CrateContentCache;
-    CrateContentCache::compute_hash(src_dir)
+    crate::generation::cache::compute_content_hash(src_dir)
 }
 
 /// Spawn a thread to generate for a single crate using the monolithic approach.

@@ -20,7 +20,7 @@ This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and As
 
 Add the plugin to your `App` and define your I18n module:
 
-```rust
+```rs
 use bevy::prelude::*;
 use es_fluent_manager_bevy::I18nPlugin;
 use unic_langid::langid;
@@ -41,7 +41,7 @@ fn main() {
 
 Use the `FluentText` component wrapper for any type that implements `ToFluentString` (which `#[derive(EsFluent)]` provides).
 
-```rust
+```rs
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::FluentText;
 
@@ -64,6 +64,6 @@ fn spawn_menu(mut commands: Commands) {
 
 For `FluentText` to work, you must register the specific inner type with the app so the plugin knows to update it:
 
-```rust
+```rs
 app.register_fluent_text::<UiMessage>();
 ```

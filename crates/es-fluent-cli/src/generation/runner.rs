@@ -332,7 +332,7 @@ pub fn run_monolithic(
 
     // After successful cargo run, write runner cache with current per-crate hashes
     if result.is_ok() {
-        use super::cache::{CrateContentCache, RunnerCache};
+        use super::cache::{RunnerCache, compute_content_hash};
 
         let binary_path = get_monolithic_binary_path(workspace);
         if let Ok(meta) = fs::metadata(&binary_path)
@@ -347,7 +347,7 @@ pub fn run_monolithic(
             let mut crate_hashes = std::collections::HashMap::new();
             for krate in &workspace.crates {
                 if krate.src_dir.exists() {
-                    let hash = CrateContentCache::compute_hash(&krate.src_dir);
+                    let hash = compute_content_hash(&krate.src_dir);
                     crate_hashes.insert(krate.name.clone(), hash);
                 }
             }
@@ -366,10 +366,9 @@ pub fn run_monolithic(
 /// Check if the runner binary is stale compared to workspace source files.
 ///
 /// Uses per-crate blake3 content hashing to detect actual changes - saving a file
-/// without modifications won't trigger a rebuild. Hashes are stored per-crate in
-/// metadata/{crate_name}/content_hash.json.
+/// without modifications won't trigger a rebuild. Hashes are stored in runner_cache.json.
 fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
-    use super::cache::{CrateContentCache, RunnerCache};
+    use super::cache::{RunnerCache, compute_content_hash};
 
     let runner_mtime = match fs::metadata(runner_path).and_then(|m| m.modified()) {
         Ok(t) => t,
@@ -387,7 +386,7 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
     let mut current_hashes = std::collections::HashMap::new();
     for krate in &workspace.crates {
         if krate.src_dir.exists() {
-            let hash = CrateContentCache::compute_hash(&krate.src_dir);
+            let hash = compute_content_hash(&krate.src_dir);
             current_hashes.insert(krate.name.clone(), hash);
         }
     }

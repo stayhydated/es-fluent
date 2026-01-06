@@ -43,7 +43,7 @@ flowchart TD
 
 The crate manages a static `GENERIC_MANAGER` using `OnceLock`.
 
-```rust
+```rs
 static GENERIC_MANAGER: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 ```
 
@@ -57,7 +57,7 @@ This enables the use of `es_fluent::localize!` anywhere in the application code 
 
 ## Usage
 
-```rust
+```rs
 // In your library/crate root
 es_fluent_manager_embedded::define_i18n_module!();
 

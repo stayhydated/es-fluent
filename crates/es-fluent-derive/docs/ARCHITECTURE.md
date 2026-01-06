@@ -46,7 +46,7 @@ flowchart TD
 
 When `#[derive(EsFluent)]` is applied to a struct:
 
-```rust
+```rs
 #[derive(EsFluent)]
 #[fluent(message = "my-message")]
 struct MyMessage {
@@ -56,7 +56,7 @@ struct MyMessage {
 
 The macro generates roughly:
 
-```rust
+```rs
 // 1. Implementation of formatting traits
 impl ::es_fluent::FluentDisplay for MyMessage {
     fn fluent_fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -76,18 +76,18 @@ impl From<&MyMessage> for ::es_fluent::FluentValue<'_> {
 #[doc(hidden)]
 mod __es_fluent_inventory_my_message {
     use super::*;
-    
+
     // Static data constructed at compile time
     static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
         ::es_fluent::__core::registry::StaticFtlVariant {
              name: "MyMessage",
              ftl_key: "my-message",
-             args: &["user"], 
+             args: &["user"],
              module_path: module_path!(),
         }
     ];
 
-    static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo = 
+    static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
         ::es_fluent::__core::registry::StaticFtlTypeInfo {
             type_kind: ::es_fluent::__core::meta::TypeKind::Struct,
             type_name: "MyMessage",

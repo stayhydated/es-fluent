@@ -71,7 +71,7 @@ Holds the current active language. Setting this triggers the update pipeline.
 
 A component wrapper for localizable data.
 
-```rust
+```rs
 #[derive(Component)]
 pub struct FluentText<T: ToFluentString + Clone> {
     pub value: T,
