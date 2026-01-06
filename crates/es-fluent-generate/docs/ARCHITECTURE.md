@@ -1,4 +1,4 @@
-# es-fluent-generate Design
+# es-fluent-generate Architecture
 
 This document details the architecture of the `es-fluent-generate` crate, which handles the generation and maintenance of Fluent (`.ftl`) files.
 

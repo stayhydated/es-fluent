@@ -1,4 +1,4 @@
-# es-fluent-derive Design
+# es-fluent-derive Architecture
 
 This document details the architecture of the `es-fluent-derive` crate, which provides procedural macros for automating the registration of localizable types.
 

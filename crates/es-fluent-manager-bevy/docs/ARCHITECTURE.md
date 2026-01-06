@@ -1,4 +1,4 @@
-# es-fluent-manager-bevy Design
+# es-fluent-manager-bevy Architecture
 
 This document details the architecture of the `es-fluent-manager-bevy` crate, which integrates `es-fluent` with the Bevy game engine.
 
@@ -41,7 +41,7 @@ flowchart TD
     DISK -->|load| LOADER
     LOADER -->|produce| STORE
     STORE -->|compile| BUNDLE
-    
+
     RES -->|change| EVENT
     EVENT -->|trigger| SYS
     SYS -->|read| COMP

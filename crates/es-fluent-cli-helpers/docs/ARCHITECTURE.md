@@ -1,4 +1,4 @@
-# es-fluent-cli-helpers Design
+# es-fluent-cli-helpers Architecture
 
 This document explains the role of `es-fluent-cli-helpers` in the es-fluent toolchain.
 

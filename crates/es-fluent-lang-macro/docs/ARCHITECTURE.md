@@ -1,4 +1,4 @@
-# es-fluent-lang-macro Design
+# es-fluent-lang-macro Architecture
 
 This document details the architecture of the `es-fluent-lang-macro` crate, which automates the generation of a type-safe language selection enum.
 

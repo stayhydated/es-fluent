@@ -1,4 +1,4 @@
-# es-fluent-lang Design
+# es-fluent-lang Architecture
 
 This document details the architecture of the `es-fluent-lang` crate, which provides runtime support for language identification and self-localization.
 
@@ -54,4 +54,4 @@ When the `bevy` feature is enabled, it registers a `StaticI18nResource` compatib
 
 ## Macro
 
-The crate re-exports `#[es_fluent_language]`. For details on how this macro generates the language enum, scans `i18n.toml`, and handles custom modes, please refer to the [es-fluent-lang-macro Design Documentation](../es-fluent-lang-macro/docs/design.md).
+The crate re-exports `#[es_fluent_language]`. For details on how this macro generates the language enum, scans `i18n.toml`, and handles custom modes, please refer to the [es-fluent-lang-macro Architecture Documentation](../es-fluent-lang-macro/docs/ARCHITECTURE.md).

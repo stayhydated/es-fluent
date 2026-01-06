@@ -1,4 +1,4 @@
-# es-fluent-core Design
+# es-fluent-core Architecture
 
 This document details the architecture of the `es-fluent-core` crate, which serves as the foundational library for the `es-fluent` ecosystem.
 

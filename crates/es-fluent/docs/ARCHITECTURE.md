@@ -1,4 +1,4 @@
-# es-fluent Design
+# es-fluent Architecture
 
 This document details the architecture of the `es-fluent` crate, which serves as the user-facing facade and entry point for the ecosystem.
 

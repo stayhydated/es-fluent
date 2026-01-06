@@ -1,4 +1,4 @@
-# es-fluent-toml Design
+# es-fluent-toml Architecture
 
 This document details the architecture of the `es-fluent-toml` crate, which provides configuration management for the `es-fluent` ecosystem.
 

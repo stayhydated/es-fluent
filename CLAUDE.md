@@ -6,27 +6,27 @@
 2.  **Ergonomics**: Providing simple macros (`#[derive(EsFluent)]`) to make struct/enum fields localizable with minimal boilerplate.
 3.  **Developer Experience**: A robust CLI (`es-fluent-cli`) that auto-generates FTL files, manages keys, and ensures consistency.
 
-## Design Documentation Index
+## Architecture Documentation Index
 
-| Crate | Link to Design Doc | Purpose |
+| Crate | Link to Architecture Doc | Purpose |
 |-------|-------------------|---------|
 | **Core** | | |
-| `es-fluent` | [Design](crates/es-fluent/docs/design.md) | Ecosystem facade and entry point. |
-| `es-fluent-core` | [Design](crates/es-fluent-core/docs/design.md) | Fundamental types, registry traits, and memory layout. |
-| `es-fluent-derive` | [Design](crates/es-fluent-derive/docs/design.md) | Proc-macros for registration and trait implementation. |
-| `es-fluent-toml` | [Design](crates/es-fluent-toml/docs/design.md) | Configuration (`i18n.toml`) parsing and path resolution. |
+| `es-fluent` | [Architecture](crates/es-fluent/docs/ARCHITECTURE.md) | Ecosystem facade and entry point. |
+| `es-fluent-core` | [Architecture](crates/es-fluent-core/docs/ARCHITECTURE.md) | Fundamental types, registry traits, and memory layout. |
+| `es-fluent-derive` | [Architecture](crates/es-fluent-derive/docs/ARCHITECTURE.md) | Proc-macros for registration and trait implementation. |
+| `es-fluent-toml` | [Architecture](crates/es-fluent-toml/docs/ARCHITECTURE.md) | Configuration (`i18n.toml`) parsing and path resolution. |
 | **Language Support** | | |
-| `es-fluent-lang` | [Design](crates/es-fluent-lang/docs/design.md) | Runtime language identification and embedded translations. |
-| `es-fluent-lang-macro` | [Design](crates/es-fluent-lang-macro/docs/design.md) | Generates type-safe language selection enums from asset folders. |
+| `es-fluent-lang` | [Architecture](crates/es-fluent-lang/docs/ARCHITECTURE.md) | Runtime language identification and embedded translations. |
+| `es-fluent-lang-macro` | [Architecture](crates/es-fluent-lang-macro/docs/ARCHITECTURE.md) | Generates type-safe language selection enums from asset folders. |
 | **Managers** | | |
-| `es-fluent-manager-core` | [Design](crates/es-fluent-manager-core/docs/design.md) | Abstract traits for localization backends. |
-| `es-fluent-manager-embedded`| [Design](crates/es-fluent-manager-embedded/docs/design.md)| Zero-setup backend for embedding FTL files in binary. |
-| `es-fluent-manager-bevy` | [Design](crates/es-fluent-manager-bevy/docs/design.md) | Backend integration for Bevy engine ECS and assets. |
-| `es-fluent-manager-macros` | [Design](crates/es-fluent-manager-macros/docs/design.md)| Macros for asset discovery and module registration. |
+| `es-fluent-manager-core` | [Architecture](crates/es-fluent-manager-core/docs/ARCHITECTURE.md) | Abstract traits for localization backends. |
+| `es-fluent-manager-embedded`| [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md)| Zero-setup backend for embedding FTL files in binary. |
+| `es-fluent-manager-bevy` | [Architecture](crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md) | Backend integration for Bevy engine ECS and assets. |
+| `es-fluent-manager-macros` | [Architecture](crates/es-fluent-manager-macros/docs/ARCHITECTURE.md)| Macros for asset discovery and module registration. |
 | **Tooling** | | |
-| `es-fluent-cli` | [Design](crates/es-fluent-cli/docs/design.md) | The `cargo es-fluent` command-line tool. |
-| `es-fluent-cli-helpers` | [Design](crates/es-fluent-cli-helpers/docs/design.md) | Runtime logic for checking/generating FTL files (runner crate). |
-| `es-fluent-generate` | [Design](crates/es-fluent-generate/docs/design.md) | FTL AST manipulation, diffing, and formatting logic. |
+| `es-fluent-cli` | [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md) | The `cargo es-fluent` command-line tool. |
+| `es-fluent-cli-helpers` | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md) | Runtime logic for checking/generating FTL files (runner crate). |
+| `es-fluent-generate` | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md) | FTL AST manipulation, diffing, and formatting logic. |
 
 ## Crate Descriptions
 

@@ -1,4 +1,4 @@
-# es-fluent-manager-macros Design
+# es-fluent-manager-macros Architecture
 
 This document details the architecture of the `es-fluent-manager-macros` crate, which automates the discovery and registration of localization assets.
 

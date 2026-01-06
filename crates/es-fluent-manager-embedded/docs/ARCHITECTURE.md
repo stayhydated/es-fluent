@@ -1,4 +1,4 @@
-# es-fluent-manager-embedded Design
+# es-fluent-manager-embedded Architecture
 
 This document details the architecture of the `es-fluent-manager-embedded` crate, which provides a simple, zero-setup runtime for localized applications.
 

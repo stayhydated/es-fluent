@@ -1,4 +1,4 @@
-# es-fluent-cli Design
+# es-fluent-cli Architecture
 
 This document explains the architecture of `es-fluent-cli` and its relationship with `es-fluent-cli-helpers`.
 

@@ -1,4 +1,4 @@
-# es-fluent-manager-core Design
+# es-fluent-manager-core Architecture
 
 This document details the architecture of the `es-fluent-manager-core` crate, which defines the fundamental abstractions for the runtime localization system and provides common implementations.
 
