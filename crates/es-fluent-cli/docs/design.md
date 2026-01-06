@@ -11,8 +11,7 @@ The CLI uses a **runner crate approach** to collect inventory registrations from
 ```mermaid
 flowchart TD
     subgraph USER["User Workspace"]
-        UC[User Crates with EsFluent derives]
-        I18N[i18n.toml configs]
+        UC["User Crates<br/>(EsFluent derives + i18n.toml)"]
     end
 
     subgraph CLI["es-fluent-cli"]
@@ -27,11 +26,8 @@ flowchart TD
         BIN[es-fluent-runner binary]
     end
 
-    subgraph HELPERS["es-fluent-cli-helpers"]
-        RUN["run() entry point"]
-        GEN["run_generate_with_options()"]
-        CHK["run_check()"]
-        CLN["run_clean_with_options()"]
+    subgraph HELPERS_BOX["es-fluent-cli-helpers"]
+        HELPERS["run()"]
     end
 
     subgraph OUTPUT["JSON Outputs"]
@@ -43,11 +39,10 @@ flowchart TD
     CMD --> JINJA
     JINJA -->|generates| CARGO
     JINJA -->|generates| MAIN
-    MAIN -->|calls| RUN
+    MAIN -->|calls| HELPERS
     UC -->|extern crate| BIN
-    BIN --> RUN
-    RUN --> GEN & CHK & CLN
-    GEN & CHK & CLN --> INV & RES
+    BIN --> HELPERS
+    HELPERS --> INV & RES
     CACHE --> HASH
     CLI -->|reads| OUTPUT
 ```
