@@ -54,4 +54,4 @@ When the `bevy` feature is enabled, it registers a `StaticI18nResource` compatib
 
 ## Macro
 
-The crate re-exports `#[es_fluent_language]`. For details on how this macro generates the language enum, scans `i18n.toml`, and handles custom modes, please refer to the [es-fluent-lang-macro Architecture Documentation](../es-fluent-lang-macro/docs/ARCHITECTURE.md).
+The crate re-exports `#[es_fluent_language]`. For details on how this macro generates the language enum, scans `i18n.toml`, and handles custom modes, please refer to the [es-fluent-lang-macro Architecture Documentation](../../es-fluent-lang-macro/docs/ARCHITECTURE.md).
