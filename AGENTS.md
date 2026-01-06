@@ -2,9 +2,9 @@
 
 `es-fluent` is a comprehensive localization (i18n) ecosystem for Rust, built on top of [Project Fluent](https://projectfluent.org/). It focuses on:
 
-1.  **Type Safety**: Ensuring at compile-time that your code and translation files are in sync.
-2.  **Ergonomics**: Providing simple macros (`#[derive(EsFluent)]`) to make struct/enum fields localizable with minimal boilerplate.
-3.  **Developer Experience**: A robust CLI (`es-fluent-cli`) that auto-generates FTL files, manages keys, and ensures consistency.
+1. **Type Safety**: Ensuring at compile-time that your code and translation files are in sync.
+1. **Ergonomics**: Providing simple macros (`#[derive(EsFluent)]`) to make struct/enum fields localizable with minimal boilerplate.
+1. **Developer Experience**: A robust CLI (`es-fluent-cli`) that auto-generates FTL files, manages keys, and ensures consistency.
 
 ## Architecture Documentation Index
 
@@ -32,24 +32,24 @@
 
 ### Core Layers
 
--   **`es-fluent`**: The user-facing library. Re-exports everything needed for general usage. Connects the global `OnceLock` context to specific backend managers.
--   **`es-fluent-core`**: The "glue" crate. Defines `FtlTypeInfo` (inventory payload) and registration mechanisms. It's a common dependency for almost everything.
--   **`es-fluent-derive`**: Provides the `#[derive(EsFluent)]` macro. transforming Rust types into inventory registrations and `FluentDisplay` implementations.
--   **`es-fluent-toml`**: Centralizes configuration logic. Ensures that the CLI and proc-macros agree on where assets are located and what languages are available.
+- **`es-fluent`**: The user-facing library. Re-exports everything needed for general usage. Connects the global `OnceLock` context to specific backend managers.
+- **`es-fluent-core`**: The "glue" crate. Defines `FtlTypeInfo` (inventory payload) and registration mechanisms. It's a common dependency for almost everything.
+- **`es-fluent-derive`**: Provides the `#[derive(EsFluent)]` macro. transforming Rust types into inventory registrations and `FluentDisplay` implementations.
+- **`es-fluent-toml`**: Centralizes configuration logic. Ensures that the CLI and proc-macros agree on where assets are located and what languages are available.
 
 ### Language & Locale
 
--   **`es-fluent-lang`**: Provides the `I18nModule` for language names themselves (e.g. `lang-en = English`). Useful for UI language pickers.
--   **`es-fluent-lang-macro`**: Scans your `assets/` directory to find available languages (e.g., `en/`, `fr/`) and generates an enum (e.g. `enum Languages { En, Fr }`) so you never hardcode language strings.
+- **`es-fluent-lang`**: Provides the `I18nModule` for language names themselves (e.g. `lang-en = English`). Useful for UI language pickers.
+- **`es-fluent-lang-macro`**: Scans your `assets/` directory to find available languages (e.g., `en/`, `fr/`) and generates an enum (e.g. `enum Languages { En, Fr }`) so you never hardcode language strings.
 
 ### Runtime Managers
 
--   **`es-fluent-manager-core`**: Defines the `I18nModule` and `Localizer` traits. It allows the system to be agnostic about *how* translations are loaded (disk vs embedded).
--   **`es-fluent-manager-embedded`**: A "singleton" manager. Initializes a global manager with embedded assets. ideal for CLI tools or simple apps.
--   **`es-fluent-manager-bevy`**: A "resource" manager. Hooks into Bevy's `AssetServer` for hot-reloading and ECS reactivity.
+- **`es-fluent-manager-core`**: Defines the `I18nModule` and `Localizer` traits. It allows the system to be agnostic about *how* translations are loaded (disk vs embedded).
+- **`es-fluent-manager-embedded`**: A "singleton" manager. Initializes a global manager with embedded assets. ideal for CLI tools or simple apps.
+- **`es-fluent-manager-bevy`**: A "resource" manager. Hooks into Bevy's `AssetServer` for hot-reloading and ECS reactivity.
 
 ### Tooling Internals
 
--   **`es-fluent-cli`**: The binary installed by users. It compiles a "runner crate" to inspect the user's project codebase.
--   **`es-fluent-cli-helpers`**: The library code that runs *inside* that temporary runner crate. It collects the inventory from the user's code and calls the generator.
--   **`es-fluent-generate`**: A specialized FTL writer. It intelligently merges new keys into existing files without destroying manual comments or custom formatting.
+- **`es-fluent-cli`**: The binary installed by users. It compiles a "runner crate" to inspect the user's project codebase.
+- **`es-fluent-cli-helpers`**: The library code that runs *inside* that temporary runner crate. It collects the inventory from the user's code and calls the generator.
+- **`es-fluent-generate`**: A specialized FTL writer. It intelligently merges new keys into existing files without destroying manual comments or custom formatting.

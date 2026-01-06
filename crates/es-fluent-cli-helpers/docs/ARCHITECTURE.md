@@ -99,6 +99,7 @@ sequenceDiagram
 ## JSON Output Formats
 
 ### inventory.json (from `check`)
+
 ```json
 {
   "expected_keys": [
@@ -109,6 +110,7 @@ sequenceDiagram
 ```
 
 ### result.json (from `generate`/`clean`)
+
 ```json
 {
   "changed": true

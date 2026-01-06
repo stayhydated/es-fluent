@@ -47,27 +47,33 @@ classDiagram
 ## Key Traits
 
 ### `I18nModule`
+
 Represents a source of localization data (e.g., a crate's translations).
--   Modules are registered automatically using `inventory`.
--   They act as factories for `Localizer`s.
+
+- Modules are registered automatically using `inventory`.
+- They act as factories for `Localizer`s.
 
 ### `Localizer`
+
 Responsible for the actual string formatting logic.
--   Holds the loaded `FluentResource`s.
--   Wraps `fluent-bundle` logic.
+
+- Holds the loaded `FluentResource`s.
+- Wraps `fluent-bundle` logic.
 
 ### `EmbeddedAssets`
+
 A trait (typically implemented via `rust_embed`) that provides access to encoded file content. This abstracts the file system access for `EmbeddedI18nModule`.
 
 ## Modules
 
--   `localization`: Core traits (`FluentManager`, `I18nModule`, `Localizer`).
--   `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`).
--   `asset_localization`: Implementation for filesystem/bevy asset loaded assets (`AssetI18nModule`).
--   `static_resource`: shared resource types for Bevy or other static contexts.
+- `localization`: Core traits (`FluentManager`, `I18nModule`, `Localizer`).
+- `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`).
+- `asset_localization`: Implementation for filesystem/bevy asset loaded assets (`AssetI18nModule`).
+- `static_resource`: shared resource types for Bevy or other static contexts.
 
 ## Usage
 
 This crate is the common dependency for:
--   `es-fluent-manager-embedded` (Wraps `EmbeddedI18nModule` setup).
--   `es-fluent-manager-bevy` (Wraps `AssetI18nModule` setup).
+
+- `es-fluent-manager-embedded` (Wraps `EmbeddedI18nModule` setup).
+- `es-fluent-manager-bevy` (Wraps `AssetI18nModule` setup).

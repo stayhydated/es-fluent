@@ -41,30 +41,35 @@ flowchart TD
 ## Core Features
 
 ### Smart Merging
+
 The crate supports two modes of operation (controlled by `FluentParseMode`):
 
-1.  **Aggressive**: Completely regenerates the file from the code definitions. Orphaned keys are deleted.
-2.  **Conservative (Default)**: Merges generated keys into the existing file.
-    *   Preserves comments and existing message grouping.
-    *   Updates existing keys if their structure (arguments) changes.
-    *   Adds new keys.
-    *   Does **not** remove keys that are present in the file but missing from the code (to support manual-only keys).
+1. **Aggressive**: Completely regenerates the file from the code definitions. Orphaned keys are deleted.
+1. **Conservative (Default)**: Merges generated keys into the existing file.
+   - Preserves comments and existing message grouping.
+   - Updates existing keys if their structure (arguments) changes.
+   - Adds new keys.
+   - Does **not** remove keys that are present in the file but missing from the code (to support manual-only keys).
 
 ### AST Manipulation
+
 By using `fluent-syntax` AST:
--   It can inject structural elements like `GroupComment` (e.g., `## GroupName`).
--   It ensures syntactically valid FTL output.
+
+- It can inject structural elements like `GroupComment` (e.g., `## GroupName`).
+- It ensures syntactically valid FTL output.
 
 ### Sorting & Grouping
+
 The generator enforces a specific ordering to keep files readable:
--   Messages are grouped by their Rust type name (e.g., all variants of `enum MyErrors` are grouped together).
--   Within a group, "special" keys like `_this` (self-referential messages) are prioritized and placed at the top.
--   Other keys are sorted alphabetically.
+
+- Messages are grouped by their Rust type name (e.g., all variants of `enum MyErrors` are grouped together).
+- Within a group, "special" keys like `_this` (self-referential messages) are prioritized and placed at the top.
+- Other keys are sorted alphabetically.
 
 ## Key Modules
 
--   `formatting`: Logic for sorting (including `_this` priority) and comparing entries.
--   `value`: Expansion of placeables and text elements.
--   `clean`: Logic for the `clean` command (identifying and removing orphaned keys).
--   `error`: Error handling types (`FluentGenerateError`).
--   `lib.rs`: Entry point `generate()`.
+- `formatting`: Logic for sorting (including `_this` priority) and comparing entries.
+- `value`: Expansion of placeables and text elements.
+- `clean`: Logic for the `clean` command (identifying and removing orphaned keys).
+- `error`: Error handling types (`FluentGenerateError`).
+- `lib.rs`: Entry point `generate()`.

@@ -5,9 +5,10 @@ This document details the architecture of the `es-fluent-manager-embedded` crate
 ## Overview
 
 `es-fluent-manager-embedded` is designed for CLI tools, desktop apps, and servers where:
--   Localization files should be bundled into the single binary executable.
--   Hot-reloading is not required.
--   Global state access is preferred (via `once_cell` / `std::sync`).
+
+- Localization files should be bundled into the single binary executable.
+- Hot-reloading is not required.
+- Global state access is preferred (via `once_cell` / `std::sync`).
 
 ## Architecture
 
@@ -47,9 +48,10 @@ static GENERIC_MANAGER: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 ```
 
 Calls to `init()`:
-1.  Discover all registered modules (using `inventory`).
-2.  Initialize the manager.
-3.  Register it as the global context provider for `es-fluent`.
+
+1. Discover all registered modules (using `inventory`).
+1. Initialize the manager.
+1. Register it as the global context provider for `es-fluent`.
 
 This enables the use of `es_fluent::localize!` anywhere in the application code without passing a manager context around.
 

@@ -5,6 +5,7 @@ This document details the architecture of the `es-fluent-core` crate, which serv
 ## Overview
 
 `es-fluent-core` provides the common type definitions, traits, and registration mechanisms required to bridge compile-time Rust type information with runtime localization logic. It is shared by:
+
 - `es-fluent-derive`: To generate code that populates these structures.
 - `es-fluent-cli-helpers`: To consume the registered type information at runtime for FTL generation.
 - User code: As a transient dependency for the generated code.
@@ -60,32 +61,33 @@ The system uses a "dual-type" approach to support both `const` context construct
 | Collection | `&'static [T]` | `Vec<T>` |
 | Derived Traits | `Clone`, `Debug`, `Eq` | `Serialize`, `Builder` |
 
-
-
 ## Modules
 
--   `registry`: Defines the FTL type structures (`FtlTypeInfo`, etc.) and inventory collection logic.
--   `meta`: Low-level type kind metadata (Enum vs Struct).
--   `namer`: Helpers for correct FTL key naming (`FluentKey`, `FluentDoc`).
--   `options`: Parsed representation of struct and enum attributes, used by the derive macros.
--   `validation`: Logic for validating attribute usage (e.g., ensuring only one default field).
--   `error`: Error types for runtime operations and option parsing.
+- `registry`: Defines the FTL type structures (`FtlTypeInfo`, etc.) and inventory collection logic.
+- `meta`: Low-level type kind metadata (Enum vs Struct).
+- `namer`: Helpers for correct FTL key naming (`FluentKey`, `FluentDoc`).
+- `options`: Parsed representation of struct and enum attributes, used by the derive macros.
+- `validation`: Logic for validating attribute usage (e.g., ensuring only one default field).
+- `error`: Error types for runtime operations and option parsing.
 
 ## Registration Logic
 
 The registry module exposes the mechanism to collect distributed type information.
 
-1.  **Registration**:
-    Derive macros expand to:
-    ```rust
-    inventory::submit! {
-        &StaticFtlTypeInfo { ... }
-    }
-    ```
+1. **Registration**:
+   Derive macros expand to:
 
-2.  **Collection**:
-    The runtime (specifically the Runner Crate) calls:
-    ```rust
-    pub fn get_all_ftl_type_infos() -> Vec<FtlTypeInfo>
-    ```
-    This function iterates over the `inventory` registry, converts static types to owned types, and returns the full collection.
+   ```rust
+   inventory::submit! {
+       &StaticFtlTypeInfo { ... }
+   }
+   ```
+
+1. **Collection**:
+   The runtime (specifically the Runner Crate) calls:
+
+   ```rust
+   pub fn get_all_ftl_type_infos() -> Vec<FtlTypeInfo>
+   ```
+
+   This function iterates over the `inventory` registry, converts static types to owned types, and returns the full collection.

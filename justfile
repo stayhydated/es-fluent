@@ -5,6 +5,7 @@ fmt:
     cargo sort-derives
     cargo fmt
     taplo fmt
+    uvx mdformat .
     uv format
 
 clippy:

@@ -1,5 +1,5 @@
 # es-fluent-core
 
-The `es-fluent-core` crate provides the foundational logic for the `es-fluent` ecosystem. It contains the core data structures, naming conventions, and validation tools for the translation system.
+**Internal Crate**: Core types and traits for `es-fluent`.
 
-This crate is primarily intended for internal use by other `es-fluent` crates, such as `es-fluent-derive`. It is generally not a crate that you would use directly in your application.
+This contains the shared definitions used by the macros (`es-fluent-derive`), the CLI (`es-fluent-cli`), and the runtime managers. You generally do not need to depend on this crate directly, as its types are re-exported where needed.

@@ -1,41 +1,48 @@
 # es-fluent-manager-embedded
 
-The `es-fluent-manager-embedded` crate provides a convenient global embedded singleton for the `FluentManager`. This is useful for applications that do not use a dependency injection framework and need a simple, globally accessible way to manage translations.
+A zero-setup, global localization manager for `es-fluent`.
 
-It is designed to work with embedded translations, using the `define_embedded_i18n_module!` macro to discover and compile translation files directly into the binary.
+This crate provides a "Just Works" experience for adding localization to standard Rust applications (CLIs, TUIs, desktop apps). It bundles your translations directly into the binary and provides a global singleton for access.
 
-## Usage
+## Features
 
-1. In each of your crates that has translations, define a embedded singleton-specific module:
+- **Embedded Assets**: Compiles your FTL files into the binary (using `rust-embed` under the hood).
+- **Global Access**: Once initialized, you can call `to_fluent_string() anywhere in your code without passing context around.
+- **Thread Safe**: Uses `OnceLock` and atomic swaps for safe concurrent access.
 
-```rs
-// In my_crate/src/lib.rs
-// This macro discovers languages from your `i18n` directory and registers
-// the module for the embedded assets system.
-es_fluent_manager_embedded::define_i18n_module!();
+## Quick Start
+
+### 1. Define the Module
+
+In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+
+```rust
+// a i18n.toml file must exist in the root of the crate
+es_fluent_manager_embedded::define_embedded_i18n_module!();
 ```
 
-2. At the start of your application, initialize the embedded singleton:
+### 2. Initialize & Use
 
-```rs
-// In main.rs
+In your application entry point:
+
+```rust
+use es_fluent::ToFluentString;
 use unic_langid::langid;
 
-// This macro discovers languages from your `i18n` directory and registers
-// the module for the embedded assets system.
-// In this case, for any EsFluent derived item included with your application's entrypoint.
-es_fluent_manager_bevy::define_i18n_module!();
-
 fn main() {
+    // 1. Initialize the global manager
     es_fluent_manager_embedded::init();
 
-    let lang_en = langid!("en");
-    es_fluent_manager_embedded::select_language(&lang_en);
+    // 2. Set the language (e.g., from system locale or user config)
+    es_fluent_manager_embedded::select_language(&langid!("en-US"));
+
+    // 3. Localize things!
+    let msg = MyMessage::Hello { name: "World" };
+    println!("{}", msg.to_fluent_string());
 }
 ```
 
-## Examples
+## When to use
 
-- [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
-- [cosmic](https://github.com/stayhydated/es-fluent/tree/master/examples/cosmic-example)
-- [iced](https://github.com/stayhydated/es-fluent/tree/master/examples/iced-example)
+- **Use this if**: You are building a standalone app and want simplicity.
+- **Don't use this if**: You are using Bevy (use `es-fluent-manager-bevy`) or need strictly decoupled, dependency-injected managers.

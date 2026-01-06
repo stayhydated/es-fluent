@@ -5,9 +5,10 @@ This document details the architecture of the `es-fluent-derive` crate, which pr
 ## Overview
 
 `es-fluent-derive` is a procedural macro crate that inspects Rust structs and enums at compile time to:
-1.  Verify invalid or missing attributes (using `es-fluent-core::options`).
-2.  Generate `impl FluentDisplay` and `impl FluentValue` implementations for runtime usage.
-3.  Generate static registration code using `inventory::submit!`.
+
+1. Verify invalid or missing attributes (using `es-fluent-core::options`).
+1. Generate `impl FluentDisplay` and `impl FluentValue` implementations for runtime usage.
+1. Generate static registration code using `inventory::submit!`.
 
 ## Architecture
 
@@ -102,14 +103,18 @@ mod __es_fluent_inventory_my_message {
 
 ## Key Components
 
--   **`darling`**: Used for declarative attribute parsing (`#[fluent(...)]`).
--   **`es-fluent-core::options`**: Defines the target structures (`StructOpts`, `EnumOpts`) that attributes are parsed into.
--   **`syn` / `quote`**: Standard tools for parsing and generating Rust code.
--   **`es-fluent-core`**: Provides the runtime target types (`StaticFtlTypeInfo`) that the specific macro generates code for.
+- **`darling`**: Used for declarative attribute parsing (`#[fluent(...)]`).
+- **`es-fluent-core::options`**: Defines the target structures (`StructOpts`, `EnumOpts`) that attributes are parsed into.
+- **`syn` / `quote`**: Standard tools for parsing and generating Rust code.
+- **`es-fluent-core`**: Provides the runtime target types (`StaticFtlTypeInfo`) that the specific macro generates code for.
 
 ## Macros
+ 
+All macros are designed to be orthogonal and independent. Code generation for one does not rely on another.
 
--   `EsFluent`: Primary macro for Structs and Enums. Registers the type as a message or group of messages.
--   `EsFluentKv`: For Key-Value pair generation (serializing fields as FTL attributes).
--   `EsFluentChoice`: For enums that should be serialized as select-matchers rather than separate messages.
--   `EsFluentThis`: Helper for types that bind to specific `_this` convention (self-referencing logic).
+ | Macro | Purpose | Code Generation Logic |
+ | :--- | :--- | :--- |
+ | `#[derive(EsFluent)]` | **Primary Messaging** | Generates a specific message ID for the struct (or one per enum variant). Implements `FluentDisplay` which calls `localize()` with those IDs. Registers `FtlTypeInfo` to inventory for FTL generation. |
+ | `#[derive(EsFluentChoice)]` | **Select Expressions** | Does *not* generate a message ID. Instead, implements `EsFluentChoice` so the type can be passed as a variable to *other* messages (e.g. `$gender ->`). The inventory registration marks it as a "Choice" type. |
+ | `#[derive(EsFluentKv)]` | **Key-Value Pairs** | Generates companion enums (e.g. `MyStructLabel`) where each variant corresponds to a field of the struct. Useful for form labels, placeholders, etc. |
+ | `#[derive(EsFluentThis)]` | **Self-Referencing** | Implements the `ThisFtl` trait. Registers the type's top-level name as a key (similar to how `EsFluentKv` registers fields). |

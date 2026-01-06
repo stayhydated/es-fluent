@@ -53,21 +53,23 @@ workspace_root/
 
 The detailed steps are:
 
-1.  **Read Configuration**: The macro reads `i18n.toml` from the workspace root (using `es-fluent-toml`) to determine the `assets_dir`.
-2.  **Scan Assets**: It scans the configured assets directory for subdirectories.
-3.  **Identify Languages**: Each subdirectory name is parsed as a BCP-47 language code (e.g., `en`, `zh-CN`).
-4.  **Generate Enum**:
-    *   The user provides an **empty enum**.
-    *   The macro populates it with variants corresponding to the discovered language codes.
-    *   It implements helper traits for converting between the enum and string representations.
-    *   It implements `Default` based on the fallback language defined in `i18n.toml`.
+1. **Read Configuration**: The macro reads `i18n.toml` from the workspace root (using `es-fluent-toml`) to determine the `assets_dir`.
+1. **Scan Assets**: It scans the configured assets directory for subdirectories.
+1. **Identify Languages**: Each subdirectory name is parsed as a BCP-47 language code (e.g., `en`, `zh-CN`).
+1. **Generate Enum**:
+   - The user provides an **empty enum**.
+   - The macro populates it with variants corresponding to the discovered language codes.
+   - It implements helper traits for converting between the enum and string representations.
+   - It implements `Default` based on the fallback language defined in `i18n.toml`.
 
 ## Modes
 
 ### Default Mode
+
 By default, the macro links the generated enum to the embedded translations provided by the `es-fluent-lang` crate (e.g., providing "English", "Français" names automatically).
 
 It generates:
+
 ```rust
 #[es_fluent_language]
 pub enum Languages {}
@@ -80,11 +82,13 @@ pub enum Languages {
     ZhCn, // PascalCase from language code
 }
 ```
-*   **Expansion**: The empty enum is populated with variants derived from the folder names (converted to PascalCase).
-*   `resource = "es-fluent-lang"`: Links to the bundled FTL resource.
-*   `skip_inventory`: Skips registration because these are generic language names, not user-app content.
+
+- **Expansion**: The empty enum is populated with variants derived from the folder names (converted to PascalCase).
+- `resource = "es-fluent-lang"`: Links to the bundled FTL resource.
+- `skip_inventory`: Skips registration because these are generic language names, not user-app content.
 
 ### Custom Mode (`custom = true`)
+
 If you want to provide your own translations for language names, use the `custom` argument:
 
 ```rust
@@ -93,6 +97,7 @@ enum Languages {}
 ```
 
 In this mode:
-1.  **No Resource Link**: It does *not* add `resource = "es-fluent-lang"`.
-2.  **Inventory Registration**: It does *not* skip inventory. The enum is registered like any other localized type.
-3.  **Skeleton Generation**: The CLI will detect this registration and generate skeleton Fluent keys (e.g., `languages-en`, `languages-fr`) in your project's FTL files, which you can then translate manually.
+
+1. **No Resource Link**: It does *not* add `resource = "es-fluent-lang"`.
+1. **Inventory Registration**: It does *not* skip inventory. The enum is registered like any other localized type.
+1. **Skeleton Generation**: The CLI will detect this registration and generate skeleton Fluent keys (e.g., `languages-en`, `languages-fr`) in your project's FTL files, which you can then translate manually.

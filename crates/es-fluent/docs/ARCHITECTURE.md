@@ -5,10 +5,11 @@ This document details the architecture of the `es-fluent` crate, which serves as
 ## Overview
 
 `es-fluent` ties together the core components (`core`, `derive`, `manager`) into a cohesive API. It provides:
-1.  **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `ToFluentString`, `ThisFtl`) and derive macros.
-2.  **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic localization macros.
-3.  **Custom Localizer**: A hook for overriding or intercepting the localization process.
-4.  **Traits**: Standard definitions for how types invoke the localization system.
+
+1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `ToFluentString`, `ThisFtl`) and derive macros.
+1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic localization macros.
+1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
+1. **Traits**: Standard definitions for how types invoke the localization system.
 
 ## Architecture
 
@@ -49,9 +50,9 @@ To allow `Display` implementations (which can't easily pass arguments) to access
 static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
 ```
 
--   **Initialization**: Only one backend (e.g., `embedded::init()` or `bevy` plugin) can initialize this context using `set_context` or `set_shared_context`.
--   **Updates**: The context can be modified at runtime using `update_context`.
--   **Consumption**: The internal `localize` function (used by the `FluentDisplay` trait) acquires a read lock on this context to format strings.
+- **Initialization**: Only one backend (e.g., `embedded::init()` or `bevy` plugin) can initialize this context using `set_context` or `set_shared_context`.
+- **Updates**: The context can be modified at runtime using `update_context`.
+- **Consumption**: The internal `localize` function (used by the `FluentDisplay` trait) acquires a read lock on this context to format strings.
 
 ## Custom Localizer
 
@@ -61,15 +62,17 @@ A custom localizer can be registered to intercept translation requests. This is 
 static CUSTOM_LOCALIZER: OnceLock<Box<dyn Fn(...) -> Option<String> ...>> = OnceLock::new();
 ```
 
--   **Priority**: The `localize` function first checks the custom localizer. If it returns `Some(string)`, that result is used.
--   **Fallback**: If the custom localizer returns `None` (or isn't set), the system falls back to the Global Context.
+- **Priority**: The `localize` function first checks the custom localizer. If it returns `Some(string)`, that result is used.
+- **Fallback**: If the custom localizer returns `None` (or isn't set), the system falls back to the Global Context.
 
 ## Traits
 
 > **Important**: All traits listed below are intended to be implemented automatically by `#[derive(EsFluent)]` or other macros. **Manual implementation is strongly discouraged** and rarely needed (except for wrapping enums that delegate to other derived types).
 
 ### `ToFluentString`
+
 The primary trait for converting a type into a localized string.
+
 ```rust
 pub trait ToFluentString {
     fn to_fluent_string(&self) -> String;
@@ -77,10 +80,13 @@ pub trait ToFluentString {
 ```
 
 ### `FluentDisplay`
+
 A helper trait that `#[derive(EsFluent)]` implements. It handles the logic of looking up the correct key and passing arguments to the `localize` function.
 
 ### `EsFluentChoice`
+
 Used to convert an enum into a string that can be used as a Fluent choice (selector).
+
 ```rust
 pub trait EsFluentChoice {
     fn as_fluent_choice(&self) -> &'static str;
@@ -88,7 +94,9 @@ pub trait EsFluentChoice {
 ```
 
 ### `ThisFtl`
+
 A trait for types that have a "this" fluent key representing the type itself, typically implemented via `#[derive(EsFluent)]` with `#[fluent(this)]`.
+
 ```rust
 pub trait ThisFtl {
     fn this_ftl() -> String;

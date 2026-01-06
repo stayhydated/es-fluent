@@ -5,9 +5,10 @@ This document details the architecture of the `es-fluent-lang` crate, which prov
 ## Overview
 
 `es-fluent-lang` serves two primary purposes:
-1.  **Type Re-exports**: It re-exports types from `unic-langid` to ensure consistent versions across the ecosystem.
-2.  **Runtime Module**: It implements a standard `I18nModule` that provides localization for language names (e.g., displaying "English" or "Español" in the UI).
-3.  **Macro Re-export**: It re-exports the `#[es_fluent_language]` macro from `es-fluent-lang-macro` for convenient usage.
+
+1. **Type Re-exports**: It re-exports types from `unic-langid` to ensure consistent versions across the ecosystem.
+1. **Runtime Module**: It implements a standard `I18nModule` that provides localization for language names (e.g., displaying "English" or "Español" in the UI).
+1. **Macro Re-export**: It re-exports the `#[es_fluent_language]` macro from `es-fluent-lang-macro` for convenient usage.
 
 ## Architecture
 
@@ -39,10 +40,13 @@ flowchart TD
 ## Features
 
 ### Embedded Translations
+
 The crate includes `es-fluent-lang.ftl`, which contains translations for common language codes. This allows applications to display a language picker without needing to manually translate language names.
 
 ### Manager Integration
+
 It automatically registers itself with `es-fluent-manager-core` using `inventory::submit!`.
+
 ```rust
 inventory::submit! {
     &EsFluentLanguageModule as &dyn I18nModule
@@ -50,6 +54,7 @@ inventory::submit! {
 ```
 
 ### Bevy Support
+
 When the `bevy` feature is enabled, it registers a `StaticI18nResource` compatible with Bevy game engine's asset system (via the manager).
 
 ## Macro
