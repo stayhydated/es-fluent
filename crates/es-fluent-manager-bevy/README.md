@@ -67,3 +67,29 @@ For `FluentText` to work, you must register the specific inner type with the app
 ```rs
 app.register_fluent_text::<UiMessage>();
 ```
+
+## es-fluent-lang integration
+
+If your type contains fields that use [es_fluent_lang](../es-fluent-lang/README.md) (for the `Languages` enum), you must implement `RefreshForLocale` and use `register_fluent_text_from_locale` instead:
+
+```rs
+use es_fluent_manager_bevy::RefreshForLocale;
+
+#[derive(EsFluent, Clone, Component)]
+pub enum UiMessage {
+    LanguageHint { current_language: Languages },
+}
+
+impl RefreshForLocale for UiMessage {
+    fn refresh_for_locale(&mut self, lang: &unic_langid::LanguageIdentifier) {
+        match self {
+            UiMessage::LanguageHint { current_language } => {
+                *current_language = Languages::from(lang);
+            }
+        }
+    }
+}
+
+// Register with:
+app.register_fluent_text_from_locale::<UiMessage>();
+```
