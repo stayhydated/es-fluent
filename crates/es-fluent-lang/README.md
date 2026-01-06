@@ -16,10 +16,11 @@ Generates a strongly-typed enum of all available languages in your project. It a
 ```rs
 use es_fluent_lang::es_fluent_language;
 use es_fluent::EsFluent;
+use strum::EnumIter;
 
 // Define an empty enum, and the macro fills it
 #[es_fluent_language]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EsFluent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EsFluent, EnumIter)]
 pub enum Languages {}
 ```
 

@@ -47,7 +47,7 @@ fallback_language = "en-US"
 # Path to FTL assets relative to the config file (required)
 assets_dir = "assets/locales"
 
-# Optional features to enable in generated code
+# Features to enable if the crate’s es-fluent derives are gated behind a feature (optional)
 fluent_feature = ["my-feature"]
 ```
 

@@ -14,7 +14,7 @@ repository.workspace = true
 readme.workspace = true
 
 [features]
-default = [ "derive" ]
+default = [  ]
 derive = [ "dep:es-fluent-derive" ]
 
 [dependencies]
