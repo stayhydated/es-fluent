@@ -13,7 +13,7 @@ use crate::core::{
     ValidationReport, find_key_span,
 };
 use crate::ftl::extract_variables_from_message;
-use crate::generation::{prepare_monolithic_temp_crate, run_monolithic};
+use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
 use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
@@ -62,7 +62,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 
     // Prepare monolithic temp crate once for all checks
-    prepare_monolithic_temp_crate(&workspace.workspace_info)
+    prepare_monolithic_runner_crate(&workspace.workspace_info)
         .map_err(|e| CliError::Other(e.to_string()))?;
 
     let mut all_issues: Vec<ValidationIssue> = Vec::new();

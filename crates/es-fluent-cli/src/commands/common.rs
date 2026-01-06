@@ -85,10 +85,10 @@ impl WorkspaceCrates {
     }
 }
 
-/// Read the changed status from the temporary crate's result.json file.
+/// Read the changed status from the runner crate's result.json file.
 ///
 /// Returns `true` if the file indicates changes were made, `false` otherwise.
-/// Read the changed status from the temporary crate's result.json file.
+/// Read the changed status from the runner crate's result.json file.
 ///
 /// Returns `true` if the file indicates changes were made, `false` otherwise.
 fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
@@ -119,10 +119,10 @@ pub fn parallel_generate(
     crates: &[CrateInfo],
     action: &GenerationAction,
 ) -> Vec<GenerateResult> {
-    use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_temp_crate};
+    use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_runner_crate};
 
     // Prepare the monolithic temp crate once upfront
-    if let Err(e) = prepare_monolithic_temp_crate(workspace) {
+    if let Err(e) = prepare_monolithic_runner_crate(workspace) {
         // If preparation fails, return error results for all crates
         return crates
             .iter()

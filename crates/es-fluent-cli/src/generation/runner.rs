@@ -1,6 +1,6 @@
-//! Shared functionality for creating and running temporary crates.
+//! Shared functionality for creating and running the runner crate.
 //!
-//! The CLI uses a monolithic temporary crate at workspace root that links ALL workspace
+//! The CLI uses a monolithic runner crate at workspace root that links ALL workspace
 //! crates to access their inventory registrations through a single binary.
 
 use crate::generation::templates::{
@@ -142,13 +142,13 @@ impl TempCrateConfig {
     }
 }
 
-/// Write the Cargo.toml for a temporary crate.
+/// Write the Cargo.toml for the runner crate.
 fn write_cargo_toml(temp_dir: &Path, cargo_toml_content: &str) -> Result<()> {
     fs::write(temp_dir.join("Cargo.toml"), cargo_toml_content)
         .context("Failed to write .es-fluent/Cargo.toml")
 }
 
-/// Write the .cargo/config.toml for a temporary crate.
+/// Write the .cargo/config.toml for the runner crate.
 fn write_cargo_config(temp_dir: &Path, config_content: &str) -> Result<()> {
     let cargo_dir = temp_dir.join(".cargo");
     fs::create_dir_all(&cargo_dir).context("Failed to create .es-fluent/.cargo directory")?;
@@ -156,7 +156,7 @@ fn write_cargo_config(temp_dir: &Path, config_content: &str) -> Result<()> {
         .context("Failed to write .es-fluent/.cargo/config.toml")
 }
 
-/// Run `cargo run` on a temporary crate.
+/// Run `cargo run` on the runner crate.
 ///
 /// Returns the command stdout if cargo succeeds (captured to support diffs), or an error if it fails.
 pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Result<String> {
@@ -191,7 +191,7 @@ pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Re
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-/// Run `cargo run` on a temporary crate and capture output.
+/// Run `cargo run` on the runner crate and capture output.
 ///
 /// Returns the command output if successful, or an error with stderr if it fails.
 pub fn run_cargo_with_output(
@@ -228,9 +228,9 @@ pub fn run_cargo_with_output(
 
 use crate::core::WorkspaceInfo;
 
-/// Prepare a monolithic temporary crate at workspace root that links ALL workspace crates.
+/// Prepare the monolithic runner crate at workspace root that links ALL workspace crates.
 /// This enables fast subsequent runs by caching a single binary that can access all inventory.
-pub fn prepare_monolithic_temp_crate(workspace: &WorkspaceInfo) -> Result<PathBuf> {
+pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<PathBuf> {
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
     let src_dir = temp_dir.join("src");
 

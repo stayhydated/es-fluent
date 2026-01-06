@@ -3,7 +3,7 @@
 use crate::core::{
     CrateInfo, CrateState, FluentParseMode, GenerateResult, GenerationAction, WorkspaceInfo,
 };
-use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_temp_crate};
+use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_runner_crate};
 use crate::tui::{self, Message, TuiApp};
 use crate::utils::count_ftl_resources;
 use anyhow::{Context as _, Result};
@@ -101,7 +101,7 @@ pub fn watch_all(
     }
 
     // Prepare monolithic temp crate upfront
-    prepare_monolithic_temp_crate(workspace)?;
+    prepare_monolithic_runner_crate(workspace)?;
 
     // Use ratatui's built-in terminal initialization
     let mut terminal = ratatui::init();

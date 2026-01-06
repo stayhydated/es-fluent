@@ -1,5 +1,5 @@
 use crate::core::{CrateInfo, GenerationAction, WorkspaceInfo};
-use crate::generation::{prepare_monolithic_temp_crate, run_monolithic};
+use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
 use anyhow::{Result, bail};
 
 /// Generates FTL files for a crate using the monolithic temp crate approach.
@@ -17,7 +17,7 @@ pub fn generate_for_crate_monolithic(
     }
 
     // Ensure monolithic temp crate is prepared (idempotent)
-    prepare_monolithic_temp_crate(workspace)?;
+    prepare_monolithic_runner_crate(workspace)?;
 
     let (command, extra_args) = match action {
         GenerationAction::Generate { mode, dry_run } => {
