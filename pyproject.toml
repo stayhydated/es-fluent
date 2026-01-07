@@ -1,5 +1,10 @@
 [project]
-dependencies = [ "requests>=2.32.5", "tqdm>=4.67.1", "typer[all]>=0.19.2" ]
+dependencies = [
+ "pydantic>=2.12.5",
+ "requests>=2.32.5",
+ "tqdm>=4.67.1",
+ "typer[all]>=0.19.2",
+]
 description = "Add your description here"
 name = "es-fluent"
 readme = "README.md"

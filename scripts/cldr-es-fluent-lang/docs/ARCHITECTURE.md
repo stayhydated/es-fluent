@@ -6,6 +6,23 @@ This document details the architecture of the `cldr-es-fluent-lang` script, whic
 
 The script processes Unicode CLDR (Common Locale Data Repository) JSON data to extract language autonyms (self-names) and generates both Fluent translation files and Rust source files for compile-time validation.
 
+## Package Structure
+
+```
+scripts/cldr-es-fluent-lang/
+├── run.py              # CLI entrypoint
+├── src/
+│   ├── __init__.py     # Package exports
+│   ├── models.py       # Pydantic models for CLDR JSON structures
+│   ├── io.py           # File I/O helpers (download, extract, load)
+│   ├── loaders.py      # CLDR data loaders with Pydantic validation
+│   ├── processing.py   # Locale processing logic
+│   └── writers.py      # Output file writers
+└── docs/
+    ├── ARCHITECTURE.md # This file
+    └── README.md       # Usage guide
+```
+
 ## Architecture
 
 ```mermaid
@@ -15,24 +32,31 @@ flowchart TD
         URL["GitHub Release URL"]
     end
 
-    subgraph DOWNLOAD["Download & Extract"]
+    subgraph IO["src/io.py"]
         DL["download_file()"]
         EXT["extract_archive()"]
-        TMP["Temp Directory"]
+        LOAD["load_json()"]
     end
 
-    subgraph PROCESS["Processing"]
-        LIKELY["likelySubtags.json"]
-        AVAIL["availableLocales.json"]
-        LANGS["languages.json (per locale)"]
-        SCRIPTS["scripts.json"]
-        TERR["territories.json"]
+    subgraph LOADERS["src/loaders.py"]
+        LIKELY["load_likely_subtags()"]
+        AVAIL["load_available_locales()"]
+        LOCALE["load_locale_entry()"]
+        SCRIPT["load_script_names()"]
+        TERR["load_territory_names()"]
     end
 
-    subgraph LOGIC["Logic"]
+    subgraph PROCESSING["src/processing.py"]
         COLLECT["collect_entries()"]
         COLLAPSE["collapse_entries()"]
         FORMAT["format_locale()"]
+        EXPAND["expand_locale()"]
+        FALLBACK["fallback_chain()"]
+    end
+
+    subgraph WRITERS["src/writers.py"]
+        WFTL["write_ftl()"]
+        WRS["write_supported_locales()"]
     end
 
     subgraph OUTPUT["Output"]
@@ -42,16 +66,98 @@ flowchart TD
 
     URL -->|download| DL
     CLDR -->|or use existing| EXT
-    DL --> TMP
-    TMP --> EXT
-    EXT --> LIKELY & AVAIL & LANGS & SCRIPTS & TERR
+    DL --> EXT
+    EXT --> LOAD
 
-    LIKELY & AVAIL --> COLLECT
-    LANGS & SCRIPTS & TERR --> COLLECT
+    LOAD --> LIKELY & AVAIL & LOCALE & SCRIPT & TERR
+
+    LIKELY --> EXPAND
+    AVAIL --> COLLECT
+    LOCALE & SCRIPT & TERR --> COLLECT
+    EXPAND & FALLBACK --> COLLECT
     COLLECT --> COLLAPSE
     COLLAPSE --> FORMAT
-    FORMAT --> FTL & RS
+    FORMAT --> WFTL & WRS
+    WFTL --> FTL
+    WRS --> RS
 ```
+
+## Module Responsibilities
+
+### run.py (CLI Entrypoint)
+
+Thin CLI wrapper using Typer. Handles:
+- Command-line argument parsing
+- Orchestrating the pipeline (download -> extract -> process -> write)
+- User-facing output and progress messages
+
+### src/models.py (Pydantic Models)
+
+Defines typed models for CLDR JSON structures:
+
+| Model | Purpose |
+|-------|---------|
+| `Locale` | BCP-47 locale representation with parsing |
+| `LikelySubtagsData` | Parses `likelySubtags.json` |
+| `AvailableLocalesData` | Parses `availableLocales.json` |
+| `LanguagesJsonMain` / `LocaleEntry` | Parses `languages.json` |
+| `ScriptsJsonMain` | Parses `scripts.json` |
+| `TerritoriesJsonMain` | Parses `territories.json` |
+
+The `Locale` model parses BCP-47 language tags into components:
+
+```python
+class Locale(BaseModel, frozen=True):
+    language: str          # e.g., "en", "zh"
+    script: str | None     # e.g., "Hans", "Latn"
+    region: str | None     # e.g., "US", "CN"
+    variants: tuple[str, ...]  # e.g., ("valencia",)
+```
+
+### src/io.py (File I/O)
+
+Low-level file operations:
+
+| Function | Purpose |
+|----------|---------|
+| `download_file()` | Downloads CLDR archive with progress bar |
+| `extract_archive()` | Extracts ZIP with progress bar |
+| `load_json()` | Loads and parses JSON files |
+
+### src/loaders.py (CLDR Data Loaders)
+
+CLDR-specific data loading with Pydantic validation:
+
+| Function | Purpose |
+|----------|---------|
+| `load_likely_subtags()` | Loads locale expansion mappings |
+| `load_available_locales()` | Loads list of available locales |
+| `load_locale_entry()` | Loads language names for a locale |
+| `load_script_names()` | Loads script display names |
+| `load_territory_names()` | Loads territory display names |
+
+### src/processing.py (Locale Processing)
+
+Core business logic:
+
+| Function | Purpose |
+|----------|---------|
+| `expand_locale()` | Expands minimal tags using likelySubtags |
+| `fallback_chain()` | Generates locale fallback sequence |
+| `candidate_language_keys()` | Generates lookup keys for autonym search |
+| `collapse_entries()` | Deduplicates entries with identical names |
+| `format_locale()` | Normalizes output locale tags |
+| `collect_entries()` | Main processing loop for all locales |
+
+### src/writers.py (Output Writers)
+
+File generation:
+
+| Function | Purpose |
+|----------|---------|
+| `escape_fluent_value()` | Escapes curly braces for Fluent format |
+| `write_ftl()` | Writes Fluent translation file |
+| `write_supported_locales()` | Writes Rust constant array |
 
 ## Data Flow
 
@@ -61,11 +167,7 @@ The script uses CLDR release 48.0.0 by default. It can either:
 - Download the archive from GitHub releases
 - Use a pre-existing local archive (via `--cldr-zip`)
 
-### 2. Locale Parsing
-
-The `Locale` dataclass parses BCP-47 language tags into components:
-
-### 3. Entry Collection
+### 2. Entry Collection
 
 For each available locale in CLDR:
 
@@ -77,7 +179,7 @@ For each available locale in CLDR:
    - Fall back to English names
 4. **Construct display name** from components if no autonym found
 
-### 4. Entry Collapsing
+### 3. Entry Collapsing
 
 The `collapse_entries()` function deduplicates entries where multiple region variants share the same name:
 
@@ -88,29 +190,13 @@ The `collapse_entries()` function deduplicates entries where multiple region var
 
 This reduces file size while preserving distinct names for locales that differ.
 
-### 5. Locale Formatting
+### 4. Locale Formatting
 
 The `format_locale()` function normalizes output tags:
 
 - Drops implicit scripts (e.g., `en-Latn` -> `en` since Latin is default for English)
 - Drops `001` (World) region when implicit
 - Preserves scripts when they differ from the likely default
-
-## Key Functions
-
-| Function | Purpose |
-|----------|---------|
-| `download_file()` | Downloads CLDR archive with progress bar |
-| `extract_archive()` | Extracts ZIP with progress bar |
-| `Locale.parse()` | Parses BCP-47 tags into components |
-| `expand_locale()` | Expands minimal tags using likelySubtags |
-| `fallback_chain()` | Generates locale fallback sequence |
-| `candidate_language_keys()` | Generates lookup keys for autonym search |
-| `collect_entries()` | Main processing loop for all locales |
-| `collapse_entries()` | Deduplicates entries with identical names |
-| `format_locale()` | Normalizes output locale tags |
-| `write_ftl()` | Writes Fluent translation file |
-| `write_supported_locales()` | Writes Rust constant array |
 
 ## Output Files
 
@@ -154,6 +240,9 @@ This constant is used by `es-fluent-lang-macro` to validate language directories
 
 ## Dependencies
 
+- `pydantic` - JSON validation and parsing via typed models
 - `requests` - HTTP downloads
 - `typer` - CLI framework
 - `tqdm` - Progress bars
+
+Dependencies are managed via the workspace-level [pyproject.toml](../../../pyproject.toml) and installed with `uv sync`.
