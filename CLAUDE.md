@@ -27,6 +27,8 @@
 | `es-fluent-cli` | [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md) | The `cargo es-fluent` command-line tool. |
 | `es-fluent-cli-helpers` | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md) | Runtime logic for checking/generating FTL files (runner crate). |
 | `es-fluent-generate` | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md) | FTL AST manipulation, diffing, and formatting logic. |
+| **Scripts** | | |
+| `cldr-es-fluent-lang` | [Architecture](scripts/cldr-es-fluent-lang/docs/ARCHITECTURE.md) | Python script to generate language name data from Unicode CLDR. |
 
 ## Crate Descriptions
 
@@ -53,3 +55,7 @@
 - **`es-fluent-cli`**: The binary installed by users. It compiles a "runner crate" to inspect the user's project codebase.
 - **`es-fluent-cli-helpers`**: The library code that runs *inside* that temporary runner crate. It collects the inventory from the user's code and calls the generator.
 - **`es-fluent-generate`**: A specialized FTL writer. It intelligently merges new keys into existing files without destroying manual comments or custom formatting.
+
+### Scripts
+
+- **`cldr-es-fluent-lang`**: A Python script that downloads Unicode CLDR data and generates `es-fluent-lang.ftl` (language autonyms like "English", "Français", "日本語") and `supported_locales.rs` (the list of valid language keys for compile-time validation in `es-fluent-lang-macro`).

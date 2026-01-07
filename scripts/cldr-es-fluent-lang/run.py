@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 import tempfile
 import zipfile
@@ -7,25 +8,29 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
+
 import requests
 import typer
 from tqdm import tqdm
 
-CLDR_RELEASE = "47.0.0"
+CLDR_RELEASE = "48.0.0"
 CLDR_ARCHIVE_NAME = f"cldr-{CLDR_RELEASE}-json-full.zip"
 CLDR_URL = (
     "https://github.com/unicode-org/cldr-json/releases/download/"
     f"{CLDR_RELEASE}/{CLDR_ARCHIVE_NAME}"
 )
-SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_OUTPUT = SCRIPT_DIR / "es-fluent-lang.ftl"
-DEFAULT_SUPPORTED_OUTPUT = (
-    SCRIPT_DIR.parent / "es-fluent-lang-macro" / "src" / "supported_locales.rs"
+__SCRIPT_DIR = Path(__file__).resolve().parent
+__WORKSPACE_DIR = __SCRIPT_DIR.parent
+CRATES_DIR = __WORKSPACE_DIR.parent / "crates"
+
+FTL_FILE_OUTPUT = CRATES_DIR / "es-fluent-lang" / "es-fluent-lang.ftl"
+SUPPORTED_RS_OUTPUT = (
+    CRATES_DIR / "es-fluent-lang-macro" / "src" / "supported_locales.rs"
 )
 
 app = typer.Typer(
     help="Generate es-fluent-lang.ftl from CLDR data.",
-    context_settings={"help_option_names": ["-h", "--help"]},
+    add_completion=False,
 )
 
 
@@ -363,7 +368,7 @@ def main(
             writable=True,
             resolve_path=True,
         ),
-    ] = DEFAULT_OUTPUT,
+    ] = FTL_FILE_OUTPUT,
     supported_output: Annotated[
         Path,
         typer.Option(
@@ -372,7 +377,7 @@ def main(
             writable=True,
             resolve_path=True,
         ),
-    ] = DEFAULT_SUPPORTED_OUTPUT,
+    ] = SUPPORTED_RS_OUTPUT,
     cldr_zip: Annotated[
         Path | None,
         typer.Option(
