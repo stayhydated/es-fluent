@@ -87,6 +87,7 @@ flowchart TD
 ### run.py (CLI Entrypoint)
 
 Thin CLI wrapper using Typer. Handles:
+
 - Command-line argument parsing
 - Orchestrating the pipeline (download -> extract -> process -> write)
 - User-facing output and progress messages
@@ -164,6 +165,7 @@ File generation:
 ### 1. CLDR Data Acquisition
 
 The script uses CLDR release 48.0.0 by default. It can either:
+
 - Download the archive from GitHub releases
 - Use a pre-existing local archive (via `--cldr-zip`)
 
@@ -172,12 +174,12 @@ The script uses CLDR release 48.0.0 by default. It can either:
 For each available locale in CLDR:
 
 1. **Expand locale** using `likelySubtags.json` (e.g., `zh` -> `zh-Hans-CN`)
-2. **Generate candidate keys** for lookup (full tag, lang-script, lang-region, base language)
-3. **Fallback chain** lookup for autonym:
+1. **Generate candidate keys** for lookup (full tag, lang-script, lang-region, base language)
+1. **Fallback chain** lookup for autonym:
    - Try the locale's own `languages.json`
    - Fall back through parent locales (e.g., `en-US` -> `en` -> `root`)
    - Fall back to English names
-4. **Construct display name** from components if no autonym found
+1. **Construct display name** from components if no autonym found
 
 ### 3. Entry Collapsing
 

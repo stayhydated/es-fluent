@@ -64,6 +64,7 @@ This macro requires the `macros` feature, which is enabled by default.
 ## Initialization Behavior
 
 The `init()` function is idempotent:
+
 - First call: Initializes the manager and sets the global context.
 - Subsequent calls: Logs a warning via `tracing` and has no effect.
 

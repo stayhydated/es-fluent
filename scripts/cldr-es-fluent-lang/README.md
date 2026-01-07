@@ -7,7 +7,7 @@ A Python script that generates language name translations from [Unicode CLDR](ht
 This script downloads and processes CLDR (Common Locale Data Repository) JSON data to generate:
 
 1. **`es-fluent-lang.ftl`** - A Fluent translation file containing language names (autonyms) for all supported locales.
-2. **`supported_locales.rs`** - A Rust source file with a constant array of all supported language keys for compile-time validation in `es-fluent-lang-macro`.
+1. **`supported_locales.rs`** - A Rust source file with a constant array of all supported language keys for compile-time validation in `es-fluent-lang-macro`.
 
 ## Requirements
 

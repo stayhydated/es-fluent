@@ -71,7 +71,6 @@ Holds the current active language. Setting this triggers the update pipeline.
 
 A component wrapper for localizable data.
 
-
 When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change` system iterates over all `FluentText` components and re-renders the string data. Additionally, `update_fluent_text_system` handles initial rendering and updates when `FluentText` components are added or modified.
 
 ### `define_i18n_module!`
