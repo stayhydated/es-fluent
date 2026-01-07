@@ -1,4 +1,4 @@
-# es-fluent-cli-helpers Design
+# es-fluent-cli-helpers Architecture
 
 This document explains the role of `es-fluent-cli-helpers` in the es-fluent toolchain.
 
@@ -17,7 +17,7 @@ flowchart TD
 
     subgraph HELPERS["es-fluent-cli-helpers"]
         RUN["run()<br/>Parses args, dispatches"]
-        
+
         subgraph COMMANDS["Command Handlers"]
             GEN["run_generate_with_options()"]
             CHK["run_check()"]
@@ -49,13 +49,13 @@ classDiagram
         +run_check()
         +run_clean_with_options()
     }
-    
+
     class cli {
         +ExpectedKey
         +InventoryData
         +write_inventory_for_crate()
     }
-    
+
     class generate {
         +EsFluentGenerator
         +FluentParseMode
@@ -78,7 +78,7 @@ sequenceDiagram
 
     Runner->>Helpers: run()
     Helpers->>Helpers: Parse args (command, --crate, --mode, etc.)
-    
+
     alt check command
         Helpers->>Inventory: get_all_ftl_type_infos()
         Inventory-->>Helpers: FtlTypeInfo[]
@@ -94,25 +94,6 @@ sequenceDiagram
         Generator-->>Helpers: changed: bool
         Helpers-->>Runner: Write result.json
     end
-```
-
-## JSON Output Formats
-
-### inventory.json (from `check`)
-```json
-{
-  "expected_keys": [
-    { "key": "hello_world", "variables": ["name"] },
-    { "key": "greeting", "variables": [] }
-  ]
-}
-```
-
-### result.json (from `generate`/`clean`)
-```json
-{
-  "changed": true
-}
 ```
 
 ## Dependencies

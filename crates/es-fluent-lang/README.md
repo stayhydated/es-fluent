@@ -1,45 +1,45 @@
+[![Docs](https://docs.rs/es-fluent-lang/badge.svg)](https://docs.rs/es-fluent-lang/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-lang.svg)](https://crates.io/crates/es-fluent-lang)
+
 # es-fluent-lang
 
-This crate provides the `#[es_fluent_language]` procedural macro for automatically generating a language selection enum based on your project's localization setup.
+Runtime support for `es-fluent` language management.
+
+This crate provides the core language types (re-exporting `unic-langid`) and the optional "Language Enum" generator macro.
 
 ## Features
 
-- **Automatic Enum Generation**: Reads your `i18n.toml` file to discover available languages and generates a Rust `enum` with a variant for each one.
-- **Compile-Time Validation**: Ensures that all languages defined in your localization assets are valid and supported by the `es-fluent-lang` data crate.
-- **Convenient Conversions**: Implements `From` conversions to and from `unic_langid::LanguageIdentifier` for seamless integration with Fluent.
-- **Default Fallback**: Automatically implements `Default` for the enum, using the `fallback_language` specified in your `i18n.toml`.
+### `#[es_fluent_language]`
 
-## Usage
-
-First, add the crate to your `Cargo.toml`:
-
-```toml
-[dependencies]
-es-fluent-lang = "*"
-unic-langid = "*"
-```
-
-Then, define your language enum in your code:
+Generates a strongly-typed enum of all available languages in your project. It automatically scans your `i18n.toml` assets directory to find supported locales.
 
 ```rs
-use es_fluent::EsFluent;
 use es_fluent_lang::es_fluent_language;
-use unic_langid::LanguageIdentifier;
+use es_fluent::EsFluent;
 use strum::EnumIter;
 
+// Define an empty enum, and the macro fills it
 #[es_fluent_language]
-#[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EsFluent, EnumIter)]
 pub enum Languages {}
+```
 
-// Now you can use the generated enum:
-fn main() {
-    let default_lang = Languages::default();
-    let lang_id: LanguageIdentifier = default_lang.into();
-    println!("Default language is: {}", lang_id);
+If your `assets_dir` contains `en`, `fr`, and `de` folders, this generates:
 
-    // Example: assuming 'fr' is an available language in your i18n setup
-    // let french = Language::Fr;
+```rs
+pub enum Languages {
+    En,
+    Fr,
+    De,
 }
 ```
 
-The macro will expand the empty `Language` enum into one with variants corresponding to the languages found in the directory specified by `assets_dir` in your `i18n.toml`. For example, if you have `en` and `fr` directories, the enum will have `En` and `Fr` variants.
+It also implements:
+
+- `Default`: Uses the `fallback_language` from your config.
+- `FromStr`: Parses string codes (e.g., "en-US") into the enum variant.
+- `Into<LanguageIdentifier>`: Converts back to a standard locale ID.
+
+## Standard Translations
+
+The crate also includes a built-in module for translating language names themselves (e.g., "English", "Français", "Deutsch"). This means you can easily build a "Language Picker" UI without manually translating the names of every language.

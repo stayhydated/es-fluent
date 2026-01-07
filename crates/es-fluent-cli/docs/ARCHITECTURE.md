@@ -1,4 +1,4 @@
-# es-fluent-cli Design
+# es-fluent-cli Architecture
 
 This document explains the architecture of `es-fluent-cli` and its relationship with `es-fluent-cli-helpers`.
 
@@ -11,12 +11,11 @@ The CLI uses a **runner crate approach** to collect inventory registrations from
 ```mermaid
 flowchart TD
     subgraph USER["User Workspace"]
-        UC[User Crates with EsFluent derives]
-        I18N[i18n.toml configs]
+        UC["User Crates<br/>(EsFluent derives + i18n.toml)"]
     end
 
     subgraph CLI["es-fluent-cli"]
-        CMD[Commands: generate, check, clean, watch]
+        CMD[Commands]
         JINJA[Jinja Templates]
         CACHE[Caching Layer]
     end
@@ -27,30 +26,37 @@ flowchart TD
         BIN[es-fluent-runner binary]
     end
 
-    subgraph HELPERS["es-fluent-cli-helpers"]
-        RUN["run() entry point"]
-        GEN["run_generate_with_options()"]
-        CHK["run_check()"]
-        CLN["run_clean_with_options()"]
+    subgraph HELPERS_BOX["es-fluent-cli-helpers"]
+        HELPERS["run()"]
     end
 
     subgraph OUTPUT["JSON Outputs"]
         INV[metadata/*/inventory.json]
         RES[metadata/*/result.json]
-        HASH[metadata/*/content_hash.json]
     end
 
     CMD --> JINJA
     JINJA -->|generates| CARGO
     JINJA -->|generates| MAIN
-    MAIN -->|calls| RUN
+    MAIN -->|calls| HELPERS
     UC -->|extern crate| BIN
-    BIN --> RUN
-    RUN --> GEN & CHK & CLN
-    GEN & CHK & CLN --> INV & RES
-    CACHE --> HASH
+    BIN --> HELPERS
+    HELPERS --> INV & RES
     CLI -->|reads| OUTPUT
 ```
+
+## Commands
+
+The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers` via the runner crate.
+
+| Command | Goal | Mechanism | Flags |
+| :--- | :--- | :--- | :--- |
+| `generate` | **Create/Update FTL** | Collects inventory. Merges new keys into existing `.ftl` files using `fluent-syntax`. Preserves comments & formatting. | `--dry-run` |
+| `check` | **Validate Integrity** | Collects inventory. Verifies all keys exist in `.ftl` files. Errors if keys are missing or variables mismatch. | `--all` (check all locales) |
+| `clean` | **Remove Obsolete** | Collects inventory. Removes keys from `.ftl` files that are no longer present in the Rust code. | `--dry-run` |
+| `format` | **Standardize Style** | Parses and re-serializes all `.ftl` files using standard `fluent-syntax` rules to ensure consistent formatting. | `--dry-run`, `--all` (format all locales) |
+| `sync` | **Propagate Keys** | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. | `--locale <LANG>`, `--all` |
+| `watch` | **Dev Loop** | Watches `.rs` files for changes. Re-runs `generate` automatically on save. | — |
 
 ## Jinja Templates
 
@@ -114,11 +120,10 @@ flowchart LR
 .es-fluent/
 ├── Cargo.toml              # Generated from MonolithicCargo.toml.jinja
 ├── src/main.rs             # Generated from monolithic_main.rs.jinja
-├── runner_cache.json       # Maps crate → content hash
+├── runner_cache.json       # Maps crate → content hash (for staleness detection)
 ├── metadata_cache.json     # Cached cargo_metadata results
 └── metadata/
     └── {crate_name}/
         ├── inventory.json  # Expected keys + variables (from check)
-        ├── result.json     # {"changed": bool} (from generate/clean)
-        └── content_hash.json  # Per-crate blake3 hash
+        └── result.json     # {"changed": bool} (from generate/clean)
 ```

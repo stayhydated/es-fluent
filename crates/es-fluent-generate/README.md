@@ -1,5 +1,8 @@
+[![Docs](https://docs.rs/es-fluent-generate/badge.svg)](https://docs.rs/es-fluent-generate/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-generate.svg)](https://crates.io/crates/es-fluent-generate)
+
 # es-fluent-generate
 
-The `es-fluent-generate` crate is responsible for taking the structured translation metadata (`FtlTypeInfo`) extracted by `es-fluent-core` and generating `.ftl` (Fluent Translation List) files from it.
+**Internal Crate**: FTL generation logic.
 
-This crate is an internal component of the `es-fluent` ecosystem, used by `es-fluent-cli` or the `EsFluentGenerator` struct to perform the file generation step. You would not typically use this crate directly.
+This crate handles the heavy lifting of parsing, merging, and formatting Fluent files. It is used by the `es-fluent` CLI tool.

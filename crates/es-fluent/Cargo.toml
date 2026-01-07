@@ -11,10 +11,10 @@ keywords = [ "fluent", "i18n", "locale" ]
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
-readme.workspace = true
+readme = "README.md"
 
 [features]
-default = [ "derive" ]
+default = [  ]
 derive = [ "dep:es-fluent-derive" ]
 
 [dependencies]
