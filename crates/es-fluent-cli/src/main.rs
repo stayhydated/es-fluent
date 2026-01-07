@@ -6,16 +6,29 @@ use es_fluent_cli::commands::{
 use miette::Result as MietteResult;
 
 #[derive(Parser)]
-#[command(name = "es-fluent")]
+#[command(name = "cargo", bin_name = "cargo")]
 #[command(about = "CLI for generating FTL files from es-fluent derive macros")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: CargoCommand,
 
     /// Enable E2E testing mode
     #[arg(long, global = true, hide = true)]
     e2e: bool,
+}
+
+#[derive(Subcommand)]
+enum CargoCommand {
+    /// CLI for generating FTL files from es-fluent derive macros
+    #[command(name = "es-fluent")]
+    EsFluent(EsFluentArgs),
+}
+
+#[derive(Parser)]
+struct EsFluentArgs {
+    #[command(subcommand)]
+    command: Commands,
 }
 
 #[derive(Subcommand)]
@@ -63,7 +76,9 @@ fn main() -> MietteResult<()> {
     // Initialize logging
     es_fluent_cli::utils::ui::init_logging();
 
-    let result = match cli.command {
+    let CargoCommand::EsFluent(es_fluent) = cli.command;
+
+    let result = match es_fluent.command {
         Commands::Generate(args) => run_generate(args),
         Commands::Watch(args) => run_watch(args),
         Commands::Clean(args) => run_clean(args),
