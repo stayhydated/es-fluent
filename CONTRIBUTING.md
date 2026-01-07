@@ -19,3 +19,5 @@ Before you start to write code, please read the existing code to follow the same
 ## Development and Testing
 
 On Linux, [mold](https://github.com/rui314/mold) is used as the linker.
+
+[insta](https://insta.rs/) is used for snapshot testing. Prefer snapshot tests over complex assertion-based unit tests where appropriate.

@@ -42,6 +42,7 @@ es-fluent-lang-ak-GH = Akan
 es-fluent-lang-am-ET = አማርኛ
 es-fluent-lang-an-ES = aragonés
 es-fluent-lang-ann-NG = Obolo
+# ...
 ```
 
 And a Rust file:

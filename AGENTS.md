@@ -3,7 +3,7 @@
 `es-fluent` is a comprehensive localization (i18n) ecosystem written in **Rust**, built on top of [Project Fluent](https://projectfluent.org/). It focuses on:
 
 1. **Type Safety**: Ensuring at compile-time that your code and translation files are in sync.
-1. **Ergonomics**: Providing simple macros (`#[derive(EsFluent)]`) to make struct/enum fields localizable with minimal boilerplate.
+1. **Ergonomics**: Providing simple macros (like `#[derive(EsFluent)]`) to make struct/enum fields localizable with minimal boilerplate.
 1. **Developer Experience**: A robust CLI (`es-fluent-cli`) that auto-generates FTL files, manages keys, and ensures consistency.
 
 ## Architecture Documentation Index
@@ -60,7 +60,8 @@
 
 - **`cldr-es-fluent-lang`**: A Python script that downloads Unicode CLDR data and generates `es-fluent-lang.ftl` (language autonyms like "English", "Français", "日本語") and `supported_locales.rs` (the list of valid language keys for compile-time validation in `es-fluent-lang-macro`).
 
-## Tooling
+## Development
 
 - **Rust**: Use `cargo` for building, testing, and running Rust code.
-- **Python**: Use [uv](https://docs.astral.sh/uv/) for Python dependency management and running Python scripts.
+- **Python**: Use [uv](https://docs.astral.sh/uv/) for dependency management and running Python scripts.
+- **Testing**: Use [insta](https://insta.rs/) for snapshot tests where appropriate, rather than complex assertion-based unit tests.
