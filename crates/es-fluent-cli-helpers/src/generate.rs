@@ -130,7 +130,7 @@ impl EsFluentGenerator {
         }
 
         let assets_dir = self.resolve_assets_dir()?;
-        let paths = std::fs::read_dir(&assets_dir)
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(&assets_dir)
             .ok()
             .map(|entries| {
                 entries
@@ -140,6 +140,9 @@ impl EsFluentGenerator {
                     .collect()
             })
             .unwrap_or_else(|| self.output_path.clone().into_iter().collect());
+
+        // Sort paths to ensure deterministic ordering across filesystems
+        paths.sort();
 
         Ok(paths)
     }

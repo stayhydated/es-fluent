@@ -5,13 +5,6 @@ expression: output
 STDOUT:
 Fluent FTL Generator
 Discovered 2 crate(s)
-Would update FTL file: [TEMP_DIR]/i18n/es/test-app-a.ftl
-  hello_a = Hello from App A
-- orphan_key = Orphan
-- z_last = Last
-- 
-- orphan-key = Huerfano
-
 Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
 - z_last = Last
   hello_a = Hello from App A
@@ -32,6 +25,13 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
   gender-Other = Other
 - 
 - 
+
+Would update FTL file: [TEMP_DIR]/i18n/es/test-app-a.ftl
+  hello_a = Hello from App A
+- orphan_key = Orphan
+- z_last = Last
+- 
+- orphan-key = Huerfano
 
 Unchanged: test-lib-b
 
