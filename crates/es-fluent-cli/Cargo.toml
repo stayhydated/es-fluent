@@ -48,6 +48,7 @@ assert_fs = { workspace = true }
 insta = { workspace = true }
 predicates = { workspace = true }
 tempfile = { workspace = true }
+serde_json = { workspace = true }
 
 
 [lints]

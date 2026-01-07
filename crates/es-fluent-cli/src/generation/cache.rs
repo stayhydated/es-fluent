@@ -98,6 +98,10 @@ pub struct RunnerCache {
     pub crate_hashes: std::collections::HashMap<String, String>,
     /// Mtime of runner binary when cache was created
     pub runner_mtime: u64,
+    /// Version of es-fluent-cli that built this runner
+    /// Missing/mismatched version triggers rebuild to pick up helper changes
+    #[serde(default)]
+    pub cli_version: String,
 }
 
 impl RunnerCache {

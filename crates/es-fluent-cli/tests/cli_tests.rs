@@ -449,3 +449,67 @@ fn test_check_all() {
     cmd.args(&["es-fluent", "check", "--all"]);
     cmd.assert().failure();
 }
+
+fn run_version_mismatch_test(temp: assert_fs::TempDir) {
+    use es_fluent_cli::generation::cache::RunnerCache;
+
+    // 1. Run generate normally to establish baseline (fresh runner)
+    let _ = run_cli(&temp, &["generate"]);
+
+    let cache_path = temp.path().join(".es-fluent/runner_cache.json");
+    let binary_path = temp.path().join("target/debug/es-fluent-runner");
+
+    // Record initial binary mtime (if exists)
+    let initial_mtime = std::fs::metadata(&binary_path)
+        .and_then(|m| m.modified())
+        .ok();
+
+    // 2. Simulate older CLI version by setting cache version to "0.0.0"
+    let cache_content = std::fs::read_to_string(&cache_path).expect("read cache");
+    let mut cache: RunnerCache = serde_json::from_str(&cache_content).expect("parse cache");
+    let original_version = cache.cli_version.clone();
+    cache.cli_version = "0.0.0".to_string();
+    let new_cache_content = serde_json::to_string_pretty(&cache).expect("serialize cache");
+    std::fs::write(&cache_path, new_cache_content).expect("write stale cache");
+
+    // Small delay to ensure mtime granularity
+    std::thread::sleep(std::time::Duration::from_millis(1000));
+
+    // 3. Run generate again - should detect version mismatch and rebuild
+    let _ = run_cli(&temp, &["generate"]);
+
+    // 4. Verify: Cache version should be updated (not "0.0.0")
+    let final_cache = std::fs::read_to_string(&cache_path).expect("read final cache");
+    let final_cache: RunnerCache = serde_json::from_str(&final_cache).expect("parse final cache");
+    assert_ne!(
+        final_cache.cli_version, "0.0.0",
+        "Cache should have updated version to current CLI version"
+    );
+    assert_eq!(
+        final_cache.cli_version, original_version,
+        "Cache version should match the CLI's actual version"
+    );
+
+    // 5. Verify: Binary should have been rebuilt (mtime changed)
+    if let Some(initial) = initial_mtime {
+        let final_mtime = std::fs::metadata(&binary_path)
+            .and_then(|m| m.modified())
+            .expect("binary should exist after rebuild");
+        assert!(
+            final_mtime > initial,
+            "Binary mtime should have increased after version mismatch rebuild"
+        );
+    }
+}
+
+#[test]
+fn test_version_mismatch_rebuild_workspace() {
+    let temp = setup_workspace_env();
+    run_version_mismatch_test(temp);
+}
+
+#[test]
+fn test_version_mismatch_rebuild_package() {
+    let temp = setup_package_env();
+    run_version_mismatch_test(temp);
+}
