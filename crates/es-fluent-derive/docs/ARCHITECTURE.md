@@ -23,7 +23,7 @@ flowchart TD
     subgraph MACRO["Proc Macro"]
         PARSE["syn Parser"]
         OPTS["Options Extraction (es-fluent-core)"]
-        GEN["Code Generaton"]
+        GEN["Code Generation"]
     end
 
     subgraph OUTPUT["Expanded Code"]

@@ -15,6 +15,8 @@ use std::{env, fs};
 
 pub const TEMP_DIR: &str = ".es-fluent";
 
+const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Configuration derived from cargo metadata for temp crate generation.
 ///
 /// This calls cargo_metadata once and extracts all needed information:
@@ -62,10 +64,15 @@ impl TempCrateConfig {
             Some(ref meta) => {
                 let es_fluent = Self::find_local_dep(meta, "es-fluent")
                     .or_else(Self::find_cli_workspace_dep_es_fluent)
-                    .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string());
+                    .unwrap_or_else(|| format!(r#"es-fluent = {{ version = "{}" }}"#, CLI_VERSION));
                 let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")
                     .or_else(Self::find_cli_workspace_dep_helpers)
-                    .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string());
+                    .unwrap_or_else(|| {
+                        format!(
+                            r#"es-fluent-cli-helpers = {{ version = "{}" }}"#,
+                            CLI_VERSION
+                        )
+                    });
                 let target = target_dir_from_env
                     .clone()
                     .unwrap_or_else(|| meta.target_directory.to_string());
@@ -73,9 +80,13 @@ impl TempCrateConfig {
             },
             None => (
                 Self::find_cli_workspace_dep_es_fluent()
-                    .unwrap_or_else(|| r#"es-fluent = { version = "*" }"#.to_string()),
-                Self::find_cli_workspace_dep_helpers()
-                    .unwrap_or_else(|| r#"es-fluent-cli-helpers = { version = "*" }"#.to_string()),
+                    .unwrap_or_else(|| format!(r#"es-fluent = {{ version = "{}" }}"#, CLI_VERSION)),
+                Self::find_cli_workspace_dep_helpers().unwrap_or_else(|| {
+                    format!(
+                        r#"es-fluent-cli-helpers = {{ version = "{}" }}"#,
+                        CLI_VERSION
+                    )
+                }),
                 target_dir_from_env
                     .clone()
                     .unwrap_or_else(|| "../target".to_string()),
@@ -328,10 +339,10 @@ pub fn run_monolithic(
     args.extend(extra_args.iter().cloned());
     args.push("--crate".to_string());
     args.push(crate_name.to_string());
-    let result = run_cargo(&temp_dir, Some("es-fluent-runner"), &args);
+    let result = run_cargo(&temp_dir, Some("es-fluent-runner"), &args)?;
 
     // After successful cargo run, write runner cache with current per-crate hashes
-    if result.is_ok() {
+    {
         use super::cache::{RunnerCache, compute_content_hash};
 
         let binary_path = get_monolithic_binary_path(workspace);
@@ -355,18 +366,22 @@ pub fn run_monolithic(
             let cache = RunnerCache {
                 crate_hashes,
                 runner_mtime: runner_mtime_secs,
+                cli_version: CLI_VERSION.to_string(),
             };
             let _ = cache.save(&temp_dir);
         }
     }
 
-    result
+    Ok(result)
 }
 
 /// Check if the runner binary is stale compared to workspace source files.
 ///
 /// Uses per-crate blake3 content hashing to detect actual changes - saving a file
 /// without modifications won't trigger a rebuild. Hashes are stored in runner_cache.json.
+///
+/// Also checks CLI version - if the CLI was upgraded, the runner needs to be rebuilt
+/// to pick up changes in es-fluent-cli-helpers.
 fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
     use super::cache::{RunnerCache, compute_content_hash};
 
@@ -393,6 +408,11 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
 
     // Check runner cache
     if let Some(cache) = RunnerCache::load(&temp_dir) {
+        // Check CLI version first - if upgraded, force rebuild to pick up helper changes
+        if cache.cli_version != CLI_VERSION {
+            return true;
+        }
+
         if cache.runner_mtime == runner_mtime_secs {
             // Runner hasn't been rebuilt - check if any crate content changed
             for (name, current_hash) in &current_hashes {
@@ -411,10 +431,11 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
             return false;
         }
 
-        // Runner was rebuilt - update cache with current hashes
+        // Runner was rebuilt - update cache with current hashes and version
         let new_cache = RunnerCache {
             crate_hashes: current_hashes,
             runner_mtime: runner_mtime_secs,
+            cli_version: CLI_VERSION.to_string(),
         };
         let _ = new_cache.save(&temp_dir);
         return false;

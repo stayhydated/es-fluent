@@ -76,7 +76,7 @@ sequenceDiagram
     participant Helpers as es-fluent-cli-helpers
 
     User->>CLI: es-fluent generate
-    CLI->>CLI: Check staleness (content hash)
+    CLI->>CLI: Check staleness (content hash + CLI version)
     alt Runner is stale
         CLI->>Runner: cargo run
     else Runner is fresh
@@ -89,6 +89,14 @@ sequenceDiagram
     CLI->>CLI: Read result.json
     CLI->>User: Display results
 ```
+
+## Version Compatibility
+
+The CLI guarantees version sync at dependency generation time:
+
+- Generated `.es-fluent/Cargo.toml` pins `es-fluent` and `es-fluent-cli-helpers` to the CLI's version
+- Runner cache (`runner_cache.json`) stores CLI version for staleness detection
+- When CLI version changes, the runner is detected as stale and rebuilt
 
 ## Caching
 
@@ -109,7 +117,7 @@ flowchart LR
     SRC -->|per-crate hash| HASH
     HASH -->|compare| CACHE
     CACHE -->|fresh/stale| DECISION[Skip rebuild?]
-    
+
     LOCK -->|blake3 hash| MCACHE
     MCACHE -->|cache hit| SKIP[Skip cargo metadata]
 ```

@@ -1,4 +1,4 @@
 # Configuration for the typos spell checker utility (<https://github.com/crate-ci/typos>).
 
 [files]
-extend-exclude = [ "**/i18n/**/*.ftl" ]
+extend-exclude = [ "**/*.ftl", "crates/es-fluent-lang-macro/src/supported_locales.rs" ]
