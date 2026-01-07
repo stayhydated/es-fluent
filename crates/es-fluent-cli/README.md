@@ -27,7 +27,7 @@ fallback_language = "en-US"
 When you add new localizable structs or enums to your code, run:
 
 ```sh
-es-fluent generate
+cargo es-fluent generate
 ```
 
 This will:
@@ -45,7 +45,7 @@ Use `--dry-run` to preview changes without writing them.
 Same as `generate`, but runs in watch mode, updating FTL files as you type:
 
 ```sh
-es-fluent watch
+cargo es-fluent watch
 ```
 
 ### Check
@@ -53,7 +53,7 @@ es-fluent watch
 To ensure all your translations are valid and no keys are missing:
 
 ```sh
-es-fluent check
+cargo es-fluent check
 ```
 
 Use `--all` to check all locales, not just the fallback language.
@@ -63,7 +63,7 @@ Use `--all` to check all locales, not just the fallback language.
 Remove orphan keys and groups that are no longer present in your source code:
 
 ```sh
-es-fluent clean
+cargo es-fluent clean
 ```
 
 Use `--dry-run` to preview changes without writing them.
@@ -73,7 +73,7 @@ Use `--dry-run` to preview changes without writing them.
 Standardize the formatting of your FTL files using `fluent-syntax` rules:
 
 ```sh
-es-fluent format
+cargo es-fluent format
 ```
 
 Use `--dry-run` to preview changes without writing them. Use `--all` to format all locales.
@@ -83,7 +83,7 @@ Use `--dry-run` to preview changes without writing them. Use `--all` to format a
 Propagate keys from your fallback language to other languages (e.g., from `en-US` to `fr` and `de`), creating placeholders for missing translations:
 
 ```sh
-es-fluent sync
+cargo es-fluent sync
 ```
 
 Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.
