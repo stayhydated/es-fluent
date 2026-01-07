@@ -26,9 +26,9 @@ strum = { features = [ "derive" ], workspace = true }
 syn = { features = [ "full" ], workspace = true }
 thiserror = { workspace = true }
 
-[lints]
-workspace = true
-
 [dev-dependencies]
 insta = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
+
+[lints]
+workspace = true

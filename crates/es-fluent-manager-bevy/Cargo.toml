@@ -8,8 +8,12 @@ license.workspace = true
 publish.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-version = "0.17.18"
+version = "0.17.19"
 readme = "README.md"
+
+[features]
+default = [ "macros" ]
+macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
 bevy = { features = [ "file_watcher" ], workspace = true }
@@ -21,10 +25,6 @@ intl-memoizer = { workspace = true }
 inventory = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
-
-[features]
-default = [ "macros" ]
-macros = [ "es-fluent-manager-macros" ]
 
 [lints]
 workspace = true

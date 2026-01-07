@@ -1,11 +1,15 @@
 [package]
 name = "es-fluent-cli-helpers"
-version = "0.4.3"
-edition = "2024"
-authors = [ "Mark Hudnall <me@markhudnall.com>" ]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/stayhydrated/es-fluent"
-description = "Helper functions for es-fluent CLI temporary crate binaries"
+description = """
+Helper functions for es-fluent CLI runner crate
+"""
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+readme = "README.md"
 
 [dependencies]
 bon = { workspace = true }

@@ -1,6 +1,8 @@
 [package]
 name = "es-fluent-cli"
-description = "CLI for es-fluent FTL file generation"
+description = """
+CLI for es-fluent
+"""
 version.workspace = true
 rust-version.workspace = true
 edition.workspace = true

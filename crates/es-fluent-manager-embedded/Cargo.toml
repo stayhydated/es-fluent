@@ -11,17 +11,16 @@ version.workspace = true
 rust-version.workspace = true
 readme = "README.md"
 
+[features]
+default = [ "macros" ]
+macros = [ "es-fluent-manager-macros" ]
+
 [dependencies]
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
 tracing = { workspace = true }
 unic-langid = { workspace = true }
-
-[features]
-default = [ "macros" ]
-macros = [ "es-fluent-manager-macros" ]
-
 
 [lints]
 workspace = true
