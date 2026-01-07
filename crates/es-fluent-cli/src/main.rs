@@ -7,28 +7,24 @@ use miette::Result as MietteResult;
 
 #[derive(Parser)]
 #[command(name = "cargo", bin_name = "cargo")]
-#[command(about = "CLI for generating FTL files from es-fluent derive macros")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: CargoCommand,
-
-    /// Enable E2E testing mode
-    #[arg(long, global = true, hide = true)]
-    e2e: bool,
 }
 
 #[derive(Subcommand)]
 enum CargoCommand {
     /// CLI for generating FTL files from es-fluent derive macros
-    #[command(name = "es-fluent")]
-    EsFluent(EsFluentArgs),
-}
+    #[command(name = "es-fluent", version)]
+    EsFluent {
+        #[command(subcommand)]
+        command: Commands,
 
-#[derive(Parser)]
-struct EsFluentArgs {
-    #[command(subcommand)]
-    command: Commands,
+        /// Enable E2E testing mode
+        #[arg(long, global = true, hide = true)]
+        e2e: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -55,8 +51,9 @@ enum Commands {
 fn main() -> MietteResult<()> {
     // Parse first to check for e2e flag before setting up miette/logging
     let cli = Cli::parse();
+    let CargoCommand::EsFluent { command, e2e } = cli.command;
 
-    if cli.e2e {
+    if e2e {
         es_fluent_cli::utils::ui::set_e2e_mode(true);
     }
 
@@ -76,9 +73,7 @@ fn main() -> MietteResult<()> {
     // Initialize logging
     es_fluent_cli::utils::ui::init_logging();
 
-    let CargoCommand::EsFluent(es_fluent) = cli.command;
-
-    let result = match es_fluent.command {
+    let result = match command {
         Commands::Generate(args) => run_generate(args),
         Commands::Watch(args) => run_watch(args),
         Commands::Clean(args) => run_clean(args),
