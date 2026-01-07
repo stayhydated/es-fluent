@@ -1,27 +1,9 @@
-mod discovery;
-mod generator;
-mod mode;
-mod templates;
-mod tui;
-mod types;
-mod ui;
-mod watcher;
-
-use crate::discovery::{count_ftl_resources, discover_crates};
-use crate::mode::FluentParseMode;
-use anyhow::Result;
 use clap::{Parser, Subcommand};
-use rayon::prelude::*;
-use std::path::PathBuf;
-use std::time::{Duration, Instant};
-
-/// Result of generating FTL for a single crate.
-struct GenerateResult {
-    name: String,
-    duration: Duration,
-    resource_count: usize,
-    error: Option<String>,
-}
+use es_fluent_cli::commands::{
+    CheckArgs, CleanArgs, FormatArgs, GenerateArgs, SyncArgs, WatchArgs, run_check, run_clean,
+    run_format, run_generate, run_sync, run_watch,
+};
+use miette::Result as MietteResult;
 
 #[derive(Parser)]
 #[command(name = "es-fluent")]
@@ -30,201 +12,65 @@ struct GenerateResult {
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Enable E2E testing mode
+    #[arg(long, global = true, hide = true)]
+    e2e: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
     /// Generate FTL files once for all crates with i18n.toml
-    Generate(CommonArgs),
+    Generate(GenerateArgs),
 
     /// Watch for changes and regenerate FTL files (TUI mode)
-    Watch(CommonArgs),
+    Watch(WatchArgs),
 
-    /// Clean orphan keys from FTL files (TUI mode)
-    Clean(CommonArgs),
+    /// Clean orphan keys from FTL files
+    Clean(CleanArgs),
+
+    /// Format FTL files (sort keys A-Z)
+    Fmt(FormatArgs),
+
+    /// Check FTL files for missing keys and variables
+    Check(CheckArgs),
+
+    /// Sync missing translations from fallback to other locales
+    Sync(SyncArgs),
 }
 
-#[derive(Parser)]
-struct CommonArgs {
-    /// Path to the crate or workspace root (defaults to current directory)
-    #[arg(short, long)]
-    path: Option<PathBuf>,
-
-    /// Package name to filter (if in a workspace, only process this package)
-    #[arg(short = 'P', long)]
-    package: Option<String>,
-
-    /// Parse mode for FTL generation
-    #[arg(short, long, value_enum, default_value_t = FluentParseMode::default())]
-    mode: FluentParseMode,
-}
-
-fn main() -> Result<()> {
+fn main() -> MietteResult<()> {
+    // Parse first to check for e2e flag before setting up miette/logging
     let cli = Cli::parse();
 
-    match cli.command {
+    if cli.e2e {
+        es_fluent_cli::utils::ui::set_e2e_mode(true);
+    }
+
+    miette::set_hook(Box::new(|_| {
+        Box::new(
+            miette::MietteHandlerOpts::new()
+                .terminal_links(true)
+                .unicode(true)
+                .context_lines(2)
+                .tab_width(4)
+                .color(!es_fluent_cli::utils::ui::is_e2e()) // Respond to E2E mode
+                .build(),
+        )
+    }))
+    .ok();
+
+    // Initialize logging
+    es_fluent_cli::utils::ui::init_logging();
+
+    let result = match cli.command {
         Commands::Generate(args) => run_generate(args),
         Commands::Watch(args) => run_watch(args),
         Commands::Clean(args) => run_clean(args),
-    }
-}
-
-fn run_generate(args: CommonArgs) -> Result<()> {
-    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
-
-    ui::print_header();
-
-    let crates = discover_crates(&path)?;
-
-    let crates: Vec<_> = if let Some(ref pkg) = args.package {
-        crates.into_iter().filter(|c| &c.name == pkg).collect()
-    } else {
-        crates
+        Commands::Fmt(args) => run_format(args),
+        Commands::Check(args) => run_check(args),
+        Commands::Sync(args) => run_sync(args),
     };
 
-    if crates.is_empty() {
-        ui::print_discovered(&[]);
-        return Ok(());
-    }
-
-    ui::print_discovered(&crates);
-
-    let (valid_crates, skipped_crates): (Vec<_>, Vec<_>) =
-        crates.iter().partition(|k| k.has_lib_rs);
-
-    for krate in &skipped_crates {
-        ui::print_missing_lib_rs(&krate.name);
-    }
-
-    for krate in &valid_crates {
-        ui::print_generating(&krate.name);
-    }
-
-    let mode = &args.mode;
-    let results: Vec<GenerateResult> = valid_crates
-        .par_iter()
-        .map(|krate| {
-            let start = Instant::now();
-            let result = generator::generate_for_crate(krate, mode);
-            let duration = start.elapsed();
-            let resource_count = result
-                .as_ref()
-                .ok()
-                .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
-                .unwrap_or(0);
-
-            GenerateResult {
-                name: krate.name.clone(),
-                duration,
-                resource_count,
-                error: result.err().map(|e| e.to_string()),
-            }
-        })
-        .collect();
-
-    let mut has_errors = false;
-    for result in &results {
-        if let Some(ref error) = result.error {
-            ui::print_generation_error(&result.name, error);
-            has_errors = true;
-        } else {
-            ui::print_generated(&result.name, result.duration, result.resource_count);
-        }
-    }
-
-    if has_errors {
-        std::process::exit(1);
-    }
-
-    Ok(())
-}
-
-fn run_watch(args: CommonArgs) -> Result<()> {
-    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
-
-    let crates = discover_crates(&path)?;
-
-    let crates: Vec<_> = if let Some(ref pkg) = args.package {
-        crates.into_iter().filter(|c| &c.name == pkg).collect()
-    } else {
-        crates
-    };
-
-    if crates.is_empty() {
-        ui::print_header();
-        ui::print_discovered(&[]);
-        return Ok(());
-    }
-
-    watcher::watch_all(&crates, &args.mode)
-}
-
-fn run_clean(args: CommonArgs) -> Result<()> {
-    let path = args.path.unwrap_or_else(|| PathBuf::from("."));
-
-    ui::print_header();
-
-    let crates = discover_crates(&path)?;
-
-    let crates: Vec<_> = if let Some(ref pkg) = args.package {
-        crates.into_iter().filter(|c| &c.name == pkg).collect()
-    } else {
-        crates
-    };
-
-    if crates.is_empty() {
-        ui::print_discovered(&[]);
-        return Ok(());
-    }
-
-    ui::print_discovered(&crates);
-
-    let (valid_crates, skipped_crates): (Vec<_>, Vec<_>) =
-        crates.iter().partition(|k| k.has_lib_rs);
-
-    for krate in &skipped_crates {
-        ui::print_missing_lib_rs(&krate.name);
-    }
-
-    for krate in &valid_crates {
-        ui::print_cleaning(&krate.name);
-    }
-
-    let mode = FluentParseMode::Clean;
-    let results: Vec<GenerateResult> = valid_crates
-        .par_iter()
-        .map(|krate| {
-            let start = Instant::now();
-            let result = generator::generate_for_crate(krate, &mode);
-            let duration = start.elapsed();
-            let resource_count = result
-                .as_ref()
-                .ok()
-                .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
-                .unwrap_or(0);
-
-            GenerateResult {
-                name: krate.name.clone(),
-                duration,
-                resource_count,
-                error: result.err().map(|e| e.to_string()),
-            }
-        })
-        .collect();
-
-    let mut has_errors = false;
-    for result in &results {
-        if let Some(ref error) = result.error {
-            ui::print_generation_error(&result.name, error);
-            has_errors = true;
-        } else {
-            ui::print_cleaned(&result.name, result.duration, result.resource_count);
-        }
-    }
-
-    if has_errors {
-        std::process::exit(1);
-    }
-
-    Ok(())
+    result.map_err(miette::Report::new)
 }

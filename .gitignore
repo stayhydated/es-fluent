@@ -2,6 +2,8 @@ target/
 .es-fluent/
 .expanded.rs
 .venv
+__pycache__
 .ruff_cache
 .ropeproject
 *.snap.new
+*.pending-snap

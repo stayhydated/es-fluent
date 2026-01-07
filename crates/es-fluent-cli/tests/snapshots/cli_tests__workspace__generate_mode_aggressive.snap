@@ -1,0 +1,44 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Generator
+Discovered 2 crate(s)
+Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
+- z_last = Last
+- hello_a = Hello from App A
+- orphan_key = Orphan
++ ## Gender
+  
+- shared-Photos = 
+-     { $user_name } { $photo_count ->
+-         [one] added a new photo
+-        *[other] added { $photo_count } new photos
+-     } to { $user_gender ->
+-         [male] his stream
+-         [female] her stream
+-        *[other] their stream
+-     }.
+- 
++ gender-Female = Female
+  gender-Male = Male
+- gender-Female = Female
+  gender-Other = Other
+  
++ ## HelloA
+  
++ hello_a = Hello A
++ 
++ ## Shared
++ 
++ shared-Photos = Photos { $user_name } { $photo_count } { $user_gender }
+
+Would update FTL file: [TEMP_DIR]/i18n/en/test-lib-b.ftl
+- hello_b = Hello from Lib B
++ ## HelloB
++ 
++ hello_b = Hello B
+
+
+STDERR:

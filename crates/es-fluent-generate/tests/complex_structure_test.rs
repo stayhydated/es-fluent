@@ -54,31 +54,27 @@ what-Hi = Hi
     let gender_variants = vec![
         FtlVariant {
             name: "Female".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Female"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Female"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
         FtlVariant {
             name: "Helicopter".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Helicopter"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Helicopter"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
         FtlVariant {
             name: "Male".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Male"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Male"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
         FtlVariant {
             name: "Other".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Gender", Span::call_site()), "Other"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Other"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
     ];
     let gender = FtlTypeInfo {
@@ -87,16 +83,14 @@ what-Hi = Hi
         variants: gender_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // 2. HelloUser (Complete)
     let hello_user_variants = vec![FtlVariant {
         name: "hello_user".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("HelloUser", Span::call_site()), "hello_user"),
+        ftl_key: FluentKey::from(&Ident::new("HelloUser", Span::call_site())).join("hello_user"),
         args: vec!["f0".to_string()],
         module_path: "test".to_string(),
-        is_this: false,
     }];
     let hello_user = FtlTypeInfo {
         type_kind: TypeKind::Struct, // Assuming struct for single message
@@ -104,29 +98,26 @@ what-Hi = Hi
         variants: hello_user_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // 3. Shared (Adding 'Videos' new key)
     let shared_variants = vec![
         FtlVariant {
             name: "Photos".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Photos"),
+            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site())).join("Photos"),
             args: vec![
                 "user_name".to_string(),
                 "photo_count".to_string(),
                 "user_gender".to_string(),
             ],
             module_path: "test".to_string(),
-            is_this: false,
         },
         // NEW KEY
         FtlVariant {
             name: "Videos".to_string(),
-            ftl_key: FluentKey::new(&Ident::new("Shared", Span::call_site()), "Videos"),
+            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site())).join("Videos"),
             args: vec![],
             module_path: "test".to_string(),
-            is_this: false,
         },
     ];
     let shared = FtlTypeInfo {
@@ -135,16 +126,14 @@ what-Hi = Hi
         variants: shared_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // 4. What (Complete)
     let what_variants = vec![FtlVariant {
         name: "Hi".to_string(),
-        ftl_key: FluentKey::new(&Ident::new("What", Span::call_site()), "Hi"),
+        ftl_key: FluentKey::from(&Ident::new("What", Span::call_site())).join("Hi"),
         args: vec![],
         module_path: "test".to_string(),
-        is_this: false,
     }];
     let what = FtlTypeInfo {
         type_kind: TypeKind::Enum,
@@ -152,7 +141,6 @@ what-Hi = Hi
         variants: what_variants,
         file_path: None,
         module_path: "test".to_string(),
-        is_this: false,
     };
 
     // Run generate in Conservative mode
@@ -161,6 +149,7 @@ what-Hi = Hi
         &i18n_path,
         vec![gender, hello_user, shared, what],
         FluentParseMode::Conservative,
+        false,
     )
     .unwrap();
 

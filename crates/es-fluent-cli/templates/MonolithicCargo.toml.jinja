@@ -1,0 +1,32 @@
+[package]
+name = "es-fluent-temp"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+# Ultra-fast compile profile - prioritize compile speed over runtime
+# Since we only collect inventory items, runtime perf is irrelevant
+[profile.dev]
+opt-level = 0
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = false
+codegen-units = 256
+incremental = true
+
+[dependencies]
+# All workspace crates that have i18n.toml
+{% for dep in crates %}
+{{ dep.name }} = { path = "{{ dep.path }}"{% if dep.has_features %}, features = [{% for feature in dep.features %}"{{ feature }}"{% if !loop.last %}, {% endif %}{% endfor %}]{% endif %} }
+{% endfor %}
+
+# es-fluent dependencies
+{{ es_fluent_dep }}
+{{ es_fluent_cli_helpers_dep }}
+
+[[bin]]
+name = "es-fluent-runner"
+path = "src/main.rs"

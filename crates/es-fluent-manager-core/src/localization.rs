@@ -53,7 +53,7 @@ impl FluentManager {
     pub fn new_with_discovered_modules() -> Self {
         let mut manager = Self::default();
         for module in inventory::iter::<&'static dyn I18nModule>() {
-            log::info!("Discovered and loading i18n module: {}", module.name());
+            tracing::info!("Discovered and loading i18n module: {}", module.name());
             manager.localizers.push(module.create_localizer());
         }
         manager
@@ -63,7 +63,7 @@ impl FluentManager {
     pub fn select_language(&mut self, lang: &LanguageIdentifier) {
         for localizer in &self.localizers {
             if let Err(e) = localizer.select_language(lang) {
-                log::warn!("Module failed to set language '{}': {}", lang, e);
+                tracing::warn!("Module failed to set language '{}': {}", lang, e);
             }
         }
     }

@@ -45,6 +45,47 @@ pub enum I18nConfigError {
     },
 }
 
+/// Represents the `fluent_feature` field in `i18n.toml`.
+/// Supports both a single string and an array of strings.
+///
+/// # Examples
+///
+/// Single feature:
+/// ```toml
+/// fluent_feature = "fluent"
+/// ```
+///
+/// Multiple features:
+/// ```toml
+/// fluent_feature = ["fluent", "i18n"]
+/// ```
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum FluentFeature {
+    /// A single feature name.
+    Single(String),
+    /// Multiple feature names.
+    Multiple(Vec<String>),
+}
+
+impl FluentFeature {
+    /// Returns the features as a vector of strings.
+    pub fn as_vec(&self) -> Vec<String> {
+        match self {
+            FluentFeature::Single(s) => vec![s.clone()],
+            FluentFeature::Multiple(v) => v.clone(),
+        }
+    }
+
+    /// Returns true if there are no features.
+    pub fn is_empty(&self) -> bool {
+        match self {
+            FluentFeature::Single(s) => s.is_empty(),
+            FluentFeature::Multiple(v) => v.is_empty(),
+        }
+    }
+}
+
 /// The configuration for `es-fluent`.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct I18nConfig {
@@ -53,11 +94,22 @@ pub struct I18nConfig {
     /// Path to the assets directory containing translation files.
     /// Expected structure: {assets_dir}/{language}/{domain}.ftl
     pub assets_dir: PathBuf,
-    /// Optional feature flag that enables es-fluent derives in the crate.
-    /// If specified, the CLI will enable this feature when generating FTL files.
-    /// Example: `fluent_feature = "fluent"` for crates that gate es-fluent behind a feature.
+    /// Optional feature flag(s) that enable es-fluent derives in the crate.
+    /// If specified, the CLI will enable these features when generating FTL files.
+    ///
+    /// # Examples
+    ///
+    /// Single feature:
+    /// ```toml
+    /// fluent_feature = "fluent"
+    /// ```
+    ///
+    /// Multiple features:
+    /// ```toml
+    /// fluent_feature = ["fluent", "i18n"]
+    /// ```
     #[serde(default)]
-    pub fluent_feature: Option<String>,
+    pub fluent_feature: Option<FluentFeature>,
 }
 
 impl I18nConfig {
@@ -141,39 +193,15 @@ impl I18nConfig {
         base_dir: Option<&Path>,
     ) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
         let assets_path = self.assets_dir_from_base(base_dir)?;
-        let mut languages: Vec<(String, LanguageIdentifier)> = Vec::new();
-
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
 
-        for entry in entries {
-            let entry = entry.map_err(I18nConfigError::ReadError)?;
-            if !entry
-                .file_type()
-                .map_err(I18nConfigError::ReadError)?
-                .is_dir()
-            {
-                continue;
-            }
-
-            let raw_name = entry.file_name();
-            let name = raw_name.into_string().map_err(|raw| {
-                I18nConfigError::ReadError(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Assets directory contains a non UTF-8 entry: {:?}", raw),
-                ))
-            })?;
-
-            let lang = name.parse::<LanguageIdentifier>().map_err(|source| {
-                I18nConfigError::InvalidLanguageIdentifier {
-                    name: name.clone(),
-                    source,
-                }
-            })?;
-
-            ensure_supported_language_identifier(&lang, &name)?;
-
-            languages.push((lang.to_string(), lang));
-        }
+        let mut languages: Vec<(String, LanguageIdentifier)> = entries
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| parse_language_entry(entry).transpose())
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(|lang| (lang.to_string(), lang))
+            .collect();
 
         languages.sort_by(|a, b| a.0.cmp(&b.0));
         languages.dedup_by(|a, b| a.0 == b.0);
@@ -209,6 +237,39 @@ impl I18nConfig {
     pub fn fallback_language_id(&self) -> &str {
         &self.fallback_language
     }
+}
+
+/// Parse a directory entry as a language identifier.
+///
+/// Returns `Ok(None)` if the entry is not a directory.
+fn parse_language_entry(
+    entry: fs::DirEntry,
+) -> Result<Option<LanguageIdentifier>, I18nConfigError> {
+    if !entry
+        .file_type()
+        .map_err(I18nConfigError::ReadError)?
+        .is_dir()
+    {
+        return Ok(None);
+    }
+
+    let raw_name = entry.file_name();
+    let name = raw_name.into_string().map_err(|raw| {
+        I18nConfigError::ReadError(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Assets directory contains a non UTF-8 entry: {:?}", raw),
+        ))
+    })?;
+
+    let lang = name.parse::<LanguageIdentifier>().map_err(|source| {
+        I18nConfigError::InvalidLanguageIdentifier {
+            name: name.clone(),
+            source,
+        }
+    })?;
+
+    ensure_supported_language_identifier(&lang, &name)?;
+    Ok(Some(lang))
 }
 
 fn ensure_supported_language_identifier(
@@ -375,5 +436,57 @@ assets_dir = "i18n"
         let codes: Vec<String> = languages.into_iter().map(|lang| lang.to_string()).collect();
 
         assert_eq!(codes, vec!["en"]);
+    }
+
+    #[test]
+    fn test_fluent_feature_single_string() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let config_content = r#"
+fallback_language = "en"
+assets_dir = "i18n"
+fluent_feature = "fluent"
+"#;
+
+        fs::write(&config_path, config_content).unwrap();
+
+        let config = I18nConfig::read_from_path(&config_path).unwrap();
+        let features = config.fluent_feature.unwrap().as_vec();
+        assert_eq!(features, vec!["fluent"]);
+    }
+
+    #[test]
+    fn test_fluent_feature_array() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let config_content = r#"
+fallback_language = "en"
+assets_dir = "i18n"
+fluent_feature = ["fluent", "i18n"]
+"#;
+
+        fs::write(&config_path, config_content).unwrap();
+
+        let config = I18nConfig::read_from_path(&config_path).unwrap();
+        let features = config.fluent_feature.unwrap().as_vec();
+        assert_eq!(features, vec!["fluent", "i18n"]);
+    }
+
+    #[test]
+    fn test_fluent_feature_none() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let config_content = r#"
+fallback_language = "en"
+assets_dir = "i18n"
+"#;
+
+        fs::write(&config_path, config_content).unwrap();
+
+        let config = I18nConfig::read_from_path(&config_path).unwrap();
+        assert!(config.fluent_feature.is_none());
     }
 }

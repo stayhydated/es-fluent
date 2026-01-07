@@ -1,5 +1,5 @@
 use es_fluent_core::namer;
-use es_fluent_core::options::r#enum::EnumOpts;
+use es_fluent_core::options::r#enum::{EnumFieldOpts, EnumOpts};
 
 use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;
@@ -9,6 +9,16 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
     generate(opts, data)
 }
 
+/// Generate a value expression for a field, handling value transforms, choice, and default.
+fn generate_value_expr(field: &EnumFieldOpts, arg_name: &syn::Ident) -> TokenStream {
+    if let Some(expr) = field.value() {
+        quote! { (#expr)(#arg_name) }
+    } else if field.is_choice() {
+        quote! { #arg_name.as_fluent_choice() }
+    } else {
+        quote! { #arg_name.clone() }
+    }
+}
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
     let base_key = opts.base_key();
@@ -26,7 +36,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
 
         match variant_opt.style() {
             darling::ast::Style::Unit => {
-                let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
+                let ftl_key = namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix).to_string();
                 quote! {
                     Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
                 }
@@ -46,7 +56,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     })
                     .collect();
 
-                let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
+                let ftl_key = namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix).to_string();
 
                 let args: Vec<_> = all_fields
                     .iter()
@@ -58,15 +68,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
 
                         let arg_name = namer::UnnamedItem::from(index).to_ident();
                         let arg_key = arg_name.to_string();
-                        let is_choice = field.is_choice();
-
-                        let value_expr = if let Some(expr) = field.value() {
-                            quote! { (#expr)(#arg_name) }
-                        } else if is_choice {
-                            quote! { #arg_name.as_fluent_choice() }
-                        } else {
-                            quote! { #arg_name.clone() }
-                        };
+                        let value_expr = generate_value_expr(field, &arg_name);
 
                         Some(quote!{ args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); })
                     })
@@ -85,22 +87,14 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                 let field_pats: Vec<_> =
                     fields.iter().map(|f| f.ident().as_ref().unwrap()).collect();
 
-                        let ftl_key = namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
+                        let ftl_key = namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix).to_string();
 
                 let args: Vec<_> = fields
                     .iter()
                     .map(|field_opt| {
                         let arg_name = field_opt.ident().as_ref().unwrap();
                         let arg_key = arg_name.to_string();
-                        let is_choice = field_opt.is_choice();
-
-                        let value_expr = if let Some(expr) = field_opt.value() {
-                            quote! { (#expr)(#arg_name) }
-                        } else if is_choice {
-                            quote! { #arg_name.as_fluent_choice() }
-                        } else {
-                            quote! { #arg_name.clone() }
-                        };
+                        let value_expr = generate_value_expr(field_opt, arg_name);
 
                         quote!{ args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
                     })
@@ -159,10 +153,11 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
       value.to_fluent_string().into()
     };
 
-    // Generate inventory submission for all non-empty types
+    // Generate inventory submission for all non-empty types unless skip_inventory is set
     // FTL metadata is purely structural (type name, field names, variant names)
     // and doesn't depend on generic type parameters
-    let inventory_submit = if !is_empty {
+    let skip_inventory = opts.attr_args().skip_inventory();
+    let inventory_submit = if !is_empty && !skip_inventory {
         // Build static variant array from the opts
         let static_variants: Vec<_> = opts
             .variants()
@@ -175,8 +170,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .key()
                     .map(|key| key.to_string())
                     .unwrap_or_else(|| variant_ident.to_string());
-                let ftl_key =
-                    namer::FluentKey::with_base(&base_key, &variant_key_suffix).to_string();
+                let ftl_key = namer::FluentKey::from(base_key.as_str())
+                    .join(&variant_key_suffix)
+                    .to_string();
 
                 // Get args based on variant style
                 let args: Vec<String> = match variant_opt.style() {
@@ -208,7 +204,6 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
                         module_path: module_path!(),
-                        is_this: false,
                     }
                 }
             })
@@ -233,7 +228,6 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         variants: VARIANTS,
                         file_path: file!(),
                         module_path: module_path!(),
-                        is_this: false,
                     };
 
                 ::es_fluent::__inventory::submit!(&TYPE_INFO);

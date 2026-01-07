@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent-generate"
 description = """
-A crate for generating .ftl files
+A crate for handling .ftl files
 """
 version.workspace = true
 rust-version.workspace = true
@@ -13,12 +13,13 @@ readme = "README.md"
 
 [dependencies]
 clap = { features = [ "derive" ], workspace = true }
-
+colored = { workspace = true }
 es-fluent-core = { workspace = true }
 fluent-syntax = { workspace = true }
 heck = { workspace = true }
-log = { workspace = true }
+similar = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 proc-macro2 = { workspace = true }

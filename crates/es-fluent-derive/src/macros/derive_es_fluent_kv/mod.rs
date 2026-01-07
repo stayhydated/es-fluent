@@ -95,7 +95,9 @@ fn generate_unit_enum(
         .iter()
         .map(|(variant_ident, original_field_name, _)| {
             // Use original field name (snake_case) for FTL key
-            let ftl_key = namer::FluentKey::new(ident, original_field_name).to_string();
+            let ftl_key = namer::FluentKey::from(ident)
+                .join(original_field_name)
+                .to_string();
             quote! {
                 Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
             }
@@ -145,14 +147,15 @@ fn generate_unit_enum(
         .map(|(variant_ident, original_field_name, _)| {
             let variant_name = variant_ident.to_string();
             // Use original field name (snake_case) for FTL key
-            let ftl_key = namer::FluentKey::new(ident, original_field_name).to_string();
+            let ftl_key = namer::FluentKey::from(ident)
+                .join(original_field_name)
+                .to_string();
             quote! {
                 ::es_fluent::__core::registry::StaticFtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
                     module_path: module_path!(),
-                    is_this: false,
                 }
             }
         })
@@ -177,7 +180,6 @@ fn generate_unit_enum(
                     variants: VARIANTS,
                     file_path: file!(),
                     module_path: module_path!(),
-                    is_this: false,
                 };
 
             ::es_fluent::__inventory::submit!(&TYPE_INFO);
@@ -254,7 +256,7 @@ fn generate_enum_unit_enum(
     let match_arms = variants.iter().map(|(variant_ident, _)| {
         // Use original variant name for the key (preserves PascalCase)
         let base_key = variant_ident.to_string();
-        let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
+        let ftl_key = namer::FluentKey::from(ident).join(&base_key).to_string();
         quote! {
             Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
         }
@@ -305,14 +307,13 @@ fn generate_enum_unit_enum(
             let variant_name = variant_ident.to_string();
             // Use original variant name for the key (preserves PascalCase for enums)
             let base_key = variant_ident.to_string();
-            let ftl_key = namer::FluentKey::new(ident, &base_key).to_string();
+            let ftl_key = namer::FluentKey::from(ident).join(&base_key).to_string();
             quote! {
                 ::es_fluent::__core::registry::StaticFtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
                     module_path: module_path!(),
-                    is_this: false,
                 }
             }
         })
@@ -337,7 +338,6 @@ fn generate_enum_unit_enum(
                     variants: VARIANTS,
                     file_path: file!(),
                     module_path: module_path!(),
-                    is_this: false,
                 };
 
             ::es_fluent::__inventory::submit!(&TYPE_INFO);

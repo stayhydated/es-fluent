@@ -1,6 +1,11 @@
+[![Docs](https://docs.rs/es-fluent-cli/badge.svg)](https://docs.rs/es-fluent-cli/)
+[![Crates.io](https://img.shields.io/crates/v/es-fluent-cli.svg)](https://crates.io/crates/es-fluent-cli)
+
 # es-fluent-cli
 
-A command-line tool for managing Fluent translations in `es-fluent` projects.
+The official command-line tool for `es-fluent`.
+
+This tool automatically manages your Fluent (`.ftl`) translation files by analyzing your Rust code. It finds types with `#[derive(EsFluent)]` and creates corresponding message entries, so you don't have to keep them in sync manually.
 
 ## Installation
 
@@ -8,47 +13,77 @@ A command-line tool for managing Fluent translations in `es-fluent` projects.
 cargo install es-fluent-cli
 ```
 
-## Usage
+## Commands
 
-Run the tool from your project root or a sub-crate.
+Ensure you have an `i18n.toml` in your crate root:
 
-### Commands
+```toml
+assets_dir = "i18n"
+fallback_language = "en-US"
+```
 
-#### `generate`
+### Generate
 
-Scans your Rust source code for `#[derive(EsFluent)]` and related macros, and updates or creates your FTL files.
+When you add new localizable structs or enums to your code, run:
 
 ```sh
 es-fluent generate
 ```
 
-- **Default Behavior**: Adds new keys and updates existing ones. Preserves existing translations.
-- **Options**:
-  - `--mode aggressive`: Completely overwrites the file (WARNING: this deletes custom translations).
+This will:
 
-#### `watch`
+1. Scan your `src/` directory.
+1. Update `i18n/en-US/{your_crate}.ftl`.
+   - **New items**: Added as new messages.
+   - **Changed items**: Variables updated (e.g. if you added a field).
+   - **Existing translations**: Preserved untouched.
 
-Watches your `src/` directory for changes and automatically runs the generator. This is ideal for development.
+Use `--dry-run` to preview changes without writing them.
+
+### Watch
+
+Same as `generate`, but runs in watch mode, updating FTL files as you type:
 
 ```sh
 es-fluent watch
 ```
 
-#### `clean`
+### Check
 
-Removes orphan keys and groups—translations that are defined in your FTL file but no longer found in your Rust code.
+To ensure all your translations are valid and no keys are missing:
+
+```sh
+es-fluent check
+```
+
+Use `--all` to check all locales, not just the fallback language.
+
+### Clean
+
+Remove orphan keys and groups that are no longer present in your source code:
 
 ```sh
 es-fluent clean
 ```
 
-> **Note**: This will remove comments associated with orphan keys, and even entire groups if they become empty.
+Use `--dry-run` to preview changes without writing them.
 
-## Configuration
+### Format
 
-The CLI relies on an `i18n.toml` file in your crate root:
+Standardize the formatting of your FTL files using `fluent-syntax` rules:
 
-```toml
-assets_dir = "i18n"         # Directory for FTL files
-fallback_language = "en"    # Default language
+```sh
+es-fluent format
 ```
+
+Use `--dry-run` to preview changes without writing them. Use `--all` to format all locales.
+
+### Sync
+
+Propagate keys from your fallback language to other languages (e.g., from `en-US` to `fr` and `de`), creating placeholders for missing translations:
+
+```sh
+es-fluent sync
+```
+
+Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.

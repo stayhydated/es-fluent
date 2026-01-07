@@ -6,30 +6,25 @@ The es-fluent crate
 version.workspace = true
 rust-version.workspace = true
 edition.workspace = true
-categories = [ "localization", "internationalization", "development-tools::build-utils" ]
-keywords = [ "fluent", "i18n", "locale" ]
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
-readme.workspace = true
+readme = "README.md"
+categories = [ "localization", "internationalization"]
+keywords = [ "fluent", "i18n", "locale" ]
 
 [features]
-default = [ "derive" ]
+default = [  ]
 derive = [ "dep:es-fluent-derive" ]
-generate = [ "dep:bon", "dep:cargo_metadata", "dep:es-fluent-generate", "dep:es-fluent-toml" ]
 
 [dependencies]
-bon = { optional = true, workspace = true }
-cargo_metadata = { optional = true, workspace = true }
 es-fluent-core = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
-es-fluent-generate = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
-es-fluent-toml = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
-log = { workspace = true }
 rust-embed = { workspace = true }
+tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [dev-dependencies]

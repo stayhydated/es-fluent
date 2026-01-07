@@ -1,0 +1,26 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Sync
+Would add 5 key(s) to es (test-app-a)
++ gender-Female = Female
++ gender-Male = Male
++ gender-Other = Other
+  hello_a = Hello from App A
++ new-sync-key = Sync Me
+  orphan_key = Orphan
++ shared-Photos =
++     { $user_name } { $photo_count ->
++         [one] added a new photo
++        *[other] added { $photo_count } new photos
++     } to { $user_gender ->
++         [male] his stream
++         [female] her stream
++        *[other] their stream
++     }.
+  z_last = Last
+Would sync 5 key(s) across 1 locale(s)
+
+STDERR:
