@@ -3,6 +3,9 @@
 //! These error types provide clippy-style error messages with source snippets,
 //! labels, and helpful suggestions.
 
+// Fields in these structs are read by miette's Diagnostic derive macro
+#![allow(unused)]
+
 use miette::{Diagnostic, NamedSource, SourceSpan};
 use std::path::PathBuf;
 use thiserror::Error;
