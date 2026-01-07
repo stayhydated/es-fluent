@@ -72,8 +72,9 @@ fn run_cli(temp_dir: &assert_fs::TempDir, args: &[&str]) -> String {
     // TEST_DATA_DIR is the root of examples-tests.
     cmd.current_dir(temp_dir.path());
 
-    // Inject --e2e flag for deterministic output
-    let mut new_args = args.to_vec();
+    // Inject "es-fluent" subcommand (required for cargo subcommand pattern) and --e2e flag
+    let mut new_args = vec!["es-fluent"];
+    new_args.extend(args);
     new_args.push("--e2e");
     cmd.args(&new_args);
 
@@ -342,7 +343,7 @@ fn test_check_syntax_error() {
     // Run check, expect failure
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
-    cmd.args(&["check"]);
+    cmd.args(&["es-fluent", "check"]);
     cmd.assert().failure();
 }
 
@@ -358,7 +359,7 @@ fn test_check_missing_key() {
     // Run check, expect failure
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
-    cmd.args(&["check"]);
+    cmd.args(&["es-fluent", "check"]);
     cmd.assert().failure();
 }
 
@@ -375,7 +376,7 @@ fn test_check_warning_missing_arg() {
     // "validation found 0 error(s) and 1 warning(s)" -> returns Err(CliError::Validation(...))
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
-    cmd.args(&["check"]);
+    cmd.args(&["es-fluent", "check"]);
 
     // Expect failure due to warning
     let assert = cmd.assert().failure();
@@ -445,6 +446,6 @@ fn test_check_all() {
     // Check with --all should fail because ES is missing keys present in EN (inventory)
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
-    cmd.args(&["check", "--all"]);
+    cmd.args(&["es-fluent", "check", "--all"]);
     cmd.assert().failure();
 }
