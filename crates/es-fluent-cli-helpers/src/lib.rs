@@ -1,8 +1,4 @@
-//! Helper functions for es-fluent CLI temporary crate binaries.
-//!
-//! This crate provides simple wrapper functions to minimize the amount of Rust code
-//! needed in generated binary templates. Instead of having complex logic in Jinja
-//! templates, all the heavy lifting is done here in well-tested Rust functions.
+#![doc = include_str!("../README.md")]
 
 mod cli;
 mod generate;

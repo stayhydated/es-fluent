@@ -10,7 +10,7 @@ repository.workspace = true
 readme = "README.md"
 
 [[bin]]
-name = "es-fluent"
+name = "cargo-es-fluent"
 path = "src/main.rs"
 
 [dependencies]

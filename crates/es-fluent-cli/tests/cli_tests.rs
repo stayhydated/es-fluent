@@ -66,7 +66,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 fn run_cli(temp_dir: &assert_fs::TempDir, args: &[&str]) -> String {
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
 
     // Set current dir to the temp dir root, or specifically the workspace root in temp?
     // TEST_DATA_DIR is the root of examples-tests.
@@ -340,7 +340,7 @@ fn test_check_syntax_error() {
     std::fs::copy(&fixture_path, &ftl_path).expect("failed to copy fixture");
 
     // Run check, expect failure
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
     cmd.args(&["check"]);
     cmd.assert().failure();
@@ -356,7 +356,7 @@ fn test_check_missing_key() {
     std::fs::copy(&fixture_path, &ftl_path).expect("failed to copy fixture");
 
     // Run check, expect failure
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
     cmd.args(&["check"]);
     cmd.assert().failure();
@@ -373,7 +373,7 @@ fn test_check_warning_missing_arg() {
 
     // Run check, expect failure (exit code 1) because warnings are treated as issues by default logic in check.rs
     // "validation found 0 error(s) and 1 warning(s)" -> returns Err(CliError::Validation(...))
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
     cmd.args(&["check"]);
 
@@ -443,7 +443,7 @@ fn test_check_all() {
     std::fs::write(&ftl_path_es, "# Empty").unwrap();
 
     // Check with --all should fail because ES is missing keys present in EN (inventory)
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("es-fluent");
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
     cmd.current_dir(temp.path());
     cmd.args(&["check", "--all"]);
     cmd.assert().failure();

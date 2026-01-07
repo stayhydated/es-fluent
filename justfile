@@ -19,3 +19,6 @@ test:
 
 test-publish:
     cargo publish --workspace --dry-run --allow-dirty
+
+test-docs:
+    cargo doc --workspace --all-features --no-deps --open

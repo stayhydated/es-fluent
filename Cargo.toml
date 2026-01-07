@@ -1,5 +1,4 @@
 [workspace]
-default-members = [ "examples/bevy-example", "examples/gpui-example" ]
 members = [
   "crates/es-fluent",
   "crates/es-fluent-cli",
