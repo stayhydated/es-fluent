@@ -291,6 +291,16 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     fs::write(src_dir.join("main.rs"), main_rs.render().unwrap())
         .context("Failed to write .es-fluent/src/main.rs")?;
 
+    // Copy workspace Cargo.lock to ensure identical dependency versions.
+    // The runner is a separate workspace (required to avoid "not a workspace member" errors),
+    // so we copy the lock file to get the same dependency resolution as the user's workspace.
+    let workspace_lock = workspace.root_dir.join("Cargo.lock");
+    let runner_lock = temp_dir.join("Cargo.lock");
+    if workspace_lock.exists() {
+        fs::copy(&workspace_lock, &runner_lock)
+            .context("Failed to copy Cargo.lock to .es-fluent/")?;
+    }
+
     Ok(temp_dir)
 }
 
