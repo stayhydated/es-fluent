@@ -55,7 +55,7 @@ inventory::submit! {
 
 ### Bevy Support
 
-When the `bevy` feature is enabled, it registers a `StaticI18nResource` compatible with Bevy game engine's asset system (via the manager).
+When the `bevy` feature is enabled, it registers a `StaticI18nResource` compatible with [Bevy](https://github.com/bevyengine/bevy) game engine's asset system (via the manager).
 
 ## Macro
 

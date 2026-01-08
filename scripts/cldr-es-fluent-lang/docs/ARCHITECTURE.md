@@ -239,12 +239,3 @@ pub const SUPPORTED_LANGUAGE_KEYS: &[&str] = &[
 ```
 
 This constant is used by `es-fluent-lang-macro` to validate language directories at compile time.
-
-## Dependencies
-
-- `pydantic` - JSON validation and parsing via typed models
-- `requests` - HTTP downloads
-- `typer` - CLI framework
-- `tqdm` - Progress bars
-
-Dependencies are managed via the workspace-level [pyproject.toml](../../../pyproject.toml) and installed with `uv sync`.

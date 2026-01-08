@@ -1,6 +1,6 @@
 # es-fluent-cli-helpers Architecture
 
-This document explains the role of `es-fluent-cli-helpers` in the es-fluent toolchain.
+This document explains the role of `es-fluent-cli-helpers` in the `es-fluent` toolchain.
 
 ## Purpose
 
@@ -95,23 +95,3 @@ sequenceDiagram
         Helpers-->>Runner: Write result.json
     end
 ```
-
-## Dependencies
-
-```mermaid
-flowchart LR
-    HELPERS[es-fluent-cli-helpers]
-    CORE[es-fluent-core]
-    TOML[es-fluent-toml]
-    GEN[es-fluent-generate]
-
-    HELPERS --> CORE
-    HELPERS --> TOML
-    HELPERS --> GEN
-```
-
-| Dependency | Purpose |
-|------------|---------|
-| `es-fluent-core` | Registry access for inventory collection |
-| `es-fluent-toml` | Reading `i18n.toml` configuration |
-| `es-fluent-generate` | FTL file generation logic |

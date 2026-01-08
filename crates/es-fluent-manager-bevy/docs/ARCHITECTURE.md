@@ -1,6 +1,6 @@
 # es-fluent-manager-bevy Architecture
 
-This document details the architecture of the `es-fluent-manager-bevy` crate, which integrates `es-fluent` with the Bevy game engine.
+This document details the architecture of the `es-fluent-manager-bevy` crate, which integrates `es-fluent` with the [Bevy](https://github.com/bevyengine/bevy) game engine.
 
 ## Overview
 
