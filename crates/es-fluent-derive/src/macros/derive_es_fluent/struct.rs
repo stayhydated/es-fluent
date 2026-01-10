@@ -70,8 +70,10 @@ fn generate(opts: &StructOpts) -> TokenStream {
     // and doesn't depend on generic type parameters
     let inventory_submit = {
         // Build static variant with args from struct fields
+        // Exclude allow_unused fields from args (they won't trigger CLI check warnings)
         let arg_names: Vec<String> = indexed_fields
             .iter()
+            .filter(|(_, field_opt)| !field_opt.allow_unused())
             .map(|(index, field_opt)| field_opt.fluent_arg_name(*index))
             .collect();
         let args_tokens: Vec<_> = arg_names.iter().map(|a| quote! { #a }).collect();

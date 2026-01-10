@@ -23,8 +23,6 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
   gender-Male = Male
   gender-Female = Female
   gender-Other = Other
-- 
-- 
 
 Would update FTL file: [TEMP_DIR]/i18n/es/test-app-a.ftl
   hello_a = Hello from App A

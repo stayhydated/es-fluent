@@ -25,6 +25,9 @@ pub struct EnumFieldOpts {
     /// A value transformation expression.
     #[darling(default)]
     value: Option<super::ValueAttr>,
+    /// Whether this field's usage is optional in FTL (suppresses CLI check warnings).
+    #[darling(default)]
+    allow_unused: Option<bool>,
 }
 
 impl EnumFieldOpts {
@@ -39,6 +42,11 @@ impl EnumFieldOpts {
     /// Returns the value expression if present.
     pub fn value(&self) -> Option<&syn::Expr> {
         self.value.as_ref().map(|v| &v.0)
+    }
+
+    /// Returns `true` if the field's usage in FTL is optional.
+    pub fn allow_unused(&self) -> bool {
+        self.allow_unused.unwrap_or(false)
     }
 }
 

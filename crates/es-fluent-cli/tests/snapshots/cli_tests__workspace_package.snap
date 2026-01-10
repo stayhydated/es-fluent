@@ -26,8 +26,6 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
 - gender-Male = Male
 - gender-Female = Female
 - gender-Other = Other
-- 
-- 
 + z_last = Last
 
 

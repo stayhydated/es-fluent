@@ -1,6 +1,6 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-expression: output
+expression: run_generate_real_test(&WORKSPACE_CONFIG)
 ---
 STDOUT:
 Fluent FTL Generator

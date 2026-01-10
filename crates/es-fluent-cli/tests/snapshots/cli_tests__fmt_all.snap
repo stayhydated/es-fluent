@@ -26,8 +26,6 @@ Would format: i18n/en/test-app-a.ftl
 - gender-Male = Male
 - gender-Female = Female
 - gender-Other = Other
-- 
-- 
 + z_last = Last
 Would format: i18n/es/test-app-a.ftl
 - b=2

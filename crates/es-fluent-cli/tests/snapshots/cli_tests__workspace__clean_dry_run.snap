@@ -1,6 +1,6 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-expression: output
+expression: run_clean_dry_run_test(&WORKSPACE_CONFIG)
 ---
 STDOUT:
 Fluent FTL Generator
@@ -23,8 +23,6 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
   gender-Male = Male
   gender-Female = Female
   gender-Other = Other
-- 
-- 
 
 Unchanged: test-lib-b
 

@@ -1,6 +1,6 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-expression: output
+expression: run_generate_mode_aggressive_test(&PACKAGE_CONFIG)
 ---
 STDOUT:
 Fluent FTL Generator
@@ -9,7 +9,7 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-package.ftl
 - hello = Hello World
 + ## Dictionary
 + 
-+ test-app-package.ftl-hello = Hello
++ dictionary-Hello = Hello
 
 
 STDERR:

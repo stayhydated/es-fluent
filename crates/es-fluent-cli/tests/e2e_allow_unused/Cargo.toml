@@ -1,0 +1,7 @@
+[package]
+name = "test-allow-unused"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+es-fluent = { path = "../crates/es-fluent" }

@@ -1,6 +1,6 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-expression: output_incremental
+expression: incremental
 ---
 STDOUT:
 Fluent FTL Generator

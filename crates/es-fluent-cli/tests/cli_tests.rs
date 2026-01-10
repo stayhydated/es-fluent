@@ -8,6 +8,9 @@ static TEST_DATA_WORKSPACE_DIR: LazyLock<PathBuf> =
 static TEST_DATA_PACKAGE_DIR: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e_package"));
 
+static TEST_DATA_ALLOW_UNUSED_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e_allow_unused"));
+
 fn setup_workspace_env() -> assert_fs::TempDir {
     let temp = assert_fs::TempDir::new().unwrap();
     copy_dir_recursive(&TEST_DATA_WORKSPACE_DIR, temp.path()).expect("failed to copy test data");
@@ -18,6 +21,13 @@ fn setup_workspace_env() -> assert_fs::TempDir {
 fn setup_package_env() -> assert_fs::TempDir {
     let temp = assert_fs::TempDir::new().unwrap();
     copy_dir_recursive(&TEST_DATA_PACKAGE_DIR, temp.path()).expect("failed to copy test data");
+    fix_cargo_manifests(temp.path());
+    temp
+}
+
+fn setup_allow_unused_env() -> assert_fs::TempDir {
+    let temp = assert_fs::TempDir::new().unwrap();
+    copy_dir_recursive(&TEST_DATA_ALLOW_UNUSED_DIR, temp.path()).expect("failed to copy test data");
     fix_cargo_manifests(temp.path());
     temp
 }
@@ -560,6 +570,22 @@ fn test_check_warning_missing_arg() {
         stderr.contains("warning(s)"),
         "Should mention warnings count"
     );
+}
+
+/// Test that check passes when allow_unused fields are omitted from FTL.
+/// This validates that #[fluent(allow_unused)] suppresses the missing variable warning.
+#[test]
+fn test_check_allow_unused() {
+    let temp = setup_allow_unused_env();
+
+    // Run check - should pass because allow_unused fields don't require FTL usage
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["es-fluent", "check", "--e2e"]);
+    cmd.env("NO_COLOR", "1");
+
+    // Expect success - no warnings about missing $debug_id, $internal_debug, or $f1
+    cmd.assert().success();
 }
 
 #[test]

@@ -175,6 +175,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .to_string();
 
                 // Get args based on variant style
+                // Exclude allow_unused fields from args (they won't trigger CLI check warnings)
                 let args: Vec<String> = match variant_opt.style() {
                     darling::ast::Style::Unit => vec![],
                     darling::ast::Style::Tuple => variant_opt
@@ -182,7 +183,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         .iter()
                         .enumerate()
                         .filter_map(|(idx, f)| {
-                            if f.is_skipped() {
+                            if f.is_skipped() || f.allow_unused() {
                                 None
                             } else {
                                 Some(namer::UnnamedItem::from(idx).to_string())
@@ -192,6 +193,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     darling::ast::Style::Struct => variant_opt
                         .fields()
                         .iter()
+                        .filter(|f| !f.allow_unused())
                         .filter_map(|f| f.ident().as_ref().map(|id| id.to_string()))
                         .collect(),
                 };
