@@ -50,6 +50,11 @@ pub struct CheckArgs {
     /// Check all locales, not just the fallback language.
     #[arg(long)]
     pub all: bool,
+
+    /// Keys to ignore during validation. Can be specified multiple times
+    /// (e.g., --ignore a --ignore b) or comma-separated (e.g., --ignore a,b).
+    #[arg(long, value_delimiter = ',')]
+    pub ignore: Vec<String>,
 }
 
 /// Run the check command.
@@ -61,10 +66,54 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         return Ok(());
     }
 
+    // Convert ignore list to a HashSet for efficient lookups
+    let ignore_keys: HashSet<String> = args.ignore.into_iter().collect();
+
     // Prepare monolithic temp crate once for all checks
     prepare_monolithic_runner_crate(&workspace.workspace_info)
         .map_err(|e| CliError::Other(e.to_string()))?;
 
+    // First pass: collect all expected keys from all crates to validate ignore list
+    let temp_dir = workspace.workspace_info.root_dir.join(".es-fluent");
+    let mut all_known_keys: HashSet<String> = HashSet::new();
+
+    let pb = ui::create_progress_bar(workspace.valid.len() as u64, "Collecting keys...");
+
+    for krate in &workspace.valid {
+        pb.set_message(format!("Scanning {}", krate.name));
+        run_monolithic(&workspace.workspace_info, "check", &krate.name, &[])
+            .map_err(|e| CliError::Other(e.to_string()))?;
+        if let Ok(expected_keys) = read_inventory_file(&temp_dir, &krate.name) {
+            all_known_keys.extend(expected_keys.into_keys());
+        }
+        pb.inc(1);
+    }
+
+    pb.finish_and_clear();
+
+    // Validate that all ignore keys are known
+    if !ignore_keys.is_empty() {
+        let mut unknown_keys: Vec<&String> = ignore_keys
+            .iter()
+            .filter(|k| !all_known_keys.contains(*k))
+            .collect();
+
+        if !unknown_keys.is_empty() {
+            // Sort for deterministic error messages
+            unknown_keys.sort();
+
+            return Err(CliError::Other(format!(
+                "Unknown keys passed to --ignore: {}",
+                unknown_keys
+                    .iter()
+                    .map(|k| format!("'{}'", k))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )));
+        }
+    }
+
+    // Second pass: validate FTL files
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
     let pb = ui::create_progress_bar(workspace.valid.len() as u64, "Checking crates...");
@@ -72,7 +121,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     for krate in &workspace.valid {
         pb.set_message(format!("Checking {}", krate.name));
 
-        match check_crate(krate, &workspace.workspace_info, args.all) {
+        match validate_crate(krate, &temp_dir, args.all, &ignore_keys) {
             Ok(issues) => {
                 all_issues.extend(issues);
             },
@@ -114,20 +163,22 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 }
 
-use crate::core::WorkspaceInfo;
-
-/// Check a single crate by running the monolithic binary to collect inventory, then validating FTL files.
-fn check_crate(
+/// Validate a single crate's FTL files using already-collected inventory data.
+fn validate_crate(
     krate: &CrateInfo,
-    workspace: &WorkspaceInfo,
+    temp_dir: &Path,
     check_all: bool,
+    ignore_keys: &HashSet<String>,
 ) -> Result<Vec<ValidationIssue>> {
-    // Step 1: Get expected keys from inventory via monolithic binary
-    let temp_dir = workspace.root_dir.join(".es-fluent");
-    run_monolithic(workspace, "check", &krate.name, &[])?;
-    let expected_keys = read_inventory_file(&temp_dir, &krate.name)?;
+    // Read the inventory that was already collected in the first pass
+    let mut expected_keys = read_inventory_file(temp_dir, &krate.name)?;
 
-    // Step 2: Parse FTL files and validate against expected keys
+    // Filter out ignored keys
+    for key in ignore_keys {
+        expected_keys.remove(key);
+    }
+
+    // Validate FTL files against expected keys
     validate_ftl_files(krate, &expected_keys, check_all)
 }
 

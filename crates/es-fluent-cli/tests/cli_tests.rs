@@ -617,3 +617,30 @@ fn test_check_all() {
     cmd.args(&["es-fluent", "check", "--all"]);
     cmd.assert().failure();
 }
+
+#[test]
+fn test_check_ignore_unknown_key() {
+    let temp = setup_workspace_env();
+
+    // Try to ignore a key that doesn't exist in the inventory
+    let output = run_cli(&temp, &["check", "--ignore", "nonexistent-key"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_check_ignore_multiple_unknown_keys() {
+    let temp = setup_workspace_env();
+
+    // Try to ignore multiple keys that don't exist
+    let output = run_cli(
+        &temp,
+        &[
+            "check",
+            "--ignore",
+            "fake-key-1,fake-key-2",
+            "--ignore",
+            "another-fake",
+        ],
+    );
+    assert_snapshot!(output);
+}
