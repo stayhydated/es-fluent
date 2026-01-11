@@ -9,9 +9,9 @@ Derive macros and utilities for authoring strongly-typed messages with [Project 
 This framework gives you:
 
 - Derives to turn enums/structs into Fluent message IDs and arguments.
-- A [cli](crates/es-fluent-cli/README.md) to generate ftl files skeleton and other utilities.
-- [Language Enum Generation](crates/es-fluent-lang/README.md)
-- Integration via a [embedded singleton manager](crates/es-fluent-manager-embedded/README.md) or [es-fluent-manager-bevy](crates/es-fluent-manager-bevy/README.md) for [bevy](https://bevy.org/)
+- A [cli](../es-fluent-cli/README.md) to generate ftl files skeleton and other utilities.
+- [Language Enum Generation](../es-fluent-lang/README.md)
+- Integration via a [embedded singleton manager](../es-fluent-manager-embedded/README.md) or [es-fluent-manager-bevy](../es-fluent-manager-bevy/README.md) for [bevy](https://bevy.org/)
 
 ## Examples
 

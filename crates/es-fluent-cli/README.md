@@ -10,7 +10,7 @@ This tool automatically manages your Fluent (`.ftl`) translation files by analyz
 ## Installation
 
 ```sh
-cargo install es-fluent-cli
+cargo install es-fluent-cli --locked
 ```
 
 ## Commands
@@ -56,7 +56,7 @@ To ensure all your translations are valid and no keys are missing:
 cargo es-fluent check
 ```
 
-Use `--all` to check all locales, not just the fallback language.
+Use `--all` to check all locales, not just the fallback language, `--ignore <CRATE>` to ignore specific crates.
 
 ### Clean
 
