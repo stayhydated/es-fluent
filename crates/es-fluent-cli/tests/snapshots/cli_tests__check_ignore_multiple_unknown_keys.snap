@@ -1,0 +1,13 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Checker
+Discovered 2 crate(s)
+
+STDERR:
+Error: es_fluent::other
+
+  × Unknown keys passed to --ignore: 'another-fake', 'fake-key-1', 'fake-key-
+  │ 2'
