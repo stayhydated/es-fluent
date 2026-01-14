@@ -1,8 +1,8 @@
 //! Tests for validation functions.
 
 use darling::FromDeriveInput;
-use es_fluent_core::options::r#struct::StructOpts;
-use es_fluent_core::validation::validate_struct;
+use es_fluent_derive_core::options::r#struct::StructOpts;
+use es_fluent_derive_core::validation::validate_struct;
 use syn::{DeriveInput, parse_quote};
 
 #[test]

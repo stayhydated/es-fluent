@@ -13,6 +13,7 @@
 | **Core** | | |
 | `es-fluent` | [Architecture](crates/es-fluent/docs/ARCHITECTURE.md) | Ecosystem facade and entry point. |
 | `es-fluent-core` | [Architecture](crates/es-fluent-core/docs/ARCHITECTURE.md) | Fundamental types, registry traits, and memory layout. |
+| `es-fluent-derive-core` | [Architecture](crates/es-fluent-derive-core/docs/ARCHITECTURE.md) | Build-time logic (options, validation, namer) for derive macros. |
 | `es-fluent-derive` | [Architecture](crates/es-fluent-derive/docs/ARCHITECTURE.md) | Proc-macros for registration and trait implementation. |
 | `es-fluent-toml` | [Architecture](crates/es-fluent-toml/docs/ARCHITECTURE.md) | Configuration (`i18n.toml`) parsing and path resolution. |
 | **Language Support** | | |
@@ -35,7 +36,8 @@
 ### Core Layers
 
 - **`es-fluent`**: The user-facing library. Re-exports everything needed for general usage. Connects the global `OnceLock` context to specific backend managers.
-- **`es-fluent-core`**: The "glue" crate. Defines `FtlTypeInfo` (inventory payload) and registration mechanisms. It's a common dependency for almost everything.
+- **`es-fluent-core`**: The runtime "glue" crate. Defines `FtlTypeInfo` (inventory payload) and registration mechanisms. Used by the CLI helpers and runtime managers.
+- **`es-fluent-derive-core`**: The shared logic library for derive macros. Contains `darling` attribute parsing, validation rules, and FTL key naming algorithms.
 - **`es-fluent-derive`**: Provides the `#[derive(EsFluent)]` macro. transforming Rust types into inventory registrations and `FluentDisplay` implementations.
 - **`es-fluent-toml`**: Centralizes configuration logic. Ensures that the CLI and proc-macros agree on where assets are located and what languages are available.
 

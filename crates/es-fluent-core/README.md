@@ -5,4 +5,4 @@
 
 **Internal Crate**: Core types and traits for `es-fluent`.
 
-This contains the shared definitions used by the macros (`es-fluent-derive`), the CLI (`es-fluent-cli`), and the runtime managers. You generally do not need to depend on this crate directly, as its types are re-exported where needed.
+This contains the shared definitions used by the runtime managers and CLI. Build-time logic has been moved to `es-fluent-derive-core`.

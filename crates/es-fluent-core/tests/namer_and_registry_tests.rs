@@ -1,6 +1,6 @@
 use es_fluent_core::meta::TypeKind;
-use es_fluent_core::namer::{FluentKey, UnnamedItem};
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::namer::{FluentKey, UnnamedItem};
 use proc_macro2::Span;
 use syn::Ident;
 
@@ -39,19 +39,19 @@ fn registry_structs_equality() {
 
     let v1 = FtlVariant::builder()
         .name("Network".to_string())
-        .ftl_key(FluentKey::from(&ident).join("Network"))
+        .ftl_key(FluentKey::from(&ident).join("Network").to_string())
         .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     let v1_dup = FtlVariant::builder()
         .name("Network".to_string())
-        .ftl_key(FluentKey::from(&ident).join("Network"))
+        .ftl_key(FluentKey::from(&ident).join("Network").to_string())
         .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
     let v2 = FtlVariant::builder()
         .name("Io".to_string())
-        .ftl_key(FluentKey::from(&ident).join("Io"))
+        .ftl_key(FluentKey::from(&ident).join("Io").to_string())
         .maybe_args(None)
         .build();
 
@@ -81,7 +81,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
 
     let variant = FtlVariant::builder()
         .name("Network".to_string())
-        .ftl_key(FluentKey::from(&ident).join("Network"))
+        .ftl_key(FluentKey::from(&ident).join("Network").to_string())
         .maybe_args(Some(vec!["code".into(), "message".into()]))
         .build();
 
@@ -89,7 +89,7 @@ fn snapshot_ftl_variant_and_typeinfo_debug() {
 
     let variant2 = FtlVariant::builder()
         .name("Io".to_string())
-        .ftl_key(FluentKey::from(&ident).join("Io"))
+        .ftl_key(FluentKey::from(&ident).join("Io").to_string())
         .maybe_args(None)
         .build();
 

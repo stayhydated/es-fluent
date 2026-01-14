@@ -6,7 +6,7 @@ use bon::Builder;
 #[derive(Builder, Clone, Debug, Eq, Hash, PartialEq, serde::Serialize)]
 pub struct FtlVariant {
     pub name: String,
-    pub ftl_key: crate::namer::FluentKey,
+    pub ftl_key: String,
     #[builder(default)]
     pub args: Vec<String>,
     /// The module path where this type is defined.
@@ -75,7 +75,7 @@ impl From<&StaticFtlTypeInfo> for FtlTypeInfo {
                 .iter()
                 .map(|v| FtlVariant {
                     name: v.name.to_string(),
-                    ftl_key: crate::namer::FluentKey(v.ftl_key.to_string()),
+                    ftl_key: v.ftl_key.to_string(),
                     args: v.args.iter().map(|s| s.to_string()).collect(),
                     module_path: v.module_path.to_string(),
                 })

@@ -3936,12 +3936,41 @@ name = "es-fluent-core"
 version = "0.5.3"
 dependencies = [
  "bon",
+ "es-fluent-derive-core",
+ "insta",
+ "inventory",
+ "proc-macro2",
+ "serde",
+ "strum 0.27.2",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "es-fluent-derive"
+version = "0.5.3"
+dependencies = [
+ "darling 0.23.0",
+ "es-fluent-derive-core",
+ "getset",
+ "heck 0.5.0",
+ "insta",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "strum 0.27.2",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "es-fluent-derive-core"
+version = "0.5.3"
+dependencies = [
+ "bon",
  "darling 0.23.0",
  "derive_more 2.0.1",
  "getset",
  "heck 0.5.0",
  "insta",
- "inventory",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
@@ -3952,28 +3981,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "es-fluent-derive"
-version = "0.5.3"
-dependencies = [
- "darling 0.23.0",
- "es-fluent-core",
- "getset",
- "heck 0.5.0",
- "insta",
- "proc-macro-error2",
- "proc-macro2",
- "quote",
- "strum 0.27.2",
- "syn 2.0.111",
-]
-
-[[package]]
 name = "es-fluent-generate"
 version = "0.5.3"
 dependencies = [
  "clap",
  "colored",
  "es-fluent-core",
+ "es-fluent-derive-core",
  "fluent-syntax",
  "heck 0.5.0",
  "proc-macro2",

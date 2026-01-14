@@ -13,21 +13,14 @@ readme = "README.md"
 
 [dependencies]
 bon = { workspace = true }
-darling = { workspace = true }
-derive_more = { features = [ "full" ], workspace = true }
-getset = { workspace = true }
-heck = { workspace = true }
 inventory = { workspace = true }
-proc-macro-error2 = { workspace = true }
-proc-macro2 = { workspace = true }
-quote = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 strum = { features = [ "derive" ], workspace = true }
-syn = { features = [ "full" ], workspace = true }
-thiserror = { workspace = true }
 
 [dev-dependencies]
+es-fluent-derive-core = { workspace = true }
 insta = { workspace = true }
+proc-macro2 = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
 
 [lints]

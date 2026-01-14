@@ -1,4 +1,4 @@
-use es_fluent_core::error::{ErrorExt, EsFluentCoreError};
+use es_fluent_derive_core::error::{ErrorExt, EsFluentCoreError};
 use proc_macro2::Span;
 
 #[test]

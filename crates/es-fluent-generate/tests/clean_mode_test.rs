@@ -1,6 +1,6 @@
 use es_fluent_core::meta::TypeKind;
-use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::namer::FluentKey;
 use proc_macro2::Span;
 use std::fs;
 use syn::Ident;
@@ -37,7 +37,9 @@ awdawd = awdwa
     // 2. Define valid items (only GroupA Key1)
     let key1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+            .join("Key1")
+            .to_string(),
         args: vec![],
         module_path: "test".to_string(),
     };

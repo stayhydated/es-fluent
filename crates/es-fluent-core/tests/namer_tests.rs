@@ -1,4 +1,4 @@
-use es_fluent_core::namer::FluentKey;
+use es_fluent_derive_core::namer::FluentKey;
 
 fn ident(name: &str) -> syn::Ident {
     syn::parse_str::<syn::Ident>(name).expect("valid ident")

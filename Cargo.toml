@@ -4,6 +4,7 @@ members = [
   "crates/es-fluent-cli",
   "crates/es-fluent-cli-helpers",
   "crates/es-fluent-core",
+  "crates/es-fluent-derive-core",
   "crates/es-fluent-toml",
   "crates/es-fluent-derive",
   "crates/es-fluent-generate",
@@ -49,6 +50,7 @@ derive_more = "2.0.1"
 es-fluent = { path = "crates/es-fluent", version = "0.5.3" }
 es-fluent-core = { path = "crates/es-fluent-core", version = "0.5.3" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.5.3" }
+es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.5.3" }
 es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.5.3" }
 es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.5.3" }
 es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.5.3" }

@@ -4,28 +4,36 @@ This document details the architecture of the `es-fluent-core` crate, which serv
 
 ## Overview
 
-`es-fluent-core` provides the common type definitions, traits, and registration mechanisms required to bridge compile-time Rust type information with runtime localization logic. It is shared by:
+`es-fluent-core` provides the common type definitions and registration mechanisms required to bridge compile-time Rust type information with runtime localization logic. It is used by:
 
-- `es-fluent-derive`: To generate code that populates these structures.
-- `es-fluent-cli-helpers`: To consume the registered type information at runtime for FTL generation.
-- User code: As a transient dependency for the generated code.
+- **`es-fluent-derive`**: Generated code references types like `StaticFtlTypeInfo` for inventory registration.
+- **`es-fluent-cli-helpers`**: Consumes registered type information at runtime for FTL generation.
+- **User code**: As a transitive dependency via the generated code.
 
 ## Architecture
 
-The core architecture relies on the `inventory` crate to implement a distributed collection pattern. This allows decentralized registration of method/type signatures across multiple crates without a central registry file.
+This crate provides the minimal runtime types required for `inventory` registration and FTL generation.
+It works in tandem with **`es-fluent-derive-core`**, which handles build-time logic (parsing, validation).
+
+The `inventory` registration pattern remains central:
 
 ```mermaid
 flowchart TD
-    subgraph DEF["Definitions"]
+    subgraph DEF ["Definitions (Core & Derive-Core)"]
         FTL[FtlTypeInfo]
         VAR[FtlVariant]
         KEY[FluentKey]
     end
 
+    subgraph "Derive Core"
+        OPTS["Options Parsing"]
+        VAL["Validation"]
+        NAMER["Namer"]
+    end
+
     subgraph "Compile Time (Derive)"
         MACRO["es-fluent-derive"]
         STATIC[StaticFtlTypeInfo]
-        OPTS["Options Parsing (StructOpts/EnumOpts)"]
     end
 
     subgraph "Link Time"
@@ -39,6 +47,8 @@ flowchart TD
     end
 
     MACRO -->|uses| OPTS
+    MACRO -->|uses| VAL
+    MACRO -->|uses| NAMER
     MACRO -->|generates| STATIC
     STATIC -->|collect!| INV
     INV -->|places pointers| SECT
@@ -63,12 +73,10 @@ The system uses a "dual-type" approach to support both `const` context construct
 
 ## Modules
 
+### `es-fluent-core` (Runtime)
+
 - `registry`: Defines the FTL type structures (`FtlTypeInfo`, etc.) and inventory collection logic.
 - `meta`: Low-level type kind metadata (Enum vs Struct).
-- `namer`: Helpers for correct FTL key naming (`FluentKey`, `FluentDoc`).
-- `options`: Parsed representation of struct and enum attributes, used by the derive macros.
-- `validation`: Logic for validating attribute usage (e.g., ensuring only one default field).
-- `error`: Error types for runtime operations and option parsing.
 
 ## Registration Logic
 

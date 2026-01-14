@@ -44,7 +44,7 @@ pub fn write_inventory_for_crate(crate_name: &str) {
     let mut keys_map: HashMap<String, HashSet<String>> = HashMap::new();
     for info in &type_infos {
         for variant in &info.variants {
-            let key = variant.ftl_key.0.clone();
+            let key = variant.ftl_key.clone();
             let vars: HashSet<String> = variant.args.iter().cloned().collect();
             keys_map.entry(key).or_default().extend(vars);
         }

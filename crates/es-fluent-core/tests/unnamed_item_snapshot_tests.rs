@@ -1,4 +1,4 @@
-use es_fluent_core::namer::UnnamedItem;
+use es_fluent_derive_core::namer::UnnamedItem;
 
 #[test]
 fn unnamed_item_formats_snapshot() {

@@ -1,8 +1,8 @@
 use darling::FromDeriveInput as _;
-use es_fluent_core::namer;
-use es_fluent_core::options::r#enum::EnumKvOpts;
-use es_fluent_core::options::r#struct::StructKvOpts;
-use es_fluent_core::options::this::ThisOpts;
+use es_fluent_derive_core::namer;
+use es_fluent_derive_core::options::r#enum::EnumKvOpts;
+use es_fluent_derive_core::options::r#struct::StructKvOpts;
+use es_fluent_derive_core::options::this::ThisOpts;
 
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::TokenStream;

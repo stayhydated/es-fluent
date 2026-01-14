@@ -1,6 +1,6 @@
 use es_fluent_core::meta::TypeKind;
-use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::namer::FluentKey;
 use es_fluent_generate::{FluentParseMode, generate};
 use proc_macro2::Span;
 use std::fs;
@@ -54,25 +54,33 @@ what-Hi = Hi
     let gender_variants = vec![
         FtlVariant {
             name: "Female".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Female"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                .join("Female")
+                .to_string(),
             args: vec![],
             module_path: "test".to_string(),
         },
         FtlVariant {
             name: "Helicopter".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Helicopter"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                .join("Helicopter")
+                .to_string(),
             args: vec![],
             module_path: "test".to_string(),
         },
         FtlVariant {
             name: "Male".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Male"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                .join("Male")
+                .to_string(),
             args: vec![],
             module_path: "test".to_string(),
         },
         FtlVariant {
             name: "Other".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site())).join("Other"),
+            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                .join("Other")
+                .to_string(),
             args: vec![],
             module_path: "test".to_string(),
         },
@@ -88,7 +96,9 @@ what-Hi = Hi
     // 2. HelloUser (Complete)
     let hello_user_variants = vec![FtlVariant {
         name: "hello_user".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("HelloUser", Span::call_site())).join("hello_user"),
+        ftl_key: FluentKey::from(&Ident::new("HelloUser", Span::call_site()))
+            .join("hello_user")
+            .to_string(),
         args: vec!["f0".to_string()],
         module_path: "test".to_string(),
     }];
@@ -104,7 +114,9 @@ what-Hi = Hi
     let shared_variants = vec![
         FtlVariant {
             name: "Photos".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site())).join("Photos"),
+            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site()))
+                .join("Photos")
+                .to_string(),
             args: vec![
                 "user_name".to_string(),
                 "photo_count".to_string(),
@@ -115,7 +127,9 @@ what-Hi = Hi
         // NEW KEY
         FtlVariant {
             name: "Videos".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site())).join("Videos"),
+            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site()))
+                .join("Videos")
+                .to_string(),
             args: vec![],
             module_path: "test".to_string(),
         },
@@ -131,7 +145,9 @@ what-Hi = Hi
     // 4. What (Complete)
     let what_variants = vec![FtlVariant {
         name: "Hi".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("What", Span::call_site())).join("Hi"),
+        ftl_key: FluentKey::from(&Ident::new("What", Span::call_site()))
+            .join("Hi")
+            .to_string(),
         args: vec![],
         module_path: "test".to_string(),
     }];

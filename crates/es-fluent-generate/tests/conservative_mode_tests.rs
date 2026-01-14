@@ -1,6 +1,6 @@
 use es_fluent_core::meta::TypeKind;
-use es_fluent_core::namer::FluentKey;
 use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::namer::FluentKey;
 use es_fluent_generate::{FluentParseMode, generate};
 use proc_macro2::Span;
 use std::fs;
@@ -27,13 +27,17 @@ group-a-key1 = Initial Value
     // 2. New State: GroupA with Key1 AND Key2
     let key1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+            .join("Key1")
+            .to_string(),
         args: vec![],
         module_path: "test".to_string(),
     };
     let key2 = FtlVariant {
         name: "Key2".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key2"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+            .join("Key2")
+            .to_string(),
         args: vec![],
         module_path: "test".to_string(),
     };

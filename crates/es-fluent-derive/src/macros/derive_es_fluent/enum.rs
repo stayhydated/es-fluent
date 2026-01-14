@@ -1,5 +1,5 @@
-use es_fluent_core::namer;
-use es_fluent_core::options::r#enum::{EnumFieldOpts, EnumOpts};
+use es_fluent_derive_core::namer;
+use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
 
 use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;

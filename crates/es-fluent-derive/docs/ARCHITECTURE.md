@@ -6,7 +6,7 @@ This document details the architecture of the `es-fluent-derive` crate, which pr
 
 `es-fluent-derive` is a procedural macro crate that inspects Rust structs and enums at compile time to:
 
-1. Verify invalid or missing attributes (using `es-fluent-core::options`).
+1. Verify invalid or missing attributes (using `es-fluent-derive-core::options`).
 1. Generate `impl FluentDisplay` and `impl FluentValue` implementations for runtime usage.
 1. Generate static registration code using `inventory::submit!`.
 
@@ -22,7 +22,7 @@ flowchart TD
 
     subgraph MACRO["Proc Macro"]
         PARSE["syn Parser"]
-        OPTS["Options Extraction (es-fluent-core)"]
+        OPTS["Options Extraction (es-fluent-derive-core)"]
         GEN["Code Generation"]
     end
 
@@ -45,7 +45,7 @@ flowchart TD
 ## Key Components
 
 - **`darling`**: Used for declarative attribute parsing (`#[fluent(...)]`).
-- **`es-fluent-core::options`**: Defines the target structures (`StructOpts`, `EnumOpts`) that attributes are parsed into.
+- **`es-fluent-derive-core::options`**: Defines the target structures (`StructOpts`, `EnumOpts`) that attributes are parsed into.
 - **`syn` / `quote`**: Standard tools for parsing and generating Rust code.
 - **`es-fluent-core`**: Provides the runtime target types (`StaticFtlTypeInfo`) that the specific macro generates code for.
 

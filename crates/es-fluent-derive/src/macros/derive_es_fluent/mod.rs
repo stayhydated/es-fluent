@@ -2,7 +2,7 @@ mod r#enum;
 mod r#struct;
 
 use darling::FromDeriveInput as _;
-use es_fluent_core::{
+use es_fluent_derive_core::{
     options::{r#enum::EnumOpts, r#struct::StructOpts},
     validation,
 };

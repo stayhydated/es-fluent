@@ -8,9 +8,7 @@ FtlTypeInfo {
     variants: [
         FtlVariant {
             name: "Network",
-            ftl_key: FluentKey(
-                "error_type-Network",
-            ),
+            ftl_key: "error_type-Network",
             args: [
                 "code",
                 "message",
@@ -19,9 +17,7 @@ FtlTypeInfo {
         },
         FtlVariant {
             name: "Io",
-            ftl_key: FluentKey(
-                "error_type-Io",
-            ),
+            ftl_key: "error_type-Io",
             args: [],
             module_path: "",
         },

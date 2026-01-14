@@ -4,9 +4,7 @@ expression: "&variant"
 ---
 FtlVariant {
     name: "Network",
-    ftl_key: FluentKey(
-        "error_type-Network",
-    ),
+    ftl_key: "error_type-Network",
     args: [
         "code",
         "message",
