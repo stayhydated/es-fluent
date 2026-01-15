@@ -41,6 +41,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         ftl_key: #ftl_key_str,
                         args: &[],
                         module_path: module_path!(),
+                        line: line!(),
                     }
                 ];
 

@@ -12,6 +12,9 @@ pub struct FtlVariant {
     /// The module path where this type is defined.
     #[builder(default)]
     pub module_path: String,
+    /// The line number where this variant is defined in the Rust source.
+    #[builder(default)]
+    pub line: u32,
 }
 
 #[derive(Builder, Clone, Debug, Eq, Hash, PartialEq, serde::Serialize)]
@@ -40,6 +43,8 @@ pub struct StaticFtlVariant {
     pub args: &'static [&'static str],
     /// The module path from `module_path!()`.
     pub module_path: &'static str,
+    /// The line number from `line!()` macro.
+    pub line: u32,
 }
 
 /// A static variant of `FtlTypeInfo` that can be constructed at compile time
@@ -78,6 +83,7 @@ impl From<&StaticFtlTypeInfo> for FtlTypeInfo {
                     ftl_key: v.ftl_key.to_string(),
                     args: v.args.iter().map(|s| s.to_string()).collect(),
                     module_path: v.module_path.to_string(),
+                    line: v.line,
                 })
                 .collect(),
             file_path: Some(static_info.file_path.to_string()),

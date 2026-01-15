@@ -1,0 +1,46 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Checker
+Discovered 1 crate(s)
+
+STDERR:
+Error: es_fluent::validate::report
+
+  × validation found 1 error(s) and 2 warning(s)
+
+Error: es_fluent::validate::missing_key
+
+  × missing translation key
+  help: Add translation for 'status-Pending' in ]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-
+        check-issues.ftl]8;;\
+
+Warning: es_fluent::validate::missing_variable
+
+  ⚠ translation omits variable
+   ╭─[]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-check-issues.ftl]8;;\:4:1]
+ 2 │ 
+ 3 │ # Missing the 'name' variable - should cause a warning
+ 4 │ greeting = Hello!
+   · ────┬───
+   ·     ╰── this message omits variable '$name'
+ 5 │ 
+ 6 │ ## Notification
+   ╰────
+  help: Variable '$name' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:4]8;;\
+
+Warning: es_fluent::validate::missing_variable
+
+  ⚠ translation omits variable
+    ╭─[]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-check-issues.ftl]8;;\:9:1]
+  7 │ 
+  8 │ # Missing 'count' variable - should cause a warning
+  9 │ notification = Hello { $user }
+    · ──────┬─────
+    ·       ╰── this message omits variable '$count'
+ 10 │ 
+ 11 │ ## Status
+    ╰────
+  help: Variable '$count' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:10]8;;\
