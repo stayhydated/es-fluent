@@ -206,4 +206,3 @@ pub struct StructKvFluentAttributeArgs {
     #[darling(default)]
     derive: darling::util::PathList,
 }
-impl StructKvFluentAttributeArgs {}

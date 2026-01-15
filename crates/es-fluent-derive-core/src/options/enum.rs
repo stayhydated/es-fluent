@@ -255,5 +255,3 @@ pub struct EnumKvFluentAttributeArgs {
     #[darling(default)]
     derive: darling::util::PathList,
 }
-
-impl EnumKvFluentAttributeArgs {}

@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 
+#[doc(hidden)]
 pub mod meta;
+
+#[doc(hidden)]
 pub mod registry;
 
 #[cfg(feature = "derive")]
