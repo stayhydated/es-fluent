@@ -1,4 +1,4 @@
-//! This module provides the error types for `es-fluent-core`.
+//! This module provides the error types for `es-fluent-derive-core`.
 
 use proc_macro_error2::{abort, abort_call_site, emit_error};
 use proc_macro2::Span;
@@ -100,5 +100,5 @@ impl ErrorExt for EsFluentCoreError {
     }
 }
 
-/// A result type for `es-fluent-core`.
+/// A result type for `es-fluent-derive-core`.
 pub type EsFluentCoreResult<T> = Result<T, EsFluentCoreError>;

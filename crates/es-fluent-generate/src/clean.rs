@@ -1,5 +1,5 @@
 use crate::error::FluentGenerateError;
-use es_fluent_core::registry::FtlTypeInfo;
+use es_fluent::registry::FtlTypeInfo;
 use std::fs;
 use std::path::Path;
 

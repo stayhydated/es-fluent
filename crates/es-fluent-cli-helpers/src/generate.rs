@@ -1,6 +1,6 @@
 //! FTL file generation functionality.
 
-use es_fluent_core::registry::FtlTypeInfo;
+use es_fluent::registry::FtlTypeInfo;
 use std::path::PathBuf;
 
 pub use es_fluent_generate::FluentParseMode;
@@ -224,7 +224,7 @@ impl EsFluentGenerator {
 /// Collect all registered type infos for a given crate.
 fn collect_type_infos(crate_name: &str) -> Vec<FtlTypeInfo> {
     let crate_ident = crate_name.replace('-', "_");
-    es_fluent_core::registry::get_all_ftl_type_infos()
+    es_fluent::registry::get_all_ftl_type_infos()
         .into_iter()
         .filter(|info| {
             info.module_path == crate_ident

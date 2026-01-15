@@ -3,6 +3,7 @@
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 
+pub mod choice;
 pub mod r#enum;
 pub mod r#struct;
 pub mod this;

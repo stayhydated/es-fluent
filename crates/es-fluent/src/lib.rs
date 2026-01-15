@@ -1,5 +1,11 @@
 #![doc = include_str!("../README.md")]
 
+#[doc(hidden)]
+pub mod meta;
+
+#[doc(hidden)]
+pub mod registry;
+
 #[cfg(feature = "derive")]
 pub use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentKv, EsFluentThis};
 
@@ -17,9 +23,6 @@ pub use rust_embed as __rust_embed;
 
 #[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
-
-#[doc(hidden)]
-pub use es_fluent_core as __core;
 
 #[doc(hidden)]
 pub use unic_langid;

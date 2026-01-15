@@ -3864,8 +3864,8 @@ dependencies = [
 name = "es-fluent"
 version = "0.5.3"
 dependencies = [
+ "bon",
  "chrono",
- "es-fluent-core",
  "es-fluent-derive",
  "es-fluent-generate",
  "es-fluent-manager-core",
@@ -3873,6 +3873,7 @@ dependencies = [
  "inventory",
  "rust-embed",
  "rust_decimal",
+ "serde",
  "strum 0.27.2",
  "tempfile",
  "tracing",
@@ -3922,7 +3923,7 @@ dependencies = [
  "bon",
  "cargo_metadata",
  "clap",
- "es-fluent-core",
+ "es-fluent",
  "es-fluent-generate",
  "es-fluent-toml",
  "serde",
@@ -3932,7 +3933,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "es-fluent-core"
+name = "es-fluent-derive"
+version = "0.5.3"
+dependencies = [
+ "darling 0.23.0",
+ "es-fluent-derive-core",
+ "getset",
+ "heck 0.5.0",
+ "insta",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "strum 0.27.2",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "es-fluent-derive-core"
 version = "0.5.3"
 dependencies = [
  "bon",
@@ -3941,7 +3958,6 @@ dependencies = [
  "getset",
  "heck 0.5.0",
  "insta",
- "inventory",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
@@ -3952,28 +3968,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "es-fluent-derive"
-version = "0.5.3"
-dependencies = [
- "darling 0.23.0",
- "es-fluent-core",
- "getset",
- "heck 0.5.0",
- "insta",
- "proc-macro-error2",
- "proc-macro2",
- "quote",
- "strum 0.27.2",
- "syn 2.0.111",
-]
-
-[[package]]
 name = "es-fluent-generate"
 version = "0.5.3"
 dependencies = [
  "clap",
  "colored",
- "es-fluent-core",
+ "es-fluent",
+ "es-fluent-derive-core",
  "fluent-syntax",
  "heck 0.5.0",
  "proc-macro2",

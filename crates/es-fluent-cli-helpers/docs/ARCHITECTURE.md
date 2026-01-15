@@ -73,7 +73,7 @@ classDiagram
 sequenceDiagram
     participant Runner as es-fluent-runner
     participant Helpers as run()
-    participant Inventory as es_fluent_core::registry
+    participant Inventory as es_fluent::registry
     participant Generator as EsFluentGenerator
 
     Runner->>Helpers: run()

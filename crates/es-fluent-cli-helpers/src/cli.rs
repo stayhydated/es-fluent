@@ -32,7 +32,7 @@ pub fn write_inventory_for_crate(crate_name: &str) {
     let crate_ident = crate_name.replace('-', "_");
 
     // Collect all registered type infos for this crate
-    let type_infos: Vec<_> = es_fluent_core::registry::get_all_ftl_type_infos()
+    let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .into_iter()
         .filter(|info| {
             info.module_path == crate_ident
@@ -44,7 +44,7 @@ pub fn write_inventory_for_crate(crate_name: &str) {
     let mut keys_map: HashMap<String, HashSet<String>> = HashMap::new();
     for info in &type_infos {
         for variant in &info.variants {
-            let key = variant.ftl_key.0.clone();
+            let key = variant.ftl_key.clone();
             let vars: HashSet<String> = variant.args.iter().cloned().collect();
             keys_map.entry(key).or_default().extend(vars);
         }

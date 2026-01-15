@@ -1,5 +1,5 @@
-use es_fluent_core::namer;
-use es_fluent_core::options::r#enum::{EnumFieldOpts, EnumOpts};
+use es_fluent_derive_core::namer;
+use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
 
 use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;
@@ -199,7 +199,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                 let args_tokens: Vec<_> = args.iter().map(|a| quote! { #a }).collect();
 
                 quote! {
-                    ::es_fluent::__core::registry::StaticFtlVariant {
+                    ::es_fluent::registry::StaticFtlVariant {
                         name: #variant_name,
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
@@ -217,13 +217,13 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             mod #mod_name {
                 use super::*;
 
-                static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+                static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
                     #(#static_variants),*
                 ];
 
-                static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
-                    ::es_fluent::__core::registry::StaticFtlTypeInfo {
-                        type_kind: ::es_fluent::__core::meta::TypeKind::Enum,
+                static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
+                    ::es_fluent::registry::StaticFtlTypeInfo {
+                        type_kind: ::es_fluent::meta::TypeKind::Enum,
                         type_name: #type_name,
                         variants: VARIANTS,
                         file_path: file!(),

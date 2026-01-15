@@ -1,5 +1,5 @@
 use darling::FromDeriveInput;
-use es_fluent_core::options::{
+use es_fluent_derive_core::options::{
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructKvOpts, StructOpts},
 };

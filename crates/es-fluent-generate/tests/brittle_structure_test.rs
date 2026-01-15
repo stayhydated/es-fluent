@@ -1,6 +1,6 @@
-use es_fluent_core::meta::TypeKind;
-use es_fluent_core::namer::FluentKey;
-use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent::meta::TypeKind;
+use es_fluent::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::namer::FluentKey;
 use es_fluent_generate::{FluentParseMode, generate};
 use proc_macro2::Span;
 use std::fs;
@@ -35,13 +35,17 @@ manual-key = Contains manual stuff
     // Add a NEW key to GroupA (Key2)
     let key_a_1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+            .join("Key1")
+            .to_string(),
         args: vec![],
         module_path: "test".to_string(),
     };
     let key_a_2 = FtlVariant {
         name: "Key2".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site())).join("Key2"),
+        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+            .join("Key2")
+            .to_string(),
         args: vec![],
         module_path: "test".to_string(),
     };
@@ -55,7 +59,9 @@ manual-key = Contains manual stuff
 
     let key_b_1 = FtlVariant {
         name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupB", Span::call_site())).join("Key1"),
+        ftl_key: FluentKey::from(&Ident::new("GroupB", Span::call_site()))
+            .join("Key1")
+            .to_string(),
         args: vec![],
         module_path: "test".to_string(),
     };

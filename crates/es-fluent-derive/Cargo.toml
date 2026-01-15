@@ -16,7 +16,7 @@ proc-macro = true
 
 [dependencies]
 darling = { workspace = true }
-es-fluent-core = { workspace = true }
+es-fluent-derive-core = { workspace = true }
 getset = { workspace = true }
 heck = { workspace = true }
 proc-macro-error2 = { workspace = true }
@@ -26,6 +26,7 @@ strum = { features = [ "derive" ], workspace = true }
 syn = { features = [ "full" ], workspace = true }
 
 [dev-dependencies]
+es-fluent-derive-core = { workspace = true }
 insta = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
 

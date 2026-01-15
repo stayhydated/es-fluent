@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 use clap::ValueEnum;
-use es_fluent_core::meta::TypeKind;
-use es_fluent_core::namer::FluentKey;
-use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent::meta::TypeKind;
+use es_fluent::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::namer::FluentKey;
 use fluent_syntax::{ast, parser};
 use std::collections::HashMap;
 use std::{fs, path::Path};
@@ -294,10 +294,7 @@ pub(crate) fn smart_merge(
 
                 if let Some(ref group_name) = current_group_name
                     && let Some(info) = item_map.get_mut(group_name)
-                    && let Some(idx) = info
-                        .variants
-                        .iter()
-                        .position(|v| v.ftl_key.to_string() == *key)
+                    && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == *key)
                 {
                     info.variants.remove(idx);
                     handled = true;
@@ -305,11 +302,7 @@ pub(crate) fn smart_merge(
 
                 if !handled {
                     for info in item_map.values_mut() {
-                        if let Some(idx) = info
-                            .variants
-                            .iter()
-                            .position(|v| v.ftl_key.to_string() == *key)
-                        {
+                        if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == *key) {
                             info.variants.remove(idx);
                             handled = true;
                             break;
@@ -325,11 +318,7 @@ pub(crate) fn smart_merge(
                 let key = format!("{}{}", FluentKey::DELIMITER, term.id.name);
                 let mut handled = false;
                 for info in item_map.values_mut() {
-                    if let Some(idx) = info
-                        .variants
-                        .iter()
-                        .position(|v| v.ftl_key.to_string() == key)
-                    {
+                    if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
                         info.variants.remove(idx);
                         handled = true;
                         break;
@@ -472,7 +461,8 @@ fn build_target_resource(items: &[FtlTypeInfo]) -> ast::Resource<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use es_fluent_core::{meta::TypeKind, namer::FluentKey};
+    use es_fluent::meta::TypeKind;
+    use es_fluent_derive_core::namer::FluentKey;
     use proc_macro2::Ident;
     use std::fs;
     use tempfile::TempDir;
@@ -511,7 +501,7 @@ mod tests {
             .join("Variant1");
         let variant = FtlVariant {
             name: "variant1".to_string(),
-            ftl_key,
+            ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -554,7 +544,7 @@ mod tests {
             .join("Variant1");
         let variant = FtlVariant {
             name: "variant1".to_string(),
-            ftl_key,
+            ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -595,7 +585,7 @@ mod tests {
             .join("Variant1");
         let variant = FtlVariant {
             name: "variant1".to_string(),
-            ftl_key,
+            ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -647,7 +637,7 @@ existing-key = Existing Value
             .join("ExistingKey");
         let variant = FtlVariant {
             name: "ExistingKey".to_string(),
-            ftl_key,
+            ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -683,7 +673,8 @@ existing-key = Existing Value
         let apple_variant = FtlVariant {
             name: "Red".to_string(),
             ftl_key: FluentKey::from(&Ident::new("Apple", proc_macro2::Span::call_site()))
-                .join("Red"),
+                .join("Red")
+                .to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -698,7 +689,8 @@ existing-key = Existing Value
         let banana_variant = FtlVariant {
             name: "Yellow".to_string(),
             ftl_key: FluentKey::from(&Ident::new("Banana", proc_macro2::Span::call_site()))
-                .join("Yellow"),
+                .join("Yellow")
+                .to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -717,7 +709,7 @@ existing-key = Existing Value
 
         let banana_this_variant = FtlVariant {
             name: "this".to_string(),
-            ftl_key: banana_this_key,
+            ftl_key: banana_this_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
@@ -770,19 +762,19 @@ existing-key = Existing Value
 
         let this_variant = FtlVariant {
             name: "this".to_string(),
-            ftl_key: this_key,
+            ftl_key: this_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
         let apple_variant = FtlVariant {
             name: "Apple".to_string(),
-            ftl_key: FluentKey::from(&fruit_ident).join("Apple"),
+            ftl_key: FluentKey::from(&fruit_ident).join("Apple").to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
         let banana_variant = FtlVariant {
             name: "Banana".to_string(),
-            ftl_key: FluentKey::from(&fruit_ident).join("Banana"),
+            ftl_key: FluentKey::from(&fruit_ident).join("Banana").to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
         };
