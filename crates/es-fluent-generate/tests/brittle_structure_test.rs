@@ -40,7 +40,7 @@ manual-key = Contains manual stuff
             .to_string(),
         args: vec![],
         module_path: "test".to_string(),
-            line: 0,
+        line: 0,
     };
     let key_a_2 = FtlVariant {
         name: "Key2".to_string(),
@@ -49,7 +49,7 @@ manual-key = Contains manual stuff
             .to_string(),
         args: vec![],
         module_path: "test".to_string(),
-            line: 0,
+        line: 0,
     };
     let group_a = FtlTypeInfo {
         type_kind: TypeKind::Enum,
@@ -66,7 +66,7 @@ manual-key = Contains manual stuff
             .to_string(),
         args: vec![],
         module_path: "test".to_string(),
-            line: 0,
+        line: 0,
     };
     let group_b = FtlTypeInfo {
         type_kind: TypeKind::Enum,

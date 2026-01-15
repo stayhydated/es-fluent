@@ -90,6 +90,8 @@ fn run_cli(temp_dir: &assert_fs::TempDir, args: &[&str]) -> String {
 
     // Disable all colors via standard env var
     cmd.env("NO_COLOR", "1");
+    // Disable hyperlinks
+    cmd.env("FORCE_HYPERLINK", "0");
 
     let assert = cmd.assert();
     let output = assert.get_output();
@@ -524,11 +526,9 @@ fn test_check_syntax_error() {
     let fixture_path = FIXTURES_DIR.join("check-syntax-error/test-app-a.ftl");
     std::fs::copy(&fixture_path, &ftl_path).expect("failed to copy fixture");
 
-    // Run check, expect failure
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
-    cmd.current_dir(temp.path());
-    cmd.args(&["es-fluent", "check"]);
-    cmd.assert().failure();
+    // Run check and snapshot output
+    let output = run_cli(&temp, &["check"]);
+    assert_snapshot!(output);
 }
 
 #[test]
@@ -671,7 +671,7 @@ mod check_issues {
         let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
         cmd.current_dir(temp.path());
         cmd.args(&["es-fluent", "check"]);
-        
+
         // It should exit with failure code
         cmd.assert().failure();
 

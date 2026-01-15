@@ -143,7 +143,7 @@ pub struct MissingVariableWarning {
 
 /// Error when an FTL file has syntax errors.
 #[derive(Debug, Diagnostic, Error)]
-#[error("FTL syntax error in {locale}/{file_name}")]
+#[error("FTL syntax error")]
 #[diagnostic(code(es_fluent::validate::syntax_error))]
 pub struct FtlSyntaxError {
     /// The source content of the FTL file.
@@ -156,9 +156,6 @@ pub struct FtlSyntaxError {
 
     /// The locale.
     pub locale: String,
-
-    /// The file name.
-    pub file_name: String,
 
     /// Help text.
     #[help]
@@ -208,13 +205,13 @@ impl ValidationIssue {
         match self {
             ValidationIssue::SyntaxError(e) => {
                 format!("1:{:?}", e.src.name())
-            }
+            },
             ValidationIssue::MissingKey(e) => {
                 format!("2:{:?}:{}", e.src.name(), e.key)
-            }
+            },
             ValidationIssue::MissingVariable(e) => {
                 format!("3:{:?}:{}:{}", e.src.name(), e.key, e.variable)
-            }
+            },
         }
     }
 }

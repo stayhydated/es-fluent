@@ -18,7 +18,6 @@ use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
-use terminal_link::Link;
 use fluent_syntax::ast;
 use fluent_syntax::parser::{self, ParserError};
 use miette::{NamedSource, SourceSpan};
@@ -28,6 +27,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
+use terminal_link::Link;
 
 /// Expected key information from inventory (deserialized from temp crate output).
 #[derive(Deserialize)]
@@ -134,7 +134,13 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     for krate in &workspace.valid {
         pb.set_message(format!("Checking {}", krate.name));
 
-        match validate_crate(krate, &workspace.workspace_info.root_dir, &temp_dir, args.all, &ignore_keys) {
+        match validate_crate(
+            krate,
+            &workspace.workspace_info.root_dir,
+            &temp_dir,
+            args.all,
+            &ignore_keys,
+        ) {
             Ok(issues) => {
                 all_issues.extend(issues);
             },
@@ -292,7 +298,7 @@ fn validate_ftl_files(
     for locale in &locales {
         let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
         let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
-        
+
         let ftl_url = format!("file://{}", ftl_abs_path.display());
         let ftl_header_link = Link::new(&ftl_relative_path, &ftl_url).to_string();
 
@@ -311,7 +317,6 @@ fn validate_ftl_files(
                     src: NamedSource::new(ftl_header_link, String::new()),
                     span: SourceSpan::new(0_usize.into(), 1_usize),
                     locale: locale.clone(),
-                    file_name: ftl_relative_path.clone(),
                     help: format!("Failed to read file: {}", err),
                 }));
                 continue;
@@ -328,7 +333,6 @@ fn validate_ftl_files(
                     expected_keys,
                     locale,
                     &ftl_relative_path,
-
                     &krate.name,
                     workspace_root,
                     &krate.manifest_dir,
@@ -439,8 +443,6 @@ fn validate_loaded_ftl(
             let span = find_key_span(content, key)
                 .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
 
-
-
             // Build help message with source location if available
             let help = match (&key_info.source_file, key_info.source_line) {
                 (Some(file), Some(line)) => {
@@ -450,22 +452,20 @@ fn validate_loaded_ftl(
                     } else {
                         manifest_dir.join(file_path)
                     };
-                    
+
                     // We still want relative path for display text (relative to workspace if possible usually, or crate relative)
                     // existing logic used to_relative_path(Path::new(file), workspace_root)
                     // If file is "src/lib.rs", it's relative to crate. But we want relative to workspace?
                     // to_relative_path expects absolute or correct relative base.
                     // Let's use abs_file for to_relative_path to be safe.
                     let rel_file = to_relative_path(&abs_file, workspace_root);
-                    
+
                     let file_label = format!("{rel_file}:{line}");
                     let file_url = format!("file://{}", abs_file.display());
                     let file_link = Link::new(&file_label, &file_url);
-                    
-                    format!(
-                        "Variable '${var}' is declared at {file_link}"
-                    )
-                }
+
+                    format!("Variable '${var}' is declared at {file_link}")
+                },
                 (Some(file), None) => {
                     let file_path = Path::new(file);
                     let abs_file = if file_path.is_absolute() {
@@ -478,13 +478,9 @@ fn validate_loaded_ftl(
                     let file_url = format!("file://{}", abs_file.display());
                     let file_link = Link::new(&rel_file, &file_url);
 
-                    format!(
-                        "Variable '${var}' is declared in {file_link}"
-                    )
-                }
-                _ => format!(
-                    "Variable '${var}' is declared in Rust code"
-                ),
+                    format!("Variable '${var}' is declared in {file_link}")
+                },
+                _ => format!("Variable '${var}' is declared in Rust code"),
             };
 
             issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
@@ -506,7 +502,7 @@ fn parser_error_to_issue(
     err: &ParserError,
     content: &str,
     locale: &str,
-    file_name: &str,
+    display_name: &str,
     keys_with_syntax_errors: &mut HashSet<String>,
 ) -> ValidationIssue {
     // Try to extract message key from the junk slice if available
@@ -525,10 +521,9 @@ fn parser_error_to_issue(
     };
 
     ValidationIssue::SyntaxError(FtlSyntaxError {
-        src: NamedSource::new(file_name, content.to_string()),
+        src: NamedSource::new(display_name, content.to_string()),
         span: SourceSpan::new(err.pos.start.into(), span_len),
         locale: locale.to_string(),
-        file_name: file_name.to_string(),
         help: err.kind.to_string(),
     })
 }

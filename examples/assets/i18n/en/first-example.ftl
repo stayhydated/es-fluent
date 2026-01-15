@@ -7,7 +7,7 @@ gender-Other = Other
 
 ## HelloUser
 
-hello_user = a
+hello_user = Hello, { $f0 } !
 
 ## Shared
 

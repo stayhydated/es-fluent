@@ -145,5 +145,3 @@ pub fn localize<'a>(
     tracing::warn!("Translation for '{}' not found or context not set.", id);
     id.to_string()
 }
-
-pub struct a {}
