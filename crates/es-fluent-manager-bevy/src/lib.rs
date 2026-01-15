@@ -71,7 +71,7 @@ pub struct FtlAsset {
 }
 
 /// An `AssetLoader` for loading `.ftl` files as `FtlAsset`s.
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct FtlAssetLoader;
 
 impl AssetLoader for FtlAssetLoader {

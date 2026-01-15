@@ -144,8 +144,9 @@ fn handle_asset_loading(
                     }
                 }
             },
-            AssetEvent::Removed { id: _ } => {},
-            _ => {},
+            AssetEvent::Removed { .. }
+            | AssetEvent::Unused { .. }
+            | AssetEvent::LoadedWithDependencies { .. } => {},
         }
     }
 }
@@ -158,10 +159,11 @@ fn build_fluent_bundles(
     let mut dirty_languages = asset_events
         .read()
         .filter_map(|event| match event {
-            AssetEvent::Added { id } | AssetEvent::Modified { id } | AssetEvent::Removed { id } => {
-                Some(id)
-            },
-            _ => None,
+            AssetEvent::Added { id }
+            | AssetEvent::Modified { id }
+            | AssetEvent::Removed { id }
+            | AssetEvent::Unused { id }
+            | AssetEvent::LoadedWithDependencies { id } => Some(id),
         })
         .flat_map(|id| {
             i18n_assets
