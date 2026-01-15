@@ -32,7 +32,7 @@ pub fn write_inventory_for_crate(crate_name: &str) {
     let crate_ident = crate_name.replace('-', "_");
 
     // Collect all registered type infos for this crate
-    let type_infos: Vec<_> = es_fluent_core::registry::get_all_ftl_type_infos()
+    let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .into_iter()
         .filter(|info| {
             info.module_path == crate_ident

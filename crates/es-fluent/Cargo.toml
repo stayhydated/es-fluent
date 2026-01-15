@@ -18,12 +18,14 @@ default = [  ]
 derive = [ "dep:es-fluent-derive" ]
 
 [dependencies]
-es-fluent-core = { workspace = true }
+bon = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 rust-embed = { workspace = true }
+serde = { features = [ "derive" ], workspace = true }
+strum = { features = [ "derive" ], workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 

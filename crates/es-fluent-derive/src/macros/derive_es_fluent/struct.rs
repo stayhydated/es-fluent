@@ -84,8 +84,8 @@ fn generate(opts: &StructOpts) -> TokenStream {
             mod #mod_name {
                 use super::*;
 
-                static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
-                    ::es_fluent::__core::registry::StaticFtlVariant {
+                static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
+                    ::es_fluent::registry::StaticFtlVariant {
                         name: #type_name,
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
@@ -93,9 +93,9 @@ fn generate(opts: &StructOpts) -> TokenStream {
                     }
                 ];
 
-                static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
-                    ::es_fluent::__core::registry::StaticFtlTypeInfo {
-                        type_kind: ::es_fluent::__core::meta::TypeKind::Struct,
+                static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
+                    ::es_fluent::registry::StaticFtlTypeInfo {
+                        type_kind: ::es_fluent::meta::TypeKind::Struct,
                         type_name: #type_name,
                         variants: VARIANTS,
                         file_path: file!(),

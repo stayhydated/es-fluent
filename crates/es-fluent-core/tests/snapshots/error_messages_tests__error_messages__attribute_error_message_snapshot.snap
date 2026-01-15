@@ -1,5 +1,0 @@
----
-source: crates/es-fluent-core/tests/error_messages_tests.rs
-expression: err.to_string()
----
-"Attribute error: Unknown attribute 'foo'"

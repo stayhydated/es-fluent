@@ -151,7 +151,7 @@ fn generate_unit_enum(
                 .join(original_field_name)
                 .to_string();
             quote! {
-                ::es_fluent::__core::registry::StaticFtlVariant {
+                ::es_fluent::registry::StaticFtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
@@ -169,13 +169,13 @@ fn generate_unit_enum(
         mod #mod_name {
             use super::*;
 
-            static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+            static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
                 #(#static_variants),*
             ];
 
-            static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
-                ::es_fluent::__core::registry::StaticFtlTypeInfo {
-                    type_kind: ::es_fluent::__core::meta::TypeKind::Enum,
+            static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
+                ::es_fluent::registry::StaticFtlTypeInfo {
+                    type_kind: ::es_fluent::meta::TypeKind::Enum,
                     type_name: #type_name,
                     variants: VARIANTS,
                     file_path: file!(),
@@ -309,7 +309,7 @@ fn generate_enum_unit_enum(
             let base_key = variant_ident.to_string();
             let ftl_key = namer::FluentKey::from(ident).join(&base_key).to_string();
             quote! {
-                ::es_fluent::__core::registry::StaticFtlVariant {
+                ::es_fluent::registry::StaticFtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
@@ -327,13 +327,13 @@ fn generate_enum_unit_enum(
         mod #mod_name {
             use super::*;
 
-            static VARIANTS: &[::es_fluent::__core::registry::StaticFtlVariant] = &[
+            static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
                 #(#static_variants),*
             ];
 
-            static TYPE_INFO: ::es_fluent::__core::registry::StaticFtlTypeInfo =
-                ::es_fluent::__core::registry::StaticFtlTypeInfo {
-                    type_kind: ::es_fluent::__core::meta::TypeKind::Enum,
+            static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
+                ::es_fluent::registry::StaticFtlTypeInfo {
+                    type_kind: ::es_fluent::meta::TypeKind::Enum,
                     type_name: #type_name,
                     variants: VARIANTS,
                     file_path: file!(),

@@ -1,5 +1,5 @@
-use es_fluent_core::meta::TypeKind;
-use es_fluent_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent::meta::TypeKind;
+use es_fluent::registry::{FtlTypeInfo, FtlVariant};
 use es_fluent_derive_core::namer::FluentKey;
 use proc_macro2::Span;
 use std::fs;

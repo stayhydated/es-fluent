@@ -3864,8 +3864,8 @@ dependencies = [
 name = "es-fluent"
 version = "0.5.3"
 dependencies = [
+ "bon",
  "chrono",
- "es-fluent-core",
  "es-fluent-derive",
  "es-fluent-generate",
  "es-fluent-manager-core",
@@ -3873,6 +3873,7 @@ dependencies = [
  "inventory",
  "rust-embed",
  "rust_decimal",
+ "serde",
  "strum 0.27.2",
  "tempfile",
  "tracing",
@@ -3922,27 +3923,13 @@ dependencies = [
  "bon",
  "cargo_metadata",
  "clap",
- "es-fluent-core",
+ "es-fluent",
  "es-fluent-generate",
  "es-fluent-toml",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
  "tracing",
-]
-
-[[package]]
-name = "es-fluent-core"
-version = "0.5.3"
-dependencies = [
- "bon",
- "es-fluent-derive-core",
- "insta",
- "inventory",
- "proc-macro2",
- "serde",
- "strum 0.27.2",
- "syn 2.0.111",
 ]
 
 [[package]]
@@ -3986,7 +3973,7 @@ version = "0.5.3"
 dependencies = [
  "clap",
  "colored",
- "es-fluent-core",
+ "es-fluent",
  "es-fluent-derive-core",
  "fluent-syntax",
  "heck 0.5.0",

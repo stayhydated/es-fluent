@@ -33,7 +33,7 @@ fn test_enum_kv_preserves_pascal_case_in_ftl_output() {
     let i18n_path = temp_dir.path().join("i18n");
 
     // Get all registered type infos and filter for our test type
-    let all_infos = es_fluent::__core::registry::get_all_ftl_type_infos();
+    let all_infos = es_fluent::registry::get_all_ftl_type_infos();
     let usa_state_infos: Vec<_> = all_infos
         .into_iter()
         .filter(|info| info.type_name == "USAStateLabelKvFtl")
@@ -93,7 +93,7 @@ fn test_struct_kv_preserves_snake_case_in_ftl_output() {
     let i18n_path = temp_dir.path().join("i18n");
 
     // Get all registered type infos and filter for our test type
-    let all_infos = es_fluent::__core::registry::get_all_ftl_type_infos();
+    let all_infos = es_fluent::registry::get_all_ftl_type_infos();
     let user_profile_infos: Vec<_> = all_infos
         .into_iter()
         .filter(|info| info.type_name == "UserProfileDescriptionKvFtl")
