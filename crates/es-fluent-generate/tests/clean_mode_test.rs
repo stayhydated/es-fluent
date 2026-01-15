@@ -42,6 +42,7 @@ awdawd = awdwa
             .to_string(),
         args: vec![],
         module_path: "test".to_string(),
+            line: 0,
     };
 
     let group_a = FtlTypeInfo {

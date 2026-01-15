@@ -90,6 +90,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
                         module_path: module_path!(),
+                        line: line!(),
                     }
                 ];
 

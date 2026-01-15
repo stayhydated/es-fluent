@@ -59,6 +59,7 @@ what-Hi = Hi
                 .to_string(),
             args: vec![],
             module_path: "test".to_string(),
+            line: 0,
         },
         FtlVariant {
             name: "Helicopter".to_string(),
@@ -67,6 +68,7 @@ what-Hi = Hi
                 .to_string(),
             args: vec![],
             module_path: "test".to_string(),
+            line: 0,
         },
         FtlVariant {
             name: "Male".to_string(),
@@ -75,6 +77,7 @@ what-Hi = Hi
                 .to_string(),
             args: vec![],
             module_path: "test".to_string(),
+            line: 0,
         },
         FtlVariant {
             name: "Other".to_string(),
@@ -83,6 +86,7 @@ what-Hi = Hi
                 .to_string(),
             args: vec![],
             module_path: "test".to_string(),
+            line: 0,
         },
     ];
     let gender = FtlTypeInfo {
@@ -101,6 +105,7 @@ what-Hi = Hi
             .to_string(),
         args: vec!["f0".to_string()],
         module_path: "test".to_string(),
+            line: 0,
     }];
     let hello_user = FtlTypeInfo {
         type_kind: TypeKind::Struct, // Assuming struct for single message
@@ -123,6 +128,7 @@ what-Hi = Hi
                 "user_gender".to_string(),
             ],
             module_path: "test".to_string(),
+            line: 0,
         },
         // NEW KEY
         FtlVariant {
@@ -132,6 +138,7 @@ what-Hi = Hi
                 .to_string(),
             args: vec![],
             module_path: "test".to_string(),
+            line: 0,
         },
     ];
     let shared = FtlTypeInfo {
@@ -150,6 +157,7 @@ what-Hi = Hi
             .to_string(),
         args: vec![],
         module_path: "test".to_string(),
+            line: 0,
     }];
     let what = FtlTypeInfo {
         type_kind: TypeKind::Enum,

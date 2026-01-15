@@ -504,6 +504,7 @@ mod tests {
             ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
 
         let type_info = FtlTypeInfo {
@@ -547,6 +548,7 @@ mod tests {
             ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
 
         let type_info = FtlTypeInfo {
@@ -588,6 +590,7 @@ mod tests {
             ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
 
         let type_info = FtlTypeInfo {
@@ -640,6 +643,7 @@ existing-key = Existing Value
             ftl_key: ftl_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
 
         let type_info = FtlTypeInfo {
@@ -677,6 +681,7 @@ existing-key = Existing Value
                 .to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
         let apple = FtlTypeInfo {
             type_kind: TypeKind::Enum,
@@ -693,6 +698,7 @@ existing-key = Existing Value
                 .to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
         let banana = FtlTypeInfo {
             type_kind: TypeKind::Enum,
@@ -712,6 +718,7 @@ existing-key = Existing Value
             ftl_key: banana_this_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
         let banana_this = FtlTypeInfo {
             type_kind: TypeKind::Struct,
@@ -765,18 +772,21 @@ existing-key = Existing Value
             ftl_key: this_key.to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
         let apple_variant = FtlVariant {
             name: "Apple".to_string(),
             ftl_key: FluentKey::from(&fruit_ident).join("Apple").to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
         let banana_variant = FtlVariant {
             name: "Banana".to_string(),
             ftl_key: FluentKey::from(&fruit_ident).join("Banana").to_string(),
             args: Vec::new(),
             module_path: "test".to_string(),
+            line: 0,
         };
 
         let fruit = FtlTypeInfo {

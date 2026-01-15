@@ -204,6 +204,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
                         module_path: module_path!(),
+                        line: line!(),
                     }
                 }
             })

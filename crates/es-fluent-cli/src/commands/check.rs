@@ -33,6 +33,18 @@ use std::sync::LazyLock;
 struct ExpectedKey {
     key: String,
     variables: Vec<String>,
+    /// The Rust source file where this key is defined.
+    source_file: Option<String>,
+    /// The line number in the Rust source file.
+    source_line: Option<u32>,
+}
+
+/// Runtime info about an expected key with its variables and source location.
+#[derive(Clone)]
+struct KeyInfo {
+    variables: HashSet<String>,
+    source_file: Option<String>,
+    source_line: Option<u32>,
 }
 
 /// The inventory data output from the temp crate.
@@ -186,7 +198,7 @@ fn validate_crate(
 fn read_inventory_file(
     temp_dir: &std::path::Path,
     crate_name: &str,
-) -> Result<HashMap<String, HashSet<String>>> {
+) -> Result<HashMap<String, KeyInfo>> {
     let inventory_path = temp_dir
         .join("metadata")
         .join(crate_name)
@@ -197,10 +209,17 @@ fn read_inventory_file(
     let data: InventoryData =
         serde_json::from_str(&json_str).context("Failed to parse inventory JSON")?;
 
-    // Convert to HashMap for easier lookup
+    // Convert to HashMap with KeyInfo for richer metadata
     let mut expected_keys = HashMap::new();
     for key_info in data.expected_keys {
-        expected_keys.insert(key_info.key, key_info.variables.into_iter().collect());
+        expected_keys.insert(
+            key_info.key,
+            KeyInfo {
+                variables: key_info.variables.into_iter().collect(),
+                source_file: key_info.source_file,
+                source_line: key_info.source_line,
+            },
+        );
     }
 
     Ok(expected_keys)
@@ -248,7 +267,7 @@ fn load_locale_ftl(assets_dir: &Path, locale: &str, crate_name: &str) -> LocaleL
 /// Validate FTL files against expected keys using fluent-syntax directly.
 fn validate_ftl_files(
     krate: &CrateInfo,
-    expected_keys: &HashMap<String, HashSet<String>>,
+    expected_keys: &HashMap<String, KeyInfo>,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
     let config = I18nConfig::read_from_path(&krate.i18n_config_path)
@@ -265,19 +284,29 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locales {
-        let file_name = format!("{}/{}.ftl", locale, krate.name);
-
+        // Use the relative path from assets_dir for clickable terminal links
+        let ftl_relative_path = format!(
+            "{}/{}/{}.ftl",
+            config.assets_dir.display(),
+            locale,
+            krate.name
+        );
         match load_locale_ftl(&assets_dir, locale, &krate.name) {
             LocaleLoadResult::NotFound => {
-                issues.extend(missing_file_issues(expected_keys, locale, &krate.name));
+                issues.extend(missing_file_issues(
+                    expected_keys,
+                    locale,
+                    &krate.name,
+                    &ftl_relative_path,
+                ));
                 continue;
             },
             LocaleLoadResult::ReadError(err) => {
                 issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
-                    src: NamedSource::new(file_name.clone(), String::new()),
+                    src: NamedSource::new(ftl_relative_path.clone(), String::new()),
                     span: SourceSpan::new(0_usize.into(), 1_usize),
                     locale: locale.clone(),
-                    file_name,
+                    file_name: ftl_relative_path.clone(),
                     help: format!("Failed to read file: {}", err),
                 }));
                 continue;
@@ -293,7 +322,7 @@ fn validate_ftl_files(
                     &parse_errors,
                     expected_keys,
                     locale,
-                    &file_name,
+                    &ftl_relative_path,
                     &krate.name,
                 ));
             },
@@ -305,21 +334,19 @@ fn validate_ftl_files(
 
 /// Generate missing key issues when an FTL file doesn't exist.
 fn missing_file_issues(
-    expected_keys: &HashMap<String, HashSet<String>>,
+    expected_keys: &HashMap<String, KeyInfo>,
     locale: &str,
-    crate_name: &str,
+    _crate_name: &str,
+    ftl_path: &str,
 ) -> Vec<ValidationIssue> {
     expected_keys
         .keys()
         .map(|key| {
             ValidationIssue::MissingKey(MissingKeyError {
-                src: NamedSource::new(format!("{}/{}.ftl", locale, crate_name), String::new()),
+                src: NamedSource::new(ftl_path, String::new()),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!(
-                    "Add translation for '{}' in {}/{}.ftl",
-                    key, locale, crate_name
-                ),
+                help: format!("Add translation for '{}' in {}", key, ftl_path),
             })
         })
         .collect()
@@ -330,10 +357,10 @@ fn validate_loaded_ftl(
     content: &str,
     resource: &ast::Resource<String>,
     parse_errors: &[ParserError],
-    expected_keys: &HashMap<String, HashSet<String>>,
+    expected_keys: &HashMap<String, KeyInfo>,
     locale: &str,
     file_name: &str,
-    crate_name: &str,
+    _crate_name: &str,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
@@ -371,7 +398,7 @@ fn validate_loaded_ftl(
         .collect();
 
     // Check for missing keys and variables
-    for (key, expected_vars) in expected_keys {
+    for (key, key_info) in expected_keys {
         // Skip keys that have syntax errors - they're already reported
         if keys_with_syntax_errors.contains(key) {
             continue;
@@ -383,21 +410,31 @@ fn validate_loaded_ftl(
                 src: NamedSource::new(file_name, content.to_string()),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!(
-                    "Add translation for '{}' in {}/{}.ftl",
-                    key, locale, crate_name
-                ),
+                help: format!("Add translation for '{}' in {}", key, file_name),
             }));
             continue;
         };
 
         // Check for missing variables
-        for var in expected_vars {
+        for var in &key_info.variables {
             if actual_vars.contains(var) {
                 continue;
             }
             let span = find_key_span(content, key)
                 .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
+
+            // Build help message with source location if available
+            let help = match (&key_info.source_file, key_info.source_line) {
+                (Some(file), Some(line)) => format!(
+                    "Variable '${var}' is declared at {file}:{line} but not used in the translation"
+                ),
+                (Some(file), None) => format!(
+                    "Variable '${var}' is declared in {file} but not used in the translation"
+                ),
+                _ => format!(
+                    "Variable '${var}' is declared in Rust code but not used in the translation"
+                ),
+            };
 
             issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
                 src: NamedSource::new(file_name, content.to_string()),
@@ -405,10 +442,7 @@ fn validate_loaded_ftl(
                 variable: var.clone(),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!(
-                    "The Rust code generated by es-fluent declares variable '${}' but the translation omits it",
-                    var
-                ),
+                help,
             }));
         }
     }
