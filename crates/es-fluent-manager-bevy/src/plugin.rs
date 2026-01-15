@@ -1,4 +1,5 @@
 use crate::*;
+use bevy::winit::WinitSettings;
 use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource};
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
@@ -39,6 +40,42 @@ impl I18nPlugin {
 
     pub fn with_config(config: I18nPluginConfig) -> Self {
         Self::new(config)
+    }
+}
+
+/// Resource for deferring WinitSettings until i18n assets are loaded.
+///
+/// When using `WinitSettings::desktop_app()` (reactive mode), the UI won't render
+/// until user input because async asset loading happens after the initial frame.
+/// This resource allows you to defer applying reactive mode settings until after
+/// i18n bundles are ready.
+///
+/// # Example
+/// ```ignore
+/// app.insert_resource(I18nDeferredWinitSettings::desktop_app())
+///    .add_plugins(I18nPlugin::default());
+/// ```
+#[derive(Resource, Default)]
+pub struct I18nDeferredWinitSettings {
+    pub settings: Option<WinitSettings>,
+    applied: bool,
+}
+
+impl I18nDeferredWinitSettings {
+    /// Creates deferred settings that will apply `WinitSettings::desktop_app()` after i18n loads.
+    pub fn desktop_app() -> Self {
+        Self {
+            settings: Some(WinitSettings::desktop_app()),
+            applied: false,
+        }
+    }
+
+    /// Creates deferred settings with custom WinitSettings.
+    pub fn new(settings: WinitSettings) -> Self {
+        Self {
+            settings: Some(settings),
+            applied: false,
+        }
     }
 }
 
@@ -90,6 +127,7 @@ impl Plugin for I18nPlugin {
         app.insert_resource(i18n_assets)
             .insert_resource(i18n_resource)
             .insert_resource(CurrentLanguageId(self.config.initial_language.clone()))
+            .init_resource::<I18nDeferredWinitSettings>()
             .add_message::<LocaleChangeEvent>()
             .add_message::<LocaleChangedEvent>()
             .add_systems(
@@ -99,6 +137,7 @@ impl Plugin for I18nPlugin {
                     build_fluent_bundles,
                     handle_locale_changes,
                     sync_global_state,
+                    apply_deferred_winit_settings,
                 )
                     .chain(),
             );
@@ -237,6 +276,33 @@ fn sync_global_state(
             debug!("I18n bundle ready for current language: {}", lang);
             locale_changed_events.write(LocaleChangedEvent(lang));
         }
+    }
+}
+
+fn apply_deferred_winit_settings(
+    i18n_bundle: Res<I18nBundle>,
+    i18n_resource: Res<I18nResource>,
+    mut deferred: ResMut<I18nDeferredWinitSettings>,
+    winit_settings: Option<ResMut<WinitSettings>>,
+    mut commands: Commands,
+) {
+    if deferred.applied || deferred.settings.is_none() {
+        return;
+    }
+
+    // Only apply once the current language bundle is ready
+    if !i18n_bundle.0.contains_key(i18n_resource.current_language()) {
+        return;
+    }
+
+    if let Some(settings) = deferred.settings.take() {
+        if let Some(mut existing) = winit_settings {
+            *existing = settings;
+        } else {
+            commands.insert_resource(settings);
+        }
+        deferred.applied = true;
+        info!("Applied deferred WinitSettings after i18n bundle loaded");
     }
 }
 

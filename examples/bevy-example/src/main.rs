@@ -1,7 +1,8 @@
-use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
+use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
+    CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nDeferredWinitSettings,
+    I18nPlugin, LocaleChangeEvent,
 };
 use example_shared_lib::{ButtonState, Languages};
 
@@ -42,7 +43,7 @@ fn main() {
         file_path: "../assets".to_string(),
         ..default()
     }))
-    .insert_resource(WinitSettings::desktop_app())
+    .insert_resource(I18nDeferredWinitSettings::desktop_app())
     .add_plugins(I18nPlugin::with_language(Languages::default().into()))
     .init_resource::<InputFocus>();
 
