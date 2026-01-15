@@ -32,6 +32,7 @@ group-a-key1 = Initial Value
             .to_string(),
         args: vec![],
         module_path: "test".to_string(),
+        line: 0,
     };
     let key2 = FtlVariant {
         name: "Key2".to_string(),
@@ -40,6 +41,7 @@ group-a-key1 = Initial Value
             .to_string(),
         args: vec![],
         module_path: "test".to_string(),
+        line: 0,
     };
 
     let group_a = FtlTypeInfo {

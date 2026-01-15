@@ -8,12 +8,24 @@ use std::collections::{HashMap, HashSet};
 pub struct ExpectedKey {
     pub key: String,
     pub variables: Vec<String>,
+    /// The Rust source file where this key is defined.
+    pub source_file: Option<String>,
+    /// The line number in the Rust source file.
+    pub source_line: Option<u32>,
 }
 
 /// The inventory data output.
 #[derive(Serialize)]
 pub struct InventoryData {
     pub expected_keys: Vec<ExpectedKey>,
+}
+
+/// Intermediate metadata for a key during collection.
+#[derive(Default)]
+struct KeyMeta {
+    variables: HashSet<String>,
+    source_file: Option<String>,
+    source_line: Option<u32>,
 }
 
 /// Collects inventory data for a crate and writes it to `inventory.json`.
@@ -40,22 +52,30 @@ pub fn write_inventory_for_crate(crate_name: &str) {
         })
         .collect();
 
-    // Build a map of expected keys and their required variables (deduplicated)
-    let mut keys_map: HashMap<String, HashSet<String>> = HashMap::new();
+    // Build a map of expected keys with their metadata
+    let mut keys_map: HashMap<String, KeyMeta> = HashMap::new();
     for info in &type_infos {
         for variant in &info.variants {
             let key = variant.ftl_key.clone();
             let vars: HashSet<String> = variant.args.iter().cloned().collect();
-            keys_map.entry(key).or_default().extend(vars);
+            let entry = keys_map.entry(key).or_insert_with(|| KeyMeta {
+                variables: HashSet::new(),
+                source_file: info.file_path.clone(),
+                source_line: Some(variant.line),
+            });
+            entry.variables.extend(vars);
+            // Keep the first source location we encounter
         }
     }
 
     // Convert to output format
     let expected_keys: Vec<ExpectedKey> = keys_map
         .into_iter()
-        .map(|(key, vars)| ExpectedKey {
+        .map(|(key, meta)| ExpectedKey {
             key,
-            variables: vars.into_iter().collect(),
+            variables: meta.variables.into_iter().collect(),
+            source_file: meta.source_file,
+            source_line: meta.source_line,
         })
         .collect();
 

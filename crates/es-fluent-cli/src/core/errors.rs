@@ -143,7 +143,7 @@ pub struct MissingVariableWarning {
 
 /// Error when an FTL file has syntax errors.
 #[derive(Debug, Diagnostic, Error)]
-#[error("FTL syntax error in {locale}/{file_name}")]
+#[error("FTL syntax error")]
 #[diagnostic(code(es_fluent::validate::syntax_error))]
 pub struct FtlSyntaxError {
     /// The source content of the FTL file.
@@ -156,9 +156,6 @@ pub struct FtlSyntaxError {
 
     /// The locale.
     pub locale: String,
-
-    /// The file name.
-    pub file_name: String,
 
     /// Help text.
     #[help]
@@ -195,6 +192,28 @@ pub enum ValidationIssue {
     #[error(transparent)]
     #[diagnostic(transparent)]
     SyntaxError(#[from] FtlSyntaxError),
+}
+
+impl ValidationIssue {
+    /// Get a sort key for deterministic ordering of issues.
+    ///
+    /// The key includes:
+    /// 1. File path (from source name)
+    /// 2. Issue type priority (SyntaxError > MissingKey > MissingVariable)
+    /// 3. Key/Variable name
+    pub fn sort_key(&self) -> String {
+        match self {
+            ValidationIssue::SyntaxError(e) => {
+                format!("1:{:?}", e.src.name())
+            },
+            ValidationIssue::MissingKey(e) => {
+                format!("2:{:?}:{}", e.src.name(), e.key)
+            },
+            ValidationIssue::MissingVariable(e) => {
+                format!("3:{:?}:{}:{}", e.src.name(), e.key, e.variable)
+            },
+        }
+    }
 }
 
 /// Error when formatting fails for an FTL file.
@@ -308,6 +327,20 @@ impl From<anyhow::Error> for CliError {
     fn from(err: anyhow::Error) -> Self {
         CliError::Other(err.to_string())
     }
+}
+
+/// Calculate line and column from byte offset in source text.
+pub fn line_col_from_offset(source: &str, offset: usize) -> (usize, usize) {
+    let mut current_offset = 0;
+    for (i, line) in source.lines().enumerate() {
+        let line_len = line.len() + 1; // +1 for newline
+        if current_offset + line_len > offset {
+            let col = offset - current_offset + 1;
+            return (i + 1, col);
+        }
+        current_offset += line_len;
+    }
+    (source.lines().count().max(1), 1)
 }
 
 /// Calculate SourceSpan from line and column in source text.

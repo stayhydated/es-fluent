@@ -156,6 +156,7 @@ fn generate_unit_enum(
                     ftl_key: #ftl_key,
                     args: &[],
                     module_path: module_path!(),
+                    line: line!(),
                 }
             }
         })
@@ -314,6 +315,7 @@ fn generate_enum_unit_enum(
                     ftl_key: #ftl_key,
                     args: &[],
                     module_path: module_path!(),
+                    line: line!(),
                 }
             }
         })

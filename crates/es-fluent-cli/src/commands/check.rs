@@ -27,12 +27,25 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
+use terminal_link::Link;
 
 /// Expected key information from inventory (deserialized from temp crate output).
 #[derive(Deserialize)]
 struct ExpectedKey {
     key: String,
     variables: Vec<String>,
+    /// The Rust source file where this key is defined.
+    source_file: Option<String>,
+    /// The line number in the Rust source file.
+    source_line: Option<u32>,
+}
+
+/// Runtime info about an expected key with its variables and source location.
+#[derive(Clone)]
+struct KeyInfo {
+    variables: HashSet<String>,
+    source_file: Option<String>,
+    source_line: Option<u32>,
 }
 
 /// The inventory data output from the temp crate.
@@ -55,6 +68,13 @@ pub struct CheckArgs {
     /// (e.g., --ignore a --ignore b) or comma-separated (e.g., --ignore a,b).
     #[arg(long, value_delimiter = ',')]
     pub ignore: Vec<String>,
+}
+
+/// Context for FTL validation to reduce argument count.
+struct ValidationContext<'a> {
+    expected_keys: &'a HashMap<String, KeyInfo>,
+    workspace_root: &'a Path,
+    manifest_dir: &'a Path,
 }
 
 /// Run the check command.
@@ -121,7 +141,13 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     for krate in &workspace.valid {
         pb.set_message(format!("Checking {}", krate.name));
 
-        match validate_crate(krate, &temp_dir, args.all, &ignore_keys) {
+        match validate_crate(
+            krate,
+            &workspace.workspace_info.root_dir,
+            &temp_dir,
+            args.all,
+            &ignore_keys,
+        ) {
             Ok(issues) => {
                 all_issues.extend(issues);
             },
@@ -136,6 +162,9 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 
     pb.finish_and_clear();
+
+    // Sort issues for deterministic output
+    all_issues.sort_by_cached_key(|issue| issue.sort_key());
 
     let error_count = all_issues
         .iter()
@@ -166,6 +195,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 /// Validate a single crate's FTL files using already-collected inventory data.
 fn validate_crate(
     krate: &CrateInfo,
+    workspace_root: &Path,
     temp_dir: &Path,
     check_all: bool,
     ignore_keys: &HashSet<String>,
@@ -179,14 +209,14 @@ fn validate_crate(
     }
 
     // Validate FTL files against expected keys
-    validate_ftl_files(krate, &expected_keys, check_all)
+    validate_ftl_files(krate, workspace_root, &expected_keys, check_all)
 }
 
 /// Read inventory data from the generated inventory.json file.
 fn read_inventory_file(
     temp_dir: &std::path::Path,
     crate_name: &str,
-) -> Result<HashMap<String, HashSet<String>>> {
+) -> Result<HashMap<String, KeyInfo>> {
     let inventory_path = temp_dir
         .join("metadata")
         .join(crate_name)
@@ -197,10 +227,17 @@ fn read_inventory_file(
     let data: InventoryData =
         serde_json::from_str(&json_str).context("Failed to parse inventory JSON")?;
 
-    // Convert to HashMap for easier lookup
+    // Convert to HashMap with KeyInfo for richer metadata
     let mut expected_keys = HashMap::new();
     for key_info in data.expected_keys {
-        expected_keys.insert(key_info.key, key_info.variables.into_iter().collect());
+        expected_keys.insert(
+            key_info.key,
+            KeyInfo {
+                variables: key_info.variables.into_iter().collect(),
+                source_file: key_info.source_file,
+                source_line: key_info.source_line,
+            },
+        );
     }
 
     Ok(expected_keys)
@@ -248,7 +285,8 @@ fn load_locale_ftl(assets_dir: &Path, locale: &str, crate_name: &str) -> LocaleL
 /// Validate FTL files against expected keys using fluent-syntax directly.
 fn validate_ftl_files(
     krate: &CrateInfo,
-    expected_keys: &HashMap<String, HashSet<String>>,
+    workspace_root: &Path,
+    expected_keys: &HashMap<String, KeyInfo>,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
     let config = I18nConfig::read_from_path(&krate.i18n_config_path)
@@ -265,19 +303,27 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locales {
-        let file_name = format!("{}/{}.ftl", locale, krate.name);
+        let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
+        let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
+
+        let ftl_url = format!("file://{}", ftl_abs_path.display());
+        let ftl_header_link = Link::new(&ftl_relative_path, &ftl_url).to_string();
 
         match load_locale_ftl(&assets_dir, locale, &krate.name) {
             LocaleLoadResult::NotFound => {
-                issues.extend(missing_file_issues(expected_keys, locale, &krate.name));
+                issues.extend(missing_file_issues(
+                    expected_keys,
+                    locale,
+                    &krate.name,
+                    &ftl_header_link,
+                ));
                 continue;
             },
             LocaleLoadResult::ReadError(err) => {
                 issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
-                    src: NamedSource::new(file_name.clone(), String::new()),
+                    src: NamedSource::new(ftl_header_link, String::new()),
                     span: SourceSpan::new(0_usize.into(), 1_usize),
                     locale: locale.clone(),
-                    file_name,
                     help: format!("Failed to read file: {}", err),
                 }));
                 continue;
@@ -287,14 +333,19 @@ fn validate_ftl_files(
                 resource,
                 parse_errors,
             } => {
+                let ctx = ValidationContext {
+                    expected_keys,
+                    workspace_root,
+                    manifest_dir: &krate.manifest_dir,
+                };
+
                 issues.extend(validate_loaded_ftl(
                     &content,
                     &resource,
                     &parse_errors,
-                    expected_keys,
                     locale,
-                    &file_name,
-                    &krate.name,
+                    &ftl_relative_path,
+                    &ctx,
                 ));
             },
         }
@@ -305,38 +356,42 @@ fn validate_ftl_files(
 
 /// Generate missing key issues when an FTL file doesn't exist.
 fn missing_file_issues(
-    expected_keys: &HashMap<String, HashSet<String>>,
+    expected_keys: &HashMap<String, KeyInfo>,
     locale: &str,
-    crate_name: &str,
+    _crate_name: &str,
+    ftl_path: &str,
 ) -> Vec<ValidationIssue> {
     expected_keys
         .keys()
         .map(|key| {
             ValidationIssue::MissingKey(MissingKeyError {
-                src: NamedSource::new(format!("{}/{}.ftl", locale, crate_name), String::new()),
+                src: NamedSource::new(ftl_path, String::new()),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!(
-                    "Add translation for '{}' in {}/{}.ftl",
-                    key, locale, crate_name
-                ),
+                help: format!("Add translation for '{}' in {}", key, ftl_path),
             })
         })
         .collect()
 }
 
 /// Validate a loaded FTL file against expected keys.
+/// Validate a loaded FTL file against expected keys.
 fn validate_loaded_ftl(
     content: &str,
     resource: &ast::Resource<String>,
     parse_errors: &[ParserError],
-    expected_keys: &HashMap<String, HashSet<String>>,
     locale: &str,
     file_name: &str,
-    crate_name: &str,
+    ctx: &ValidationContext,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
+
+    // Calculate header link (with absolute path target but relative path text)
+    let ftl_abs_path = ctx.workspace_root.join(file_name);
+    let ftl_header_url = format!("file://{}", ftl_abs_path.display());
+    // file_name here is expected to be relative path (passed from caller)
+    let ftl_header_link = Link::new(file_name, &ftl_header_url).to_string();
 
     // Convert parse errors to issues
     for err in parse_errors {
@@ -344,7 +399,7 @@ fn validate_loaded_ftl(
             err,
             content,
             locale,
-            file_name,
+            &ftl_header_link,
             &mut keys_with_syntax_errors,
         ));
     }
@@ -371,7 +426,7 @@ fn validate_loaded_ftl(
         .collect();
 
     // Check for missing keys and variables
-    for (key, expected_vars) in expected_keys {
+    for (key, key_info) in ctx.expected_keys {
         // Skip keys that have syntax errors - they're already reported
         if keys_with_syntax_errors.contains(key) {
             continue;
@@ -380,35 +435,69 @@ fn validate_loaded_ftl(
         let Some(actual_vars) = actual_keys.get(key) else {
             // Key is missing
             issues.push(ValidationIssue::MissingKey(MissingKeyError {
-                src: NamedSource::new(file_name, content.to_string()),
+                src: NamedSource::new(ftl_header_link.clone(), content.to_string()),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!(
-                    "Add translation for '{}' in {}/{}.ftl",
-                    key, locale, crate_name
-                ),
+                help: format!("Add translation for '{}' in {}", key, ftl_header_link),
             }));
             continue;
         };
 
         // Check for missing variables
-        for var in expected_vars {
+        for var in &key_info.variables {
             if actual_vars.contains(var) {
                 continue;
             }
             let span = find_key_span(content, key)
                 .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
 
+            // Build help message with source location if available
+            let help = match (&key_info.source_file, key_info.source_line) {
+                (Some(file), Some(line)) => {
+                    let file_path = Path::new(file);
+                    let abs_file = if file_path.is_absolute() {
+                        file_path.to_path_buf()
+                    } else {
+                        ctx.manifest_dir.join(file_path)
+                    };
+
+                    // We still want relative path for display text (relative to workspace if possible usually, or crate relative)
+                    // existing logic used to_relative_path(Path::new(file), workspace_root)
+                    // If file is "src/lib.rs", it's relative to crate. But we want relative to workspace?
+                    // to_relative_path expects absolute or correct relative base.
+                    // Let's use abs_file for to_relative_path to be safe.
+                    let rel_file = to_relative_path(&abs_file, ctx.workspace_root);
+
+                    let file_label = format!("{rel_file}:{line}");
+                    let file_url = format!("file://{}", abs_file.display());
+                    let file_link = Link::new(&file_label, &file_url);
+
+                    format!("Variable '${var}' is declared at {file_link}")
+                },
+                (Some(file), None) => {
+                    let file_path = Path::new(file);
+                    let abs_file = if file_path.is_absolute() {
+                        file_path.to_path_buf()
+                    } else {
+                        ctx.manifest_dir.join(file_path)
+                    };
+                    let rel_file = to_relative_path(&abs_file, ctx.workspace_root);
+
+                    let file_url = format!("file://{}", abs_file.display());
+                    let file_link = Link::new(&rel_file, &file_url);
+
+                    format!("Variable '${var}' is declared in {file_link}")
+                },
+                _ => format!("Variable '${var}' is declared in Rust code"),
+            };
+
             issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
-                src: NamedSource::new(file_name, content.to_string()),
+                src: NamedSource::new(ftl_header_link.clone(), content.to_string()),
                 span,
                 variable: var.clone(),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!(
-                    "The Rust code generated by es-fluent declares variable '${}' but the translation omits it",
-                    var
-                ),
+                help,
             }));
         }
     }
@@ -421,7 +510,7 @@ fn parser_error_to_issue(
     err: &ParserError,
     content: &str,
     locale: &str,
-    file_name: &str,
+    display_name: &str,
     keys_with_syntax_errors: &mut HashSet<String>,
 ) -> ValidationIssue {
     // Try to extract message key from the junk slice if available
@@ -440,10 +529,9 @@ fn parser_error_to_issue(
     };
 
     ValidationIssue::SyntaxError(FtlSyntaxError {
-        src: NamedSource::new(file_name, content.to_string()),
+        src: NamedSource::new(display_name, content.to_string()),
         span: SourceSpan::new(err.pos.start.into(), span_len),
         locale: locale.to_string(),
-        file_name: file_name.to_string(),
         help: err.kind.to_string(),
     })
 }
@@ -456,6 +544,27 @@ fn extract_key_from_junk(junk: &str) -> Option<String> {
     KEY_REGEX
         .find(junk.trim_start())
         .map(|m| m.as_str().to_string())
+}
+
+/// Helper to make a path relative to a base path (e.g. workspace root).
+fn to_relative_path(path: &Path, base: &Path) -> String {
+    // Try to canonicalize both for accurate diffing
+    let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let base_canon = fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
+
+    // Try to strip prefix
+    if let Ok(rel) = path_canon.strip_prefix(&base_canon) {
+        return rel.display().to_string();
+    }
+
+    // If straightforward strip failed, we can return the path as is or try simple path strip
+    // (sometimes canonicalize fails or resolves symlinks unpredictably)
+    if let Ok(rel) = path.strip_prefix(base) {
+        return rel.display().to_string();
+    }
+
+    // Fallback: return absolute path or best effort
+    path.display().to_string()
 }
 
 #[cfg(test)]

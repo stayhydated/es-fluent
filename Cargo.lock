@@ -3988,6 +3988,7 @@ dependencies = [
  "serde_json",
  "similar",
  "tempfile",
+ "terminal-link",
  "thiserror 2.0.17",
  "throbber-widgets-tui",
  "walkdir",
@@ -9604,6 +9605,12 @@ checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "terminal-link"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "253bcead4f3aa96243b0f8fa46f9010e87ca23bd5d0c723d474ff1d2417bbdf8"
 
 [[package]]
 name = "terminal_size"
