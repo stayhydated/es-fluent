@@ -197,6 +197,28 @@ pub enum ValidationIssue {
     SyntaxError(#[from] FtlSyntaxError),
 }
 
+impl ValidationIssue {
+    /// Get a sort key for deterministic ordering of issues.
+    ///
+    /// The key includes:
+    /// 1. File path (from source name)
+    /// 2. Issue type priority (SyntaxError > MissingKey > MissingVariable)
+    /// 3. Key/Variable name
+    pub fn sort_key(&self) -> String {
+        match self {
+            ValidationIssue::SyntaxError(e) => {
+                format!("1:{:?}", e.src.name())
+            }
+            ValidationIssue::MissingKey(e) => {
+                format!("2:{:?}:{}", e.src.name(), e.key)
+            }
+            ValidationIssue::MissingVariable(e) => {
+                format!("3:{:?}:{}:{}", e.src.name(), e.key, e.variable)
+            }
+        }
+    }
+}
+
 /// Error when formatting fails for an FTL file.
 #[derive(Debug, Diagnostic, Error)]
 #[error("failed to format {path}")]

@@ -8,6 +8,9 @@ static TEST_DATA_WORKSPACE_DIR: LazyLock<PathBuf> =
 static TEST_DATA_PACKAGE_DIR: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e_package"));
 
+static TEST_DATA_CHECK_ISSUES_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/e2e_check_issues"));
+
 fn setup_workspace_env() -> assert_fs::TempDir {
     let temp = assert_fs::TempDir::new().unwrap();
     copy_dir_recursive(&TEST_DATA_WORKSPACE_DIR, temp.path()).expect("failed to copy test data");
@@ -18,6 +21,13 @@ fn setup_workspace_env() -> assert_fs::TempDir {
 fn setup_package_env() -> assert_fs::TempDir {
     let temp = assert_fs::TempDir::new().unwrap();
     copy_dir_recursive(&TEST_DATA_PACKAGE_DIR, temp.path()).expect("failed to copy test data");
+    fix_cargo_manifests(temp.path());
+    temp
+}
+
+fn setup_check_issues_env() -> assert_fs::TempDir {
+    let temp = assert_fs::TempDir::new().unwrap();
+    copy_dir_recursive(&TEST_DATA_CHECK_ISSUES_DIR, temp.path()).expect("failed to copy test data");
     fix_cargo_manifests(temp.path());
     temp
 }
@@ -118,6 +128,12 @@ const WORKSPACE_CONFIG: E2eConfig = E2eConfig {
 const PACKAGE_CONFIG: E2eConfig = E2eConfig {
     setup: setup_package_env,
     ftl_path: "i18n/en/test-app-package.ftl",
+    src_lib_path: "src/lib.rs",
+};
+
+const CHECK_ISSUES_CONFIG: E2eConfig = E2eConfig {
+    setup: setup_check_issues_env,
+    ftl_path: "i18n/en/test-check-issues.ftl",
     src_lib_path: "src/lib.rs",
 };
 
@@ -643,4 +659,25 @@ fn test_check_ignore_multiple_unknown_keys() {
         ],
     );
     assert_snapshot!(output);
+}
+
+mod check_issues {
+    use super::*;
+
+    #[test]
+    fn test_check_issues() {
+        // This should fail because of missing keys and variables
+        let temp = (CHECK_ISSUES_CONFIG.setup)();
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
+        cmd.current_dir(temp.path());
+        cmd.args(&["es-fluent", "check"]);
+        
+        // It should exit with failure code
+        cmd.assert().failure();
+
+        // Run again with run_cli to capture output for snapshot
+        // Note: run_cli doesn't check exit code, just returns output
+        let output = run_cli(&temp, &["check"]);
+        assert_snapshot!(output);
+    }
 }

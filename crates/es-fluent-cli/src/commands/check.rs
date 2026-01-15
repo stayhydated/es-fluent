@@ -149,6 +149,9 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 
     pb.finish_and_clear();
 
+    // Sort issues for deterministic output
+    all_issues.sort_by_cached_key(|issue| issue.sort_key());
+
     let error_count = all_issues
         .iter()
         .filter(|i| {
