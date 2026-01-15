@@ -28,8 +28,8 @@ Warning: es_fluent::validate::missing_variable
  5 │ 
  6 │ ## Notification
    ╰────
-  help: Variable '$name' is declared at [TEMP_DIR]/src/lib.rs:4 but not
-        used in the translation
+  help: Variable '$name' is declared at src/lib.rs:4 but not used in the
+        translation
 
 Warning: es_fluent::validate::missing_variable
 
@@ -43,5 +43,5 @@ Warning: es_fluent::validate::missing_variable
  10 │ 
  11 │ ## Status
     ╰────
-  help: Variable '$count' is declared at [TEMP_DIR]/src/lib.rs:10 but not
-        used in the translation
+  help: Variable '$count' is declared at src/lib.rs:10 but not used in the
+        translation

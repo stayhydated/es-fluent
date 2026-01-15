@@ -133,7 +133,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     for krate in &workspace.valid {
         pb.set_message(format!("Checking {}", krate.name));
 
-        match validate_crate(krate, &temp_dir, args.all, &ignore_keys) {
+        match validate_crate(krate, &workspace.workspace_info.root_dir, &temp_dir, args.all, &ignore_keys) {
             Ok(issues) => {
                 all_issues.extend(issues);
             },
@@ -181,6 +181,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 /// Validate a single crate's FTL files using already-collected inventory data.
 fn validate_crate(
     krate: &CrateInfo,
+    workspace_root: &Path,
     temp_dir: &Path,
     check_all: bool,
     ignore_keys: &HashSet<String>,
@@ -194,7 +195,7 @@ fn validate_crate(
     }
 
     // Validate FTL files against expected keys
-    validate_ftl_files(krate, &expected_keys, check_all)
+    validate_ftl_files(krate, workspace_root, &expected_keys, check_all)
 }
 
 /// Read inventory data from the generated inventory.json file.
@@ -270,6 +271,7 @@ fn load_locale_ftl(assets_dir: &Path, locale: &str, crate_name: &str) -> LocaleL
 /// Validate FTL files against expected keys using fluent-syntax directly.
 fn validate_ftl_files(
     krate: &CrateInfo,
+    workspace_root: &Path,
     expected_keys: &HashMap<String, KeyInfo>,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
@@ -287,13 +289,9 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locales {
-        // Use the relative path from assets_dir for clickable terminal links
-        let ftl_relative_path = format!(
-            "{}/{}/{}.ftl",
-            config.assets_dir.display(),
-            locale,
-            krate.name
-        );
+        // Calculate absolute FTL path and make it relative to workspace root
+        let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
+        let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
         match load_locale_ftl(&assets_dir, locale, &krate.name) {
             LocaleLoadResult::NotFound => {
                 issues.extend(missing_file_issues(
@@ -327,6 +325,7 @@ fn validate_ftl_files(
                     locale,
                     &ftl_relative_path,
                     &krate.name,
+                    workspace_root,
                 ));
             },
         }
@@ -364,6 +363,7 @@ fn validate_loaded_ftl(
     locale: &str,
     file_name: &str,
     _crate_name: &str,
+    workspace_root: &Path,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
@@ -428,12 +428,18 @@ fn validate_loaded_ftl(
 
             // Build help message with source location if available
             let help = match (&key_info.source_file, key_info.source_line) {
-                (Some(file), Some(line)) => format!(
-                    "Variable '${var}' is declared at {file}:{line} but not used in the translation"
-                ),
-                (Some(file), None) => format!(
-                    "Variable '${var}' is declared in {file} but not used in the translation"
-                ),
+                (Some(file), Some(line)) => {
+                    let rel_file = to_relative_path(Path::new(file), workspace_root);
+                    format!(
+                        "Variable '${var}' is declared at {rel_file}:{line} but not used in the translation"
+                    )
+                }
+                (Some(file), None) => {
+                    let rel_file = to_relative_path(Path::new(file), workspace_root);
+                    format!(
+                        "Variable '${var}' is declared in {rel_file} but not used in the translation"
+                    )
+                }
                 _ => format!(
                     "Variable '${var}' is declared in Rust code but not used in the translation"
                 ),
@@ -493,6 +499,27 @@ fn extract_key_from_junk(junk: &str) -> Option<String> {
     KEY_REGEX
         .find(junk.trim_start())
         .map(|m| m.as_str().to_string())
+}
+
+/// Helper to make a path relative to a base path (e.g. workspace root).
+fn to_relative_path(path: &Path, base: &Path) -> String {
+    // Try to canonicalize both for accurate diffing
+    let path_canon = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let base_canon = fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
+
+    // Try to strip prefix
+    if let Ok(rel) = path_canon.strip_prefix(&base_canon) {
+        return rel.display().to_string();
+    }
+
+    // If straightforward strip failed, we can return the path as is or try simple path strip
+    // (sometimes canonicalize fails or resolves symlinks unpredictably)
+    if let Ok(rel) = path.strip_prefix(base) {
+        return rel.display().to_string();
+    }
+
+    // Fallback: return absolute path or best effort
+    path.display().to_string()
 }
 
 #[cfg(test)]
