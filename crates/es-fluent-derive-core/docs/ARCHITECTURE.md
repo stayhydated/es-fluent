@@ -1,10 +1,10 @@
 # es-fluent-derive-core Architecture
 
-`es-fluent-derive-core` constitutes the **build-time logic** of the `es-fluent` system. It is designed to be consumed by the procedural macro crate `es-fluent-derive` (and potentially other tooling) to perform heavy lifting such as parsing, validation, and name generation, ultimately producing code that registers with `es-fluent-core`.
+`es-fluent-derive-core` constitutes the **build-time logic** of the `es-fluent` system. It is designed to be consumed by the procedural macro crate `es-fluent-derive` (and potentially other tooling) to perform heavy lifting such as parsing, validation, and name generation, ultimately producing code that registers with `es-fluent`.
 
 ## Purpose
 
-By separating this logic from the `proc-macro` crate (`es-fluent-derive`) and the runtime crate (`es-fluent-core`), we achieve:
+By separating this logic from the `proc-macro` crate (`es-fluent-derive`) and the main facade crate (`es-fluent`), we achieve:
 
 1.  **Testability**: Logic in this crate can be unit-tested without the constraints of a `proc-macro` context.
 2.  **Modularity**: Parsing and validation logic is isolated from code generation.
