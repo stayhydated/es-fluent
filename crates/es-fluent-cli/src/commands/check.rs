@@ -70,6 +70,13 @@ pub struct CheckArgs {
     pub ignore: Vec<String>,
 }
 
+/// Context for FTL validation to reduce argument count.
+struct ValidationContext<'a> {
+    expected_keys: &'a HashMap<String, KeyInfo>,
+    workspace_root: &'a Path,
+    manifest_dir: &'a Path,
+}
+
 /// Run the check command.
 pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
@@ -326,16 +333,19 @@ fn validate_ftl_files(
                 resource,
                 parse_errors,
             } => {
+                let ctx = ValidationContext {
+                    expected_keys,
+                    workspace_root,
+                    manifest_dir: &krate.manifest_dir,
+                };
+
                 issues.extend(validate_loaded_ftl(
                     &content,
                     &resource,
                     &parse_errors,
-                    expected_keys,
                     locale,
                     &ftl_relative_path,
-                    &krate.name,
-                    workspace_root,
-                    &krate.manifest_dir,
+                    &ctx,
                 ));
             },
         }
@@ -365,22 +375,20 @@ fn missing_file_issues(
 }
 
 /// Validate a loaded FTL file against expected keys.
+/// Validate a loaded FTL file against expected keys.
 fn validate_loaded_ftl(
     content: &str,
     resource: &ast::Resource<String>,
     parse_errors: &[ParserError],
-    expected_keys: &HashMap<String, KeyInfo>,
     locale: &str,
     file_name: &str,
-    _crate_name: &str,
-    workspace_root: &Path,
-    manifest_dir: &Path,
+    ctx: &ValidationContext,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
 
     // Calculate header link (with absolute path target but relative path text)
-    let ftl_abs_path = workspace_root.join(file_name);
+    let ftl_abs_path = ctx.workspace_root.join(file_name);
     let ftl_header_url = format!("file://{}", ftl_abs_path.display());
     // file_name here is expected to be relative path (passed from caller)
     let ftl_header_link = Link::new(file_name, &ftl_header_url).to_string();
@@ -418,7 +426,7 @@ fn validate_loaded_ftl(
         .collect();
 
     // Check for missing keys and variables
-    for (key, key_info) in expected_keys {
+    for (key, key_info) in ctx.expected_keys {
         // Skip keys that have syntax errors - they're already reported
         if keys_with_syntax_errors.contains(key) {
             continue;
@@ -450,7 +458,7 @@ fn validate_loaded_ftl(
                     let abs_file = if file_path.is_absolute() {
                         file_path.to_path_buf()
                     } else {
-                        manifest_dir.join(file_path)
+                        ctx.manifest_dir.join(file_path)
                     };
 
                     // We still want relative path for display text (relative to workspace if possible usually, or crate relative)
@@ -458,7 +466,7 @@ fn validate_loaded_ftl(
                     // If file is "src/lib.rs", it's relative to crate. But we want relative to workspace?
                     // to_relative_path expects absolute or correct relative base.
                     // Let's use abs_file for to_relative_path to be safe.
-                    let rel_file = to_relative_path(&abs_file, workspace_root);
+                    let rel_file = to_relative_path(&abs_file, ctx.workspace_root);
 
                     let file_label = format!("{rel_file}:{line}");
                     let file_url = format!("file://{}", abs_file.display());
@@ -471,9 +479,9 @@ fn validate_loaded_ftl(
                     let abs_file = if file_path.is_absolute() {
                         file_path.to_path_buf()
                     } else {
-                        manifest_dir.join(file_path)
+                        ctx.manifest_dir.join(file_path)
                     };
-                    let rel_file = to_relative_path(&abs_file, workspace_root);
+                    let rel_file = to_relative_path(&abs_file, ctx.workspace_root);
 
                     let file_url = format!("file://{}", abs_file.display());
                     let file_link = Link::new(&rel_file, &file_url);
