@@ -332,6 +332,20 @@ impl From<anyhow::Error> for CliError {
     }
 }
 
+/// Calculate line and column from byte offset in source text.
+pub fn line_col_from_offset(source: &str, offset: usize) -> (usize, usize) {
+    let mut current_offset = 0;
+    for (i, line) in source.lines().enumerate() {
+        let line_len = line.len() + 1; // +1 for newline
+        if current_offset + line_len > offset {
+            let col = offset - current_offset + 1;
+            return (i + 1, col);
+        }
+        current_offset += line_len;
+    }
+    (source.lines().count().max(1), 1)
+}
+
 /// Calculate SourceSpan from line and column in source text.
 #[allow(dead_code)]
 pub fn span_from_line_col(source: &str, line: usize, col: usize, len: usize) -> SourceSpan {

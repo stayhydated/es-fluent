@@ -14,12 +14,13 @@ Error: es_fluent::validate::report
 Error: es_fluent::validate::missing_key
 
   × missing translation key
-  help: Add translation for 'status-Pending' in i18n/en/test-check-issues.ftl
+  help: Add translation for 'status-Pending' in ]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-
+        check-issues.ftl]8;;\
 
 Warning: es_fluent::validate::missing_variable
 
   ⚠ translation omits variable
-   ╭─[i18n/en/test-check-issues.ftl:4:1]
+   ╭─[]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-check-issues.ftl]8;;\:4:1]
  2 │ 
  3 │ # Missing the 'name' variable - should cause a warning
  4 │ greeting = Hello!
@@ -28,13 +29,13 @@ Warning: es_fluent::validate::missing_variable
  5 │ 
  6 │ ## Notification
    ╰────
-  help: Variable '$name' is declared at src/lib.rs:4 but not used in the
-        translation
+  help: Variable '$name' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:4]8;;\ but not used in ]8;;file://[TEMP_DIR]/i18n/en/test-check-
+        issues.ftl\i18n/en/test-check-issues.ftl:4:1]8;;\
 
 Warning: es_fluent::validate::missing_variable
 
   ⚠ translation omits variable
-    ╭─[i18n/en/test-check-issues.ftl:9:1]
+    ╭─[]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-check-issues.ftl]8;;\:9:1]
   7 │ 
   8 │ # Missing 'count' variable - should cause a warning
   9 │ notification = Hello { $user }
@@ -43,5 +44,5 @@ Warning: es_fluent::validate::missing_variable
  10 │ 
  11 │ ## Status
     ╰────
-  help: Variable '$count' is declared at src/lib.rs:10 but not used in the
-        translation
+  help: Variable '$count' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:10]8;;\ but not used in ]8;;file://[TEMP_DIR]/i18n/en/test-check-
+        issues.ftl\i18n/en/test-check-issues.ftl:9:1]8;;\

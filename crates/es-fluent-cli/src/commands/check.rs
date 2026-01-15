@@ -10,7 +10,7 @@
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{
     CliError, CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
-    ValidationReport, find_key_span,
+    ValidationReport, find_key_span, line_col_from_offset,
 };
 use crate::ftl::extract_variables_from_message;
 use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
@@ -18,6 +18,7 @@ use crate::utils::{get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
+use terminal_link::Link;
 use fluent_syntax::ast;
 use fluent_syntax::parser::{self, ParserError};
 use miette::{NamedSource, SourceSpan};
@@ -289,22 +290,25 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locales {
-        // Calculate absolute FTL path and make it relative to workspace root
         let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
         let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
+        
+        let ftl_url = format!("file://{}", ftl_abs_path.display());
+        let ftl_header_link = Link::new(&ftl_relative_path, &ftl_url).to_string();
+
         match load_locale_ftl(&assets_dir, locale, &krate.name) {
             LocaleLoadResult::NotFound => {
                 issues.extend(missing_file_issues(
                     expected_keys,
                     locale,
                     &krate.name,
-                    &ftl_relative_path,
+                    &ftl_header_link,
                 ));
                 continue;
             },
             LocaleLoadResult::ReadError(err) => {
                 issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
-                    src: NamedSource::new(ftl_relative_path.clone(), String::new()),
+                    src: NamedSource::new(ftl_header_link, String::new()),
                     span: SourceSpan::new(0_usize.into(), 1_usize),
                     locale: locale.clone(),
                     file_name: ftl_relative_path.clone(),
@@ -324,8 +328,10 @@ fn validate_ftl_files(
                     expected_keys,
                     locale,
                     &ftl_relative_path,
+
                     &krate.name,
                     workspace_root,
+                    &krate.manifest_dir,
                 ));
             },
         }
@@ -364,9 +370,16 @@ fn validate_loaded_ftl(
     file_name: &str,
     _crate_name: &str,
     workspace_root: &Path,
+    manifest_dir: &Path,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
+
+    // Calculate header link (with absolute path target but relative path text)
+    let ftl_abs_path = workspace_root.join(file_name);
+    let ftl_header_url = format!("file://{}", ftl_abs_path.display());
+    // file_name here is expected to be relative path (passed from caller)
+    let ftl_header_link = Link::new(file_name, &ftl_header_url).to_string();
 
     // Convert parse errors to issues
     for err in parse_errors {
@@ -374,7 +387,7 @@ fn validate_loaded_ftl(
             err,
             content,
             locale,
-            file_name,
+            &ftl_header_link,
             &mut keys_with_syntax_errors,
         ));
     }
@@ -410,10 +423,10 @@ fn validate_loaded_ftl(
         let Some(actual_vars) = actual_keys.get(key) else {
             // Key is missing
             issues.push(ValidationIssue::MissingKey(MissingKeyError {
-                src: NamedSource::new(file_name, content.to_string()),
+                src: NamedSource::new(ftl_header_link.clone(), content.to_string()),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!("Add translation for '{}' in {}", key, file_name),
+                help: format!("Add translation for '{}' in {}", key, ftl_header_link),
             }));
             continue;
         };
@@ -426,27 +439,62 @@ fn validate_loaded_ftl(
             let span = find_key_span(content, key)
                 .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
 
+            let (ftl_line, ftl_col) = line_col_from_offset(content, span.offset());
+            let ftl_relative = format!("{}:{}:{}", file_name, ftl_line, ftl_col);
+            
+            // Reconstruct absolute path from relative path and workspace root
+            let ftl_abs = workspace_root.join(file_name);
+            let ftl_url = format!("file://{}", ftl_abs.display());
+            let ftl_link = Link::new(&ftl_relative, &ftl_url);
+
             // Build help message with source location if available
             let help = match (&key_info.source_file, key_info.source_line) {
                 (Some(file), Some(line)) => {
-                    let rel_file = to_relative_path(Path::new(file), workspace_root);
+                    let file_path = Path::new(file);
+                    let abs_file = if file_path.is_absolute() {
+                        file_path.to_path_buf()
+                    } else {
+                        manifest_dir.join(file_path)
+                    };
+                    
+                    // We still want relative path for display text (relative to workspace if possible usually, or crate relative)
+                    // existing logic used to_relative_path(Path::new(file), workspace_root)
+                    // If file is "src/lib.rs", it's relative to crate. But we want relative to workspace?
+                    // to_relative_path expects absolute or correct relative base.
+                    // Let's use abs_file for to_relative_path to be safe.
+                    let rel_file = to_relative_path(&abs_file, workspace_root);
+                    
+                    let file_label = format!("{rel_file}:{line}");
+                    let file_url = format!("file://{}", abs_file.display());
+                    let file_link = Link::new(&file_label, &file_url);
+                    
                     format!(
-                        "Variable '${var}' is declared at {rel_file}:{line} but not used in the translation"
+                        "Variable '${var}' is declared at {file_link} but not used in {ftl_link}"
                     )
                 }
                 (Some(file), None) => {
-                    let rel_file = to_relative_path(Path::new(file), workspace_root);
+                    let file_path = Path::new(file);
+                    let abs_file = if file_path.is_absolute() {
+                        file_path.to_path_buf()
+                    } else {
+                        manifest_dir.join(file_path)
+                    };
+                    let rel_file = to_relative_path(&abs_file, workspace_root);
+
+                    let file_url = format!("file://{}", abs_file.display());
+                    let file_link = Link::new(&rel_file, &file_url);
+
                     format!(
-                        "Variable '${var}' is declared in {rel_file} but not used in the translation"
+                        "Variable '${var}' is declared in {file_link} but not used in {ftl_link}"
                     )
                 }
                 _ => format!(
-                    "Variable '${var}' is declared in Rust code but not used in the translation"
+                    "Variable '${var}' is declared in Rust code but not used in {ftl_link}" // Link won't work perfectly if we don't know where
                 ),
             };
 
             issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
-                src: NamedSource::new(file_name, content.to_string()),
+                src: NamedSource::new(ftl_header_link.clone(), content.to_string()),
                 span,
                 variable: var.clone(),
                 key: key.clone(),
