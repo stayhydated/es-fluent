@@ -29,8 +29,7 @@ Warning: es_fluent::validate::missing_variable
  5 │ 
  6 │ ## Notification
    ╰────
-  help: Variable '$name' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:4]8;;\ but not used in ]8;;file://[TEMP_DIR]/i18n/en/test-check-
-        issues.ftl\i18n/en/test-check-issues.ftl:4:1]8;;\
+  help: Variable '$name' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:4]8;;\
 
 Warning: es_fluent::validate::missing_variable
 
@@ -44,5 +43,4 @@ Warning: es_fluent::validate::missing_variable
  10 │ 
  11 │ ## Status
     ╰────
-  help: Variable '$count' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:10]8;;\ but not used in ]8;;file://[TEMP_DIR]/i18n/en/test-check-
-        issues.ftl\i18n/en/test-check-issues.ftl:9:1]8;;\
+  help: Variable '$count' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:10]8;;\

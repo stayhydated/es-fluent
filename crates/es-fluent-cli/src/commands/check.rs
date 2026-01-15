@@ -10,7 +10,7 @@
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{
     CliError, CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
-    ValidationReport, find_key_span, line_col_from_offset,
+    ValidationReport, find_key_span,
 };
 use crate::ftl::extract_variables_from_message;
 use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
@@ -439,13 +439,7 @@ fn validate_loaded_ftl(
             let span = find_key_span(content, key)
                 .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
 
-            let (ftl_line, ftl_col) = line_col_from_offset(content, span.offset());
-            let ftl_relative = format!("{}:{}:{}", file_name, ftl_line, ftl_col);
-            
-            // Reconstruct absolute path from relative path and workspace root
-            let ftl_abs = workspace_root.join(file_name);
-            let ftl_url = format!("file://{}", ftl_abs.display());
-            let ftl_link = Link::new(&ftl_relative, &ftl_url);
+
 
             // Build help message with source location if available
             let help = match (&key_info.source_file, key_info.source_line) {
@@ -469,7 +463,7 @@ fn validate_loaded_ftl(
                     let file_link = Link::new(&file_label, &file_url);
                     
                     format!(
-                        "Variable '${var}' is declared at {file_link} but not used in {ftl_link}"
+                        "Variable '${var}' is declared at {file_link}"
                     )
                 }
                 (Some(file), None) => {
@@ -485,11 +479,11 @@ fn validate_loaded_ftl(
                     let file_link = Link::new(&rel_file, &file_url);
 
                     format!(
-                        "Variable '${var}' is declared in {file_link} but not used in {ftl_link}"
+                        "Variable '${var}' is declared in {file_link}"
                     )
                 }
                 _ => format!(
-                    "Variable '${var}' is declared in Rust code but not used in {ftl_link}" // Link won't work perfectly if we don't know where
+                    "Variable '${var}' is declared in Rust code"
                 ),
             };
 
