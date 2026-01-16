@@ -6,16 +6,15 @@ use std::fs;
 use syn::Ident;
 use tempfile::TempDir;
 
-// Helper to create static strings for tests
 macro_rules! static_str {
     ($s:expr) => {
-        Box::leak($s.to_string().into_boxed_str()) as &'static str
+        $s.to_string().leak()
     };
 }
 
 macro_rules! static_slice {
     ($($item:expr),* $(,)?) => {
-        Box::leak(vec![$($item),*].into_boxed_slice()) as &'static [_]
+        vec![$($item),*].leak() as &'static [_]
     };
 }
 
