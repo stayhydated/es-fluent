@@ -3,8 +3,8 @@
 pub use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
 
 /// A wrapper type for `FtlTypeInfo` that enables inventory collection.
-/// This is necessary because `FtlTypeInfo` is defined in a different crate,
-/// and Rust's orphan rules prevent implementing foreign traits on foreign types.
+/// This is necessary because `inventory::collect!` requires a type defined
+/// in the current crate.
 #[derive(Debug)]
 pub struct RegisteredFtlType(pub &'static FtlTypeInfo);
 
