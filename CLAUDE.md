@@ -23,8 +23,9 @@
 | `es-fluent-manager-embedded`| [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md)| Zero-setup backend for embedding FTL files in binary. |
 | `es-fluent-manager-bevy` | [Architecture](crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md) | Backend integration for Bevy engine ECS and assets. |
 | `es-fluent-manager-macros` | [Architecture](crates/es-fluent-manager-macros/docs/ARCHITECTURE.md)| Macros for asset discovery and module registration. |
-| **Tooling** | | |
-| `es-fluent-cli` | [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md) | The `cargo es-fluent` command-line tool. |
+| **CLI Tool** | | |
+| `es-fluent-cli` | [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md) | Primary developer-facing CLI (`cargo es-fluent`) for validating and generating FTL files. |
+| **Tooling Internals** | | |
 | `es-fluent-cli-helpers` | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md) | Runtime logic for checking/generating FTL files (runner crate). |
 | `es-fluent-generate` | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md) | FTL AST manipulation, diffing, and formatting logic. |
 | **Scripts** | | |
