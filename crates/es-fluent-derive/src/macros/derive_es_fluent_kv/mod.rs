@@ -151,7 +151,7 @@ fn generate_unit_enum(
                 .join(original_field_name)
                 .to_string();
             quote! {
-                ::es_fluent::registry::StaticFtlVariant {
+                ::es_fluent::registry::FtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
@@ -170,12 +170,12 @@ fn generate_unit_enum(
         mod #mod_name {
             use super::*;
 
-            static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
+            static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
                 #(#static_variants),*
             ];
 
-            static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
-                ::es_fluent::registry::StaticFtlTypeInfo {
+            static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
+                ::es_fluent::registry::FtlTypeInfo {
                     type_kind: ::es_fluent::meta::TypeKind::Enum,
                     type_name: #type_name,
                     variants: VARIANTS,
@@ -183,7 +183,7 @@ fn generate_unit_enum(
                     module_path: module_path!(),
                 };
 
-            ::es_fluent::__inventory::submit!(&TYPE_INFO);
+            ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
         }
     };
 
@@ -310,7 +310,7 @@ fn generate_enum_unit_enum(
             let base_key = variant_ident.to_string();
             let ftl_key = namer::FluentKey::from(ident).join(&base_key).to_string();
             quote! {
-                ::es_fluent::registry::StaticFtlVariant {
+                ::es_fluent::registry::FtlVariant {
                     name: #variant_name,
                     ftl_key: #ftl_key,
                     args: &[],
@@ -329,12 +329,12 @@ fn generate_enum_unit_enum(
         mod #mod_name {
             use super::*;
 
-            static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
+            static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
                 #(#static_variants),*
             ];
 
-            static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
-                ::es_fluent::registry::StaticFtlTypeInfo {
+            static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
+                ::es_fluent::registry::FtlTypeInfo {
                     type_kind: ::es_fluent::meta::TypeKind::Enum,
                     type_name: #type_name,
                     variants: VARIANTS,
@@ -342,7 +342,7 @@ fn generate_enum_unit_enum(
                     module_path: module_path!(),
                 };
 
-            ::es_fluent::__inventory::submit!(&TYPE_INFO);
+            ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
         }
     };
 

@@ -1,10 +1,8 @@
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{FluentParseMode, generate};
-use proc_macro2::Span;
+mod common;
+
+use common::{enum_type, ftl_key, leak_slice, struct_type, variant, variant_with_args};
+use es_fluent_generate::{generate, FluentParseMode};
 use std::fs;
-use syn::Ident;
 use tempfile::TempDir;
 
 #[test]
@@ -51,127 +49,50 @@ what-Hi = Hi
     // And add a NEW key to "Shared".
 
     // 1. Gender Group (Complete)
-    let gender_variants = vec![
-        FtlVariant {
-            name: "Female".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Female")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
-            line: 0,
-        },
-        FtlVariant {
-            name: "Helicopter".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Helicopter")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
-            line: 0,
-        },
-        FtlVariant {
-            name: "Male".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Male")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
-            line: 0,
-        },
-        FtlVariant {
-            name: "Other".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Other")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
-            line: 0,
-        },
-    ];
-    let gender = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "Gender".to_string(),
-        variants: gender_variants,
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let gender = enum_type(
+        "Gender",
+        vec![
+            variant("Female", &ftl_key("Gender", "Female")),
+            variant("Helicopter", &ftl_key("Gender", "Helicopter")),
+            variant("Male", &ftl_key("Gender", "Male")),
+            variant("Other", &ftl_key("Gender", "Other")),
+        ],
+    );
 
     // 2. HelloUser (Complete)
-    let hello_user_variants = vec![FtlVariant {
-        name: "hello_user".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("HelloUser", Span::call_site()))
-            .join("hello_user")
-            .to_string(),
-        args: vec!["f0".to_string()],
-        module_path: "test".to_string(),
-        line: 0,
-    }];
-    let hello_user = FtlTypeInfo {
-        type_kind: TypeKind::Struct, // Assuming struct for single message
-        type_name: "HelloUser".to_string(),
-        variants: hello_user_variants,
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let hello_user = struct_type(
+        "HelloUser",
+        vec![variant_with_args(
+            "hello_user",
+            &ftl_key("HelloUser", "hello_user"),
+            vec!["f0"],
+        )],
+    );
 
     // 3. Shared (Adding 'Videos' new key)
-    let shared_variants = vec![
-        FtlVariant {
-            name: "Photos".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site()))
-                .join("Photos")
-                .to_string(),
-            args: vec![
-                "user_name".to_string(),
-                "photo_count".to_string(),
-                "user_gender".to_string(),
-            ],
-            module_path: "test".to_string(),
-            line: 0,
-        },
-        // NEW KEY
-        FtlVariant {
-            name: "Videos".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site()))
-                .join("Videos")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
-            line: 0,
-        },
-    ];
-    let shared = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "Shared".to_string(),
-        variants: shared_variants,
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let shared = enum_type(
+        "Shared",
+        vec![
+            variant_with_args(
+                "Photos",
+                &ftl_key("Shared", "Photos"),
+                vec!["user_name", "photo_count", "user_gender"],
+            ),
+            // NEW KEY
+            variant("Videos", &ftl_key("Shared", "Videos")),
+        ],
+    );
 
     // 4. What (Complete)
-    let what_variants = vec![FtlVariant {
-        name: "Hi".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("What", Span::call_site()))
-            .join("Hi")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
-        line: 0,
-    }];
-    let what = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "What".to_string(),
-        variants: what_variants,
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let what = enum_type("What", vec![variant("Hi", &ftl_key("What", "Hi"))]);
+
+    let items = leak_slice(vec![gender, hello_user, shared, what]);
 
     // Run generate in Conservative mode
     generate(
         crate_name,
         &i18n_path,
-        vec![gender, hello_user, shared, what],
+        items,
         FluentParseMode::Conservative,
         false,
     )

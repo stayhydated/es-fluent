@@ -8,3 +8,15 @@ impl ValueFormatter {
         last.to_title_case()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_value_formatter_expand() {
+        assert_eq!(ValueFormatter::expand("simple-key"), "Key");
+        assert_eq!(ValueFormatter::expand("another-test-value"), "Value");
+        assert_eq!(ValueFormatter::expand("single"), "Single");
+    }
+}

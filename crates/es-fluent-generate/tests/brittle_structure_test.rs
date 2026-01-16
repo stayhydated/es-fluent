@@ -1,10 +1,8 @@
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{FluentParseMode, generate};
-use proc_macro2::Span;
+mod common;
+
+use common::{enum_type, ftl_key, leak_slice, variant};
+use es_fluent_generate::{generate, FluentParseMode};
 use std::fs;
-use syn::Ident;
 use tempfile::TempDir;
 
 #[test]
@@ -33,54 +31,20 @@ manual-key = Contains manual stuff
 
     // Define items corresponding to GroupA and GroupB
     // Add a NEW key to GroupA (Key2)
-    let key_a_1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
-        line: 0,
-    };
-    let key_a_2 = FtlVariant {
-        name: "Key2".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key2")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
-        line: 0,
-    };
-    let group_a = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "GroupA".to_string(),
-        variants: vec![key_a_1, key_a_2],
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let key_a_1 = variant("Key1", &ftl_key("GroupA", "Key1"));
+    let key_a_2 = variant("Key2", &ftl_key("GroupA", "Key2"));
+    let group_a = enum_type("GroupA", vec![key_a_1, key_a_2]);
 
-    let key_b_1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupB", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
-        line: 0,
-    };
-    let group_b = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "GroupB".to_string(),
-        variants: vec![key_b_1],
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let key_b_1 = variant("Key1", &ftl_key("GroupB", "Key1"));
+    let group_b = enum_type("GroupB", vec![key_b_1]);
+
+    let items = leak_slice(vec![group_a, group_b]);
 
     // Run generate in Conservative mode
     generate(
         crate_name,
         &i18n_path,
-        vec![group_a, group_b],
+        items,
         FluentParseMode::Conservative,
         false,
     )

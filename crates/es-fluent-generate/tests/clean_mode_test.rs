@@ -1,9 +1,7 @@
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
-use proc_macro2::Span;
+mod common;
+
+use common::{enum_type, ftl_key, variant};
 use std::fs;
-use syn::Ident;
 use tempfile::TempDir;
 
 #[test]
@@ -35,26 +33,17 @@ awdawd = awdwa
     fs::write(&ftl_file_path, initial_content).unwrap();
 
     // 2. Define valid items (only GroupA Key1)
-    let key1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
-        line: 0,
-    };
-
-    let group_a = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "GroupA".to_string(),
-        variants: vec![key1],
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));
+    let group_a = enum_type("GroupA", vec![key1]);
 
     // Run clean
-    es_fluent_generate::clean::clean(crate_name, &i18n_path, vec![group_a], false).unwrap();
+    es_fluent_generate::clean::clean(
+        crate_name,
+        &i18n_path,
+        std::slice::from_ref(&group_a),
+        false,
+    )
+    .unwrap();
 
     let content = fs::read_to_string(&ftl_file_path).unwrap();
     println!("Generated Content:\n{}", content);

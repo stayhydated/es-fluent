@@ -1,10 +1,8 @@
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{FluentParseMode, generate};
-use proc_macro2::Span;
+mod common;
+
+use common::{enum_type, ftl_key, variant};
+use es_fluent_generate::{generate, FluentParseMode};
 use std::fs;
-use syn::Ident;
 use tempfile::TempDir;
 
 #[test]
@@ -25,38 +23,15 @@ group-a-key1 = Initial Value
     fs::write(&ftl_file_path, initial_content).unwrap();
 
     // 2. New State: GroupA with Key1 AND Key2
-    let key1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
-        line: 0,
-    };
-    let key2 = FtlVariant {
-        name: "Key2".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key2")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
-        line: 0,
-    };
-
-    let group_a = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "GroupA".to_string(),
-        variants: vec![key1, key2],
-        file_path: None,
-        module_path: "test".to_string(),
-    };
+    let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));
+    let key2 = variant("Key2", &ftl_key("GroupA", "Key2"));
+    let group_a = enum_type("GroupA", vec![key1, key2]);
 
     // Run generate in Conservative mode
     generate(
         crate_name,
         &i18n_path,
-        vec![group_a],
+        std::slice::from_ref(&group_a),
         FluentParseMode::Conservative,
         false,
     )

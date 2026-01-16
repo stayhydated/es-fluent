@@ -7,7 +7,7 @@ This document details the architecture of the `es-fluent` crate, which serves as
 `es-fluent` ties together the derive macros and manager components into a cohesive API. It provides:
 
 1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `EsFluentKv`, `EsFluentThis`, `ToFluentString`, `ThisFtl`) and derive macros.
-1. **Registry Types**: `FtlTypeInfo`, `StaticFtlTypeInfo`, and inventory collection for FTL file generation.
+1. **Registry Types**: `FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`, and inventory collection for FTL file generation.
 1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic localization macros.
 1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
 1. **Traits**: Standard definitions for how types invoke the localization system.

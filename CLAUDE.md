@@ -34,7 +34,7 @@
 
 ### Core Layers
 
-- **`es-fluent`**: The user-facing library. Re-exports everything needed for general usage. Provides registry types (`FtlTypeInfo`, `StaticFtlTypeInfo`) for inventory collection. Connects the global `OnceLock` context to specific backend managers.
+- **`es-fluent`**: The user-facing library. Re-exports everything needed for general usage. Provides registry types (`FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`) for inventory collection. Connects the global `OnceLock` context to specific backend managers.
 - **`es-fluent-derive-core`**: The shared logic library for derive macros. Contains `darling` attribute parsing, validation rules, and FTL key naming algorithms.
 - **`es-fluent-derive`**: Provides the `#[derive(EsFluent)]` macro. transforming Rust types into inventory registrations and `FluentDisplay` implementations.
 - **`es-fluent-toml`**: Centralizes configuration logic. Ensures that the CLI and proc-macros agree on where assets are located and what languages are available.
