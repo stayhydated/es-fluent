@@ -50,10 +50,13 @@
 - **`es-fluent-manager-embedded`**: A "singleton" manager. Initializes a global manager with embedded assets. ideal for CLI tools or simple apps.
 - **`es-fluent-manager-bevy`**: A "resource" manager. Hooks into Bevy's `AssetServer` for hot-reloading and ECS reactivity.
 
+### CLI Tool
+
+- **`es-fluent-cli`**: The primary developer-facing command-line tool, installed as `cargo es-fluent`. It provides commands like `check` and `generate` to validate FTL files against your Rust types and auto-generate missing translation keys. Under the hood, it compiles a temporary "runner crate" that links against your project to inspect registered types via inventory.
+
 ### Tooling Internals
 
-- **`es-fluent-cli`**: The binary installed by users. It compiles a "runner crate" to inspect the user's project codebase.
-- **`es-fluent-cli-helpers`**: The library code that runs *inside* that temporary runner crate. It collects the inventory from the user's code and calls the generator.
+- **`es-fluent-cli-helpers`**: The library code that runs *inside* the temporary runner crate. It collects the inventory from the user's code and calls the generator.
 - **`es-fluent-generate`**: A specialized FTL writer. It intelligently merges new keys into existing files without destroying manual comments or custom formatting.
 
 ### Scripts
