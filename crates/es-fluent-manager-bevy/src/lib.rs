@@ -1,5 +1,8 @@
 #![doc = include_str!("../README.md")]
 
+pub use bevy;
+pub use inventory;
+
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
 use fluent_bundle::{FluentResource, FluentValue, bundle::FluentBundle};
@@ -9,7 +12,11 @@ use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 #[cfg(feature = "macros")]
+pub use es_fluent_manager_macros::BevyFluentText;
+#[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_bevy_i18n_module as define_i18n_module;
+
+pub use unic_langid;
 
 pub mod components;
 pub mod plugin;
@@ -255,6 +262,17 @@ impl Plugin for EsFluentBevyPlugin {
         debug!("EsFluentBevyPlugin initialized");
     }
 }
+
+/// Trait for auto-registering FluentText systems with Bevy.
+///
+/// This trait is implemented by the `#[derive(EsFluent)]` macro when using
+/// `#[fluent(bevy)]` or `#[fluent(bevy_locale)]` attributes.
+pub trait BevyFluentTextRegistration: Send + Sync {
+    /// Registers the FluentText systems for this type with the Bevy app.
+    fn register(&self, app: &mut App);
+}
+
+inventory::collect!(&'static dyn BevyFluentTextRegistration);
 
 /// An extension trait for `App` to simplify the registration of `FluentText` components.
 pub trait FluentTextRegistration {

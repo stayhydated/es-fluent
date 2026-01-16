@@ -88,6 +88,16 @@ impl Plugin for I18nPlugin {
             discovered_languages.len()
         );
 
+        // Auto-register FluentText types from inventory
+        let mut registered_count = 0;
+        for registration in inventory::iter::<&'static dyn BevyFluentTextRegistration>() {
+            registration.register(app);
+            registered_count += 1;
+        }
+        if registered_count > 0 {
+            info!("Auto-registered {} FluentText types", registered_count);
+        }
+
         app.insert_resource(i18n_assets)
             .insert_resource(i18n_resource)
             .insert_resource(CurrentLanguageId(self.config.initial_language.clone()))

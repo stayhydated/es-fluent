@@ -1,7 +1,7 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
+    BevyFluentText, CurrentLanguageId, FluentText, I18nPlugin, LocaleChangeEvent,
 };
 use example_shared_lib::{ButtonState, Languages};
 
@@ -14,25 +14,13 @@ pub enum KbKeys {
     T,
 }
 
-#[derive(Clone, Component, Copy, Debug, EsFluent)]
+#[derive(BevyFluentText, Clone, Component, Copy, Debug, EsFluent)]
 pub enum BevyScreenMessages {
     ToggleLanguageHint {
         key: KbKeys,
+        #[locale]
         current_language: Languages,
     },
-}
-
-impl es_fluent_manager_bevy::RefreshForLocale for BevyScreenMessages {
-    fn refresh_for_locale(&mut self, lang: &unic_langid::LanguageIdentifier) {
-        match self {
-            BevyScreenMessages::ToggleLanguageHint {
-                key: _,
-                current_language,
-            } => {
-                *current_language = Languages::from(lang);
-            },
-        }
-    }
 }
 
 fn main() {
@@ -46,8 +34,7 @@ fn main() {
     .add_plugins(I18nPlugin::with_language(Languages::default().into()))
     .init_resource::<InputFocus>();
 
-    app.register_fluent_text::<ButtonState>()
-        .register_fluent_text_from_locale::<BevyScreenMessages>();
+    // FluentText types are now auto-registered via #[fluent(bevy = "...")] attributes
 
     app.add_systems(Startup, setup)
         .add_systems(PostUpdate, (button_system, locale_change_system))
