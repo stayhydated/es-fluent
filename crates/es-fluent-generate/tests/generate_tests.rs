@@ -1,7 +1,7 @@
 mod common;
 
 use common::{enum_type, ftl_key, leak_slice, struct_type, this_key, variant};
-use es_fluent_generate::{generate, FluentParseMode};
+use es_fluent_generate::{FluentParseMode, generate};
 use std::fs;
 use tempfile::TempDir;
 
@@ -132,7 +132,10 @@ existing-key = Existing Value
     // Define items that match ExistingGroup but NOT OrphanGroup
     let type_info = enum_type(
         "ExistingGroup",
-        vec![variant("ExistingKey", &ftl_key("ExistingGroup", "ExistingKey"))],
+        vec![variant(
+            "ExistingKey",
+            &ftl_key("ExistingGroup", "ExistingKey"),
+        )],
     );
 
     let result = es_fluent_generate::clean::clean(
@@ -166,10 +169,7 @@ fn test_this_types_sorted_first() {
         vec![variant("Yellow", &ftl_key("Banana", "Yellow"))],
     );
     // This type should come first despite alphabetical order
-    let banana_this = struct_type(
-        "BananaThis",
-        vec![variant("this", &this_key("BananaThis"))],
-    );
+    let banana_this = struct_type("BananaThis", vec![variant("this", &this_key("BananaThis"))]);
 
     let items = leak_slice(vec![apple, banana, banana_this]);
 

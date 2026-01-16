@@ -58,6 +58,7 @@ static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 ### Why ArcSwap?
 
 Localization is a classic "read-heavy, write-rare" workload:
+
 - **Reads**: `localize()` is called frequently (every time text is displayed)
 - **Writes**: Language changes are rare (user occasionally switches language)
 

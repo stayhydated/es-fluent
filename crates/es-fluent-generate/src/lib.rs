@@ -486,4 +486,3 @@ fn build_target_resource(items: &[&FtlTypeInfo]) -> ast::Resource<String> {
 
     ast::Resource { body }
 }
-

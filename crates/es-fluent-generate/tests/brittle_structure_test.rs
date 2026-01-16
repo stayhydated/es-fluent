@@ -1,7 +1,7 @@
 mod common;
 
 use common::{enum_type, ftl_key, leak_slice, variant};
-use es_fluent_generate::{generate, FluentParseMode};
+use es_fluent_generate::{FluentParseMode, generate};
 use std::fs;
 use tempfile::TempDir;
 
