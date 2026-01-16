@@ -7,6 +7,19 @@ use std::fs;
 use syn::Ident;
 use tempfile::TempDir;
 
+// Helper to create static strings for tests
+macro_rules! static_str {
+    ($s:expr) => {
+        Box::leak($s.to_string().into_boxed_str()) as &'static str
+    };
+}
+
+macro_rules! static_slice {
+    ($($item:expr),* $(,)?) => {
+        Box::leak(vec![$($item),*].into_boxed_slice()) as &'static [_]
+    };
+}
+
 #[test]
 fn test_complex_structure_preservation() {
     let temp_dir = TempDir::new().unwrap();
@@ -51,127 +64,141 @@ what-Hi = Hi
     // And add a NEW key to "Shared".
 
     // 1. Gender Group (Complete)
-    let gender_variants = vec![
+    let gender_variants: &'static [FtlVariant] = static_slice![
         FtlVariant {
-            name: "Female".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Female")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
+            name: static_str!("Female"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                    .join("Female")
+                    .to_string()
+            ),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         },
         FtlVariant {
-            name: "Helicopter".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Helicopter")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
+            name: static_str!("Helicopter"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                    .join("Helicopter")
+                    .to_string()
+            ),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         },
         FtlVariant {
-            name: "Male".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Male")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
+            name: static_str!("Male"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                    .join("Male")
+                    .to_string()
+            ),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         },
         FtlVariant {
-            name: "Other".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Gender", Span::call_site()))
-                .join("Other")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
+            name: static_str!("Other"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Gender", Span::call_site()))
+                    .join("Other")
+                    .to_string()
+            ),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         },
     ];
     let gender = FtlTypeInfo {
         type_kind: TypeKind::Enum,
-        type_name: "Gender".to_string(),
+        type_name: "Gender",
         variants: gender_variants,
-        file_path: None,
-        module_path: "test".to_string(),
+        file_path: "",
+        module_path: "test",
     };
 
     // 2. HelloUser (Complete)
-    let hello_user_variants = vec![FtlVariant {
-        name: "hello_user".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("HelloUser", Span::call_site()))
-            .join("hello_user")
-            .to_string(),
-        args: vec!["f0".to_string()],
-        module_path: "test".to_string(),
+    let hello_user_variants: &'static [FtlVariant] = static_slice![FtlVariant {
+        name: static_str!("hello_user"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("HelloUser", Span::call_site()))
+                .join("hello_user")
+                .to_string()
+        ),
+        args: static_slice!["f0"],
+        module_path: "test",
         line: 0,
     }];
     let hello_user = FtlTypeInfo {
         type_kind: TypeKind::Struct, // Assuming struct for single message
-        type_name: "HelloUser".to_string(),
+        type_name: "HelloUser",
         variants: hello_user_variants,
-        file_path: None,
-        module_path: "test".to_string(),
+        file_path: "",
+        module_path: "test",
     };
 
     // 3. Shared (Adding 'Videos' new key)
-    let shared_variants = vec![
+    let shared_variants: &'static [FtlVariant] = static_slice![
         FtlVariant {
-            name: "Photos".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site()))
-                .join("Photos")
-                .to_string(),
-            args: vec![
-                "user_name".to_string(),
-                "photo_count".to_string(),
-                "user_gender".to_string(),
-            ],
-            module_path: "test".to_string(),
+            name: static_str!("Photos"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Shared", Span::call_site()))
+                    .join("Photos")
+                    .to_string()
+            ),
+            args: static_slice!["user_name", "photo_count", "user_gender"],
+            module_path: "test",
             line: 0,
         },
         // NEW KEY
         FtlVariant {
-            name: "Videos".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Shared", Span::call_site()))
-                .join("Videos")
-                .to_string(),
-            args: vec![],
-            module_path: "test".to_string(),
+            name: static_str!("Videos"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Shared", Span::call_site()))
+                    .join("Videos")
+                    .to_string()
+            ),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         },
     ];
     let shared = FtlTypeInfo {
         type_kind: TypeKind::Enum,
-        type_name: "Shared".to_string(),
+        type_name: "Shared",
         variants: shared_variants,
-        file_path: None,
-        module_path: "test".to_string(),
+        file_path: "",
+        module_path: "test",
     };
 
     // 4. What (Complete)
-    let what_variants = vec![FtlVariant {
-        name: "Hi".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("What", Span::call_site()))
-            .join("Hi")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
+    let what_variants: &'static [FtlVariant] = static_slice![FtlVariant {
+        name: static_str!("Hi"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("What", Span::call_site()))
+                .join("Hi")
+                .to_string()
+        ),
+        args: static_slice![],
+        module_path: "test",
         line: 0,
     }];
     let what = FtlTypeInfo {
         type_kind: TypeKind::Enum,
-        type_name: "What".to_string(),
+        type_name: "What",
         variants: what_variants,
-        file_path: None,
-        module_path: "test".to_string(),
+        file_path: "",
+        module_path: "test",
     };
+
+    let items: &[FtlTypeInfo] = static_slice![gender, hello_user, shared, what];
 
     // Run generate in Conservative mode
     generate(
         crate_name,
         &i18n_path,
-        vec![gender, hello_user, shared, what],
+        items,
         FluentParseMode::Conservative,
         false,
     )

@@ -48,7 +48,7 @@ fn test_enum_kv_preserves_pascal_case_in_ftl_output() {
     let result = es_fluent_generate::generate(
         "test_enum_casing",
         &i18n_path,
-        usa_state_infos,
+        &usa_state_infos,
         FluentParseMode::Aggressive,
         false,
     );
@@ -108,7 +108,7 @@ fn test_struct_kv_preserves_snake_case_in_ftl_output() {
     let result = es_fluent_generate::generate(
         "test_struct_casing",
         &i18n_path,
-        user_profile_infos,
+        &user_profile_infos,
         FluentParseMode::Aggressive,
         false,
     );

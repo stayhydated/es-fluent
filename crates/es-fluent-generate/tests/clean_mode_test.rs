@@ -6,6 +6,19 @@ use std::fs;
 use syn::Ident;
 use tempfile::TempDir;
 
+// Helper to create static strings for tests
+macro_rules! static_str {
+    ($s:expr) => {
+        Box::leak($s.to_string().into_boxed_str()) as &'static str
+    };
+}
+
+macro_rules! static_slice {
+    ($($item:expr),* $(,)?) => {
+        Box::leak(vec![$($item),*].into_boxed_slice()) as &'static [_]
+    };
+}
+
 #[test]
 fn test_clean_mode_orphans() {
     let temp_dir = TempDir::new().unwrap();
@@ -36,25 +49,33 @@ awdawd = awdwa
 
     // 2. Define valid items (only GroupA Key1)
     let key1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
+        name: static_str!("Key1"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+                .join("Key1")
+                .to_string()
+        ),
+        args: static_slice![],
+        module_path: "test",
         line: 0,
     };
 
     let group_a = FtlTypeInfo {
         type_kind: TypeKind::Enum,
-        type_name: "GroupA".to_string(),
-        variants: vec![key1],
-        file_path: None,
-        module_path: "test".to_string(),
+        type_name: "GroupA",
+        variants: static_slice![key1],
+        file_path: "",
+        module_path: "test",
     };
 
     // Run clean
-    es_fluent_generate::clean::clean(crate_name, &i18n_path, vec![group_a], false).unwrap();
+    es_fluent_generate::clean::clean(
+        crate_name,
+        &i18n_path,
+        std::slice::from_ref(&group_a),
+        false,
+    )
+    .unwrap();
 
     let content = fs::read_to_string(&ftl_file_path).unwrap();
     println!("Generated Content:\n{}", content);

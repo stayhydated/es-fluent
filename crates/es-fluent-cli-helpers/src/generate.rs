@@ -162,7 +162,7 @@ impl EsFluentGenerator {
         let changed = es_fluent_generate::generate(
             &crate_name,
             output_path,
-            type_infos,
+            &type_infos,
             self.mode.clone(),
             self.dry_run,
         )?;
@@ -187,12 +187,7 @@ impl EsFluentGenerator {
                 );
             }
 
-            if es_fluent_generate::clean::clean(
-                &crate_name,
-                output_path,
-                type_infos.clone(),
-                dry_run,
-            )? {
+            if es_fluent_generate::clean::clean(&crate_name, output_path, &type_infos, dry_run)? {
                 any_changed = true;
             }
         }
@@ -222,10 +217,9 @@ impl EsFluentGenerator {
 }
 
 /// Collect all registered type infos for a given crate.
-fn collect_type_infos(crate_name: &str) -> Vec<FtlTypeInfo> {
+fn collect_type_infos(crate_name: &str) -> Vec<&'static FtlTypeInfo> {
     let crate_ident = crate_name.replace('-', "_");
     es_fluent::registry::get_all_ftl_type_infos()
-        .into_iter()
         .filter(|info| {
             info.module_path == crate_ident
                 || info.module_path.starts_with(&format!("{}::", crate_ident))

@@ -7,6 +7,19 @@ use std::fs;
 use syn::Ident;
 use tempfile::TempDir;
 
+// Helper to create static strings for tests
+macro_rules! static_str {
+    ($s:expr) => {
+        Box::leak($s.to_string().into_boxed_str()) as &'static str
+    };
+}
+
+macro_rules! static_slice {
+    ($($item:expr),* $(,)?) => {
+        Box::leak(vec![$($item),*].into_boxed_slice()) as &'static [_]
+    };
+}
+
 #[test]
 fn test_conservative_mode_new_key_placement() {
     let temp_dir = TempDir::new().unwrap();
@@ -26,37 +39,41 @@ group-a-key1 = Initial Value
 
     // 2. New State: GroupA with Key1 AND Key2
     let key1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
+        name: static_str!("Key1"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+                .join("Key1")
+                .to_string()
+        ),
+        args: static_slice![],
+        module_path: "test",
         line: 0,
     };
     let key2 = FtlVariant {
-        name: "Key2".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key2")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
+        name: static_str!("Key2"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+                .join("Key2")
+                .to_string()
+        ),
+        args: static_slice![],
+        module_path: "test",
         line: 0,
     };
 
     let group_a = FtlTypeInfo {
         type_kind: TypeKind::Enum,
-        type_name: "GroupA".to_string(),
-        variants: vec![key1, key2],
-        file_path: None,
-        module_path: "test".to_string(),
+        type_name: "GroupA",
+        variants: static_slice![key1, key2],
+        file_path: "",
+        module_path: "test",
     };
 
     // Run generate in Conservative mode
     generate(
         crate_name,
         &i18n_path,
-        vec![group_a],
+        std::slice::from_ref(&group_a),
         FluentParseMode::Conservative,
         false,
     )

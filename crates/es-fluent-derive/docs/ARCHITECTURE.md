@@ -30,7 +30,7 @@ flowchart TD
         IMPL["impl FluentDisplay"]
         VAL["impl From... for FluentValue"]
         INV["inventory::submit!"]
-        STATIC[StaticFtlTypeInfo]
+        REG[RegisteredFtlType]
     end
 
     CODE --> PARSE
@@ -39,7 +39,7 @@ flowchart TD
     GEN --> IMPL
     GEN --> VAL
     GEN --> INV
-    INV --> STATIC
+    INV --> REG
 ```
 
 ## Key Components
@@ -47,7 +47,7 @@ flowchart TD
 - **`darling`**: Used for declarative attribute parsing (`#[fluent(...)]`).
 - **`es-fluent-derive-core::options`**: Defines the target structures (`StructOpts`, `EnumOpts`) that attributes are parsed into.
 - **`syn` / `quote`**: Standard tools for parsing and generating Rust code.
-- **`es-fluent`**: Provides the runtime target types (`StaticFtlTypeInfo`) that the specific macro generates code for.
+- **`es-fluent`**: Provides the runtime target types (`FtlTypeInfo`, `RegisteredFtlType`) that the specific macro generates code for.
 
 ## Macros
 

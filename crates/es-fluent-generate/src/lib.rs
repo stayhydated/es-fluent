@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 
 use clap::ValueEnum;
-use es_fluent_derive_core::meta::TypeKind;
 use es_fluent_derive_core::namer::FluentKey;
 use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
 use fluent_syntax::{ast, parser};
@@ -35,11 +34,44 @@ impl std::fmt::Display for FluentParseMode {
     }
 }
 
+// Internal owned types for merge operations
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct OwnedVariant {
+    name: String,
+    ftl_key: String,
+    args: Vec<String>,
+}
+
+impl From<&FtlVariant> for OwnedVariant {
+    fn from(v: &FtlVariant) -> Self {
+        Self {
+            name: v.name.to_string(),
+            ftl_key: v.ftl_key.to_string(),
+            args: v.args.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct OwnedTypeInfo {
+    type_name: String,
+    variants: Vec<OwnedVariant>,
+}
+
+impl From<&FtlTypeInfo> for OwnedTypeInfo {
+    fn from(info: &FtlTypeInfo) -> Self {
+        Self {
+            type_name: info.type_name.to_string(),
+            variants: info.variants.iter().map(OwnedVariant::from).collect(),
+        }
+    }
+}
+
 /// Generates a Fluent translation file from a list of `FtlTypeInfo` objects.
-pub fn generate<P: AsRef<Path>>(
+pub fn generate<P: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     crate_name: &str,
     i18n_path: P,
-    items: Vec<FtlTypeInfo>,
+    items: &[I],
     mode: FluentParseMode,
     dry_run: bool,
 ) -> Result<bool, FluentGenerateError> {
@@ -53,12 +85,14 @@ pub fn generate<P: AsRef<Path>>(
 
     let existing_resource = read_existing_resource(&file_path)?;
 
+    let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
+
     let final_resource = if matches!(mode, FluentParseMode::Aggressive) {
         // In aggressive mode, completely replace with new content
-        build_target_resource(&items)
+        build_target_resource(&items_ref)
     } else {
         // In conservative mode, merge with existing content
-        smart_merge(existing_resource, &items, MergeBehavior::Append)
+        smart_merge(existing_resource, &items_ref, MergeBehavior::Append)
     };
 
     write_updated_resource(
@@ -216,16 +250,16 @@ fn write_or_preview(
 }
 
 /// Compares two type infos, putting "this" types first.
-fn compare_type_infos(a: &FtlTypeInfo, b: &FtlTypeInfo) -> std::cmp::Ordering {
+fn compare_type_infos(a: &OwnedTypeInfo, b: &OwnedTypeInfo) -> std::cmp::Ordering {
     // Infer is_this from variants
     let a_is_this = a
         .variants
         .iter()
-        .any(|v| v.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX));
+        .any(|v| v.ftl_key.ends_with(FluentKey::THIS_SUFFIX));
     let b_is_this = b
         .variants
         .iter()
-        .any(|v| v.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX));
+        .any(|v| v.ftl_key.ends_with(FluentKey::THIS_SUFFIX));
 
     formatting::compare_with_this_priority(a_is_this, &a.type_name, b_is_this, &b.type_name)
 }
@@ -240,13 +274,13 @@ pub(crate) enum MergeBehavior {
 
 pub(crate) fn smart_merge(
     existing: ast::Resource<String>,
-    items: &[FtlTypeInfo],
+    items: &[&FtlTypeInfo],
     behavior: MergeBehavior,
 ) -> ast::Resource<String> {
     let mut pending_items = merge_ftl_type_infos(items);
     pending_items.sort_by(compare_type_infos);
 
-    let mut item_map: HashMap<String, FtlTypeInfo> = pending_items
+    let mut item_map: HashMap<String, OwnedTypeInfo> = pending_items
         .into_iter()
         .map(|i| (i.type_name.clone(), i))
         .collect();
@@ -376,9 +410,9 @@ fn create_group_comment_entry(type_name: &str) -> ast::Entry<String> {
     })
 }
 
-fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
+fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String> {
     let message_id = ast::Identifier {
-        name: variant.ftl_key.to_string(),
+        name: variant.ftl_key.clone(),
     };
 
     let base_value = ValueFormatter::expand(&variant.name);
@@ -391,7 +425,7 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
         elements.push(ast::PatternElement::Placeable {
             expression: ast::Expression::Inline(ast::InlineExpression::VariableReference {
                 id: ast::Identifier {
-                    name: arg_name.into(),
+                    name: arg_name.clone(),
                 },
             }),
         });
@@ -407,41 +441,36 @@ fn create_message_entry(variant: &FtlVariant) -> ast::Entry<String> {
     })
 }
 
-fn merge_ftl_type_infos(items: &[FtlTypeInfo]) -> Vec<FtlTypeInfo> {
+fn merge_ftl_type_infos(items: &[&FtlTypeInfo]) -> Vec<OwnedTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by type_name, also track module_path
-    let mut grouped: BTreeMap<String, (TypeKind, Vec<FtlVariant>, String)> = BTreeMap::new();
+    // Group by type_name
+    let mut grouped: BTreeMap<String, Vec<OwnedVariant>> = BTreeMap::new();
 
     for item in items {
-        let entry = grouped
-            .entry(item.type_name.clone())
-            .or_insert_with(|| (item.type_kind.clone(), Vec::new(), item.module_path.clone()));
-        entry.1.extend(item.variants.clone());
+        let entry = grouped.entry(item.type_name.to_string()).or_default();
+        entry.extend(item.variants.iter().map(OwnedVariant::from));
     }
 
     grouped
         .into_iter()
-        .map(|(type_name, (type_kind, mut variants, module_path))| {
+        .map(|(type_name, mut variants)| {
             variants.sort_by(|a, b| {
-                let a_is_this = a.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
-                let b_is_this = b.ftl_key.to_string().ends_with(FluentKey::THIS_SUFFIX);
+                let a_is_this = a.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
+                let b_is_this = b.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
                 formatting::compare_with_this_priority(a_is_this, &a.name, b_is_this, &b.name)
             });
             variants.dedup();
 
-            FtlTypeInfo {
-                type_kind,
+            OwnedTypeInfo {
                 type_name,
                 variants,
-                file_path: None,
-                module_path,
             }
         })
         .collect()
 }
 
-fn build_target_resource(items: &[FtlTypeInfo]) -> ast::Resource<String> {
+fn build_target_resource(items: &[&FtlTypeInfo]) -> ast::Resource<String> {
     let items = merge_ftl_type_infos(items);
     let mut body: Vec<ast::Entry<String>> = Vec::new();
     let mut sorted_items = items.to_vec();
@@ -461,10 +490,24 @@ fn build_target_resource(items: &[FtlTypeInfo]) -> ast::Resource<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use es_fluent_derive_core::meta::TypeKind;
     use es_fluent_derive_core::namer::FluentKey;
     use proc_macro2::Ident;
     use std::fs;
     use tempfile::TempDir;
+
+    // Helper to create static strings for tests
+    macro_rules! static_str {
+        ($s:expr) => {
+            Box::leak($s.to_string().into_boxed_str()) as &'static str
+        };
+    }
+
+    macro_rules! static_slice {
+        ($($item:expr),* $(,)?) => {
+            Box::leak(vec![$($item),*].into_boxed_slice()) as &'static [_]
+        };
+    }
 
     #[test]
     fn test_value_formatter_expand() {
@@ -478,10 +521,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let i18n_path = temp_dir.path().join("i18n");
 
+        let empty: &[FtlTypeInfo] = &[];
         let result = generate(
             "test_crate",
             &i18n_path,
-            vec![],
+            empty,
             FluentParseMode::Conservative,
             false,
         );
@@ -498,26 +542,27 @@ mod tests {
 
         let ftl_key = FluentKey::from(&Ident::new("TestEnum", proc_macro2::Span::call_site()))
             .join("Variant1");
+
         let variant = FtlVariant {
-            name: "variant1".to_string(),
-            ftl_key: ftl_key.to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("variant1"),
+            ftl_key: static_str!(ftl_key.to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
 
         let type_info = FtlTypeInfo {
             type_kind: TypeKind::Enum,
-            type_name: "TestEnum".to_string(),
-            variants: vec![variant],
-            file_path: None,
-            module_path: "test".to_string(),
+            type_name: "TestEnum",
+            variants: static_slice![variant],
+            file_path: "",
+            module_path: "test",
         };
 
         let result = generate(
             "test_crate",
             &i18n_path,
-            vec![type_info],
+            std::slice::from_ref(&type_info),
             FluentParseMode::Conservative,
             false,
         );
@@ -542,26 +587,27 @@ mod tests {
 
         let ftl_key = FluentKey::from(&Ident::new("TestEnum", proc_macro2::Span::call_site()))
             .join("Variant1");
+
         let variant = FtlVariant {
-            name: "variant1".to_string(),
-            ftl_key: ftl_key.to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("variant1"),
+            ftl_key: static_str!(ftl_key.to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
 
         let type_info = FtlTypeInfo {
             type_kind: TypeKind::Enum,
-            type_name: "TestEnum".to_string(),
-            variants: vec![variant],
-            file_path: None,
-            module_path: "test".to_string(),
+            type_name: "TestEnum",
+            variants: static_slice![variant],
+            file_path: "",
+            module_path: "test",
         };
 
         let result = generate(
             "test_crate",
             &i18n_path,
-            vec![type_info],
+            std::slice::from_ref(&type_info),
             FluentParseMode::Aggressive,
             false,
         );
@@ -584,26 +630,27 @@ mod tests {
 
         let ftl_key = FluentKey::from(&Ident::new("TestEnum", proc_macro2::Span::call_site()))
             .join("Variant1");
+
         let variant = FtlVariant {
-            name: "variant1".to_string(),
-            ftl_key: ftl_key.to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("variant1"),
+            ftl_key: static_str!(ftl_key.to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
 
         let type_info = FtlTypeInfo {
             type_kind: TypeKind::Enum,
-            type_name: "TestEnum".to_string(),
-            variants: vec![variant],
-            file_path: None,
-            module_path: "test".to_string(),
+            type_name: "TestEnum",
+            variants: static_slice![variant],
+            file_path: "",
+            module_path: "test",
         };
 
         let result = generate(
             "test_crate",
             &i18n_path,
-            vec![type_info],
+            std::slice::from_ref(&type_info),
             FluentParseMode::Conservative,
             false,
         );
@@ -614,6 +661,7 @@ mod tests {
         assert!(content.contains("TestEnum"));
         assert!(content.contains("Variant1"));
     }
+
     #[test]
     fn test_generate_clean_mode() {
         let temp_dir = TempDir::new().unwrap();
@@ -637,23 +685,29 @@ existing-key = Existing Value
         // Define items that match ExistingGroup but NOT OrphanGroup
         let ftl_key = FluentKey::from(&Ident::new("ExistingGroup", proc_macro2::Span::call_site()))
             .join("ExistingKey");
+
         let variant = FtlVariant {
-            name: "ExistingKey".to_string(),
-            ftl_key: ftl_key.to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("ExistingKey"),
+            ftl_key: static_str!(ftl_key.to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
 
         let type_info = FtlTypeInfo {
             type_kind: TypeKind::Enum,
-            type_name: "ExistingGroup".to_string(),
-            variants: vec![variant],
-            file_path: None,
-            module_path: "test".to_string(),
+            type_name: "ExistingGroup",
+            variants: static_slice![variant],
+            file_path: "",
+            module_path: "test",
         };
 
-        let result = crate::clean::clean("test_crate", &i18n_path, vec![type_info], false);
+        let result = crate::clean::clean(
+            "test_crate",
+            &i18n_path,
+            std::slice::from_ref(&type_info),
+            false,
+        );
         assert!(result.is_ok());
 
         let content = fs::read_to_string(&ftl_file_path).unwrap();
@@ -674,63 +728,69 @@ existing-key = Existing Value
 
         // Create types: Apple, Banana, Banana_this (should come first)
         let apple_variant = FtlVariant {
-            name: "Red".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Apple", proc_macro2::Span::call_site()))
-                .join("Red")
-                .to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("Red"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Apple", proc_macro2::Span::call_site()))
+                    .join("Red")
+                    .to_string()
+            ),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
         let apple = FtlTypeInfo {
             type_kind: TypeKind::Enum,
-            type_name: "Apple".to_string(),
-            variants: vec![apple_variant],
-            file_path: None,
-            module_path: "test".to_string(),
+            type_name: "Apple",
+            variants: static_slice![apple_variant],
+            file_path: "",
+            module_path: "test",
         };
 
         let banana_variant = FtlVariant {
-            name: "Yellow".to_string(),
-            ftl_key: FluentKey::from(&Ident::new("Banana", proc_macro2::Span::call_site()))
-                .join("Yellow")
-                .to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("Yellow"),
+            ftl_key: static_str!(
+                FluentKey::from(&Ident::new("Banana", proc_macro2::Span::call_site()))
+                    .join("Yellow")
+                    .to_string()
+            ),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
         let banana = FtlTypeInfo {
             type_kind: TypeKind::Enum,
-            type_name: "Banana".to_string(),
-            variants: vec![banana_variant],
-            file_path: None,
-            module_path: "test".to_string(),
+            type_name: "Banana",
+            variants: static_slice![banana_variant],
+            file_path: "",
+            module_path: "test",
         };
 
         // This type should come first despite alphabetical order
-        // Use proper 'this' key suffix for inference!
         let banana_this_ident = Ident::new("BananaThis", proc_macro2::Span::call_site());
-        let banana_this_key = FluentKey::new_this(&banana_this_ident); // "banana_this_this" effectively or similar
+        let banana_this_key = FluentKey::new_this(&banana_this_ident);
 
         let banana_this_variant = FtlVariant {
-            name: "this".to_string(),
-            ftl_key: banana_this_key.to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("this"),
+            ftl_key: static_str!(banana_this_key.to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
         let banana_this = FtlTypeInfo {
             type_kind: TypeKind::Struct,
-            type_name: "BananaThis".to_string(),
-            variants: vec![banana_this_variant],
-            file_path: None,
-            module_path: "test".to_string(),
+            type_name: "BananaThis",
+            variants: static_slice![banana_this_variant],
+            file_path: "",
+            module_path: "test",
         };
+
+        let items: &[FtlTypeInfo] =
+            static_slice![apple.clone(), banana.clone(), banana_this.clone()];
 
         let result = generate(
             "test_crate",
             &i18n_path,
-            vec![apple.clone(), banana.clone(), banana_this.clone()],
+            items,
             FluentParseMode::Aggressive,
             false,
         );
@@ -761,50 +821,48 @@ existing-key = Existing Value
         let temp_dir = TempDir::new().unwrap();
         let i18n_path = temp_dir.path().join("i18n");
 
-        // Create a type with multiple variants, one being a "this" variant
-        // Ensure keys have proper suffixes for inference
         let fruit_ident = Ident::new("Fruit", proc_macro2::Span::call_site());
-        let this_key = FluentKey::new_this(&fruit_ident); // e.g. fruit_this
+        let this_key = FluentKey::new_this(&fruit_ident);
 
         let this_variant = FtlVariant {
-            name: "this".to_string(),
-            ftl_key: this_key.to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("this"),
+            ftl_key: static_str!(this_key.to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
         let apple_variant = FtlVariant {
-            name: "Apple".to_string(),
-            ftl_key: FluentKey::from(&fruit_ident).join("Apple").to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("Apple"),
+            ftl_key: static_str!(FluentKey::from(&fruit_ident).join("Apple").to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
         let banana_variant = FtlVariant {
-            name: "Banana".to_string(),
-            ftl_key: FluentKey::from(&fruit_ident).join("Banana").to_string(),
-            args: Vec::new(),
-            module_path: "test".to_string(),
+            name: static_str!("Banana"),
+            ftl_key: static_str!(FluentKey::from(&fruit_ident).join("Banana").to_string()),
+            args: static_slice![],
+            module_path: "test",
             line: 0,
         };
 
         let fruit = FtlTypeInfo {
             type_kind: TypeKind::Enum,
-            type_name: "Fruit".to_string(),
+            type_name: "Fruit",
             // Deliberately put variants in wrong order
-            variants: vec![
+            variants: static_slice![
                 banana_variant.clone(),
                 this_variant.clone(),
                 apple_variant.clone(),
             ],
-            file_path: None,
-            module_path: "test".to_string(),
+            file_path: "",
+            module_path: "test",
         };
 
         let result = generate(
             "test_crate",
             &i18n_path,
-            vec![fruit],
+            std::slice::from_ref(&fruit),
             FluentParseMode::Aggressive,
             false,
         );

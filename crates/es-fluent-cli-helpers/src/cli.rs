@@ -45,7 +45,6 @@ pub fn write_inventory_for_crate(crate_name: &str) {
 
     // Collect all registered type infos for this crate
     let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .into_iter()
         .filter(|info| {
             info.module_path == crate_ident
                 || info.module_path.starts_with(&format!("{}::", crate_ident))
@@ -55,12 +54,16 @@ pub fn write_inventory_for_crate(crate_name: &str) {
     // Build a map of expected keys with their metadata
     let mut keys_map: HashMap<String, KeyMeta> = HashMap::new();
     for info in &type_infos {
-        for variant in &info.variants {
-            let key = variant.ftl_key.clone();
-            let vars: HashSet<String> = variant.args.iter().cloned().collect();
+        for variant in info.variants {
+            let key = variant.ftl_key.to_string();
+            let vars: HashSet<String> = variant.args.iter().map(|s| s.to_string()).collect();
             let entry = keys_map.entry(key).or_insert_with(|| KeyMeta {
                 variables: HashSet::new(),
-                source_file: info.file_path.clone(),
+                source_file: if info.file_path.is_empty() {
+                    None
+                } else {
+                    Some(info.file_path.to_string())
+                },
                 source_line: Some(variant.line),
             });
             entry.variables.extend(vars);

@@ -1,33 +1,34 @@
 //! This module provides types for representing FTL variants and type information.
 
 use crate::meta::TypeKind;
-use bon::Builder;
+use std::convert::AsRef;
 
-#[derive(Builder, Clone, Debug, Eq, Hash, PartialEq, serde::Serialize)]
+/// A variant representing a single FTL key entry.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlVariant {
-    pub name: String,
-    pub ftl_key: String,
-    #[builder(default)]
-    pub args: Vec<String>,
-    /// The module path where this type is defined.
-    #[builder(default)]
-    pub module_path: String,
-    /// The line number where this variant is defined in the Rust source.
-    #[builder(default)]
+    pub name: &'static str,
+    pub ftl_key: &'static str,
+    pub args: &'static [&'static str],
+    /// The module path from `module_path!()`.
+    pub module_path: &'static str,
+    /// The line number from `line!()` macro.
     pub line: u32,
 }
 
-#[derive(Builder, Clone, Debug, Eq, Hash, PartialEq, serde::Serialize)]
+/// Type information for FTL registration, used by derive macros and the CLI.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlTypeInfo {
     pub type_kind: TypeKind,
+    pub type_name: &'static str,
+    pub variants: &'static [FtlVariant],
+    /// The file path where this type is defined (from `file!()` macro).
+    pub file_path: &'static str,
+    /// The module path where this type is defined (from `module_path!()` macro).
+    pub module_path: &'static str,
+}
 
-    pub type_name: String,
-
-    pub variants: Vec<FtlVariant>,
-
-    /// The file path where this type is defined.
-    pub file_path: Option<String>,
-
-    /// The module path where this type is defined.
-    pub module_path: String,
+impl AsRef<FtlTypeInfo> for FtlTypeInfo {
+    fn as_ref(&self) -> &FtlTypeInfo {
+        self
+    }
 }

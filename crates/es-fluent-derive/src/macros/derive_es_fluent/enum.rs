@@ -199,7 +199,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                 let args_tokens: Vec<_> = args.iter().map(|a| quote! { #a }).collect();
 
                 quote! {
-                    ::es_fluent::registry::StaticFtlVariant {
+                    ::es_fluent::registry::FtlVariant {
                         name: #variant_name,
                         ftl_key: #ftl_key,
                         args: &[#(#args_tokens),*],
@@ -218,12 +218,12 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             mod #mod_name {
                 use super::*;
 
-                static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
+                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
                     #(#static_variants),*
                 ];
 
-                static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
-                    ::es_fluent::registry::StaticFtlTypeInfo {
+                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
+                    ::es_fluent::registry::FtlTypeInfo {
                         type_kind: ::es_fluent::meta::TypeKind::Enum,
                         type_name: #type_name,
                         variants: VARIANTS,
@@ -231,7 +231,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         module_path: module_path!(),
                     };
 
-                ::es_fluent::__inventory::submit!(&TYPE_INFO);
+                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
             }
         }
     } else {

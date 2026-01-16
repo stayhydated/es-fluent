@@ -35,8 +35,8 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             mod #mod_name {
                 use super::*;
 
-                static VARIANTS: &[::es_fluent::registry::StaticFtlVariant] = &[
-                    ::es_fluent::registry::StaticFtlVariant {
+                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+                    ::es_fluent::registry::FtlVariant {
                         name: #type_name,
                         ftl_key: #ftl_key_str,
                         args: &[],
@@ -45,8 +45,8 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     }
                 ];
 
-                static TYPE_INFO: ::es_fluent::registry::StaticFtlTypeInfo =
-                    ::es_fluent::registry::StaticFtlTypeInfo {
+                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
+                    ::es_fluent::registry::FtlTypeInfo {
                         type_kind: ::es_fluent::meta::TypeKind::Enum,
                         type_name: #type_name,
                         variants: VARIANTS,
@@ -54,7 +54,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         module_path: module_path!(),
                     };
 
-                ::es_fluent::__inventory::submit!(&TYPE_INFO);
+                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
             }
         }
     } else {

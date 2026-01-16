@@ -7,6 +7,19 @@ use std::fs;
 use syn::Ident;
 use tempfile::TempDir;
 
+// Helper to create static strings for tests
+macro_rules! static_str {
+    ($s:expr) => {
+        Box::leak($s.to_string().into_boxed_str()) as &'static str
+    };
+}
+
+macro_rules! static_slice {
+    ($($item:expr),* $(,)?) => {
+        Box::leak(vec![$($item),*].into_boxed_slice()) as &'static [_]
+    };
+}
+
 #[test]
 fn test_conservative_mode_preserves_structure() {
     let temp_dir = TempDir::new().unwrap();
@@ -34,53 +47,61 @@ manual-key = Contains manual stuff
     // Define items corresponding to GroupA and GroupB
     // Add a NEW key to GroupA (Key2)
     let key_a_1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
+        name: static_str!("Key1"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+                .join("Key1")
+                .to_string()
+        ),
+        args: static_slice![],
+        module_path: "test",
         line: 0,
     };
     let key_a_2 = FtlVariant {
-        name: "Key2".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-            .join("Key2")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
+        name: static_str!("Key2"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
+                .join("Key2")
+                .to_string()
+        ),
+        args: static_slice![],
+        module_path: "test",
         line: 0,
     };
     let group_a = FtlTypeInfo {
         type_kind: TypeKind::Enum,
-        type_name: "GroupA".to_string(),
-        variants: vec![key_a_1, key_a_2],
-        file_path: None,
-        module_path: "test".to_string(),
+        type_name: "GroupA",
+        variants: static_slice![key_a_1, key_a_2],
+        file_path: "",
+        module_path: "test",
     };
 
     let key_b_1 = FtlVariant {
-        name: "Key1".to_string(),
-        ftl_key: FluentKey::from(&Ident::new("GroupB", Span::call_site()))
-            .join("Key1")
-            .to_string(),
-        args: vec![],
-        module_path: "test".to_string(),
+        name: static_str!("Key1"),
+        ftl_key: static_str!(
+            FluentKey::from(&Ident::new("GroupB", Span::call_site()))
+                .join("Key1")
+                .to_string()
+        ),
+        args: static_slice![],
+        module_path: "test",
         line: 0,
     };
     let group_b = FtlTypeInfo {
         type_kind: TypeKind::Enum,
-        type_name: "GroupB".to_string(),
-        variants: vec![key_b_1],
-        file_path: None,
-        module_path: "test".to_string(),
+        type_name: "GroupB",
+        variants: static_slice![key_b_1],
+        file_path: "",
+        module_path: "test",
     };
+
+    let items: &[FtlTypeInfo] = static_slice![group_a, group_b];
 
     // Run generate in Conservative mode
     generate(
         crate_name,
         &i18n_path,
-        vec![group_a, group_b],
+        items,
         FluentParseMode::Conservative,
         false,
     )
