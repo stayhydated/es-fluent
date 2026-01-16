@@ -41,11 +41,13 @@ flowchart TD
 
 ## Global Singleton
 
-The crate manages a static `GENERIC_MANAGER` using `OnceLock`.
+The crate manages a static `GENERIC_MANAGER` using `OnceLock` with `ArcSwap` for lock-free reads.
 
 ```rs
-static GENERIC_MANAGER: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
+static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 ```
+
+Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access to the manager during localization calls, which is ideal for the read-heavy, write-rare pattern of i18n lookups.
 
 Calls to `init()`:
 

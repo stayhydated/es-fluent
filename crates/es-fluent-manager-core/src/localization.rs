@@ -60,7 +60,7 @@ impl FluentManager {
     }
 
     /// Selects a language for all localizers.
-    pub fn select_language(&mut self, lang: &LanguageIdentifier) {
+    pub fn select_language(&self, lang: &LanguageIdentifier) {
         for localizer in &self.localizers {
             if let Err(e) = localizer.select_language(lang) {
                 tracing::warn!("Module failed to set language '{}': {}", lang, e);

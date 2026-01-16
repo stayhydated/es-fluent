@@ -1,9 +1,10 @@
 use crate::*;
+use arc_swap::ArcSwap;
 use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource};
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock};
 
 pub struct I18nPluginConfig {
     pub initial_language: LanguageIdentifier,
@@ -254,7 +255,7 @@ fn sync_global_state(
     }
 }
 
-static BEVY_I18N_STATE: OnceLock<Arc<RwLock<BevyI18nState>>> = OnceLock::new();
+static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 
 #[derive(Clone)]
 pub struct BevyI18nState {
@@ -270,12 +271,15 @@ impl BevyI18nState {
         }
     }
 
-    pub fn set_bundle(&mut self, bundle: I18nBundle) {
-        self.bundle = bundle;
+    pub fn with_bundle(self, bundle: I18nBundle) -> Self {
+        Self { bundle, ..self }
     }
 
-    pub fn set_language(&mut self, lang: LanguageIdentifier) {
-        self.current_language = lang;
+    pub fn with_language(self, lang: LanguageIdentifier) -> Self {
+        Self {
+            current_language: lang,
+            ..self
+        }
     }
 
     pub fn localize<'a>(
@@ -309,24 +313,24 @@ impl BevyI18nState {
 
 pub fn set_bevy_i18n_state(state: BevyI18nState) {
     BEVY_I18N_STATE
-        .set(Arc::new(RwLock::new(state)))
+        .set(ArcSwap::from_pointee(state))
         .map_err(|_| "State already set")
         .expect("Failed to set Bevy i18n state");
 }
 
 pub fn update_global_bundle(bundle: I18nBundle) {
-    if let Some(state_arc) = BEVY_I18N_STATE.get()
-        && let Ok(mut state) = state_arc.write()
-    {
-        state.set_bundle(bundle);
+    if let Some(state_swap) = BEVY_I18N_STATE.get() {
+        let old_state = state_swap.load();
+        let new_state = BevyI18nState::clone(&old_state).with_bundle(bundle);
+        state_swap.store(Arc::new(new_state));
     }
 }
 
 pub fn update_global_language(lang: LanguageIdentifier) {
-    if let Some(state_arc) = BEVY_I18N_STATE.get()
-        && let Ok(mut state) = state_arc.write()
-    {
-        state.set_language(lang);
+    if let Some(state_swap) = BEVY_I18N_STATE.get() {
+        let old_state = state_swap.load();
+        let new_state = BevyI18nState::clone(&old_state).with_language(lang);
+        state_swap.store(Arc::new(new_state));
     }
 }
 
@@ -334,9 +338,7 @@ fn bevy_custom_localizer<'a>(
     id: &str,
     args: Option<&HashMap<&str, FluentValue<'a>>>,
 ) -> Option<String> {
-    let state_arc = BEVY_I18N_STATE.get()?;
-
-    let state = state_arc.read().ok()?;
-
+    let state_swap = BEVY_I18N_STATE.get()?;
+    let state = state_swap.load();
     state.localize(id, args)
 }

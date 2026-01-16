@@ -18,6 +18,7 @@ default = [  ]
 derive = [ "dep:es-fluent-derive" ]
 
 [dependencies]
+arc-swap = { workspace = true }
 bon = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
 es-fluent-derive-core = { workspace = true }

@@ -45,15 +45,24 @@ flowchart TD
 
 ## Global Context
 
-To allow `Display` implementations (which can't easily pass arguments) to access translations, `es-fluent` uses a `OnceLock`-protected global context.
+To allow `Display` implementations (which can't easily pass arguments) to access translations, `es-fluent` uses a `OnceLock`-protected global context with `ArcSwap` for lock-free reads.
 
 ```rs
-static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
+static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 ```
 
 - **Initialization**: Only one backend (e.g., `embedded::init()` or `bevy` plugin) can initialize this context using `set_context` or `set_shared_context`.
-- **Updates**: The context can be modified at runtime using `update_context`.
-- **Consumption**: The internal `localize` function (used by the `FluentDisplay` trait) acquires a read lock on this context to format strings.
+- **Language Selection**: The active language can be changed at runtime using `select_language`, which delegates to the individual localizers.
+- **Consumption**: The internal `localize` function (used by the `FluentDisplay` trait) uses lock-free `ArcSwap::load()` to access the manager, providing better performance in read-heavy localization scenarios.
+
+### Why ArcSwap?
+
+Localization is a classic "read-heavy, write-rare" workload:
+
+- **Reads**: `localize()` is called frequently (every time text is displayed)
+- **Writes**: Language changes are rare (user occasionally switches language)
+
+Using `ArcSwap` instead of `Arc<RwLock<...>>` eliminates lock contention on the hot path, making localization calls completely lock-free.
 
 ## Custom Localizer
 
