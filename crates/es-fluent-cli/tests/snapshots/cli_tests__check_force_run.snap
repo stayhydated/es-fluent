@@ -5,9 +5,6 @@ expression: output
 STDOUT:
 Fluent FTL Checker
 Discovered 2 crate(s)
+No issues found!
 
 STDERR:
-Error: es_fluent::other
-
-  × Unknown keys passed to --ignore: 'another-fake', 'fake-key-1', 'fake-key-
-  │ 2'

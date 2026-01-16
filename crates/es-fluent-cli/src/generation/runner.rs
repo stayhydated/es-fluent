@@ -310,17 +310,20 @@ pub fn get_monolithic_binary_path(workspace: &WorkspaceInfo) -> PathBuf {
 }
 
 /// Run the monolithic binary directly (fast path) or build+run (slow path).
+///
+/// If `force_run` is true, the staleness check is skipped and the runner is always rebuilt.
 pub fn run_monolithic(
     workspace: &WorkspaceInfo,
     command: &str,
     crate_name: &str,
     extra_args: &[String],
+    force_run: bool,
 ) -> Result<String> {
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
     let binary_path = get_monolithic_binary_path(workspace);
 
-    // If binary exists, check if it's stale
-    if binary_path.exists() && !is_runner_stale(workspace, &binary_path) {
+    // If binary exists, check if it's stale (unless force_run is set)
+    if !force_run && binary_path.exists() && !is_runner_stale(workspace, &binary_path) {
         let mut cmd = Command::new(&binary_path);
         cmd.arg(command)
                 .args(extra_args) // Put extra_args (including i18n_path) first
@@ -364,11 +367,11 @@ pub fn run_monolithic(
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
 
-            // Compute per-crate content hashes
+            // Compute per-crate content hashes (including i18n.toml)
             let mut crate_hashes = indexmap::IndexMap::new();
             for krate in &workspace.crates {
                 if krate.src_dir.exists() {
-                    let hash = compute_content_hash(&krate.src_dir);
+                    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
                     crate_hashes.insert(krate.name.clone(), hash);
                 }
             }
@@ -407,11 +410,11 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
 
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
 
-    // Compute current content hashes for each crate
+    // Compute current content hashes for each crate (including i18n.toml)
     let mut current_hashes = indexmap::IndexMap::new();
     for krate in &workspace.crates {
         if krate.src_dir.exists() {
-            let hash = compute_content_hash(&krate.src_dir);
+            let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
             current_hashes.insert(krate.name.clone(), hash);
         }
     }

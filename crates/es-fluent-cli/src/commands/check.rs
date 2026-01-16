@@ -65,10 +65,14 @@ pub struct CheckArgs {
     #[arg(long)]
     pub all: bool,
 
-    /// Keys to ignore during validation. Can be specified multiple times
-    /// (e.g., --ignore a --ignore b) or comma-separated (e.g., --ignore a,b).
+    /// Crates to skip during validation. Can be specified multiple times
+    /// (e.g., --ignore foo --ignore bar) or comma-separated (e.g., --ignore foo,bar).
     #[arg(long, value_delimiter = ',')]
     pub ignore: Vec<String>,
+
+    /// Force rebuild of the runner, ignoring the staleness cache.
+    #[arg(long)]
+    pub force_run: bool,
 }
 
 /// Context for FTL validation to reduce argument count.
@@ -88,58 +92,76 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 
     // Convert ignore list to a HashSet for efficient lookups
-    let ignore_keys: HashSet<String> = args.ignore.into_iter().collect();
+    let ignore_crates: HashSet<String> = args.ignore.into_iter().collect();
+    let force_run = args.force_run;
 
-    // Prepare monolithic temp crate once for all checks
-    prepare_monolithic_runner_crate(&workspace.workspace_info)
-        .map_err(|e| CliError::Other(e.to_string()))?;
+    // Filter out ignored crates
+    let crates_to_check: Vec<_> = workspace
+        .valid
+        .iter()
+        .filter(|k| !ignore_crates.contains(&k.name))
+        .collect();
 
-    // First pass: collect all expected keys from all crates to validate ignore list
-    let temp_dir = workspace.workspace_info.root_dir.join(".es-fluent");
-    let mut all_known_keys: HashSet<String> = HashSet::new();
+    // Validate that all ignored crates are known
+    if !ignore_crates.is_empty() {
+        let all_crate_names: HashSet<String> =
+            workspace.valid.iter().map(|k| k.name.clone()).collect();
 
-    let pb = ui::create_progress_bar(workspace.valid.len() as u64, "Collecting keys...");
-
-    for krate in &workspace.valid {
-        pb.set_message(format!("Scanning {}", krate.name));
-        run_monolithic(&workspace.workspace_info, "check", &krate.name, &[])
-            .map_err(|e| CliError::Other(e.to_string()))?;
-        if let Ok(expected_keys) = read_inventory_file(&temp_dir, &krate.name) {
-            all_known_keys.extend(expected_keys.into_keys());
-        }
-        pb.inc(1);
-    }
-
-    pb.finish_and_clear();
-
-    // Validate that all ignore keys are known
-    if !ignore_keys.is_empty() {
-        let mut unknown_keys: Vec<&String> = ignore_keys
+        let mut unknown_crates: Vec<&String> = ignore_crates
             .iter()
-            .filter(|k| !all_known_keys.contains(*k))
+            .filter(|c| !all_crate_names.contains(*c))
             .collect();
 
-        if !unknown_keys.is_empty() {
+        if !unknown_crates.is_empty() {
             // Sort for deterministic error messages
-            unknown_keys.sort();
+            unknown_crates.sort();
 
             return Err(CliError::Other(format!(
-                "Unknown keys passed to --ignore: {}",
-                unknown_keys
+                "Unknown crates passed to --ignore: {}",
+                unknown_crates
                     .iter()
-                    .map(|k| format!("'{}'", k))
+                    .map(|c| format!("'{}'", c))
                     .collect::<Vec<_>>()
                     .join(", ")
             )));
         }
     }
 
+    if crates_to_check.is_empty() {
+        ui::print_no_crates_found();
+        return Ok(());
+    }
+
+    // Prepare monolithic temp crate once for all checks
+    prepare_monolithic_runner_crate(&workspace.workspace_info)
+        .map_err(|e| CliError::Other(e.to_string()))?;
+
+    // First pass: collect all expected keys from crates
+    let temp_dir = workspace.workspace_info.root_dir.join(".es-fluent");
+
+    let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
+
+    for krate in &crates_to_check {
+        pb.set_message(format!("Scanning {}", krate.name));
+        run_monolithic(
+            &workspace.workspace_info,
+            "check",
+            &krate.name,
+            &[],
+            force_run,
+        )
+        .map_err(|e| CliError::Other(e.to_string()))?;
+        pb.inc(1);
+    }
+
+    pb.finish_and_clear();
+
     // Second pass: validate FTL files
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
-    let pb = ui::create_progress_bar(workspace.valid.len() as u64, "Checking crates...");
+    let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...");
 
-    for krate in &workspace.valid {
+    for krate in &crates_to_check {
         pb.set_message(format!("Checking {}", krate.name));
 
         match validate_crate(
@@ -147,7 +169,6 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
             &workspace.workspace_info.root_dir,
             &temp_dir,
             args.all,
-            &ignore_keys,
         ) {
             Ok(issues) => {
                 all_issues.extend(issues);
@@ -199,15 +220,9 @@ fn validate_crate(
     workspace_root: &Path,
     temp_dir: &Path,
     check_all: bool,
-    ignore_keys: &HashSet<String>,
 ) -> Result<Vec<ValidationIssue>> {
     // Read the inventory that was already collected in the first pass
-    let mut expected_keys = read_inventory_file(temp_dir, &krate.name)?;
-
-    // Filter out ignored keys
-    for key in ignore_keys {
-        expected_keys.shift_remove(key);
-    }
+    let expected_keys = read_inventory_file(temp_dir, &krate.name)?;
 
     // Validate FTL files against expected keys
     validate_ftl_files(krate, workspace_root, &expected_keys, check_all)

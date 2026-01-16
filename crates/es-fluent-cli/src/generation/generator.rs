@@ -4,10 +4,13 @@ use anyhow::{Result, bail};
 
 /// Generates FTL files for a crate using the monolithic temp crate approach.
 /// This is faster on subsequent runs because it reuses a single pre-built binary.
+///
+/// If `force_run` is true, the staleness check is skipped and the runner is always rebuilt.
 pub fn generate_for_crate_monolithic(
     krate: &CrateInfo,
     workspace: &WorkspaceInfo,
     action: &GenerationAction,
+    force_run: bool,
 ) -> Result<String> {
     if !krate.has_lib_rs {
         bail!(
@@ -44,5 +47,5 @@ pub fn generate_for_crate_monolithic(
         },
     };
 
-    run_monolithic(workspace, command, &krate.name, &extra_args)
+    run_monolithic(workspace, command, &krate.name, &extra_args, force_run)
 }
