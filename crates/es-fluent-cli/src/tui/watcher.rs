@@ -16,9 +16,9 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// Compute a hash of all .rs files in the src directory using blake3.
-fn compute_src_hash(src_dir: &Path) -> String {
-    crate::generation::cache::compute_content_hash(src_dir)
+/// Compute a hash of all .rs files in the src directory and the i18n.toml file using blake3.
+fn compute_src_hash(src_dir: &Path, i18n_config_path: &Path) -> String {
+    crate::generation::cache::compute_content_hash(src_dir, Some(i18n_config_path))
 }
 
 /// Spawn a thread to generate for a single crate using the monolithic approach.
@@ -127,7 +127,10 @@ fn run_watch_loop(
     let valid_crates: Vec<_> = crates.iter().filter(|k| k.has_lib_rs).collect();
 
     for krate in &valid_crates {
-        src_hashes.insert(krate.name.clone(), compute_src_hash(&krate.src_dir));
+        src_hashes.insert(
+            krate.name.clone(),
+            compute_src_hash(&krate.src_dir, &krate.i18n_config_path),
+        );
         path_to_crate.insert(krate.src_dir.clone(), krate.name.clone());
     }
 
@@ -193,7 +196,10 @@ fn run_watch_loop(
             // This prevents retry loops when code has errors - we won't retry
             // until the source actually changes.
             if let Some(krate) = valid_crates.iter().find(|k| k.name == result.name) {
-                src_hashes.insert(result.name.clone(), compute_src_hash(&krate.src_dir));
+                src_hashes.insert(
+                    result.name.clone(),
+                    compute_src_hash(&krate.src_dir, &krate.i18n_config_path),
+                );
             }
 
             app.update(Message::GenerationComplete { result });
@@ -212,7 +218,7 @@ fn run_watch_loop(
                             continue;
                         }
 
-                        let new_hash = compute_src_hash(&krate.src_dir);
+                        let new_hash = compute_src_hash(&krate.src_dir, &krate.i18n_config_path);
                         let old_hash = src_hashes.get(&crate_name);
                         if old_hash != Some(&new_hash) {
                             app.update(Message::GenerationStarted {

@@ -364,11 +364,11 @@ pub fn run_monolithic(
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
 
-            // Compute per-crate content hashes
+            // Compute per-crate content hashes (including i18n.toml)
             let mut crate_hashes = indexmap::IndexMap::new();
             for krate in &workspace.crates {
                 if krate.src_dir.exists() {
-                    let hash = compute_content_hash(&krate.src_dir);
+                    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
                     crate_hashes.insert(krate.name.clone(), hash);
                 }
             }
@@ -407,11 +407,11 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
 
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
 
-    // Compute current content hashes for each crate
+    // Compute current content hashes for each crate (including i18n.toml)
     let mut current_hashes = indexmap::IndexMap::new();
     for krate in &workspace.crates {
         if krate.src_dir.exists() {
-            let hash = compute_content_hash(&krate.src_dir);
+            let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
             current_hashes.insert(krate.name.clone(), hash);
         }
     }
