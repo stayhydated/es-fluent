@@ -5,6 +5,7 @@ use es_fluent_manager_bevy::{
 };
 use example_shared_lib::{ButtonState, Languages};
 
+// bring es_fluent_manager_bevy::define_i18n_module!(); in scope
 #[allow(unused_imports)]
 #[allow(clippy::single_component_path_imports)]
 use bevy_example;
@@ -33,8 +34,6 @@ fn main() {
     .insert_resource(WinitSettings::desktop_app())
     .add_plugins(I18nPlugin::with_language(Languages::default().into()))
     .init_resource::<InputFocus>();
-
-    // FluentText types are now auto-registered via #[fluent(bevy = "...")] attributes
 
     app.add_systems(Startup, setup)
         .add_systems(PostUpdate, (button_system, locale_change_system))
