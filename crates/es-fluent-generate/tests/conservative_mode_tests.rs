@@ -1,23 +1,9 @@
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
-use es_fluent_generate::{FluentParseMode, generate};
-use proc_macro2::Span;
+mod common;
+
+use common::{enum_type, ftl_key, variant};
+use es_fluent_generate::{generate, FluentParseMode};
 use std::fs;
-use syn::Ident;
 use tempfile::TempDir;
-
-macro_rules! static_str {
-    ($s:expr) => {
-        $s.to_string().leak()
-    };
-}
-
-macro_rules! static_slice {
-    ($($item:expr),* $(,)?) => {
-        vec![$($item),*].leak() as &'static [_]
-    };
-}
 
 #[test]
 fn test_conservative_mode_new_key_placement() {
@@ -37,36 +23,9 @@ group-a-key1 = Initial Value
     fs::write(&ftl_file_path, initial_content).unwrap();
 
     // 2. New State: GroupA with Key1 AND Key2
-    let key1 = FtlVariant {
-        name: static_str!("Key1"),
-        ftl_key: static_str!(
-            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-                .join("Key1")
-                .to_string()
-        ),
-        args: static_slice![],
-        module_path: "test",
-        line: 0,
-    };
-    let key2 = FtlVariant {
-        name: static_str!("Key2"),
-        ftl_key: static_str!(
-            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-                .join("Key2")
-                .to_string()
-        ),
-        args: static_slice![],
-        module_path: "test",
-        line: 0,
-    };
-
-    let group_a = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "GroupA",
-        variants: static_slice![key1, key2],
-        file_path: "",
-        module_path: "test",
-    };
+    let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));
+    let key2 = variant("Key2", &ftl_key("GroupA", "Key2"));
+    let group_a = enum_type("GroupA", vec![key1, key2]);
 
     // Run generate in Conservative mode
     generate(

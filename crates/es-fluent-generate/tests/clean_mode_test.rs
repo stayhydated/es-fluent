@@ -1,22 +1,8 @@
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
-use proc_macro2::Span;
+mod common;
+
+use common::{enum_type, ftl_key, variant};
 use std::fs;
-use syn::Ident;
 use tempfile::TempDir;
-
-macro_rules! static_str {
-    ($s:expr) => {
-        $s.to_string().leak()
-    };
-}
-
-macro_rules! static_slice {
-    ($($item:expr),* $(,)?) => {
-        vec![$($item),*].leak() as &'static [_]
-    };
-}
 
 #[test]
 fn test_clean_mode_orphans() {
@@ -47,25 +33,8 @@ awdawd = awdwa
     fs::write(&ftl_file_path, initial_content).unwrap();
 
     // 2. Define valid items (only GroupA Key1)
-    let key1 = FtlVariant {
-        name: static_str!("Key1"),
-        ftl_key: static_str!(
-            FluentKey::from(&Ident::new("GroupA", Span::call_site()))
-                .join("Key1")
-                .to_string()
-        ),
-        args: static_slice![],
-        module_path: "test",
-        line: 0,
-    };
-
-    let group_a = FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: "GroupA",
-        variants: static_slice![key1],
-        file_path: "",
-        module_path: "test",
-    };
+    let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));
+    let group_a = enum_type("GroupA", vec![key1]);
 
     // Run clean
     es_fluent_generate::clean::clean(
