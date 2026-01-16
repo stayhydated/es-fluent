@@ -248,20 +248,20 @@ fn collect_locale_fields(data: &syn::Data) -> Vec<LocaleFieldInfo> {
                         .collect();
 
                     for field in &fields.named {
-                        if has_locale_attr(field) {
-                            if let Some(field_ident) = &field.ident {
-                                let other_fields: Vec<_> = all_field_idents
-                                    .iter()
-                                    .filter(|id| *id != field_ident)
-                                    .cloned()
-                                    .collect();
+                        if has_locale_attr(field)
+                            && let Some(field_ident) = &field.ident
+                        {
+                            let other_fields: Vec<_> = all_field_idents
+                                .iter()
+                                .filter(|id| *id != field_ident)
+                                .cloned()
+                                .collect();
 
-                                locale_fields.push(LocaleFieldInfo {
-                                    variant_ident: Some(variant.ident.clone()),
-                                    field_ident: field_ident.clone(),
-                                    other_fields,
-                                });
-                            }
+                            locale_fields.push(LocaleFieldInfo {
+                                variant_ident: Some(variant.ident.clone()),
+                                field_ident: field_ident.clone(),
+                                other_fields,
+                            });
                         }
                     }
                 }
@@ -276,20 +276,20 @@ fn collect_locale_fields(data: &syn::Data) -> Vec<LocaleFieldInfo> {
                     .collect();
 
                 for field in &fields.named {
-                    if has_locale_attr(field) {
-                        if let Some(field_ident) = &field.ident {
-                            let other_fields: Vec<_> = all_field_idents
-                                .iter()
-                                .filter(|id| *id != field_ident)
-                                .cloned()
-                                .collect();
+                    if has_locale_attr(field)
+                        && let Some(field_ident) = &field.ident
+                    {
+                        let other_fields: Vec<_> = all_field_idents
+                            .iter()
+                            .filter(|id| *id != field_ident)
+                            .cloned()
+                            .collect();
 
-                            locale_fields.push(LocaleFieldInfo {
-                                variant_ident: None,
-                                field_ident: field_ident.clone(),
-                                other_fields,
-                            });
-                        }
+                        locale_fields.push(LocaleFieldInfo {
+                            variant_ident: None,
+                            field_ident: field_ident.clone(),
+                            other_fields,
+                        });
                     }
                 }
             }
