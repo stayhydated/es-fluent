@@ -66,6 +66,14 @@ The generator enforces a specific ordering to keep files readable:
 - Within a group, "special" keys like `_this` (self-referential messages) are prioritized and placed at the top.
 - Other keys are sorted alphabetically.
 
+### Deterministic Output
+
+The crate uses `IndexMap` instead of `HashMap` for internal data structures to ensure deterministic iteration order. This guarantees that:
+
+- Generated FTL files are reproducible across runs.
+- Diffs are clean and predictable when keys are added or modified.
+- CI/CD pipelines can reliably detect changes.
+
 ## Key Modules
 
 - `formatting`: Logic for sorting (including `_this` priority) and comparing entries.

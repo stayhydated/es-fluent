@@ -28,6 +28,7 @@ es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
 glob = { workspace = true }
 humantime = { workspace = true }
+indexmap = { features = [ "serde" ], workspace = true }
 indicatif = { workspace = true }
 miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }

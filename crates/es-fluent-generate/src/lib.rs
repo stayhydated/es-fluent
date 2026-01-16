@@ -4,7 +4,7 @@ use clap::ValueEnum;
 use es_fluent_derive_core::namer::FluentKey;
 use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
 use fluent_syntax::{ast, parser};
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::{fs, path::Path};
 
 pub mod clean;
@@ -280,7 +280,7 @@ pub(crate) fn smart_merge(
     let mut pending_items = merge_ftl_type_infos(items);
     pending_items.sort_by(compare_type_infos);
 
-    let mut item_map: HashMap<String, OwnedTypeInfo> = pending_items
+    let mut item_map: IndexMap<String, OwnedTypeInfo> = pending_items
         .into_iter()
         .map(|i| (i.type_name.clone(), i))
         .collect();

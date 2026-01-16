@@ -17,6 +17,7 @@ colored = { workspace = true }
 es-fluent-derive-core = { workspace = true }
 fluent-syntax = { workspace = true }
 heck = { workspace = true }
+indexmap = { workspace = true }
 similar = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

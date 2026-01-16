@@ -33,7 +33,7 @@ version = "0.6.0"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
-arc-swap = "1.7.1"
+arc-swap = "1.8.0"
 askama = "0.15.0"
 assert_cmd = "2.0.16"
 assert_fs = "1.1.2"
@@ -66,6 +66,7 @@ gpui = { git = "https://github.com/zed-industries/zed" }
 gpui-component = { git = "https://github.com/longbridge/gpui-component" }
 heck = "0.5.0"
 humantime = "2.2.0"
+indexmap = "2.13"
 indicatif = "0.18.3"
 insta = { version = "1.43.2" }
 intl-memoizer = "0.5.3"
