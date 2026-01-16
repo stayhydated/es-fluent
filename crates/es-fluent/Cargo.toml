@@ -20,6 +20,7 @@ derive = [ "dep:es-fluent-derive" ]
 [dependencies]
 bon = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
+es-fluent-derive-core = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
