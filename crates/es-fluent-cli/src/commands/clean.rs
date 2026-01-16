@@ -21,6 +21,10 @@ pub struct CleanArgs {
     /// Dry run - show what would be cleaned without making changes.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Force rebuild of the runner, ignoring the staleness cache.
+    #[arg(long)]
+    pub force_run: bool,
 }
 
 /// Run the clean command.
@@ -36,7 +40,12 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
         dry_run: args.dry_run,
     };
 
-    let results = parallel_generate(&workspace.workspace_info, &workspace.valid, &action);
+    let results = parallel_generate(
+        &workspace.workspace_info,
+        &workspace.valid,
+        &action,
+        args.force_run,
+    );
     let has_errors = render_generation_results(
         &results,
         |result| {

@@ -91,13 +91,12 @@ pub fn compute_content_hash(src_dir: &Path, i18n_toml_path: Option<&Path>) -> St
     }
 
     // Include i18n.toml if provided and exists
-    if let Some(toml_path) = i18n_toml_path {
-        if toml_path.is_file() {
-            if let Ok(content) = std::fs::read(toml_path) {
-                hasher.update(toml_path.to_string_lossy().as_bytes());
-                hasher.update(&content);
-            }
-        }
+    if let Some(toml_path) = i18n_toml_path
+        && toml_path.is_file()
+        && let Ok(content) = std::fs::read(toml_path)
+    {
+        hasher.update(toml_path.to_string_lossy().as_bytes());
+        hasher.update(&content);
     }
 
     hasher.finalize().to_hex().to_string()

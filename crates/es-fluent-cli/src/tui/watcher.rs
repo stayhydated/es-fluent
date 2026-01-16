@@ -37,6 +37,7 @@ fn spawn_generation(
                 mode,
                 dry_run: false,
             },
+            false, // force_run: watcher always runs on actual file changes
         );
         let duration = start.elapsed();
         let resource_count = result

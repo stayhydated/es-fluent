@@ -114,10 +114,13 @@ fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
 ///
 /// This prepares a single temp crate at workspace root that links all workspace crates,
 /// then runs the binary for each crate. Much faster on subsequent runs.
+///
+/// If `force_run` is true, the staleness check is skipped and the runner is always rebuilt.
 pub fn parallel_generate(
     workspace: &WorkspaceInfo,
     crates: &[CrateInfo],
     action: &GenerationAction,
+    force_run: bool,
 ) -> Vec<GenerateResult> {
     use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_runner_crate};
 
@@ -140,7 +143,7 @@ pub fn parallel_generate(
         .iter()
         .map(|krate| {
             let start = Instant::now();
-            let result = generate_for_crate_monolithic(krate, workspace, action);
+            let result = generate_for_crate_monolithic(krate, workspace, action, force_run);
             let duration = start.elapsed();
 
             pb.inc(1);

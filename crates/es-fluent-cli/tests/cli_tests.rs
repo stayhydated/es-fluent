@@ -635,29 +635,83 @@ fn test_check_all() {
 }
 
 #[test]
-fn test_check_ignore_unknown_key() {
+fn test_check_ignore_unknown_crate() {
     let temp = setup_workspace_env();
 
-    // Try to ignore a key that doesn't exist in the inventory
-    let output = run_cli(&temp, &["check", "--ignore", "nonexistent-key"]);
+    // Try to ignore a crate that doesn't exist in the workspace
+    let output = run_cli(&temp, &["check", "--ignore", "nonexistent-crate"]);
     assert_snapshot!(output);
 }
 
 #[test]
-fn test_check_ignore_multiple_unknown_keys() {
+fn test_check_ignore_multiple_unknown_crates() {
     let temp = setup_workspace_env();
 
-    // Try to ignore multiple keys that don't exist
+    // Try to ignore multiple crates that don't exist
     let output = run_cli(
         &temp,
         &[
             "check",
             "--ignore",
-            "fake-key-1,fake-key-2",
+            "fake-crate-1,fake-crate-2",
             "--ignore",
             "another-fake",
         ],
     );
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_check_ignore_valid_crate() {
+    let temp = setup_workspace_env();
+
+    // Ignore test-lib-b, should only check test-app-a
+    let output = run_cli(&temp, &["check", "--ignore", "test-lib-b"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_check_ignore_all_crates() {
+    let temp = setup_workspace_env();
+
+    // Ignore all crates - should report no crates found
+    let output = run_cli(&temp, &["check", "--ignore", "test-app-a,test-lib-b"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_generate_force_run() {
+    let temp = setup_workspace_env();
+
+    // First run to populate cache
+    run_cli(&temp, &["generate"]);
+
+    // Second run with --force-run should still rebuild
+    let output = run_cli(&temp, &["generate", "--force-run", "--dry-run"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_check_force_run() {
+    let temp = setup_workspace_env();
+
+    // First run to populate cache
+    run_cli(&temp, &["check"]);
+
+    // Second run with --force-run should still rebuild
+    let output = run_cli(&temp, &["check", "--force-run"]);
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_clean_force_run() {
+    let temp = setup_workspace_env();
+
+    // First run to populate cache
+    run_cli(&temp, &["clean"]);
+
+    // Second run with --force-run should still rebuild
+    let output = run_cli(&temp, &["clean", "--force-run", "--dry-run"]);
     assert_snapshot!(output);
 }
 

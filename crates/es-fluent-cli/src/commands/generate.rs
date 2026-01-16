@@ -21,6 +21,10 @@ pub struct GenerateArgs {
     /// Dry run - show what would be generated without making changes.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Force rebuild of the runner, ignoring the staleness cache.
+    #[arg(long)]
+    pub force_run: bool,
 }
 
 /// Run the generate command.
@@ -38,6 +42,7 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
             mode: args.mode,
             dry_run: args.dry_run,
         },
+        args.force_run,
     );
     let has_errors = render_generation_results(
         &results,

@@ -310,17 +310,20 @@ pub fn get_monolithic_binary_path(workspace: &WorkspaceInfo) -> PathBuf {
 }
 
 /// Run the monolithic binary directly (fast path) or build+run (slow path).
+///
+/// If `force_run` is true, the staleness check is skipped and the runner is always rebuilt.
 pub fn run_monolithic(
     workspace: &WorkspaceInfo,
     command: &str,
     crate_name: &str,
     extra_args: &[String],
+    force_run: bool,
 ) -> Result<String> {
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
     let binary_path = get_monolithic_binary_path(workspace);
 
-    // If binary exists, check if it's stale
-    if binary_path.exists() && !is_runner_stale(workspace, &binary_path) {
+    // If binary exists, check if it's stale (unless force_run is set)
+    if !force_run && binary_path.exists() && !is_runner_stale(workspace, &binary_path) {
         let mut cmd = Command::new(&binary_path);
         cmd.arg(command)
                 .args(extra_args) // Put extra_args (including i18n_path) first

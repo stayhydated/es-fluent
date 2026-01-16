@@ -18,8 +18,14 @@ cargo install es-fluent-cli --locked
 Ensure you have an `i18n.toml` in your crate root:
 
 ```toml
-assets_dir = "i18n"
+# Default fallback language (required)
 fallback_language = "en-US"
+
+# Path to FTL assets relative to the config file (required)
+assets_dir = "assets/locales"
+
+# Features to enable if the crate’s es-fluent derives are gated behind a feature (optional)
+fluent_feature = ["my-feature"]
 ```
 
 ### Generate
@@ -38,7 +44,7 @@ This will:
    - **Changed items**: Variables updated (e.g. if you added a field).
    - **Existing translations**: Preserved untouched.
 
-Use `--dry-run` to preview changes without writing them.
+Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and force a rebuild.
 
 ### Watch
 
@@ -56,7 +62,7 @@ To ensure all your translations are valid and no keys are missing:
 cargo es-fluent check
 ```
 
-Use `--all` to check all locales, not just the fallback language, `--ignore <CRATE>` to ignore specific crates.
+Use `--all` to check all locales, not just the fallback language, `--ignore <CRATE>` to skip specific crates, `--force-run` to bypass the staleness cache.
 
 ### Clean
 
@@ -66,7 +72,7 @@ Remove orphan keys and groups that are no longer present in your source code:
 cargo es-fluent clean
 ```
 
-Use `--dry-run` to preview changes without writing them.
+Use `--dry-run` to preview changes without writing them. Use `--all` to clean all locales. Use `--force-run` to bypass the staleness cache.
 
 ### Format
 

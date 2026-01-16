@@ -51,8 +51,8 @@ The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers`
 
 | Command | Goal | Mechanism | Flags |
 | :--- | :--- | :--- | :--- |
-| `generate` | **Create/Update FTL** | Collects inventory. Merges new keys into existing `.ftl` files using `fluent-syntax`. Preserves comments & formatting. | `--dry-run` |
-| `check` | **Validate Integrity** | Collects inventory. Verifies all keys exist in `.ftl` files. Errors if keys are missing or variables mismatch. | `--all` (check all locales) |
+| `generate` | **Create/Update FTL** | Collects inventory. Merges new keys into existing `.ftl` files using `fluent-syntax`. Preserves comments & formatting. | `--dry-run`, `--force-run` |
+| `check` | **Validate Integrity** | Collects inventory. Verifies all keys exist in `.ftl` files. Errors if keys are missing or variables mismatch. | `--all`, `--ignore <CRATE>`, `--force-run` |
 | `clean` | **Remove Obsolete** | Collects inventory. Removes keys from `.ftl` files that are no longer present in the Rust code. | `--dry-run` |
 | `format` | **Standardize Style** | Parses and re-serializes all `.ftl` files using standard `fluent-syntax` rules to ensure consistent formatting. | `--dry-run`, `--all` (format all locales) |
 | `sync` | **Propagate Keys** | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. | `--locale <LANG>`, `--all` |
