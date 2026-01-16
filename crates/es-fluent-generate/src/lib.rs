@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 use clap::ValueEnum;
-use es_fluent::meta::TypeKind;
-use es_fluent::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::meta::TypeKind;
 use es_fluent_derive_core::namer::FluentKey;
+use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
 use fluent_syntax::{ast, parser};
 use std::collections::HashMap;
 use std::{fs, path::Path};
@@ -461,7 +461,6 @@ fn build_target_resource(items: &[FtlTypeInfo]) -> ast::Resource<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use es_fluent::meta::TypeKind;
     use es_fluent_derive_core::namer::FluentKey;
     use proc_macro2::Ident;
     use std::fs;
