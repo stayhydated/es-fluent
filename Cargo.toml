@@ -29,7 +29,7 @@ publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
 rust-version = "1.88"
-version = "0.5.3"
+version = "0.6.0"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
@@ -46,17 +46,17 @@ colored = "3.0.0"
 crossterm = "0.29.0"
 darling = "0.23.0"
 derive_more = "2.0.1"
-es-fluent = { path = "crates/es-fluent", version = "0.5.3" }
-es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.5.3" }
-es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.5.3" }
-es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.5.3" }
-es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.5.3" }
-es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.5.3" }
-es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.17.22" }
-es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.5.3" }
-es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.5.3" }
-es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.5.3" }
-es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.5.3" }
+es-fluent = { path = "crates/es-fluent", version = "0.6.0" }
+es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.6.0" }
+es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.6.0" }
+es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.6.0" }
+es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.6.0" }
+es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.6.0" }
+es-fluent-manager-bevy = { path = "crates/es-fluent-manager-bevy", version = "0.18.0" }
+es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.6.0" }
+es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.6.0" }
+es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.6.0" }
+es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.6.0" }
 fluent-bundle = "0.16.0"
 fluent-syntax = "0.12"
 getset = "0.1.3"
