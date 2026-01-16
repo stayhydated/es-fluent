@@ -12,7 +12,10 @@ es_fluent_manager_bevy::define_i18n_module!();
 es_fluent_manager_embedded::define_i18n_module!();
 
 #[derive(Clone, Copy, Debug, Default, EsFluent, PartialEq)]
-#[cfg_attr(feature = "bevy", derive(Component))]
+#[cfg_attr(
+    feature = "bevy",
+    derive(Component, es_fluent_manager_bevy::BevyFluentText)
+)]
 pub enum ButtonState {
     #[default]
     Normal,

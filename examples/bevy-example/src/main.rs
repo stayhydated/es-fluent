@@ -1,7 +1,7 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    CurrentLanguageId, FluentText, FluentTextRegistration as _, I18nPlugin, LocaleChangeEvent,
+    BevyFluentText, CurrentLanguageId, FluentText, I18nPlugin, LocaleChangeEvent,
 };
 use example_shared_lib::{ButtonState, Languages};
 
@@ -14,25 +14,13 @@ pub enum KbKeys {
     T,
 }
 
-#[derive(Clone, Component, Copy, Debug, EsFluent)]
+#[derive(BevyFluentText, Clone, Component, Copy, Debug, EsFluent)]
 pub enum BevyScreenMessages {
     ToggleLanguageHint {
         key: KbKeys,
+        #[locale]
         current_language: Languages,
     },
-}
-
-impl es_fluent_manager_bevy::RefreshForLocale for BevyScreenMessages {
-    fn refresh_for_locale(&mut self, lang: &unic_langid::LanguageIdentifier) {
-        match self {
-            BevyScreenMessages::ToggleLanguageHint {
-                key: _,
-                current_language,
-            } => {
-                *current_language = Languages::from(lang);
-            },
-        }
-    }
 }
 
 fn main() {
@@ -46,8 +34,7 @@ fn main() {
     .add_plugins(I18nPlugin::with_language(Languages::default().into()))
     .init_resource::<InputFocus>();
 
-    app.register_fluent_text::<ButtonState>()
-        .register_fluent_text_from_locale::<BevyScreenMessages>();
+    // FluentText types are now auto-registered via #[fluent(bevy = "...")] attributes
 
     app.add_systems(Startup, setup)
         .add_systems(PostUpdate, (button_system, locale_change_system))
@@ -71,29 +58,39 @@ const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
 fn button_system(
+    mut input_focus: ResMut<InputFocus>,
     mut interaction_query: Query<
         (
+            Entity,
             &Interaction,
             &mut BackgroundColor,
             &mut BorderColor,
+            &mut Button,
             &mut FluentText<ButtonState>,
         ),
-        (Changed<Interaction>, With<Button>),
+        Changed<Interaction>,
     >,
 ) {
-    for (interaction, mut color, mut border_color, mut localized) in &mut interaction_query {
+    for (entity, interaction, mut color, mut border_color, mut button, mut localized) in
+        &mut interaction_query
+    {
         match *interaction {
             Interaction::Pressed => {
+                input_focus.set(entity);
                 localized.value = ButtonState::Pressed;
                 *color = PRESSED_BUTTON.into();
                 *border_color = BorderColor::all(RED);
+                button.set_changed();
             },
             Interaction::Hovered => {
+                input_focus.set(entity);
                 localized.value = ButtonState::Hovered;
                 *color = HOVERED_BUTTON.into();
                 *border_color = BorderColor::all(Color::WHITE);
+                button.set_changed();
             },
             Interaction::None => {
+                input_focus.clear();
                 localized.value = ButtonState::Normal;
                 *color = NORMAL_BUTTON.into();
                 *border_color = BorderColor::all(Color::BLACK);
@@ -107,11 +104,11 @@ fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn(button(&assets));
 }
 
-fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
+fn button(asset_server: &AssetServer) -> impl Bundle {
     (
         Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
+            width: percent(100),
+            height: percent(100),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             flex_direction: FlexDirection::Column,
@@ -119,18 +116,19 @@ fn button(asset_server: &AssetServer) -> impl Bundle + use<> {
         },
         children![
             (
-                (Button, FluentText::new(ButtonState::Normal),),
+                Button,
+                FluentText::new(ButtonState::Normal),
                 Node {
-                    width: Val::Px(150.0),
-                    height: Val::Px(65.0),
-                    border: UiRect::all(Val::Px(5.0)),
+                    width: px(150),
+                    height: px(65),
+                    border: UiRect::all(px(5)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    margin: UiRect::bottom(Val::Px(20.0)),
+                    margin: UiRect::bottom(px(20)),
+                    border_radius: BorderRadius::MAX,
                     ..default()
                 },
                 BorderColor::all(Color::BLACK),
-                BorderRadius::MAX,
                 BackgroundColor(NORMAL_BUTTON),
                 children![(
                     Text::new(""),

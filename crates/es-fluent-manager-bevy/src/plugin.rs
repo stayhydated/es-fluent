@@ -1,4 +1,5 @@
 use crate::*;
+use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource};
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
@@ -87,6 +88,16 @@ impl Plugin for I18nPlugin {
             discovered_languages.len()
         );
 
+        // Auto-register FluentText types from inventory
+        let mut registered_count = 0;
+        for registration in inventory::iter::<&'static dyn BevyFluentTextRegistration>() {
+            registration.register(app);
+            registered_count += 1;
+        }
+        if registered_count > 0 {
+            info!("Auto-registered {} FluentText types", registered_count);
+        }
+
         app.insert_resource(i18n_assets)
             .insert_resource(i18n_resource)
             .insert_resource(CurrentLanguageId(self.config.initial_language.clone()))
@@ -144,8 +155,9 @@ fn handle_asset_loading(
                     }
                 }
             },
-            AssetEvent::Removed { id: _ } => {},
-            _ => {},
+            AssetEvent::Removed { .. }
+            | AssetEvent::Unused { .. }
+            | AssetEvent::LoadedWithDependencies { .. } => {},
         }
     }
 }
@@ -157,11 +169,12 @@ fn build_fluent_bundles(
 ) {
     let mut dirty_languages = asset_events
         .read()
-        .filter_map(|event| match event {
-            AssetEvent::Added { id } | AssetEvent::Modified { id } | AssetEvent::Removed { id } => {
-                Some(id)
-            },
-            _ => None,
+        .map(|event| match event {
+            AssetEvent::Added { id }
+            | AssetEvent::Modified { id }
+            | AssetEvent::Removed { id }
+            | AssetEvent::Unused { id }
+            | AssetEvent::LoadedWithDependencies { id } => id,
         })
         .flat_map(|id| {
             i18n_assets
@@ -226,6 +239,7 @@ fn sync_global_state(
     i18n_bundle: Res<I18nBundle>,
     i18n_resource: Res<I18nResource>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
+    mut redraw_events: MessageWriter<RequestRedraw>,
 ) {
     if i18n_bundle.is_changed() {
         update_global_bundle((*i18n_bundle).clone());
@@ -234,6 +248,8 @@ fn sync_global_state(
             let lang = i18n_resource.current_language().clone();
             debug!("I18n bundle ready for current language: {}", lang);
             locale_changed_events.write(LocaleChangedEvent(lang));
+            // Request a redraw so that UI updates even when using WinitSettings::desktop_app()
+            redraw_events.write(RequestRedraw);
         }
     }
 }

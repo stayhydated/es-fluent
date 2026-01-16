@@ -1,9 +1,10 @@
 #![doc = include_str!("../README.md")]
 
-use heck::ToPascalCase as _;
+use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro::TokenStream;
 use quote::quote;
 use std::fs;
+use syn::{DeriveInput, parse_macro_input};
 
 /// Defines an embedded i18n module.
 ///
@@ -114,6 +115,257 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+/// Registers a type for use with `FluentText<T>` in Bevy.
+///
+/// This derive macro auto-registers the type with `I18nPlugin` so you don't need
+/// to manually call `app.register_fluent_text::<T>()`.
+///
+/// If any fields are marked with `#[locale]`, the macro will:
+/// - Auto-generate a `RefreshForLocale` implementation
+/// - Use `register_fluent_text_from_locale` instead of `register_fluent_text`
+///
+/// The `#[locale]` attribute marks fields that should be updated when the locale changes.
+/// The field type must implement `From<&LanguageIdentifier>`.
+///
+/// # Example (simple)
+///
+/// ```ignore
+/// use es_fluent::EsFluent;
+/// use es_fluent_manager_bevy::BevyFluentText;
+/// use bevy::prelude::Component;
+///
+/// #[derive(BevyFluentText, Clone, Component, EsFluent)]
+/// pub enum ButtonState {
+///     Normal,
+///     Hovered,
+///     Pressed,
+/// }
+/// ```
+///
+/// # Example (with locale refresh)
+///
+/// ```ignore
+/// use es_fluent::EsFluent;
+/// use es_fluent_manager_bevy::BevyFluentText;
+/// use bevy::prelude::Component;
+///
+/// #[derive(BevyFluentText, Clone, Component, EsFluent)]
+/// pub enum ScreenMessages {
+///     ToggleLanguageHint {
+///         key: KbKeys,
+///         #[locale]
+///         current_language: Languages,
+///     },
+/// }
+/// ```
+#[proc_macro_derive(BevyFluentText, attributes(locale))]
+pub fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let ident = &input.ident;
+    let type_name = ident.to_string();
+
+    // Collect all locale fields from all variants/fields
+    let locale_fields = collect_locale_fields(&input.data);
+
+    let mod_name = quote::format_ident!(
+        "__bevy_fluent_text_registration_{}",
+        type_name.to_snake_case()
+    );
+
+    if locale_fields.is_empty() {
+        // Simple registration without locale refresh
+        let expanded = quote! {
+            #[doc(hidden)]
+            mod #mod_name {
+                use super::*;
+
+                struct Registration;
+
+                impl ::es_fluent_manager_bevy::BevyFluentTextRegistration for Registration {
+                    fn register(&self, app: &mut ::es_fluent_manager_bevy::bevy::prelude::App) {
+                        ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text::<#ident>(app);
+                    }
+                }
+
+                ::es_fluent_manager_bevy::inventory::submit!(
+                    &Registration as &dyn ::es_fluent_manager_bevy::BevyFluentTextRegistration
+                );
+            }
+        };
+        TokenStream::from(expanded)
+    } else {
+        // Generate RefreshForLocale impl and use locale-aware registration
+        let refresh_impl = generate_refresh_for_locale_impl(ident, &input.data, &locale_fields);
+
+        let expanded = quote! {
+            #refresh_impl
+
+            #[doc(hidden)]
+            mod #mod_name {
+                use super::*;
+
+                struct Registration;
+
+                impl ::es_fluent_manager_bevy::BevyFluentTextRegistration for Registration {
+                    fn register(&self, app: &mut ::es_fluent_manager_bevy::bevy::prelude::App) {
+                        ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text_from_locale::<#ident>(app);
+                    }
+                }
+
+                ::es_fluent_manager_bevy::inventory::submit!(
+                    &Registration as &dyn ::es_fluent_manager_bevy::BevyFluentTextRegistration
+                );
+            }
+        };
+        TokenStream::from(expanded)
+    }
+}
+
+/// Information about a field marked with #[locale]
+struct LocaleFieldInfo {
+    /// The variant this field belongs to (for enums)
+    variant_ident: Option<syn::Ident>,
+    /// The field identifier
+    field_ident: syn::Ident,
+    /// Other fields in the same variant (for pattern matching)
+    other_fields: Vec<syn::Ident>,
+}
+
+/// Collects all fields marked with #[locale] from the data structure
+fn collect_locale_fields(data: &syn::Data) -> Vec<LocaleFieldInfo> {
+    let mut locale_fields = Vec::new();
+
+    match data {
+        syn::Data::Enum(data_enum) => {
+            for variant in &data_enum.variants {
+                if let syn::Fields::Named(fields) = &variant.fields {
+                    let all_field_idents: Vec<_> = fields
+                        .named
+                        .iter()
+                        .filter_map(|f| f.ident.clone())
+                        .collect();
+
+                    for field in &fields.named {
+                        if has_locale_attr(field)
+                            && let Some(field_ident) = &field.ident
+                        {
+                            let other_fields: Vec<_> = all_field_idents
+                                .iter()
+                                .filter(|id| *id != field_ident)
+                                .cloned()
+                                .collect();
+
+                            locale_fields.push(LocaleFieldInfo {
+                                variant_ident: Some(variant.ident.clone()),
+                                field_ident: field_ident.clone(),
+                                other_fields,
+                            });
+                        }
+                    }
+                }
+            }
+        },
+        syn::Data::Struct(data_struct) => {
+            if let syn::Fields::Named(fields) = &data_struct.fields {
+                let all_field_idents: Vec<_> = fields
+                    .named
+                    .iter()
+                    .filter_map(|f| f.ident.clone())
+                    .collect();
+
+                for field in &fields.named {
+                    if has_locale_attr(field)
+                        && let Some(field_ident) = &field.ident
+                    {
+                        let other_fields: Vec<_> = all_field_idents
+                            .iter()
+                            .filter(|id| *id != field_ident)
+                            .cloned()
+                            .collect();
+
+                        locale_fields.push(LocaleFieldInfo {
+                            variant_ident: None,
+                            field_ident: field_ident.clone(),
+                            other_fields,
+                        });
+                    }
+                }
+            }
+        },
+        syn::Data::Union(_) => {},
+    }
+
+    locale_fields
+}
+
+/// Checks if a field has the #[locale] attribute
+fn has_locale_attr(field: &syn::Field) -> bool {
+    field
+        .attrs
+        .iter()
+        .any(|attr| attr.path().is_ident("locale"))
+}
+
+/// Generates the RefreshForLocale implementation
+fn generate_refresh_for_locale_impl(
+    ident: &syn::Ident,
+    data: &syn::Data,
+    locale_fields: &[LocaleFieldInfo],
+) -> proc_macro2::TokenStream {
+    match data {
+        syn::Data::Enum(_) => {
+            // Group locale fields by variant
+            let match_arms: Vec<_> = locale_fields
+                .iter()
+                .map(|info| {
+                    let variant_ident = info.variant_ident.as_ref().unwrap();
+                    let field_ident = &info.field_ident;
+                    let other_fields = &info.other_fields;
+
+                    let other_patterns: Vec<_> =
+                        other_fields.iter().map(|f| quote! { #f: _ }).collect();
+
+                    quote! {
+                        Self::#variant_ident { #field_ident, #(#other_patterns),* } => {
+                            *#field_ident = ::std::convert::From::from(lang);
+                        }
+                    }
+                })
+                .collect();
+
+            quote! {
+                impl ::es_fluent_manager_bevy::RefreshForLocale for #ident {
+                    fn refresh_for_locale(&mut self, lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier) {
+                        match self {
+                            #(#match_arms)*
+                        }
+                    }
+                }
+            }
+        },
+        syn::Data::Struct(_) => {
+            let field_updates: Vec<_> = locale_fields
+                .iter()
+                .map(|info| {
+                    let field_ident = &info.field_ident;
+                    quote! {
+                        self.#field_ident = ::std::convert::From::from(lang);
+                    }
+                })
+                .collect();
+
+            quote! {
+                impl ::es_fluent_manager_bevy::RefreshForLocale for #ident {
+                    fn refresh_for_locale(&mut self, lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier) {
+                        #(#field_updates)*
+                    }
+                }
+            }
+        },
+        syn::Data::Union(_) => quote! {},
+    }
 }
 
 /// Defines a Bevy i18n module.
