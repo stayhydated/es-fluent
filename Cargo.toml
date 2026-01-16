@@ -33,6 +33,7 @@ version = "0.6.0"
 
 [workspace.dependencies]
 anyhow = "1.0.98"
+arc-swap = "1.7.1"
 askama = "0.15.0"
 assert_cmd = "2.0.16"
 assert_fs = "1.1.2"

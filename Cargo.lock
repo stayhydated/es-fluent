@@ -3941,6 +3941,7 @@ dependencies = [
 name = "es-fluent"
 version = "0.6.0"
 dependencies = [
+ "arc-swap",
  "bon",
  "chrono",
  "es-fluent-derive",
@@ -4092,6 +4093,7 @@ dependencies = [
 name = "es-fluent-manager-bevy"
 version = "0.18.0"
 dependencies = [
+ "arc-swap",
  "bevy",
  "es-fluent",
  "es-fluent-manager-core",
@@ -4120,6 +4122,7 @@ dependencies = [
 name = "es-fluent-manager-embedded"
 version = "0.6.0"
 dependencies = [
+ "arc-swap",
  "es-fluent",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",

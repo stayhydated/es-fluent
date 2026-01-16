@@ -26,7 +26,7 @@ flowchart TD
     subgraph STATE["Resources"]
         RES["I18nResource (Current Lang)"]
         BUNDLE["I18nBundle (Compiled Bundles)"]
-        GLOBAL["BevyI18nState (Global Mirror)"]
+        GLOBAL["BevyI18nState (ArcSwap Global)"]
     end
 
     subgraph ECS["ECS World"]
@@ -58,6 +58,16 @@ flowchart TD
 ### `I18nPlugin`
 
 The entry point. It registers the `FtlAssetLoader`, resources, and—crucially—installs a **custom localizer** (`es_fluent::set_custom_localizer`). This custom localizer redirects all global `localize!` calls (used by `derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust objects to stringify correctly even inside Bevy systems.
+
+### `BevyI18nState` (Global Mirror)
+
+A global static that mirrors the ECS state for use by the custom localizer. It uses `ArcSwap` for lock-free reads:
+
+```rs
+static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
+```
+
+Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access during localization calls. When the bundle or language changes, a new `BevyI18nState` is atomically swapped in, ensuring the hot path (`localize!` calls) never blocks on a lock.
 
 ### `FtlAssetLoader`
 

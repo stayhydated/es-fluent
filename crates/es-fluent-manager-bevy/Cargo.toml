@@ -16,6 +16,7 @@ default = [ "macros" ]
 macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
+arc-swap = { workspace = true }
 bevy = { features = [ "file_watcher" ], workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
