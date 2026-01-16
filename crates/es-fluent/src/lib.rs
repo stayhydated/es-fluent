@@ -10,9 +10,6 @@ pub mod registry;
 pub use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentKv, EsFluentThis};
 
 #[doc(hidden)]
-pub use es_fluent_manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
-
-#[doc(hidden)]
 pub use fluent_bundle::FluentValue;
 
 #[doc(hidden)]
@@ -27,10 +24,11 @@ pub use es_fluent_manager_core as __manager_core;
 #[doc(hidden)]
 pub use unic_langid;
 
+use es_fluent_manager_core::FluentManager;
+use std::sync::{Arc, OnceLock, RwLock};
+
 mod traits;
 pub use traits::{EsFluentChoice, FluentDisplay, ThisFtl, ToFluentString};
-
-use std::sync::{Arc, OnceLock, RwLock};
 
 #[doc(hidden)]
 static CONTEXT: OnceLock<Arc<RwLock<FluentManager>>> = OnceLock::new();
