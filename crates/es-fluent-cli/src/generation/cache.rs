@@ -4,6 +4,7 @@
 //! - Cargo metadata results
 //! - Runner binary staleness detection via content hashing
 
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -95,7 +96,7 @@ pub fn compute_content_hash(src_dir: &Path) -> String {
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct RunnerCache {
     /// Map of crate name -> content hash when runner was last built
-    pub crate_hashes: std::collections::HashMap<String, String>,
+    pub crate_hashes: IndexMap<String, String>,
     /// Mtime of runner binary when cache was created
     pub runner_mtime: u64,
     /// Version of es-fluent-cli that built this runner

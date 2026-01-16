@@ -365,7 +365,7 @@ pub fn run_monolithic(
                 .unwrap_or(0);
 
             // Compute per-crate content hashes
-            let mut crate_hashes = std::collections::HashMap::new();
+            let mut crate_hashes = indexmap::IndexMap::new();
             for krate in &workspace.crates {
                 if krate.src_dir.exists() {
                     let hash = compute_content_hash(&krate.src_dir);
@@ -408,7 +408,7 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
     let temp_dir = workspace.root_dir.join(TEMP_DIR);
 
     // Compute current content hashes for each crate
-    let mut current_hashes = std::collections::HashMap::new();
+    let mut current_hashes = indexmap::IndexMap::new();
     for krate in &workspace.crates {
         if krate.src_dir.exists() {
             let hash = compute_content_hash(&krate.src_dir);

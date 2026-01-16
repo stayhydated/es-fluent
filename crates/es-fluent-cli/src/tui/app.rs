@@ -3,6 +3,7 @@
 use crate::core::{CrateInfo, CrateState};
 use crate::tui::Message;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use indexmap::IndexMap;
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout},
@@ -10,7 +11,6 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
-use std::collections::HashMap;
 use std::io;
 use std::time::{Duration, Instant};
 use throbber_widgets_tui::{BRAILLE_SIX, ThrobberState};
@@ -22,7 +22,7 @@ pub struct TuiApp<'a> {
     /// The crates being watched.
     pub crates: &'a [CrateInfo],
     /// The current state of each crate.
-    pub states: HashMap<String, CrateState>,
+    pub states: IndexMap<String, CrateState>,
     /// Whether the app should quit.
     pub should_quit: bool,
     /// Throbber state for the "generating" animation.
@@ -36,7 +36,7 @@ pub struct TuiApp<'a> {
 impl<'a> TuiApp<'a> {
     /// Creates a new TUI app.
     pub fn new(crates: &'a [CrateInfo]) -> Self {
-        let mut states = HashMap::new();
+        let mut states = IndexMap::new();
         for krate in crates {
             if krate.has_lib_rs {
                 states.insert(krate.name.clone(), CrateState::Generating);

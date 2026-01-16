@@ -122,6 +122,16 @@ flowchart LR
     MCACHE -->|cache hit| SKIP[Skip cargo metadata]
 ```
 
+## Deterministic Output
+
+The CLI uses `IndexMap` instead of `HashMap` throughout to ensure deterministic behavior:
+
+- **Cache files** (`runner_cache.json`): Crate hashes are serialized in insertion order, producing stable diffs in version control.
+- **Error reporting**: Validation issues are reported in a consistent order across runs.
+- **TUI state**: Crate states are maintained in insertion order for predictable display.
+
+This ensures reproducible CI/CD pipelines and cleaner version control diffs.
+
 ## Per-Crate Output Structure
 
 ```

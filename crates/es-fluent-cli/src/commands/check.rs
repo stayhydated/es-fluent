@@ -20,10 +20,11 @@ use clap::Parser;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::ast;
 use fluent_syntax::parser::{self, ParserError};
+use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
 use regex::Regex;
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
@@ -72,7 +73,7 @@ pub struct CheckArgs {
 
 /// Context for FTL validation to reduce argument count.
 struct ValidationContext<'a> {
-    expected_keys: &'a HashMap<String, KeyInfo>,
+    expected_keys: &'a IndexMap<String, KeyInfo>,
     workspace_root: &'a Path,
     manifest_dir: &'a Path,
 }
@@ -205,7 +206,7 @@ fn validate_crate(
 
     // Filter out ignored keys
     for key in ignore_keys {
-        expected_keys.remove(key);
+        expected_keys.shift_remove(key);
     }
 
     // Validate FTL files against expected keys
@@ -216,7 +217,7 @@ fn validate_crate(
 fn read_inventory_file(
     temp_dir: &std::path::Path,
     crate_name: &str,
-) -> Result<HashMap<String, KeyInfo>> {
+) -> Result<IndexMap<String, KeyInfo>> {
     let inventory_path = temp_dir
         .join("metadata")
         .join(crate_name)
@@ -227,8 +228,8 @@ fn read_inventory_file(
     let data: InventoryData =
         serde_json::from_str(&json_str).context("Failed to parse inventory JSON")?;
 
-    // Convert to HashMap with KeyInfo for richer metadata
-    let mut expected_keys = HashMap::new();
+    // Convert to IndexMap with KeyInfo for richer metadata
+    let mut expected_keys = IndexMap::new();
     for key_info in data.expected_keys {
         expected_keys.insert(
             key_info.key,
@@ -286,7 +287,7 @@ fn load_locale_ftl(assets_dir: &Path, locale: &str, crate_name: &str) -> LocaleL
 fn validate_ftl_files(
     krate: &CrateInfo,
     workspace_root: &Path,
-    expected_keys: &HashMap<String, KeyInfo>,
+    expected_keys: &IndexMap<String, KeyInfo>,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
     let config = I18nConfig::read_from_path(&krate.i18n_config_path)
@@ -356,7 +357,7 @@ fn validate_ftl_files(
 
 /// Generate missing key issues when an FTL file doesn't exist.
 fn missing_file_issues(
-    expected_keys: &HashMap<String, KeyInfo>,
+    expected_keys: &IndexMap<String, KeyInfo>,
     locale: &str,
     _crate_name: &str,
     ftl_path: &str,
@@ -414,7 +415,7 @@ fn validate_loaded_ftl(
     }
 
     // Build map of actual keys and their variables
-    let actual_keys: HashMap<String, HashSet<String>> = resource
+    let actual_keys: IndexMap<String, HashSet<String>> = resource
         .body
         .iter()
         .filter_map(|entry| match entry {
