@@ -346,16 +346,15 @@ pub(crate) fn smart_merge(
                     handled = true;
                 }
 
-                if !handled {
-                    if let Some(expected_group) = key_to_group.get(&key)
-                        && matches!(behavior, MergeBehavior::Append)
-                        && current_group_name.as_deref() != Some(expected_group.as_str())
-                        && let Some(info) = item_map.get_mut(expected_group)
-                        && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
-                    {
-                        info.variants.remove(idx);
-                        relocate_to = Some(expected_group.clone());
-                    }
+                if !handled
+                    && let Some(expected_group) = key_to_group.get(&key)
+                    && matches!(behavior, MergeBehavior::Append)
+                    && current_group_name.as_deref() != Some(expected_group.as_str())
+                    && let Some(info) = item_map.get_mut(expected_group)
+                    && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
+                {
+                    info.variants.remove(idx);
+                    relocate_to = Some(expected_group.clone());
                 }
 
                 if relocate_to.is_none() && !handled {
@@ -402,21 +401,21 @@ pub(crate) fn smart_merge(
     }
 
     // Correctly handle the end of the last group
-    if let Some(ref last_group) = current_group_name {
-        if let Some(info) = item_map.get_mut(last_group) {
-            // Only append missing variants if we are appending
-            if matches!(behavior, MergeBehavior::Append) {
-                if let Some(entries) = relocated_by_group.shift_remove(last_group) {
-                    new_body.extend(entries);
-                }
-                if !info.variants.is_empty() {
-                    for variant in &info.variants {
-                        new_body.push(create_message_entry(variant));
-                    }
+    if let Some(ref last_group) = current_group_name
+        && let Some(info) = item_map.get_mut(last_group)
+    {
+        // Only append missing variants if we are appending
+        if matches!(behavior, MergeBehavior::Append) {
+            if let Some(entries) = relocated_by_group.shift_remove(last_group) {
+                new_body.extend(entries);
+            }
+            if !info.variants.is_empty() {
+                for variant in &info.variants {
+                    new_body.push(create_message_entry(variant));
                 }
             }
-            info.variants.clear();
         }
+        info.variants.clear();
     }
 
     // Only append remaining new groups if we are appending

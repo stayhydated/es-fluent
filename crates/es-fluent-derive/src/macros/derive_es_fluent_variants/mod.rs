@@ -109,7 +109,7 @@ fn generate_unit_enum(
         });
 
     let cleaned_variants = variants.iter().map(|(ident, _, _)| ident);
-    let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
+    let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
     let members_this = this_opts.is_some_and(|opts| opts.attr_args().is_members());
 
@@ -320,7 +320,7 @@ fn generate_enum_unit_enum(
     });
 
     let cleaned_variants = variants.iter().map(|(ident, _)| ident);
-    let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
+    let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
     let members_this = this_opts.is_some_and(|opts| opts.attr_args().is_members());
 
