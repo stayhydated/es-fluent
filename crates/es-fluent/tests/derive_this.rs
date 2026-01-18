@@ -6,7 +6,7 @@ struct TestStruct {
     field: String,
 }
 
-#[derive(EsFluentVariants, EsFluentThis)]
+#[derive(EsFluentThis, EsFluentVariants)]
 #[fluent_kv(keys = ["label"])]
 #[fluent_this(members)]
 #[allow(dead_code)]
@@ -14,7 +14,7 @@ struct TestKvStruct {
     field: String,
 }
 
-#[derive(EsFluentVariants, EsFluentThis)]
+#[derive(EsFluentThis, EsFluentVariants)]
 #[fluent_kv(keys = ["description"])]
 #[fluent_this(members)]
 #[allow(dead_code)]

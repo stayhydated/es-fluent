@@ -12,19 +12,19 @@ canada_province-B = B
 
 ## CountryDescriptionVariants
 
-country_description-Canada = Canada
-country_description-USA = Usa
 
 ## CountryLabelVariants
 
-country_label-Canada = Canada
-country_label-USA = Usa
 
 ## Country
 
 country_this = Country
 country-Canada = Canada { $f0 }
 country-USA = Usa { $f0 }
+country_description-Canada = Canada
+country_description-USA = Usa
+country_label-Canada = Canada
+country_label-USA = Usa
 
 ## EmptyEnum
 
@@ -41,18 +41,18 @@ empty_struct = Empty Struct
 
 ## KvSplit
 
+kv_split_description_this = Kv Split Description
+kv_split_label_this = Kv Split Label
 kv_split_this = Kv Split
 kv_split = Kv Split { $country }
+kv_split_description-country = Country
+kv_split_label-country = Country
 
 ## KvSplitDescriptionVariants
 
-kv_split_description_this = Kv Split Description
-kv_split_description-country = Country
 
 ## KvSplitLabelVariants
 
-kv_split_label_this = Kv Split Label
-kv_split_label-country = Country
 
 ## USAState
 

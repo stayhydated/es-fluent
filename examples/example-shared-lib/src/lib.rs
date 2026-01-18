@@ -1,4 +1,4 @@
-use es_fluent::{EsFluent, EsFluentVariants, EsFluentThis};
+use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants};
 use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
@@ -44,13 +44,13 @@ pub struct CurrentLanguage(pub Languages);
 #[derive(Clone, Debug, Default, EsFluent, EsFluentThis)]
 pub struct EmptyStruct;
 
-#[derive(Clone, Debug, Default, EsFluentVariants, EsFluentThis)]
+#[derive(Clone, Debug, Default, EsFluentThis, EsFluentVariants)]
 pub struct EmptyStructKv;
 
 #[derive(Clone, Copy, Debug, EsFluent, EsFluentThis)]
 pub enum EmptyEnum {}
 
-#[derive(Clone, EsFluent, EsFluentVariants, EsFluentThis)]
+#[derive(Clone, EsFluent, EsFluentThis, EsFluentVariants)]
 #[fluent_this(origin)]
 #[fluent_kv(keys = ["description", "label"])]
 pub enum Country {
@@ -69,7 +69,7 @@ pub enum CanadaProvince {
     B,
 }
 
-#[derive(EsFluent, EsFluentVariants, EsFluentThis)]
+#[derive(EsFluent, EsFluentThis, EsFluentVariants)]
 #[fluent_this(members)]
 #[fluent_kv(keys = ["description", "label"])]
 pub struct KvSplit {

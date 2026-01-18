@@ -93,3 +93,14 @@ cargo es-fluent sync
 ```
 
 Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.
+
+## Limitations
+
+The CLI runner links workspace crates as **library targets only**. If you define
+`#[derive(EsFluent*)]` types exclusively in a binary target, they won't be registered in the
+inventory, and commands like `generate` or `clean` may miss or remove their keys.
+
+Workarounds:
+
+- Add a `lib.rs` target and move derived types into it.
+- Move shared localization types into a small library crate and depend on it from your binary.
