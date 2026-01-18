@@ -101,11 +101,11 @@ fn es_fluent_struct_attributes_default_and_choice_snapshot() {
     );
 }
 
-/// EsFluentKv on structs: no keys provided (single FTL enum)
+/// EsFluentVariants on structs: no keys provided (single FTL enum)
 #[test]
-fn es_fluent_kv_attributes_no_keys_snapshot() {
+fn es_fluent_variants_attributes_no_keys_snapshot() {
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluentKv)]
+        #[derive(EsFluentVariants)]
 
         struct Config {
             host: String,
@@ -116,14 +116,17 @@ fn es_fluent_kv_attributes_no_keys_snapshot() {
     };
 
     let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
-    insta::assert_debug_snapshot!("es_fluent_kv_attributes_no_keys_snapshot__analysis", &opts);
+    insta::assert_debug_snapshot!(
+        "es_fluent_variants_attributes_no_keys_snapshot__analysis",
+        &opts
+    );
 }
 
-/// EsFluentKv on structs: with keys, `this`, `derive` list, and a default field
+/// EsFluentVariants on structs: with keys, `this`, `derive` list, and a default field
 #[test]
-fn es_fluent_kv_attributes_keys_this_derive_default_snapshot() {
+fn es_fluent_variants_attributes_keys_this_derive_default_snapshot() {
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluentKv)]
+        #[derive(EsFluentVariants)]
         #[fluent_kv(keys = ["primary", "secondary"], derive(Debug, PartialEq))]
         struct Profile {
             id: u64,
@@ -136,7 +139,7 @@ fn es_fluent_kv_attributes_keys_this_derive_default_snapshot() {
 
     let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
     insta::assert_debug_snapshot!(
-        "es_fluent_kv_attributes_keys_this_derive_default_snapshot__analysis",
+        "es_fluent_variants_attributes_keys_this_derive_default_snapshot__analysis",
         &opts
     );
 }

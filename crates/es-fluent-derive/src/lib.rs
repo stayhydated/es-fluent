@@ -38,16 +38,16 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
     macros::derive_es_fluent::from(input)
 }
 
-/// Generates key-value pair enums for struct fields.
+/// Generates variant enums for struct fields.
 ///
 /// This is perfect for generating UI labels, placeholders, or descriptions for a form object.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use es_fluent::EsFluentKv;
+/// use es_fluent::EsFluentVariants;
 ///
-/// #[derive(EsFluentKv)]
+/// #[derive(EsFluentVariants)]
 /// #[fluent_kv(keys = ["label", "description"])]
 /// pub struct LoginForm {
 ///     pub username: String,
@@ -55,17 +55,17 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 /// }
 ///
 /// // Generates enums -> keys:
-/// // LoginFormLabelKvFtl::{Variants} -> (login_form_label_kv_ftl-{variant})
-/// // LoginFormDescriptionKvFtl::{Variants} -> (login_form_description_kv_ftl-{variant})
+/// // LoginFormLabelVariants::{Variants} -> (login_form_label-{variant})
+/// // LoginFormDescriptionVariants::{Variants} -> (login_form_description-{variant})
 /// ```
 ///
 /// # Container Attributes
 ///
 /// - `#[fluent_kv(keys = ["label", "description"])]`: Specifies which key variants to generate.
-#[proc_macro_derive(EsFluentKv, attributes(fluent_kv))]
+#[proc_macro_derive(EsFluentVariants, attributes(fluent_kv))]
 #[proc_macro_error]
-pub fn derive_es_fluent_kv(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    macros::derive_es_fluent_kv::from(input)
+pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    macros::derive_es_fluent_variants::from(input)
 }
 
 /// Allows an enum to be used inside another message as a selector (e.g., for gender or status).
@@ -102,7 +102,7 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 
 /// Generates a helper implementation of the `ThisFtl` trait and registers the type's name as a key.
 ///
-/// This is similar to `EsFluentKv` (which registers fields), but for the parent type itself.
+/// This is similar to `EsFluentVariants` (which registers fields), but for the parent type itself.
 ///
 /// # Example
 ///
@@ -124,7 +124,7 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// # Attributes
 ///
 /// - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
-/// - `#[fluent_this(members)]`: Can be combined with `Kv` derives to generate keys for the generated member enums.
+/// - `#[fluent_this(members)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated member enums.
 /// - `#[fluent_this(origin, members)]`: Combines both behaviors.
 #[proc_macro_derive(EsFluentThis, attributes(fluent_this))]
 #[proc_macro_error]

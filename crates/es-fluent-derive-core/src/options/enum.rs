@@ -162,7 +162,7 @@ pub struct EnumChoiceAttributeArgs {
     serialize_all: Option<String>,
 }
 
-/// Options for an enum variant in EsFluentKv context.
+/// Options for an enum variant in EsFluentVariants context.
 #[derive(Clone, Debug, FromVariant, Getters)]
 #[darling(attributes(fluent_kv))]
 pub struct EnumKvVariantOpts {
@@ -192,7 +192,7 @@ impl EnumKvVariantOpts {
     }
 }
 
-/// Options for an enum with EsFluentKv.
+/// Options for an enum with EsFluentVariants.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
 #[darling(supports(enum_unit, enum_named, enum_tuple), attributes(fluent_kv))]
 #[getset(get = "pub")]
@@ -207,7 +207,7 @@ pub struct EnumKvOpts {
 }
 
 impl EnumKvOpts {
-    const FTL_ENUM_IDENT: &str = "KvFtl";
+    const FTL_ENUM_IDENT: &str = "Variants";
 
     /// Returns the identifier of the FTL enum.
     pub fn ftl_enum_ident(&self) -> syn::Ident {
@@ -234,6 +234,21 @@ impl EnumKvOpts {
         )
     }
 
+    /// Returns the identifiers used to build base FTL keys (without suffixes).
+    pub fn keyed_base_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
+        self.attr_args.clone().keys.map_or_else(
+            || Ok(Vec::new()),
+            |keys| {
+                keys.into_iter()
+                    .map(|key| {
+                        let pascal_key = super::validate_snake_case_key(&key)?;
+                        Ok(format_ident!("{}{}", &self.ident, pascal_key))
+                    })
+                    .collect()
+            },
+        )
+    }
+
     /// Returns the variants of the enum that are not skipped.
     pub fn variants(&self) -> Vec<&EnumKvVariantOpts> {
         match &self.data {
@@ -245,7 +260,7 @@ impl EnumKvOpts {
     }
 }
 
-/// Attribute arguments for an enum with EsFluentKv.
+/// Attribute arguments for an enum with EsFluentVariants.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct EnumKvFluentAttributeArgs {
     #[darling(default)]
