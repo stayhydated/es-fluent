@@ -7,7 +7,7 @@ pub mod meta;
 pub mod registry;
 
 #[cfg(feature = "derive")]
-pub use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentKv, EsFluentThis};
+pub use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentThis, EsFluentVariants};
 
 #[doc(hidden)]
 pub use fluent_bundle::FluentValue;

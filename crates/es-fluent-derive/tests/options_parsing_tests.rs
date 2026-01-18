@@ -74,21 +74,21 @@ fn enum_variants_and_fields_skipping_and_choice() {
 #[test]
 fn struct_kv_keys_parsing_and_field_skipping() {
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["error", "notice"])]
+        #[derive(EsFluentVariants)]
+        #[fluent_variants(keys = ["error", "notice"])]
         struct MyStruct {
             a: i32,
-            #[fluent_kv(skip)]
+            #[fluent_variants(skip)]
             b: String,
         }
     };
 
     let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
 
-    // ftl_enum_ident is <StructName>KvFtl
-    assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructKvFtl");
+    // ftl_enum_ident is <StructName>Variants
+    assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructVariants");
 
-    // keyyed_idents are <StructName><Key>KvFtl
+    // keyyed_idents are <StructName><Key>Variants
     let mut key_names: Vec<String> = opts
         .keyyed_idents()
         .unwrap()
@@ -99,8 +99,8 @@ fn struct_kv_keys_parsing_and_field_skipping() {
     assert_eq!(
         key_names,
         vec![
-            "MyStructErrorKvFtl".to_string(),
-            "MyStructNoticeKvFtl".to_string()
+            "MyStructErrorVariants".to_string(),
+            "MyStructNoticeVariants".to_string()
         ]
     );
 
@@ -113,8 +113,8 @@ fn struct_kv_keys_parsing_and_field_skipping() {
 #[test]
 fn struct_kv_keys_must_be_lowercase_snake_case() {
     let input: DeriveInput = parse_quote! {
-        #[derive(EsFluentKv)]
-        #[fluent_kv(keys = ["NotSnake"])]
+        #[derive(EsFluentVariants)]
+        #[fluent_variants(keys = ["NotSnake"])]
         struct MyStruct {
             field: i32,
         }

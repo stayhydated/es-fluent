@@ -6,14 +6,23 @@ STDOUT:
 Fluent FTL Generator
 Discovered 2 crate(s)
 Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
-- z_last = Last
++ orphan_key = Orphan
+  z_last = Last
++ 
++ ## Gender
++ 
 + gender-Female = Female
 + gender-Male = Male
 + gender-Other = Other
++ 
++ ## HelloA
++ 
   hello_a = Hello from App A
-  orphan_key = Orphan
-- 
+- orphan_key = Orphan
+  
 - shared-Photos = 
++ ## Shared
++ 
 + shared-Photos =
       { $user_name } { $photo_count ->
           [one] added a new photo
@@ -28,8 +37,11 @@ Would update FTL file: [TEMP_DIR]/i18n/en/test-app-a.ftl
 - gender-Other = Other
 - 
 - 
-+ z_last = Last
 
-Unchanged: test-lib-b
+Would update FTL file: [TEMP_DIR]/i18n/en/test-lib-b.ftl
++ ## HelloB
++ 
+  hello_b = Hello from Lib B
+
 
 STDERR:

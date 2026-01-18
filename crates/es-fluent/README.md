@@ -115,30 +115,30 @@ pub struct UserProfile<'a> {
 // usage: UserProfile { name: "John", gender: &Gender::Male }.to_fluent_string()
 ```
 
-### `#[derive(EsFluentKv)]`
+### `#[derive(EsFluentVariants)]`
 
 Generates key-value pair enums for struct fields. This is perfect for generating UI labels, placeholders, or descriptions for a form object.
 
 ```rs
-use es_fluent::EsFluentKv;
+use es_fluent::EsFluentVariants;
 
-#[derive(EsFluentKv)]
-#[fluent_kv(keys = ["label", "description"])]
+#[derive(EsFluentVariants)]
+#[fluent_variants(keys = ["label", "description"])]
 pub struct LoginForm {
     pub username: String,
     pub password: String,
 }
 
 // Generates enums -> keys:
-// LoginFormLabelKvFtl::{Variants} -> (login_form_label_kv_ftl-{variant})
-// LoginFormDescriptionKvFtl::{Variants} -> (login_form_description_kv_ftl-{variant})
+// LoginFormLabelVariants::{Variants} -> (login_form_label-{variant})
+// LoginFormDescriptionVariants::{Variants} -> (login_form_description-{variant})
 
-// usage: LoginFormLabelKvFtl::Username.to_fluent_string()
+// usage: LoginFormLabelVariants::Username.to_fluent_string()
 ```
 
 ### `#[derive(EsFluentThis)]`
 
-Generates a helper implementation of the `ThisFtl` trait and registers the type's name as a key. This is similar to `EsFluentKv` (which registers fields), but for the parent type itself.
+Generates a helper implementation of the `ThisFtl` trait and registers the type's name as a key. This is similar to `EsFluentVariants` (which registers fields), but for the parent type itself.
 
 - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
 
@@ -159,20 +159,20 @@ pub enum Gender {
 // usage: Gender::this_ftl()
 ```
 
-- `#[fluent_this(members)]`: Can be combined with `Kv` derives to generate keys for members.
+- `#[fluent_this(members)]`: Can be combined with `EsFluentVariants` derives to generate keys for members.
 
 ```rs
-#[derive(EsFluentKv, EsFluentThis)]
+#[derive(EsFluentVariants, EsFluentThis)]
 #[fluent_this(origin, members)]
-#[fluent_kv(keys = ["label", "description"])]
+#[fluent_variants(keys = ["label", "description"])]
 pub struct LoginForm {
     pub username: String,
     pub password: String,
 }
 
 // Generates keys:
-// (login_form_label_kv_ftl_this)
-// (login_form_description_kv_ftl_this)
+// (login_form_label_this)
+// (login_form_description_this)
 
-// usage: LoginFormDescriptionKvFtl::this_ftl()
+// usage: LoginFormDescriptionVariants::this_ftl()
 ```

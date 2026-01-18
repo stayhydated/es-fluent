@@ -1,16 +1,11 @@
-use es_fluent::{EsFluent, ToFluentString as _};
+use es_fluent::ToFluentString as _;
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui::{
     App, Application, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px,
     size,
 };
 use gpui_component::button::Button;
-use gpui_example::i18n;
-
-#[derive(Clone, Copy, Debug, EsFluent)]
-pub enum GpuiScreenMessages {
-    ToggleLanguageHint { current_language: Languages },
-}
+use gpui_example::{GpuiScreenMessages, i18n};
 
 fn main() {
     Application::new().run(|cx: &mut App| {

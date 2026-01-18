@@ -1,11 +1,11 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-expression: output
+expression: run_generate_real_test(&WORKSPACE_CONFIG)
 ---
 STDOUT:
 Fluent FTL Generator
 Discovered 2 crate(s)
 test-app-a generated in [DURATION] (7 resources)
-Unchanged: test-lib-b
+test-lib-b generated in [DURATION] (1 resources)
 
 STDERR:

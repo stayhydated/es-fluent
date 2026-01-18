@@ -1,28 +1,12 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
-use es_fluent::EsFluent;
-use es_fluent_manager_bevy::{
-    BevyFluentText, CurrentLanguageId, FluentText, I18nPlugin, LocaleChangeEvent,
-};
+use bevy_example::{BevyScreenMessages, KbKeys};
+use es_fluent_manager_bevy::{CurrentLanguageId, FluentText, I18nPlugin, LocaleChangeEvent};
 use example_shared_lib::{ButtonState, Languages};
 
 // bring es_fluent_manager_bevy::define_i18n_module!(); in scope
 #[allow(unused_imports)]
 #[allow(clippy::single_component_path_imports)]
 use bevy_example;
-
-#[derive(Clone, Component, Copy, Debug, EsFluent)]
-pub enum KbKeys {
-    T,
-}
-
-#[derive(BevyFluentText, Clone, Component, Copy, Debug, EsFluent)]
-pub enum BevyScreenMessages {
-    ToggleLanguageHint {
-        key: KbKeys,
-        #[locale]
-        current_language: Languages,
-    },
-}
 
 fn main() {
     let mut app = App::new();

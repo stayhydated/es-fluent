@@ -121,7 +121,7 @@ impl StructFluentAttributeArgs {}
 
 /// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]
-#[darling(attributes(fluent_kv))]
+#[darling(attributes(fluent_variants))]
 pub struct StructKvFieldOpts {
     /// The identifier of the field.
     #[getset(get = "pub")]
@@ -143,7 +143,7 @@ impl StructKvFieldOpts {
 
 /// Options for a struct.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(struct_named, struct_unit), attributes(fluent_kv))]
+#[darling(supports(struct_named, struct_unit), attributes(fluent_variants))]
 #[getset(get = "pub")]
 pub struct StructKvOpts {
     /// The identifier of the struct.
@@ -156,7 +156,7 @@ pub struct StructKvOpts {
 }
 
 impl StructKvOpts {
-    const FTL_ENUM_IDENT: &str = "KvFtl";
+    const FTL_ENUM_IDENT: &str = "Variants";
 
     /// Returns the identifier of the FTL enum.
     pub fn ftl_enum_ident(&self) -> syn::Ident {
@@ -177,6 +177,21 @@ impl StructKvOpts {
                             pascal_key,
                             Self::FTL_ENUM_IDENT
                         ))
+                    })
+                    .collect()
+            },
+        )
+    }
+
+    /// Returns the identifiers used to build base FTL keys (without suffixes).
+    pub fn keyed_base_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
+        self.attr_args.clone().keys.map_or_else(
+            || Ok(Vec::new()),
+            |keys| {
+                keys.into_iter()
+                    .map(|key| {
+                        let pascal_key = super::validate_snake_case_key(&key)?;
+                        Ok(format_ident!("{}{}", &self.ident, pascal_key))
                     })
                     .collect()
             },
