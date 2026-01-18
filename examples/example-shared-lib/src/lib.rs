@@ -52,7 +52,7 @@ pub enum EmptyEnum {}
 
 #[derive(Clone, EsFluent, EsFluentThis, EsFluentVariants)]
 #[fluent_this(origin)]
-#[fluent_kv(keys = ["description", "label"])]
+#[fluent_variants(keys = ["description", "label"])]
 pub enum Country {
     USA(USAState),
     Canada(CanadaProvince),
@@ -71,7 +71,7 @@ pub enum CanadaProvince {
 
 #[derive(EsFluent, EsFluentThis, EsFluentVariants)]
 #[fluent_this(members)]
-#[fluent_kv(keys = ["description", "label"])]
+#[fluent_variants(keys = ["description", "label"])]
 pub struct KvSplit {
     pub country: Country,
 }

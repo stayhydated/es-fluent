@@ -113,7 +113,7 @@ use es_fluent::{EsFluent, EsFluentChoice, EsFluentVariants, EsFluentThis};
 struct Hello;
 
 #[derive(EsFluentVariants)]
-#[fluent_kv(keys = ["label", "placeholder"])]
+#[fluent_variants(keys = ["label", "placeholder"])]
 struct MyForm {
     username: String,
     password: String,

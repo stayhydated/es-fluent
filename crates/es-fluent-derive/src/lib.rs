@@ -48,7 +48,7 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 /// use es_fluent::EsFluentVariants;
 ///
 /// #[derive(EsFluentVariants)]
-/// #[fluent_kv(keys = ["label", "description"])]
+/// #[fluent_variants(keys = ["label", "description"])]
 /// pub struct LoginForm {
 ///     pub username: String,
 ///     pub password: String,
@@ -61,8 +61,8 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 ///
 /// # Container Attributes
 ///
-/// - `#[fluent_kv(keys = ["label", "description"])]`: Specifies which key variants to generate.
-#[proc_macro_derive(EsFluentVariants, attributes(fluent_kv))]
+/// - `#[fluent_variants(keys = ["label", "description"])]`: Specifies which key variants to generate.
+#[proc_macro_derive(EsFluentVariants, attributes(fluent_variants))]
 #[proc_macro_error]
 pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent_variants::from(input)

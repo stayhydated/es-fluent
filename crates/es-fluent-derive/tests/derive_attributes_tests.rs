@@ -110,7 +110,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
         struct Config {
             host: String,
             port: u16,
-            #[fluent_kv(skip)]
+            #[fluent_variants(skip)]
             deprecated: bool,
         }
     };
@@ -127,11 +127,11 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
 fn es_fluent_variants_attributes_keys_this_derive_default_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentVariants)]
-        #[fluent_kv(keys = ["primary", "secondary"], derive(Debug, PartialEq))]
+        #[fluent_variants(keys = ["primary", "secondary"], derive(Debug, PartialEq))]
         struct Profile {
             id: u64,
             username: String,
-            #[fluent_kv(skip)]
+            #[fluent_variants(skip)]
             secret_token: String,
             active: bool,
         }

@@ -1,8 +1,7 @@
 /// A trait for types that have a "this" fluent key representing the type itself.
 ///
-/// This trait is automatically implemented by the `#[derive(EsFluent)]` or
-/// `#[derive(EsFluentVariants)]` macros when the `#[fluent(this)]` or `#[fluent_kv(this)]`
-/// attribute is present.
+/// This trait is automatically implemented by `#[derive(EsFluentThis)]`, or by
+/// `#[derive(EsFluentVariants)]` when combined with `#[fluent_this(members)]`.
 ///
 /// The `this_ftl()` method returns the localized string for the type's own
 /// fluent key, without any variant or field suffix.

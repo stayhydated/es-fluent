@@ -164,7 +164,7 @@ pub struct EnumChoiceAttributeArgs {
 
 /// Options for an enum variant in EsFluentVariants context.
 #[derive(Clone, Debug, FromVariant, Getters)]
-#[darling(attributes(fluent_kv))]
+#[darling(attributes(fluent_variants))]
 pub struct EnumKvVariantOpts {
     /// The identifier of the variant.
     #[getset(get = "pub")]
@@ -194,7 +194,10 @@ impl EnumKvVariantOpts {
 
 /// Options for an enum with EsFluentVariants.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(enum_unit, enum_named, enum_tuple), attributes(fluent_kv))]
+#[darling(
+    supports(enum_unit, enum_named, enum_tuple),
+    attributes(fluent_variants)
+)]
 #[getset(get = "pub")]
 pub struct EnumKvOpts {
     /// The identifier of the enum.

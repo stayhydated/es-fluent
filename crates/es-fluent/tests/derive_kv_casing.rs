@@ -9,7 +9,7 @@ use tempfile::TempDir;
 
 // Test enum with PascalCase variants
 #[derive(EsFluentVariants)]
-#[fluent_kv(keys = ["label"])]
+#[fluent_variants(keys = ["label"])]
 #[allow(dead_code)]
 enum USAState {
     California,
@@ -19,7 +19,7 @@ enum USAState {
 
 // Test struct with snake_case fields
 #[derive(EsFluentVariants)]
-#[fluent_kv(keys = ["description"])]
+#[fluent_variants(keys = ["description"])]
 #[allow(dead_code)]
 struct UserProfile {
     first_name: String,

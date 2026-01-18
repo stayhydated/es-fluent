@@ -123,7 +123,7 @@ Generates key-value pair enums for struct fields. This is perfect for generating
 use es_fluent::EsFluentVariants;
 
 #[derive(EsFluentVariants)]
-#[fluent_kv(keys = ["label", "description"])]
+#[fluent_variants(keys = ["label", "description"])]
 pub struct LoginForm {
     pub username: String,
     pub password: String,
@@ -164,7 +164,7 @@ pub enum Gender {
 ```rs
 #[derive(EsFluentVariants, EsFluentThis)]
 #[fluent_this(origin, members)]
-#[fluent_kv(keys = ["label", "description"])]
+#[fluent_variants(keys = ["label", "description"])]
 pub struct LoginForm {
     pub username: String,
     pub password: String,

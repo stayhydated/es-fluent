@@ -121,7 +121,7 @@ impl StructFluentAttributeArgs {}
 
 /// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]
-#[darling(attributes(fluent_kv))]
+#[darling(attributes(fluent_variants))]
 pub struct StructKvFieldOpts {
     /// The identifier of the field.
     #[getset(get = "pub")]
@@ -143,7 +143,7 @@ impl StructKvFieldOpts {
 
 /// Options for a struct.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(struct_named, struct_unit), attributes(fluent_kv))]
+#[darling(supports(struct_named, struct_unit), attributes(fluent_variants))]
 #[getset(get = "pub")]
 pub struct StructKvOpts {
     /// The identifier of the struct.

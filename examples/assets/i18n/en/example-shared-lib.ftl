@@ -10,19 +10,19 @@ canada_province_this = Canada Province
 canada_province-A = A
 canada_province-B = B
 
-## CountryDescriptionVariants
-
-
-## CountryLabelVariants
-
-
 ## Country
 
 country_this = Country
 country-Canada = Canada { $f0 }
 country-USA = Usa { $f0 }
+
+## CountryDescriptionVariants
+
 country_description-Canada = Canada
 country_description-USA = Usa
+
+## CountryLabelVariants
+
 country_label-Canada = Canada
 country_label-USA = Usa
 
@@ -30,29 +30,29 @@ country_label-USA = Usa
 
 empty_enum_this = Empty Enum
 
-## EmptyStructKv
-
-empty_struct_kv_this = Empty Struct Kv
-
 ## EmptyStruct
 
 empty_struct_this = Empty Struct
 empty_struct = Empty Struct
 
+## EmptyStructKv
+
+empty_struct_kv_this = Empty Struct Kv
+
 ## KvSplit
 
-kv_split_description_this = Kv Split Description
-kv_split_label_this = Kv Split Label
 kv_split_this = Kv Split
 kv_split = Kv Split { $country }
-kv_split_description-country = Country
-kv_split_label-country = Country
 
 ## KvSplitDescriptionVariants
 
+kv_split_description_this = Kv Split Description
+kv_split_description-country = Country
 
 ## KvSplitLabelVariants
 
+kv_split_label_this = Kv Split Label
+kv_split_label-country = Country
 
 ## USAState
 
