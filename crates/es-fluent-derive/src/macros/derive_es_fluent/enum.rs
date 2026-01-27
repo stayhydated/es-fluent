@@ -14,7 +14,7 @@ fn generate_value_expr(field: &EnumFieldOpts, arg_name: &syn::Ident) -> TokenStr
     if let Some(expr) = field.value() {
         quote! { (#expr)(#arg_name) }
     } else if field.is_choice() {
-        quote! { #arg_name.as_fluent_choice() }
+        quote! { { use ::es_fluent::EsFluentChoice as _; #arg_name.as_fluent_choice() } }
     } else {
         quote! { #arg_name.clone() }
     }
