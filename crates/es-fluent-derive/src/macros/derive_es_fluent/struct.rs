@@ -35,7 +35,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
                 quote! { (#expr)(&(#field_access)) }
             } else if is_choice {
                 let access = field_access.clone();
-                quote! { (#access).as_fluent_choice() }
+                quote! { { use ::es_fluent::EsFluentChoice as _; (#access).as_fluent_choice() } }
             } else {
                 let access = field_access.clone();
                 quote! { (#access).clone() }
