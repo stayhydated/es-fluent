@@ -158,8 +158,14 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
 
     // Sort sections by header name, but prioritize "this" sections.
     sortable_sections.sort_by(|a, b| {
-        let a_is_this = a.messages.iter().all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
-        let b_is_this = b.messages.iter().all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
+        let a_is_this = a
+            .messages
+            .iter()
+            .all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
+        let b_is_this = b
+            .messages
+            .iter()
+            .all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
         compare_with_this_priority(a_is_this, &a.header_sort_key, b_is_this, &b.header_sort_key)
     });
 
