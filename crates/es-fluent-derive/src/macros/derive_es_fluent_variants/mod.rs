@@ -31,7 +31,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
             process_enum(&opts, this_opts.as_ref())
         },
-        Data::Union(_) => panic!("EsFluentKv cannot be used on unions"),
+        Data::Union(_) => panic!("EsFluentVariants cannot be used on unions"),
     };
 
     tokens.into()
@@ -46,6 +46,10 @@ pub fn process_struct(
         Ok(keys) => keys,
         Err(err) => err.abort(),
     };
+    let base_idents = match opts.keyed_base_idents() {
+        Ok(base_idents) => base_idents,
+        Err(err) => err.abort(),
+    };
 
     // For empty structs, don't generate any enums
     let is_empty = opts.fields().is_empty();
@@ -55,14 +59,15 @@ pub fn process_struct(
 
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum = generate_unit_enum(opts, data, &ftl_enum_ident, this_opts);
+        let ftl_enum = generate_unit_enum(opts, data, &ftl_enum_ident, opts.ident(), this_opts);
         quote! {
             #ftl_enum
         }
     } else {
         let enums = keys
             .iter()
-            .map(|key| generate_unit_enum(opts, data, key, this_opts));
+            .zip(base_idents.iter())
+            .map(|(key, base_ident)| generate_unit_enum(opts, data, key, base_ident, this_opts));
 
         quote! {
             #(#enums)*
@@ -74,9 +79,11 @@ fn generate_unit_enum(
     opts: &StructKvOpts,
     _data: &syn::DataStruct,
     ident: &syn::Ident,
+    base_ident: &syn::Ident,
     this_opts: Option<&ThisOpts>,
 ) -> TokenStream {
     let field_opts = opts.fields();
+    let base_key = namer::FluentKey::from(base_ident);
 
     // For structs, we store (variant_ident, original_field_name, field_opt)
     // variant_ident is PascalCase for the enum, original_field_name is snake_case for FTL key
@@ -95,23 +102,16 @@ fn generate_unit_enum(
         .iter()
         .map(|(variant_ident, original_field_name, _)| {
             // Use original field name (snake_case) for FTL key
-            let ftl_key = namer::FluentKey::from(ident)
-                .join(original_field_name)
-                .to_string();
+            let ftl_key = base_key.join(original_field_name).to_string();
             quote! {
                 Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
             }
         });
 
     let cleaned_variants = variants.iter().map(|(ident, _, _)| ident);
-    let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
+    let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
-    // If fields_this is true, add EsFluentThis to derives
-    if let Some(this_opts) = this_opts
-        && this_opts.attr_args().is_members()
-    {
-        derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
-    }
+    let members_this = this_opts.is_some_and(|opts| opts.attr_args().is_members());
 
     let derive_attr = if !derives.is_empty() {
         quote! { #[derive(#(#derives),*)] }
@@ -147,9 +147,7 @@ fn generate_unit_enum(
         .map(|(variant_ident, original_field_name, _)| {
             let variant_name = variant_ident.to_string();
             // Use original field name (snake_case) for FTL key
-            let ftl_key = namer::FluentKey::from(ident)
-                .join(original_field_name)
-                .to_string();
+            let ftl_key = base_key.join(original_field_name).to_string();
             quote! {
                 ::es_fluent::registry::FtlVariant {
                     name: #variant_name,
@@ -187,12 +185,63 @@ fn generate_unit_enum(
         }
     };
 
+    let this_impl = if members_this {
+        let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
+        quote! {
+            impl ::es_fluent::ThisFtl for #ident {
+                fn this_ftl() -> String {
+                    ::es_fluent::localize(#this_key, None)
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let this_inventory = if members_this {
+        let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
+        let this_mod_name =
+            quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
+        quote! {
+            #[doc(hidden)]
+            mod #this_mod_name {
+                use super::*;
+
+                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+                    ::es_fluent::registry::FtlVariant {
+                        name: #type_name,
+                        ftl_key: #this_key,
+                        args: &[],
+                        module_path: module_path!(),
+                        line: line!(),
+                    }
+                ];
+
+                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
+                    ::es_fluent::registry::FtlTypeInfo {
+                        type_kind: ::es_fluent::meta::TypeKind::Enum,
+                        type_name: #type_name,
+                        variants: VARIANTS,
+                        file_path: file!(),
+                        module_path: module_path!(),
+                    };
+
+                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
       #new_enum
 
       #display_impl
 
       #inventory_submit
+
+      #this_impl
+      #this_inventory
 
       impl From<& #ident> for ::es_fluent::FluentValue<'_> {
             fn from(value: & #ident) -> Self {
@@ -214,6 +263,10 @@ pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStr
         Ok(keys) => keys,
         Err(err) => err.abort(),
     };
+    let base_idents = match opts.keyed_base_idents() {
+        Ok(base_idents) => base_idents,
+        Err(err) => err.abort(),
+    };
 
     // For empty enums, don't generate any new enums
     let is_empty = opts.variants().is_empty();
@@ -223,14 +276,15 @@ pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStr
 
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum = generate_enum_unit_enum(opts, &ftl_enum_ident, this_opts);
+        let ftl_enum = generate_enum_unit_enum(opts, &ftl_enum_ident, opts.ident(), this_opts);
         quote! {
             #ftl_enum
         }
     } else {
         let enums = keys
             .iter()
-            .map(|key| generate_enum_unit_enum(opts, key, this_opts));
+            .zip(base_idents.iter())
+            .map(|(key, base_ident)| generate_enum_unit_enum(opts, key, base_ident, this_opts));
 
         quote! {
             #(#enums)*
@@ -241,9 +295,11 @@ pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStr
 fn generate_enum_unit_enum(
     opts: &EnumKvOpts,
     ident: &syn::Ident,
+    base_ident: &syn::Ident,
     this_opts: Option<&ThisOpts>,
 ) -> TokenStream {
     let variant_opts = opts.variants();
+    let base_key = namer::FluentKey::from(base_ident);
 
     let variants: Vec<_> = variant_opts
         .iter()
@@ -256,22 +312,17 @@ fn generate_enum_unit_enum(
 
     let match_arms = variants.iter().map(|(variant_ident, _)| {
         // Use original variant name for the key (preserves PascalCase)
-        let base_key = variant_ident.to_string();
-        let ftl_key = namer::FluentKey::from(ident).join(&base_key).to_string();
+        let variant_key = variant_ident.to_string();
+        let ftl_key = base_key.join(&variant_key).to_string();
         quote! {
             Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
         }
     });
 
     let cleaned_variants = variants.iter().map(|(ident, _)| ident);
-    let mut derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
+    let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
-    // If variants_this is true, add EsFluentThis
-    if let Some(this_opts) = this_opts
-        && this_opts.attr_args().is_members()
-    {
-        derives.push(syn::parse_quote!(::es_fluent::EsFluentThis));
-    }
+    let members_this = this_opts.is_some_and(|opts| opts.attr_args().is_members());
 
     let derive_attr = if !derives.is_empty() {
         quote! { #[derive(#(#derives),*)] }
@@ -307,8 +358,8 @@ fn generate_enum_unit_enum(
         .map(|(variant_ident, _)| {
             let variant_name = variant_ident.to_string();
             // Use original variant name for the key (preserves PascalCase for enums)
-            let base_key = variant_ident.to_string();
-            let ftl_key = namer::FluentKey::from(ident).join(&base_key).to_string();
+            let variant_key = variant_ident.to_string();
+            let ftl_key = base_key.join(&variant_key).to_string();
             quote! {
                 ::es_fluent::registry::FtlVariant {
                     name: #variant_name,
@@ -346,12 +397,63 @@ fn generate_enum_unit_enum(
         }
     };
 
+    let this_impl = if members_this {
+        let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
+        quote! {
+            impl ::es_fluent::ThisFtl for #ident {
+                fn this_ftl() -> String {
+                    ::es_fluent::localize(#this_key, None)
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let this_inventory = if members_this {
+        let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
+        let this_mod_name =
+            quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
+        quote! {
+            #[doc(hidden)]
+            mod #this_mod_name {
+                use super::*;
+
+                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+                    ::es_fluent::registry::FtlVariant {
+                        name: #type_name,
+                        ftl_key: #this_key,
+                        args: &[],
+                        module_path: module_path!(),
+                        line: line!(),
+                    }
+                ];
+
+                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
+                    ::es_fluent::registry::FtlTypeInfo {
+                        type_kind: ::es_fluent::meta::TypeKind::Enum,
+                        type_name: #type_name,
+                        variants: VARIANTS,
+                        file_path: file!(),
+                        module_path: module_path!(),
+                    };
+
+                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
       #new_enum
 
       #display_impl
 
       #inventory_submit
+
+      #this_impl
+      #this_inventory
 
       impl From<& #ident> for ::es_fluent::FluentValue<'_> {
             fn from(value: & #ident) -> Self {

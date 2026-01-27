@@ -132,6 +132,17 @@ The CLI uses `IndexMap` instead of `HashMap` throughout to ensure deterministic 
 
 This ensures reproducible CI/CD pipelines and cleaner version control diffs.
 
+## Limitations
+
+The runner crate links workspace crates as **dependencies**, which means it only builds and links
+their **library targets**. Types derived in **binary-only crates** are not seen by the runner, so
+they won't be present in the inventory and can be removed by `clean` or missed by `generate`.
+
+Workarounds:
+
+- Add a `lib.rs` target and move `#[derive(EsFluent*)]` types into it.
+- Extract shared types into a small library crate and depend on it from your bin.
+
 ## Per-Crate Output Structure
 
 ```

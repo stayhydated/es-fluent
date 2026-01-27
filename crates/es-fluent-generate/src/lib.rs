@@ -284,6 +284,13 @@ pub(crate) fn smart_merge(
         .into_iter()
         .map(|i| (i.type_name.clone(), i))
         .collect();
+    let mut key_to_group: IndexMap<String, String> = IndexMap::new();
+    for (group_name, info) in &item_map {
+        for variant in &info.variants {
+            key_to_group.insert(variant.ftl_key.clone(), group_name.clone());
+        }
+    }
+    let mut relocated_by_group: IndexMap<String, Vec<ast::Entry<String>>> = IndexMap::new();
 
     let mut new_body = Vec::new();
     let mut current_group_name: Option<String> = None;
@@ -294,12 +301,16 @@ pub(crate) fn smart_merge(
             ast::Entry::GroupComment(ref comment) => {
                 if let Some(ref old_group) = current_group_name
                     && let Some(info) = item_map.get_mut(old_group)
-                    && !info.variants.is_empty()
                 {
                     // Only append missing variants if we are appending
                     if matches!(behavior, MergeBehavior::Append) {
-                        for variant in &info.variants {
-                            new_body.push(create_message_entry(variant));
+                        if let Some(entries) = relocated_by_group.shift_remove(old_group) {
+                            new_body.extend(entries);
+                        }
+                        if !info.variants.is_empty() {
+                            for variant in &info.variants {
+                                new_body.push(create_message_entry(variant));
+                            }
                         }
                     }
                     info.variants.clear();
@@ -322,21 +333,33 @@ pub(crate) fn smart_merge(
                     new_body.push(entry);
                 }
             },
-            ast::Entry::Message(ref msg) => {
-                let key = &msg.id.name;
+            ast::Entry::Message(msg) => {
+                let key = msg.id.name.clone();
                 let mut handled = false;
+                let mut relocate_to: Option<String> = None;
 
                 if let Some(ref group_name) = current_group_name
                     && let Some(info) = item_map.get_mut(group_name)
-                    && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == *key)
+                    && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
                 {
                     info.variants.remove(idx);
                     handled = true;
                 }
 
-                if !handled {
+                if !handled
+                    && let Some(expected_group) = key_to_group.get(&key)
+                    && matches!(behavior, MergeBehavior::Append)
+                    && current_group_name.as_deref() != Some(expected_group.as_str())
+                    && let Some(info) = item_map.get_mut(expected_group)
+                    && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
+                {
+                    info.variants.remove(idx);
+                    relocate_to = Some(expected_group.clone());
+                }
+
+                if relocate_to.is_none() && !handled {
                     for info in item_map.values_mut() {
-                        if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == *key) {
+                        if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
                             info.variants.remove(idx);
                             handled = true;
                             break;
@@ -344,8 +367,13 @@ pub(crate) fn smart_merge(
                     }
                 }
 
-                if handled || !cleanup {
-                    new_body.push(entry);
+                if let Some(group_name) = relocate_to {
+                    relocated_by_group
+                        .entry(group_name)
+                        .or_default()
+                        .push(ast::Entry::Message(msg));
+                } else if handled || !cleanup {
+                    new_body.push(ast::Entry::Message(msg));
                 }
             },
             ast::Entry::Term(ref term) => {
@@ -375,12 +403,16 @@ pub(crate) fn smart_merge(
     // Correctly handle the end of the last group
     if let Some(ref last_group) = current_group_name
         && let Some(info) = item_map.get_mut(last_group)
-        && !info.variants.is_empty()
     {
         // Only append missing variants if we are appending
         if matches!(behavior, MergeBehavior::Append) {
-            for variant in &info.variants {
-                new_body.push(create_message_entry(variant));
+            if let Some(entries) = relocated_by_group.shift_remove(last_group) {
+                new_body.extend(entries);
+            }
+            if !info.variants.is_empty() {
+                for variant in &info.variants {
+                    new_body.push(create_message_entry(variant));
+                }
             }
         }
         info.variants.clear();
@@ -392,8 +424,12 @@ pub(crate) fn smart_merge(
         remaining_groups.sort_by(|(_, a), (_, b)| compare_type_infos(a, b));
 
         for (type_name, info) in remaining_groups {
-            if !info.variants.is_empty() {
+            let relocated = relocated_by_group.shift_remove(&type_name);
+            if !info.variants.is_empty() || relocated.is_some() {
                 new_body.push(create_group_comment_entry(&type_name));
+                if let Some(entries) = relocated {
+                    new_body.extend(entries);
+                }
                 for variant in info.variants {
                     new_body.push(create_message_entry(&variant));
                 }

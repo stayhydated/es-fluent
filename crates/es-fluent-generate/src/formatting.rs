@@ -1,5 +1,6 @@
 use es_fluent_derive_core::namer::FluentKey;
 use fluent_syntax::{ast, serializer};
+use heck::ToSnakeCase as _;
 
 /// Sort an FTL resource's entries alphabetically.
 ///
@@ -58,8 +59,10 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
                 // Start new section with this header
                 current_section.header.push(entry.clone());
                 let name = get_group_name(comment);
+                let name_snake = name.to_snake_case();
+                let matcher_source = name_snake.strip_suffix("_variants").unwrap_or(&name_snake);
                 current_section.header_sort_key = name.clone();
-                current_section.matcher_key = normalize(&name);
+                current_section.matcher_key = normalize(matcher_source);
 
                 // Adopt pending comments
                 if !current_comments.is_empty() {
@@ -143,6 +146,32 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         }
     }
 
+    let mut leading_sections = Vec::new();
+    let mut sortable_sections = Vec::new();
+    for section in sections {
+        if section.header_sort_key.is_empty() {
+            leading_sections.push(section);
+        } else {
+            sortable_sections.push(section);
+        }
+    }
+
+    // Sort sections by header name, but prioritize "this" sections.
+    sortable_sections.sort_by(|a, b| {
+        let a_is_this = a
+            .messages
+            .iter()
+            .all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
+        let b_is_this = b
+            .messages
+            .iter()
+            .all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
+        compare_with_this_priority(a_is_this, &a.header_sort_key, b_is_this, &b.header_sort_key)
+    });
+
+    sections = leading_sections;
+    sections.extend(sortable_sections);
+
     // Sort messages within sections
     for section in &mut sections {
         section.messages.sort_by(|a, b| {
@@ -218,12 +247,12 @@ apple = Apple"#;
         let resource = parser::parse(content.to_string()).unwrap();
         let sorted = sort_ftl_resource(&resource);
 
-        // Zebra group should come before Apple group (input order preserved)
+        // Groups are sorted alphabetically, so Apple comes before Zebra
         let apple_pos = sorted.find("## Apples").unwrap_or(usize::MAX);
         let zebra_pos = sorted.find("## Zebras").unwrap_or(usize::MAX);
         assert!(
-            zebra_pos < apple_pos,
-            "Zebra group should come before Apple group (input order preserved)"
+            apple_pos < zebra_pos,
+            "Apple group should come before Zebra group (alphabetically sorted)"
         );
     }
 
