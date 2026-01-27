@@ -156,8 +156,12 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         }
     }
 
-    // Sort sections by header name.
-    sortable_sections.sort_by(|a, b| a.header_sort_key.cmp(&b.header_sort_key));
+    // Sort sections by header name, but prioritize "this" sections.
+    sortable_sections.sort_by(|a, b| {
+        let a_is_this = a.messages.iter().all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
+        let b_is_this = b.messages.iter().all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
+        compare_with_this_priority(a_is_this, &a.header_sort_key, b_is_this, &b.header_sort_key)
+    });
 
     sections = leading_sections;
     sections.extend(sortable_sections);
@@ -237,12 +241,12 @@ apple = Apple"#;
         let resource = parser::parse(content.to_string()).unwrap();
         let sorted = sort_ftl_resource(&resource);
 
-        // Zebra group should come before Apple group (input order preserved)
+        // Groups are sorted alphabetically, so Apple comes before Zebra
         let apple_pos = sorted.find("## Apples").unwrap_or(usize::MAX);
         let zebra_pos = sorted.find("## Zebras").unwrap_or(usize::MAX);
         assert!(
-            zebra_pos < apple_pos,
-            "Zebra group should come before Apple group (input order preserved)"
+            apple_pos < zebra_pos,
+            "Apple group should come before Zebra group (alphabetically sorted)"
         );
     }
 
