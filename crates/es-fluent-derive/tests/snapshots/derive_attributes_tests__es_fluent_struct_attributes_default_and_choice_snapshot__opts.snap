@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 StructOpts {
-    ident: Ident {
-        sym: Label,
-    },
+    ident: Ident(
+        Label,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +18,9 @@ StructOpts {
             fields: [
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: text,
-                        },
+                        Ident(
+                            text,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,9 +28,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -45,9 +45,9 @@ StructOpts {
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: style,
-                        },
+                        Ident(
+                            style,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -55,9 +55,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: Emphasis,
-                                    },
+                                    ident: Ident(
+                                        Emphasis,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -72,9 +72,9 @@ StructOpts {
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: developer_only_flag,
-                        },
+                        Ident(
+                            developer_only_flag,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -82,9 +82,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: bool,
-                                    },
+                                    ident: Ident(
+                                        bool,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -99,7 +99,7 @@ StructOpts {
                 },
             ],
             span: Some(
-                bytes(0..0),
+                Span,
             ),
             __nonexhaustive: (),
         },
@@ -108,5 +108,6 @@ StructOpts {
         derive: PathList(
             [],
         ),
+        namespace: None,
     },
 }

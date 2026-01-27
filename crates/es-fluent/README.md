@@ -15,7 +15,7 @@ This framework gives you:
 
 ## Examples
 
-- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example)
+- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example) ([online demo](<>))
 - [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
 
 ## Used in
@@ -54,7 +54,47 @@ assets_dir = "assets/locales"
 
 # Features to enable if the crate’s es-fluent derives are gated behind a feature (optional)
 fluent_feature = ["my-feature"]
+
+# Optional allowlist of namespace values for FTL file splitting
+namespaces = ["ui", "errors", "messages"]
 ```
+
+## Namespaces (optional)
+
+You can route specific types into separate `.ftl` files by adding a namespace:
+
+```rs
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(namespace = "ui")]
+pub struct Button {
+    pub label: String,
+}
+
+#[derive(EsFluent)]
+#[fluent(namespace = file)]
+pub struct Dialog {
+    pub title: String,
+}
+
+#[derive(EsFluent)]
+#[fluent(namespace(file(relative)))]
+pub struct Modal {
+    pub content: String,
+}
+```
+
+Output layout:
+
+- Default: `assets_dir/{locale}/{crate}.ftl`
+- Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
+
+`namespace = file` uses the source file stem (e.g., `src/ui/button.rs` -> `button`).
+`namespace(file(relative))` uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`).
+For `EsFluentThis` (and `EsFluentVariants` when using `#[fluent_this(...)]`), the same syntax is available via `#[fluent_this(namespace = "...")]`.
+
+If `namespaces = [...]` is set in `i18n.toml`, the CLI will validate that every namespace used by your code is in that allowlist.
 
 ## Derives
 

@@ -36,6 +36,8 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
 - **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`).
 - **`choice.rs`**: Options for `#[fluent(choice)]` (nested enums).
+- **`namespace.rs`**: Parses `namespace` values for `#[fluent(...)]` and `#[fluent_this(...)]`.
+  - Supports literal namespaces (`namespace = "ui"`), file stems (`namespace = file`), and file-relative paths (`namespace(file(relative))`).
 
 **Key Traits:**
 

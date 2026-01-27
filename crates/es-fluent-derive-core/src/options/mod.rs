@@ -5,6 +5,7 @@ use heck::{ToPascalCase as _, ToSnakeCase as _};
 
 pub mod choice;
 pub mod r#enum;
+pub mod namespace;
 pub mod r#struct;
 pub mod this;
 

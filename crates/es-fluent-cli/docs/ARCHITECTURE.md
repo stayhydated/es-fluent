@@ -58,6 +58,18 @@ The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers`
 | `sync` | **Propagate Keys** | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. | `--locale <LANG>`, `--all` |
 | `watch` | **Dev Loop** | Watches `.rs` files for changes. Re-runs `generate` automatically on save. | — |
 
+## FTL Output Layout
+
+By default, generated messages go to:
+
+- `assets_dir/{locale}/{crate}.ftl`
+
+If a type is registered with a namespace (e.g., `#[fluent(namespace = "ui")]`), output is split into:
+
+- `assets_dir/{locale}/{crate}/{namespace}.ftl`
+
+When `namespaces = [...]` is set in `i18n.toml`, `generate` (and `watch`) validate that every namespace used by the code is in the allowlist.
+
 ## Jinja Templates
 
 | Template | Output | Purpose |

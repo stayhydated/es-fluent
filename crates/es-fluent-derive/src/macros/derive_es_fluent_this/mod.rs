@@ -30,6 +30,32 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let mod_name =
             quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
 
+        // Generate namespace expression based on attribute
+        let namespace_expr = match opts.attr_args().namespace() {
+            Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
+                quote! { Some(#s) }
+            },
+            Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
+                quote! {
+                    Some({
+                        const FILE_PATH: &str = file!();
+                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
+                        NAMESPACE
+                    })
+                }
+            },
+            Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
+                quote! {
+                    Some({
+                        const FILE_PATH: &str = file!();
+                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                        NAMESPACE
+                    })
+                }
+            },
+            None => quote! { None },
+        };
+
         quote! {
             #[doc(hidden)]
             mod #mod_name {
@@ -52,6 +78,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         variants: VARIANTS,
                         file_path: file!(),
                         module_path: module_path!(),
+                        namespace: #namespace_expr,
                     };
 
                 ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));

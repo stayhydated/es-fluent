@@ -1,5 +1,6 @@
 use crate::error::FluentGenerateError;
 use es_fluent_derive_core::registry::FtlTypeInfo;
+use indexmap::IndexMap;
 use std::fs;
 use std::path::Path;
 
@@ -11,20 +12,44 @@ pub fn clean<P: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     dry_run: bool,
 ) -> Result<bool, FluentGenerateError> {
     let i18n_path = i18n_path.as_ref();
+    let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
 
-    if !dry_run {
-        fs::create_dir_all(i18n_path)?;
+    // Group items by namespace
+    let mut namespaced: IndexMap<Option<&str>, Vec<&FtlTypeInfo>> = IndexMap::new();
+    for item in &items_ref {
+        namespaced.entry(item.namespace).or_default().push(item);
     }
 
-    let file_path = i18n_path.join(format!("{}.ftl", crate_name));
+    let mut any_changed = false;
 
-    let existing_resource = crate::read_existing_resource(&file_path)?;
-    let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
-    let final_resource =
-        crate::smart_merge(existing_resource, &items_ref, crate::MergeBehavior::Clean);
+    for (namespace, ns_items) in namespaced {
+        let (dir_path, file_path) = match namespace {
+            Some(ns) => {
+                let dir = i18n_path.join(crate_name);
+                let file = dir.join(format!("{}.ftl", ns));
+                (dir, file)
+            },
+            None => (
+                i18n_path.to_path_buf(),
+                i18n_path.join(format!("{}.ftl", crate_name)),
+            ),
+        };
 
-    // Use standard serialization to preserve order (no sorting for clean)
-    crate::write_updated_resource(&file_path, &final_resource, dry_run, |resource| {
-        fluent_syntax::serializer::serialize(resource)
-    })
+        if !dry_run {
+            fs::create_dir_all(&dir_path)?;
+        }
+
+        let existing_resource = crate::read_existing_resource(&file_path)?;
+        let final_resource =
+            crate::smart_merge(existing_resource, &ns_items, crate::MergeBehavior::Clean);
+
+        // Use standard serialization to preserve order (no sorting for clean)
+        if crate::write_updated_resource(&file_path, &final_resource, dry_run, |resource| {
+            fluent_syntax::serializer::serialize(resource)
+        })? {
+            any_changed = true;
+        }
+    }
+
+    Ok(any_changed)
 }

@@ -110,6 +110,17 @@ pub struct I18nConfig {
     /// ```
     #[serde(default)]
     pub fluent_feature: Option<FluentFeature>,
+    /// Optional list of allowed namespaces for FTL file generation.
+    /// If specified, only these namespace values can be used in `#[fluent(namespace = "...")]`.
+    /// If not specified, any namespace is allowed.
+    ///
+    /// # Examples
+    ///
+    /// ```toml
+    /// namespaces = ["ui", "errors", "messages"]
+    /// ```
+    #[serde(default)]
+    pub namespaces: Option<Vec<String>>,
 }
 
 impl I18nConfig {
@@ -342,6 +353,7 @@ assets_dir = "i18n"
             fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("locales"),
             fluent_feature: None,
+            namespaces: None,
         };
 
         assert_eq!(config.assets_dir_path(), PathBuf::from("locales"));
@@ -353,6 +365,7 @@ assets_dir = "i18n"
             fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
+            namespaces: None,
         };
 
         assert_eq!(config.fallback_language_id(), "en-US");
@@ -364,6 +377,7 @@ assets_dir = "i18n"
             fallback_language: "en-US".to_string(),
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
+            namespaces: None,
         };
 
         let lang = config.fallback_language_identifier().unwrap();
@@ -377,6 +391,7 @@ assets_dir = "i18n"
             fallback_language: "invalid-lang!".to_string(),
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
+            namespaces: None,
         };
 
         let result = config.fallback_language_identifier();
@@ -404,6 +419,7 @@ assets_dir = "i18n"
             fallback_language: "en".to_string(),
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
+            namespaces: None,
         };
 
         let languages = config
@@ -428,6 +444,7 @@ assets_dir = "i18n"
             fallback_language: "en".to_string(),
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
+            namespaces: None,
         };
 
         let languages = config

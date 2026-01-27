@@ -4,7 +4,7 @@ This document details the architecture of the `es-fluent-generate` crate, which 
 
 ## Overview
 
-`es-fluent-generate` is the backend logic used by `es-fluent-cli-helpers` to physically write translation files. It translates the abstract `FtlTypeInfo` structures into concrete Fluent syntax, while providing sophisticated diffing and merging capabilities to preserve manual edits.
+`es-fluent-generate` is the backend logic used by `es-fluent-cli-helpers` to physically write translation files. It translates the abstract `FtlTypeInfo` structures into concrete Fluent syntax, while providing sophisticated diffing and merging capabilities to preserve manual edits. When namespaces are present, it splits output into multiple files.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ The crate operates on the Fluent Abstract Syntax Tree (AST) provided by the `flu
 flowchart TD
     subgraph INPUT["Input"]
         TYPES["Vec<FtlTypeInfo>"]
-        FILE["Existing .ftl File"]
+        FILE["Existing .ftl File(s)"]
     end
 
     subgraph LOGIC["Generation Logic"]
@@ -26,7 +26,7 @@ flowchart TD
 
     subgraph OUTPUT["Output"]
         NEW_AST["Updated AST"]
-        DISK["Filesystem"]
+        DISK["Filesystem (.ftl files)"]
     end
 
     TYPES --> MERGE
@@ -65,6 +65,15 @@ The generator enforces a specific ordering to keep files readable:
 - Messages are grouped by their Rust type name (e.g., all variants of `enum MyErrors` are grouped together).
 - Within a group, "special" keys like `_this` (self-referential messages) are prioritized and placed at the top.
 - Other keys are sorted alphabetically.
+
+### Namespaced Output
+
+If any `FtlTypeInfo` carries a namespace, items are grouped by that namespace and written to:
+
+- `assets_dir/{locale}/{crate}/{namespace}.ftl` for namespaced types.
+- `assets_dir/{locale}/{crate}.ftl` for non-namespaced types (default).
+
+This lets large projects split translations by domain without changing key formats.
 
 ### Deterministic Output
 

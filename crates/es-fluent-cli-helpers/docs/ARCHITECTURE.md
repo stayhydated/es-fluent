@@ -86,7 +86,9 @@ sequenceDiagram
         Helpers-->>Runner: Write inventory.json
     else generate command
         Helpers->>Generator: EsFluentGenerator::builder()...build()
-        Generator->>Generator: Collect inventory, generate FTL
+        Generator->>Generator: Collect inventory
+        Generator->>Generator: Validate namespaces against i18n.toml (if configured)
+        Generator->>Generator: Generate FTL
         Generator-->>Helpers: changed: bool
         Helpers-->>Runner: Write result.json
     else clean command

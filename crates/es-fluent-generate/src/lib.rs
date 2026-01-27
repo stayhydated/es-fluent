@@ -76,31 +76,56 @@ pub fn generate<P: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     dry_run: bool,
 ) -> Result<bool, FluentGenerateError> {
     let i18n_path = i18n_path.as_ref();
-
-    if !dry_run {
-        fs::create_dir_all(i18n_path)?;
-    }
-
-    let file_path = i18n_path.join(format!("{}.ftl", crate_name));
-
-    let existing_resource = read_existing_resource(&file_path)?;
-
     let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
 
-    let final_resource = if matches!(mode, FluentParseMode::Aggressive) {
-        // In aggressive mode, completely replace with new content
-        build_target_resource(&items_ref)
-    } else {
-        // In conservative mode, merge with existing content
-        smart_merge(existing_resource, &items_ref, MergeBehavior::Append)
-    };
+    // Group items by namespace
+    let mut namespaced: IndexMap<Option<&str>, Vec<&FtlTypeInfo>> = IndexMap::new();
+    for item in &items_ref {
+        namespaced.entry(item.namespace).or_default().push(item);
+    }
 
-    write_updated_resource(
-        &file_path,
-        &final_resource,
-        dry_run,
-        formatting::sort_ftl_resource,
-    )
+    let mut any_changed = false;
+
+    for (namespace, ns_items) in namespaced {
+        let (dir_path, file_path) = match namespace {
+            Some(ns) => {
+                // Namespaced items go to {i18n_path}/{crate_name}/{namespace}.ftl
+                let dir = i18n_path.join(crate_name);
+                let file = dir.join(format!("{}.ftl", ns));
+                (dir, file)
+            },
+            None => {
+                // Non-namespaced items go to {i18n_path}/{crate_name}.ftl
+                (
+                    i18n_path.to_path_buf(),
+                    i18n_path.join(format!("{}.ftl", crate_name)),
+                )
+            },
+        };
+
+        if !dry_run {
+            fs::create_dir_all(&dir_path)?;
+        }
+
+        let existing_resource = read_existing_resource(&file_path)?;
+
+        let final_resource = if matches!(mode, FluentParseMode::Aggressive) {
+            build_target_resource(&ns_items)
+        } else {
+            smart_merge(existing_resource, &ns_items, MergeBehavior::Append)
+        };
+
+        if write_updated_resource(
+            &file_path,
+            &final_resource,
+            dry_run,
+            formatting::sort_ftl_resource,
+        )? {
+            any_changed = true;
+        }
+    }
+
+    Ok(any_changed)
 }
 
 pub(crate) fn print_diff(old: &str, new: &str) {

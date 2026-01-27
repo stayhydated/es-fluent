@@ -1,0 +1,59 @@
+---
+source: crates/es-fluent-derive/tests/options_parsing_tests.rs
+expression: "&opts"
+---
+StructOpts {
+    ident: Ident(
+        Modal,
+    ),
+    generics: Generics {
+        lt_token: None,
+        params: [],
+        gt_token: None,
+        where_clause: None,
+    },
+    data: Struct(
+        Fields {
+            style: Struct,
+            fields: [
+                StructFieldOpts {
+                    ident: Some(
+                        Ident(
+                            content,
+                        ),
+                    ),
+                    ty: Type::Path {
+                        qself: None,
+                        path: Path {
+                            leading_colon: None,
+                            segments: [
+                                PathSegment {
+                                    ident: Ident(
+                                        String,
+                                    ),
+                                    arguments: PathArguments::None,
+                                },
+                            ],
+                        },
+                    },
+                    skip: None,
+                    default: None,
+                    choice: None,
+                    value: None,
+                },
+            ],
+            span: Some(
+                Span,
+            ),
+            __nonexhaustive: (),
+        },
+    ),
+    attr_args: StructFluentAttributeArgs {
+        derive: PathList(
+            [],
+        ),
+        namespace: Some(
+            FileRelative,
+        ),
+    },
+}

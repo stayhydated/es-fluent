@@ -25,6 +25,9 @@ pub struct FtlTypeInfo {
     pub file_path: &'static str,
     /// The module path where this type is defined (from `module_path!()` macro).
     pub module_path: &'static str,
+    /// Optional namespace for FTL file output. If Some, the type will be written to
+    /// `{lang}/{crate}/{namespace}.ftl` instead of `{lang}/{crate}.ftl`.
+    pub namespace: Option<&'static str>,
 }
 
 impl AsRef<FtlTypeInfo> for FtlTypeInfo {
