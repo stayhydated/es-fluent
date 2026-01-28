@@ -13,8 +13,8 @@ readme = "README.md"
 
 [features]
 default = [ "macros", "file_watcher" ]
-macros = [ "es-fluent-manager-macros" ]
 file_watcher = [ "bevy/file_watcher" ]
+macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
 arc-swap = { workspace = true }

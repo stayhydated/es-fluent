@@ -17,4 +17,5 @@ pub enum BevyScreenMessages {
         #[locale]
         current_language: Languages,
     },
+    ChangeLocaleButton,
 }

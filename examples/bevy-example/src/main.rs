@@ -29,7 +29,10 @@ fn main() {
         .init_resource::<InputFocus>();
 
     app.add_systems(Startup, setup)
-        .add_systems(PostUpdate, (button_system, locale_change_system))
+        .add_systems(
+            PostUpdate,
+            (button_system, locale_change_system, locale_button_system),
+        )
         .run();
 }
 
@@ -49,6 +52,9 @@ const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
+#[derive(Component)]
+struct LocaleButton;
+
 fn button_system(
     mut input_focus: ResMut<InputFocus>,
     mut interaction_query: Query<
@@ -60,7 +66,7 @@ fn button_system(
             &mut Button,
             &mut FluentText<ButtonState>,
         ),
-        Changed<Interaction>,
+        (Changed<Interaction>, Without<LocaleButton>),
     >,
 ) {
     for (entity, interaction, mut color, mut border_color, mut button, mut localized) in
@@ -91,8 +97,38 @@ fn button_system(
     }
 }
 
+fn locale_button_system(
+    mut locale_change_events: MessageWriter<LocaleChangeEvent>,
+    current_language: Res<CurrentLanguageId>,
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor, &mut BorderColor),
+        (Changed<Interaction>, With<LocaleButton>),
+    >,
+) {
+    for (interaction, mut color, mut border_color) in &mut interaction_query {
+        match *interaction {
+            Interaction::Pressed => {
+                *color = PRESSED_BUTTON.into();
+                *border_color = BorderColor::all(RED);
+                locale_change_events.write(LocaleChangeEvent(
+                    Languages::from(&current_language.0).next().into(),
+                ));
+            },
+            Interaction::Hovered => {
+                *color = HOVERED_BUTTON.into();
+                *border_color = BorderColor::all(Color::WHITE);
+            },
+            Interaction::None => {
+                *color = NORMAL_BUTTON.into();
+                *border_color = BorderColor::all(Color::BLACK);
+            },
+        }
+    }
+}
+
 fn setup(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn(Camera2d);
+    commands.insert_resource(ClearColor(Color::srgb(0.0, 0.0, 0.0)));
     commands.spawn(button(&assets));
 }
 
@@ -148,8 +184,34 @@ fn button(asset_server: &AssetServer) -> impl Bundle {
                 Node {
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
+                    margin: UiRect::bottom(px(20)),
                     ..default()
                 },
+            ),
+            (
+                Button,
+                LocaleButton,
+                FluentText::new(BevyScreenMessages::ChangeLocaleButton),
+                Node {
+                    width: px(200),
+                    height: px(50),
+                    border: UiRect::all(px(3)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    border_radius: BorderRadius::MAX,
+                    ..default()
+                },
+                BorderColor::all(Color::BLACK),
+                BackgroundColor(NORMAL_BUTTON),
+                children![(
+                    Text::new(""),
+                    TextFont {
+                        font_size: 20.0,
+                        font: asset_server.load("fonts/NotoSansSC-Bold.ttf"),
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                )]
             )
         ],
     )

@@ -7,8 +7,8 @@ license = "Unlicense"
 publish = false
 
 [features]
-default = ["native"]
-native = ["bevy/wayland", "bevy/file_watcher", "es-fluent-manager-bevy/file_watcher"]
+default = [ "native" ]
+native = [ "bevy/wayland", "bevy/file_watcher", "es-fluent-manager-bevy/file_watcher" ]
 
 [dependencies]
 bevy = { workspace = true }
