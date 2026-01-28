@@ -20,6 +20,16 @@ pub enum GeneratorError {
     /// Failed to generate FTL files.
     #[error("Generation error: {0}")]
     Generate(#[from] FluentGenerateError),
+
+    /// Invalid namespace used (not in allowed list).
+    #[error(
+        "Invalid namespace '{namespace}' for type '{type_name}'. Allowed namespaces: {allowed:?}"
+    )]
+    InvalidNamespace {
+        namespace: String,
+        type_name: String,
+        allowed: Vec<String>,
+    },
 }
 
 /// Builder for generating FTL files from registered types.
@@ -153,6 +163,9 @@ impl EsFluentGenerator {
         let output_path = self.resolve_output_path()?;
         let type_infos = collect_type_infos(&crate_name);
 
+        // Validate namespaces against allowed list if configured
+        self.validate_namespaces(&type_infos)?;
+
         tracing::info!(
             "Generating FTL files for {} types in crate '{}'",
             type_infos.len(),
@@ -168,6 +181,31 @@ impl EsFluentGenerator {
         )?;
 
         Ok(changed)
+    }
+
+    /// Validates that all namespaces in the type infos are allowed by the config.
+    fn validate_namespaces(
+        &self,
+        type_infos: &[&'static FtlTypeInfo],
+    ) -> Result<(), GeneratorError> {
+        let config = es_fluent_toml::I18nConfig::read_from_manifest_dir().ok();
+        let allowed = config.as_ref().and_then(|c| c.namespaces.as_ref());
+
+        if let Some(allowed_namespaces) = allowed {
+            for info in type_infos {
+                if let Some(ns) = info.namespace
+                    && !allowed_namespaces.contains(&ns.to_string())
+                {
+                    return Err(GeneratorError::InvalidNamespace {
+                        namespace: ns.to_string(),
+                        type_name: info.type_name.to_string(),
+                        allowed: allowed_namespaces.clone(),
+                    });
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// Cleans FTL files by removing orphan keys while preserving existing translations.

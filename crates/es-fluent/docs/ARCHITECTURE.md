@@ -7,7 +7,7 @@ This document details the architecture of the `es-fluent` crate, which serves as
 `es-fluent` ties together the derive macros and manager components into a cohesive API. It provides:
 
 1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `EsFluentVariants`, `EsFluentThis`, `ToFluentString`, `ThisFtl`) and derive macros.
-1. **Registry Types**: `FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`, and inventory collection for FTL file generation.
+1. **Registry Types**: `FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`, and inventory collection for FTL file generation (including optional namespaces).
 1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic localization macros.
 1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
 1. **Traits**: Standard definitions for how types invoke the localization system.
@@ -22,6 +22,7 @@ flowchart TD
         CUSTOM["Custom Localizer (OnceLock)"]
         TRAIT["Traits (ToFluentString, etc)"]
         INTERNAL["Internal localize() fn"]
+        NS["Internal namespace helpers"]
     end
 
     subgraph BACKEND["Backends"]
@@ -35,6 +36,7 @@ flowchart TD
     end
 
     API -->|generates code calling| INTERNAL
+    API -->|uses| NS
     INTERNAL --> CUSTOM
     CUSTOM -.->|fallback| CTX
     CTX --> MGR
@@ -94,6 +96,10 @@ Used to convert an enum into a string that can be used as a Fluent choice (selec
 ### `ThisFtl`
 
 A trait for types that have a "this" fluent key representing the type itself, typically implemented via `#[derive(EsFluent)]` with `#[fluent(this)]`.
+
+## Internal Namespace Helpers
+
+Derive macros can request a namespace based on the file path (e.g., `namespace = file` or `namespace(file(relative))`). The facade crate exposes small `const fn` helpers used by generated code to extract the file stem or relative path at compile time. These values are stored on `FtlTypeInfo` and later drive per-namespace `.ftl` output.
 
 ## Integration
 

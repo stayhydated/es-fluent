@@ -173,6 +173,35 @@ fn run_generate_real_test(config: &E2eConfig) -> String {
     output
 }
 
+fn run_generate_namespaced_output_test() -> String {
+    let temp = setup_workspace_env();
+
+    let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
+    let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
+    content
+        .push_str("\n\n#[derive(EsFluent)]\n#[fluent(namespace = \"ui\")]\npub struct UiBanner;\n");
+    std::fs::write(&src_path, content).expect("write lib.rs");
+
+    let output = run_cli(&temp, &["generate"]);
+
+    let namespaced_path = temp.path().join("i18n/en/test-app-a/ui.ftl");
+    assert!(namespaced_path.exists(), "Namespaced FTL file should exist");
+    let namespaced_content = std::fs::read_to_string(&namespaced_path).expect("read ui.ftl");
+    assert!(
+        namespaced_content.contains("ui_banner"),
+        "Namespaced file should contain the new key"
+    );
+
+    let default_path = temp.path().join("i18n/en/test-app-a.ftl");
+    let default_content = std::fs::read_to_string(&default_path).expect("read default ftl");
+    assert!(
+        !default_content.contains("UiBanner"),
+        "Default file should not contain namespaced group"
+    );
+
+    output
+}
+
 fn run_fmt_real_test(config: &E2eConfig) -> String {
     let temp = (config.setup)();
     let ftl_path = temp.path().join(config.ftl_path);
@@ -689,6 +718,11 @@ fn test_generate_force_run() {
     // Second run with --force-run should still rebuild
     let output = run_cli(&temp, &["generate", "--force-run", "--dry-run"]);
     assert_snapshot!(output);
+}
+
+#[test]
+fn test_generate_namespaced_output() {
+    assert_snapshot!(run_generate_namespaced_output_test());
 }
 
 #[test]

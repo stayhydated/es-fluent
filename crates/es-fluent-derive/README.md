@@ -43,6 +43,26 @@ pub struct UserProfile<'a> {
 // usage: UserProfile { name: "John", gender: "male" }.to_fluent_string()
 ```
 
+#### Namespaces (optional)
+
+You can split generated messages into multiple `.ftl` files by adding a namespace:
+
+```rs
+#[derive(EsFluent)]
+#[fluent(namespace = "ui")] // -> {crate}/ui.ftl
+struct Button;
+
+#[derive(EsFluent)]
+#[fluent(namespace = file)] // -> {crate}/{file_stem}.ftl
+struct Dialog;
+
+#[derive(EsFluent)]
+#[fluent(namespace(file(relative)))] // -> {crate}/ui/button.ftl
+struct Modal;
+```
+
+For `EsFluentThis`, the same syntax is available via `#[fluent_this(namespace = "...")]`.
+
 ### `#[derive(EsFluentChoice)]`
 
 Allows an enum to be used *inside* another message as a selector (e.g., for gender or status).

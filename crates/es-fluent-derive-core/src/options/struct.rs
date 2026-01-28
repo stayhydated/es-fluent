@@ -116,8 +116,19 @@ pub struct StructFluentAttributeArgs {
     #[getset(get = "pub")]
     #[darling(default)]
     derive: darling::util::PathList,
+    /// Optional namespace for FTL file generation.
+    /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
+    /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
+    /// - `namespace(file(named))` - literal "file" namespace
+    #[darling(default)]
+    namespace: Option<super::namespace::NamespaceValue>,
 }
-impl StructFluentAttributeArgs {}
+impl StructFluentAttributeArgs {
+    /// Returns the namespace value if provided.
+    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
+        self.namespace.as_ref()
+    }
+}
 
 /// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]

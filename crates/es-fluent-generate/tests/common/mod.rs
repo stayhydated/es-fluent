@@ -60,6 +60,7 @@ pub fn enum_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
         variants: leak_slice(variants),
         file_path: "",
         module_path: "test",
+        namespace: None,
     }
 }
 
@@ -71,5 +72,22 @@ pub fn struct_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
         variants: leak_slice(variants),
         file_path: "",
         module_path: "test",
+        namespace: None,
+    }
+}
+
+/// Create a type info for an enum with a namespace.
+pub fn enum_type_with_namespace(
+    name: &str,
+    variants: Vec<FtlVariant>,
+    namespace: &'static str,
+) -> FtlTypeInfo {
+    FtlTypeInfo {
+        type_kind: TypeKind::Enum,
+        type_name: leak_str(name),
+        variants: leak_slice(variants),
+        file_path: "",
+        module_path: "test",
+        namespace: Some(namespace),
     }
 }

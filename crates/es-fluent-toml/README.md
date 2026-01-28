@@ -5,4 +5,4 @@
 
 **Internal Crate**: Configuration parser for `i18n.toml`.
 
-This crate defines the schema for the project's configuration file and handles path resolution for assets.
+This crate defines the schema for the project's configuration file (including optional namespace allowlists) and handles path resolution for assets.

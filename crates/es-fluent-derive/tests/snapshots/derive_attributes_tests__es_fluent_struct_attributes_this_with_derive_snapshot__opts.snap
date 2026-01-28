@@ -129,5 +129,6 @@ StructOpts {
                 },
             ],
         ),
+        namespace: None,
     },
 }

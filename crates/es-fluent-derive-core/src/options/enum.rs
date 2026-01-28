@@ -126,6 +126,12 @@ pub struct EnumFluentAttributeArgs {
     /// Used by `#[es_fluent_language]` to prevent language enums from being registered.
     #[darling(default)]
     skip_inventory: Option<bool>,
+    /// Optional namespace for FTL file generation.
+    /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
+    /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
+    /// - `namespace(file(named))` - literal "file" namespace
+    #[darling(default)]
+    namespace: Option<super::namespace::NamespaceValue>,
 }
 
 impl EnumFluentAttributeArgs {
@@ -137,6 +143,11 @@ impl EnumFluentAttributeArgs {
     /// Returns `true` if inventory registration should be skipped.
     pub fn skip_inventory(&self) -> bool {
         self.skip_inventory.unwrap_or(false)
+    }
+
+    /// Returns the namespace value if provided.
+    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
+        self.namespace.as_ref()
     }
 }
 

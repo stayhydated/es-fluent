@@ -190,3 +190,60 @@ fn enum_choice_parsing() {
     let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
     insta::assert_debug_snapshot!(&opts);
 }
+
+#[test]
+fn struct_fluent_with_namespace_literal() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent(namespace = "ui")]
+        struct Button {
+            label: String,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    insta::assert_debug_snapshot!(&opts);
+}
+
+#[test]
+fn struct_fluent_with_namespace_file() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent(namespace = file)]
+        struct Dialog {
+            title: String,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    insta::assert_debug_snapshot!(&opts);
+}
+
+#[test]
+fn struct_fluent_with_namespace_file_relative() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent(namespace(file(relative)))]
+        struct Modal {
+            content: String,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    insta::assert_debug_snapshot!(&opts);
+}
+
+#[test]
+fn enum_fluent_with_namespace_literal() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent(namespace = "errors")]
+        enum ApiError {
+            NotFound,
+            Unauthorized,
+        }
+    };
+
+    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+    insta::assert_debug_snapshot!(&opts);
+}

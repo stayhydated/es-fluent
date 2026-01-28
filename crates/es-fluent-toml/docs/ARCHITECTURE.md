@@ -52,6 +52,9 @@ assets_dir = "assets/locales"
 fluent_feature = "my-feature"
 # or
 fluent_feature = ["my-feature", "another-feature"]
+
+# Optional allowlist of namespace values used by #[fluent(namespace = "...")]
+namespaces = ["ui", "errors", "messages"]
 ```
 
 ## Key Responsibilities
@@ -64,3 +67,6 @@ fluent_feature = ["my-feature", "another-feature"]
 
 1. **Validation**:
    It ensures that paths exist and that language codes are spec-compliant. Note that language identifiers with variant subtags are not supported and will be rejected. Non-UTF8 directory names are also rejected with a clear error message.
+
+1. **Namespace Policy (Optional)**:
+   If `namespaces` is provided, downstream tooling can use it to validate `#[fluent(namespace = "...")]` usage and keep output file layout consistent.

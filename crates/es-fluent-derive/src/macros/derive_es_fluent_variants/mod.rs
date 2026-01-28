@@ -163,6 +163,32 @@ fn generate_unit_enum(
     let type_name = ident.to_string();
     let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
+    // Generate namespace expression based on this_opts attribute
+    let namespace_expr = match this_opts.and_then(|o| o.attr_args().namespace()) {
+        Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
+            quote! { Some(#s) }
+        },
+        Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
+            quote! {
+                Some({
+                    const FILE_PATH: &str = file!();
+                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
+                    NAMESPACE
+                })
+            }
+        },
+        Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
+            quote! {
+                Some({
+                    const FILE_PATH: &str = file!();
+                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                    NAMESPACE
+                })
+            }
+        },
+        None => quote! { None },
+    };
+
     let inventory_submit = quote! {
         #[doc(hidden)]
         mod #mod_name {
@@ -179,6 +205,7 @@ fn generate_unit_enum(
                     variants: VARIANTS,
                     file_path: file!(),
                     module_path: module_path!(),
+                    namespace: #namespace_expr,
                 };
 
             ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
@@ -224,6 +251,7 @@ fn generate_unit_enum(
                         variants: VARIANTS,
                         file_path: file!(),
                         module_path: module_path!(),
+                        namespace: #namespace_expr,
                     };
 
                 ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
@@ -375,6 +403,32 @@ fn generate_enum_unit_enum(
     let type_name = ident.to_string();
     let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
+    // Generate namespace expression based on this_opts attribute
+    let namespace_expr = match this_opts.and_then(|o| o.attr_args().namespace()) {
+        Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
+            quote! { Some(#s) }
+        },
+        Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
+            quote! {
+                Some({
+                    const FILE_PATH: &str = file!();
+                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
+                    NAMESPACE
+                })
+            }
+        },
+        Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
+            quote! {
+                Some({
+                    const FILE_PATH: &str = file!();
+                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                    NAMESPACE
+                })
+            }
+        },
+        None => quote! { None },
+    };
+
     let inventory_submit = quote! {
         #[doc(hidden)]
         mod #mod_name {
@@ -391,6 +445,7 @@ fn generate_enum_unit_enum(
                     variants: VARIANTS,
                     file_path: file!(),
                     module_path: module_path!(),
+                    namespace: #namespace_expr,
                 };
 
             ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
@@ -436,6 +491,7 @@ fn generate_enum_unit_enum(
                         variants: VARIANTS,
                         file_path: file!(),
                         module_path: module_path!(),
+                        namespace: #namespace_expr,
                     };
 
                 ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));

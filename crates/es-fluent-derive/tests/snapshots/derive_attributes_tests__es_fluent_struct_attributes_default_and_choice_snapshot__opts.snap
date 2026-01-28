@@ -108,5 +108,6 @@ StructOpts {
         derive: PathList(
             [],
         ),
+        namespace: None,
     },
 }

@@ -1,6 +1,8 @@
 mod common;
 
-use common::{enum_type, ftl_key, leak_slice, struct_type, this_key, variant};
+use common::{
+    enum_type, enum_type_with_namespace, ftl_key, leak_slice, struct_type, this_key, variant,
+};
 use es_fluent_generate::{FluentParseMode, generate};
 use std::fs;
 use tempfile::TempDir;
@@ -247,4 +249,115 @@ fn test_this_variants_sorted_first_within_group() {
         "This variant should come before Banana"
     );
     assert!(apple_pos < banana_pos, "Apple should come before Banana");
+}
+
+#[test]
+fn test_generate_with_namespace_creates_subdirectory() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+
+    let type_info = enum_type_with_namespace(
+        "UiButton",
+        vec![variant("Click", &ftl_key("UiButton", "Click"))],
+        "ui",
+    );
+
+    let result = generate(
+        "test_crate",
+        &i18n_path,
+        std::slice::from_ref(&type_info),
+        FluentParseMode::Conservative,
+        false,
+    );
+    assert!(result.is_ok());
+
+    // Should create {i18n_path}/{crate_name}/{namespace}.ftl
+    let ftl_file_path = i18n_path.join("test_crate").join("ui.ftl");
+    assert!(ftl_file_path.exists(), "Namespaced file should be created");
+
+    let content = fs::read_to_string(&ftl_file_path).unwrap();
+    assert!(content.contains("UiButton"));
+    assert!(content.contains("Click"));
+}
+
+#[test]
+fn test_generate_mixed_namespaced_and_non_namespaced() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+
+    // One type without namespace, one with namespace
+    let regular_type = enum_type(
+        "GlobalError",
+        vec![variant("Unknown", &ftl_key("GlobalError", "Unknown"))],
+    );
+    let namespaced_type = enum_type_with_namespace(
+        "UiError",
+        vec![variant("InvalidInput", &ftl_key("UiError", "InvalidInput"))],
+        "ui",
+    );
+
+    let items = leak_slice(vec![regular_type, namespaced_type]);
+
+    let result = generate(
+        "test_crate",
+        &i18n_path,
+        items,
+        FluentParseMode::Conservative,
+        false,
+    );
+    assert!(result.is_ok());
+
+    // Non-namespaced should go to {i18n_path}/{crate_name}.ftl
+    let regular_path = i18n_path.join("test_crate.ftl");
+    assert!(regular_path.exists(), "Non-namespaced file should exist");
+    let regular_content = fs::read_to_string(&regular_path).unwrap();
+    assert!(regular_content.contains("GlobalError"));
+    assert!(!regular_content.contains("UiError"));
+
+    // Namespaced should go to {i18n_path}/{crate_name}/{namespace}.ftl
+    let namespaced_path = i18n_path.join("test_crate").join("ui.ftl");
+    assert!(namespaced_path.exists(), "Namespaced file should exist");
+    let namespaced_content = fs::read_to_string(&namespaced_path).unwrap();
+    assert!(namespaced_content.contains("UiError"));
+    assert!(!namespaced_content.contains("GlobalError"));
+}
+
+#[test]
+fn test_generate_multiple_namespaces() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+
+    let ui_type = enum_type_with_namespace(
+        "Button",
+        vec![variant("Submit", &ftl_key("Button", "Submit"))],
+        "ui",
+    );
+    let errors_type = enum_type_with_namespace(
+        "ApiError",
+        vec![variant("NotFound", &ftl_key("ApiError", "NotFound"))],
+        "errors",
+    );
+
+    let items = leak_slice(vec![ui_type, errors_type]);
+
+    let result = generate(
+        "test_crate",
+        &i18n_path,
+        items,
+        FluentParseMode::Conservative,
+        false,
+    );
+    assert!(result.is_ok());
+
+    // Check ui namespace
+    let ui_path = i18n_path.join("test_crate").join("ui.ftl");
+    assert!(ui_path.exists());
+    let ui_content = fs::read_to_string(&ui_path).unwrap();
+    assert!(ui_content.contains("Button"));
+
+    // Check errors namespace
+    let errors_path = i18n_path.join("test_crate").join("errors.ftl");
+    assert!(errors_path.exists());
+    let errors_content = fs::read_to_string(&errors_path).unwrap();
+    assert!(errors_content.contains("ApiError"));
 }

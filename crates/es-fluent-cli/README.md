@@ -26,6 +26,9 @@ assets_dir = "assets/locales"
 
 # Features to enable if the crate’s es-fluent derives are gated behind a feature (optional)
 fluent_feature = ["my-feature"]
+
+# Optional allowlist of namespace values for FTL file splitting
+namespaces = ["ui", "errors", "messages"]
 ```
 
 ### Generate
@@ -39,12 +42,32 @@ cargo es-fluent generate
 This will:
 
 1. Scan your `src/` directory.
-1. Update `i18n/en-US/{your_crate}.ftl`.
+1. Update `i18n/en-US/{your_crate}.ftl` (and `i18n/en-US/{your_crate}/{namespace}.ftl` for namespaced types).
    - **New items**: Added as new messages.
    - **Changed items**: Variables updated (e.g. if you added a field).
    - **Existing translations**: Preserved untouched.
 
 Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and force a rebuild.
+
+If you configure `namespaces = [...]` in `i18n.toml`, `generate` (and `watch`) will error if a type uses a namespace outside that allowlist.
+
+### Namespaces (optional)
+
+You can split output into multiple files by annotating types:
+
+```rs
+#[derive(EsFluent)]
+#[fluent(namespace = "ui")] // -> assets_dir/{locale}/{crate}/ui.ftl
+struct Button;
+
+#[derive(EsFluent)]
+#[fluent(namespace = file)] // -> assets_dir/{locale}/{crate}/{file_stem}.ftl
+struct Dialog;
+
+#[derive(EsFluent)]
+#[fluent(namespace(file(relative)))] // -> assets_dir/{locale}/{crate}/ui/button.ftl
+struct Modal;
+```
 
 ### Watch
 

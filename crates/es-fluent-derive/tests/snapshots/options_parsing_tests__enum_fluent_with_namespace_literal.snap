@@ -1,0 +1,58 @@
+---
+source: crates/es-fluent-derive/tests/options_parsing_tests.rs
+expression: "&opts"
+---
+EnumOpts {
+    ident: Ident {
+        sym: ApiError,
+    },
+    generics: Generics {
+        lt_token: None,
+        params: [],
+        gt_token: None,
+        where_clause: None,
+    },
+    data: Enum(
+        [
+            VariantOpts {
+                ident: Ident {
+                    sym: NotFound,
+                },
+                fields: Fields {
+                    style: Unit,
+                    fields: [],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+                key: None,
+            },
+            VariantOpts {
+                ident: Ident {
+                    sym: Unauthorized,
+                },
+                fields: Fields {
+                    style: Unit,
+                    fields: [],
+                    span: Some(
+                        bytes(0..0),
+                    ),
+                    __nonexhaustive: (),
+                },
+                skip: None,
+                key: None,
+            },
+        ],
+    ),
+    attr_args: EnumFluentAttributeArgs {
+        resource: None,
+        skip_inventory: None,
+        namespace: Some(
+            Literal(
+                "errors",
+            ),
+        ),
+    },
+}
