@@ -7,3 +7,17 @@ __pycache__
 .ropeproject
 *.snap.new
 *.pending-snap
+
+# Node/Bun
+node_modules/
+.turbo/
+
+# Astro
+dist/
+.astro/
+
+# WASM build outputs
+web/public/bevy-example/*.js
+web/public/bevy-example/*.d.ts
+web/public/bevy-example/*.wasm
+web/public/bevy-example/assets/

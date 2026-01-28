@@ -1,0 +1,28 @@
+---
+interface Props {
+  title: string;
+  fullscreen?: boolean;
+}
+
+const { title, fullscreen = false } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class={fullscreen ? "h-full" : ""}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+  </head>
+  <body
+    class={fullscreen
+      ? "h-full w-full overflow-hidden bg-dark-bg m-0 p-0"
+      : "bg-dark-bg text-gray-300 min-h-screen p-8 font-sans"}
+  >
+    <slot />
+  </body>
+</html>
+
+<style is:global>
+  @import "../styles/global.css";
+</style>

@@ -1,0 +1,12 @@
+---
+import WasmExampleLayout from "../../layouts/WasmExampleLayout.astro";
+---
+
+<WasmExampleLayout title="Bevy Example - es-fluent">
+  <script is:inline>
+    (async () => {
+      const { default: init } = await import("/bevy-example/bevy-example.js");
+      init();
+    })();
+  </script>
+</WasmExampleLayout>

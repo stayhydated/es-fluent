@@ -340,6 +340,7 @@ fn generate_refresh_for_locale_impl(
                     fn refresh_for_locale(&mut self, lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier) {
                         match self {
                             #(#match_arms)*
+                            _ => {}
                         }
                     }
                 }

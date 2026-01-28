@@ -12,12 +12,13 @@ version = "0.18.0"
 readme = "README.md"
 
 [features]
-default = [ "macros" ]
+default = [ "macros", "file_watcher" ]
+file_watcher = [ "bevy/file_watcher" ]
 macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
 arc-swap = { workspace = true }
-bevy = { features = [ "file_watcher" ], workspace = true }
+bevy = { workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }

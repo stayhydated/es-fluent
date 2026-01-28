@@ -20,7 +20,12 @@ strum = { features = [ "derive" ], workspace = true }
 workspace = true
 
 [features]
-bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy", "es-fluent-lang/bevy" ]
+bevy = [
+  "dep:bevy",
+  "dep:es-fluent-manager-bevy",
+  "es-fluent-lang/bevy",
+  "es-fluent-manager-bevy/macros",
+]
 embedded = [ "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
 gpui = [ "dep:gpui", "dep:rust-embed", "dep:es-fluent-manager-embedded" ]
 
