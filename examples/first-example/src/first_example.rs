@@ -2,6 +2,7 @@ use es_fluent::{EsFluent, EsFluentChoice};
 use strum::EnumIter;
 
 #[derive(EsFluent)]
+#[fluent(namespace = "greetings")]
 pub struct HelloUser<'a>(&'a str);
 
 impl<'a> HelloUser<'a> {
@@ -12,6 +13,7 @@ impl<'a> HelloUser<'a> {
 
 #[derive(EnumIter, EsFluent, EsFluentChoice)]
 #[fluent_choice(serialize_all = "snake_case")]
+#[fluent(namespace = "enums")]
 pub enum Gender {
     Male,
     Female,
@@ -20,6 +22,7 @@ pub enum Gender {
 }
 
 #[derive(EsFluent)]
+#[fluent(namespace = "enums")]
 pub enum Shared<'a> {
     Photos {
         user_name: &'a str,

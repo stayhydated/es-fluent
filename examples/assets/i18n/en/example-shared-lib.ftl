@@ -1,3 +1,11 @@
+## EmptyEnum
+
+empty_enum_this = Empty Enum
+
+## EmptyStructKv
+
+empty_struct_kv_this = Empty Struct Kv
+
 ## ButtonState
 
 button_state-Hovered = Hovered
@@ -26,18 +34,10 @@ country_description-USA = Usa
 country_label-Canada = Canada
 country_label-USA = Usa
 
-## EmptyEnum
-
-empty_enum_this = Empty Enum
-
 ## EmptyStruct
 
 empty_struct_this = Empty Struct
 empty_struct = Empty Struct
-
-## EmptyStructKv
-
-empty_struct_kv_this = Empty Struct Kv
 
 ## KvSplit
 
