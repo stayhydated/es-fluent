@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+.neon-glow {
+  text-shadow:
+    0 0 10px #00ff88,
+    0 0 20px #00ff88,
+    0 0 40px #00ff88;
+}
+
+.neon-border {
+  box-shadow:
+    0 0 5px #00ff88,
+    inset 0 0 5px rgba(0, 255, 136, 0.1);
+}
+
+.neon-border:hover {
+  box-shadow:
+    0 0 10px #00ffff,
+    0 0 20px #00ffff,
+    inset 0 0 10px rgba(0, 255, 255, 0.1);
+}
+
+.neon-btn {
+  box-shadow:
+    0 0 5px #00ff88,
+    inset 0 0 5px rgba(0, 255, 136, 0.1);
+  text-shadow: 0 0 5px #00ff88;
+}
+
+.neon-btn:hover {
+  box-shadow:
+    0 0 10px #00ffff,
+    0 0 20px #00ffff,
+    inset 0 0 10px rgba(0, 255, 255, 0.1);
+  text-shadow: 0 0 10px #00ffff;
+}

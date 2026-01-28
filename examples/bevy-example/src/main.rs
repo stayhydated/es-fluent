@@ -10,14 +10,23 @@ use bevy_example;
 
 fn main() {
     let mut app = App::new();
+
+    #[cfg(not(target_arch = "wasm32"))]
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
         watch_for_changes_override: Some(true),
         file_path: "../assets".to_string(),
         ..default()
-    }))
-    .insert_resource(WinitSettings::desktop_app())
-    .add_plugins(I18nPlugin::with_language(Languages::default().into()))
-    .init_resource::<InputFocus>();
+    }));
+
+    #[cfg(target_arch = "wasm32")]
+    app.add_plugins(DefaultPlugins.set(AssetPlugin {
+        file_path: "assets".to_string(),
+        ..default()
+    }));
+
+    app.insert_resource(WinitSettings::desktop_app())
+        .add_plugins(I18nPlugin::with_language(Languages::default().into()))
+        .init_resource::<InputFocus>();
 
     app.add_systems(Startup, setup)
         .add_systems(PostUpdate, (button_system, locale_change_system))

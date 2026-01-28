@@ -1,0 +1,25 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="es-fluent Examples">
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-4xl font-bold text-accent mb-8 neon-glow">Examples</h1>
+    <ul class="space-y-4">
+      <li>
+        <a
+          href="/bevy-example/"
+          class="block p-6 bg-dark-card border border-accent/30 rounded-lg no-underline text-gray-300 transition-all duration-300 hover:border-neon-cyan/50 hover:translate-x-1 neon-border"
+        >
+          <div class="text-xl font-semibold mb-2 text-neon-cyan">
+            Bevy Example
+          </div>
+          <div class="text-sm text-gray-500">
+            Interactive UI demo showcasing es-fluent i18n integration with Bevy
+            0.18. Press T to toggle languages.
+          </div>
+        </a>
+      </li>
+    </ul>
+  </div>
+</Layout>

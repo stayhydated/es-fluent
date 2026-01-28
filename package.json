@@ -1,0 +1,17 @@
+{
+  "name": "es-fluent",
+  "private": true,
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "build:wasm": "cargo build --release --target wasm32-unknown-unknown -p bevy-example --no-default-features",
+    "build:web": "turbo run build --filter=web"
+  },
+  "devDependencies": {
+    "turbo": "^2"
+  },
+  "packageManager": "bun@1.3.5"
+}

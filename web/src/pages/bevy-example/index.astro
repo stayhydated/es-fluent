@@ -1,0 +1,31 @@
+---
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="Bevy Example - es-fluent" fullscreen>
+  <a
+    href="/"
+    class="fixed top-4 left-4 px-4 py-2 bg-dark-card/90 text-accent no-underline rounded font-sans text-sm z-[1000] border border-accent/30 hover:border-neon-cyan/50 neon-btn transition-all duration-300"
+  >
+    &larr; Back to Examples
+  </a>
+
+  <script is:inline>
+    (async () => {
+      const { default: init } = await import("/bevy-example/bevy-example.js");
+      init();
+    })();
+  </script>
+</Layout>
+
+<style>
+  :global(body) {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  :global(canvas) {
+    display: block;
+  }
+</style>
