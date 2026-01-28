@@ -1,0 +1,14 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: output
+---
+STDOUT:
+Fluent FTL Generator
+Discovered 2 crate(s)
+Fluent FTL Generator
+→ Looking for orphaned FTL files...
+• Would remove orphaned file: old-crate.ftl
+
+→ Would remove 1 orphaned file(s) (checked 3 files)
+
+STDERR:

@@ -726,6 +726,52 @@ fn test_generate_namespaced_output() {
 }
 
 #[test]
+fn test_sync_namespaced() {
+    let temp = setup_workspace_env();
+
+    // First, generate namespaced FTL files
+    let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
+    let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
+    content
+        .push_str("\n\n#[derive(EsFluent)]\n#[fluent(namespace = \"ui\")]\npub struct UiBanner;\n");
+    std::fs::write(&src_path, content).expect("write lib.rs");
+
+    // Run generate to create the namespaced file in en
+    run_cli(&temp, &["generate"]);
+
+    // Verify the namespaced file exists in en
+    let en_namespaced_path = temp.path().join("i18n/en/test-app-a/ui.ftl");
+    assert!(
+        en_namespaced_path.exists(),
+        "Namespaced FTL file should exist in en"
+    );
+
+    // Now run sync --all to sync to es
+    let output = run_cli(&temp, &["sync", "--all"]);
+
+    // Verify the namespaced file was created in es with the proper subdirectory
+    let es_namespaced_path = temp.path().join("i18n/es/test-app-a/ui.ftl");
+    assert!(
+        es_namespaced_path.exists(),
+        "Namespaced FTL file should exist in es at {:?}",
+        es_namespaced_path
+    );
+
+    // Verify the content was synced
+    let es_content = std::fs::read_to_string(&es_namespaced_path).expect("read es ui.ftl");
+    assert!(
+        es_content.contains("ui_banner"),
+        "es namespaced file should contain ui_banner key"
+    );
+
+    // Also verify the main file still syncs correctly
+    let es_main_path = temp.path().join("i18n/es/test-app-a.ftl");
+    assert!(es_main_path.exists(), "Main FTL file should exist in es");
+
+    assert_snapshot!(output);
+}
+
+#[test]
 fn test_check_force_run() {
     let temp = setup_workspace_env();
 
@@ -747,6 +793,120 @@ fn test_clean_force_run() {
     // Second run with --force-run should still rebuild
     let output = run_cli(&temp, &["clean", "--force-run", "--dry-run"]);
     assert_snapshot!(output);
+}
+
+#[test]
+fn test_clean_orphaned_dry_run() {
+    let temp = setup_workspace_env();
+
+    // Create an orphaned FTL file in a non-fallback locale (es)
+    // This simulates a file that was synced but the crate no longer exists
+    let orphaned_path = temp.path().join("i18n/es/old-crate.ftl");
+    std::fs::write(&orphaned_path, "old-key = Old Value\n").expect("write orphaned file");
+
+    // Run clean --orphaned --all --dry-run
+    let output = run_cli(&temp, &["clean", "--orphaned", "--all", "--dry-run"]);
+
+    // Verify the file still exists (dry run)
+    assert!(
+        orphaned_path.exists(),
+        "Orphaned file should still exist after dry run"
+    );
+
+    assert_snapshot!(output);
+}
+
+#[test]
+fn test_clean_orphaned_real() {
+    let temp = setup_workspace_env();
+
+    // Create an orphaned FTL file in a non-fallback locale (es)
+    let orphaned_path = temp.path().join("i18n/es/old-crate.ftl");
+    std::fs::write(&orphaned_path, "old-key = Old Value\n").expect("write orphaned file");
+
+    // Run clean --orphaned --all
+    let output = run_cli(&temp, &["clean", "--orphaned", "--all"]);
+
+    // Verify the orphaned file is removed
+    assert!(!orphaned_path.exists(), "Orphaned file should be removed");
+
+    // Verify the legitimate files still exist
+    let legit_path = temp.path().join("i18n/es/test-app-a.ftl");
+    assert!(legit_path.exists(), "Legitimate file should still exist");
+
+    assert_snapshot!(output);
+}
+
+/// Test that orphaned main FTL files are detected when a crate only uses namespaces.
+/// This tests the scenario where a crate like bevy-example only has namespaced types
+/// (e.g., bevy-example/ui.ftl) but no main file (bevy-example.ftl).
+/// The main file in non-fallback locales should be considered orphaned.
+#[test]
+fn test_clean_orphaned_namespaced_only_crate() {
+    let temp = setup_workspace_env();
+
+    // Simulate a crate that only uses namespaces (like bevy-example)
+    // The main FTL file exists in non-fallback locale but NOT in fallback
+    let orphaned_main = temp.path().join("i18n/es/namespaced-only.ftl");
+    std::fs::write(&orphaned_main, "key = value\n").expect("write orphaned main file");
+
+    // Create the namespaced file in fallback (this is the "real" file)
+    let ns_dir = temp.path().join("i18n/en/namespaced-only");
+    std::fs::create_dir_all(&ns_dir).expect("create ns dir");
+    std::fs::write(ns_dir.join("ui.ftl"), "ui_key = UI Value\n").expect("write ns file");
+
+    // Also create the namespaced file in es (this should NOT be orphaned)
+    let ns_dir_es = temp.path().join("i18n/es/namespaced-only");
+    std::fs::create_dir_all(&ns_dir_es).expect("create ns dir es");
+    std::fs::write(ns_dir_es.join("ui.ftl"), "ui_key = UI Value ES\n").expect("write ns file es");
+
+    // Run clean --orphaned --all --dry-run
+    let output = run_cli(&temp, &["clean", "--orphaned", "--all", "--dry-run"]);
+
+    // The orphaned main file should be detected
+    assert!(
+        output.contains("namespaced-only.ftl"),
+        "Should detect orphaned main FTL file: {}",
+        output
+    );
+
+    // Verify files still exist (dry run)
+    assert!(
+        orphaned_main.exists(),
+        "Orphaned main file should still exist after dry run"
+    );
+    assert!(
+        ns_dir_es.join("ui.ftl").exists(),
+        "Namespaced file should still exist after dry run"
+    );
+}
+
+/// Test that clean --orphaned preserves legitimate files in the fallback locale.
+/// We should never delete files from the fallback locale.
+#[test]
+fn test_clean_orphaned_preserves_fallback() {
+    let temp = setup_workspace_env();
+
+    // Create a file in the fallback locale (en) that doesn't correspond to any crate
+    // Even though this looks orphaned, we should NOT touch fallback locale files
+    let fallback_file = temp.path().join("i18n/en/orphan-in-fallback.ftl");
+    std::fs::write(&fallback_file, "key = value\n").expect("write fallback file");
+
+    // Run clean --orphaned --all
+    let output = run_cli(&temp, &["clean", "--orphaned", "--all"]);
+
+    // The file in fallback should NOT be removed
+    assert!(
+        fallback_file.exists(),
+        "Fallback locale files should never be removed, even if orphaned"
+    );
+
+    // Should report no orphaned files found (since we skip fallback)
+    assert!(
+        output.contains("No orphaned FTL files found"),
+        "Should report no orphaned files: {}",
+        output
+    );
 }
 
 mod check_issues {

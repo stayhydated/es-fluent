@@ -13,7 +13,7 @@ use es_fluent_toml::I18nConfig;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Arguments for the sync command.
 #[derive(Debug, Parser)]
@@ -138,6 +138,76 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     }
 }
 
+/// Information about an FTL file to sync.
+#[derive(Debug)]
+struct FtlFileInfo {
+    /// Relative path from the locale directory (e.g., "crate_name.ftl" or "crate_name/ui.ftl")
+    relative_path: PathBuf,
+    /// The resource parsed from the fallback file
+    resource: ast::Resource<String>,
+    /// Extracted message keys from the fallback file
+    keys: HashSet<String>,
+}
+
+/// Discover all FTL files in the fallback locale directory recursively.
+/// Returns a list of (relative_path, resource, keys) for each FTL file found.
+fn discover_fallback_ftl_files(fallback_dir: &Path, crate_name: &str) -> Result<Vec<FtlFileInfo>> {
+    let mut files = Vec::new();
+
+    // First, check for the main FTL file (e.g., crate_name.ftl)
+    let main_ftl = fallback_dir.join(format!("{}.ftl", crate_name));
+    if main_ftl.exists() {
+        let resource = parse_ftl_file(&main_ftl)?;
+        let keys = extract_message_keys(&resource);
+        files.push(FtlFileInfo {
+            relative_path: PathBuf::from(format!("{}.ftl", crate_name)),
+            resource,
+            keys,
+        });
+    }
+
+    // Then, recursively find all FTL files in subdirectories (namespaced files)
+    // These are files like: fallback_dir/crate_name/namespace.ftl
+    let crate_subdir = fallback_dir.join(crate_name);
+    if crate_subdir.exists() && crate_subdir.is_dir() {
+        discover_ftl_files_recursive(&crate_subdir, fallback_dir, &mut files)?;
+    }
+
+    Ok(files)
+}
+
+/// Recursively discover FTL files in a directory.
+fn discover_ftl_files_recursive(
+    dir: &Path,
+    base_dir: &Path,
+    files: &mut Vec<FtlFileInfo>,
+) -> Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Recurse into subdirectories
+            discover_ftl_files_recursive(&path, base_dir, files)?;
+        } else if path.extension().is_some_and(|e| e == "ftl") {
+            // Calculate relative path from base_dir
+            let relative_path = path.strip_prefix(base_dir).map_err(|_| {
+                anyhow::anyhow!("Failed to calculate relative path for {}", path.display())
+            })?;
+
+            let resource = parse_ftl_file(&path)?;
+            let keys = extract_message_keys(&resource);
+            files.push(FtlFileInfo {
+                relative_path: relative_path.to_path_buf(),
+                resource,
+                keys,
+            });
+        }
+    }
+
+    Ok(())
+}
+
 /// Sync all FTL files for a crate.
 fn sync_crate(
     krate: &CrateInfo,
@@ -155,10 +225,12 @@ fn sync_crate(
         return Ok(Vec::new());
     }
 
-    // Parse fallback locale to get reference messages
-    let fallback_ftl = fallback_dir.join(format!("{}.ftl", krate.name));
-    let fallback_resource = parse_ftl_file(&fallback_ftl)?;
-    let fallback_keys = extract_message_keys(&fallback_resource);
+    // Discover all FTL files in the fallback locale (including namespaced ones)
+    let fallback_files = discover_fallback_ftl_files(&fallback_dir, &krate.name)?;
+
+    if fallback_files.is_empty() {
+        return Ok(Vec::new());
+    }
 
     let mut results = Vec::new();
 
@@ -179,35 +251,40 @@ fn sync_crate(
         }
 
         let locale_dir = assets_dir.join(locale);
-        let result = sync_locale(
-            &locale_dir,
-            &krate.name,
-            locale,
-            &fallback_resource,
-            &fallback_keys,
-            dry_run,
-        )?;
 
-        results.push(result);
+        // Sync each FTL file (main + namespaced)
+        for ftl_info in &fallback_files {
+            let result = sync_locale_file(
+                &locale_dir,
+                &ftl_info.relative_path,
+                locale,
+                &ftl_info.resource,
+                &ftl_info.keys,
+                dry_run,
+            )?;
+
+            results.push(result);
+        }
     }
 
     Ok(results)
 }
 
-/// Sync a single locale with missing keys from the fallback.
-fn sync_locale(
+/// Sync a single FTL file (main or namespaced) with missing keys from the fallback.
+fn sync_locale_file(
     locale_dir: &Path,
-    crate_name: &str,
+    relative_ftl_path: &Path,
     locale: &str,
     fallback_resource: &ast::Resource<String>,
     fallback_keys: &HashSet<String>,
     dry_run: bool,
 ) -> Result<SyncLocaleResult> {
-    let ftl_file = locale_dir.join(format!("{}.ftl", crate_name));
+    let ftl_file = locale_dir.join(relative_ftl_path);
 
-    // Ensure the locale directory exists
-    if !locale_dir.exists() && !dry_run {
-        fs::create_dir_all(locale_dir)?;
+    // Ensure the parent directory exists (handles namespaced subdirectories)
+    let parent_dir = ftl_file.parent().unwrap_or(locale_dir);
+    if !parent_dir.exists() && !dry_run {
+        fs::create_dir_all(parent_dir)?;
     }
 
     // Parse existing locale file
