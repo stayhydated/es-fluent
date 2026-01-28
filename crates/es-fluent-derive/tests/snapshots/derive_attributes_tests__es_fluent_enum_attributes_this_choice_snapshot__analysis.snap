@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 EnumOpts {
-    ident: Ident(
-        Status,
-    ),
+    ident: Ident {
+        sym: Status,
+    },
     generics: Generics {
         lt_token: None,
         params: [],
@@ -15,14 +15,14 @@ EnumOpts {
     data: Enum(
         [
             VariantOpts {
-                ident: Ident(
-                    Ok,
-                ),
+                ident: Ident {
+                    sym: Ok,
+                },
                 fields: Fields {
                     style: Unit,
                     fields: [],
                     span: Some(
-                        Span,
+                        bytes(0..0),
                     ),
                     __nonexhaustive: (),
                 },
@@ -30,9 +30,9 @@ EnumOpts {
                 key: None,
             },
             VariantOpts {
-                ident: Ident(
-                    Mixed,
-                ),
+                ident: Ident {
+                    sym: Mixed,
+                },
                 fields: Fields {
                     style: Tuple,
                     fields: [
@@ -44,9 +44,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                Severity,
-                                            ),
+                                            ident: Ident {
+                                                sym: Severity,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -66,9 +66,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                i32,
-                                            ),
+                                            ident: Ident {
+                                                sym: i32,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -82,7 +82,7 @@ EnumOpts {
                         },
                     ],
                     span: Some(
-                        Span,
+                        bytes(0..0),
                     ),
                     __nonexhaustive: (),
                 },
@@ -90,17 +90,17 @@ EnumOpts {
                 key: None,
             },
             VariantOpts {
-                ident: Ident(
-                    Info,
-                ),
+                ident: Ident {
+                    sym: Info,
+                },
                 fields: Fields {
                     style: Struct,
                     fields: [
                         EnumFieldOpts {
                             ident: Some(
-                                Ident(
-                                    level,
-                                ),
+                                Ident {
+                                    sym: level,
+                                },
                             ),
                             ty: Type::Path {
                                 qself: None,
@@ -108,9 +108,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                Severity,
-                                            ),
+                                            ident: Ident {
+                                                sym: Severity,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -124,9 +124,9 @@ EnumOpts {
                         },
                         EnumFieldOpts {
                             ident: Some(
-                                Ident(
-                                    message,
-                                ),
+                                Ident {
+                                    sym: message,
+                                },
                             ),
                             ty: Type::Path {
                                 qself: None,
@@ -134,9 +134,9 @@ EnumOpts {
                                     leading_colon: None,
                                     segments: [
                                         PathSegment {
-                                            ident: Ident(
-                                                String,
-                                            ),
+                                            ident: Ident {
+                                                sym: String,
+                                            },
                                             arguments: PathArguments::None,
                                         },
                                     ],
@@ -148,7 +148,7 @@ EnumOpts {
                         },
                     ],
                     span: Some(
-                        Span,
+                        bytes(0..0),
                     ),
                     __nonexhaustive: (),
                 },

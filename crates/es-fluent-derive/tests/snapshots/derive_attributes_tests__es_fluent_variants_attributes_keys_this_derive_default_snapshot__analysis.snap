@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 StructKvOpts {
-    ident: Ident(
-        Profile,
-    ),
+    ident: Ident {
+        sym: Profile,
+    },
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +18,9 @@ StructKvOpts {
             fields: [
                 StructKvFieldOpts {
                     ident: Some(
-                        Ident(
-                            id,
-                        ),
+                        Ident {
+                            sym: id,
+                        },
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,9 +28,9 @@ StructKvOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident(
-                                        u64,
-                                    ),
+                                    ident: Ident {
+                                        sym: u64,
+                                    },
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -40,9 +40,9 @@ StructKvOpts {
                 },
                 StructKvFieldOpts {
                     ident: Some(
-                        Ident(
-                            username,
-                        ),
+                        Ident {
+                            sym: username,
+                        },
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -50,9 +50,9 @@ StructKvOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident(
-                                        String,
-                                    ),
+                                    ident: Ident {
+                                        sym: String,
+                                    },
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -62,9 +62,9 @@ StructKvOpts {
                 },
                 StructKvFieldOpts {
                     ident: Some(
-                        Ident(
-                            secret_token,
-                        ),
+                        Ident {
+                            sym: secret_token,
+                        },
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -72,9 +72,9 @@ StructKvOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident(
-                                        String,
-                                    ),
+                                    ident: Ident {
+                                        sym: String,
+                                    },
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -86,9 +86,9 @@ StructKvOpts {
                 },
                 StructKvFieldOpts {
                     ident: Some(
-                        Ident(
-                            active,
-                        ),
+                        Ident {
+                            sym: active,
+                        },
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -96,9 +96,9 @@ StructKvOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident(
-                                        bool,
-                                    ),
+                                    ident: Ident {
+                                        sym: bool,
+                                    },
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -108,7 +108,7 @@ StructKvOpts {
                 },
             ],
             span: Some(
-                Span,
+                bytes(0..0),
             ),
             __nonexhaustive: (),
         },
@@ -130,9 +130,9 @@ StructKvOpts {
                     leading_colon: None,
                     segments: [
                         PathSegment {
-                            ident: Ident(
-                                Debug,
-                            ),
+                            ident: Ident {
+                                sym: Debug,
+                            },
                             arguments: PathArguments::None,
                         },
                     ],
@@ -141,9 +141,9 @@ StructKvOpts {
                     leading_colon: None,
                     segments: [
                         PathSegment {
-                            ident: Ident(
-                                PartialEq,
-                            ),
+                            ident: Ident {
+                                sym: PartialEq,
+                            },
                             arguments: PathArguments::None,
                         },
                     ],
