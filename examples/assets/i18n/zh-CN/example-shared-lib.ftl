@@ -48,3 +48,13 @@ kv_split = 键值分割 { $country }
 
 kv_split_description_this = 键值分割描述
 kv_split_description-country = 国家
+
+## KvSplitLabelVariants
+
+kv_split_label_this = Kv Split Label
+kv_split_label-country = Country
+
+## USAState
+
+usa_state_this = Usa State
+usa_state-A = A

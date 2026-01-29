@@ -48,3 +48,13 @@ kv_split = Séparation clé-valeur { $country }
 
 kv_split_description_this = Description de la séparation clé-valeur
 kv_split_description-country = Pays
+
+## KvSplitLabelVariants
+
+kv_split_label_this = Kv Split Label
+kv_split_label-country = Country
+
+## USAState
+
+usa_state_this = Usa State
+usa_state-A = A
