@@ -53,9 +53,10 @@ The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers`
 | :--- | :--- | :--- | :--- |
 | `generate` | **Create/Update FTL** | Collects inventory. Merges new keys into existing `.ftl` files using `fluent-syntax`. Preserves comments & formatting. | `--dry-run`, `--force-run` |
 | `check` | **Validate Integrity** | Collects inventory. Verifies all keys exist in `.ftl` files. Errors if keys are missing or variables mismatch. | `--all`, `--ignore <CRATE>`, `--force-run` |
-| `clean` | **Remove Obsolete** | Collects inventory. Removes keys from `.ftl` files that are no longer present in the Rust code. | `--dry-run` |
+| `clean` | **Remove Obsolete** | Collects inventory. Removes keys from `.ftl` files that are no longer present in the Rust code. | `--dry-run`, `--all`, `--force-run` |
+| `clean --orphaned` | **Remove Orphaned Files** | Removes FTL files in non-fallback locales that don't exist in the fallback locale (e.g., when a crate only uses namespaces). Never modifies the fallback locale. | `--dry-run`, `--all` |
 | `format` | **Standardize Style** | Parses and re-serializes all `.ftl` files using standard `fluent-syntax` rules to ensure consistent formatting. | `--dry-run`, `--all` (format all locales) |
-| `sync` | **Propagate Keys** | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. | `--locale <LANG>`, `--all` |
+| `sync` | **Propagate Keys** | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. Handles namespaced files by creating matching subdirectories. | `--locale <LANG>`, `--all`, `--dry-run` |
 | `watch` | **Dev Loop** | Watches `.rs` files for changes. Re-runs `generate` automatically on save. | — |
 
 ## FTL Output Layout
@@ -68,7 +69,7 @@ If a type is registered with a namespace (e.g., `#[fluent(namespace = "ui")]`), 
 
 - `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
-When `namespaces = [...]` is set in `i18n.toml`, `generate` (and `watch`) validate that every namespace used by the code is in the allowlist.
+When `namespaces = [...]` is set in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler (at compile-time) and the CLI (during `generate` and `watch`).
 
 ## Jinja Templates
 
