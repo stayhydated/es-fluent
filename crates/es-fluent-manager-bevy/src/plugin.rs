@@ -60,33 +60,57 @@ impl Plugin for I18nPlugin {
         let asset_server = app.world().resource::<AssetServer>();
 
         let mut discovered_domains = std::collections::HashSet::new();
+        let mut discovered_namespaces: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         let mut discovered_languages = std::collections::HashSet::new();
 
         for module in inventory::iter::<&'static dyn I18nAssetModule>() {
             let data = module.data();
-            discovered_domains.insert(data.domain.to_string());
+            let domain = data.domain.to_string();
+            discovered_domains.insert(domain.clone());
             for lang in data.supported_languages {
                 discovered_languages.insert(lang.clone());
             }
+            // Collect namespaces for this domain
+            let ns_list: Vec<String> = data.namespaces.iter().map(|s| s.to_string()).collect();
+            if !ns_list.is_empty() {
+                discovered_namespaces.insert(domain, ns_list);
+            }
             info!(
-                "Discovered i18n module: {} with domain: {}",
-                data.name, data.domain
+                "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
+                data.name, data.domain, data.namespaces
             );
         }
 
         for lang in &discovered_languages {
             for domain in &discovered_domains {
-                let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
-                let handle: Handle<FtlAsset> = asset_server.load(&path);
-                i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
-                debug!("Loading discovered i18n asset: {}", path);
+                // Check if this domain has namespaces
+                if let Some(namespaces) = discovered_namespaces.get(domain) {
+                    // Load namespaced files: {asset_path}/{lang}/{domain}/{namespace}.ftl
+                    for ns in namespaces {
+                        let path =
+                            format!("{}/{}/{}/{}.ftl", self.config.asset_path, lang, domain, ns);
+                        let handle: Handle<FtlAsset> = asset_server.load(&path);
+                        // Use "{domain}/{namespace}" as the unique key for this asset
+                        let domain_key = format!("{}/{}", domain, ns);
+                        i18n_assets.add_asset(lang.clone(), domain_key, handle);
+                        debug!("Loading namespaced i18n asset: {}", path);
+                    }
+                } else {
+                    // Load main file: {asset_path}/{lang}/{domain}.ftl
+                    let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
+                    let handle: Handle<FtlAsset> = asset_server.load(&path);
+                    i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
+                    debug!("Loading discovered i18n asset: {}", path);
+                }
             }
         }
 
         info!(
-            "Auto-discovered {} domains and {} languages",
+            "Auto-discovered {} domains, {} languages, {} namespaced domains",
             discovered_domains.len(),
-            discovered_languages.len()
+            discovered_languages.len(),
+            discovered_namespaces.len()
         );
 
         // Auto-register FluentText types from inventory
