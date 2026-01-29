@@ -200,28 +200,23 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
             // Check for main domain file: {lang}/{domain}.ftl
             if file_path_str.ends_with(&file_name) {
                 let suffix = format!("/{}", file_name);
-                if let Some(lang_part) = file_path_str.strip_suffix(&suffix) {
-                    if let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>() {
-                        if seen.insert(lang_id.clone()) {
-                            languages.push(lang_id);
-                        }
-                    }
+                if let Some(lang_part) = file_path_str.strip_suffix(&suffix)
+                    && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
+                    && seen.insert(lang_id.clone())
+                {
+                    languages.push(lang_id);
                 }
             }
 
             // Check for namespaced files: {lang}/{domain}/{namespace}.ftl
-            if let Some(parent) = std::path::Path::new(file_path_str).parent() {
-                if let Some(parent_str) = parent.to_str() {
-                    if parent_str.ends_with(&format!("/{}", domain)) {
-                        if let Some(lang_part) = parent_str.strip_suffix(&format!("/{}", domain)) {
-                            if let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>() {
-                                if seen.insert(lang_id.clone()) {
-                                    languages.push(lang_id);
-                                }
-                            }
-                        }
-                    }
-                }
+            if let Some(parent) = std::path::Path::new(file_path_str).parent()
+                && let Some(parent_str) = parent.to_str()
+                && parent_str.ends_with(&format!("/{}", domain))
+                && let Some(lang_part) = parent_str.strip_suffix(&format!("/{}", domain))
+                && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
+                && seen.insert(lang_id.clone())
+            {
+                languages.push(lang_id);
             }
         }
 

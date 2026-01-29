@@ -90,25 +90,16 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
             }
 
             // Discover namespaces from the crate's subdirectory
-            if has_namespace_dir {
-                if let Ok(ns_entries) = fs::read_dir(&crate_dir_path) {
-                    for ns_entry in ns_entries {
-                        if let Ok(ns_entry) = ns_entry {
-                            let ns_path = ns_entry.path();
-                            // Check if it's a file with .ftl extension
-                            if ns_path.is_file() {
-                                if let Some(ns_name) = ns_path.file_stem().and_then(|s| s.to_str())
-                                {
-                                    // Check if the file has .ftl extension
-                                    if let Some(ext) = ns_path.extension().and_then(|s| s.to_str())
-                                    {
-                                        if ext == "ftl" {
-                                            namespaces.insert(ns_name.to_string());
-                                        }
-                                    }
-                                }
-                            }
-                        }
+            if has_namespace_dir && let Ok(ns_entries) = fs::read_dir(&crate_dir_path) {
+                for ns_entry in ns_entries.flatten() {
+                    let ns_path = ns_entry.path();
+                    // Check if it's a file with .ftl extension
+                    if ns_path.is_file()
+                        && let Some(ns_name) = ns_path.file_stem().and_then(|s| s.to_str())
+                        && let Some(ext) = ns_path.extension().and_then(|s| s.to_str())
+                        && ext == "ftl"
+                    {
+                        namespaces.insert(ns_name.to_string());
                     }
                 }
             }
