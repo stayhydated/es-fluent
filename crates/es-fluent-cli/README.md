@@ -49,7 +49,7 @@ This will:
 
 Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and force a rebuild.
 
-If you configure `namespaces = [...]` in `i18n.toml`, `generate` (and `watch`) will error if a type uses a namespace outside that allowlist.
+If you configure `namespaces = [...]` in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler (at compile-time) and the CLI (during `generate` and `watch`).
 
 ### Namespaces (optional)
 
@@ -97,6 +97,18 @@ cargo es-fluent clean
 
 Use `--dry-run` to preview changes without writing them. Use `--all` to clean all locales. Use `--force-run` to bypass the staleness cache.
 
+#### Clean Orphaned Files
+
+Remove FTL files that are no longer tied to any registered types (e.g., when all items are now namespaced or the crate was deleted):
+
+```sh
+cargo es-fluent clean --orphaned --all
+```
+
+This compares files in non-fallback locales against the fallback locale (`en-US` by default). Files that exist in non-fallback locales but have no corresponding file in the fallback locale are considered orphaned and will be removed. The fallback locale itself is never modified.
+
+Use `--dry-run` to preview which files would be removed without actually deleting them.
+
 ### Format
 
 Standardize the formatting of your FTL files using `fluent-syntax` rules:
@@ -116,6 +128,8 @@ cargo es-fluent sync
 ```
 
 Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.
+
+The `sync` command properly handles namespaced FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.
 
 ## Limitations
 

@@ -7,6 +7,7 @@ use crate::core::{CliError, GenerationAction};
 use crate::utils::ui;
 use clap::Parser;
 use colored::Colorize as _;
+use std::collections::HashSet;
 
 /// Arguments for the clean command.
 #[derive(Parser)]
@@ -25,6 +26,12 @@ pub struct CleanArgs {
     /// Force rebuild of the runner, ignoring the staleness cache.
     #[arg(long)]
     pub force_run: bool,
+
+    /// Remove orphaned FTL files that are no longer tied to any types.
+    /// This removes files that don't correspond to any registered types
+    /// (e.g., when all items are now namespaced or the crate was deleted).
+    #[arg(long)]
+    pub orphaned: bool,
 }
 
 /// Run the clean command.
@@ -33,6 +40,11 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
 
     if !workspace.print_discovery(ui::print_header) {
         return Ok(());
+    }
+
+    // Handle orphaned file removal first if requested
+    if args.orphaned {
+        return clean_orphaned_files(&workspace, args.all, args.dry_run);
     }
 
     let action = GenerationAction::Clean {
@@ -78,4 +90,236 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
     }
 
     Ok(())
+}
+
+/// Clean orphaned FTL files that are no longer tied to any registered types.
+fn clean_orphaned_files(
+    workspace: &WorkspaceCrates,
+    all_locales: bool,
+    dry_run: bool,
+) -> Result<(), CliError> {
+    use crate::utils::get_all_locales;
+    use es_fluent_toml::I18nConfig;
+    use std::collections::HashSet;
+
+    ui::print_header();
+    println!("{} Looking for orphaned FTL files...", "→".cyan());
+
+    let mut total_removed = 0;
+    let mut total_files_checked = 0;
+
+    // Collect all valid crate names for quick lookup
+    let valid_crate_names: HashSet<&str> =
+        workspace.crates.iter().map(|c| c.name.as_str()).collect();
+
+    // Track which files we've already processed to avoid duplicates
+    // Use canonical paths to handle different ways of referring to the same file
+    let mut processed_files: HashSet<std::path::PathBuf> = HashSet::new();
+
+    // Also track which (locale_dir, relative_path) pairs we've seen
+    let mut seen_paths: HashSet<(std::path::PathBuf, std::path::PathBuf)> = HashSet::new();
+
+    for krate in &workspace.crates {
+        let config = I18nConfig::read_from_path(&krate.i18n_config_path)
+            .map_err(|e| CliError::from(std::io::Error::other(e)))?;
+
+        let assets_dir = krate.manifest_dir.join(&config.assets_dir);
+
+        // Determine which locale directories to check
+        let locale_dirs: Vec<std::path::PathBuf> = if all_locales {
+            get_all_locales(&assets_dir)
+                .map_err(|e| CliError::from(std::io::Error::other(e)))?
+                .into_iter()
+                .map(|locale| assets_dir.join(locale))
+                .collect()
+        } else {
+            vec![assets_dir.join(&config.fallback_language)]
+        };
+
+        // Get the fallback locale directory for this crate
+        let fallback_locale_dir = assets_dir.join(&config.fallback_language);
+
+        for locale_dir in locale_dirs {
+            if !locale_dir.exists() {
+                continue;
+            }
+
+            // Skip the fallback locale - we only clean non-fallback locales
+            if locale_dir == fallback_locale_dir {
+                continue;
+            }
+
+            // Get the expected FTL files for this crate (based on what's in fallback)
+            let expected_files = get_expected_ftl_files(
+                &krate.name,
+                &locale_dir,
+                &valid_crate_names,
+                &fallback_locale_dir,
+            );
+
+            // Find all actual FTL files in the locale directory
+            let actual_files = find_all_ftl_files(&locale_dir)?;
+
+            // Find orphaned files (actual files that are not in expected files)
+            for file_path in actual_files {
+                // Get canonical path for deduplication
+                let canonical_path = file_path
+                    .canonicalize()
+                    .unwrap_or_else(|_| file_path.clone());
+
+                // Skip if we've already processed this file
+                if processed_files.contains(&canonical_path) {
+                    continue;
+                }
+                processed_files.insert(canonical_path);
+
+                total_files_checked += 1;
+                let relative_path = file_path.strip_prefix(&locale_dir).unwrap_or(&file_path);
+
+                // Create a unique key for this (locale_dir, relative_path) pair
+                let path_key = (locale_dir.clone(), relative_path.to_path_buf());
+                if seen_paths.contains(&path_key) {
+                    continue;
+                }
+                seen_paths.insert(path_key);
+
+                if !expected_files.contains(&file_path) {
+                    total_removed += 1;
+
+                    if dry_run {
+                        println!(
+                            "{} Would remove orphaned file: {}",
+                            "•".yellow(),
+                            relative_path.display().to_string().cyan()
+                        );
+                    } else {
+                        println!(
+                            "{} Removing orphaned file: {}",
+                            "✓".green(),
+                            relative_path.display().to_string().cyan()
+                        );
+                        std::fs::remove_file(&file_path)?;
+
+                        // Try to remove empty parent directories
+                        if let Some(parent) = file_path.parent()
+                            && parent != locale_dir
+                        {
+                            let _ = std::fs::remove_dir(parent);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if total_removed == 0 {
+        println!("\n{} No orphaned FTL files found.", "✓".green());
+    } else if dry_run {
+        println!(
+            "\n{} Would remove {} orphaned file(s) (checked {} files)",
+            "→".cyan(),
+            total_removed.to_string().yellow(),
+            total_files_checked
+        );
+    } else {
+        println!(
+            "\n{} Removed {} orphaned file(s) (checked {} files)",
+            "✓".green(),
+            total_removed.to_string().cyan(),
+            total_files_checked
+        );
+    }
+
+    Ok(())
+}
+
+/// Get the expected FTL file paths for a crate based on registered types.
+/// This looks at what files the generate command would create.
+///
+/// The logic:
+/// - A main FTL file (crate_name.ftl) is expected ONLY if it exists in the fallback locale
+/// - Namespaced files are expected if they exist in the fallback locale's crate subdirectory
+fn get_expected_ftl_files(
+    crate_name: &str,
+    locale_dir: &std::path::Path,
+    valid_crate_names: &HashSet<&str>,
+    fallback_locale_dir: &std::path::Path,
+) -> HashSet<std::path::PathBuf> {
+    let mut expected = HashSet::new();
+
+    // Check if main FTL file exists in fallback locale - if so, it's expected here too
+    let fallback_main_ftl = fallback_locale_dir.join(format!("{}.ftl", crate_name));
+    if fallback_main_ftl.exists() {
+        expected.insert(locale_dir.join(format!("{}.ftl", crate_name)));
+    }
+
+    // Check for namespaced files in the crate_name subdirectory
+    // Namespaced files are expected if they exist in the fallback locale
+    let fallback_crate_subdir = fallback_locale_dir.join(crate_name);
+    if fallback_crate_subdir.exists()
+        && fallback_crate_subdir.is_dir()
+        && let Ok(entries) = std::fs::read_dir(&fallback_crate_subdir)
+    {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let fallback_path = entry.path();
+            if fallback_path.extension().is_some_and(|e| e == "ftl") {
+                // Get just the filename and construct path in current locale
+                if let Some(filename) = fallback_path.file_name() {
+                    let namespaced_path = locale_dir.join(crate_name).join(filename);
+                    expected.insert(namespaced_path);
+                }
+            }
+        }
+    }
+
+    // Also add expected files for other crates (they're valid, not orphaned)
+    for &other_crate in valid_crate_names.iter().filter(|&&c| c != crate_name) {
+        // Only expect main FTL file if it exists in fallback
+        let other_fallback_main = fallback_locale_dir.join(format!("{}.ftl", other_crate));
+        if other_fallback_main.exists() {
+            expected.insert(locale_dir.join(format!("{}.ftl", other_crate)));
+        }
+
+        // Only expect namespaced files if they exist in fallback
+        let other_fallback_subdir = fallback_locale_dir.join(other_crate);
+        if other_fallback_subdir.exists()
+            && other_fallback_subdir.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&other_fallback_subdir)
+        {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let fallback_path = entry.path();
+                if fallback_path.extension().is_some_and(|e| e == "ftl")
+                    && let Some(filename) = fallback_path.file_name()
+                {
+                    let namespaced_path = locale_dir.join(other_crate).join(filename);
+                    expected.insert(namespaced_path);
+                }
+            }
+        }
+    }
+
+    expected
+}
+
+/// Recursively find all FTL files in a directory.
+fn find_all_ftl_files(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, CliError> {
+    let mut files = Vec::new();
+
+    if !dir.exists() {
+        return Ok(files);
+    }
+
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Recurse into subdirectories
+            files.extend(find_all_ftl_files(&path)?);
+        } else if path.extension().is_some_and(|e| e == "ftl") {
+            files.push(path);
+        }
+    }
+
+    Ok(files)
 }

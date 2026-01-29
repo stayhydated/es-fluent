@@ -94,7 +94,7 @@ Output layout:
 `namespace(file(relative))` uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`).
 For `EsFluentThis` (and `EsFluentVariants` when using `#[fluent_this(...)]`), the same syntax is available via `#[fluent_this(namespace = "...")]`.
 
-If `namespaces = [...]` is set in `i18n.toml`, the CLI will validate that every namespace used by your code is in that allowlist.
+If `namespaces = [...]` is set in `i18n.toml`, both the compiler (at compile-time) and the CLI will validate that string-based namespaces used by your code are in that allowlist.
 
 ## Derives
 
