@@ -19,12 +19,15 @@ pub struct EmbeddedModuleData {
     pub domain: &'static str,
     /// The supported languages of the module.
     pub supported_languages: &'static [LanguageIdentifier],
+    /// The namespaces used by this module's types (e.g., "ui", "errors").
+    /// If empty, only the main domain file (e.g., `bevy-example.ftl`) is loaded.
+    pub namespaces: &'static [&'static str],
 }
 
 #[derive(Debug)]
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     data: &'static EmbeddedModuleData,
-    current_resource: RwLock<Option<Arc<FluentResource>>>,
+    current_resources: RwLock<Vec<Arc<FluentResource>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
     _phantom: std::marker::PhantomData<T>,
 }
@@ -33,7 +36,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     pub fn new(data: &'static EmbeddedModuleData) -> Self {
         Self {
             data,
-            current_resource: RwLock::new(None),
+            current_resources: RwLock::new(Vec::new()),
             current_lang: RwLock::new(None),
             _phantom: std::marker::PhantomData,
         }
@@ -42,28 +45,61 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     fn load_resource_for_language(
         &self,
         lang: &LanguageIdentifier,
-    ) -> Result<FluentResource, LocalizationError> {
-        let file_name = format!("{}.ftl", self.data.domain);
-        let file_path = format!("{}/{}", lang, file_name);
+    ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
+        let mut resources = Vec::new();
 
-        if let Some(file_data) = T::get(&file_path) {
+        // Load main resource if it exists (for backwards compatibility)
+        let main_file_name = format!("{}.ftl", self.data.domain);
+        let main_file_path = format!("{}/{}", lang, main_file_name);
+
+        if let Some(file_data) = T::get(&main_file_path) {
             let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
                 LocalizationError::BackendError(anyhow::anyhow!(
                     "Invalid UTF-8 in embedded file '{}': {}",
-                    file_path,
+                    main_file_path,
                     e
                 ))
             })?;
 
-            FluentResource::try_new(content).map_err(|(_, errs)| {
+            let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
                 LocalizationError::BackendError(anyhow::anyhow!(
                     "Failed to parse fluent resource from '{}': {:?}",
-                    file_path,
+                    main_file_path,
                     errs
                 ))
-            })
-        } else {
+            })?;
+            resources.push(Arc::new(resource));
+        }
+
+        // Load namespaced resources
+        for ns in self.data.namespaces {
+            let ns_file_name = format!("{}.ftl", ns);
+            let ns_file_path = format!("{}/{}/{}", lang, self.data.domain, ns_file_name);
+
+            if let Some(file_data) = T::get(&ns_file_path) {
+                let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
+                    LocalizationError::BackendError(anyhow::anyhow!(
+                        "Invalid UTF-8 in embedded file '{}': {}",
+                        ns_file_path,
+                        e
+                    ))
+                })?;
+
+                let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
+                    LocalizationError::BackendError(anyhow::anyhow!(
+                        "Failed to parse fluent resource from '{}': {:?}",
+                        ns_file_path,
+                        errs
+                    ))
+                })?;
+                resources.push(Arc::new(resource));
+            }
+        }
+
+        if resources.is_empty() {
             Err(LocalizationError::LanguageNotSupported(lang.clone()))
+        } else {
+            Ok(resources)
         }
     }
 }
@@ -75,17 +111,17 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             return Ok(());
         }
 
-        if let Ok(resource) = self.load_resource_for_language(lang) {
-            *self.current_resource.write().unwrap() = Some(Arc::new(resource));
+        if let Ok(resources) = self.load_resource_for_language(lang) {
+            *self.current_resources.write().unwrap() = resources;
             *current_lang_guard = Some(lang.clone());
             return Ok(());
         }
 
         for supported_lang in self.data.supported_languages {
             if lang.matches(supported_lang, true, true)
-                && let Ok(resource) = self.load_resource_for_language(supported_lang)
+                && let Ok(resources) = self.load_resource_for_language(supported_lang)
             {
-                *self.current_resource.write().unwrap() = Some(Arc::new(resource));
+                *self.current_resources.write().unwrap() = resources;
                 *current_lang_guard = Some(lang.clone());
                 return Ok(());
             }
@@ -99,8 +135,10 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let resource_arc = self.current_resource.read().unwrap();
-        let resource = resource_arc.as_ref()?;
+        let resources = self.current_resources.read().unwrap();
+        if resources.is_empty() {
+            return None;
+        }
 
         let lang_guard = self.current_lang.read().unwrap();
         let lang = lang_guard
@@ -108,9 +146,11 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             .expect("Language not selected before localization");
 
         let mut bundle = FluentBundle::new(vec![lang.clone()]);
-        bundle
-            .add_resource(resource.clone())
-            .expect("Failed to add resource");
+        for resource in resources.iter() {
+            if let Err(e) = bundle.add_resource(resource.clone()) {
+                tracing::error!("Failed to add resource to bundle: {:?}", e);
+            }
+        }
 
         let message = bundle.get_message(id)?;
         let pattern = message.value()?;
@@ -152,13 +192,36 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
         let domain = T::domain();
         let file_name = format!("{}.ftl", domain);
         let mut languages = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
         for file_path in T::iter() {
-            if file_path.ends_with(&file_name)
-                && let Some(lang_part) = file_path.strip_suffix(&format!("/{}", file_name))
-                && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
-            {
-                languages.push(lang_id);
+            let file_path_str = file_path.as_ref();
+
+            // Check for main domain file: {lang}/{domain}.ftl
+            if file_path_str.ends_with(&file_name) {
+                let suffix = format!("/{}", file_name);
+                if let Some(lang_part) = file_path_str.strip_suffix(&suffix) {
+                    if let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>() {
+                        if seen.insert(lang_id.clone()) {
+                            languages.push(lang_id);
+                        }
+                    }
+                }
+            }
+
+            // Check for namespaced files: {lang}/{domain}/{namespace}.ftl
+            if let Some(parent) = std::path::Path::new(file_path_str).parent() {
+                if let Some(parent_str) = parent.to_str() {
+                    if parent_str.ends_with(&format!("/{}", domain)) {
+                        if let Some(lang_part) = parent_str.strip_suffix(&format!("/{}", domain)) {
+                            if let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>() {
+                                if seen.insert(lang_id.clone()) {
+                                    languages.push(lang_id);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

@@ -59,6 +59,8 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         panic!("Assets directory validation failed: {}", e);
     }
 
+    // Collect languages and discover namespaces
+    let mut namespaces = std::collections::HashSet::new();
     let mut languages = Vec::new();
     let entries = fs::read_dir(&i18n_root_path).unwrap_or_else(|e| {
         panic!(
@@ -73,11 +75,42 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         if path.is_dir()
             && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
         {
+            // Check for main FTL file (e.g., bevy-example.ftl)
             let ftl_file_name = format!("{}.ftl", crate_name);
-            let ftl_path = path.join(ftl_file_name);
+            let ftl_path = path.join(&ftl_file_name);
 
-            if ftl_path.exists() {
+            // Check for subdirectory with namespaced FTL files (e.g., bevy-example/ui.ftl)
+            let crate_dir_path = path.join(&crate_name);
+
+            let has_main_file = ftl_path.exists();
+            let has_namespace_dir = crate_dir_path.is_dir();
+
+            if has_main_file || has_namespace_dir {
                 languages.push(lang_code.to_string());
+            }
+
+            // Discover namespaces from the crate's subdirectory
+            if has_namespace_dir {
+                if let Ok(ns_entries) = fs::read_dir(&crate_dir_path) {
+                    for ns_entry in ns_entries {
+                        if let Ok(ns_entry) = ns_entry {
+                            let ns_path = ns_entry.path();
+                            // Check if it's a file with .ftl extension
+                            if ns_path.is_file() {
+                                if let Some(ns_name) = ns_path.file_stem().and_then(|s| s.to_str())
+                                {
+                                    // Check if the file has .ftl extension
+                                    if let Some(ext) = ns_path.extension().and_then(|s| s.to_str())
+                                    {
+                                        if ext == "ftl" {
+                                            namespaces.insert(ns_name.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -85,6 +118,8 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     let language_identifiers = languages.iter().map(|lang| {
         quote! { es_fluent::unic_langid::langid!(#lang) }
     });
+
+    let namespace_strings: Vec<_> = namespaces.iter().map(|ns| quote! { #ns }).collect();
 
     let i18n_root_str = i18n_root_path.to_string_lossy();
 
@@ -105,6 +140,9 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
                 domain: #crate_name,
                 supported_languages: &[
                     #(#language_identifiers),*
+                ],
+                namespaces: &[
+                    #(#namespace_strings),*
                 ],
             };
 
