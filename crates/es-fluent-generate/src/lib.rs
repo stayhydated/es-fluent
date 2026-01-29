@@ -505,17 +505,22 @@ fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String> {
 fn merge_ftl_type_infos(items: &[&FtlTypeInfo]) -> Vec<OwnedTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by type_name
-    let mut grouped: BTreeMap<String, Vec<OwnedVariant>> = BTreeMap::new();
+    // Group by type_name, but only merge items with the same namespace
+    // This prevents merging types that have the same name but different namespaces
+    let mut grouped: BTreeMap<(Option<String>, String), Vec<OwnedVariant>> = BTreeMap::new();
 
     for item in items {
-        let entry = grouped.entry(item.type_name.to_string()).or_default();
+        let key = (
+            item.namespace.map(|s| s.to_string()),
+            item.type_name.to_string(),
+        );
+        let entry = grouped.entry(key).or_default();
         entry.extend(item.variants.iter().map(OwnedVariant::from));
     }
 
     grouped
         .into_iter()
-        .map(|(type_name, mut variants)| {
+        .map(|((_, type_name), mut variants)| {
             variants.sort_by(|a, b| {
                 let a_is_this = a.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
                 let b_is_this = b.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
