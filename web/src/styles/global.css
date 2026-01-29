@@ -1,43 +1,112 @@
 @import "tailwindcss";
 
 @theme {
-  --color-dark-bg: #0a0a0f;
-  --color-dark-card: #12121a;
-  --color-accent: #00ff88;
-  --color-neon-cyan: #00ffff;
+  /* OLED Background - Pure Black */
+  --color-bg: #000000;
+  --color-bg-elevated: #0a0a0a;
+  --color-bg-card: #111111;
+  --color-bg-hover: #1a1a1a;
+
+  /* Primary - Neon Cyan */
+  --color-primary: #00f0ff;
+  --color-primary-dim: #00a8b3;
+  --color-primary-glow: rgba(0, 240, 255, 0.5);
+
+  /* Secondary - Neon Magenta */
+  --color-secondary: #ff00a0;
+  --color-secondary-dim: #b30070;
+  --color-secondary-glow: rgba(255, 0, 160, 0.5);
+
+  /* Accent - Neon Lime */
+  --color-accent: #a0ff00;
+  --color-accent-dim: #70b300;
+  --color-accent-glow: rgba(160, 255, 0, 0.5);
+
+  /* Text Colors */
+  --color-text: #e0e0e0;
+  --color-text-muted: #888888;
+  --color-text-dim: #555555;
+
 }
 
-.neon-glow {
+/* Glow Effects */
+.glow-primary {
   text-shadow:
-    0 0 10px #00ff88,
-    0 0 20px #00ff88,
-    0 0 40px #00ff88;
+    0 0 5px var(--color-primary-glow),
+    0 0 10px var(--color-primary-glow),
+    0 0 20px var(--color-primary);
 }
 
-.neon-border {
-  box-shadow:
-    0 0 5px #00ff88,
-    inset 0 0 5px rgba(0, 255, 136, 0.1);
+.glow-secondary {
+  text-shadow:
+    0 0 5px var(--color-secondary-glow),
+    0 0 10px var(--color-secondary-glow),
+    0 0 20px var(--color-secondary);
 }
 
-.neon-border:hover {
-  box-shadow:
-    0 0 10px #00ffff,
-    0 0 20px #00ffff,
-    inset 0 0 10px rgba(0, 255, 255, 0.1);
+.glow-accent {
+  text-shadow:
+    0 0 5px var(--color-accent-glow),
+    0 0 10px var(--color-accent-glow),
+    0 0 20px var(--color-accent);
 }
 
-.neon-btn {
+/* Border Glows */
+.border-glow-primary {
   box-shadow:
-    0 0 5px #00ff88,
-    inset 0 0 5px rgba(0, 255, 136, 0.1);
-  text-shadow: 0 0 5px #00ff88;
+    0 0 5px var(--color-primary-glow),
+    inset 0 0 5px var(--color-primary-glow);
 }
 
-.neon-btn:hover {
+.border-glow-secondary {
   box-shadow:
-    0 0 10px #00ffff,
-    0 0 20px #00ffff,
-    inset 0 0 10px rgba(0, 255, 255, 0.1);
-  text-shadow: 0 0 10px #00ffff;
+    0 0 5px var(--color-secondary-glow),
+    inset 0 0 5px var(--color-secondary-glow);
 }
+
+.border-glow-accent {
+  box-shadow:
+    0 0 5px var(--color-accent-glow),
+    inset 0 0 5px var(--color-accent-glow);
+}
+
+/* Button Styles */
+.btn-primary {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-primary-dim);
+  color: var(--color-primary);
+  box-shadow: 0 0 5px var(--color-primary-glow);
+  text-shadow: 0 0 5px var(--color-primary-glow);
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  border-color: var(--color-primary);
+  box-shadow:
+    0 0 10px var(--color-primary-glow),
+    0 0 20px var(--color-primary-glow);
+  text-shadow:
+    0 0 5px var(--color-primary),
+    0 0 10px var(--color-primary);
+}
+
+.btn-secondary {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-secondary-dim);
+  color: var(--color-secondary);
+  box-shadow: 0 0 5px var(--color-secondary-glow);
+  text-shadow: 0 0 5px var(--color-secondary-glow);
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--color-secondary);
+  box-shadow:
+    0 0 10px var(--color-secondary-glow),
+    0 0 20px var(--color-secondary-glow);
+  text-shadow:
+    0 0 5px var(--color-secondary),
+    0 0 10px var(--color-secondary);
+}
+
+
