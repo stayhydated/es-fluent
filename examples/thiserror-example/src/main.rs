@@ -42,6 +42,7 @@ fn debit_account(
 }
 
 fn main() {
+    i18n::init();
     Languages::iter().for_each(run);
 }
 

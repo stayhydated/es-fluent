@@ -1,3 +1,3 @@
 ## HelloUser
 
-hello_user = Hello User { $f0 }
+hello_user = Bonjour { $f0 }

@@ -1,13 +1,13 @@
 ## LenValidation
 
-len_validation = Len Validation { $min } { $max } { $actual }
+len_validation = Validation de longueur { $min } { $max } { $actual }
 
 ## RangeValidation
 
-range_validation = Range Validation { $min } { $max } { $actual }
+range_validation = Validation de plage { $min } { $max } { $actual }
 
 ## ValidationError
 
-validation_error-OutOfRange = Out Of Range { $min } { $max } { $actual }
-validation_error-TooLong = Too Long { $max } { $actual }
-validation_error-TooShort = Too Short { $min } { $actual }
+validation_error-OutOfRange = Hors de la plage { $min } { $max } { $actual }
+validation_error-TooLong = Trop long { $max } { $actual }
+validation_error-TooShort = Trop court { $min } { $actual }
