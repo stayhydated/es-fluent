@@ -1,4 +1,6 @@
 ---
+import "../styles/global.css";
+
 interface Props {
   title: string;
   fullscreen?: boolean;
@@ -22,7 +24,3 @@ const { title, fullscreen = false } = Astro.props;
     <slot />
   </body>
 </html>
-
-<style is:global>
-  @import "../styles/global.css";
-</style>

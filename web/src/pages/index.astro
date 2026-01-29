@@ -1,5 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
+
+const baseUrl = import.meta.env.BASE_URL;
 ---
 
 <Layout title="es-fluent Examples">
@@ -8,7 +10,7 @@ import Layout from "../layouts/Layout.astro";
     <ul class="space-y-4">
       <li>
         <a
-          href="/bevy-example/"
+          href={`${baseUrl}/bevy-example/`}
           class="block p-6 bg-dark-card border border-accent/30 rounded-lg no-underline text-gray-300 transition-all duration-300 hover:border-neon-cyan/50 hover:translate-x-1 neon-border"
         >
           <div class="text-xl font-semibold mb-2 text-neon-cyan">

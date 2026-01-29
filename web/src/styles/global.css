@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+@theme {
+  --color-dark-bg: #0a0a0f;
+  --color-dark-card: #12121a;
+  --color-accent: #00ff88;
+  --color-neon-cyan: #00ffff;
+}
+
 .neon-glow {
   text-shadow:
     0 0 10px #00ff88,

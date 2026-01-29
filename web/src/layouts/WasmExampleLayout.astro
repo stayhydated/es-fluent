@@ -6,11 +6,12 @@ interface Props {
 }
 
 const { title } = Astro.props;
+const baseUrl = import.meta.env.BASE_URL;
 ---
 
 <Layout title={title} fullscreen>
   <a
-    href="/"
+    href={`${baseUrl}/`}
     class="fixed top-4 left-4 px-4 py-2 bg-dark-card/90 text-accent no-underline rounded font-sans text-sm z-1000 border border-accent/30 hover:border-neon-cyan/50 neon-btn transition-all duration-300"
   >
     &larr; Back to Examples

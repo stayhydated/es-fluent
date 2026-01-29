@@ -7,7 +7,7 @@ const baseUrl = import.meta.env.BASE_URL;
 <WasmExampleLayout title="Bevy Example - es-fluent">
   <script is:inline define:vars={{ baseUrl }}>
     (async () => {
-      const { default: init } = await import(baseUrl + "bevy-example/bevy-example.js");
+      const { default: init } = await import(baseUrl + "/bevy-example/bevy-example.js");
       init();
     })();
   </script>
