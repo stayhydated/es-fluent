@@ -22,6 +22,9 @@
     },
     "lint": {
       "dependsOn": ["^build"]
+    },
+    "lint:js": {
+      "cache": true
     }
   }
 }

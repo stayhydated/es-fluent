@@ -65,7 +65,7 @@ For `EsFluentThis`, the same syntax is available via `#[fluent_this(namespace = 
 
 ### `#[derive(EsFluentChoice)]`
 
-Allows an enum to be used *inside* another message as a selector (e.g., for gender or status).
+Allows an enum to be used _inside_ another message as a selector (e.g., for gender or status).
 
 ```rs
 use es_fluent::{EsFluent, EsFluentChoice};

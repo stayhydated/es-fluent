@@ -5,8 +5,8 @@ fmt:
     cargo sort-derives
     cargo fmt
     taplo fmt
-    uvx mdformat .
     uv format
+    bun run fmt
 
 clippy:
     cargo clippy --workspace --all-features

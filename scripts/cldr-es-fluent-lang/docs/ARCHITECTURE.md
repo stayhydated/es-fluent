@@ -96,14 +96,14 @@ Thin CLI wrapper using Typer. Handles:
 
 Defines typed models for CLDR JSON structures:
 
-| Model | Purpose |
-|-------|---------|
-| `Locale` | BCP-47 locale representation with parsing |
-| `LikelySubtagsData` | Parses `likelySubtags.json` |
-| `AvailableLocalesData` | Parses `availableLocales.json` |
-| `LanguagesJsonMain` / `LocaleEntry` | Parses `languages.json` |
-| `ScriptsJsonMain` | Parses `scripts.json` |
-| `TerritoriesJsonMain` | Parses `territories.json` |
+| Model                               | Purpose                                   |
+| ----------------------------------- | ----------------------------------------- |
+| `Locale`                            | BCP-47 locale representation with parsing |
+| `LikelySubtagsData`                 | Parses `likelySubtags.json`               |
+| `AvailableLocalesData`              | Parses `availableLocales.json`            |
+| `LanguagesJsonMain` / `LocaleEntry` | Parses `languages.json`                   |
+| `ScriptsJsonMain`                   | Parses `scripts.json`                     |
+| `TerritoriesJsonMain`               | Parses `territories.json`                 |
 
 The `Locale` model parses BCP-47 language tags into components:
 
@@ -119,46 +119,46 @@ class Locale(BaseModel, frozen=True):
 
 Low-level file operations:
 
-| Function | Purpose |
-|----------|---------|
-| `download_file()` | Downloads CLDR archive with progress bar |
-| `extract_archive()` | Extracts ZIP with progress bar |
-| `load_json()` | Loads and parses JSON files |
+| Function            | Purpose                                  |
+| ------------------- | ---------------------------------------- |
+| `download_file()`   | Downloads CLDR archive with progress bar |
+| `extract_archive()` | Extracts ZIP with progress bar           |
+| `load_json()`       | Loads and parses JSON files              |
 
 ### src/loaders.py (CLDR Data Loaders)
 
 CLDR-specific data loading with Pydantic validation:
 
-| Function | Purpose |
-|----------|---------|
-| `load_likely_subtags()` | Loads locale expansion mappings |
-| `load_available_locales()` | Loads list of available locales |
-| `load_locale_entry()` | Loads language names for a locale |
-| `load_script_names()` | Loads script display names |
-| `load_territory_names()` | Loads territory display names |
+| Function                   | Purpose                           |
+| -------------------------- | --------------------------------- |
+| `load_likely_subtags()`    | Loads locale expansion mappings   |
+| `load_available_locales()` | Loads list of available locales   |
+| `load_locale_entry()`      | Loads language names for a locale |
+| `load_script_names()`      | Loads script display names        |
+| `load_territory_names()`   | Loads territory display names     |
 
 ### src/processing.py (Locale Processing)
 
 Core business logic:
 
-| Function | Purpose |
-|----------|---------|
-| `expand_locale()` | Expands minimal tags using likelySubtags |
-| `fallback_chain()` | Generates locale fallback sequence |
-| `candidate_language_keys()` | Generates lookup keys for autonym search |
-| `collapse_entries()` | Deduplicates entries with identical names |
-| `format_locale()` | Normalizes output locale tags |
-| `collect_entries()` | Main processing loop for all locales |
+| Function                    | Purpose                                   |
+| --------------------------- | ----------------------------------------- |
+| `expand_locale()`           | Expands minimal tags using likelySubtags  |
+| `fallback_chain()`          | Generates locale fallback sequence        |
+| `candidate_language_keys()` | Generates lookup keys for autonym search  |
+| `collapse_entries()`        | Deduplicates entries with identical names |
+| `format_locale()`           | Normalizes output locale tags             |
+| `collect_entries()`         | Main processing loop for all locales      |
 
 ### src/writers.py (Output Writers)
 
 File generation:
 
-| Function | Purpose |
-|----------|---------|
-| `escape_fluent_value()` | Escapes curly braces for Fluent format |
-| `write_ftl()` | Writes Fluent translation file |
-| `write_supported_locales()` | Writes Rust constant array |
+| Function                    | Purpose                                |
+| --------------------------- | -------------------------------------- |
+| `escape_fluent_value()`     | Escapes curly braces for Fluent format |
+| `write_ftl()`               | Writes Fluent translation file         |
+| `write_supported_locales()` | Writes Rust constant array             |
 
 ## Data Flow
 
@@ -185,10 +185,10 @@ For each available locale in CLDR:
 
 The `collapse_entries()` function deduplicates entries where multiple region variants share the same name:
 
-| Before | After |
-|--------|-------|
-| `en-US = English`, `en-GB = English`, `en-AU = English` | `en = English` |
-| `zh-Hans-CN = 简体中文`, `zh-Hans-SG = 简体中文` | `zh-Hans = 简体中文` |
+| Before                                                  | After                |
+| ------------------------------------------------------- | -------------------- |
+| `en-US = English`, `en-GB = English`, `en-AU = English` | `en = English`       |
+| `zh-Hans-CN = 简体中文`, `zh-Hans-SG = 简体中文`        | `zh-Hans = 简体中文` |
 
 This reduces file size while preserving distinct names for locales that differ.
 

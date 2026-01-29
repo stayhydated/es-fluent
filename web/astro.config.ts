@@ -3,20 +3,23 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
-	vite: {
-		plugins: [tailwindcss()],
-	},
+  site: "https://stayhydated.github.io",
+  base: "/es-fluent",
 
-	build: {
-		assets: "_assets",
-	},
+  vite: {
+    plugins: [tailwindcss()],
+  },
 
-	server: {
-		headers: {
-			"Cross-Origin-Embedder-Policy": "require-corp",
-			"Cross-Origin-Opener-Policy": "same-origin",
-		},
-	},
+  build: {
+    assets: "_assets",
+  },
 
-	integrations: [sitemap()],
+  server: {
+    headers: {
+      "Cross-Origin-Embedder-Policy": "require-corp",
+      "Cross-Origin-Opener-Policy": "same-origin",
+    },
+  },
+
+  integrations: [sitemap()],
 });

@@ -1,20 +1,22 @@
 ---
 import Layout from "../layouts/Layout.astro";
+
+const baseUrl = import.meta.env.BASE_URL;
 ---
 
 <Layout title="es-fluent Examples">
   <div class="max-w-3xl mx-auto">
-    <h1 class="text-4xl font-bold text-accent mb-8 neon-glow">Examples</h1>
+    <h1 class="text-4xl font-bold text-primary mb-8 glow-primary">Examples</h1>
     <ul class="space-y-4">
       <li>
         <a
-          href="/bevy-example/"
-          class="block p-6 bg-dark-card border border-accent/30 rounded-lg no-underline text-gray-300 transition-all duration-300 hover:border-neon-cyan/50 hover:translate-x-1 neon-border"
+          href={`${baseUrl}/bevy-example/`}
+          class="block p-6 bg-bg-card border border-primary/30 rounded-lg no-underline text-text transition-all duration-300 hover:border-primary hover:translate-x-1 border-glow-primary"
         >
-          <div class="text-xl font-semibold mb-2 text-neon-cyan">
+          <div class="text-xl font-semibold mb-2 text-secondary glow-secondary">
             Bevy Example
           </div>
-          <div class="text-sm text-gray-500">
+          <div class="text-sm text-text-muted">
             Interactive UI demo showcasing es-fluent i18n integration with Bevy
             0.18.
           </div>

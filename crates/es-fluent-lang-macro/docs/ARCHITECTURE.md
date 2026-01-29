@@ -102,6 +102,6 @@ enum Languages {}
 
 In this mode:
 
-1. **No Resource Link**: It does *not* add `resource = "es-fluent-lang"`.
-1. **Inventory Registration**: It does *not* skip inventory. The enum is registered like any other localized type.
+1. **No Resource Link**: It does _not_ add `resource = "es-fluent-lang"`.
+1. **Inventory Registration**: It does _not_ skip inventory. The enum is registered like any other localized type.
 1. **Skeleton Generation**: The CLI will detect this registration and generate skeleton Fluent keys (e.g., `languages-en`, `languages-fr`) in your project's FTL files, which you can then translate manually.
