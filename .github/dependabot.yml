@@ -61,3 +61,28 @@ updates:
 
     assignees:
       - "stayhydated"
+
+  - package-ecosystem: "bun"
+    directory: "/"
+
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "04:00"
+      timezone: "America/New_York"
+
+    groups:
+      all-bun-dependencies:
+        patterns:
+          - "*"
+
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
+    labels:
+      - "dependencies"
+      - "javascript"
+
+    assignees:
+      - "stayhydated"
