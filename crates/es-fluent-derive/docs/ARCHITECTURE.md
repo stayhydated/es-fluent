@@ -54,12 +54,12 @@ flowchart TD
 
 All macros are designed to be orthogonal and independent. Code generation for one does not rely on another.
 
-| Macro | Purpose | Code Generation Logic |
-| :--- | :--- | :--- |
-| `#[derive(EsFluent)]` | **Primary Messaging** | Generates a specific message ID for the struct (or one per enum variant). Implements `FluentDisplay` which calls `localize()` with those IDs. Registers `FtlTypeInfo` to inventory for FTL generation. |
-| `#[derive(EsFluentChoice)]` | **Select Expressions** | Does *not* generate a message ID or perform inventory registration. Instead, implements the `EsFluentChoice` trait so the type can be passed as a variable to *other* messages (e.g. `$gender ->`). |
-| `#[derive(EsFluentVariants)]` | **Key-Value Pairs** | Generates companion enums (e.g. `MyStructLabelVariants`) where each variant corresponds to a field of the struct. Useful for form labels, placeholders, etc. |
-| `#[derive(EsFluentThis)]` | **Self-Referencing** | Implements the `ThisFtl` trait. Registers the type's top-level name as a key (similar to how `EsFluentVariants` registers fields). |
+| Macro                         | Purpose                | Code Generation Logic                                                                                                                                                                                  |
+| :---------------------------- | :--------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#[derive(EsFluent)]`         | **Primary Messaging**  | Generates a specific message ID for the struct (or one per enum variant). Implements `FluentDisplay` which calls `localize()` with those IDs. Registers `FtlTypeInfo` to inventory for FTL generation. |
+| `#[derive(EsFluentChoice)]`   | **Select Expressions** | Does _not_ generate a message ID or perform inventory registration. Instead, implements the `EsFluentChoice` trait so the type can be passed as a variable to _other_ messages (e.g. `$gender ->`).    |
+| `#[derive(EsFluentVariants)]` | **Key-Value Pairs**    | Generates companion enums (e.g. `MyStructLabelVariants`) where each variant corresponds to a field of the struct. Useful for form labels, placeholders, etc.                                           |
+| `#[derive(EsFluentThis)]`     | **Self-Referencing**   | Implements the `ThisFtl` trait. Registers the type's top-level name as a key (similar to how `EsFluentVariants` registers fields).                                                                     |
 
 ## Namespaces
 

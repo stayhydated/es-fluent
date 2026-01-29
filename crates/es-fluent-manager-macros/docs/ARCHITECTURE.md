@@ -26,7 +26,7 @@ Used by `es-fluent-manager-bevy`.
 1. **Generates**:
    - Static `AssetModuleData` listing supported languages.
    - `inventory::submit!` block to register the module as an `AssetI18nModule`.
-   - *Note*: Does not embed files; Bevy handles loading at runtime.
+   - _Note_: Does not embed files; Bevy handles loading at runtime.
 
 ## Rationale
 

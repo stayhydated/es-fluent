@@ -26,7 +26,6 @@
   --color-text: #e0e0e0;
   --color-text-muted: #888888;
   --color-text-dim: #555555;
-
 }
 
 /* Glow Effects */
@@ -108,5 +107,3 @@
     0 0 5px var(--color-secondary),
     0 0 10px var(--color-secondary);
 }
-
-

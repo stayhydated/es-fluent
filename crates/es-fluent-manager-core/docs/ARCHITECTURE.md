@@ -4,7 +4,7 @@ This document details the architecture of the `es-fluent-manager-core` crate, wh
 
 ## Overview
 
-`es-fluent-manager-core` defines the traits and types necessary to decouple the *management* of localization data (how it's loaded and stored) from the *consumption* of it (how it's used to format strings). It also includes standard implementations for embedded and asset-based workflows.
+`es-fluent-manager-core` defines the traits and types necessary to decouple the _management_ of localization data (how it's loaded and stored) from the _consumption_ of it (how it's used to format strings). It also includes standard implementations for embedded and asset-based workflows.
 
 ## Architecture
 

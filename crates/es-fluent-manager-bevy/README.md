@@ -7,11 +7,11 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`.
 
 This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and Asset system. It allows you to use standard `#[derive(EsFluent)]` types as components that automatically update when the game's language changes.
 
-| `es-fluent-manager-bevy` | `bevy` |
+| `es-fluent-manager-bevy` | `bevy`   |
 | :----------------------- | :------- |
-| **crates.io** | |
-| `0.18.x` | `0.18.x` |
-| `0.17.x` | `0.17.x` |
+| **crates.io**            |          |
+| `0.18.x`                 | `0.18.x` |
+| `0.17.x`                 | `0.17.x` |
 
 ## Features
 

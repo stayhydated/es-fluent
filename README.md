@@ -15,7 +15,7 @@ This framework gives you:
 
 ## Examples
 
-- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example) ([online demo](<>))
+- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
 - [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
 
 ## Used in
@@ -132,7 +132,7 @@ pub struct UserProfile<'a> {
 
 ### `#[derive(EsFluentChoice)]`
 
-Allows an enum to be used *inside* another message as a selector (e.g., for gender or status).
+Allows an enum to be used _inside_ another message as a selector (e.g., for gender or status).
 
 ```rs
 use es_fluent::{EsFluent, EsFluentChoice};
