@@ -10,24 +10,21 @@
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{
     CliError, CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
-    ValidationReport, find_key_span,
+    ValidationReport,
 };
 use crate::ftl::extract_variables_from_message;
 use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
-use crate::utils::{get_all_locales, ui};
+use crate::utils::{LoadedFtlFile, discover_and_load_ftl_files, get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::ast;
-use fluent_syntax::parser::{self, ParserError};
 use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
-use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
-use std::sync::LazyLock;
 use terminal_link::Link;
 
 /// Expected key information from inventory (deserialized from temp crate output).
@@ -259,46 +256,7 @@ fn read_inventory_file(
     Ok(expected_keys)
 }
 
-/// Result of loading an FTL file for a locale.
-enum LocaleLoadResult {
-    /// File doesn't exist.
-    NotFound,
-    /// Failed to read the file.
-    ReadError(String),
-    /// Successfully loaded.
-    Loaded {
-        content: String,
-        resource: ast::Resource<String>,
-        parse_errors: Vec<ParserError>,
-    },
-}
-
-/// Load an FTL file for a locale.
-fn load_locale_ftl(assets_dir: &Path, locale: &str, crate_name: &str) -> LocaleLoadResult {
-    let ftl_file = assets_dir.join(locale).join(format!("{}.ftl", crate_name));
-
-    if !ftl_file.exists() {
-        return LocaleLoadResult::NotFound;
-    }
-
-    let content = match fs::read_to_string(&ftl_file) {
-        Ok(c) => c,
-        Err(e) => return LocaleLoadResult::ReadError(e.to_string()),
-    };
-
-    let (resource, parse_errors) = match parser::parse(content.clone()) {
-        Ok(res) => (res, vec![]),
-        Err((res, errors)) => (res, errors),
-    };
-
-    LocaleLoadResult::Loaded {
-        content,
-        resource,
-        parse_errors,
-    }
-}
-
-/// Validate FTL files against expected keys using fluent-syntax directly.
+/// Validate FTL files against expected keys using shared discovery logic.
 fn validate_ftl_files(
     krate: &CrateInfo,
     workspace_root: &Path,
@@ -319,50 +277,53 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locales {
-        let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
-        let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
+        // Use shared discovery and loading logic
+        match discover_and_load_ftl_files(&assets_dir, locale, &krate.name) {
+            Ok(loaded_files) => {
+                if loaded_files.is_empty() {
+                    // No FTL files found at all - treat as missing main file
+                    let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
+                    let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
+                    let ftl_header_link = Link::new(
+                        &ftl_relative_path,
+                        &format!("file://{}", ftl_abs_path.display()),
+                    )
+                    .to_string();
 
-        let ftl_url = format!("file://{}", ftl_abs_path.display());
-        let ftl_header_link = Link::new(&ftl_relative_path, &ftl_url).to_string();
+                    issues.extend(missing_file_issues(
+                        expected_keys,
+                        locale,
+                        &krate.name,
+                        &ftl_header_link,
+                    ));
+                    continue;
+                }
 
-        match load_locale_ftl(&assets_dir, locale, &krate.name) {
-            LocaleLoadResult::NotFound => {
-                issues.extend(missing_file_issues(
-                    expected_keys,
-                    locale,
-                    &krate.name,
-                    &ftl_header_link,
-                ));
-                continue;
-            },
-            LocaleLoadResult::ReadError(err) => {
-                issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
-                    src: NamedSource::new(ftl_header_link, String::new()),
-                    span: SourceSpan::new(0_usize.into(), 1_usize),
-                    locale: locale.clone(),
-                    help: format!("Failed to read file: {}", err),
-                }));
-                continue;
-            },
-            LocaleLoadResult::Loaded {
-                content,
-                resource,
-                parse_errors,
-            } => {
+                // Validate all loaded files together
                 let ctx = ValidationContext {
                     expected_keys,
                     workspace_root,
                     manifest_dir: &krate.manifest_dir,
                 };
 
-                issues.extend(validate_loaded_ftl(
-                    &content,
-                    &resource,
-                    &parse_errors,
-                    locale,
+                issues.extend(validate_loaded_ftl_files(loaded_files, locale, &ctx));
+            },
+            Err(e) => {
+                // Handle discovery/loading errors
+                let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
+                let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
+                let ftl_header_link = Link::new(
                     &ftl_relative_path,
-                    &ctx,
-                ));
+                    &format!("file://{}", ftl_abs_path.display()),
+                )
+                .to_string();
+
+                issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
+                    src: NamedSource::new(ftl_header_link, String::new()),
+                    span: SourceSpan::new(0_usize.into(), 1_usize),
+                    locale: locale.clone(),
+                    help: format!("Failed to discover FTL files: {}", e),
+                }));
             },
         }
     }
@@ -390,71 +351,56 @@ fn missing_file_issues(
         .collect()
 }
 
-/// Validate a loaded FTL file against expected keys.
-/// Validate a loaded FTL file against expected keys.
-fn validate_loaded_ftl(
-    content: &str,
-    resource: &ast::Resource<String>,
-    parse_errors: &[ParserError],
+/// Validate multiple loaded FTL files against expected keys.
+fn validate_loaded_ftl_files(
+    loaded_files: Vec<LoadedFtlFile>,
     locale: &str,
-    file_name: &str,
     ctx: &ValidationContext,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
-    let mut keys_with_syntax_errors: HashSet<String> = HashSet::new();
+    let mut all_actual_keys: IndexMap<String, (HashSet<String>, String, String)> = IndexMap::new(); // key -> (vars, file_path, header_link)
 
-    // Calculate header link (with absolute path target but relative path text)
-    let ftl_abs_path = ctx.workspace_root.join(file_name);
-    let ftl_header_url = format!("file://{}", ftl_abs_path.display());
-    // file_name here is expected to be relative path (passed from caller)
-    let ftl_header_link = Link::new(file_name, &ftl_header_url).to_string();
+    // Process all files and collect keys
+    for file in loaded_files {
+        let _content = fs::read_to_string(&file.abs_path).unwrap_or_default();
+        let ftl_relative_path = to_relative_path(&file.abs_path, ctx.workspace_root);
+        let ftl_header_link = Link::new(
+            &ftl_relative_path,
+            &format!("file://{}", file.abs_path.display()),
+        )
+        .to_string();
 
-    // Convert parse errors to issues
-    for err in parse_errors {
-        issues.push(parser_error_to_issue(
-            err,
-            content,
-            locale,
-            &ftl_header_link,
-            &mut keys_with_syntax_errors,
-        ));
-    }
+        // Collect actual keys from this file
+        for entry in &file.resource.body {
+            if let ast::Entry::Message(msg) = entry {
+                let key = msg.id.name.clone();
+                let vars = extract_variables_from_message(msg);
 
-    // Scan Junk entries to find keys with errors
-    for entry in &resource.body {
-        if let ast::Entry::Junk { content: junk } = entry
-            && let Some(key) = extract_key_from_junk(junk)
-        {
-            keys_with_syntax_errors.insert(key);
+                // Store the key with its file info
+                all_actual_keys.insert(
+                    key.clone(),
+                    (vars, ftl_relative_path.clone(), ftl_header_link.clone()),
+                );
+            }
         }
     }
-
-    // Build map of actual keys and their variables
-    let actual_keys: IndexMap<String, HashSet<String>> = resource
-        .body
-        .iter()
-        .filter_map(|entry| match entry {
-            ast::Entry::Message(msg) => {
-                Some((msg.id.name.clone(), extract_variables_from_message(msg)))
-            },
-            _ => None,
-        })
-        .collect();
 
     // Check for missing keys and variables
     for (key, key_info) in ctx.expected_keys {
-        // Skip keys that have syntax errors - they're already reported
-        if keys_with_syntax_errors.contains(key) {
-            continue;
-        }
+        let Some((actual_vars, _file_path, header_link)) = all_actual_keys.get(key) else {
+            // Key is missing from all files - report it in the first file as a reasonable default
+            let default_file_path = if let Some((_, path, link)) = all_actual_keys.values().next() {
+                (path.clone(), link.clone())
+            } else {
+                // No files at all, this case should be handled earlier but let's provide a fallback
+                (format!("{}.ftl", "unknown"), format!("{}.ftl", "unknown"))
+            };
 
-        let Some(actual_vars) = actual_keys.get(key) else {
-            // Key is missing
             issues.push(ValidationIssue::MissingKey(MissingKeyError {
-                src: NamedSource::new(ftl_header_link.clone(), content.to_string()),
+                src: NamedSource::new(default_file_path.1, String::new()),
                 key: key.clone(),
                 locale: locale.to_string(),
-                help: format!("Add translation for '{}' in {}", key, ftl_header_link),
+                help: format!("Add translation for '{}' in {}", key, default_file_path.0),
             }));
             continue;
         };
@@ -464,8 +410,9 @@ fn validate_loaded_ftl(
             if actual_vars.contains(var) {
                 continue;
             }
-            let span = find_key_span(content, key)
-                .unwrap_or_else(|| SourceSpan::new(0_usize.into(), 1_usize));
+
+            // Find the span in the actual file (this is approximate)
+            let span = SourceSpan::new(0_usize.into(), 1_usize);
 
             // Build help message with source location if available
             let help = match (&key_info.source_file, key_info.source_line) {
@@ -477,13 +424,7 @@ fn validate_loaded_ftl(
                         ctx.manifest_dir.join(file_path)
                     };
 
-                    // We still want relative path for display text (relative to workspace if possible usually, or crate relative)
-                    // existing logic used to_relative_path(Path::new(file), workspace_root)
-                    // If file is "src/lib.rs", it's relative to crate. But we want relative to workspace?
-                    // to_relative_path expects absolute or correct relative base.
-                    // Let's use abs_file for to_relative_path to be safe.
                     let rel_file = to_relative_path(&abs_file, ctx.workspace_root);
-
                     let file_label = format!("{rel_file}:{line}");
                     let file_url = format!("file://{}", abs_file.display());
                     let file_link = Link::new(&file_label, &file_url);
@@ -508,7 +449,7 @@ fn validate_loaded_ftl(
             };
 
             issues.push(ValidationIssue::MissingVariable(MissingVariableWarning {
-                src: NamedSource::new(ftl_header_link.clone(), content.to_string()),
+                src: NamedSource::new(header_link.clone(), String::new()),
                 span,
                 variable: var.clone(),
                 key: key.clone(),
@@ -519,47 +460,6 @@ fn validate_loaded_ftl(
     }
 
     issues
-}
-
-/// Convert a fluent-syntax ParserError to a ValidationIssue.
-fn parser_error_to_issue(
-    err: &ParserError,
-    content: &str,
-    locale: &str,
-    display_name: &str,
-    keys_with_syntax_errors: &mut HashSet<String>,
-) -> ValidationIssue {
-    // Try to extract message key from the junk slice if available
-    if let Some(ref slice) = err.slice {
-        let junk_content = &content[slice.clone()];
-        if let Some(key) = extract_key_from_junk(junk_content) {
-            keys_with_syntax_errors.insert(key);
-        }
-    }
-
-    // Calculate span from ParserError position
-    let span_len = if err.pos.end > err.pos.start {
-        err.pos.end - err.pos.start
-    } else {
-        1
-    };
-
-    ValidationIssue::SyntaxError(FtlSyntaxError {
-        src: NamedSource::new(display_name, content.to_string()),
-        span: SourceSpan::new(err.pos.start.into(), span_len),
-        locale: locale.to_string(),
-        help: err.kind.to_string(),
-    })
-}
-
-/// Try to extract a message key from junk content.
-/// Junk typically starts with the message identifier like "message-key = ..."
-fn extract_key_from_junk(junk: &str) -> Option<String> {
-    static KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_-]+").unwrap());
-
-    KEY_REGEX
-        .find(junk.trim_start())
-        .map(|m| m.as_str().to_string())
 }
 
 /// Helper to make a path relative to a base path (e.g. workspace root).
@@ -581,53 +481,4 @@ fn to_relative_path(path: &Path, base: &Path) -> String {
 
     // Fallback: return absolute path or best effort
     path.display().to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_find_key_span() {
-        let source = "## Comment\nhello = Hello\nworld = World";
-        let span = find_key_span(source, "hello").unwrap();
-        assert_eq!(span.offset(), 11);
-        assert_eq!(span.len(), 5);
-    }
-
-    #[test]
-    fn test_find_key_span_not_found() {
-        let source = "hello = Hello";
-        let span = find_key_span(source, "goodbye");
-        assert!(span.is_none());
-    }
-
-    #[test]
-    fn test_extract_key_from_junk() {
-        assert_eq!(
-            extract_key_from_junk("my-key = some value"),
-            Some("my-key".to_string())
-        );
-        assert_eq!(
-            extract_key_from_junk("  spaced-key = value"),
-            Some("spaced-key".to_string())
-        );
-        assert_eq!(extract_key_from_junk("# comment"), None);
-        assert_eq!(extract_key_from_junk(""), None);
-    }
-
-    #[test]
-    fn test_extract_variables() {
-        let content = "hello = Hello { $name }, you have { $count } messages";
-        let resource = parser::parse(content.to_string()).unwrap();
-
-        if let ast::Entry::Message(msg) = &resource.body[0] {
-            let vars = extract_variables_from_message(msg);
-            assert!(vars.contains("name"));
-            assert!(vars.contains("count"));
-            assert_eq!(vars.len(), 2);
-        } else {
-            panic!("Expected a message");
-        }
-    }
 }

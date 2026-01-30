@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-assertion_line: 394
 expression: run_check_test(&PACKAGE_CONFIG)
 ---
 STDOUT:
@@ -15,5 +14,5 @@ Error: es_fluent::validate::report
 Error: es_fluent::validate::missing_key
 
   × missing translation key
-  help: Add translation for 'test-app-package.ftl-hello' in ]8;;file://[TEMP_DIR]/i18n/en/test-app-
-        package.ftl\i18n/en/test-app-package.ftl]8;;\
+  help: Add translation for 'test-app-package.ftl-hello' in i18n/en/test-app-
+        package.ftl
