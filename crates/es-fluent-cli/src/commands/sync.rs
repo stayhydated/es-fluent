@@ -5,15 +5,15 @@
 
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, LocaleNotFoundError, SyncMissingKey};
-use crate::ftl::{extract_message_keys, parse_ftl_file};
-use crate::utils::{get_all_locales, ui};
+use crate::ftl::extract_message_keys;
+use crate::utils::{discover_and_load_ftl_files, get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Arguments for the sync command.
 #[derive(Debug, Parser)]
@@ -138,76 +138,6 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     }
 }
 
-/// Information about an FTL file to sync.
-#[derive(Debug)]
-struct FtlFileInfo {
-    /// Relative path from the locale directory (e.g., "crate_name.ftl" or "crate_name/ui.ftl")
-    relative_path: PathBuf,
-    /// The resource parsed from the fallback file
-    resource: ast::Resource<String>,
-    /// Extracted message keys from the fallback file
-    keys: HashSet<String>,
-}
-
-/// Discover all FTL files in the fallback locale directory recursively.
-/// Returns a list of (relative_path, resource, keys) for each FTL file found.
-fn discover_fallback_ftl_files(fallback_dir: &Path, crate_name: &str) -> Result<Vec<FtlFileInfo>> {
-    let mut files = Vec::new();
-
-    // First, check for the main FTL file (e.g., crate_name.ftl)
-    let main_ftl = fallback_dir.join(format!("{}.ftl", crate_name));
-    if main_ftl.exists() {
-        let resource = parse_ftl_file(&main_ftl)?;
-        let keys = extract_message_keys(&resource);
-        files.push(FtlFileInfo {
-            relative_path: PathBuf::from(format!("{}.ftl", crate_name)),
-            resource,
-            keys,
-        });
-    }
-
-    // Then, recursively find all FTL files in subdirectories (namespaced files)
-    // These are files like: fallback_dir/crate_name/namespace.ftl
-    let crate_subdir = fallback_dir.join(crate_name);
-    if crate_subdir.exists() && crate_subdir.is_dir() {
-        discover_ftl_files_recursive(&crate_subdir, fallback_dir, &mut files)?;
-    }
-
-    Ok(files)
-}
-
-/// Recursively discover FTL files in a directory.
-fn discover_ftl_files_recursive(
-    dir: &Path,
-    base_dir: &Path,
-    files: &mut Vec<FtlFileInfo>,
-) -> Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.is_dir() {
-            // Recurse into subdirectories
-            discover_ftl_files_recursive(&path, base_dir, files)?;
-        } else if path.extension().is_some_and(|e| e == "ftl") {
-            // Calculate relative path from base_dir
-            let relative_path = path.strip_prefix(base_dir).map_err(|_| {
-                anyhow::anyhow!("Failed to calculate relative path for {}", path.display())
-            })?;
-
-            let resource = parse_ftl_file(&path)?;
-            let keys = extract_message_keys(&resource);
-            files.push(FtlFileInfo {
-                relative_path: relative_path.to_path_buf(),
-                resource,
-                keys,
-            });
-        }
-    }
-
-    Ok(())
-}
-
 /// Sync all FTL files for a crate.
 fn sync_crate(
     krate: &CrateInfo,
@@ -226,7 +156,8 @@ fn sync_crate(
     }
 
     // Discover all FTL files in the fallback locale (including namespaced ones)
-    let fallback_files = discover_fallback_ftl_files(&fallback_dir, &krate.name)?;
+    let fallback_files =
+        discover_and_load_ftl_files(&assets_dir, &config.fallback_language, &krate.name)?;
 
     if fallback_files.is_empty() {
         return Ok(Vec::new());

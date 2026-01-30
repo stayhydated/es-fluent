@@ -1,4 +1,4 @@
-use crate::error::FluentGenerateError;
+use es_fluent_derive_core::EsFluentResult;
 use es_fluent_derive_core::registry::FtlTypeInfo;
 use indexmap::IndexMap;
 use std::fs;
@@ -10,7 +10,7 @@ pub fn clean<P: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     i18n_path: P,
     items: &[I],
     dry_run: bool,
-) -> Result<bool, FluentGenerateError> {
+) -> EsFluentResult<bool> {
     let i18n_path = i18n_path.as_ref();
     let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
 

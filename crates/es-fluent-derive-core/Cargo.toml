@@ -11,19 +11,24 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 bon = { workspace = true }
 darling = { workspace = true }
 derive_more = { features = [ "full" ], workspace = true }
 es-fluent-toml = { workspace = true }
+fluent-syntax = { workspace = true }
 getset = { workspace = true }
 heck = { workspace = true }
 proc-macro-error2 = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
+serde_json = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 syn = { features = [ "full" ], workspace = true }
 thiserror = { workspace = true }
+toml = { workspace = true }
+unic-langid = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

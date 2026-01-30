@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
-assertion_line: 531
 expression: output
 ---
 STDOUT:
@@ -12,16 +11,7 @@ Error: es_fluent::validate::report
 
   × validation found 1 error(s) and 0 warning(s)
 
-Error: es_fluent::validate::syntax_error
+Error: es_fluent::validate::missing_key
 
-  × FTL syntax error
-   ╭─[]8;;file://[TEMP_DIR]/i18n/en/test-app-a.ftl\i18n/en/test-app-a.ftl]8;;\:2:1]
- 1 │ z_last = Last
- 2 │ hello_a = 
-   · ─────┬─────
-   ·      ╰── syntax error here
- 3 │ orphan_key = Orphan
- 4 │ 
- 5 │ shared-Photos = 
-   ╰────
-  help: Expected a message field for "hello_a"
+  × missing translation key
+  help: Add translation for 'hello_a' in i18n/en/test-app-a.ftl

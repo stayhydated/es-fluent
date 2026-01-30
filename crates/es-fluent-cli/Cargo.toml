@@ -23,6 +23,7 @@ cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
 crossterm = { workspace = true }
+es-fluent-derive-core = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
@@ -50,7 +51,7 @@ assert_fs = { workspace = true }
 insta = { workspace = true }
 predicates = { workspace = true }
 serde_json = { workspace = true }
-tempfile = { workspace = true }
+tempfile.workspace = true
 
 
 [lints]

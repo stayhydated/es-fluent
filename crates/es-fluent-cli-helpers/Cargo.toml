@@ -16,6 +16,7 @@ bon = { workspace = true }
 cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 es-fluent = { workspace = true }
+es-fluent-derive-core = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
