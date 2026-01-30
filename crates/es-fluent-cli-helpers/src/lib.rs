@@ -63,7 +63,7 @@ pub fn run_generate_with_options(
     let i18n_dir = i18n_toml_path
         .parent()
         .expect("Failed to get i18n directory");
-    let config =
+    let _config =
         es_fluent_toml::I18nConfig::from_manifest_dir(i18n_dir).expect("Failed to read i18n.toml");
     let output_path = I18nConfig::output_dir_from_manifest_dir(i18n_dir)
         .expect("Failed to resolve output directory");

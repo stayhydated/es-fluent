@@ -1,7 +1,7 @@
 use darling::FromDeriveInput;
 use es_fluent_derive_core::options::{
     r#enum::{EnumChoiceOpts, EnumOpts},
-    r#struct::{StructKvOpts, StructOpts},
+    r#struct::{StructOpts, StructVariantsOpts},
 };
 
 use syn::{DeriveInput, parse_quote};
@@ -83,7 +83,7 @@ fn struct_kv_keys_parsing_and_field_skipping() {
         }
     };
 
-    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let opts = StructVariantsOpts::from_derive_input(&input).expect("StructKvOpts should parse");
 
     // ftl_enum_ident is <StructName>Variants
     assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructVariants");
@@ -120,7 +120,7 @@ fn struct_kv_keys_must_be_lowercase_snake_case() {
         }
     };
 
-    let opts = StructKvOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let opts = StructVariantsOpts::from_derive_input(&input).expect("StructKvOpts should parse");
     let err = opts
         .keyyed_idents()
         .expect_err("Non-snake_case keys should be rejected");

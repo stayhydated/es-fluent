@@ -283,4 +283,17 @@ pub struct EnumKvFluentAttributeArgs {
     #[getset(get = "pub")]
     #[darling(default)]
     derive: darling::util::PathList,
+    /// Optional namespace for FTL file generation.
+    /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
+    /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
+    /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_path}.ftl`
+    #[darling(default)]
+    namespace: Option<super::namespace::NamespaceValue>,
+}
+
+impl EnumKvFluentAttributeArgs {
+    /// Returns the namespace value if provided.
+    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
+        self.namespace.as_ref()
+    }
 }

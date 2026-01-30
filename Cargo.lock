@@ -8246,6 +8246,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "readme"
+version = "0.6.0"
+dependencies = [
+ "es-fluent",
+ "es-fluent-manager-embedded",
+ "example-shared-lib",
+ "rust-embed",
+ "strum 0.27.2",
+ "unic-langid",
+]
+
+[[package]]
 name = "rectangle-pack"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -61,16 +61,16 @@ namespaces = ["ui", "errors", "messages"]
 
 ## Namespaces (optional)
 
-You can route specific types into separate `.ftl` files by adding a namespace:
+You can route specific types into separate `.ftl` files by adding a namespace. All derive macros support the same namespace options:
+
+### `EsFluent`
 
 ```rs
 use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 #[fluent(namespace = "ui")]
-pub struct Button {
-    pub label: String,
-}
+pub struct Button<'a>(&'a str);
 
 #[derive(EsFluent)]
 #[fluent(namespace = file)]
@@ -80,19 +80,59 @@ pub struct Dialog {
 
 #[derive(EsFluent)]
 #[fluent(namespace(file(relative)))]
-pub struct Modal {
-    pub content: String,
+pub enum Gender {
+    Male,
+    Female,
+    Other(String),
+    Helicopter { type: String },
 }
 ```
 
-Output layout:
+### `EsFluentThis`
+
+```rs
+use es_fluent::EsFluentThis;
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin, namespace = "forms")]
+pub enum Gender { Male, Female, Other }
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin, namespace = file)]
+pub enum Status { Active, Inactive }
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin, namespace(file(relative)))]
+pub struct UserProfile;
+```
+
+### `EsFluentVariants`
+
+```rs
+use es_fluent::EsFluentVariants;
+
+#[derive(EsFluentVariants)]
+#[fluent_variants(keys = ["label", "description"], namespace = "forms")]
+pub struct LoginForm {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(EsFluentVariants)]
+#[fluent_variants(namespace = file)]
+pub enum StatusVariants { Active, Inactive }
+```
+
+### Output Layout
 
 - Default: `assets_dir/{locale}/{crate}.ftl`
 - Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
-`namespace = file` uses the source file stem (e.g., `src/ui/button.rs` -> `button`).
-`namespace(file(relative))` uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`).
-For `EsFluentThis` (and `EsFluentVariants` when using `#[fluent_this(...)]`), the same syntax is available via `#[fluent_this(namespace = "...")]`.
+### Namespace Values
+
+- `namespace = "name"` - explicit namespace string
+- `namespace = file` - uses the source file stem (e.g., `src/ui/button.rs` -> `button`)
+- `namespace = file(relative)` - uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`)
 
 If `namespaces = [...]` is set in `i18n.toml`, both the compiler (at compile-time) and the CLI will validate that string-based namespaces used by your code are in that allowlist.
 

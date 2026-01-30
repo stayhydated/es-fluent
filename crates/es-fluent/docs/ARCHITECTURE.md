@@ -54,7 +54,7 @@ static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 ```
 
 - **Initialization**: Only one backend (e.g., `embedded::init()` or `bevy` plugin) can initialize this context using `set_context` or `set_shared_context`.
-- **Language Selection**: The active language can be changed at runtime using `select_language`, which delegates to the individual localizers.
+- **Language Selection**: The active language can be changed at runtime using `select_language`, which calls `select_language` on the global `FluentManager`.
 - **Consumption**: The internal `localize` function (used by the `FluentDisplay` trait) uses lock-free `ArcSwap::load()` to access the manager, providing better performance in read-heavy localization scenarios.
 
 ### Why ArcSwap?

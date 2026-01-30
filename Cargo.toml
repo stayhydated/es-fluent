@@ -19,6 +19,7 @@ members = [
   "examples/feature-gated-example",
   "examples/bevy-example",
   "examples/gpui-example",
+  "examples/readme",
 ]
 resolver = "3"
 

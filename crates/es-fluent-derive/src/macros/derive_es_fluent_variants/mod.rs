@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::namer;
 use es_fluent_derive_core::options::r#enum::EnumKvOpts;
-use es_fluent_derive_core::options::r#struct::StructKvOpts;
+use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
 use es_fluent_derive_core::options::this::ThisOpts;
 
 use heck::{ToPascalCase as _, ToSnakeCase as _};
@@ -16,7 +16,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let tokens = match &input.data {
         Data::Struct(data) => {
-            let opts = match StructKvOpts::from_derive_input(&input) {
+            let opts = match StructVariantsOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors().into(),
             };
@@ -38,7 +38,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 pub fn process_struct(
-    opts: &StructKvOpts,
+    opts: &StructVariantsOpts,
     data: &syn::DataStruct,
     this_opts: Option<&ThisOpts>,
 ) -> TokenStream {
@@ -76,7 +76,7 @@ pub fn process_struct(
 }
 
 fn generate_unit_enum(
-    opts: &StructKvOpts,
+    opts: &StructVariantsOpts,
     _data: &syn::DataStruct,
     ident: &syn::Ident,
     base_ident: &syn::Ident,
@@ -163,31 +163,60 @@ fn generate_unit_enum(
     let type_name = ident.to_string();
     let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
-    // Generate namespace expression based on this_opts attribute
-    let namespace_expr = match this_opts.and_then(|o| o.attr_args().namespace()) {
-        Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-            quote! { Some(#s) }
-        },
-        Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-            quote! {
-                Some({
-                    const FILE_PATH: &str = file!();
-                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                    NAMESPACE
-                })
-            }
-        },
-        Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-            quote! {
-                Some({
-                    const FILE_PATH: &str = file!();
-                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
-                    NAMESPACE
-                })
-            }
-        },
-        None => quote! { None },
-    };
+    // Generate namespace expression - prefer fluent_variants namespace, fall back to fluent_this
+    let namespace_expr = opts
+        .attr_args()
+        .namespace()
+        .map(|ns| match ns {
+            es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s) => {
+                quote! { Some(#s) }
+            },
+            es_fluent_derive_core::options::namespace::NamespaceValue::File => {
+                quote! {
+                    Some({
+                        const FILE_PATH: &str = file!();
+                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
+                        NAMESPACE
+                    })
+                }
+            },
+            es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative => {
+                quote! {
+                    Some({
+                        const FILE_PATH: &str = file!();
+                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                        NAMESPACE
+                    })
+                }
+            },
+        })
+        .or_else(|| {
+            this_opts.and_then(|o| match o.attr_args().namespace() {
+                Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
+                    Some(quote! { Some(#s) })
+                },
+                Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
+                    Some(quote! {
+                        Some({
+                            const FILE_PATH: &str = file!();
+                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
+                            NAMESPACE
+                        })
+                    })
+                },
+                Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
+                    Some(quote! {
+                        Some({
+                            const FILE_PATH: &str = file!();
+                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                            NAMESPACE
+                        })
+                    })
+                },
+                None => None,
+            })
+        })
+        .unwrap_or_else(|| quote! { None });
 
     let inventory_submit = quote! {
         #[doc(hidden)]
@@ -403,31 +432,60 @@ fn generate_enum_unit_enum(
     let type_name = ident.to_string();
     let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
-    // Generate namespace expression based on this_opts attribute
-    let namespace_expr = match this_opts.and_then(|o| o.attr_args().namespace()) {
-        Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-            quote! { Some(#s) }
-        },
-        Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-            quote! {
-                Some({
-                    const FILE_PATH: &str = file!();
-                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                    NAMESPACE
-                })
-            }
-        },
-        Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-            quote! {
-                Some({
-                    const FILE_PATH: &str = file!();
-                    const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
-                    NAMESPACE
-                })
-            }
-        },
-        None => quote! { None },
-    };
+    // Generate namespace expression - prefer fluent_variants namespace, fall back to fluent_this
+    let namespace_expr = opts
+        .attr_args()
+        .namespace()
+        .map(|ns| match ns {
+            es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s) => {
+                quote! { Some(#s) }
+            },
+            es_fluent_derive_core::options::namespace::NamespaceValue::File => {
+                quote! {
+                    Some({
+                        const FILE_PATH: &str = file!();
+                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
+                        NAMESPACE
+                    })
+                }
+            },
+            es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative => {
+                quote! {
+                    Some({
+                        const FILE_PATH: &str = file!();
+                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                        NAMESPACE
+                    })
+                }
+            },
+        })
+        .or_else(|| {
+            this_opts.and_then(|o| match o.attr_args().namespace() {
+                Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
+                    Some(quote! { Some(#s) })
+                },
+                Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
+                    Some(quote! {
+                        Some({
+                            const FILE_PATH: &str = file!();
+                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
+                            NAMESPACE
+                        })
+                    })
+                },
+                Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
+                    Some(quote! {
+                        Some({
+                            const FILE_PATH: &str = file!();
+                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                            NAMESPACE
+                        })
+                    })
+                },
+                None => None,
+            })
+        })
+        .unwrap_or_else(|| quote! { None });
 
     let inventory_submit = quote! {
         #[doc(hidden)]
