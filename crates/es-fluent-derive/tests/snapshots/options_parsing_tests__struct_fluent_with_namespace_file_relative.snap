@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 StructOpts {
-    ident: Ident {
-        sym: Modal,
-    },
+    ident: Ident(
+        Modal,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +18,9 @@ StructOpts {
             fields: [
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: content,
-                        },
+                        Ident(
+                            content,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,9 +28,9 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -43,7 +43,7 @@ StructOpts {
                 },
             ],
             span: Some(
-                bytes(0..0),
+                Span,
             ),
             __nonexhaustive: (),
         },

@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 EnumOpts {
-    ident: Ident {
-        sym: ApiError,
-    },
+    ident: Ident(
+        ApiError,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -15,14 +15,14 @@ EnumOpts {
     data: Enum(
         [
             VariantOpts {
-                ident: Ident {
-                    sym: NotFound,
-                },
+                ident: Ident(
+                    NotFound,
+                ),
                 fields: Fields {
                     style: Unit,
                     fields: [],
                     span: Some(
-                        bytes(0..0),
+                        Span,
                     ),
                     __nonexhaustive: (),
                 },
@@ -30,14 +30,14 @@ EnumOpts {
                 key: None,
             },
             VariantOpts {
-                ident: Ident {
-                    sym: Unauthorized,
-                },
+                ident: Ident(
+                    Unauthorized,
+                ),
                 fields: Fields {
                     style: Unit,
                     fields: [],
                     span: Some(
-                        bytes(0..0),
+                        Span,
                     ),
                     __nonexhaustive: (),
                 },

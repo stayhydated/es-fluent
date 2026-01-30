@@ -3986,6 +3986,7 @@ dependencies = [
  "darling 0.23.0",
  "derive_more 2.1.1",
  "es-fluent-toml",
+ "fluent-syntax",
  "getset",
  "heck 0.5.0",
  "insta",

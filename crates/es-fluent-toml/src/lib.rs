@@ -121,6 +121,17 @@ pub struct I18nConfig {
     /// ```
     #[serde(default)]
     pub namespaces: Option<Vec<String>>,
+    /// Whether to enforce strict mode for FTL key validation at compile time.
+    /// When `true`, the derive macro will emit a compile-time error if a key is missing
+    /// from the FTL files. When `false` or not specified, missing keys are allowed.
+    ///
+    /// # Examples
+    ///
+    /// ```toml
+    /// strict = true
+    /// ```
+    #[serde(default)]
+    pub strict: bool,
 }
 
 impl I18nConfig {
@@ -354,6 +365,7 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("locales"),
             fluent_feature: None,
             namespaces: None,
+            strict: false,
         };
 
         assert_eq!(config.assets_dir_path(), PathBuf::from("locales"));
@@ -366,6 +378,7 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
             namespaces: None,
+            strict: false,
         };
 
         assert_eq!(config.fallback_language_id(), "en-US");
@@ -378,6 +391,7 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
             namespaces: None,
+            strict: false,
         };
 
         let lang = config.fallback_language_identifier().unwrap();
@@ -392,6 +406,7 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
             namespaces: None,
+            strict: false,
         };
 
         let result = config.fallback_language_identifier();
@@ -420,6 +435,7 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
             namespaces: None,
+            strict: false,
         };
 
         let languages = config
@@ -445,6 +461,7 @@ assets_dir = "i18n"
             assets_dir: PathBuf::from("i18n"),
             fluent_feature: None,
             namespaces: None,
+            strict: false,
         };
 
         let languages = config
@@ -505,5 +522,55 @@ assets_dir = "i18n"
 
         let config = I18nConfig::read_from_path(&config_path).unwrap();
         assert!(config.fluent_feature.is_none());
+    }
+
+    #[test]
+    fn test_strict_true() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let config_content = r#"
+fallback_language = "en"
+assets_dir = "i18n"
+strict = true
+"#;
+
+        fs::write(&config_path, config_content).unwrap();
+
+        let config = I18nConfig::read_from_path(&config_path).unwrap();
+        assert!(config.strict);
+    }
+
+    #[test]
+    fn test_strict_false() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let config_content = r#"
+fallback_language = "en"
+assets_dir = "i18n"
+strict = false
+"#;
+
+        fs::write(&config_path, config_content).unwrap();
+
+        let config = I18nConfig::read_from_path(&config_path).unwrap();
+        assert!(!config.strict);
+    }
+
+    #[test]
+    fn test_strict_default_false() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("i18n.toml");
+
+        let config_content = r#"
+fallback_language = "en"
+assets_dir = "i18n"
+"#;
+
+        fs::write(&config_path, config_content).unwrap();
+
+        let config = I18nConfig::read_from_path(&config_path).unwrap();
+        assert!(!config.strict);
     }
 }

@@ -1,8 +1,6 @@
 ## Gender
 
-gender-Female = Female
 gender-Helicopter = Helicopter
-gender-Male = Male
 gender-Other = Other
 
 ## Shared
