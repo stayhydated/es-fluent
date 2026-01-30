@@ -4,6 +4,10 @@ use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::options::namespace::NamespaceValue;
 use crate::options::r#struct::StructOpts;
 use es_fluent_toml::I18nConfig;
+use fluent_syntax::ast;
+use std::collections::HashSet;
+use std::fs;
+use std::path::Path;
 
 /// Validates the `es-fluent` attributes on a struct.
 /// Currently only checks that at most one field is marked `#[fluent(default)]`.
@@ -99,6 +103,109 @@ pub fn validate_namespace_against_allowed(
     }
 
     Ok(())
+}
+
+/// Validates that all FTL keys exist in the FTL files when strict mode is enabled.
+///
+/// This function checks if the given keys exist in the fallback language's FTL files.
+/// If strict mode is enabled in `i18n.toml` and any key is missing, it returns an error.
+///
+/// # Arguments
+/// * `keys` - The FTL keys to validate
+/// * `span` - Optional span for error reporting
+///
+/// # Returns
+/// * `Ok(())` if strict mode is disabled or all keys exist
+/// * `Err(EsFluentCoreError)` if strict mode is enabled and a key is missing
+pub fn validate_keys_in_strict_mode(
+    keys: &[String],
+    span: Option<proc_macro2::Span>,
+) -> EsFluentCoreResult<()> {
+    // Try to read the config; if it doesn't exist or strict is false, skip validation
+    let config = match I18nConfig::read_from_manifest_dir() {
+        Ok(c) => c,
+        Err(_) => return Ok(()), // No config file, no validation
+    };
+
+    // If strict mode is not enabled, skip validation
+    if !config.strict {
+        return Ok(());
+    }
+
+    // Get the fallback language and assets directory
+    let fallback_lang = config.fallback_language_id();
+    let assets_dir = match config.assets_dir_from_manifest() {
+        Ok(dir) => dir,
+        Err(_) => return Ok(()), // Can't find assets dir, skip validation
+    };
+
+    // Parse all FTL files in the fallback language directory
+    let fallback_dir = assets_dir.join(fallback_lang);
+    let ftl_keys = collect_all_ftl_keys(&fallback_dir);
+
+    // Check if all keys exist
+    for key in keys {
+        if !ftl_keys.contains(key) {
+            return Err(EsFluentCoreError::AttributeError {
+                message: format!(
+                    "FTL key '{}' is missing from the fallback language ('{}') FTL files",
+                    key, fallback_lang
+                ),
+                span,
+            }
+            .with_help(format!(
+                "Add the key to an FTL file in {}/ or set strict = false in i18n.toml",
+                fallback_dir.display()
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// Collect all message keys from FTL files in a directory (recursively).
+fn collect_all_ftl_keys(dir: &Path) -> HashSet<String> {
+    let mut keys = HashSet::new();
+
+    if !dir.exists() {
+        return keys;
+    }
+
+    collect_ftl_keys_recursive(dir, &mut keys);
+
+    keys
+}
+
+/// Recursively collect message keys from FTL files.
+fn collect_ftl_keys_recursive(dir: &Path, keys: &mut HashSet<String>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            // Recursively search subdirectories
+            collect_ftl_keys_recursive(&path, keys);
+        } else if path.extension().is_some_and(|ext| ext == "ftl") {
+            let content = match fs::read_to_string(&path) {
+                Ok(content) => content,
+                Err(_) => continue,
+            };
+
+            let resource = match fluent_syntax::parser::parse(content) {
+                Ok(resource) => resource,
+                Err((resource, _)) => resource, // Use partial result on parse errors
+            };
+
+            for entry in &resource.body {
+                if let ast::Entry::Message(msg) = entry {
+                    keys.insert(msg.id.name.clone());
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
