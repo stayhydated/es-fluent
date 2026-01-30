@@ -83,6 +83,10 @@ A component wrapper for localizable data.
 
 When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change` system iterates over all `FluentText` components and re-renders the string data. Additionally, `update_fluent_text_system` handles initial rendering and updates when `FluentText` components are added or modified.
 
+### `BevyFluentText` (derive macro)
+
+A derive macro (re-exported from `es-fluent-manager-macros`) that auto-registers `FluentText<T>` systems with the Bevy app via inventory.
+
 ### `define_i18n_module!`
 
 Re-exported from `es-fluent-manager-macros::define_bevy_i18n_module`. See the [es-fluent-manager-macros architecture](../../es-fluent-manager-macros/docs/ARCHITECTURE.md) for details on how the macro discovers languages and generates module data. This macro registers the crate's assets with the system so Bevy knows which domains to load.
@@ -93,5 +97,5 @@ Re-exported from `es-fluent-manager-macros::define_bevy_i18n_module`. See the [e
 1. **Loading**: Bevy loads all `.ftl` assets defined by registered modules.
 1. **Compilation**: `I18nBundle` creates `FluentBundle`s from loaded assets.
 1. **Localization**:
-   - **Components**: `FluentText` components update automatically via `update_all_fluent_text_on_locale_change`.
+   - **Components**: `FluentText<T>` components update automatically via `update_all_fluent_text_on_locale_change`.
    - **Manual/Macro**: `localize!("my-id")` works anywhere because the global hook calls back into the Bevy state.

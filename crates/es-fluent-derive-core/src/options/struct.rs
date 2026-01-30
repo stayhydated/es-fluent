@@ -133,7 +133,7 @@ impl StructFluentAttributeArgs {
 /// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]
 #[darling(attributes(fluent_variants))]
-pub struct StructKvFieldOpts {
+pub struct StructVariantsFieldOpts {
     /// The identifier of the field.
     #[getset(get = "pub")]
     ident: Option<syn::Ident>,
@@ -145,7 +145,7 @@ pub struct StructKvFieldOpts {
     skip: Option<bool>,
 }
 
-impl StructKvFieldOpts {
+impl StructVariantsFieldOpts {
     /// Returns `true` if the field should be skipped.
     pub fn is_skipped(&self) -> bool {
         self.skip.unwrap_or(false)
@@ -156,17 +156,17 @@ impl StructKvFieldOpts {
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
 #[darling(supports(struct_named, struct_unit), attributes(fluent_variants))]
 #[getset(get = "pub")]
-pub struct StructKvOpts {
+pub struct StructVariantsOpts {
     /// The identifier of the struct.
     ident: syn::Ident,
     /// The generics of the struct.
     generics: syn::Generics,
-    data: darling::ast::Data<darling::util::Ignored, StructKvFieldOpts>,
+    data: darling::ast::Data<darling::util::Ignored, StructVariantsFieldOpts>,
     #[darling(flatten)]
-    attr_args: StructKvFluentAttributeArgs,
+    attr_args: StructVariantsFluentAttributeArgs,
 }
 
-impl StructKvOpts {
+impl StructVariantsOpts {
     const FTL_ENUM_IDENT: &str = "Variants";
 
     /// Returns the identifier of the FTL enum.
@@ -210,7 +210,7 @@ impl StructKvOpts {
     }
 
     /// Returns the fields of the struct that are not skipped.
-    pub fn fields(&self) -> Vec<&StructKvFieldOpts> {
+    pub fn fields(&self) -> Vec<&StructVariantsFieldOpts> {
         match &self.data {
             darling::ast::Data::Struct(fields) => fields
                 .fields
@@ -224,7 +224,7 @@ impl StructKvOpts {
 
 /// Attribute arguments for a struct.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct StructKvFluentAttributeArgs {
+pub struct StructVariantsFluentAttributeArgs {
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
     /// The traits to derive on the FTL enum.

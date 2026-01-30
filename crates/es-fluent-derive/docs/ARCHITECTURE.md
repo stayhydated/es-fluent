@@ -7,7 +7,7 @@ This document details the architecture of the `es-fluent-derive` crate, which pr
 `es-fluent-derive` is a procedural macro crate that inspects Rust structs and enums at compile time to:
 
 1. Verify invalid or missing attributes (using `es-fluent-derive-core::options`).
-1. Generate `impl FluentDisplay` and `impl FluentValue` implementations for runtime usage.
+1. Generate `impl FluentDisplay` and `impl From<...> for FluentValue` implementations for runtime usage.
 1. Generate static registration code using `inventory::submit!`.
 
 ## Architecture
