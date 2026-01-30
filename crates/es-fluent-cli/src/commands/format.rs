@@ -5,7 +5,7 @@
 
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
-use crate::utils::{get_all_locales, ui};
+use crate::utils::{ftl::main_ftl_path, get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
@@ -166,7 +166,7 @@ fn format_crate(
         }
 
         // Format only the FTL file for this crate
-        let ftl_file = locale_dir.join(format!("{}.ftl", krate.name));
+        let ftl_file = main_ftl_path(&assets_dir, locale, &krate.name);
         if ftl_file.exists() {
             let ftl_file = fs::canonicalize(&ftl_file).unwrap_or(ftl_file);
             let result = format_ftl_file(&ftl_file, check_only);

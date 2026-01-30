@@ -3,10 +3,15 @@
 mod cli;
 mod generate;
 
+use es_fluent_derive_core::{EsFluentError, write_metadata_result};
+use es_fluent_toml::I18nConfig;
 use std::path::Path;
 
 pub use cli::{ExpectedKey, InventoryData, write_inventory_for_crate};
-pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs, GeneratorError};
+pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs};
+
+/// Type alias for compatibility
+pub type GeneratorError = EsFluentError;
 
 /// Run the FTL generation process for a crate.
 ///
@@ -20,14 +25,16 @@ pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs, GeneratorE
 pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
     // Read config from parent crate's i18n.toml
     let i18n_toml_path = Path::new(i18n_toml_path);
-    let config = es_fluent_toml::I18nConfig::read_from_path(i18n_toml_path)
-        .expect("Failed to read i18n.toml");
-
     let i18n_dir = i18n_toml_path
         .parent()
         .expect("Failed to get i18n directory");
-    let assets_dir = i18n_dir.join(&config.assets_dir);
-    let output_path = assets_dir.join(&config.fallback_language);
+    let config =
+        es_fluent_toml::I18nConfig::from_manifest_dir(i18n_dir).expect("Failed to read i18n.toml");
+    let output_path = I18nConfig::output_dir_from_manifest_dir(i18n_dir)
+        .expect("Failed to resolve output directory");
+    let assets_dir = config
+        .assets_dir_from_base(Some(i18n_dir))
+        .expect("Failed to resolve assets directory");
 
     let changed = EsFluentGenerator::builder()
         .output_path(output_path)
@@ -39,16 +46,7 @@ pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
 
     // Write result to JSON file for CLI to read
     let result = serde_json::json!({ "changed": changed });
-
-    let metadata_dir = std::path::Path::new("metadata").join(crate_name);
-    std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
-
-    std::fs::write(
-        metadata_dir.join("result.json"),
-        serde_json::to_string(&result).unwrap(),
-    )
-    .expect("Failed to write result file");
-
+    write_metadata_result(crate_name, &result).expect("Failed to write metadata result");
     changed
 }
 
@@ -62,18 +60,20 @@ pub fn run_generate_with_options(
     dry_run: bool,
 ) -> bool {
     let i18n_toml_path = Path::new(i18n_toml_path);
-    let config = es_fluent_toml::I18nConfig::read_from_path(i18n_toml_path)
-        .expect("Failed to read i18n.toml");
-
     let i18n_dir = i18n_toml_path
         .parent()
         .expect("Failed to get i18n directory");
-    let assets_dir = i18n_dir.join(&config.assets_dir);
-    let output_path = assets_dir.join(&config.fallback_language);
+    let config =
+        es_fluent_toml::I18nConfig::from_manifest_dir(i18n_dir).expect("Failed to read i18n.toml");
+    let output_path = I18nConfig::output_dir_from_manifest_dir(i18n_dir)
+        .expect("Failed to resolve output directory");
 
     let changed = EsFluentGenerator::builder()
         .output_path(output_path)
-        .assets_dir(assets_dir)
+        .assets_dir(
+            I18nConfig::assets_dir_from_manifest_dir(i18n_dir)
+                .expect("Failed to resolve assets directory"),
+        )
         .crate_name(crate_name)
         .mode(mode)
         .dry_run(dry_run)
@@ -82,16 +82,7 @@ pub fn run_generate_with_options(
         .expect("Failed to run generator");
 
     let result = serde_json::json!({ "changed": changed });
-
-    let metadata_dir = std::path::Path::new("metadata").join(crate_name);
-    std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
-
-    std::fs::write(
-        metadata_dir.join("result.json"),
-        serde_json::to_string(&result).unwrap(),
-    )
-    .expect("Failed to write result file");
-
+    write_metadata_result(crate_name, &result).expect("Failed to write metadata result");
     changed
 }
 
@@ -112,14 +103,16 @@ pub fn run_clean_with_options(
     dry_run: bool,
 ) -> bool {
     let i18n_toml_path = Path::new(i18n_toml_path);
-    let config = es_fluent_toml::I18nConfig::read_from_path(i18n_toml_path)
-        .expect("Failed to read i18n.toml");
-
     let i18n_dir = i18n_toml_path
         .parent()
         .expect("Failed to get i18n directory");
-    let assets_dir = i18n_dir.join(&config.assets_dir);
-    let output_path = assets_dir.join(&config.fallback_language);
+    let config =
+        es_fluent_toml::I18nConfig::from_manifest_dir(i18n_dir).expect("Failed to read i18n.toml");
+    let output_path = I18nConfig::output_dir_from_manifest_dir(i18n_dir)
+        .expect("Failed to resolve output directory");
+    let assets_dir = config
+        .assets_dir_from_base(Some(i18n_dir))
+        .expect("Failed to resolve assets directory");
 
     let changed = EsFluentGenerator::builder()
         .output_path(output_path)
@@ -131,16 +124,7 @@ pub fn run_clean_with_options(
         .expect("Failed to run clean");
 
     let result = serde_json::json!({ "changed": changed });
-
-    let metadata_dir = std::path::Path::new("metadata").join(crate_name);
-    std::fs::create_dir_all(&metadata_dir).expect("Failed to create metadata directory");
-
-    std::fs::write(
-        metadata_dir.join("result.json"),
-        serde_json::to_string(&result).unwrap(),
-    )
-    .expect("Failed to write result file");
-
+    write_metadata_result(crate_name, &result).expect("Failed to write metadata result");
     changed
 }
 

@@ -13,6 +13,7 @@ readme = "README.md"
 
 [dependencies]
 anyhow = { workspace = true }
+es-fluent-derive-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 rust-embed = { workspace = true }

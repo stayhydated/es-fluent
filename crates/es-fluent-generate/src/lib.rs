@@ -12,7 +12,7 @@ pub mod error;
 pub mod formatting;
 pub mod value;
 
-use error::FluentGenerateError;
+use es_fluent_derive_core::EsFluentResult;
 use value::ValueFormatter;
 
 /// The mode to use when parsing Fluent files.
@@ -74,7 +74,7 @@ pub fn generate<P: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     items: &[I],
     mode: FluentParseMode,
     dry_run: bool,
-) -> Result<bool, FluentGenerateError> {
+) -> EsFluentResult<bool> {
     let i18n_path = i18n_path.as_ref();
     let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
 
@@ -160,7 +160,7 @@ pub(crate) fn print_diff(old: &str, new: &str) {
 ///
 /// Returns an empty resource if the file doesn't exist or is empty.
 /// Logs warnings for parsing errors but continues with partial parse.
-fn read_existing_resource(file_path: &Path) -> Result<ast::Resource<String>, FluentGenerateError> {
+fn read_existing_resource(file_path: &Path) -> EsFluentResult<ast::Resource<String>> {
     if !file_path.exists() {
         return Ok(ast::Resource { body: Vec::new() });
     }
@@ -191,7 +191,7 @@ fn write_updated_resource(
     resource: &ast::Resource<String>,
     dry_run: bool,
     formatter: impl Fn(&ast::Resource<String>) -> String,
-) -> Result<bool, FluentGenerateError> {
+) -> EsFluentResult<bool> {
     let is_empty = resource.body.is_empty();
     let final_content = if is_empty {
         String::new()
@@ -248,7 +248,7 @@ fn write_or_preview(
     final_content: &str,
     is_empty: bool,
     dry_run: bool,
-) -> Result<(), FluentGenerateError> {
+) -> EsFluentResult<()> {
     if dry_run {
         let display_path = fs::canonicalize(file_path).unwrap_or_else(|_| file_path.to_path_buf());
         let msg = match (is_empty, !current_content.trim().is_empty()) {

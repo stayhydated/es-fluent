@@ -248,6 +248,27 @@ impl I18nConfig {
     pub fn fallback_language_id(&self) -> &str {
         &self.fallback_language
     }
+
+    /// Read configuration and resolve paths for a given manifest directory.
+    ///
+    /// This is a common pattern used across CLI tools and helpers.
+    pub fn from_manifest_dir(manifest_dir: &Path) -> Result<Self, I18nConfigError> {
+        let config_path = manifest_dir.join("i18n.toml");
+        Self::read_from_path(config_path)
+    }
+
+    /// Get assets directory resolved from a manifest directory.
+    pub fn assets_dir_from_manifest_dir(manifest_dir: &Path) -> Result<PathBuf, I18nConfigError> {
+        let config = Self::from_manifest_dir(manifest_dir)?;
+        config.assets_dir_from_base(Some(manifest_dir))
+    }
+
+    /// Get output directory (fallback language directory) from manifest directory.
+    pub fn output_dir_from_manifest_dir(manifest_dir: &Path) -> Result<PathBuf, I18nConfigError> {
+        let config = Self::from_manifest_dir(manifest_dir)?;
+        let assets_dir = config.assets_dir_from_base(Some(manifest_dir))?;
+        Ok(assets_dir.join(&config.fallback_language))
+    }
 }
 
 /// Parse a directory entry as a language identifier.

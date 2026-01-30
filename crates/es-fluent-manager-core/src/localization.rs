@@ -1,24 +1,18 @@
 //! This module provides the core types for managing translations.
 
+use es_fluent_derive_core::EsFluentError;
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
-use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 
-/// An error that can occur when localizing a message.
-#[derive(Debug, Error)]
-pub enum LocalizationError {
-    /// An error that occurs when a language is not supported.
-    #[error("Language '{0}' is not supported by this module")]
-    LanguageNotSupported(LanguageIdentifier),
-    /// An error that occurs in the localization backend.
-    #[error("An underlying localization backend error occurred: {0}")]
-    BackendError(#[from] anyhow::Error),
-}
+pub type LocalizationError = EsFluentError;
 
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
-    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError>;
+    fn select_language(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> es_fluent_derive_core::EsFluentResult<()>;
     /// Localizes a message by its ID.
     fn localize<'a>(
         &self,

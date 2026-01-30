@@ -3,8 +3,131 @@
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro::TokenStream;
 use quote::quote;
-use std::fs;
+use std::{collections::HashSet, fs, path::PathBuf};
 use syn::{DeriveInput, parse_macro_input};
+
+struct I18nAssets {
+    root_path: PathBuf,
+    languages: Vec<String>,
+    namespaces: Vec<String>,
+}
+
+fn load_i18n_assets(crate_name: &str) -> I18nAssets {
+    let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
+        Ok(config) => config,
+        Err(es_fluent_toml::I18nConfigError::NotFound) => {
+            panic!(
+                "No i18n.toml configuration file found in project root. Please create one with the required settings."
+            );
+        },
+        Err(e) => {
+            panic!("Failed to read i18n.toml configuration: {}", e);
+        },
+    };
+
+    let i18n_root_path = match config.assets_dir_from_manifest() {
+        Ok(path) => path,
+        Err(e) => {
+            panic!(
+                "Failed to resolve assets directory from configuration: {}",
+                e
+            );
+        },
+    };
+
+    if let Err(e) = config.validate_assets_dir() {
+        panic!("Assets directory validation failed: {}", e);
+    }
+
+    let entries = fs::read_dir(&i18n_root_path).unwrap_or_else(|e| {
+        panic!(
+            "Failed to read i18n directory at {:?}: {}",
+            i18n_root_path, e
+        )
+    });
+
+    let mut namespaces = HashSet::new();
+    let mut languages = Vec::new();
+
+    for entry in entries {
+        let entry = entry.expect("Failed to read directory entry");
+        let path = entry.path();
+        if path.is_dir()
+            && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
+        {
+            // Check for main FTL file (e.g., bevy-example.ftl)
+            let ftl_file_name = format!("{}.ftl", crate_name);
+            let ftl_path = path.join(&ftl_file_name);
+
+            // Check for subdirectory with namespaced FTL files (e.g., bevy-example/ui.ftl)
+            let crate_dir_path = path.join(crate_name);
+
+            let has_main_file = ftl_path.exists();
+            let has_namespace_dir = crate_dir_path.is_dir();
+
+            if has_main_file || has_namespace_dir {
+                languages.push(lang_code.to_string());
+            }
+
+            // Discover namespaces from the crate's subdirectory
+            if has_namespace_dir && let Ok(ns_entries) = fs::read_dir(&crate_dir_path) {
+                for ns_entry in ns_entries.flatten() {
+                    let ns_path = ns_entry.path();
+                    // Check if it's a file with .ftl extension
+                    if ns_path.is_file()
+                        && let Some(ns_name) = ns_path.file_stem().and_then(|s| s.to_str())
+                        && let Some(ext) = ns_path.extension().and_then(|s| s.to_str())
+                        && ext == "ftl"
+                    {
+                        namespaces.insert(ns_name.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    I18nAssets {
+        root_path: i18n_root_path,
+        languages,
+        namespaces: namespaces.into_iter().collect(),
+    }
+}
+
+fn language_identifier_tokens(languages: &[String]) -> Vec<proc_macro2::TokenStream> {
+    languages
+        .iter()
+        .map(|lang| quote! { es_fluent::unic_langid::langid!(#lang) })
+        .collect()
+}
+
+fn namespace_tokens(namespaces: &[String]) -> Vec<proc_macro2::TokenStream> {
+    namespaces.iter().map(|ns| quote! { #ns }).collect()
+}
+
+fn bevy_fluent_text_registration_module(
+    mod_name: &syn::Ident,
+    _ident: &syn::Ident,
+    register_call: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    quote! {
+        #[doc(hidden)]
+        mod #mod_name {
+            use super::*;
+
+            struct Registration;
+
+            impl ::es_fluent_manager_bevy::BevyFluentTextRegistration for Registration {
+                fn register(&self, app: &mut ::es_fluent_manager_bevy::bevy::prelude::App) {
+                    #register_call
+                }
+            }
+
+            ::es_fluent_manager_bevy::inventory::submit!(
+                &Registration as &dyn ::es_fluent_manager_bevy::BevyFluentTextRegistration
+            );
+        }
+    }
+}
 
 /// Defines an embedded i18n module.
 ///
@@ -33,58 +156,15 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
-    let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
-        Ok(config) => config,
-        Err(es_fluent_toml::I18nConfigError::NotFound) => {
-            panic!(
-                "No i18n.toml configuration file found in project root. Please create one with the required settings."
-            );
-        },
-        Err(e) => {
-            panic!("Failed to read i18n.toml configuration: {}", e);
-        },
-    };
+    let I18nAssets {
+        root_path: i18n_root_path,
+        languages,
+        namespaces,
+    } = load_i18n_assets(&crate_name);
 
-    let i18n_root_path = match config.assets_dir_from_manifest() {
-        Ok(path) => path,
-        Err(e) => {
-            panic!(
-                "Failed to resolve assets directory from configuration: {}",
-                e
-            );
-        },
-    };
+    let language_identifiers = language_identifier_tokens(&languages);
 
-    if let Err(e) = config.validate_assets_dir() {
-        panic!("Assets directory validation failed: {}", e);
-    }
-
-    let mut languages = Vec::new();
-    let entries = fs::read_dir(&i18n_root_path).unwrap_or_else(|e| {
-        panic!(
-            "Failed to read i18n directory at {:?}: {}",
-            i18n_root_path, e
-        )
-    });
-
-    for entry in entries {
-        let entry = entry.expect("Failed to read directory entry");
-        let path = entry.path();
-        if path.is_dir()
-            && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
-        {
-            let ftl_file_name = format!("{}.ftl", crate_name);
-            let ftl_path = path.join(ftl_file_name);
-
-            if ftl_path.exists() {
-                languages.push(lang_code.to_string());
-            }
-        }
-    }
-
-    let language_identifiers = languages.iter().map(|lang| {
-        quote! { es_fluent::unic_langid::langid!(#lang) }
-    });
+    let namespace_strings = namespace_tokens(&namespaces);
 
     let i18n_root_str = i18n_root_path.to_string_lossy();
 
@@ -105,6 +185,9 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
                 domain: #crate_name,
                 supported_languages: &[
                     #(#language_identifiers),*
+                ],
+                namespaces: &[
+                    #(#namespace_strings),*
                 ],
             };
 
@@ -176,50 +259,29 @@ pub fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
 
     if locale_fields.is_empty() {
         // Simple registration without locale refresh
-        let expanded = quote! {
-            #[doc(hidden)]
-            mod #mod_name {
-                use super::*;
-
-                struct Registration;
-
-                impl ::es_fluent_manager_bevy::BevyFluentTextRegistration for Registration {
-                    fn register(&self, app: &mut ::es_fluent_manager_bevy::bevy::prelude::App) {
-                        ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text::<#ident>(app);
-                    }
-                }
-
-                ::es_fluent_manager_bevy::inventory::submit!(
-                    &Registration as &dyn ::es_fluent_manager_bevy::BevyFluentTextRegistration
-                );
-            }
-        };
-        TokenStream::from(expanded)
+        let registration_module = bevy_fluent_text_registration_module(
+            &mod_name,
+            ident,
+            quote! {
+                ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text::<#ident>(app);
+            },
+        );
+        TokenStream::from(quote! { #registration_module })
     } else {
         // Generate RefreshForLocale impl and use locale-aware registration
         let refresh_impl = generate_refresh_for_locale_impl(ident, &input.data, &locale_fields);
+        let registration_module = bevy_fluent_text_registration_module(
+            &mod_name,
+            ident,
+            quote! {
+                ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text_from_locale::<#ident>(app);
+            },
+        );
 
-        let expanded = quote! {
+        TokenStream::from(quote! {
             #refresh_impl
-
-            #[doc(hidden)]
-            mod #mod_name {
-                use super::*;
-
-                struct Registration;
-
-                impl ::es_fluent_manager_bevy::BevyFluentTextRegistration for Registration {
-                    fn register(&self, app: &mut ::es_fluent_manager_bevy::bevy::prelude::App) {
-                        ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text_from_locale::<#ident>(app);
-                    }
-                }
-
-                ::es_fluent_manager_bevy::inventory::submit!(
-                    &Registration as &dyn ::es_fluent_manager_bevy::BevyFluentTextRegistration
-                );
-            }
-        };
-        TokenStream::from(expanded)
+            #registration_module
+        })
     }
 }
 
@@ -387,58 +449,15 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
-    let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
-        Ok(config) => config,
-        Err(es_fluent_toml::I18nConfigError::NotFound) => {
-            panic!(
-                "No i18n.toml configuration file found in project root. Please create one with the required settings."
-            );
-        },
-        Err(e) => {
-            panic!("Failed to read i18n.toml configuration: {}", e);
-        },
-    };
+    let I18nAssets {
+        languages,
+        namespaces,
+        ..
+    } = load_i18n_assets(&crate_name);
 
-    let i18n_root_path = match config.assets_dir_from_manifest() {
-        Ok(path) => path,
-        Err(e) => {
-            panic!(
-                "Failed to resolve assets directory from configuration: {}",
-                e
-            );
-        },
-    };
+    let language_identifiers = language_identifier_tokens(&languages);
 
-    if let Err(e) = config.validate_assets_dir() {
-        panic!("Assets directory validation failed: {}", e);
-    }
-
-    let mut languages = Vec::new();
-    let entries = fs::read_dir(&i18n_root_path).unwrap_or_else(|e| {
-        panic!(
-            "Failed to read i18n directory at {:?}: {}",
-            i18n_root_path, e
-        )
-    });
-
-    for entry in entries {
-        let entry = entry.expect("Failed to read directory entry");
-        let path = entry.path();
-        if path.is_dir()
-            && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
-        {
-            let ftl_file_name = format!("{}.ftl", crate_name);
-            let ftl_path = path.join(ftl_file_name);
-
-            if ftl_path.exists() {
-                languages.push(lang_code.to_string());
-            }
-        }
-    }
-
-    let language_identifiers = languages.iter().map(|lang| {
-        quote! { es_fluent::unic_langid::langid!(#lang) }
-    });
+    let namespace_strings = namespace_tokens(&namespaces);
 
     let expanded = quote! {
         static #static_data_name: es_fluent::__manager_core::AssetModuleData = es_fluent::__manager_core::AssetModuleData {
@@ -446,6 +465,9 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
             domain: #crate_name,
             supported_languages: &[
                 #(#language_identifiers),*
+            ],
+            namespaces: &[
+                #(#namespace_strings),*
             ],
         };
 

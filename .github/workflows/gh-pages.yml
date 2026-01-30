@@ -42,18 +42,10 @@ jobs:
         run: bun install
 
       - name: Build bevy-example for WASM
-        run: bun run turbo run build:wasm
+        run: bun run build:wasm
         env:
           SCCACHE_GHA_ENABLED: "true"
           RUSTC_WRAPPER: "sccache"
-
-      - name: Run wasm-bindgen
-        run: |
-          wasm-bindgen --out-dir web/public/bevy-example --out-name bevy-example --target web target/wasm32-unknown-unknown/release/bevy-example.wasm
-
-      - name: Copy assets
-        run: |
-          cp -r examples/assets web/public/bevy-example/assets
 
       - name: Build Astro site
         run: bun run build:web
@@ -62,7 +54,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: web/dist
 

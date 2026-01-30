@@ -10,6 +10,9 @@ pub struct AssetModuleData {
     pub domain: &'static str,
     /// The supported languages of the module.
     pub supported_languages: &'static [LanguageIdentifier],
+    /// The namespaces used by this module's types (e.g., "ui", "errors").
+    /// If empty, only the main domain file (e.g., `bevy-example.ftl`) is loaded.
+    pub namespaces: &'static [&'static str],
 }
 
 pub trait I18nAssetModule: Send + Sync {

@@ -1,10 +1,10 @@
 ## EmptyEnum
 
-empty_enum_this = Empty Enum
+empty_enum_this = 空枚举
 
 ## EmptyStructKv
 
-empty_struct_kv_this = Empty Struct Kv
+empty_struct_kv_this = 空键值结构体
 
 ## ButtonState
 
@@ -14,40 +14,40 @@ button_state-Pressed = 按下
 
 ## CanadaProvince
 
-canada_province_this = Canada Province
-canada_province-A = A
-canada_province-B = B
+canada_province_this = 加拿大省份
+canada_province-A = 阿尔伯塔省
+canada_province-B = 不列颠哥伦比亚省
 
 ## Country
 
-country_this = Country
-country-Canada = Canada { $f0 }
-country-USA = Usa { $f0 }
+country_this = 国家
+country-Canada = 加拿大 { $f0 }
+country-USA = 美国 { $f0 }
 
 ## CountryDescriptionVariants
 
-country_description-Canada = Canada
-country_description-USA = Usa
+country_description-Canada = 加拿大
+country_description-USA = 美国
 
 ## CountryLabelVariants
 
-country_label-Canada = Canada
-country_label-USA = Usa
+country_label-Canada = 加拿大
+country_label-USA = 美国
 
 ## EmptyStruct
 
-empty_struct_this = Empty Struct
-empty_struct = Empty Struct
+empty_struct_this = 空结构体
+empty_struct = 空结构体
 
 ## KvSplit
 
-kv_split_this = Kv Split
-kv_split = Kv Split { $country }
+kv_split_this = 键值分割
+kv_split = 键值分割 { $country }
 
 ## KvSplitDescriptionVariants
 
-kv_split_description_this = Kv Split Description
-kv_split_description-country = Country
+kv_split_description_this = 键值分割描述
+kv_split_description-country = 国家
 
 ## KvSplitLabelVariants
 
