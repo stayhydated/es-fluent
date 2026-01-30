@@ -14,7 +14,9 @@ use crate::core::{
 };
 use crate::ftl::extract_variables_from_message;
 use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
-use crate::utils::{LoadedFtlFile, discover_and_load_ftl_files, get_all_locales, ui};
+use crate::utils::{
+    LoadedFtlFile, discover_and_load_ftl_files, ftl::main_ftl_path, get_all_locales, ui,
+};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
@@ -282,7 +284,7 @@ fn validate_ftl_files(
             Ok(loaded_files) => {
                 if loaded_files.is_empty() {
                     // No FTL files found at all - treat as missing main file
-                    let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
+                    let ftl_abs_path = main_ftl_path(&assets_dir, locale, &krate.name);
                     let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
                     let ftl_header_link = Link::new(
                         &ftl_relative_path,
@@ -310,7 +312,7 @@ fn validate_ftl_files(
             },
             Err(e) => {
                 // Handle discovery/loading errors
-                let ftl_abs_path = assets_dir.join(locale).join(format!("{}.ftl", krate.name));
+                let ftl_abs_path = main_ftl_path(&assets_dir, locale, &krate.name);
                 let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
                 let ftl_header_link = Link::new(
                     &ftl_relative_path,
