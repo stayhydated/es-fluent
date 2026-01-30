@@ -2,7 +2,7 @@
 source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
-StructKvOpts {
+StructVariantsOpts {
     ident: Ident {
         sym: Profile,
     },
@@ -16,7 +16,7 @@ StructKvOpts {
         Fields {
             style: Struct,
             fields: [
-                StructKvFieldOpts {
+                StructVariantsFieldOpts {
                     ident: Some(
                         Ident {
                             sym: id,
@@ -38,7 +38,7 @@ StructKvOpts {
                     },
                     skip: None,
                 },
-                StructKvFieldOpts {
+                StructVariantsFieldOpts {
                     ident: Some(
                         Ident {
                             sym: username,
@@ -60,7 +60,7 @@ StructKvOpts {
                     },
                     skip: None,
                 },
-                StructKvFieldOpts {
+                StructVariantsFieldOpts {
                     ident: Some(
                         Ident {
                             sym: secret_token,
@@ -84,7 +84,7 @@ StructKvOpts {
                         true,
                     ),
                 },
-                StructKvFieldOpts {
+                StructVariantsFieldOpts {
                     ident: Some(
                         Ident {
                             sym: active,
@@ -113,7 +113,7 @@ StructKvOpts {
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructKvFluentAttributeArgs {
+    attr_args: StructVariantsFluentAttributeArgs {
         keys: Some(
             [
                 LitStr {
@@ -150,5 +150,6 @@ StructKvOpts {
                 },
             ],
         ),
+        namespace: None,
     },
 }

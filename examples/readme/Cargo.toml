@@ -1,0 +1,21 @@
+[package]
+name = "readme"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license = "Unlicense"
+publish = false
+
+[dependencies]
+es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent-manager-embedded = { workspace = true }
+example-shared-lib = { features = [ "embedded" ], path = "../example-shared-lib" }
+rust-embed = { workspace = true }
+strum = { features = [ "derive" ], workspace = true }
+unic-langid = { workspace = true }
+
+[lints]
+workspace = true
+
+[package.metadata.cargo-machete]
+ignored = [ "rust-embed" ]
