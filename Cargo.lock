@@ -3921,6 +3921,7 @@ dependencies = [
  "clap",
  "colored",
  "crossterm",
+ "es-fluent-derive-core",
  "es-fluent-generate",
  "es-fluent-toml",
  "fluent-syntax",
@@ -3954,6 +3955,7 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "es-fluent",
+ "es-fluent-derive-core",
  "es-fluent-generate",
  "es-fluent-toml",
  "serde",
@@ -3982,10 +3984,12 @@ dependencies = [
 name = "es-fluent-derive-core"
 version = "0.6.0"
 dependencies = [
+ "anyhow",
  "bon",
  "darling 0.23.0",
  "derive_more 2.1.1",
  "es-fluent-toml",
+ "fluent-syntax",
  "getset",
  "heck 0.5.0",
  "insta",
@@ -3993,9 +3997,12 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde",
+ "serde_json",
  "strum 0.27.2",
  "syn 2.0.114",
  "thiserror 2.0.17",
+ "toml 0.9.11+spec-1.1.0",
+ "unic-langid",
 ]
 
 [[package]]
@@ -4062,6 +4069,7 @@ name = "es-fluent-manager-core"
 version = "0.6.0"
 dependencies = [
  "anyhow",
+ "es-fluent-derive-core",
  "fluent-bundle",
  "inventory",
  "rust-embed",

@@ -3,7 +3,7 @@
 use crate::core::CrateInfo;
 use crate::utils::ui;
 use anyhow::{Context as _, Result};
-use glob;
+use es_fluent_derive_core::get_all_locales as get_all_locales_core;
 use std::path::Path;
 
 /// Filter crates by package name if specified.
@@ -37,32 +37,9 @@ pub fn partition_by_lib_rs(crates: &[CrateInfo]) -> (Vec<&CrateInfo>, Vec<&Crate
 ///
 /// Returns a sorted list of locale directory names.
 pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
-    let mut locales = Vec::new();
-
-    if !assets_dir.exists() {
-        return Ok(locales);
-    }
-
-    let pattern = assets_dir.join("*");
-    let pattern_str = pattern.to_str().context("Invalid path for glob pattern")?;
-
-    for entry in glob::glob(pattern_str).context("Failed to read glob pattern")? {
-        match entry {
-            Ok(path) => {
-                if path.is_dir()
-                    && let Some(name) = path.file_name().and_then(|n| n.to_str())
-                {
-                    locales.push(name.to_string());
-                }
-            },
-            Err(e) => {
-                panic!("Glob error: {}", e);
-            },
-        }
-    }
-
-    locales.sort();
-    Ok(locales)
+    let result =
+        get_all_locales_core(assets_dir).context("Failed to get locales from assets directory")?;
+    Ok(result)
 }
 
 #[cfg(test)]

@@ -1,6 +1,5 @@
 ## Gender
 
-gender-Female = Féminin
 gender-Helicopter = Hélicoptère
 gender-Male = Masculin
 gender-Other = Autre
