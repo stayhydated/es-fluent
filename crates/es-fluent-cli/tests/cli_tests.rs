@@ -178,8 +178,14 @@ fn run_generate_namespaced_output_test() -> String {
 
     let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
     let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
-    content
-        .push_str("\n\n#[derive(EsFluent)]\n#[fluent(namespace = \"ui\")]\npub struct UiBanner;\n");
+    content.push_str(&format!(
+        r#"
+
+#[derive(EsFluent)]
+#[fluent(namespace = "ui")]
+pub struct UiBanner;
+"#
+    ));
     std::fs::write(&src_path, content).expect("write lib.rs");
 
     let output = run_cli(&temp, &["generate"]);
@@ -243,7 +249,12 @@ fn run_generate_invalid_namespace_file_relative_test() -> String {
 
     let i18n_path = temp.path().join("crates/test-app-a/i18n.toml");
     let mut toml = std::fs::read_to_string(&i18n_path).expect("read i18n.toml");
-    toml.push_str("\nnamespaces = [\"ui\"]\n");
+    toml.push_str(&format!(
+        r#"
+
+namespaces = ["ui"]
+"#
+    ));
     std::fs::write(&i18n_path, toml).expect("write i18n.toml");
 
     let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
@@ -287,7 +298,12 @@ fn run_clean_real_test(config: &E2eConfig) -> String {
     let temp = (config.setup)();
     let ftl_path = temp.path().join(config.ftl_path);
     let content = std::fs::read_to_string(&ftl_path).expect("read");
-    let new_content = format!("{}\norphan-key = Orphan\n", content);
+    let new_content = format!(
+        "{}{}orphan-key = Orphan
+",
+        content,
+        if content.is_empty() { "" } else { "\n" }
+    );
     std::fs::write(&ftl_path, new_content).expect("write");
 
     let output = run_cli(&temp, &["clean"]);
@@ -305,7 +321,11 @@ fn run_sync_dry_run_test(config: &E2eConfig) -> String {
     let temp = (config.setup)();
     let ftl_path = temp.path().join(config.ftl_path);
     let mut content = std::fs::read_to_string(&ftl_path).unwrap();
-    content.push_str("\nnew-sync-key = Sync Me\n");
+    content.push_str(&format!(
+        r#"
+new-sync-key = Sync Me
+"#
+    ));
     std::fs::write(&ftl_path, content).unwrap();
 
     let output = run_cli(&temp, &["sync", "-l", "es", "--dry-run"]);
@@ -338,7 +358,13 @@ fn run_generate_incremental_test(config: &E2eConfig) -> (String, String) {
     // Add a new struct to the crate
     let src_path = temp.path().join(config.src_lib_path);
     let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
-    content.push_str("\n\n#[derive(EsFluent)]\npub struct IncrementalTest;\n");
+    content.push_str(&format!(
+        r#"
+
+#[derive(EsFluent)]
+pub struct IncrementalTest;
+"#
+    ));
     std::fs::write(&src_path, content).expect("write lib.rs");
 
     // Run generate again
@@ -562,7 +588,11 @@ fn test_sync_all() {
     // We need to set up a situation where sync does something.
     let en_path = temp.path().join("i18n/en/test-app-a.ftl");
     let mut content = std::fs::read_to_string(&en_path).expect("read en");
-    content.push_str("\nnew-key = New Message\n");
+    content.push_str(&format!(
+        r#"
+new-key = New Message
+"#
+    ));
     std::fs::write(&en_path, content).expect("write en");
 
     // Run sync all
@@ -676,10 +706,23 @@ fn test_clean_all() {
     // Let's create one based on 'en' if it doesn't exist, or just append to it.
     if !ftl_path.exists() {
         std::fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
-        std::fs::write(&ftl_path, "hello = Hola\norphan-key = Huerfano\n").unwrap();
+        std::fs::write(
+            &ftl_path,
+            &format!(
+                r#"hello = Hola
+orphan-key = Huerfano
+"#
+            ),
+        )
+        .unwrap();
     } else {
         let content = std::fs::read_to_string(&ftl_path).unwrap();
-        let new_content = format!("{}\norphan-key = Huerfano\n", content);
+        let new_content = format!(
+            "{}{}orphan-key = Huerfano
+",
+            content,
+            if content.is_empty() { "" } else { "\n" }
+        );
         std::fs::write(&ftl_path, new_content).unwrap();
     }
 
@@ -695,9 +738,25 @@ fn test_fmt_all() {
     let ftl_path = temp.path().join("i18n/es/test-app-a.ftl");
     if !ftl_path.exists() {
         std::fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
-        std::fs::write(&ftl_path, "b=2\na=1\n").unwrap();
+        std::fs::write(
+            &ftl_path,
+            &format!(
+                r#"b=2
+a=1
+"#
+            ),
+        )
+        .unwrap();
     } else {
-        std::fs::write(&ftl_path, "b=2\na=1\n").unwrap();
+        std::fs::write(
+            &ftl_path,
+            &format!(
+                r#"b=2
+a=1
+"#
+            ),
+        )
+        .unwrap();
     }
 
     let output = run_cli(&temp, &["fmt", "--all", "--dry-run"]);
@@ -810,8 +869,14 @@ fn test_sync_namespaced() {
     // First, generate namespaced FTL files
     let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
     let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
-    content
-        .push_str("\n\n#[derive(EsFluent)]\n#[fluent(namespace = \"ui\")]\npub struct UiBanner;\n");
+    content.push_str(&format!(
+        r#"
+
+#[derive(EsFluent)]
+#[fluent(namespace = "ui")]
+pub struct UiBanner;
+"#
+    ));
     std::fs::write(&src_path, content).expect("write lib.rs");
 
     // Run generate to create the namespaced file in en
@@ -880,7 +945,14 @@ fn test_clean_orphaned_dry_run() {
     // Create an orphaned FTL file in a non-fallback locale (es)
     // This simulates a file that was synced but the crate no longer exists
     let orphaned_path = temp.path().join("i18n/es/old-crate.ftl");
-    std::fs::write(&orphaned_path, "old-key = Old Value\n").expect("write orphaned file");
+    std::fs::write(
+        &orphaned_path,
+        &format!(
+            r#"old-key = Old Value
+"#
+        ),
+    )
+    .expect("write orphaned file");
 
     // Run clean --orphaned --all --dry-run
     let output = run_cli(&temp, &["clean", "--orphaned", "--all", "--dry-run"]);
@@ -900,7 +972,14 @@ fn test_clean_orphaned_real() {
 
     // Create an orphaned FTL file in a non-fallback locale (es)
     let orphaned_path = temp.path().join("i18n/es/old-crate.ftl");
-    std::fs::write(&orphaned_path, "old-key = Old Value\n").expect("write orphaned file");
+    std::fs::write(
+        &orphaned_path,
+        &format!(
+            r#"old-key = Old Value
+"#
+        ),
+    )
+    .expect("write orphaned file");
 
     // Run clean --orphaned --all
     let output = run_cli(&temp, &["clean", "--orphaned", "--all"]);
@@ -926,17 +1005,38 @@ fn test_clean_orphaned_namespaced_only_crate() {
     // Simulate a crate that only uses namespaces (like bevy-example)
     // The main FTL file exists in non-fallback locale but NOT in fallback
     let orphaned_main = temp.path().join("i18n/es/namespaced-only.ftl");
-    std::fs::write(&orphaned_main, "key = value\n").expect("write orphaned main file");
+    std::fs::write(
+        &orphaned_main,
+        &format!(
+            r#"key = value
+"#
+        ),
+    )
+    .expect("write orphaned main file");
 
     // Create the namespaced file in fallback (this is the "real" file)
     let ns_dir = temp.path().join("i18n/en/namespaced-only");
     std::fs::create_dir_all(&ns_dir).expect("create ns dir");
-    std::fs::write(ns_dir.join("ui.ftl"), "ui_key = UI Value\n").expect("write ns file");
+    std::fs::write(
+        ns_dir.join("ui.ftl"),
+        &format!(
+            r#"ui_key = UI Value
+"#
+        ),
+    )
+    .expect("write ns file");
 
     // Also create the namespaced file in es (this should NOT be orphaned)
     let ns_dir_es = temp.path().join("i18n/es/namespaced-only");
     std::fs::create_dir_all(&ns_dir_es).expect("create ns dir es");
-    std::fs::write(ns_dir_es.join("ui.ftl"), "ui_key = UI Value ES\n").expect("write ns file es");
+    std::fs::write(
+        ns_dir_es.join("ui.ftl"),
+        &format!(
+            r#"ui_key = UI Value ES
+"#
+        ),
+    )
+    .expect("write ns file es");
 
     // Run clean --orphaned --all --dry-run
     let output = run_cli(&temp, &["clean", "--orphaned", "--all", "--dry-run"]);
@@ -968,7 +1068,14 @@ fn test_clean_orphaned_preserves_fallback() {
     // Create a file in the fallback locale (en) that doesn't correspond to any crate
     // Even though this looks orphaned, we should NOT touch fallback locale files
     let fallback_file = temp.path().join("i18n/en/orphan-in-fallback.ftl");
-    std::fs::write(&fallback_file, "key = value\n").expect("write fallback file");
+    std::fs::write(
+        &fallback_file,
+        &format!(
+            r#"key = value
+"#
+        ),
+    )
+    .expect("write fallback file");
 
     // Run clean --orphaned --all
     let output = run_cli(&temp, &["clean", "--orphaned", "--all"]);

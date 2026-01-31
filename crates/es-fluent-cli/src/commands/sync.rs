@@ -411,7 +411,8 @@ mod tests {
 
     #[test]
     fn test_extract_message_keys() {
-        let content = "hello = Hello\nworld = World";
+        let content = r#"hello = Hello
+world = World"#;
         let resource = parser::parse(content.to_string()).unwrap();
         let keys = extract_message_keys(&resource);
 

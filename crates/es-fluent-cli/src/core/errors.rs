@@ -422,7 +422,9 @@ mod tests {
 
     #[test]
     fn test_find_key_span() {
-        let source = "## Comment\nhello = Hello\nworld = World";
+        let source = r#"## Comment
+hello = Hello
+world = World"#;
         let span = find_key_span(source, "hello").unwrap();
         assert_eq!(span.offset(), 11);
         assert_eq!(span.len(), 5);
@@ -430,7 +432,8 @@ mod tests {
 
     #[test]
     fn test_find_key_span_with_spaces() {
-        let source = "hello =Hello\nworld = World";
+        let source = r#"hello =Hello
+world = World"#;
         let span = find_key_span(source, "hello").unwrap();
         assert_eq!(span.offset(), 0);
         assert_eq!(span.len(), 5);
@@ -438,7 +441,9 @@ mod tests {
 
     #[test]
     fn test_find_message_span_multiline() {
-        let source = "greeting = Hello\n    World\nnext = Next";
+        let source = r#"greeting = Hello
+    World
+next = Next"#;
         let span = find_message_span(source, "greeting").unwrap();
         assert_eq!(span.offset(), 0);
         // Should include the full multiline message
@@ -446,7 +451,9 @@ mod tests {
 
     #[test]
     fn test_span_from_line_col() {
-        let source = "line1\nline2\nline3";
+        let source = r#"line1
+line2
+line3"#;
         let span = span_from_line_col(source, 2, 1, 5);
         assert_eq!(span.offset(), 6); // "line1\n" = 6 chars
         assert_eq!(span.len(), 5);
