@@ -4,7 +4,7 @@
 
 use es_fluent_derive_core::meta::TypeKind;
 use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use proc_macro2::Span;
 use syn::Ident;
 
@@ -88,6 +88,6 @@ pub fn enum_type_with_namespace(
         variants: leak_slice(variants),
         file_path: "",
         module_path: "test",
-        namespace: Some(namespace),
+        namespace: Some(NamespaceRule::Literal(namespace)),
     }
 }

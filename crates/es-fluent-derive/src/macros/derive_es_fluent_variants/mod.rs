@@ -169,59 +169,25 @@ fn generate_unit_enum(
         .namespace()
         .map(|ns| match ns {
             es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s) => {
-                quote! { Some(#s) }
+                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
             },
             es_fluent_derive_core::options::namespace::NamespaceValue::File => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
             },
             es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
-                        const NAMESPACE: &str =
-                            ::es_fluent::__namespace_from_file_path_relative_with_manifest(
-                                FILE_PATH,
-                                MANIFEST_DIR,
-                            );
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
             },
         })
         .or_else(|| {
             this_opts.and_then(|o| match o.attr_args().namespace() {
                 Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                    Some(quote! { Some(#s) })
+                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) })
                 },
                 Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                    Some(quote! {
-                        Some({
-                            const FILE_PATH: &str = file!();
-                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                            NAMESPACE
-                        })
-                    })
+                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::File) })
                 },
                 Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                    Some(quote! {
-                        Some({
-                            const FILE_PATH: &str = file!();
-                            const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
-                            const NAMESPACE: &str =
-                                ::es_fluent::__namespace_from_file_path_relative_with_manifest(
-                                    FILE_PATH,
-                                    MANIFEST_DIR,
-                                );
-                            NAMESPACE
-                        })
-                    })
+                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) })
                 },
                 None => None,
             })
@@ -448,59 +414,25 @@ fn generate_enum_unit_enum(
         .namespace()
         .map(|ns| match ns {
             es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s) => {
-                quote! { Some(#s) }
+                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
             },
             es_fluent_derive_core::options::namespace::NamespaceValue::File => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
             },
             es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
-                        const NAMESPACE: &str =
-                            ::es_fluent::__namespace_from_file_path_relative_with_manifest(
-                                FILE_PATH,
-                                MANIFEST_DIR,
-                            );
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
             },
         })
         .or_else(|| {
             this_opts.and_then(|o| match o.attr_args().namespace() {
                 Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                    Some(quote! { Some(#s) })
+                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) })
                 },
                 Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                    Some(quote! {
-                        Some({
-                            const FILE_PATH: &str = file!();
-                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                            NAMESPACE
-                        })
-                    })
+                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::File) })
                 },
                 Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                    Some(quote! {
-                        Some({
-                            const FILE_PATH: &str = file!();
-                            const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
-                            const NAMESPACE: &str =
-                                ::es_fluent::__namespace_from_file_path_relative_with_manifest(
-                                    FILE_PATH,
-                                    MANIFEST_DIR,
-                                );
-                            NAMESPACE
-                        })
-                    })
+                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) })
                 },
                 None => None,
             })

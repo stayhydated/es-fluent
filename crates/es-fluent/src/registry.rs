@@ -1,6 +1,6 @@
 //! This module provides types for representing FTL variants and type information.
 
-pub use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
+pub use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 
 /// A wrapper type for `FtlTypeInfo` that enables inventory collection.
 /// This is necessary because `inventory::collect!` requires a type defined

@@ -40,6 +40,7 @@ awdawd = awdwa
     es_fluent_generate::clean::clean(
         crate_name,
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&group_a),
         false,
     )

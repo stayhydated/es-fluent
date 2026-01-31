@@ -1,7 +1,7 @@
 //! FTL file generation functionality.
 
 use es_fluent::registry::FtlTypeInfo;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub use es_fluent_generate::FluentParseMode;
 pub use es_fluent_generate::error::FluentGenerateError;
@@ -54,6 +54,10 @@ pub struct EsFluentGenerator {
     /// Override the assets directory (defaults to reading from i18n.toml).
     #[builder(into)]
     assets_dir: Option<PathBuf>,
+
+    /// Override the manifest directory for namespace resolution.
+    #[builder(into)]
+    manifest_dir: Option<PathBuf>,
 
     /// Dry run (don't write changes).
     #[builder(default)]
@@ -120,8 +124,10 @@ impl EsFluentGenerator {
         if let Some(path) = &self.output_path {
             return Ok(path.clone());
         }
-        let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()?;
-        Ok(config.assets_dir.join(&config.fallback_language))
+        let manifest_dir = self.resolve_manifest_dir()?;
+        Ok(es_fluent_toml::I18nConfig::output_dir_from_manifest_dir(
+            &manifest_dir,
+        )?)
     }
 
     /// Resolve the assets directory.
@@ -129,8 +135,21 @@ impl EsFluentGenerator {
         if let Some(path) = &self.assets_dir {
             return Ok(path.clone());
         }
-        let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()?;
-        Ok(config.assets_dir)
+        let manifest_dir = self.resolve_manifest_dir()?;
+        Ok(es_fluent_toml::I18nConfig::assets_dir_from_manifest_dir(
+            &manifest_dir,
+        )?)
+    }
+
+    /// Resolve the manifest directory for namespace resolution.
+    fn resolve_manifest_dir(&self) -> Result<PathBuf, GeneratorError> {
+        if let Some(path) = &self.manifest_dir {
+            return Ok(path.clone());
+        }
+
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .map_err(|_| GeneratorError::CrateName("CARGO_MANIFEST_DIR not set".to_string()))?;
+        Ok(PathBuf::from(manifest_dir))
     }
 
     /// Resolve the paths to clean based on configuration.
@@ -161,10 +180,11 @@ impl EsFluentGenerator {
     pub fn generate(&self) -> Result<bool, GeneratorError> {
         let crate_name = self.resolve_crate_name()?;
         let output_path = self.resolve_output_path()?;
+        let manifest_dir = self.resolve_manifest_dir()?;
         let type_infos = collect_type_infos(&crate_name);
 
         // Validate namespaces against allowed list if configured
-        self.validate_namespaces(&type_infos)?;
+        self.validate_namespaces(&type_infos, &manifest_dir)?;
 
         tracing::info!(
             "Generating FTL files for {} types in crate '{}'",
@@ -175,6 +195,7 @@ impl EsFluentGenerator {
         let changed = es_fluent_generate::generate(
             &crate_name,
             output_path,
+            &manifest_dir,
             &type_infos,
             self.mode.clone(),
             self.dry_run,
@@ -187,17 +208,18 @@ impl EsFluentGenerator {
     fn validate_namespaces(
         &self,
         type_infos: &[&'static FtlTypeInfo],
+        manifest_dir: &Path,
     ) -> Result<(), GeneratorError> {
-        let config = es_fluent_toml::I18nConfig::read_from_manifest_dir().ok();
+        let config = es_fluent_toml::I18nConfig::from_manifest_dir(manifest_dir).ok();
         let allowed = config.as_ref().and_then(|c| c.namespaces.as_ref());
 
         if let Some(allowed_namespaces) = allowed {
             for info in type_infos {
-                if let Some(ns) = info.namespace
-                    && !allowed_namespaces.contains(&ns.to_string())
+                if let Some(ns) = info.resolved_namespace(manifest_dir)
+                    && !allowed_namespaces.contains(&ns)
                 {
                     return Err(GeneratorError::InvalidNamespace {
-                        namespace: ns.to_string(),
+                        namespace: ns,
                         type_name: info.type_name.to_string(),
                         allowed: allowed_namespaces.clone(),
                     });
@@ -212,6 +234,7 @@ impl EsFluentGenerator {
     pub fn clean(&self, all_locales: bool, dry_run: bool) -> Result<bool, GeneratorError> {
         let crate_name = self.resolve_crate_name()?;
         let paths = self.resolve_clean_paths(all_locales)?;
+        let manifest_dir = self.resolve_manifest_dir()?;
         let type_infos = collect_type_infos(&crate_name);
 
         let mut any_changed = false;
@@ -225,7 +248,13 @@ impl EsFluentGenerator {
                 );
             }
 
-            if es_fluent_generate::clean::clean(&crate_name, output_path, &type_infos, dry_run)? {
+            if es_fluent_generate::clean::clean(
+                &crate_name,
+                output_path,
+                &manifest_dir,
+                &type_infos,
+                dry_run,
+            )? {
                 any_changed = true;
             }
         }

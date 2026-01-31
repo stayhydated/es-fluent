@@ -16,6 +16,7 @@ fn test_generate_empty_items() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         empty,
         FluentParseMode::Conservative,
         false,
@@ -39,6 +40,7 @@ fn test_generate_with_items() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&type_info),
         FluentParseMode::Conservative,
         false,
@@ -70,6 +72,7 @@ fn test_generate_aggressive_mode() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&type_info),
         FluentParseMode::Aggressive,
         false,
@@ -99,6 +102,7 @@ fn test_generate_conservative_mode_preserves_existing() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&type_info),
         FluentParseMode::Conservative,
         false,
@@ -143,6 +147,7 @@ existing-key = Existing Value
     let result = es_fluent_generate::clean::clean(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&type_info),
         false,
     );
@@ -178,6 +183,7 @@ fn test_this_types_sorted_first() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         items,
         FluentParseMode::Aggressive,
         false,
@@ -222,6 +228,7 @@ fn test_this_variants_sorted_first_within_group() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&fruit),
         FluentParseMode::Aggressive,
         false,
@@ -265,6 +272,7 @@ fn test_generate_with_namespace_creates_subdirectory() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&type_info),
         FluentParseMode::Conservative,
         false,
@@ -301,6 +309,7 @@ fn test_generate_mixed_namespaced_and_non_namespaced() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         items,
         FluentParseMode::Conservative,
         false,
@@ -343,6 +352,7 @@ fn test_generate_multiple_namespaces() {
     let result = generate(
         "test_crate",
         &i18n_path,
+        temp_dir.path(),
         items,
         FluentParseMode::Conservative,
         false,

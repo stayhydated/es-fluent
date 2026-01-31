@@ -33,30 +33,13 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         // Generate namespace expression based on attribute
         let namespace_expr = match opts.attr_args().namespace() {
             Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                quote! { Some(#s) }
+                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
             },
             Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
             },
             Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
-                        const NAMESPACE: &str =
-                            ::es_fluent::__namespace_from_file_path_relative_with_manifest(
-                                FILE_PATH,
-                                MANIFEST_DIR,
-                            );
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
             },
             None => quote! { None },
         };

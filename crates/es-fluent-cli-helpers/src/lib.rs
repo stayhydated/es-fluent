@@ -39,6 +39,7 @@ pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
     let changed = EsFluentGenerator::builder()
         .output_path(output_path)
         .assets_dir(assets_dir)
+        .manifest_dir(i18n_dir)
         .crate_name(crate_name)
         .build()
         .run_cli()
@@ -74,6 +75,7 @@ pub fn run_generate_with_options(
             I18nConfig::assets_dir_from_manifest_dir(i18n_dir)
                 .expect("Failed to resolve assets directory"),
         )
+        .manifest_dir(i18n_dir)
         .crate_name(crate_name)
         .mode(mode)
         .dry_run(dry_run)
@@ -117,6 +119,7 @@ pub fn run_clean_with_options(
     let changed = EsFluentGenerator::builder()
         .output_path(output_path)
         .assets_dir(assets_dir)
+        .manifest_dir(i18n_dir)
         .crate_name(crate_name)
         .dry_run(dry_run)
         .build()

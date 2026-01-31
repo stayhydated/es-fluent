@@ -31,6 +31,7 @@ group-a-key1 = Initial Value
     generate(
         crate_name,
         &i18n_path,
+        temp_dir.path(),
         std::slice::from_ref(&group_a),
         FluentParseMode::Conservative,
         false,

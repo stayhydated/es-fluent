@@ -68,20 +68,23 @@ impl From<&FtlTypeInfo> for OwnedTypeInfo {
 }
 
 /// Generates a Fluent translation file from a list of `FtlTypeInfo` objects.
-pub fn generate<P: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
+pub fn generate<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     crate_name: &str,
     i18n_path: P,
+    manifest_dir: M,
     items: &[I],
     mode: FluentParseMode,
     dry_run: bool,
 ) -> EsFluentResult<bool> {
     let i18n_path = i18n_path.as_ref();
+    let manifest_dir = manifest_dir.as_ref();
     let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
 
     // Group items by namespace
-    let mut namespaced: IndexMap<Option<&str>, Vec<&FtlTypeInfo>> = IndexMap::new();
+    let mut namespaced: IndexMap<Option<String>, Vec<&FtlTypeInfo>> = IndexMap::new();
     for item in &items_ref {
-        namespaced.entry(item.namespace).or_default().push(item);
+        let namespace = item.resolved_namespace(manifest_dir);
+        namespaced.entry(namespace).or_default().push(item);
     }
 
     let mut any_changed = false;
@@ -505,22 +508,17 @@ fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String> {
 fn merge_ftl_type_infos(items: &[&FtlTypeInfo]) -> Vec<OwnedTypeInfo> {
     use std::collections::BTreeMap;
 
-    // Group by type_name, but only merge items with the same namespace
-    // This prevents merging types that have the same name but different namespaces
-    let mut grouped: BTreeMap<(Option<String>, String), Vec<OwnedVariant>> = BTreeMap::new();
+    // Group by type_name. Callers already separate items by namespace.
+    let mut grouped: BTreeMap<String, Vec<OwnedVariant>> = BTreeMap::new();
 
     for item in items {
-        let key = (
-            item.namespace.map(|s| s.to_string()),
-            item.type_name.to_string(),
-        );
-        let entry = grouped.entry(key).or_default();
+        let entry = grouped.entry(item.type_name.to_string()).or_default();
         entry.extend(item.variants.iter().map(OwnedVariant::from));
     }
 
     grouped
         .into_iter()
-        .map(|((_, type_name), mut variants)| {
+        .map(|(type_name, mut variants)| {
             variants.sort_by(|a, b| {
                 let a_is_this = a.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
                 let b_is_this = b.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
