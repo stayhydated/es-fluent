@@ -184,7 +184,12 @@ fn generate_unit_enum(
                 quote! {
                     Some({
                         const FILE_PATH: &str = file!();
-                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                        const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+                        const NAMESPACE: &str =
+                            ::es_fluent::__namespace_from_file_path_relative_with_manifest(
+                                FILE_PATH,
+                                MANIFEST_DIR,
+                            );
                         NAMESPACE
                     })
                 }
@@ -208,7 +213,12 @@ fn generate_unit_enum(
                     Some(quote! {
                         Some({
                             const FILE_PATH: &str = file!();
-                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                            const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+                            const NAMESPACE: &str =
+                                ::es_fluent::__namespace_from_file_path_relative_with_manifest(
+                                    FILE_PATH,
+                                    MANIFEST_DIR,
+                                );
                             NAMESPACE
                         })
                     })
@@ -453,7 +463,12 @@ fn generate_enum_unit_enum(
                 quote! {
                     Some({
                         const FILE_PATH: &str = file!();
-                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                        const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+                        const NAMESPACE: &str =
+                            ::es_fluent::__namespace_from_file_path_relative_with_manifest(
+                                FILE_PATH,
+                                MANIFEST_DIR,
+                            );
                         NAMESPACE
                     })
                 }
@@ -477,7 +492,12 @@ fn generate_enum_unit_enum(
                     Some(quote! {
                         Some({
                             const FILE_PATH: &str = file!();
-                            const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
+                            const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
+                            const NAMESPACE: &str =
+                                ::es_fluent::__namespace_from_file_path_relative_with_manifest(
+                                    FILE_PATH,
+                                    MANIFEST_DIR,
+                                );
                             NAMESPACE
                         })
                     })

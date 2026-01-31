@@ -63,6 +63,41 @@ pub const fn __namespace_from_file_path(path: &str) -> &str {
     }
 }
 
+const fn __is_path_sep(byte: u8) -> bool {
+    byte == b'/' || byte == b'\\'
+}
+
+const fn __prefix_match_len(path: &str, prefix: &str) -> usize {
+    let path_bytes = path.as_bytes();
+    let prefix_bytes = prefix.as_bytes();
+    let path_len = path_bytes.len();
+    let prefix_len = prefix_bytes.len();
+
+    if prefix_len == 0 || path_len < prefix_len {
+        return 0;
+    }
+
+    let mut i = 0;
+    while i < prefix_len {
+        let p = path_bytes[i];
+        let q = prefix_bytes[i];
+        if p == q || (__is_path_sep(p) && __is_path_sep(q)) {
+            i += 1;
+        } else {
+            return 0;
+        }
+    }
+
+    if prefix_len < path_len {
+        let last = prefix_bytes[prefix_len - 1];
+        if !__is_path_sep(last) && !__is_path_sep(path_bytes[prefix_len]) {
+            return 0;
+        }
+    }
+
+    prefix_len
+}
+
 /// Extracts the relative path (without extension, stripping src/ prefix) from a file path at compile time.
 /// Used by derive macros when `namespace = file(relative)` is specified.
 #[doc(hidden)]
@@ -103,6 +138,104 @@ pub const fn __namespace_from_file_path_relative(path: &str) -> &str {
             bytes.as_ptr().add(start),
             result_len,
         ))
+    }
+}
+
+/// Extracts the relative path (without extension, stripping src/ prefix) from a file path.
+/// If the path is absolute, it strips the provided manifest dir prefix first.
+/// Used by derive macros when `namespace = file(relative)` is specified.
+#[doc(hidden)]
+pub const fn __namespace_from_file_path_relative_with_manifest<'a>(
+    path: &'a str,
+    manifest_dir: &str,
+) -> &'a str {
+    let bytes = path.as_bytes();
+    let len = bytes.len();
+
+    let mut start = 0;
+    let prefix_len = __prefix_match_len(path, manifest_dir);
+    if prefix_len > 0 {
+        start = prefix_len;
+        if start < len && __is_path_sep(bytes[start]) {
+            start += 1;
+        }
+    }
+
+    // Find where the extension starts (last '.')
+    let mut last_dot = len;
+    let mut i = start;
+    while i < len {
+        if bytes[i] == b'.' {
+            last_dot = i;
+        }
+        i += 1;
+    }
+
+    // Strip "src/" or "src\" prefix after any manifest prefix
+    if len >= start + 4
+        && bytes[start] == b's'
+        && bytes[start + 1] == b'r'
+        && bytes[start + 2] == b'c'
+        && __is_path_sep(bytes[start + 3])
+    {
+        start += 4;
+    }
+
+    let result_len = last_dot - start;
+    if result_len == 0 {
+        return "unknown";
+    }
+
+    // SAFETY: We're working with valid UTF-8 and only splitting at ASCII boundaries
+    unsafe {
+        core::str::from_utf8_unchecked(core::slice::from_raw_parts(
+            bytes.as_ptr().add(start),
+            result_len,
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::__namespace_from_file_path_relative_with_manifest;
+
+    fn normalize_separators(path: &str) -> String {
+        path.replace('\\', "/")
+    }
+
+    #[test]
+    fn namespace_relative_with_manifest_strips_src() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = std::path::PathBuf::from(manifest_dir)
+            .join("src")
+            .join("lib.rs");
+        let path_str = path.to_string_lossy();
+        let namespace = __namespace_from_file_path_relative_with_manifest(&path_str, manifest_dir);
+        assert_eq!(namespace, "lib");
+    }
+
+    #[test]
+    fn namespace_relative_with_manifest_preserves_nested_paths() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = std::path::PathBuf::from(manifest_dir)
+            .join("src")
+            .join("ui")
+            .join("button.rs");
+        let path_str = path.to_string_lossy();
+        let namespace = __namespace_from_file_path_relative_with_manifest(&path_str, manifest_dir);
+        assert_eq!(normalize_separators(namespace), "ui/button");
+    }
+
+    #[test]
+    fn namespace_relative_with_manifest_keeps_non_src_paths() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = std::path::PathBuf::from(manifest_dir)
+            .join("tests")
+            .join("fixtures")
+            .join("example.rs");
+        let path_str = path.to_string_lossy();
+        let namespace = __namespace_from_file_path_relative_with_manifest(&path_str, manifest_dir);
+        assert_eq!(normalize_separators(namespace), "tests/fixtures/example");
     }
 }
 
