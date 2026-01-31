@@ -72,7 +72,8 @@
 
 ## Development
 
-- **Rust**: Use `cargo` for building, testing, and running Rust code.
+- **Rust**: Use `cargo` for building, testing, and running Rust code. In this workspace, prefer `workspace = true` inheritance syntax for dependencies in member crates' `Cargo.toml` files, with actual versions and features declared in the workspace root `Cargo.toml`. This pattern applies to both external crates and local workspace members reserve `path` syntax exclusively for the root `Cargo.toml` when defining workspace members; member crates should reference other workspace crates using `workspace = true` rather than explicit paths.
 - **JavaScript**: Use [bun](https://bun.com/) for dependency management.
 - **Python**: Use [uv](https://docs.astral.sh/uv/) for dependency management and running Python scripts.
 - **Testing**: Use [insta](https://insta.rs/) for snapshot tests where appropriate, rather than complex assertion-based unit tests.
+- **Test snippets**: Prefer raw multiline strings (or `quote! { ... }` in macro contexts) over escaped single-line literals when embedding Rust code in tests.
