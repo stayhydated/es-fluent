@@ -136,7 +136,8 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         .map_err(|e| CliError::Other(e.to_string()))?;
 
     // First pass: collect all expected keys from crates
-    let temp_dir = workspace.workspace_info.root_dir.join(".es-fluent");
+    let temp_dir =
+        es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.workspace_info.root_dir);
 
     let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
 
@@ -232,10 +233,7 @@ fn read_inventory_file(
     temp_dir: &std::path::Path,
     crate_name: &str,
 ) -> Result<IndexMap<String, KeyInfo>> {
-    let inventory_path = temp_dir
-        .join("metadata")
-        .join(crate_name)
-        .join("inventory.json");
+    let inventory_path = es_fluent_derive_core::get_metadata_inventory_path(temp_dir, crate_name);
     let json_str = fs::read_to_string(&inventory_path)
         .with_context(|| format!("Failed to read {}", inventory_path.display()))?;
 

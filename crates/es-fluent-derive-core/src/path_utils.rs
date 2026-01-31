@@ -37,6 +37,41 @@ pub fn create_metadata_dir(crate_name: &str) -> EsFluentResult<PathBuf> {
     Ok(metadata_dir)
 }
 
+/// Get the path to the result.json file for a given crate.
+///
+/// Returns `metadata/{crate_name}/result.json` without creating directories.
+pub fn get_metadata_result_path<T: AsRef<std::path::Path>>(
+    temp_dir: T,
+    crate_name: &str,
+) -> PathBuf {
+    temp_dir
+        .as_ref()
+        .join("metadata")
+        .join(crate_name)
+        .join("result.json")
+}
+
+/// Get the path to the inventory.json file for a given crate.
+///
+/// Returns `metadata/{crate_name}/inventory.json` without creating directories.
+pub fn get_metadata_inventory_path<T: AsRef<std::path::Path>>(
+    temp_dir: T,
+    crate_name: &str,
+) -> PathBuf {
+    temp_dir
+        .as_ref()
+        .join("metadata")
+        .join(crate_name)
+        .join("inventory.json")
+}
+
+/// Get the path to the .es-fluent temporary directory for a workspace.
+///
+/// Returns `{workspace_root}/.es-fluent`.
+pub fn get_es_fluent_temp_dir<T: AsRef<std::path::Path>>(workspace_root: T) -> PathBuf {
+    workspace_root.as_ref().join(".es-fluent")
+}
+
 /// Write result data to metadata directory.
 ///
 /// Creates the metadata directory if needed and writes the result to `result.json`.

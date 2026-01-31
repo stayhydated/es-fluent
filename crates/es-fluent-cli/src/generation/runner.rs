@@ -9,11 +9,10 @@ use crate::generation::templates::{
 };
 use anyhow::{Context as _, Result, bail};
 use askama::Template as _;
+use es_fluent_derive_core::get_es_fluent_temp_dir;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{env, fs};
-
-pub const TEMP_DIR: &str = ".es-fluent";
 
 const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -39,7 +38,7 @@ impl TempCrateConfig {
 
         // Determine workspace root and temp directory for caching
         let workspace_root = manifest_path.parent().unwrap_or(Path::new("."));
-        let temp_dir = workspace_root.join(TEMP_DIR);
+        let temp_dir = get_es_fluent_temp_dir(workspace_root);
 
         // Try to use cached metadata if Cargo.lock hasn't changed
         if let Some(cache) = MetadataCache::load(&temp_dir)
@@ -242,7 +241,7 @@ use crate::core::WorkspaceInfo;
 /// Prepare the monolithic runner crate at workspace root that links ALL workspace crates.
 /// This enables fast subsequent runs by caching a single binary that can access all inventory.
 pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<PathBuf> {
-    let temp_dir = workspace.root_dir.join(TEMP_DIR);
+    let temp_dir = get_es_fluent_temp_dir(&workspace.root_dir);
     let src_dir = temp_dir.join("src");
 
     fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
@@ -319,7 +318,7 @@ pub fn run_monolithic(
     extra_args: &[String],
     force_run: bool,
 ) -> Result<String> {
-    let temp_dir = workspace.root_dir.join(TEMP_DIR);
+    let temp_dir = get_es_fluent_temp_dir(&workspace.root_dir);
     let binary_path = get_monolithic_binary_path(workspace);
 
     // If binary exists, check if it's stale (unless force_run is set)
@@ -408,7 +407,7 @@ fn is_runner_stale(workspace: &WorkspaceInfo, runner_path: &Path) -> bool {
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
-    let temp_dir = workspace.root_dir.join(TEMP_DIR);
+    let temp_dir = get_es_fluent_temp_dir(&workspace.root_dir);
 
     // Compute current content hashes for each crate (including i18n.toml)
     let mut current_hashes = indexmap::IndexMap::new();
