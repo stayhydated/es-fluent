@@ -50,7 +50,10 @@ fn spawn_generation(
             Ok(output) => {
                 // Read the result JSON file from the workspace temp directory
                 let temp_dir = workspace.root_dir.join(".es-fluent");
-                let result_json_path = temp_dir.join("result.json");
+                let result_json_path = temp_dir
+                    .join("metadata")
+                    .join(&krate.name)
+                    .join("result.json");
                 let changed = if result_json_path.exists() {
                     match std::fs::read_to_string(&result_json_path) {
                         Ok(json_str) => {
