@@ -48,7 +48,7 @@ flowchart TD
 - **`es-fluent-derive-core::options`**: Defines the target structures (`StructOpts`, `EnumOpts`) that attributes are parsed into.
 - **`syn` / `quote`**: Standard tools for parsing and generating Rust code.
 - **`es-fluent`**: Provides the runtime target types (`FtlTypeInfo`, `RegisteredFtlType`) that the specific macro generates code for.
-- **`es-fluent::__namespace_from_file_path*`**: Internal helpers used when `namespace = file` or `namespace(file(relative))` is specified.
+- **Namespace rules**: Derive macros record the namespace _rule_ (literal / file / file-relative) in `FtlTypeInfo`; the CLI/generator resolves it at runtime using the type’s `file_path` and the crate manifest directory.
 
 ## Macros
 

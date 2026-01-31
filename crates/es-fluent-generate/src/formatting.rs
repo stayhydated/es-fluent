@@ -220,7 +220,9 @@ mod tests {
 
     #[test]
     fn test_sort_ftl_simple() {
-        let content = "zebra = Zebra\napple = Apple\nbanana = Banana";
+        let content = r#"zebra = Zebra
+apple = Apple
+banana = Banana"#;
         let resource = parser::parse(content.to_string()).unwrap();
         let sorted = sort_ftl_resource(&resource);
 

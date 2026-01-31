@@ -44,6 +44,7 @@ manual-key = Contains manual stuff
     generate(
         crate_name,
         &i18n_path,
+        temp_dir.path(),
         items,
         FluentParseMode::Conservative,
         false,

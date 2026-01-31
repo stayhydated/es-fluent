@@ -5,19 +5,22 @@ use std::fs;
 use std::path::Path;
 
 /// Cleans a Fluent translation file by removing unused orphan keys while preserving existing translations.
-pub fn clean<P: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
+pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     crate_name: &str,
     i18n_path: P,
+    manifest_dir: M,
     items: &[I],
     dry_run: bool,
 ) -> EsFluentResult<bool> {
     let i18n_path = i18n_path.as_ref();
+    let manifest_dir = manifest_dir.as_ref();
     let items_ref: Vec<&FtlTypeInfo> = items.iter().map(|i| i.as_ref()).collect();
 
     // Group items by namespace
-    let mut namespaced: IndexMap<Option<&str>, Vec<&FtlTypeInfo>> = IndexMap::new();
+    let mut namespaced: IndexMap<Option<String>, Vec<&FtlTypeInfo>> = IndexMap::new();
     for item in &items_ref {
-        namespaced.entry(item.namespace).or_default().push(item);
+        let namespace = item.resolved_namespace(manifest_dir);
+        namespaced.entry(namespace).or_default().push(item);
     }
 
     let mut any_changed = false;

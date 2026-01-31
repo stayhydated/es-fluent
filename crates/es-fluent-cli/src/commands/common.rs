@@ -88,14 +88,8 @@ impl WorkspaceCrates {
 /// Read the changed status from the runner crate's result.json file.
 ///
 /// Returns `true` if the file indicates changes were made, `false` otherwise.
-/// Read the changed status from the runner crate's result.json file.
-///
-/// Returns `true` if the file indicates changes were made, `false` otherwise.
 fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
-    let result_json_path = temp_dir
-        .join("metadata")
-        .join(crate_name)
-        .join("result.json");
+    let result_json_path = es_fluent_derive_core::get_metadata_result_path(temp_dir, crate_name);
 
     if !result_json_path.exists() {
         return false;
@@ -157,7 +151,8 @@ pub fn parallel_generate(
             match result {
                 Ok(output) => {
                     // For monolithic, result.json is at workspace root
-                    let temp_dir = workspace.root_dir.join(".es-fluent");
+                    let temp_dir =
+                        es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
                     let changed = read_changed_status(&temp_dir, &krate.name);
 
                     let output_opt = if output.is_empty() {

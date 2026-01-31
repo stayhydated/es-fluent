@@ -82,25 +82,13 @@ fn generate(opts: &StructOpts) -> TokenStream {
         // Generate namespace expression based on attribute
         let namespace_expr = match opts.attr_args().namespace() {
             Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                quote! { Some(#s) }
+                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
             },
             Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path(FILE_PATH);
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
             },
             Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                quote! {
-                    Some({
-                        const FILE_PATH: &str = file!();
-                        const NAMESPACE: &str = ::es_fluent::__namespace_from_file_path_relative(FILE_PATH);
-                        NAMESPACE
-                    })
-                }
+                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
             },
             None => quote! { None },
         };

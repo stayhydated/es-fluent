@@ -76,3 +76,4 @@
 - **JavaScript**: Use [bun](https://bun.com/) for dependency management.
 - **Python**: Use [uv](https://docs.astral.sh/uv/) for dependency management and running Python scripts.
 - **Testing**: Use [insta](https://insta.rs/) for snapshot tests where appropriate, rather than complex assertion-based unit tests.
+- **Test snippets**: Prefer raw multiline strings (or `quote! { ... }` in macro contexts) over escaped single-line literals when embedding Rust code in tests.
