@@ -202,6 +202,64 @@ fn run_generate_namespaced_output_test() -> String {
     output
 }
 
+fn run_generate_file_relative_namespace_test() -> String {
+    let temp = setup_workspace_env();
+
+    let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
+    let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
+    content.push_str(
+        r#"
+#[derive(EsFluent)]
+#[fluent(namespace(file(relative)))]
+pub struct FileRelativeNs;
+"#,
+    );
+    std::fs::write(&src_path, content).expect("write lib.rs");
+
+    let output = run_cli(&temp, &["generate"]);
+
+    let namespaced_path = temp.path().join("i18n/en/test-app-a/lib.ftl");
+    assert!(
+        namespaced_path.exists(),
+        "File-relative namespace should generate lib.ftl under i18n"
+    );
+    let namespaced_content = std::fs::read_to_string(&namespaced_path).expect("read lib.ftl");
+    assert!(
+        namespaced_content.contains("file_relative_ns"),
+        "Namespaced file should contain the new key"
+    );
+
+    let stray_path = temp.path().join("crates/test-app-a/src/lib.ftl");
+    assert!(
+        !stray_path.exists(),
+        "Should not create lib.ftl inside the source directory"
+    );
+
+    output
+}
+
+fn run_generate_invalid_namespace_file_relative_test() -> String {
+    let temp = setup_workspace_env();
+
+    let i18n_path = temp.path().join("crates/test-app-a/i18n.toml");
+    let mut toml = std::fs::read_to_string(&i18n_path).expect("read i18n.toml");
+    toml.push_str("\nnamespaces = [\"ui\"]\n");
+    std::fs::write(&i18n_path, toml).expect("write i18n.toml");
+
+    let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
+    let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
+    content.push_str(
+        r#"
+#[derive(EsFluent)]
+#[fluent(namespace(file(relative)))]
+pub struct InvalidNs;
+"#,
+    );
+    std::fs::write(&src_path, content).expect("write lib.rs");
+
+    run_cli(&temp, &["generate"])
+}
+
 fn run_fmt_real_test(config: &E2eConfig) -> String {
     let temp = (config.setup)();
     let ftl_path = temp.path().join(config.ftl_path);
@@ -723,6 +781,26 @@ fn test_generate_force_run() {
 #[test]
 fn test_generate_namespaced_output() {
     assert_snapshot!(run_generate_namespaced_output_test());
+}
+
+#[test]
+fn test_generate_file_relative_namespace() {
+    assert_snapshot!(run_generate_file_relative_namespace_test());
+}
+
+#[test]
+fn test_generate_invalid_namespace_file_relative() {
+    let output = run_generate_invalid_namespace_file_relative_test();
+    assert!(
+        output.contains("InvalidNamespace"),
+        "Expected invalid namespace error, got:\n{}",
+        output
+    );
+    assert!(
+        output.contains("namespace: \"lib\""),
+        "Expected resolved namespace in error output, got:\n{}",
+        output
+    );
 }
 
 #[test]
