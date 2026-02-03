@@ -1,7 +1,9 @@
 //! This module provides types for managing embedded translations.
 
+use crate::fallback::fallback_locales;
 use crate::localization::{I18nModule, LocalizationError, Localizer};
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
+use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -107,22 +109,23 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         let mut current_lang_guard = self.current_lang.write().unwrap();
-        if Some(lang) == current_lang_guard.as_ref() {
-            return Ok(());
-        }
-
-        if let Ok(resources) = self.load_resource_for_language(lang) {
-            *self.current_resources.write().unwrap() = resources;
-            *current_lang_guard = Some(lang.clone());
-            return Ok(());
-        }
-
-        for supported_lang in self.data.supported_languages {
-            if lang.matches(supported_lang, true, true)
-                && let Ok(resources) = self.load_resource_for_language(supported_lang)
+        for candidate in fallback_locales(lang).locales() {
+            if !self
+                .data
+                .supported_languages
+                .iter()
+                .any(|supported| supported == &candidate)
             {
+                continue;
+            }
+
+            if current_lang_guard.as_ref() == Some(&candidate) {
+                return Ok(());
+            }
+
+            if let Ok(resources) = self.load_resource_for_language(&candidate) {
                 *self.current_resources.write().unwrap() = resources;
-                *current_lang_guard = Some(lang.clone());
+                *current_lang_guard = Some(candidate);
                 return Ok(());
             }
         }

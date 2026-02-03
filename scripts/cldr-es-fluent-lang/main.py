@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+
 from src.io import DownloadError, ExtractionError, download_file, extract_archive
 from src.processing import collapse_entries, collect_entries
 from src.writers import write_ftl, write_supported_locales

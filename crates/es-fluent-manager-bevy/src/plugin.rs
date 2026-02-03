@@ -1,7 +1,7 @@
 use crate::*;
 use arc_swap::ArcSwap;
 use bevy::window::RequestRedraw;
-use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource};
+use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource, resolve_fallback_language};
 use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
@@ -48,14 +48,11 @@ impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
         es_fluent::set_custom_localizer(bevy_custom_localizer);
 
-        set_bevy_i18n_state(BevyI18nState::new(self.config.initial_language.clone()));
-
         app.init_asset::<FtlAsset>()
             .init_asset_loader::<FtlAssetLoader>()
             .init_resource::<I18nBundle>();
 
         let mut i18n_assets = I18nAssets::new();
-        let i18n_resource = I18nResource::new(self.config.initial_language.clone());
 
         let asset_server = app.world().resource::<AssetServer>();
 
@@ -81,6 +78,22 @@ impl Plugin for I18nPlugin {
                 data.name, data.domain, data.namespaces
             );
         }
+
+        let mut discovered_language_list: Vec<_> = discovered_languages.iter().cloned().collect();
+        discovered_language_list.sort_by_key(|lang| lang.to_string());
+        let resolved_language =
+            resolve_fallback_language(&self.config.initial_language, &discovered_language_list)
+                .unwrap_or_else(|| self.config.initial_language.clone());
+
+        if resolved_language != self.config.initial_language {
+            info!(
+                "Initial locale '{}' not found, falling back to '{}'",
+                self.config.initial_language, resolved_language
+            );
+        }
+
+        set_bevy_i18n_state(BevyI18nState::new(resolved_language.clone()));
+        let i18n_resource = I18nResource::new(resolved_language.clone());
 
         for lang in &discovered_languages {
             for domain in &discovered_domains {
@@ -125,7 +138,7 @@ impl Plugin for I18nPlugin {
 
         app.insert_resource(i18n_assets)
             .insert_resource(i18n_resource)
-            .insert_resource(CurrentLanguageId(self.config.initial_language.clone()))
+            .insert_resource(CurrentLanguageId(resolved_language.clone()))
             .add_message::<LocaleChangeEvent>()
             .add_message::<LocaleChangedEvent>()
             .add_systems(
@@ -249,14 +262,27 @@ fn handle_locale_changes(
     mut locale_change_events: MessageReader<LocaleChangeEvent>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
     mut i18n_resource: ResMut<I18nResource>,
+    i18n_assets: Res<I18nAssets>,
     mut current_language_id: ResMut<CurrentLanguageId>,
 ) {
     for event in locale_change_events.read() {
         info!("Changing locale to: {}", event.0);
-        i18n_resource.set_language(event.0.clone());
-        update_global_language(event.0.clone());
-        current_language_id.0 = event.0.clone();
-        locale_changed_events.write(LocaleChangedEvent(event.0.clone()));
+
+        let available_languages = i18n_assets.available_languages();
+        let resolved_language = resolve_fallback_language(&event.0, &available_languages)
+            .unwrap_or_else(|| event.0.clone());
+
+        if resolved_language != event.0 {
+            info!(
+                "Locale '{}' not found, falling back to '{}'",
+                event.0, resolved_language
+            );
+        }
+
+        i18n_resource.set_language(resolved_language.clone());
+        update_global_language(resolved_language.clone());
+        current_language_id.0 = resolved_language.clone();
+        locale_changed_events.write(LocaleChangedEvent(resolved_language));
     }
 }
 
