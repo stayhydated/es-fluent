@@ -330,7 +330,7 @@ mod tests {
         let config_path = temp_dir.path().join("i18n.toml");
 
         let config_content = r#"
-fallback_language = "en-US"
+fallback_language = "en"
 assets_dir = "i18n"
 "#;
 
@@ -357,7 +357,7 @@ assets_dir = "i18n"
         let config_path = temp_dir.path().join("i18n.toml");
 
         let invalid_config = r#"
-fallback_language = "en-US"
+fallback_language = "en"
 [invalid_section]
 assets_dir = "i18n"
 "#;
@@ -482,7 +482,7 @@ assets_dir = "i18n"
         let config_path = temp_dir.path().join("i18n.toml");
 
         let config_content = r#"
-fallback_language = "en-US"
+fallback_language = "en"
 assets_dir = "i18n"
 fluent_feature = "fluent"
 "#;
@@ -500,7 +500,7 @@ fluent_feature = "fluent"
         let config_path = temp_dir.path().join("i18n.toml");
 
         let config_content = r#"
-fallback_language = "en-US"
+fallback_language = "en"
 assets_dir = "i18n"
 fluent_feature = ["fluent", "i18n"]
 "#;
@@ -518,7 +518,7 @@ fluent_feature = ["fluent", "i18n"]
         let config_path = temp_dir.path().join("i18n.toml");
 
         let config_content = r#"
-fallback_language = "en-US"
+fallback_language = "en"
 assets_dir = "i18n"
 "#;
 
