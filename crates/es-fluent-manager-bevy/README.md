@@ -119,3 +119,13 @@ impl RefreshForLocale for UiMessage {
 
 app.register_fluent_text_from_locale::<UiMessage>();
 ```
+
+### Do Nested Types Need `BevyFluentText`?
+
+Only the **component type** wrapped by `FluentText<T>` needs registration.
+If a nested field (like `KbKeys`) is only used inside a registered component,
+it does **not** need `BevyFluentText`. When the parent component re-renders,
+its `EsFluent` implementation formats all fields using the current locale.
+
+You only need `BevyFluentText` for a nested type if you plan to use it directly
+as `FluentText<ThatType>` or otherwise register it as its own component.
