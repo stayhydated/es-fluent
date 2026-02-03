@@ -41,7 +41,7 @@ flowchart TD
 
 ### Embedded Translations
 
-The crate includes `es-fluent-lang.ftl`, which contains translations for common language codes. This allows applications to display a language picker without needing to manually translate language names.
+By default, the crate embeds per-locale translation files under `i18n/<locale>/es-fluent-lang.ftl`, allowing language names to be localized to the current UI language. When the `minimal` feature is enabled, it falls back to the single `es-fluent-lang.ftl` autonym file.
 
 ### Manager Integration
 
@@ -55,7 +55,7 @@ inventory::submit! {
 
 ### Bevy Support
 
-When the optional `bevy` feature is enabled, it registers a `StaticI18nResource` compatible with [Bevy](https://github.com/bevyengine/bevy) game engine's asset system (via the manager).
+When the optional `bevy` feature is enabled, it registers `StaticI18nResource` entries for each locale found under `i18n/<locale>/es-fluent-lang.ftl`. A small build script scans the `i18n` folder and generates the inventory registrations so Bevy can load the correct language-name resource for each locale.
 
 ## Macro
 

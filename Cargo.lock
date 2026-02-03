@@ -4037,6 +4037,7 @@ dependencies = [
  "es-fluent-manager-core",
  "fluent-bundle",
  "inventory",
+ "rust-embed",
  "tracing",
  "unic-langid",
 ]

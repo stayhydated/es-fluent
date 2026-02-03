@@ -40,6 +40,10 @@ It also implements:
 - `FromStr`: Parses string codes (e.g., "en-US") into the enum variant.
 - `Into<LanguageIdentifier>`: Converts back to a standard locale ID.
 
+### Feature Flags
+
+- `minimal`: Use the embedded `es-fluent-lang.ftl` autonym file instead of per-locale resources under `i18n/<locale>/es-fluent-lang.ftl`.
+
 ## Standard Translations
 
 The crate also includes a built-in module for translating language names themselves (e.g., "English", "Français", "Deutsch"). This means you can easily build a "Language Picker" UI without manually translating the names of every language.
