@@ -10,6 +10,8 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 readme = "README.md"
+categories = [ "localization", "internationalization" ]
+keywords = [ "fluent", "i18n", "locale", "cldr" ]
 build = "build.rs"
 
 [features]
