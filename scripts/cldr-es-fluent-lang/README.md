@@ -35,28 +35,32 @@ The script generates entries like:
 
 ```ftl
 es-fluent-lang-aa = Afar
-es-fluent-lang-ab-GE = Аԥсшәа
+es-fluent-lang-aa-DJ = Afar (Djibouti)
+es-fluent-lang-aa-ER = Afar (Eritrea)
+es-fluent-lang-aa-ET = Afar (Ethiopia)
+es-fluent-lang-ab = Аԥсшәа
+es-fluent-lang-ab-GE = Аԥсшәа (Georgia)
+es-fluent-lang-ae = Avestan
 es-fluent-lang-af = Afrikaans
-es-fluent-lang-agq-CM = Aghem
-es-fluent-lang-ak-GH = Akan
-es-fluent-lang-am-ET = አማርኛ
-es-fluent-lang-an-ES = aragonés
-es-fluent-lang-ann-NG = Obolo
+es-fluent-lang-af-NA = Afrikaans (Namibia)
 # ...
 ```
+
+It also includes ISO 639-1 base language tags (two-letter codes like `en`, `fr`) so language-only folders are supported alongside region/script variants.
 
 And a Rust file:
 
 ```rs
 pub const SUPPORTED_LANGUAGE_KEYS: &[&str] = &[
     "aa",
+    "aa-DJ",
+    "aa-ER",
+    "aa-ET",
+    "ab",
     "ab-GE",
+    "ae",
     "af",
-    "agq-CM",
-    "ak-GH",
-    "am-ET",
-    "an-ES",
-    "ann-NG",
+    "af-NA",
     // ...
 ];
 ```

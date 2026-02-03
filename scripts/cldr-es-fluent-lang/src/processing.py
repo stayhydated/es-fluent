@@ -123,19 +123,16 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
             )
         return locale_cache[canonical_tag]
 
-    # First pass: collect base language names (without region, or with region "001")
-    base_language_names: dict[str, str] = {}
-
-    entries: dict[str, str] = {}
-
-    for locale in sorted(available_locales, key=lambda loc: str(Locale.parse(loc))):
-        original_locale = Locale.parse(locale)
-        expanded_locale = expand_locale(locale, likely_subtags)
+    def build_entry(
+        locale_tag: str, *, force_language_only: bool = False
+    ) -> tuple[str, str, Locale, Locale]:
+        original_locale = Locale.parse(locale_tag)
+        expanded_locale = expand_locale(locale_tag, likely_subtags)
 
         keys = candidate_language_keys(original_locale, expanded_locale)
         autonym: str | None = None
 
-        for fallback in fallback_chain(locale):
+        for fallback in fallback_chain(locale_tag):
             entry = get_locale_entry(fallback)
             if not entry:
                 continue
@@ -168,10 +165,25 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
                 f"{base_name} ({', '.join(qualifiers)})" if qualifiers else base_name
             )
 
-        normalized_locale_tag = format_locale(
-            expanded_locale,
-            original_locale,
-            likely_subtags,
+        if force_language_only:
+            normalized_locale_tag = original_locale.language
+        else:
+            normalized_locale_tag = format_locale(
+                expanded_locale,
+                original_locale,
+                likely_subtags,
+            )
+
+        return normalized_locale_tag, autonym, expanded_locale, original_locale
+
+    # First pass: collect base language names (without region, or with region "001")
+    base_language_names: dict[str, str] = {}
+
+    entries: dict[str, str] = {}
+
+    for locale in sorted(available_locales, key=lambda loc: str(Locale.parse(loc))):
+        normalized_locale_tag, autonym, expanded_locale, original_locale = build_entry(
+            locale
         )
 
         # Track base language names:
@@ -185,6 +197,23 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
 
         if normalized_locale_tag not in entries:
             entries[normalized_locale_tag] = autonym
+
+    # Add ISO 639-1 base language tags (two-letter codes like "en").
+    iso_639_1_languages: set[str] = set()
+    for tag in english_names.keys():
+        language = Locale.parse(tag).language
+        if len(language) == 2 and language.isalpha():
+            iso_639_1_languages.add(language)
+    for language in sorted(iso_639_1_languages):
+        if language in entries:
+            continue
+        normalized_locale_tag, autonym, expanded_locale, _ = build_entry(
+            language, force_language_only=True
+        )
+        if normalized_locale_tag not in entries:
+            entries[normalized_locale_tag] = autonym
+        if expanded_locale.language not in base_language_names:
+            base_language_names[expanded_locale.language] = autonym
 
     # Second pass: add region qualifiers and filter out unhelpful entries
     qualified_entries: dict[str, str] = {}

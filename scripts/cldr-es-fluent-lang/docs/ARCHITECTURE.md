@@ -181,6 +181,8 @@ For each available locale in CLDR:
    - Fall back to English names
 1. **Construct display name** from components if no autonym found
 
+After the main pass, the processor adds **ISO 639-1 base language tags** (two-letter codes like `en`, `fr`). These entries use the same autonym resolution logic but are **forced to stay language-only** (no default region), even when `likelySubtags` would normally expand them to a regioned tag (e.g., `en-US`).
+
 ### 3. Entry Preservation and Region Qualification
 
 The `collapse_entries()` function preserves all locale entries without collapsing region variants. This ensures that region-specific locales like `en-US`, `en-GB`, `zh-Hans-CN`, etc. are all available in the output files.
@@ -209,42 +211,18 @@ The `format_locale()` function normalizes output tags:
 - Drops `001` (World) region when implicit
 - Preserves scripts when they differ from the likely default
 
+ISO 639-1 base language entries are intentionally emitted as language-only tags and bypass the default-region normalization step.
+
 ## Output Files
 
 ### es-fluent-lang.ftl
 
 Located at `crates/es-fluent-lang/es-fluent-lang.ftl`:
 
-```ftl
-es-fluent-lang-aa = Afar
-es-fluent-lang-ab-GE = Аԥсшәа
-es-fluent-lang-af = Afrikaans
-es-fluent-lang-agq-CM = Aghem
-es-fluent-lang-ak-GH = Akan
-es-fluent-lang-am-ET = አማርኛ
-es-fluent-lang-an-ES = aragonés
-es-fluent-lang-ann-NG = Obolo
-# ...
-```
-
 Keys are prefixed with `es-fluent-lang-` to namespace them within the Fluent ecosystem.
 
 ### supported_locales.rs
 
 Located at `crates/es-fluent-lang-macro/src/supported_locales.rs`:
-
-```rs
-pub const SUPPORTED_LANGUAGE_KEYS: &[&str] = &[
-    "aa",
-    "ab-GE",
-    "af",
-    "agq-CM",
-    "ak-GH",
-    "am-ET",
-    "an-ES",
-    "ann-NG",
-    // ...
-];
-```
 
 This constant is used by `es-fluent-lang-macro` to validate language directories at compile time.
