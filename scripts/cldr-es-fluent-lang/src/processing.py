@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from .loaders import (
@@ -51,6 +52,32 @@ def candidate_language_keys(
     return keys
 
 
+def merge_names_for_locale(
+    languages_root: Path,
+    locale: str,
+    loader: Callable[
+        [Path, str], dict[str, str] | tuple[LocaleIdentity, dict[str, str]] | None
+    ],
+) -> dict[str, str]:
+    """Merge display names for a locale using its fallback chain."""
+    merged: dict[str, str] = {}
+    for fallback in fallback_chain(locale):
+        try:
+            data = loader(languages_root, fallback)
+        except FileNotFoundError:
+            continue
+        if not data:
+            continue
+        if isinstance(data, tuple):
+            _, names = data
+        else:
+            names = data
+        for key, value in names.items():
+            if key not in merged:
+                merged[key] = value
+    return merged
+
+
 def collapse_entries(entries: dict[str, str]) -> dict[str, str]:
     """Preserve all locale entries without collapsing region variants.
 
@@ -94,8 +121,14 @@ def format_locale(
     )
 
 
-def collect_entries(cldr_root: Path) -> dict[str, str]:
-    """Collect all locale entries from CLDR data."""
+def collect_entries(
+    cldr_root: Path, display_locale: str | None = None
+) -> dict[str, str]:
+    """Collect all locale entries from CLDR data.
+
+    When display_locale is provided, language names are localized to that locale.
+    Otherwise, autonyms (self-names) are used.
+    """
     languages_root = cldr_root / "cldr-localenames-full" / "main"
 
     likely_subtags = load_likely_subtags(cldr_root)
@@ -108,6 +141,29 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
     _, english_names = english_entry
     english_scripts = load_script_names(languages_root, "en")
     english_territories = load_territory_names(languages_root, "en")
+
+    display_names: dict[str, str] | None = None
+    display_scripts: dict[str, str] | None = None
+    display_territories: dict[str, str] | None = None
+
+    if display_locale:
+        display_locale_tag = str(Locale.parse(display_locale))
+        display_names = merge_names_for_locale(
+            languages_root, display_locale_tag, load_locale_entry
+        )
+        if not display_names:
+            raise ValueError(
+                f"Display locale '{display_locale}' missing from CLDR archive."
+            )
+        display_scripts = merge_names_for_locale(
+            languages_root, display_locale_tag, load_script_names
+        )
+        display_territories = merge_names_for_locale(
+            languages_root, display_locale_tag, load_territory_names
+        )
+
+    script_names = display_scripts or english_scripts
+    territory_names = display_territories or english_territories
 
     locale_cache: dict[str, tuple[LocaleIdentity, dict[str, str]] | None] = {
         "en": english_entry
@@ -132,18 +188,25 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
         keys = candidate_language_keys(original_locale, expanded_locale)
         autonym: str | None = None
 
-        for fallback in fallback_chain(locale_tag):
-            entry = get_locale_entry(fallback)
-            if not entry:
-                continue
-            _, names = entry
+        if display_names is not None:
             for key in keys:
-                value = names.get(key)
+                value = display_names.get(key)
                 if value:
                     autonym = value
                     break
-            if autonym:
-                break
+        else:
+            for fallback in fallback_chain(locale_tag):
+                entry = get_locale_entry(fallback)
+                if not entry:
+                    continue
+                _, names = entry
+                for key in keys:
+                    value = names.get(key)
+                    if value:
+                        autonym = value
+                        break
+                if autonym:
+                    break
 
         if not autonym:
             for key in keys:
@@ -157,10 +220,10 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
                 expanded_locale.language, expanded_locale.language
             )
             qualifiers: list[str] = []
-            if expanded_locale.script and expanded_locale.script in english_scripts:
-                qualifiers.append(english_scripts[expanded_locale.script])
-            if expanded_locale.region and expanded_locale.region in english_territories:
-                qualifiers.append(english_territories[expanded_locale.region])
+            if expanded_locale.script and expanded_locale.script in script_names:
+                qualifiers.append(script_names[expanded_locale.script])
+            if expanded_locale.region and expanded_locale.region in territory_names:
+                qualifiers.append(territory_names[expanded_locale.region])
             autonym = (
                 f"{base_name} ({', '.join(qualifiers)})" if qualifiers else base_name
             )
@@ -234,7 +297,7 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
         if parsed.region and not parsed.region.isdigit():
             base_name = base_language_names.get(parsed.language)
             if base_name and name == base_name:
-                territory_name = english_territories.get(parsed.region)
+                territory_name = territory_names.get(parsed.region)
                 if territory_name:
                     name = f"{name} ({territory_name})"
 

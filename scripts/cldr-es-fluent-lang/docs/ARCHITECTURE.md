@@ -4,7 +4,7 @@ This document details the architecture of the `cldr-es-fluent-lang` script, whic
 
 ## Overview
 
-The script processes Unicode CLDR (Common Locale Data Repository) JSON data to extract language autonyms (self-names) and generates both Fluent translation files and Rust source files for compile-time validation.
+The script processes Unicode CLDR (Common Locale Data Repository) JSON data to extract language names. By default it emits **autonyms** (self-names), and with `--display-locale` it emits localized names for a specific UI language. It generates both Fluent translation files and Rust source files for compile-time validation.
 
 ## Package Structure
 
@@ -61,6 +61,7 @@ flowchart TD
 
     subgraph OUTPUT["Output"]
         FTL["es-fluent-lang.ftl"]
+        I18N["i18n/<locale>/es-fluent-lang.ftl"]
         RS["supported_locales.rs"]
     end
 
@@ -79,6 +80,7 @@ flowchart TD
     COLLAPSE --> FORMAT
     FORMAT --> WFTL & WRS
     WFTL --> FTL
+    WFTL --> I18N
     WRS --> RS
 ```
 
@@ -175,13 +177,13 @@ For each available locale in CLDR:
 
 1. **Expand locale** using `likelySubtags.json` (e.g., `zh` -> `zh-Hans-CN`)
 1. **Generate candidate keys** for lookup (full tag, lang-script, lang-region, base language)
-1. **Fallback chain** lookup for autonym:
+1. **Fallback chain** lookup for autonym (default mode):
    - Try the locale's own `languages.json`
    - Fall back through parent locales (e.g., `en-US` -> `en` -> `root`)
    - Fall back to English names
 1. **Construct display name** from components if no autonym found
 
-After the main pass, the processor adds **ISO 639-1 base language tags** (two-letter codes like `en`, `fr`). These entries use the same autonym resolution logic but are **forced to stay language-only** (no default region), even when `likelySubtags` would normally expand them to a regioned tag (e.g., `en-US`).
+After the main pass, the processor adds **ISO 639-1 base language tags** (two-letter codes like `en`, `fr`). These entries use the same resolution logic but are **forced to stay language-only** (no default region), even when `likelySubtags` would normally expand them to a regioned tag (e.g., `en-US`).
 
 ### 3. Entry Preservation and Region Qualification
 
@@ -220,6 +222,12 @@ ISO 639-1 base language entries are intentionally emitted as language-only tags 
 Located at `crates/es-fluent-lang/es-fluent-lang.ftl`:
 
 Keys are prefixed with `es-fluent-lang-` to namespace them within the Fluent ecosystem.
+
+### Per-locale i18n files
+
+Located under `crates/es-fluent-lang/i18n/<locale>/es-fluent-lang.ftl`:
+
+When `--all-locales` (default) is enabled, the script generates localized language-name files for every locale present in CLDR’s `cldr-localenames-full` dataset. Each file contains the same keys as `es-fluent-lang.ftl`, but with values translated into the display locale (e.g., `es-fluent-lang-zh = Chinese` in `i18n/en`).
 
 ### supported_locales.rs
 
