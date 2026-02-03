@@ -181,16 +181,25 @@ For each available locale in CLDR:
    - Fall back to English names
 1. **Construct display name** from components if no autonym found
 
-### 3. Entry Collapsing
+### 3. Entry Preservation and Region Qualification
 
-The `collapse_entries()` function deduplicates entries where multiple region variants share the same name:
+The `collapse_entries()` function preserves all locale entries without collapsing region variants. This ensures that region-specific locales like `en-US`, `en-GB`, `zh-Hans-CN`, etc. are all available in the output files.
 
-| Before                                                  | After                |
-| ------------------------------------------------------- | -------------------- |
-| `en-US = English`, `en-GB = English`, `en-AU = English` | `en = English`       |
-| `zh-Hans-CN = 简体中文`, `zh-Hans-SG = 简体中文`        | `zh-Hans = 简体中文` |
+Additionally, when a locale's display name matches its base language name (e.g., `en-US` having the same name "English" as `en-001`), a region qualifier is automatically appended:
 
-This reduces file size while preserving distinct names for locales that differ.
+| Locale  | Before    | After                            |
+| ------- | --------- | -------------------------------- |
+| `en-US` | `English` | `English (United States)`        |
+| `en-AE` | `English` | `English (United Arab Emirates)` |
+| `es-AR` | `español` | `español (Argentina)`            |
+
+Locales that already have distinct names (like `en-AU = Australian English` or `en-GB = British English`) are preserved as-is.
+
+**Numeric region codes** (UN M.49 macro-regions like `001` for World, `150` for Europe, `419` for Latin America) are filtered out unless they have a distinct name. For example:
+
+- `en-001 = English` is removed (same name as base)
+- `en-150 = English` is removed (same name as base)
+- `es-419 = español latinoamericano` is kept (distinct name)
 
 ### 4. Locale Formatting
 
