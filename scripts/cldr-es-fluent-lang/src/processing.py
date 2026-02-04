@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
 
 from .loaders import (
@@ -52,46 +52,41 @@ def candidate_language_keys(
     return keys
 
 
+def merge_names_for_locale(
+    languages_root: Path,
+    locale: str,
+    loader: Callable[
+        [Path, str], dict[str, str] | tuple[LocaleIdentity, dict[str, str]] | None
+    ],
+) -> dict[str, str]:
+    """Merge display names for a locale using its fallback chain."""
+    merged: dict[str, str] = {}
+    for fallback in fallback_chain(locale):
+        try:
+            data = loader(languages_root, fallback)
+        except FileNotFoundError:
+            continue
+        if not data:
+            continue
+        if isinstance(data, tuple):
+            _, names = data
+        else:
+            names = data
+        for key, value in names.items():
+            if key not in merged:
+                merged[key] = value
+    return merged
+
+
 def collapse_entries(entries: dict[str, str]) -> dict[str, str]:
-    """Deduplicate entries where multiple region variants share the same name."""
-    grouped: dict[Locale, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
-    for locale_tag, name in entries.items():
-        parts = Locale.parse(locale_tag)
-        # Group by lang, script, and variants (ignoring region)
-        key_locale = Locale(
-            language=parts.language, script=parts.script, variants=parts.variants
-        )
-        grouped[key_locale][name].append(locale_tag)
+    """Preserve all locale entries without collapsing region variants.
 
-    collapsed: dict[str, str] = {}
-    canonical_sources: dict[str, list[str]] = {}
-
-    for key_locale, name_map in grouped.items():
-        for name, locales in name_map.items():
-            locales = sorted(locales)
-            if len(locales) == 1:
-                collapsed[locales[0]] = name
-                continue
-
-            canonical_tag = str(key_locale)
-            existing = collapsed.get(canonical_tag)
-
-            if existing is None:
-                collapsed[canonical_tag] = name
-                canonical_sources[canonical_tag] = locales
-                continue
-
-            if existing == name:
-                continue
-
-            previous_locales = canonical_sources.pop(canonical_tag, [])
-            collapsed.pop(canonical_tag, None)
-            for previous in previous_locales:
-                collapsed[previous] = existing
-            for locale in locales:
-                collapsed[locale] = name
-
-    return collapsed
+    Previously this function would deduplicate entries where multiple region
+    variants shared the same name (e.g., en-US, en-GB -> en). Now it preserves
+    all entries to ensure region-specific locales like en-US are available.
+    """
+    # Return entries as-is without collapsing
+    return dict(entries)
 
 
 def format_locale(
@@ -126,8 +121,14 @@ def format_locale(
     )
 
 
-def collect_entries(cldr_root: Path) -> dict[str, str]:
-    """Collect all locale entries from CLDR data."""
+def collect_entries(
+    cldr_root: Path, display_locale: str | None = None
+) -> dict[str, str]:
+    """Collect all locale entries from CLDR data.
+
+    When display_locale is provided, language names are localized to that locale.
+    Otherwise, autonyms (self-names) are used.
+    """
     languages_root = cldr_root / "cldr-localenames-full" / "main"
 
     likely_subtags = load_likely_subtags(cldr_root)
@@ -140,6 +141,29 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
     _, english_names = english_entry
     english_scripts = load_script_names(languages_root, "en")
     english_territories = load_territory_names(languages_root, "en")
+
+    display_names: dict[str, str] | None = None
+    display_scripts: dict[str, str] | None = None
+    display_territories: dict[str, str] | None = None
+
+    if display_locale:
+        display_locale_tag = str(Locale.parse(display_locale))
+        display_names = merge_names_for_locale(
+            languages_root, display_locale_tag, load_locale_entry
+        )
+        if not display_names:
+            raise ValueError(
+                f"Display locale '{display_locale}' missing from CLDR archive."
+            )
+        display_scripts = merge_names_for_locale(
+            languages_root, display_locale_tag, load_script_names
+        )
+        display_territories = merge_names_for_locale(
+            languages_root, display_locale_tag, load_territory_names
+        )
+
+    script_names = display_scripts or english_scripts
+    territory_names = display_territories or english_territories
 
     locale_cache: dict[str, tuple[LocaleIdentity, dict[str, str]] | None] = {
         "en": english_entry
@@ -155,27 +179,34 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
             )
         return locale_cache[canonical_tag]
 
-    entries: dict[str, str] = {}
-
-    for locale in sorted(available_locales, key=lambda loc: str(Locale.parse(loc))):
-        original_locale = Locale.parse(locale)
-        expanded_locale = expand_locale(locale, likely_subtags)
+    def build_entry(
+        locale_tag: str, *, force_language_only: bool = False
+    ) -> tuple[str, str, Locale, Locale]:
+        original_locale = Locale.parse(locale_tag)
+        expanded_locale = expand_locale(locale_tag, likely_subtags)
 
         keys = candidate_language_keys(original_locale, expanded_locale)
         autonym: str | None = None
 
-        for fallback in fallback_chain(locale):
-            entry = get_locale_entry(fallback)
-            if not entry:
-                continue
-            _, names = entry
+        if display_names is not None:
             for key in keys:
-                value = names.get(key)
+                value = display_names.get(key)
                 if value:
                     autonym = value
                     break
-            if autonym:
-                break
+        else:
+            for fallback in fallback_chain(locale_tag):
+                entry = get_locale_entry(fallback)
+                if not entry:
+                    continue
+                _, names = entry
+                for key in keys:
+                    value = names.get(key)
+                    if value:
+                        autonym = value
+                        break
+                if autonym:
+                    break
 
         if not autonym:
             for key in keys:
@@ -189,20 +220,87 @@ def collect_entries(cldr_root: Path) -> dict[str, str]:
                 expanded_locale.language, expanded_locale.language
             )
             qualifiers: list[str] = []
-            if expanded_locale.script and expanded_locale.script in english_scripts:
-                qualifiers.append(english_scripts[expanded_locale.script])
-            if expanded_locale.region and expanded_locale.region in english_territories:
-                qualifiers.append(english_territories[expanded_locale.region])
+            if expanded_locale.script and expanded_locale.script in script_names:
+                qualifiers.append(script_names[expanded_locale.script])
+            if expanded_locale.region and expanded_locale.region in territory_names:
+                qualifiers.append(territory_names[expanded_locale.region])
             autonym = (
                 f"{base_name} ({', '.join(qualifiers)})" if qualifiers else base_name
             )
 
-        normalized_locale_tag = format_locale(
-            expanded_locale,
-            original_locale,
-            likely_subtags,
+        if force_language_only:
+            normalized_locale_tag = original_locale.language
+        else:
+            normalized_locale_tag = format_locale(
+                expanded_locale,
+                original_locale,
+                likely_subtags,
+            )
+
+        return normalized_locale_tag, autonym, expanded_locale, original_locale
+
+    # First pass: collect base language names (without region, or with region "001")
+    base_language_names: dict[str, str] = {}
+
+    entries: dict[str, str] = {}
+
+    for locale in sorted(available_locales, key=lambda loc: str(Locale.parse(loc))):
+        normalized_locale_tag, autonym, expanded_locale, original_locale = build_entry(
+            locale
         )
+
+        # Track base language names:
+        # - Locales without region and without script
+        # - Locales with region "001" (World) which serve as the base for that language
+        is_base_locale = (
+            original_locale.region is None and original_locale.script is None
+        ) or original_locale.region == "001"
+        if is_base_locale and expanded_locale.language not in base_language_names:
+            base_language_names[expanded_locale.language] = autonym
+
         if normalized_locale_tag not in entries:
             entries[normalized_locale_tag] = autonym
 
-    return entries
+    # Add ISO 639-1 base language tags (two-letter codes like "en").
+    iso_639_1_languages: set[str] = set()
+    for tag in english_names.keys():
+        language = Locale.parse(tag).language
+        if len(language) == 2 and language.isalpha():
+            iso_639_1_languages.add(language)
+    for language in sorted(iso_639_1_languages):
+        if language in entries:
+            continue
+        normalized_locale_tag, autonym, expanded_locale, _ = build_entry(
+            language, force_language_only=True
+        )
+        if normalized_locale_tag not in entries:
+            entries[normalized_locale_tag] = autonym
+        if expanded_locale.language not in base_language_names:
+            base_language_names[expanded_locale.language] = autonym
+
+    # Second pass: add region qualifiers and filter out unhelpful entries
+    qualified_entries: dict[str, str] = {}
+    for locale_tag, name in entries.items():
+        parsed = Locale.parse(locale_tag)
+
+        # Skip numeric region codes (UN M.49) that don't have distinct names
+        # These are macro-regions like 001 (World), 150 (Europe), 419 (Latin America)
+        # Keep them only if they have a distinct name from the base language
+        if parsed.region and parsed.region.isdigit():
+            base_name = base_language_names.get(parsed.language)
+            if base_name and name == base_name:
+                # Skip this entry - it's a numeric region with no distinct name
+                continue
+
+        # If this locale has a region and its name matches the base language name,
+        # add a region qualifier
+        if parsed.region and not parsed.region.isdigit():
+            base_name = base_language_names.get(parsed.language)
+            if base_name and name == base_name:
+                territory_name = territory_names.get(parsed.region)
+                if territory_name:
+                    name = f"{name} ({territory_name})"
+
+        qualified_entries[locale_tag] = name
+
+    return qualified_entries

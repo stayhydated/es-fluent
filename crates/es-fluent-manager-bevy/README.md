@@ -5,7 +5,7 @@
 
 Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`.
 
-This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and Asset system. It allows you to use standard `#[derive(EsFluent)]` types as components that automatically update when the game's language changes.
+This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and Asset system. It allows you to use standard `#[derive(EsFluent)]` types as components that automatically update when the app/game's language changes.
 
 | `es-fluent-manager-bevy` | `bevy`   |
 | :----------------------- | :------- |
@@ -43,19 +43,40 @@ fn main() {
 }
 ```
 
-### 2. Using in UI
+### 2. Define Localizable Components (Recommended)
 
-Use the `FluentText` component wrapper for any type that implements `ToFluentString` (which `#[derive(EsFluent)]` provides).
+Prefer the `BevyFluentText` derive macro. It auto-registers your type with
+`I18nPlugin` via inventory, so you don't have to call any registration
+functions manually.
+
+If a field depends on the active locale (like the `Languages` enum from
+[es_fluent_lang](../es-fluent-lang/README.md)), mark it with `#[locale]`.
+The macro will generate `RefreshForLocale` and register the locale-aware
+systems for you.
 
 ```rs
+use bevy::prelude::Component;
 use es_fluent::EsFluent;
-use es_fluent_manager_bevy::FluentText;
+use es_fluent_manager_bevy::BevyFluentText;
 
-#[derive(EsFluent, Clone, Component)]
+#[derive(BevyFluentText, Clone, Component, EsFluent)]
 pub enum UiMessage {
     StartGame,
     Settings,
+    LanguageHint {
+        #[locale]
+        current_language: Languages,
+    },
 }
+```
+
+### 3. Using in UI
+
+Use the `FluentText` component wrapper for any type that implements `ToFluentString`
+(which `#[derive(EsFluent)]` provides).
+
+```rs
+use es_fluent_manager_bevy::FluentText;
 
 fn spawn_menu(mut commands: Commands) {
     commands.spawn((
@@ -66,17 +87,17 @@ fn spawn_menu(mut commands: Commands) {
 }
 ```
 
-### 3. Registering Components
+### Manual Registration (Fallback)
 
-For `FluentText` to work, you must register the specific inner type with the app so the plugin knows to update it:
+If you cannot derive `BevyFluentText` (e.g., external types), you can still
+register manually:
 
 ```rs
 app.register_fluent_text::<UiMessage>();
 ```
 
-## es-fluent-lang integration
-
-If your type contains fields that use [es_fluent_lang](../es-fluent-lang/README.md) (for the `Languages` enum), you must implement `RefreshForLocale` and use `register_fluent_text_from_locale` instead:
+If the type needs locale refresh, implement `RefreshForLocale` and use the
+locale-aware registration function:
 
 ```rs
 use es_fluent_manager_bevy::RefreshForLocale;
@@ -96,6 +117,15 @@ impl RefreshForLocale for UiMessage {
     }
 }
 
-// Register with:
 app.register_fluent_text_from_locale::<UiMessage>();
 ```
+
+### Do Nested Types Need `BevyFluentText`?
+
+Only the **component type** wrapped by `FluentText<T>` needs registration.
+If a nested field (like `KbKeys`) is only used inside a registered component,
+it does **not** need `BevyFluentText`. When the parent component re-renders,
+its `EsFluent` implementation formats all fields using the current locale.
+
+You only need `BevyFluentText` for a nested type if you plan to use it directly
+as `FluentText<ThatType>` or otherwise register it as its own component.

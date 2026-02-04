@@ -4,7 +4,7 @@ This document details the architecture of the `cldr-es-fluent-lang` script, whic
 
 ## Overview
 
-The script processes Unicode CLDR (Common Locale Data Repository) JSON data to extract language autonyms (self-names) and generates both Fluent translation files and Rust source files for compile-time validation.
+The script processes Unicode CLDR (Common Locale Data Repository) JSON data to extract language names. By default it emits **autonyms** (self-names), and with `--display-locale` it emits localized names for a specific UI language. It generates both Fluent translation files and Rust source files for compile-time validation.
 
 ## Package Structure
 
@@ -61,6 +61,7 @@ flowchart TD
 
     subgraph OUTPUT["Output"]
         FTL["es-fluent-lang.ftl"]
+        I18N["i18n/<locale>/es-fluent-lang.ftl"]
         RS["supported_locales.rs"]
     end
 
@@ -79,6 +80,7 @@ flowchart TD
     COLLAPSE --> FORMAT
     FORMAT --> WFTL & WRS
     WFTL --> FTL
+    WFTL --> I18N
     WRS --> RS
 ```
 
@@ -175,22 +177,33 @@ For each available locale in CLDR:
 
 1. **Expand locale** using `likelySubtags.json` (e.g., `zh` -> `zh-Hans-CN`)
 1. **Generate candidate keys** for lookup (full tag, lang-script, lang-region, base language)
-1. **Fallback chain** lookup for autonym:
+1. **Fallback chain** lookup for autonym (default mode):
    - Try the locale's own `languages.json`
    - Fall back through parent locales (e.g., `en-US` -> `en` -> `root`)
    - Fall back to English names
 1. **Construct display name** from components if no autonym found
 
-### 3. Entry Collapsing
+After the main pass, the processor adds **ISO 639-1 base language tags** (two-letter codes like `en`, `fr`). These entries use the same resolution logic but are **forced to stay language-only** (no default region), even when `likelySubtags` would normally expand them to a regioned tag (e.g., `en-US`).
 
-The `collapse_entries()` function deduplicates entries where multiple region variants share the same name:
+### 3. Entry Preservation and Region Qualification
 
-| Before                                                  | After                |
-| ------------------------------------------------------- | -------------------- |
-| `en-US = English`, `en-GB = English`, `en-AU = English` | `en = English`       |
-| `zh-Hans-CN = 简体中文`, `zh-Hans-SG = 简体中文`        | `zh-Hans = 简体中文` |
+The `collapse_entries()` function preserves all locale entries without collapsing region variants. This ensures that region-specific locales like `en-US`, `en-GB`, `zh-Hans-CN`, etc. are all available in the output files.
 
-This reduces file size while preserving distinct names for locales that differ.
+Additionally, when a locale's display name matches its base language name (e.g., `en-US` having the same name "English" as `en-001`), a region qualifier is automatically appended:
+
+| Locale  | Before    | After                            |
+| ------- | --------- | -------------------------------- |
+| `en-US` | `English` | `English (United States)`        |
+| `en-AE` | `English` | `English (United Arab Emirates)` |
+| `es-AR` | `español` | `español (Argentina)`            |
+
+Locales that already have distinct names (like `en-AU = Australian English` or `en-GB = British English`) are preserved as-is.
+
+**Numeric region codes** (UN M.49 macro-regions like `001` for World, `150` for Europe, `419` for Latin America) are filtered out unless they have a distinct name. For example:
+
+- `en-001 = English` is removed (same name as base)
+- `en-150 = English` is removed (same name as base)
+- `es-419 = español latinoamericano` is kept (distinct name)
 
 ### 4. Locale Formatting
 
@@ -200,42 +213,24 @@ The `format_locale()` function normalizes output tags:
 - Drops `001` (World) region when implicit
 - Preserves scripts when they differ from the likely default
 
+ISO 639-1 base language entries are intentionally emitted as language-only tags and bypass the default-region normalization step.
+
 ## Output Files
 
 ### es-fluent-lang.ftl
 
 Located at `crates/es-fluent-lang/es-fluent-lang.ftl`:
 
-```ftl
-es-fluent-lang-aa = Afar
-es-fluent-lang-ab-GE = Аԥсшәа
-es-fluent-lang-af = Afrikaans
-es-fluent-lang-agq-CM = Aghem
-es-fluent-lang-ak-GH = Akan
-es-fluent-lang-am-ET = አማርኛ
-es-fluent-lang-an-ES = aragonés
-es-fluent-lang-ann-NG = Obolo
-# ...
-```
-
 Keys are prefixed with `es-fluent-lang-` to namespace them within the Fluent ecosystem.
+
+### Per-locale i18n files
+
+Located under `crates/es-fluent-lang/i18n/<locale>/es-fluent-lang.ftl`:
+
+When `--all-locales` (default) is enabled, the script generates localized language-name files for every locale present in CLDR’s `cldr-localenames-full` dataset. Each file contains the same keys as `es-fluent-lang.ftl`, but with values translated into the display locale (e.g., `es-fluent-lang-zh = Chinese` in `i18n/en`).
 
 ### supported_locales.rs
 
 Located at `crates/es-fluent-lang-macro/src/supported_locales.rs`:
-
-```rs
-pub const SUPPORTED_LANGUAGE_KEYS: &[&str] = &[
-    "aa",
-    "ab-GE",
-    "af",
-    "agq-CM",
-    "ak-GH",
-    "am-ET",
-    "an-ES",
-    "ann-NG",
-    // ...
-];
-```
 
 This constant is used by `es-fluent-lang-macro` to validate language directories at compile time.

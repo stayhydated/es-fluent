@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent-lang"
 description = """
-Opinionated crate for adding variants to a Language Enum.
+cldr 48 based crate for adding variants to a Language Enum.
 """
 edition.workspace = true
 license.workspace = true
@@ -10,17 +10,22 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 readme = "README.md"
+categories = [ "localization", "internationalization" ]
+keywords = [ "fluent", "i18n", "locale", "cldr" ]
+build = "build.rs"
 
 [features]
 bevy = [  ]
 default = [ "macros" ]
 macros = [ "dep:es-fluent-lang-macro" ]
+minimal = [  ]
 
 [dependencies]
 es-fluent-lang-macro = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
+rust-embed = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 

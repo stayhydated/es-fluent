@@ -1,10 +1,29 @@
 ---
 source: crates/es-fluent-cli/tests/cli_tests.rs
+assertion_line: 600
 expression: output
 ---
 STDOUT:
 Fluent FTL Sync
+Added 8 key(s) to en-US
+  -> z_last
+  -> hello_a
+  -> orphan_key
+  -> shared-Photos
+  -> gender-Male
+  -> gender-Female
+  -> gender-Other
+  -> new-key
 Added 5 key(s) to es
+  -> shared-Photos
+  -> gender-Male
+  -> gender-Female
+  -> gender-Other
+  -> new-key
+Added 8 key(s) to es-ES
+  -> z_last
+  -> hello_a
+  -> orphan_key
   -> shared-Photos
   -> gender-Male
   -> gender-Female
@@ -19,8 +38,23 @@ Added 8 key(s) to fr
   -> gender-Female
   -> gender-Other
   -> new-key
+Added 8 key(s) to fr-FR
+  -> z_last
+  -> hello_a
+  -> orphan_key
+  -> shared-Photos
+  -> gender-Male
+  -> gender-Female
+  -> gender-Other
+  -> new-key
+Added 1 key(s) to en-US
+  -> hello_b
+Added 1 key(s) to es-ES
+  -> hello_b
 Added 1 key(s) to fr
   -> hello_b
-Done: 14 key(s) synced to 3 locale(s)
+Added 1 key(s) to fr-FR
+  -> hello_b
+Done: 41 key(s) synced to 9 locale(s)
 
 STDERR:

@@ -10,6 +10,8 @@ repository.workspace = true
 rust-version.workspace = true
 version = "0.18.2"
 readme = "README.md"
+categories = [ "localization", "internationalization" ]
+keywords = [ "fluent", "i18n", "locale", "bevy" ]
 
 [features]
 default = [ "macros", "file_watcher" ]

@@ -161,6 +161,21 @@ impl I18nAssets {
             )
             .collect()
     }
+
+    /// Returns the set of languages that have assets registered.
+    pub fn available_languages(&self) -> Vec<LanguageIdentifier> {
+        let mut seen = std::collections::HashSet::new();
+        let mut languages = Vec::new();
+
+        for (lang, _) in self.assets.keys() {
+            if seen.insert(lang.clone()) {
+                languages.push(lang.clone());
+            }
+        }
+
+        languages.sort_by_key(|lang| lang.to_string());
+        languages
+    }
 }
 
 /// The main resource for handling localization.
