@@ -1,6 +1,7 @@
 use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
 use crate::utils::{count_ftl_resources, filter_crates_by_package, partition_by_lib_rs, ui};
 use clap::Args;
+use colored::Colorize as _;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -195,4 +196,66 @@ pub fn render_generation_results(
     }
 
     has_errors
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum GenerationVerb {
+    Generate,
+    Clean,
+}
+
+impl GenerationVerb {
+    fn dry_run_label(self) -> &'static str {
+        match self {
+            GenerationVerb::Generate => "would be generated in",
+            GenerationVerb::Clean => "would be cleaned in",
+        }
+    }
+
+    fn print_changed(self, result: &GenerateResult) {
+        match self {
+            GenerationVerb::Generate => {
+                ui::print_generated(&result.name, result.duration, result.resource_count);
+            },
+            GenerationVerb::Clean => {
+                ui::print_cleaned(&result.name, result.duration, result.resource_count);
+            },
+        }
+    }
+}
+
+/// Render generation-like results with the standard dry-run output.
+///
+/// Returns `true` when any errors were encountered.
+pub fn render_generation_results_with_dry_run(
+    results: &[GenerateResult],
+    dry_run: bool,
+    verb: GenerationVerb,
+) -> bool {
+    render_generation_results(
+        results,
+        |result| {
+            if dry_run {
+                if let Some(output) = &result.output {
+                    print!("{}", output);
+                } else if result.changed {
+                    println!(
+                        "{} {} ({} resources)",
+                        format!("{} {}", result.name, verb.dry_run_label()).yellow(),
+                        humantime::format_duration(result.duration)
+                            .to_string()
+                            .green(),
+                        result.resource_count.to_string().cyan()
+                    );
+                } else {
+                    println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
+                }
+            } else if result.changed {
+                verb.print_changed(result);
+            } else {
+                println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
+            }
+        },
+        |result| ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
+    )
 }

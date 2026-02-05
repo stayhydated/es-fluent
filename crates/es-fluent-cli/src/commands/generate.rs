@@ -1,12 +1,12 @@
 //! Generate command implementation.
 
 use crate::commands::{
-    WorkspaceArgs, WorkspaceCrates, parallel_generate, render_generation_results,
+    GenerationVerb, WorkspaceArgs, WorkspaceCrates, parallel_generate,
+    render_generation_results_with_dry_run,
 };
 use crate::core::{CliError, FluentParseMode, GenerationAction};
 use crate::utils::ui;
 use clap::Parser;
-use colored::Colorize as _;
 
 /// Arguments for the generate command.
 #[derive(Parser)]
@@ -44,33 +44,8 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
         },
         args.force_run,
     );
-    let has_errors = render_generation_results(
-        &results,
-        |result| {
-            if args.dry_run {
-                if let Some(output) = &result.output {
-                    print!("{}", output);
-                } else if result.changed {
-                    // Fallback if no output captured but marked as changed
-                    println!(
-                        "{} {} ({} resources)",
-                        format!("{} would be generated in", result.name).yellow(),
-                        humantime::format_duration(result.duration)
-                            .to_string()
-                            .green(),
-                        result.resource_count.to_string().cyan()
-                    );
-                } else {
-                    println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
-                }
-            } else if result.changed {
-                ui::print_generated(&result.name, result.duration, result.resource_count);
-            } else {
-                println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
-            }
-        },
-        |result| ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
-    );
+    let has_errors =
+        render_generation_results_with_dry_run(&results, args.dry_run, GenerationVerb::Generate);
 
     if has_errors {
         std::process::exit(1);
