@@ -2,10 +2,6 @@
 
 empty_enum_this = 空枚举
 
-## EmptyStructKv
-
-empty_struct_kv_this = 空键值结构体
-
 ## ButtonState
 
 button_state-Hovered = 悬停
@@ -38,21 +34,6 @@ country_label_variants-USA = 美国
 
 empty_struct_this = 空结构体
 empty_struct = 空结构体
-
-## KvSplit
-
-kv_split_this = 键值分割
-kv_split = 键值分割 { $country }
-
-## KvSplitDescriptionVariants
-
-kv_split_description_variants_this = 键值分割描述变体
-kv_split_description_variants-country = 国家
-
-## KvSplitLabelVariants
-
-kv_split_label_variants_this = 键值分割标签变体
-kv_split_label_variants-country = 国家
 
 ## USAState
 

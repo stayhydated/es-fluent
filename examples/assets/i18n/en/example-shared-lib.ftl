@@ -2,10 +2,6 @@
 
 empty_enum_this = Empty Enum
 
-## EmptyStructKv
-
-empty_struct_kv_this = Empty Struct Kv
-
 ## EmptyStructVariants
 
 empty_struct_variants_this = Empty Struct Variants
@@ -42,21 +38,6 @@ country_label_variants-USA = Usa
 
 empty_struct_this = Empty Struct
 empty_struct = Empty Struct
-
-## KvSplit
-
-kv_split_this = Kv Split
-kv_split = Kv Split { $country }
-
-## KvSplitDescriptionVariants
-
-kv_split_description_variants_this = Kv Split Description Variants
-kv_split_description_variants-country = Country
-
-## KvSplitLabelVariants
-
-kv_split_label_variants_this = Kv Split Label Variants
-kv_split_label_variants-country = Country
 
 ## SplitVariants
 
