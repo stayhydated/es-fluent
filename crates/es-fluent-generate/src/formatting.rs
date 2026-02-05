@@ -20,7 +20,9 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         /// The sort key derived from the header comment (e.g. "ButtonState")
         header_sort_key: String,
         /// Normalized sort key for matching (e.g. "buttonstate")
-        matcher_key: String,
+        full_matcher_key: String,
+        /// Optional fallback matcher (e.g. stripping "_variants")
+        fallback_matcher_key: Option<String>,
         /// Messages in this section
         messages: Vec<MessageEntry>,
     }
@@ -60,9 +62,14 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
                 current_section.header.push(entry.clone());
                 let name = get_group_name(comment);
                 let name_snake = name.to_snake_case();
-                let matcher_source = name_snake.strip_suffix("_variants").unwrap_or(&name_snake);
+                let full_matcher_key = normalize(&name_snake);
+                let fallback_matcher_key = name_snake
+                    .strip_suffix("_variants")
+                    .map(normalize)
+                    .filter(|fallback| *fallback != full_matcher_key);
                 current_section.header_sort_key = name.clone();
-                current_section.matcher_key = normalize(matcher_source);
+                current_section.full_matcher_key = full_matcher_key;
+                current_section.fallback_matcher_key = fallback_matcher_key;
 
                 // Adopt pending comments
                 if !current_comments.is_empty() {
@@ -121,15 +128,31 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         let mut best_score = 0;
         let mut best_section_idx = None;
 
+        let mut matched_full = false;
         for (idx, section) in sections.iter().enumerate() {
-            if section.matcher_key.is_empty() {
+            if section.full_matcher_key.is_empty() {
                 continue;
             }
-            if msg_clean.starts_with(&section.matcher_key) {
-                let score = section.matcher_key.len();
+            if msg_clean.starts_with(&section.full_matcher_key) {
+                matched_full = true;
+                let score = section.full_matcher_key.len();
                 if score > best_score {
                     best_score = score;
                     best_section_idx = Some(idx);
+                }
+            }
+        }
+
+        if !matched_full {
+            for (idx, section) in sections.iter().enumerate() {
+                if let Some(fallback) = section.fallback_matcher_key.as_deref() {
+                    if msg_clean.starts_with(fallback) {
+                        let score = fallback.len();
+                        if score > best_score {
+                            best_score = score;
+                            best_section_idx = Some(idx);
+                        }
+                    }
                 }
             }
         }

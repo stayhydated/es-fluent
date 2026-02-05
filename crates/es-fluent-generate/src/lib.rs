@@ -5,7 +5,7 @@ use es_fluent_derive_core::namer::FluentKey;
 use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
 use fluent_syntax::{ast, parser};
 use indexmap::IndexMap;
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 
 pub mod clean;
 pub mod error;
@@ -319,6 +319,10 @@ pub(crate) fn smart_merge(
         }
     }
     let mut relocated_by_group: IndexMap<String, Vec<ast::Entry<String>>> = IndexMap::new();
+    let mut late_relocated_by_group: IndexMap<String, Vec<ast::Entry<String>>> = IndexMap::new();
+    let mut seen_groups: HashSet<String> = HashSet::new();
+    let existing_keys = collect_existing_keys(&existing);
+    let mut seen_keys: HashSet<String> = HashSet::new();
 
     let mut new_body = Vec::new();
     let mut current_group_name: Option<String> = None;
@@ -337,7 +341,10 @@ pub(crate) fn smart_merge(
                         }
                         if !info.variants.is_empty() {
                             for variant in &info.variants {
-                                new_body.push(create_message_entry(variant));
+                                if !existing_keys.contains(&variant.ftl_key) {
+                                    seen_keys.insert(variant.ftl_key.clone());
+                                    new_body.push(create_message_entry(variant));
+                                }
                             }
                         }
                     }
@@ -360,32 +367,34 @@ pub(crate) fn smart_merge(
                 if keep_group {
                     new_body.push(entry);
                 }
+
+                if let Some(ref group_name) = current_group_name {
+                    seen_groups.insert(group_name.clone());
+                }
             },
             ast::Entry::Message(msg) => {
                 let key = msg.id.name.clone();
                 let mut handled = false;
                 let mut relocate_to: Option<String> = None;
 
-                if let Some(ref group_name) = current_group_name
-                    && let Some(info) = item_map.get_mut(group_name)
-                    && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
-                {
-                    info.variants.remove(idx);
+                if seen_keys.contains(&key) {
+                    continue;
+                }
+
+                if let Some(expected_group) = key_to_group.get(&key).cloned() {
+                    if current_group_name.as_deref() != Some(expected_group.as_str())
+                        && matches!(behavior, MergeBehavior::Append)
+                    {
+                        relocate_to = Some(expected_group.clone());
+                    }
                     handled = true;
-                }
 
-                if !handled
-                    && let Some(expected_group) = key_to_group.get(&key)
-                    && matches!(behavior, MergeBehavior::Append)
-                    && current_group_name.as_deref() != Some(expected_group.as_str())
-                    && let Some(info) = item_map.get_mut(expected_group)
-                    && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
-                {
-                    info.variants.remove(idx);
-                    relocate_to = Some(expected_group.clone());
-                }
-
-                if relocate_to.is_none() && !handled {
+                    if let Some(info) = item_map.get_mut(&expected_group) {
+                        if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
+                            info.variants.remove(idx);
+                        }
+                    }
+                } else if !handled {
                     for info in item_map.values_mut() {
                         if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
                             info.variants.remove(idx);
@@ -396,17 +405,29 @@ pub(crate) fn smart_merge(
                 }
 
                 if let Some(group_name) = relocate_to {
-                    relocated_by_group
-                        .entry(group_name)
-                        .or_default()
-                        .push(ast::Entry::Message(msg));
+                    seen_keys.insert(key);
+                    if seen_groups.contains(&group_name) {
+                        late_relocated_by_group
+                            .entry(group_name)
+                            .or_default()
+                            .push(ast::Entry::Message(msg));
+                    } else {
+                        relocated_by_group
+                            .entry(group_name)
+                            .or_default()
+                            .push(ast::Entry::Message(msg));
+                    }
                 } else if handled || !cleanup {
+                    seen_keys.insert(key);
                     new_body.push(ast::Entry::Message(msg));
                 }
             },
             ast::Entry::Term(ref term) => {
                 let key = format!("{}{}", FluentKey::DELIMITER, term.id.name);
                 let mut handled = false;
+                if seen_keys.contains(&key) {
+                    continue;
+                }
                 for info in item_map.values_mut() {
                     if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
                         info.variants.remove(idx);
@@ -416,6 +437,7 @@ pub(crate) fn smart_merge(
                 }
 
                 if handled || !cleanup {
+                    seen_keys.insert(key);
                     new_body.push(entry);
                 }
             },
@@ -439,7 +461,10 @@ pub(crate) fn smart_merge(
             }
             if !info.variants.is_empty() {
                 for variant in &info.variants {
-                    new_body.push(create_message_entry(variant));
+                    if !existing_keys.contains(&variant.ftl_key) {
+                        seen_keys.insert(variant.ftl_key.clone());
+                        new_body.push(create_message_entry(variant));
+                    }
                 }
             }
         }
@@ -453,24 +478,95 @@ pub(crate) fn smart_merge(
 
         for (type_name, info) in remaining_groups {
             let relocated = relocated_by_group.shift_remove(&type_name);
-            if !info.variants.is_empty() || relocated.is_some() {
+            let has_missing = info
+                .variants
+                .iter()
+                .any(|variant| !existing_keys.contains(&variant.ftl_key));
+            if has_missing || relocated.is_some() {
                 new_body.push(create_group_comment_entry(&type_name));
                 if let Some(entries) = relocated {
                     new_body.extend(entries);
                 }
                 for variant in info.variants {
-                    new_body.push(create_message_entry(&variant));
+                    if !existing_keys.contains(&variant.ftl_key) {
+                        seen_keys.insert(variant.ftl_key.clone());
+                        new_body.push(create_message_entry(&variant));
+                    }
                 }
             }
         }
     }
 
-    let resource = ast::Resource { body: new_body };
+    let mut resource = ast::Resource { body: new_body };
 
+    if matches!(behavior, MergeBehavior::Append) && !late_relocated_by_group.is_empty() {
+        insert_late_relocated(&mut resource.body, &late_relocated_by_group);
+    }
     if cleanup {
         remove_empty_group_comments(resource)
     } else {
         resource
+    }
+}
+
+fn group_comment_name(comment: &ast::Comment<String>) -> Option<String> {
+    comment
+        .content
+        .first()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+}
+
+fn collect_existing_keys(resource: &ast::Resource<String>) -> HashSet<String> {
+    let mut keys = HashSet::new();
+    for entry in &resource.body {
+        match entry {
+            ast::Entry::Message(msg) => {
+                keys.insert(msg.id.name.clone());
+            },
+            ast::Entry::Term(term) => {
+                keys.insert(format!("{}{}", FluentKey::DELIMITER, term.id.name));
+            },
+            _ => {},
+        }
+    }
+    keys
+}
+
+fn insert_late_relocated(
+    body: &mut Vec<ast::Entry<String>>,
+    late_relocated_by_group: &IndexMap<String, Vec<ast::Entry<String>>>,
+) {
+    let mut group_positions: Vec<(String, usize)> = Vec::new();
+    for (idx, entry) in body.iter().enumerate() {
+        if let ast::Entry::GroupComment(comment) = entry {
+            if let Some(name) = group_comment_name(comment) {
+                group_positions.push((name, idx));
+            }
+        }
+    }
+
+    if group_positions.is_empty() {
+        return;
+    }
+
+    let mut inserted: HashSet<String> = HashSet::new();
+    for (i, (name, _start)) in group_positions.iter().enumerate().rev() {
+        if inserted.contains(name) {
+            continue;
+        }
+        let end = if i + 1 < group_positions.len() {
+            group_positions[i + 1].1
+        } else {
+            body.len()
+        };
+        if let Some(entries) = late_relocated_by_group.get(name) {
+            if !entries.is_empty() {
+                body.splice(end..end, entries.clone());
+            }
+        }
+        inserted.insert(name.clone());
     }
 }
 

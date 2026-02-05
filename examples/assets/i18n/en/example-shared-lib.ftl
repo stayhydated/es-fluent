@@ -6,6 +6,10 @@ empty_enum_this = Empty Enum
 
 empty_struct_kv_this = Empty Struct Kv
 
+## EmptyStructVariants
+
+empty_struct_variants_this = Empty Struct Variants
+
 ## ButtonState
 
 button_state-Hovered = Hovered
@@ -53,6 +57,21 @@ kv_split_description_variants-country = Country
 
 kv_split_label_variants_this = Kv Split Label Variants
 kv_split_label_variants-country = Country
+
+## SplitVariants
+
+split_variants_this = Split Variants
+split_variants = Split Variants { $country }
+
+## SplitVariantsDescriptionVariants
+
+split_variants_description_variants_this = Split Variants Description Variants
+split_variants_description_variants-country = Country
+
+## SplitVariantsLabelVariants
+
+split_variants_label_variants_this = Split Variants Label Variants
+split_variants_label_variants-country = Country
 
 ## USAState
 
