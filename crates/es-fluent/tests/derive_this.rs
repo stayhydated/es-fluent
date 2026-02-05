@@ -10,7 +10,7 @@ struct TestStruct {
 #[fluent_variants(keys = ["label"])]
 #[fluent_this(members)]
 #[allow(dead_code)]
-struct TestKvStruct {
+struct TestVariantsStruct {
     field: String,
 }
 
@@ -18,7 +18,7 @@ struct TestKvStruct {
 #[fluent_variants(keys = ["description"])]
 #[fluent_this(members)]
 #[allow(dead_code)]
-enum TestKvEnum {
+enum TestVariantsEnum {
     VariantA,
 }
 
@@ -31,19 +31,19 @@ fn test_derive_this_struct() {
 #[test]
 fn test_derive_this_fields() {
     // ThisFtl on generated variants enum for struct fields
-    // Generated name: TestKvStruct + Label + Variants = TestKvStructLabelVariants
+    // Generated name: TestVariantsStruct + Label + Variants = TestVariantsStructLabelVariants
     assert_eq!(
-        TestKvStructLabelVariants::this_ftl(),
-        "test_kv_struct_label_variants_this"
+        TestVariantsStructLabelVariants::this_ftl(),
+        "test_variants_struct_label_variants_this"
     );
 }
 
 #[test]
 fn test_derive_this_variants() {
     // ThisFtl on generated variants enum for enum variants
-    // Generated name: TestKvEnum + Description + Variants = TestKvEnumDescriptionVariants
+    // Generated name: TestVariantsEnum + Description + Variants = TestVariantsEnumDescriptionVariants
     assert_eq!(
-        TestKvEnumDescriptionVariants::this_ftl(),
-        "test_kv_enum_description_variants_this"
+        TestVariantsEnumDescriptionVariants::this_ftl(),
+        "test_variants_enum_description_variants_this"
     );
 }

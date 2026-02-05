@@ -72,7 +72,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
 }
 
 #[test]
-fn struct_kv_keys_parsing_and_field_skipping() {
+fn struct_variants_keys_parsing_and_field_skipping() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentVariants)]
         #[fluent_variants(keys = ["error", "notice"])]
@@ -83,7 +83,8 @@ fn struct_kv_keys_parsing_and_field_skipping() {
         }
     };
 
-    let opts = StructVariantsOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let opts =
+        StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
 
     // ftl_enum_ident is <StructName>Variants
     assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructVariants");
@@ -111,7 +112,7 @@ fn struct_kv_keys_parsing_and_field_skipping() {
 }
 
 #[test]
-fn struct_kv_keys_must_be_lowercase_snake_case() {
+fn struct_variants_keys_must_be_lowercase_snake_case() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentVariants)]
         #[fluent_variants(keys = ["NotSnake"])]
@@ -120,7 +121,8 @@ fn struct_kv_keys_must_be_lowercase_snake_case() {
         }
     };
 
-    let opts = StructVariantsOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let opts =
+        StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
     let err = opts
         .keyyed_idents()
         .expect_err("Non-snake_case keys should be rejected");

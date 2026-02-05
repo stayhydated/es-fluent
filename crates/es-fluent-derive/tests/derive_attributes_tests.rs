@@ -115,7 +115,8 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
         }
     };
 
-    let opts = StructVariantsOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let opts =
+        StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
     insta::assert_debug_snapshot!(
         "es_fluent_variants_attributes_no_keys_snapshot__analysis",
         &opts
@@ -137,7 +138,8 @@ fn es_fluent_variants_attributes_keys_this_derive_default_snapshot() {
         }
     };
 
-    let opts = StructVariantsOpts::from_derive_input(&input).expect("StructKvOpts should parse");
+    let opts =
+        StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
     insta::assert_debug_snapshot!(
         "es_fluent_variants_attributes_keys_this_derive_default_snapshot__analysis",
         &opts

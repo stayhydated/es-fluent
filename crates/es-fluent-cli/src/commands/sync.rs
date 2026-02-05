@@ -355,7 +355,7 @@ fn merge_missing_keys(
                 if let ast::Entry::GroupComment(comment) = entry {
                     fallback_comments.clear();
                     let group_name = group_comment_name(comment);
-                    let keep_group = group_name.as_ref().map_or(true, |name| {
+                    let keep_group = group_name.as_ref().is_none_or(|name| {
                         !existing_groups.contains(name) && !inserted_groups.contains(name)
                     });
                     if keep_group {
@@ -373,10 +373,10 @@ fn merge_missing_keys(
                     let mut entries = std::mem::take(&mut fallback_comments);
                     entries.push(entry.clone());
                     for entry in &entries {
-                        if let ast::Entry::GroupComment(comment) = entry {
-                            if let Some(name) = group_comment_name(comment) {
-                                inserted_groups.insert(name);
-                            }
+                        if let ast::Entry::GroupComment(comment) = entry
+                            && let Some(name) = group_comment_name(comment)
+                        {
+                            inserted_groups.insert(name);
                         }
                     }
                     entries_by_key.insert(key_str, entries);
@@ -412,10 +412,10 @@ fn group_comment_name(comment: &ast::Comment<String>) -> Option<String> {
 fn collect_group_comments(resource: &ast::Resource<String>) -> HashSet<String> {
     let mut groups = HashSet::new();
     for entry in &resource.body {
-        if let ast::Entry::GroupComment(comment) = entry {
-            if let Some(name) = group_comment_name(comment) {
-                groups.insert(name);
-            }
+        if let ast::Entry::GroupComment(comment) = entry
+            && let Some(name) = group_comment_name(comment)
+        {
+            groups.insert(name);
         }
     }
     groups

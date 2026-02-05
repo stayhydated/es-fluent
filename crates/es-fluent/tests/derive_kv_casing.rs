@@ -28,7 +28,7 @@ struct UserProfile {
 }
 
 #[test]
-fn test_enum_kv_preserves_pascal_case_in_ftl_output() {
+fn test_enum_variants_preserves_pascal_case_in_ftl_output() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
@@ -93,7 +93,7 @@ fn test_enum_kv_preserves_pascal_case_in_ftl_output() {
 }
 
 #[test]
-fn test_struct_kv_preserves_snake_case_in_ftl_output() {
+fn test_struct_variants_preserves_snake_case_in_ftl_output() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 

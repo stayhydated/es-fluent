@@ -1,6 +1,6 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::namer;
-use es_fluent_derive_core::options::r#enum::EnumKvOpts;
+use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
 use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
 use es_fluent_derive_core::options::this::ThisOpts;
 
@@ -24,7 +24,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             process_struct(&opts, data, this_opts.as_ref())
         },
         Data::Enum(_data) => {
-            let opts = match EnumKvOpts::from_derive_input(&input) {
+            let opts = match EnumVariantsOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors().into(),
             };
@@ -292,7 +292,7 @@ fn generate_unit_enum(
     }
 }
 
-pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStream {
+pub fn process_enum(opts: &EnumVariantsOpts, this_opts: Option<&ThisOpts>) -> TokenStream {
     let keys = match opts.keyyed_idents() {
         Ok(keys) => keys,
         Err(err) => err.abort(),
@@ -327,7 +327,7 @@ pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStr
 }
 
 fn generate_enum_unit_enum(
-    opts: &EnumKvOpts,
+    opts: &EnumVariantsOpts,
     ident: &syn::Ident,
     _base_ident: &syn::Ident,
     this_opts: Option<&ThisOpts>,

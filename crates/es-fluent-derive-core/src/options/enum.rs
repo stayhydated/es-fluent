@@ -176,7 +176,7 @@ pub struct EnumChoiceAttributeArgs {
 /// Options for an enum variant in EsFluentVariants context.
 #[derive(Clone, Debug, FromVariant, Getters)]
 #[darling(attributes(fluent_variants))]
-pub struct EnumKvVariantOpts {
+pub struct EnumVariantOpts {
     /// The identifier of the variant.
     #[getset(get = "pub")]
     ident: syn::Ident,
@@ -186,7 +186,7 @@ pub struct EnumKvVariantOpts {
     skip: Option<bool>,
 }
 
-impl EnumKvVariantOpts {
+impl EnumVariantOpts {
     /// Returns `true` if the variant should be skipped.
     pub fn is_skipped(&self) -> bool {
         self.skip.unwrap_or(false)
@@ -210,17 +210,17 @@ impl EnumKvVariantOpts {
     attributes(fluent_variants)
 )]
 #[getset(get = "pub")]
-pub struct EnumKvOpts {
+pub struct EnumVariantsOpts {
     /// The identifier of the enum.
     ident: syn::Ident,
     /// The generics of the enum.
     generics: syn::Generics,
-    data: darling::ast::Data<EnumKvVariantOpts, darling::util::Ignored>,
+    data: darling::ast::Data<EnumVariantOpts, darling::util::Ignored>,
     #[darling(flatten)]
-    attr_args: EnumKvFluentAttributeArgs,
+    attr_args: EnumVariantsFluentAttributeArgs,
 }
 
-impl EnumKvOpts {
+impl EnumVariantsOpts {
     const FTL_ENUM_IDENT: &str = "Variants";
 
     /// Returns the identifier of the FTL enum.
@@ -264,7 +264,7 @@ impl EnumKvOpts {
     }
 
     /// Returns the variants of the enum that are not skipped.
-    pub fn variants(&self) -> Vec<&EnumKvVariantOpts> {
+    pub fn variants(&self) -> Vec<&EnumVariantOpts> {
         match &self.data {
             darling::ast::Data::Enum(variants) => {
                 variants.iter().filter(|v| !v.is_skipped()).collect()
@@ -276,7 +276,7 @@ impl EnumKvOpts {
 
 /// Attribute arguments for an enum with EsFluentVariants.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct EnumKvFluentAttributeArgs {
+pub struct EnumVariantsFluentAttributeArgs {
     #[darling(default)]
     keys: Option<Vec<syn::LitStr>>,
     /// The traits to derive on the FTL enum.
@@ -291,7 +291,7 @@ pub struct EnumKvFluentAttributeArgs {
     namespace: Option<super::namespace::NamespaceValue>,
 }
 
-impl EnumKvFluentAttributeArgs {
+impl EnumVariantsFluentAttributeArgs {
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
         self.namespace.as_ref()

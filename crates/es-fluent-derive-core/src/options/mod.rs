@@ -12,7 +12,7 @@ pub mod this;
 /// Validate that a key is lowercase snake_case and return its PascalCase version.
 ///
 /// This is a shared helper for `#[fluent_variants]` key validation used by both
-/// `EnumKvOpts` and `StructKvOpts`.
+/// `EnumVariantsOpts` and `StructVariantsOpts`.
 pub fn validate_snake_case_key(key: &syn::LitStr) -> EsFluentCoreResult<String> {
     let key_str = key.value();
     let snake_cased = key_str.to_snake_case();
