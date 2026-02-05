@@ -152,6 +152,7 @@ jobs:
 ```
 
 Inputs:
+
 - `version`: Version of `es-fluent-cli` to install from crates.io. Default: `latest`.
 - `path`: Path to the crate or workspace root (passed as `--path`). Default: `.`.
 - `package`: Package name filter for workspaces (passed as `--package`). Default: empty.
