@@ -1,6 +1,6 @@
 use crate::utils::ui;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct DryRunDiff {
     before: String,
     after: String,
@@ -16,7 +16,7 @@ impl DryRunDiff {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum DryRunSummary {
     Format { formatted: usize },
     Sync { keys: usize, locales: usize },

@@ -61,11 +61,8 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
         &action,
         args.force_run,
     );
-    let has_errors = render_generation_results_with_dry_run(
-        &results,
-        args.dry_run,
-        GenerationVerb::Clean,
-    );
+    let has_errors =
+        render_generation_results_with_dry_run(&results, args.dry_run, GenerationVerb::Clean);
 
     if has_errors {
         std::process::exit(1);

@@ -145,13 +145,13 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
 
         if !matched_full {
             for (idx, section) in sections.iter().enumerate() {
-                if let Some(fallback) = section.fallback_matcher_key.as_deref() {
-                    if msg_clean.starts_with(fallback) {
-                        let score = fallback.len();
-                        if score > best_score {
-                            best_score = score;
-                            best_section_idx = Some(idx);
-                        }
+                if let Some(fallback) = section.fallback_matcher_key.as_deref()
+                    && msg_clean.starts_with(fallback)
+                {
+                    let score = fallback.len();
+                    if score > best_score {
+                        best_score = score;
+                        best_section_idx = Some(idx);
                     }
                 }
             }

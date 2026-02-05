@@ -389,10 +389,10 @@ pub(crate) fn smart_merge(
                     }
                     handled = true;
 
-                    if let Some(info) = item_map.get_mut(&expected_group) {
-                        if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
-                            info.variants.remove(idx);
-                        }
+                    if let Some(info) = item_map.get_mut(&expected_group)
+                        && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
+                    {
+                        info.variants.remove(idx);
                     }
                 } else if !handled {
                     for info in item_map.values_mut() {
@@ -540,10 +540,10 @@ fn insert_late_relocated(
 ) {
     let mut group_positions: Vec<(String, usize)> = Vec::new();
     for (idx, entry) in body.iter().enumerate() {
-        if let ast::Entry::GroupComment(comment) = entry {
-            if let Some(name) = group_comment_name(comment) {
-                group_positions.push((name, idx));
-            }
+        if let ast::Entry::GroupComment(comment) = entry
+            && let Some(name) = group_comment_name(comment)
+        {
+            group_positions.push((name, idx));
         }
     }
 
@@ -561,10 +561,10 @@ fn insert_late_relocated(
         } else {
             body.len()
         };
-        if let Some(entries) = late_relocated_by_group.get(name) {
-            if !entries.is_empty() {
-                body.splice(end..end, entries.clone());
-            }
+        if let Some(entries) = late_relocated_by_group.get(name)
+            && !entries.is_empty()
+        {
+            body.splice(end..end, entries.clone());
         }
         inserted.insert(name.clone());
     }
