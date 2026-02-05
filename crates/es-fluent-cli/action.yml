@@ -1,0 +1,71 @@
+name: es-fluent-cli
+description: Run es-fluent check in CI.
+inputs:
+  version:
+    description: "Version of es-fluent-cli to install from crates.io (default: latest)."
+    required: false
+    default: latest
+  path:
+    description: Path to the crate or workspace root (passed as --path).
+    required: false
+    default: .
+  package:
+    description: Optional package name to filter workspace crates (passed as --package).
+    required: false
+    default: ""
+  all:
+    description: Check all locales, not just the fallback language.
+    required: false
+    default: "false"
+  ignore:
+    description: "Crates to skip (comma-separated), passed as --ignore."
+    required: false
+    default: ""
+  force_run:
+    description: Force rebuild of the runner, ignoring the staleness cache.
+    required: false
+    default: "false"
+  toolchain:
+    description: Rust toolchain to install for running the CLI.
+    required: false
+    default: stable
+runs:
+  using: composite
+  steps:
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: ${{ inputs.toolchain }}
+
+    - name: Install es-fluent-cli
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${{ inputs.version }}" == "latest" || -z "${{ inputs.version }}" ]]; then
+          cargo install es-fluent-cli --locked
+        else
+          cargo install es-fluent-cli --locked --version "${{ inputs.version }}"
+        fi
+
+    - name: Run es-fluent
+      shell: bash
+      run: |
+        set -euo pipefail
+        args=()
+        if [[ -n "${{ inputs.path }}" ]]; then
+          args+=(--path "${{ inputs.path }}")
+        fi
+        if [[ -n "${{ inputs.package }}" ]]; then
+          args+=(--package "${{ inputs.package }}")
+        fi
+        if [[ "${{ inputs.all }}" == "true" ]]; then
+          args+=(--all)
+        fi
+        if [[ -n "${{ inputs.ignore }}" ]]; then
+          args+=(--ignore "${{ inputs.ignore }}")
+        fi
+        if [[ "${{ inputs.force_run }}" == "true" ]]; then
+          args+=(--force-run)
+        fi
+        # shellcheck disable=SC2086
+        cargo es-fluent check "${args[@]}"

@@ -131,6 +131,37 @@ Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales,
 
 The `sync` command properly handles namespaced FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.
 
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: es-fluent
+on: [pull_request]
+
+jobs:
+  es-fluent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check FTL files
+        uses: stayhydated/es-fluent/crates/es-fluent-cli@v0.9.0
+        with:
+          path: .
+          all: true
+```
+
+Inputs:
+- `version`: Version of `es-fluent-cli` to install from crates.io. Default: `latest`.
+- `path`: Path to the crate or workspace root (passed as `--path`). Default: `.`.
+- `package`: Package name filter for workspaces (passed as `--package`). Default: empty.
+- `all`: Check all locales, not just the fallback language. Default: `false`.
+- `ignore`: Crates to skip during validation (comma-separated). Default: empty.
+- `force_run`: Force rebuild of the runner, ignoring the staleness cache. Default: `false`.
+- `toolchain`: Rust toolchain to install for the action. Default: `stable`.
+
+This action always runs `cargo es-fluent check`. Pin the `uses` ref to a release tag or commit SHA for reproducible builds. Use the `version` input to install a matching `es-fluent-cli` crate version.
+
 ## Limitations
 
 The CLI runner links workspace crates as **library targets only**. If you define
