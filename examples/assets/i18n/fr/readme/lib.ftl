@@ -1,23 +1,23 @@
 ## Dialog
 
-dialog = Dialog { $title }
+dialog = Boîte de dialogue { $title }
 
 ## Gender
 
-gender-Female = Female
-gender-Helicopter = Helicopter { $type_ }
-gender-Male = Male
-gender-Other = Other { $f0 }
+gender-Female = Femme
+gender-Helicopter = Hélicoptère { $type_ }
+gender-Male = Homme
+gender-Other = Autre { $f0 }
 
 ## Status
 
-status_this = Status
+status_this = Statut
 
 ## StatusVariantsVariants
 
-status_variants_variants-Active = Active
-status_variants_variants-Inactive = Inactive
+status_variants_variants-Active = Actif
+status_variants_variants-Inactive = Inactif
 
 ## UserProfile
 
-user_profile_this = User Profile
+user_profile_this = Profil utilisateur

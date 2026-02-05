@@ -27,12 +27,12 @@ country-USA = États-Unis { $f0 }
 ## CountryDescriptionVariants
 
 country_description_variants-Canada = Canada
-country_description_variants-USA = Usa
+country_description_variants-USA = États-Unis
 
 ## CountryLabelVariants
 
 country_label_variants-Canada = Canada
-country_label_variants-USA = Usa
+country_label_variants-USA = États-Unis
 
 ## EmptyStruct
 
@@ -46,15 +46,15 @@ kv_split = Séparation clé-valeur { $country }
 
 ## KvSplitDescriptionVariants
 
-kv_split_description_variants_this = Kv Split Description Variants
-kv_split_description_variants-country = Country
+kv_split_description_variants_this = Variantes de description de la séparation clé-valeur
+kv_split_description_variants-country = Pays
 
 ## KvSplitLabelVariants
 
-kv_split_label_variants_this = Kv Split Label Variants
-kv_split_label_variants-country = Country
+kv_split_label_variants_this = Variantes de libellé de la séparation clé-valeur
+kv_split_label_variants-country = Pays
 
 ## USAState
 
-usa_state_this = Usa State
+usa_state_this = État des États-Unis
 usa_state-A = A

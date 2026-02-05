@@ -1,3 +1,3 @@
 ## Button
 
-button = Button { $f0 }
+button = 按钮 { $f0 }

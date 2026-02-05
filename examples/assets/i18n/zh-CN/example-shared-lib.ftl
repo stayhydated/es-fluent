@@ -26,13 +26,13 @@ country-USA = 美国 { $f0 }
 
 ## CountryDescriptionVariants
 
-country_description_variants-Canada = Canada
-country_description_variants-USA = Usa
+country_description_variants-Canada = 加拿大
+country_description_variants-USA = 美国
 
 ## CountryLabelVariants
 
-country_label_variants-Canada = Canada
-country_label_variants-USA = Usa
+country_label_variants-Canada = 加拿大
+country_label_variants-USA = 美国
 
 ## EmptyStruct
 
@@ -46,15 +46,15 @@ kv_split = 键值分割 { $country }
 
 ## KvSplitDescriptionVariants
 
-kv_split_description_variants_this = Kv Split Description Variants
-kv_split_description_variants-country = Country
+kv_split_description_variants_this = 键值分割描述变体
+kv_split_description_variants-country = 国家
 
 ## KvSplitLabelVariants
 
-kv_split_label_variants_this = Kv Split Label Variants
-kv_split_label_variants-country = Country
+kv_split_label_variants_this = 键值分割标签变体
+kv_split_label_variants-country = 国家
 
 ## USAState
 
-usa_state_this = Usa State
+usa_state_this = 美国州
 usa_state-A = A
