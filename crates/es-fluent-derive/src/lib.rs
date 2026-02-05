@@ -55,8 +55,8 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 /// }
 ///
 /// // Generates enums -> keys:
-/// // LoginFormLabelVariants::{Variants} -> (login_form_label-{variant})
-/// // LoginFormDescriptionVariants::{Variants} -> (login_form_description-{variant})
+/// // LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
+/// // LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
 /// ```
 ///
 /// # Container Attributes

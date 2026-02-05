@@ -210,8 +210,8 @@ pub struct LoginForm {
 }
 
 // Generates enums -> keys:
-// LoginFormLabelVariants::{Variants} -> (login_form_label-{variant})
-// LoginFormDescriptionVariants::{Variants} -> (login_form_description-{variant})
+// LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
+// LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
 
 // usage: LoginFormLabelVariants::Username.to_fluent_string()
 ```
@@ -251,8 +251,8 @@ pub struct LoginForm {
 }
 
 // Generates keys:
-// (login_form_label_this)
-// (login_form_description_this)
+// (login_form_label_variants_this)
+// (login_form_description_variants_this)
 
 // usage: LoginFormDescriptionVariants::this_ftl()
 ```
