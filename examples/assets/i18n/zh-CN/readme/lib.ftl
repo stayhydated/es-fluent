@@ -1,11 +1,3 @@
-## Status
-
-status_this = Status
-
-## UserProfile
-
-user_profile_this = User Profile
-
 ## Dialog
 
 dialog = Dialog { $title }
@@ -17,7 +9,15 @@ gender-Helicopter = Helicopter { $type_ }
 gender-Male = Male
 gender-Other = Other { $f0 }
 
+## Status
+
+status_this = Status
+
 ## StatusVariantsVariants
 
 status_variants_variants-Active = Active
 status_variants_variants-Inactive = Inactive
+
+## UserProfile
+
+user_profile_this = User Profile

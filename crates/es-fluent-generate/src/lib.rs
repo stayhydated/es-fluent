@@ -465,7 +465,72 @@ pub(crate) fn smart_merge(
         }
     }
 
-    ast::Resource { body: new_body }
+    let resource = ast::Resource { body: new_body };
+
+    if cleanup {
+        remove_empty_group_comments(resource)
+    } else {
+        resource
+    }
+}
+
+fn remove_empty_group_comments(resource: ast::Resource<String>) -> ast::Resource<String> {
+    let mut body: Vec<ast::Entry<String>> = Vec::with_capacity(resource.body.len());
+    let mut pending_group: Option<ast::Entry<String>> = None;
+    let mut pending_entries: Vec<ast::Entry<String>> = Vec::new();
+    let mut has_message = false;
+
+    let flush_pending = |body: &mut Vec<ast::Entry<String>>,
+                         pending_group: &mut Option<ast::Entry<String>>,
+                         pending_entries: &mut Vec<ast::Entry<String>>,
+                         has_message: &mut bool| {
+        if let Some(group_comment) = pending_group.take() {
+            if *has_message {
+                body.push(group_comment);
+            }
+            body.append(pending_entries);
+        }
+        *has_message = false;
+    };
+
+    for entry in resource.body {
+        match entry {
+            ast::Entry::GroupComment(_) => {
+                flush_pending(
+                    &mut body,
+                    &mut pending_group,
+                    &mut pending_entries,
+                    &mut has_message,
+                );
+                pending_group = Some(entry);
+                pending_entries = Vec::new();
+            },
+            ast::Entry::Message(_) | ast::Entry::Term(_) => {
+                if pending_group.is_some() {
+                    has_message = true;
+                    pending_entries.push(entry);
+                } else {
+                    body.push(entry);
+                }
+            },
+            _ => {
+                if pending_group.is_some() {
+                    pending_entries.push(entry);
+                } else {
+                    body.push(entry);
+                }
+            },
+        }
+    }
+
+    flush_pending(
+        &mut body,
+        &mut pending_group,
+        &mut pending_entries,
+        &mut has_message,
+    );
+
+    ast::Resource { body }
 }
 
 fn create_group_comment_entry(type_name: &str) -> ast::Entry<String> {

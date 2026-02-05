@@ -313,6 +313,8 @@ fn merge_missing_keys(
     added_keys: &mut Vec<String>,
 ) -> ast::Resource<String> {
     let missing_set: HashSet<&String> = missing_keys.iter().copied().collect();
+    let existing_groups = collect_group_comments(existing);
+    let mut inserted_groups: HashSet<String> = HashSet::new();
 
     // Group existing entries by key for preservation
     let mut entries_by_key: BTreeMap<String, Vec<ast::Entry<String>>> = BTreeMap::new();
@@ -350,9 +352,15 @@ fn merge_missing_keys(
         match classify_entry(entry) {
             EntryKind::SectionComment => {
                 // ResourceComment is skipped in original, GroupComment starts fresh
-                if matches!(entry, ast::Entry::GroupComment(_)) {
+                if let ast::Entry::GroupComment(comment) = entry {
                     fallback_comments.clear();
-                    fallback_comments.push(entry.clone());
+                    let group_name = group_comment_name(comment);
+                    let keep_group = group_name.as_ref().map_or(true, |name| {
+                        !existing_groups.contains(name) && !inserted_groups.contains(name)
+                    });
+                    if keep_group {
+                        fallback_comments.push(entry.clone());
+                    }
                 }
             },
             EntryKind::Comment => {
@@ -364,6 +372,13 @@ fn merge_missing_keys(
                     added_keys.push(key_str.clone());
                     let mut entries = std::mem::take(&mut fallback_comments);
                     entries.push(entry.clone());
+                    for entry in &entries {
+                        if let ast::Entry::GroupComment(comment) = entry {
+                            if let Some(name) = group_comment_name(comment) {
+                                inserted_groups.insert(name);
+                            }
+                        }
+                    }
                     entries_by_key.insert(key_str, entries);
                 } else {
                     fallback_comments.clear();
@@ -383,6 +398,27 @@ fn merge_missing_keys(
     }
 
     ast::Resource { body }
+}
+
+fn group_comment_name(comment: &ast::Comment<String>) -> Option<String> {
+    comment
+        .content
+        .first()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+}
+
+fn collect_group_comments(resource: &ast::Resource<String>) -> HashSet<String> {
+    let mut groups = HashSet::new();
+    for entry in &resource.body {
+        if let ast::Entry::GroupComment(comment) = entry {
+            if let Some(name) = group_comment_name(comment) {
+                groups.insert(name);
+            }
+        }
+    }
+    groups
 }
 
 /// Collect all available locales across all crates.
@@ -443,6 +479,39 @@ world = World"#;
         // The merged resource should have all 3 messages
         let merged_keys = extract_message_keys(&merged);
         assert_eq!(merged_keys.len(), 3);
+    }
+
+    #[test]
+    fn test_merge_missing_keys_skips_duplicate_group_comments() {
+        let existing_content = r#"## CountryLabelVariants
+
+country_label_variants-Canada = Canada
+"#;
+        let fallback_content = r#"## CountryLabelVariants
+
+country_label_variants-Canada = Canada
+country_label_variants-USA = Usa
+"#;
+
+        let existing = parser::parse(existing_content.to_string()).unwrap();
+        let fallback = parser::parse(fallback_content.to_string()).unwrap();
+
+        let usa = "country_label_variants-USA".to_string();
+        let missing_keys: Vec<&String> = vec![&usa];
+        let mut added = Vec::new();
+
+        let merged = merge_missing_keys(&existing, &fallback, &missing_keys, &mut added);
+
+        let content = serializer::serialize(&merged);
+        assert!(
+            content.contains("country_label_variants-USA"),
+            "Missing key should be merged"
+        );
+        assert_eq!(
+            content.matches("## CountryLabelVariants").count(),
+            1,
+            "Group comment should not be duplicated: {content}"
+        );
     }
 
     #[test]

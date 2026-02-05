@@ -26,13 +26,13 @@ country-USA = Usa { $f0 }
 
 ## CountryDescriptionVariants
 
-country_description-Canada = Canada
-country_description-USA = Usa
+country_description_variants-Canada = Canada
+country_description_variants-USA = Usa
 
 ## CountryLabelVariants
 
-country_label-Canada = Canada
-country_label-USA = Usa
+country_label_variants-Canada = Canada
+country_label_variants-USA = Usa
 
 ## EmptyStruct
 
@@ -46,13 +46,13 @@ kv_split = Kv Split { $country }
 
 ## KvSplitDescriptionVariants
 
-kv_split_description_this = Kv Split Description
-kv_split_description-country = Country
+kv_split_description_variants_this = Kv Split Description Variants
+kv_split_description_variants-country = Country
 
 ## KvSplitLabelVariants
 
-kv_split_label_this = Kv Split Label
-kv_split_label-country = Country
+kv_split_label_variants_this = Kv Split Label Variants
+kv_split_label_variants-country = Country
 
 ## USAState
 

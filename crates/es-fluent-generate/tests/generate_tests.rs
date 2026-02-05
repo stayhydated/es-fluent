@@ -116,6 +116,45 @@ fn test_generate_conservative_mode_preserves_existing() {
 }
 
 #[test]
+fn test_generate_inserts_variants_into_empty_group() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+    let crate_name = "test_crate";
+    let ftl_file_path = i18n_path.join(format!("{}.ftl", crate_name));
+
+    fs::create_dir_all(&i18n_path).unwrap();
+
+    let initial_content = "
+## CountryLabelVariants
+";
+    fs::write(&ftl_file_path, initial_content).unwrap();
+
+    let type_info = enum_type(
+        "CountryLabelVariants",
+        vec![
+            variant("Canada", &ftl_key("CountryLabelVariants", "Canada")),
+            variant("USA", &ftl_key("CountryLabelVariants", "USA")),
+        ],
+    );
+
+    let result = generate(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        std::slice::from_ref(&type_info),
+        FluentParseMode::Conservative,
+        false,
+    );
+    assert!(result.is_ok());
+
+    let content = fs::read_to_string(&ftl_file_path).unwrap();
+
+    assert!(content.contains("country_label_variants-Canada"));
+    assert!(content.contains("country_label_variants-USA"));
+    assert_eq!(content.matches("## CountryLabelVariants").count(), 1);
+}
+
+#[test]
 fn test_generate_clean_mode_removes_orphans() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -131,7 +170,7 @@ awdawd = awdwa
 
 ## ExistingGroup
 
-existing-key = Existing Value
+existing_group-ExistingKey = Existing Value
 ";
     fs::write(&ftl_file_path, initial_content).unwrap();
 
