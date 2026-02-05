@@ -6,7 +6,7 @@
 mod locale;
 mod merge;
 
-use crate::commands::{WorkspaceArgs, WorkspaceCrates};
+use crate::commands::{DryRunSummary, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, LocaleNotFoundError, SyncMissingKey};
 use crate::ftl::collect_all_available_locales;
 use crate::utils::ui;
@@ -115,7 +115,11 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
         ui::print_all_in_sync();
         Ok(())
     } else if args.dry_run {
-        ui::print_sync_dry_run_summary(total_keys_added, total_locales_affected);
+        DryRunSummary::Sync {
+            keys: total_keys_added,
+            locales: total_locales_affected,
+        }
+        .print();
         Ok(())
     } else {
         ui::print_sync_summary(total_keys_added, total_locales_affected);

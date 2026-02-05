@@ -32,30 +32,11 @@ pub(super) fn clean_orphaned_files(
         let ctx = LocaleContext::from_crate(krate, all_locales)
             .map_err(|e| CliError::from(std::io::Error::other(e)))?;
 
-        // Determine which locale directories to check
-        let locale_dirs: Vec<std::path::PathBuf> = ctx
-            .locales
-            .iter()
-            .map(|locale| ctx.locale_dir(locale))
-            .collect();
-
         // Get the fallback locale directory for this crate
         let fallback_locale_dir = ctx.locale_dir(&ctx.fallback);
 
-        for locale_dir in locale_dirs {
-            let locale = locale_dir
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown");
-
-            if !locale_dir.exists() {
-                continue;
-            }
-
-            // Skip the fallback locale - we only clean non-fallback locales
-            if ctx.is_fallback(locale) {
-                continue;
-            }
+        for (locale, _ftl_path) in ctx.iter_non_fallback() {
+            let locale_dir = ctx.locale_dir(locale);
 
             // Get the expected FTL files for this crate (based on what's in fallback)
             let expected_files = get_expected_ftl_files(

@@ -3,7 +3,7 @@
 //! This module provides functionality to format FTL files by sorting
 //! message keys alphabetically while preserving group comments.
 
-use crate::commands::{DryRunDiff, WorkspaceArgs, WorkspaceCrates};
+use crate::commands::{DryRunDiff, DryRunSummary, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
 use crate::ftl::LocaleContext;
 use crate::utils::{discover_ftl_files, ui};
@@ -125,7 +125,10 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
 
     if errors.is_empty() {
         if args.dry_run && total_formatted > 0 {
-            ui::print_format_dry_run_summary(total_formatted);
+            DryRunSummary::Format {
+                formatted: total_formatted,
+            }
+            .print();
         } else {
             ui::print_format_summary(total_formatted, total_unchanged);
         }
