@@ -1,8 +1,8 @@
 use crate::commands::WorkspaceCrates;
 use crate::core::CliError;
-use crate::utils::{ftl::main_ftl_path, get_all_locales, ui};
+use crate::ftl::LocaleContext;
+use crate::utils::{ftl::main_ftl_path, ui};
 use colored::Colorize as _;
-use es_fluent_toml::I18nConfig;
 use std::collections::HashSet;
 
 /// Clean orphaned FTL files that are no longer tied to any registered types.
@@ -29,24 +29,18 @@ pub(super) fn clean_orphaned_files(
     let mut seen_paths: HashSet<(std::path::PathBuf, std::path::PathBuf)> = HashSet::new();
 
     for krate in &workspace.crates {
-        let config = I18nConfig::read_from_path(&krate.i18n_config_path)
+        let ctx = LocaleContext::from_crate(krate, all_locales)
             .map_err(|e| CliError::from(std::io::Error::other(e)))?;
 
-        let assets_dir = krate.manifest_dir.join(&config.assets_dir);
-
         // Determine which locale directories to check
-        let locale_dirs: Vec<std::path::PathBuf> = if all_locales {
-            get_all_locales(&assets_dir)
-                .map_err(|e| CliError::from(std::io::Error::other(e)))?
-                .into_iter()
-                .map(|locale| assets_dir.join(locale))
-                .collect()
-        } else {
-            vec![assets_dir.join(&config.fallback_language)]
-        };
+        let locale_dirs: Vec<std::path::PathBuf> = ctx
+            .locales
+            .iter()
+            .map(|locale| ctx.locale_dir(locale))
+            .collect();
 
         // Get the fallback locale directory for this crate
-        let fallback_locale_dir = assets_dir.join(&config.fallback_language);
+        let fallback_locale_dir = ctx.locale_dir(&ctx.fallback);
 
         for locale_dir in locale_dirs {
             let locale = locale_dir
@@ -59,7 +53,7 @@ pub(super) fn clean_orphaned_files(
             }
 
             // Skip the fallback locale - we only clean non-fallback locales
-            if locale == config.fallback_language {
+            if ctx.is_fallback(locale) {
                 continue;
             }
 

@@ -3,12 +3,12 @@
 //! This module provides functionality to format FTL files by sorting
 //! message keys alphabetically while preserving group comments.
 
-use crate::commands::{WorkspaceArgs, WorkspaceCrates};
+use crate::commands::{DryRunDiff, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
-use crate::utils::{discover_ftl_files, get_all_locales, ui};
-use anyhow::{Context as _, Result};
+use crate::ftl::LocaleContext;
+use crate::utils::{discover_ftl_files, ui};
+use anyhow::Result;
 use clap::Parser;
-use es_fluent_toml::I18nConfig;
 use fluent_syntax::parser;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,7 +38,7 @@ pub struct FormatResult {
     /// Error if formatting failed.
     pub error: Option<String>,
     /// Diff info (original, new) if dry run and changed.
-    pub diff_info: Option<(String, String)>,
+    pub diff_info: Option<DryRunDiff>,
 }
 
 impl FormatResult {
@@ -63,7 +63,7 @@ impl FormatResult {
     }
 
     /// Create a changed result with optional diff info.
-    fn changed(path: &Path, diff: Option<(String, String)>) -> Self {
+    fn changed(path: &Path, diff: Option<DryRunDiff>) -> Self {
         Self {
             path: path.to_path_buf(),
             changed: true,
@@ -108,8 +108,8 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
 
                     if args.dry_run {
                         ui::print_would_format(display_path);
-                        if let Some((old, new)) = &result.diff_info {
-                            ui::print_diff(old, new);
+                        if let Some(diff) = &result.diff_info {
+                            diff.print();
                         }
                     } else {
                         ui::print_formatted(display_path);
@@ -145,28 +145,18 @@ fn format_crate(
     all_locales: bool,
     check_only: bool,
 ) -> Result<Vec<FormatResult>> {
-    let config = I18nConfig::read_from_path(&krate.i18n_config_path)
-        .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
-
-    let assets_dir = krate.manifest_dir.join(&config.assets_dir);
-
-    let locales: Vec<String> = if all_locales {
-        // Get all locale directories
-        get_all_locales(&assets_dir)?
-    } else {
-        vec![config.fallback_language.clone()]
-    };
+    let ctx = LocaleContext::from_crate(krate, all_locales)?;
 
     let mut results = Vec::new();
 
-    for locale in &locales {
-        let locale_dir = assets_dir.join(locale);
+    for locale in &ctx.locales {
+        let locale_dir = ctx.locale_dir(locale);
         if !locale_dir.exists() {
             continue;
         }
 
         // Format main + namespaced files for this crate.
-        let ftl_files = discover_ftl_files(&assets_dir, locale, &krate.name)?;
+        let ftl_files = discover_ftl_files(&ctx.assets_dir, locale, &ctx.crate_name)?;
         for file_info in ftl_files {
             let ftl_file = fs::canonicalize(&file_info.abs_path).unwrap_or(file_info.abs_path);
             let result = format_ftl_file(&ftl_file, check_only);
@@ -207,7 +197,7 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
     }
 
     let diff = if check_only {
-        Some((content, formatted_content))
+        Some(DryRunDiff::new(content, formatted_content))
     } else {
         None
     };

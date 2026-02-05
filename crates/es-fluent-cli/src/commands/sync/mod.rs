@@ -8,6 +8,7 @@ mod merge;
 
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, LocaleNotFoundError, SyncMissingKey};
+use crate::ftl::collect_all_available_locales;
 use crate::utils::ui;
 use clap::Parser;
 use std::collections::HashSet;
@@ -55,7 +56,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 
     // Validate that specified locales exist
     if let Some(ref targets) = target_locales {
-        let all_available_locales = locale::collect_all_available_locales(&crates)?;
+        let all_available_locales = collect_all_available_locales(&crates)?;
 
         for locale in targets {
             if !all_available_locales.contains(locale) {
@@ -89,8 +90,8 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
                 pb.suspend(|| {
                     if args.dry_run {
                         ui::print_would_add_keys(result.keys_added, &result.locale, &krate.name);
-                        if let Some((old, new)) = &result.diff_info {
-                            ui::print_diff(old, new);
+                        if let Some(diff) = &result.diff_info {
+                            diff.print();
                         }
                     } else {
                         ui::print_added_keys(result.keys_added, &result.locale);

@@ -7,6 +7,7 @@ use crate::core::CrateInfo;
 use crate::utils::get_all_locales;
 use anyhow::{Context as _, Result};
 use es_fluent_toml::I18nConfig;
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// Context for locale-based FTL file operations.
@@ -99,10 +100,25 @@ impl LocaleContext {
     }
 }
 
+/// Collect all available locales across all crates.
+pub fn collect_all_available_locales(crates: &[CrateInfo]) -> Result<HashSet<String>> {
+    let mut all_locales = HashSet::new();
+
+    for krate in crates {
+        let ctx = LocaleContext::from_crate(krate, true)?;
+        for locale in ctx.locales {
+            all_locales.insert(locale);
+        }
+    }
+
+    Ok(all_locales)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::tempdir;
 
     fn create_test_crate() -> (tempfile::TempDir, CrateInfo) {
@@ -131,6 +147,42 @@ mod tests {
         };
 
         (temp_dir, krate)
+    }
+
+    #[test]
+    fn test_collect_all_available_locales() {
+        let temp_dir = tempdir().unwrap();
+        let assets = temp_dir.path().join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join("en")).unwrap();
+        fs::create_dir(assets.join("fr")).unwrap();
+        fs::create_dir(assets.join("de")).unwrap();
+
+        // Create a minimal i18n.toml
+        let config_path = temp_dir.path().join("i18n.toml");
+        fs::write(
+            &config_path,
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .unwrap();
+
+        let crates = vec![CrateInfo {
+            name: "test-crate".to_string(),
+            manifest_dir: temp_dir.path().to_path_buf(),
+            src_dir: PathBuf::new(),
+            i18n_config_path: config_path,
+            ftl_output_dir: PathBuf::new(),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        }];
+
+        let locales = collect_all_available_locales(&crates).unwrap();
+
+        assert!(locales.contains("en"));
+        assert!(locales.contains("fr"));
+        assert!(locales.contains("de"));
+        assert_eq!(locales.len(), 3);
+        assert!(!locales.contains("awd"));
     }
 
     #[test]

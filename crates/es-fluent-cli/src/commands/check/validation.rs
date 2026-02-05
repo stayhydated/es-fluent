@@ -2,12 +2,10 @@ use super::inventory::KeyInfo;
 use crate::core::{
     CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
 };
+use crate::ftl::LocaleContext;
 use crate::ftl::extract_variables_from_message;
-use crate::utils::{
-    LoadedFtlFile, discover_and_load_ftl_files, ftl::main_ftl_path, get_all_locales,
-};
-use anyhow::{Context as _, Result};
-use es_fluent_toml::I18nConfig;
+use crate::utils::{LoadedFtlFile, discover_and_load_ftl_files, ftl::main_ftl_path};
+use anyhow::Result;
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
@@ -44,26 +42,18 @@ fn validate_ftl_files(
     expected_keys: &IndexMap<String, KeyInfo>,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
-    let config = I18nConfig::read_from_path(&krate.i18n_config_path)
-        .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
-
-    let assets_dir = krate.manifest_dir.join(&config.assets_dir);
-
-    let locales: Vec<String> = if check_all {
-        get_all_locales(&assets_dir)?
-    } else {
-        vec![config.fallback_language.clone()]
-    };
+    let locale_ctx = LocaleContext::from_crate(krate, check_all)?;
+    let assets_dir = &locale_ctx.assets_dir;
 
     let mut issues = Vec::new();
 
-    for locale in &locales {
+    for locale in &locale_ctx.locales {
         // Use shared discovery and loading logic
-        match discover_and_load_ftl_files(&assets_dir, locale, &krate.name) {
+        match discover_and_load_ftl_files(assets_dir, locale, &locale_ctx.crate_name) {
             Ok(loaded_files) => {
                 if loaded_files.is_empty() {
                     // No FTL files found at all - treat as missing main file
-                    let ftl_abs_path = main_ftl_path(&assets_dir, locale, &krate.name);
+                    let ftl_abs_path = main_ftl_path(assets_dir, locale, &locale_ctx.crate_name);
                     let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
                     let ftl_header_link = Link::new(
                         &ftl_relative_path,
@@ -91,7 +81,7 @@ fn validate_ftl_files(
             },
             Err(e) => {
                 // Handle discovery/loading errors
-                let ftl_abs_path = main_ftl_path(&assets_dir, locale, &krate.name);
+                let ftl_abs_path = main_ftl_path(assets_dir, locale, &locale_ctx.crate_name);
                 let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
                 let ftl_header_link = Link::new(
                     &ftl_relative_path,

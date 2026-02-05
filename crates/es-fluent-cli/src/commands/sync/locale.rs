@@ -1,9 +1,9 @@
 use super::merge::merge_missing_keys;
+use crate::commands::DryRunDiff;
 use crate::core::CrateInfo;
-use crate::ftl::extract_message_keys;
-use crate::utils::{discover_and_load_ftl_files, get_all_locales};
-use anyhow::{Context as _, Result};
-use es_fluent_toml::I18nConfig;
+use crate::ftl::{LocaleContext, extract_message_keys};
+use crate::utils::discover_and_load_ftl_files;
+use anyhow::Result;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::HashSet;
 use std::fs;
@@ -19,7 +19,7 @@ pub(super) struct SyncLocaleResult {
     /// The keys that were added.
     pub(super) added_keys: Vec<String>,
     /// Diff info (original, new) if dry run and changed.
-    pub(super) diff_info: Option<(String, String)>,
+    pub(super) diff_info: Option<DryRunDiff>,
 }
 
 /// Sync all FTL files for a crate.
@@ -28,12 +28,8 @@ pub(super) fn sync_crate(
     target_locales: Option<&HashSet<String>>,
     dry_run: bool,
 ) -> Result<Vec<SyncLocaleResult>> {
-    let config = I18nConfig::read_from_path(&krate.i18n_config_path)
-        .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
-
-    let assets_dir = krate.manifest_dir.join(&config.assets_dir);
-    let fallback_locale = &config.fallback_language;
-    let fallback_dir = assets_dir.join(fallback_locale);
+    let ctx = LocaleContext::from_crate(krate, true)?;
+    let fallback_dir = ctx.locale_dir(&ctx.fallback);
 
     if !fallback_dir.exists() {
         return Ok(Vec::new());
@@ -41,7 +37,7 @@ pub(super) fn sync_crate(
 
     // Discover all FTL files in the fallback locale (including namespaced ones)
     let fallback_files =
-        discover_and_load_ftl_files(&assets_dir, &config.fallback_language, &krate.name)?;
+        discover_and_load_ftl_files(&ctx.assets_dir, &ctx.fallback, &ctx.crate_name)?;
 
     if fallback_files.is_empty() {
         return Ok(Vec::new());
@@ -49,12 +45,9 @@ pub(super) fn sync_crate(
 
     let mut results = Vec::new();
 
-    // Get all locales to sync to
-    let locales = get_all_locales(&assets_dir)?;
-
-    for locale in &locales {
+    for locale in &ctx.locales {
         // Skip the fallback locale
-        if locale == fallback_locale {
+        if locale == &ctx.fallback {
             continue;
         }
 
@@ -65,7 +58,7 @@ pub(super) fn sync_crate(
             continue;
         }
 
-        let locale_dir = assets_dir.join(locale);
+        let locale_dir = ctx.locale_dir(locale);
 
         // Sync each FTL file (main + namespaced)
         for ftl_info in &fallback_files {
@@ -150,7 +143,7 @@ fn sync_locale_file(
 
     // If dry run and we have changes (missing_keys was not empty), compute diff
     let diff_info = if dry_run && !missing_keys.is_empty() {
-        Some((existing_content, final_content))
+        Some(DryRunDiff::new(existing_content, final_content))
     } else {
         None
     };
@@ -161,66 +154,4 @@ fn sync_locale_file(
         added_keys,
         diff_info,
     })
-}
-
-/// Collect all available locales across all crates.
-pub(super) fn collect_all_available_locales(crates: &[CrateInfo]) -> Result<HashSet<String>> {
-    let mut all_locales = HashSet::new();
-
-    for krate in crates {
-        let config = I18nConfig::read_from_path(&krate.i18n_config_path)
-            .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
-
-        let assets_dir = krate.manifest_dir.join(&config.assets_dir);
-        let locales = get_all_locales(&assets_dir)?;
-
-        for locale in locales {
-            all_locales.insert(locale);
-        }
-    }
-
-    Ok(all_locales)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_collect_all_available_locales() {
-        let temp_dir = tempdir().unwrap();
-        let assets = temp_dir.path().join("i18n");
-        fs::create_dir(&assets).unwrap();
-        fs::create_dir(assets.join("en")).unwrap();
-        fs::create_dir(assets.join("fr")).unwrap();
-        fs::create_dir(assets.join("de")).unwrap();
-
-        // Create a minimal i18n.toml
-        let config_path = temp_dir.path().join("i18n.toml");
-        fs::write(
-            &config_path,
-            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-        )
-        .unwrap();
-
-        let crates = vec![CrateInfo {
-            name: "test-crate".to_string(),
-            manifest_dir: temp_dir.path().to_path_buf(),
-            src_dir: PathBuf::new(),
-            i18n_config_path: config_path,
-            ftl_output_dir: PathBuf::new(),
-            has_lib_rs: true,
-            fluent_features: Vec::new(),
-        }];
-
-        let locales = collect_all_available_locales(&crates).unwrap();
-
-        assert!(locales.contains("en"));
-        assert!(locales.contains("fr"));
-        assert!(locales.contains("de"));
-        assert_eq!(locales.len(), 3);
-        assert!(!locales.contains("awd"));
-    }
 }
