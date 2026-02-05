@@ -45,7 +45,7 @@ pub struct CurrentLanguage(pub Languages);
 pub struct EmptyStruct;
 
 #[derive(Clone, Debug, Default, EsFluentThis, EsFluentVariants)]
-pub struct EmptyStructKv;
+pub struct EmptyStructVariants;
 
 #[derive(Clone, Copy, Debug, EsFluent, EsFluentThis)]
 pub enum EmptyEnum {}
@@ -72,6 +72,6 @@ pub enum CanadaProvince {
 #[derive(EsFluent, EsFluentThis, EsFluentVariants)]
 #[fluent_this(members)]
 #[fluent_variants(keys = ["description", "label"])]
-pub struct KvSplit {
+pub struct SplitVariants {
     pub country: Country,
 }

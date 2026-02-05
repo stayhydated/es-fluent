@@ -1,78 +1,18 @@
-//! Check command for validating FTL files against inventory-registered types.
-//!
-//! This module provides functionality to check FTL files by:
-//! - Running a temp crate that collects inventory registrations (expected keys/variables)
-//! - Parsing FTL files directly using fluent-syntax (for proper ParserError handling)
-//! - Comparing FTL files against the expected keys and variables from Rust code
-//! - Reporting missing keys as errors
-//! - Reporting missing variables as warnings
-
-use crate::commands::{WorkspaceArgs, WorkspaceCrates};
+use super::inventory::KeyInfo;
 use crate::core::{
-    CliError, CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
-    ValidationReport,
+    CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
 };
+use crate::ftl::LocaleContext;
 use crate::ftl::extract_variables_from_message;
-use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
-use crate::utils::{
-    LoadedFtlFile, discover_and_load_ftl_files, ftl::main_ftl_path, get_all_locales, ui,
-};
-use anyhow::{Context as _, Result};
-use clap::Parser;
-use es_fluent_toml::I18nConfig;
+use crate::utils::{LoadedFtlFile, discover_and_load_ftl_files, ftl::main_ftl_path};
+use anyhow::Result;
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
-use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use terminal_link::Link;
-
-/// Expected key information from inventory (deserialized from temp crate output).
-#[derive(Deserialize)]
-struct ExpectedKey {
-    key: String,
-    variables: Vec<String>,
-    /// The Rust source file where this key is defined.
-    source_file: Option<String>,
-    /// The line number in the Rust source file.
-    source_line: Option<u32>,
-}
-
-/// Runtime info about an expected key with its variables and source location.
-#[derive(Clone)]
-struct KeyInfo {
-    variables: HashSet<String>,
-    source_file: Option<String>,
-    source_line: Option<u32>,
-}
-
-/// The inventory data output from the temp crate.
-#[derive(Deserialize)]
-struct InventoryData {
-    expected_keys: Vec<ExpectedKey>,
-}
-
-/// Arguments for the check command.
-#[derive(Debug, Parser)]
-pub struct CheckArgs {
-    #[command(flatten)]
-    pub workspace: WorkspaceArgs,
-
-    /// Check all locales, not just the fallback language.
-    #[arg(long)]
-    pub all: bool,
-
-    /// Crates to skip during validation. Can be specified multiple times
-    /// (e.g., --ignore foo --ignore bar) or comma-separated (e.g., --ignore foo,bar).
-    #[arg(long, value_delimiter = ',')]
-    pub ignore: Vec<String>,
-
-    /// Force rebuild of the runner, ignoring the staleness cache.
-    #[arg(long)]
-    pub force_run: bool,
-}
 
 /// Context for FTL validation to reduce argument count.
 struct ValidationContext<'a> {
@@ -81,179 +21,18 @@ struct ValidationContext<'a> {
     manifest_dir: &'a Path,
 }
 
-/// Run the check command.
-pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
-    let workspace = WorkspaceCrates::discover(args.workspace)?;
-
-    if !workspace.print_discovery(ui::print_check_header) {
-        ui::print_no_crates_found();
-        return Ok(());
-    }
-
-    // Convert ignore list to a HashSet for efficient lookups
-    let ignore_crates: HashSet<String> = args.ignore.into_iter().collect();
-    let force_run = args.force_run;
-
-    // Filter out ignored crates
-    let crates_to_check: Vec<_> = workspace
-        .valid
-        .iter()
-        .filter(|k| !ignore_crates.contains(&k.name))
-        .collect();
-
-    // Validate that all ignored crates are known
-    if !ignore_crates.is_empty() {
-        let all_crate_names: HashSet<String> =
-            workspace.valid.iter().map(|k| k.name.clone()).collect();
-
-        let mut unknown_crates: Vec<&String> = ignore_crates
-            .iter()
-            .filter(|c| !all_crate_names.contains(*c))
-            .collect();
-
-        if !unknown_crates.is_empty() {
-            // Sort for deterministic error messages
-            unknown_crates.sort();
-
-            return Err(CliError::Other(format!(
-                "Unknown crates passed to --ignore: {}",
-                unknown_crates
-                    .iter()
-                    .map(|c| format!("'{}'", c))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )));
-        }
-    }
-
-    if crates_to_check.is_empty() {
-        ui::print_no_crates_found();
-        return Ok(());
-    }
-
-    // Prepare monolithic temp crate once for all checks
-    prepare_monolithic_runner_crate(&workspace.workspace_info)
-        .map_err(|e| CliError::Other(e.to_string()))?;
-
-    // First pass: collect all expected keys from crates
-    let temp_dir =
-        es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.workspace_info.root_dir);
-
-    let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
-
-    for krate in &crates_to_check {
-        pb.set_message(format!("Scanning {}", krate.name));
-        run_monolithic(
-            &workspace.workspace_info,
-            "check",
-            &krate.name,
-            &[],
-            force_run,
-        )
-        .map_err(|e| CliError::Other(e.to_string()))?;
-        pb.inc(1);
-    }
-
-    pb.finish_and_clear();
-
-    // Second pass: validate FTL files
-    let mut all_issues: Vec<ValidationIssue> = Vec::new();
-
-    let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...");
-
-    for krate in &crates_to_check {
-        pb.set_message(format!("Checking {}", krate.name));
-
-        match validate_crate(
-            krate,
-            &workspace.workspace_info.root_dir,
-            &temp_dir,
-            args.all,
-        ) {
-            Ok(issues) => {
-                all_issues.extend(issues);
-            },
-            Err(e) => {
-                // If error, print above progress bar
-                pb.suspend(|| {
-                    ui::print_check_error(&krate.name, &e.to_string());
-                });
-            },
-        }
-        pb.inc(1);
-    }
-
-    pb.finish_and_clear();
-
-    // Sort issues for deterministic output
-    all_issues.sort_by_cached_key(|issue| issue.sort_key());
-
-    let error_count = all_issues
-        .iter()
-        .filter(|i| {
-            matches!(
-                i,
-                ValidationIssue::MissingKey(_) | ValidationIssue::SyntaxError(_)
-            )
-        })
-        .count();
-    let warning_count = all_issues
-        .iter()
-        .filter(|i| matches!(i, ValidationIssue::MissingVariable(_)))
-        .count();
-
-    if all_issues.is_empty() {
-        ui::print_check_success();
-        Ok(())
-    } else {
-        Err(CliError::Validation(ValidationReport {
-            error_count,
-            warning_count,
-            issues: all_issues,
-        }))
-    }
-}
-
 /// Validate a single crate's FTL files using already-collected inventory data.
-fn validate_crate(
+pub(crate) fn validate_crate(
     krate: &CrateInfo,
     workspace_root: &Path,
     temp_dir: &Path,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
     // Read the inventory that was already collected in the first pass
-    let expected_keys = read_inventory_file(temp_dir, &krate.name)?;
+    let expected_keys = super::inventory::read_inventory_file(temp_dir, &krate.name)?;
 
     // Validate FTL files against expected keys
     validate_ftl_files(krate, workspace_root, &expected_keys, check_all)
-}
-
-/// Read inventory data from the generated inventory.json file.
-fn read_inventory_file(
-    temp_dir: &std::path::Path,
-    crate_name: &str,
-) -> Result<IndexMap<String, KeyInfo>> {
-    let inventory_path = es_fluent_derive_core::get_metadata_inventory_path(temp_dir, crate_name);
-    let json_str = fs::read_to_string(&inventory_path)
-        .with_context(|| format!("Failed to read {}", inventory_path.display()))?;
-
-    let data: InventoryData =
-        serde_json::from_str(&json_str).context("Failed to parse inventory JSON")?;
-
-    // Convert to IndexMap with KeyInfo for richer metadata
-    let mut expected_keys = IndexMap::new();
-    for key_info in data.expected_keys {
-        expected_keys.insert(
-            key_info.key,
-            KeyInfo {
-                variables: key_info.variables.into_iter().collect(),
-                source_file: key_info.source_file,
-                source_line: key_info.source_line,
-            },
-        );
-    }
-
-    Ok(expected_keys)
 }
 
 /// Validate FTL files against expected keys using shared discovery logic.
@@ -263,26 +42,18 @@ fn validate_ftl_files(
     expected_keys: &IndexMap<String, KeyInfo>,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
-    let config = I18nConfig::read_from_path(&krate.i18n_config_path)
-        .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
-
-    let assets_dir = krate.manifest_dir.join(&config.assets_dir);
-
-    let locales: Vec<String> = if check_all {
-        get_all_locales(&assets_dir)?
-    } else {
-        vec![config.fallback_language.clone()]
-    };
+    let locale_ctx = LocaleContext::from_crate(krate, check_all)?;
+    let assets_dir = &locale_ctx.assets_dir;
 
     let mut issues = Vec::new();
 
-    for locale in &locales {
+    for locale in &locale_ctx.locales {
         // Use shared discovery and loading logic
-        match discover_and_load_ftl_files(&assets_dir, locale, &krate.name) {
+        match discover_and_load_ftl_files(assets_dir, locale, &locale_ctx.crate_name) {
             Ok(loaded_files) => {
                 if loaded_files.is_empty() {
                     // No FTL files found at all - treat as missing main file
-                    let ftl_abs_path = main_ftl_path(&assets_dir, locale, &krate.name);
+                    let ftl_abs_path = main_ftl_path(assets_dir, locale, &locale_ctx.crate_name);
                     let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
                     let ftl_header_link = Link::new(
                         &ftl_relative_path,
@@ -310,7 +81,7 @@ fn validate_ftl_files(
             },
             Err(e) => {
                 // Handle discovery/loading errors
-                let ftl_abs_path = main_ftl_path(&assets_dir, locale, &krate.name);
+                let ftl_abs_path = main_ftl_path(assets_dir, locale, &locale_ctx.crate_name);
                 let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
                 let ftl_header_link = Link::new(
                     &ftl_relative_path,

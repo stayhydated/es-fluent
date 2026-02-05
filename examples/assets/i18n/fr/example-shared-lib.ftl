@@ -1,60 +1,60 @@
-## EmptyEnum
-
-empty_enum_this = Énumération vide
-
-## EmptyStructKv
-
-empty_struct_kv_this = Structure clé-valeur vide
-
 ## ButtonState
 
 button_state-Hovered = Survolé
 button_state-Normal = Normale
 button_state-Pressed = Appuyé
+canada_province-A = Alberta
+canada_province-B = Colombie-Britannique
 
 ## CanadaProvince
 
 canada_province_this = Province canadienne
-canada_province-A = Alberta
-canada_province-B = Colombie-Britannique
-
-## Country
-
-country_this = Pays
 country-Canada = Canada { $f0 }
 country-USA = États-Unis { $f0 }
 
 ## CountryDescriptionVariants
 
-country_description-Canada = Canada
-country_description-USA = États-Unis
+country_description_variants-Canada = Canada
+country_description_variants-USA = États-Unis
 
 ## CountryLabelVariants
 
-country_label-Canada = Canada
-country_label-USA = États-Unis
+country_label_variants-Canada = Canada
+country_label_variants-USA = États-Unis
+
+## Country
+
+country_this = Pays
+
+## EmptyEnum
+
+empty_enum_this = Énumération vide
+empty_struct = Structure vide
 
 ## EmptyStruct
 
 empty_struct_this = Structure vide
-empty_struct = Structure vide
 
-## KvSplit
+## EmptyStructVariants
 
-kv_split_this = Séparation clé-valeur
-kv_split = Séparation clé-valeur { $country }
+empty_struct_variants_this = Empty Struct Variants
+split_variants = Split Variants { $country }
+split_variants_description_variants-country = Country
 
-## KvSplitDescriptionVariants
+## SplitVariantsDescriptionVariants
 
-kv_split_description_this = Description de la séparation clé-valeur
-kv_split_description-country = Pays
+split_variants_description_variants_this = Split Variants Description Variants
+split_variants_label_variants-country = Country
 
-## KvSplitLabelVariants
+## SplitVariantsLabelVariants
 
-kv_split_label_this = Kv Split Label
-kv_split_label-country = Country
+split_variants_label_variants_this = Split Variants Label Variants
+
+## SplitVariants
+
+split_variants_this = Split Variants
+usa_state-A = A
 
 ## USAState
 
-usa_state_this = Usa State
-usa_state-A = A
+usa_state_this = État des États-Unis

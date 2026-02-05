@@ -2,9 +2,9 @@
 
 empty_enum_this = Empty Enum
 
-## EmptyStructKv
+## EmptyStructVariants
 
-empty_struct_kv_this = Empty Struct Kv
+empty_struct_variants_this = Empty Struct Variants
 
 ## ButtonState
 
@@ -26,33 +26,33 @@ country-USA = Usa { $f0 }
 
 ## CountryDescriptionVariants
 
-country_description-Canada = Canada
-country_description-USA = Usa
+country_description_variants-Canada = Canada
+country_description_variants-USA = Usa
 
 ## CountryLabelVariants
 
-country_label-Canada = Canada
-country_label-USA = Usa
+country_label_variants-Canada = Canada
+country_label_variants-USA = Usa
 
 ## EmptyStruct
 
 empty_struct_this = Empty Struct
 empty_struct = Empty Struct
 
-## KvSplit
+## SplitVariants
 
-kv_split_this = Kv Split
-kv_split = Kv Split { $country }
+split_variants_this = Split Variants
+split_variants = Split Variants { $country }
 
-## KvSplitDescriptionVariants
+## SplitVariantsDescriptionVariants
 
-kv_split_description_this = Kv Split Description
-kv_split_description-country = Country
+split_variants_description_variants_this = Split Variants Description Variants
+split_variants_description_variants-country = Country
 
-## KvSplitLabelVariants
+## SplitVariantsLabelVariants
 
-kv_split_label_this = Kv Split Label
-kv_split_label-country = Country
+split_variants_label_variants_this = Split Variants Label Variants
+split_variants_label_variants-country = Country
 
 ## USAState
 

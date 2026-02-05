@@ -17,4 +17,3 @@ not_found_reason-NotExist = 不存在 { $f0 }
 transaction_error-AccountLocked = 账户已锁定 { $reason }
 transaction_error-AccountNotFound = 账户未找到 { $f0 }
 transaction_error-InsufficientFunds = 余额不足 { $available } { $required }
-transaction_error-Network = 网络错误 { $f0 }

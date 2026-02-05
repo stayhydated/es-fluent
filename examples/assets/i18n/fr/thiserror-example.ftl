@@ -17,4 +17,3 @@ not_found_reason-NotExist = N'existe pas { $f0 }
 transaction_error-AccountLocked = Compte verrouillé { $reason }
 transaction_error-AccountNotFound = Compte introuvable { $f0 }
 transaction_error-InsufficientFunds = Fonds insuffisants { $available } { $required }
-transaction_error-Network = Réseau { $f0 }

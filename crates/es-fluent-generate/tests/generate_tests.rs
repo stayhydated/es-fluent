@@ -116,6 +116,159 @@ fn test_generate_conservative_mode_preserves_existing() {
 }
 
 #[test]
+fn test_generate_inserts_variants_into_empty_group() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+    let crate_name = "test_crate";
+    let ftl_file_path = i18n_path.join(format!("{}.ftl", crate_name));
+
+    fs::create_dir_all(&i18n_path).unwrap();
+
+    let initial_content = "
+## CountryLabelVariants
+";
+    fs::write(&ftl_file_path, initial_content).unwrap();
+
+    let type_info = enum_type(
+        "CountryLabelVariants",
+        vec![
+            variant("Canada", &ftl_key("CountryLabelVariants", "Canada")),
+            variant("USA", &ftl_key("CountryLabelVariants", "USA")),
+        ],
+    );
+
+    let result = generate(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        std::slice::from_ref(&type_info),
+        FluentParseMode::Conservative,
+        false,
+    );
+    assert!(result.is_ok());
+
+    let content = fs::read_to_string(&ftl_file_path).unwrap();
+
+    assert!(content.contains("country_label_variants-Canada"));
+    assert!(content.contains("country_label_variants-USA"));
+    assert_eq!(content.matches("## CountryLabelVariants").count(), 1);
+}
+
+#[test]
+fn test_generate_relocates_late_group_keys_without_duplicates() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+    let crate_name = "test_crate";
+    let ftl_file_path = i18n_path.join(format!("{}.ftl", crate_name));
+
+    fs::create_dir_all(&i18n_path).unwrap();
+
+    let initial_content = "
+## GroupA
+
+## GroupB
+
+group_a-A1 = Value A1
+";
+    fs::write(&ftl_file_path, initial_content).unwrap();
+
+    let group_a = enum_type("GroupA", vec![variant("A1", &ftl_key("GroupA", "A1"))]);
+    let group_b = enum_type("GroupB", vec![variant("B1", &ftl_key("GroupB", "B1"))]);
+    let items = leak_slice(vec![group_a, group_b]);
+
+    generate(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        items,
+        FluentParseMode::Conservative,
+        false,
+    )
+    .unwrap();
+
+    generate(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        items,
+        FluentParseMode::Conservative,
+        false,
+    )
+    .unwrap();
+
+    let content = fs::read_to_string(&ftl_file_path).unwrap();
+
+    assert_eq!(content.matches("group_a-A1").count(), 1);
+    let group_a_pos = content.find("## GroupA").expect("GroupA missing");
+    let group_b_pos = content.find("## GroupB").expect("GroupB missing");
+    let key_pos = content.find("group_a-A1").expect("Relocated key missing");
+    assert!(group_a_pos < key_pos, "Key should be after GroupA");
+    assert!(key_pos < group_b_pos, "Key should be before GroupB");
+}
+
+#[test]
+fn test_generate_relocates_keys_between_similar_group_names() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+    let crate_name = "test_crate";
+    let ftl_file_path = i18n_path.join(format!("{}.ftl", crate_name));
+
+    fs::create_dir_all(&i18n_path).unwrap();
+
+    let initial_content = "
+## EmptyStructVariants
+
+## EmptyStruct
+
+empty_struct_variants_this = Empty Struct Variants
+empty_struct_this = Empty Struct
+empty_struct = Empty Struct
+";
+    fs::write(&ftl_file_path, initial_content).unwrap();
+
+    let empty_struct = enum_type(
+        "EmptyStruct",
+        vec![
+            variant("This", &this_key("EmptyStruct")),
+            variant("empty_struct", &ftl_key("EmptyStruct", "")),
+        ],
+    );
+    let empty_struct_variants = enum_type(
+        "EmptyStructVariants",
+        vec![variant("This", &this_key("EmptyStructVariants"))],
+    );
+    let items = leak_slice(vec![empty_struct, empty_struct_variants]);
+    generate(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        items,
+        FluentParseMode::Conservative,
+        false,
+    )
+    .unwrap();
+
+    let content = fs::read_to_string(&ftl_file_path).unwrap();
+
+    let variants_group_pos = content
+        .find("## EmptyStructVariants\n")
+        .expect("EmptyStructVariants group missing");
+    let empty_group_pos = content
+        .find("## EmptyStruct\n")
+        .expect("EmptyStruct group missing");
+    let variants_key_pos = content
+        .find("empty_struct_variants_this")
+        .expect("variants key missing");
+
+    assert!(
+        variants_group_pos < variants_key_pos && variants_key_pos < empty_group_pos,
+        "variants key should be under EmptyStructVariants group"
+    );
+    assert!(content.contains("empty_struct_this"));
+    assert!(content.contains("empty_struct = Empty Struct"));
+}
+
+#[test]
 fn test_generate_clean_mode_removes_orphans() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -131,7 +284,7 @@ awdawd = awdwa
 
 ## ExistingGroup
 
-existing-key = Existing Value
+existing_group-ExistingKey = Existing Value
 ";
     fs::write(&ftl_file_path, initial_content).unwrap();
 
