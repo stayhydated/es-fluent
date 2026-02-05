@@ -631,6 +631,40 @@ fn test_sync_new_locale() {
     );
 }
 
+#[test]
+fn test_sync_without_locale_or_all_shows_helpful_message() {
+    let temp = setup_workspace_env();
+
+    let output = run_cli(&temp, &["sync"]);
+    assert!(
+        output.contains("No locales specified"),
+        "Expected guidance when no locales are passed, got:\n{}",
+        output
+    );
+}
+
+#[test]
+fn test_sync_unknown_locale_fails() {
+    let temp = setup_workspace_env();
+
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["es-fluent", "sync", "--locale", "zz-unknown"]);
+    cmd.assert().failure();
+
+    let output = run_cli(&temp, &["sync", "--locale", "zz-unknown"]);
+    assert!(
+        output.contains("Locale not found"),
+        "Expected unknown locale error, got:\n{}",
+        output
+    );
+    assert!(
+        output.contains("Available locales"),
+        "Expected available locales to be listed, got:\n{}",
+        output
+    );
+}
+
 static FIXTURES_DIR: LazyLock<PathBuf> =
     LazyLock::new(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures"));
 
@@ -1056,6 +1090,55 @@ fn test_clean_orphaned_namespaced_only_crate() {
     assert!(
         ns_dir_es.join("ui.ftl").exists(),
         "Namespaced file should still exist after dry run"
+    );
+}
+
+#[test]
+fn test_clean_orphaned_keeps_nested_namespaced_files() {
+    let temp = setup_workspace_env();
+
+    // Fallback has a nested namespaced file (file-relative namespace style).
+    let fallback_nested = temp.path().join("i18n/en/test-app-a/ui/button.ftl");
+    std::fs::create_dir_all(fallback_nested.parent().unwrap()).expect("create fallback dirs");
+    std::fs::write(&fallback_nested, "button = Click me\n").expect("write fallback nested");
+
+    // Target locale has the corresponding file and should keep it.
+    let locale_nested = temp.path().join("i18n/es/test-app-a/ui/button.ftl");
+    std::fs::create_dir_all(locale_nested.parent().unwrap()).expect("create locale dirs");
+    std::fs::write(&locale_nested, "button = Haz clic\n").expect("write locale nested");
+
+    let output = run_cli(&temp, &["clean", "--orphaned", "--all"]);
+
+    assert!(
+        locale_nested.exists(),
+        "Nested namespaced file should be preserved when fallback has the same path"
+    );
+    assert!(
+        !output.contains("test-app-a/ui/button.ftl"),
+        "Legitimate nested file should not be reported as orphaned:\n{}",
+        output
+    );
+}
+
+#[test]
+fn test_clean_orphaned_removes_nested_orphaned_file() {
+    let temp = setup_workspace_env();
+
+    // No matching fallback file for this nested namespaced path.
+    let locale_nested = temp.path().join("i18n/es/test-app-a/legacy/unused.ftl");
+    std::fs::create_dir_all(locale_nested.parent().unwrap()).expect("create locale dirs");
+    std::fs::write(&locale_nested, "unused = value\n").expect("write nested orphan");
+
+    let output = run_cli(&temp, &["clean", "--orphaned", "--all"]);
+
+    assert!(
+        !locale_nested.exists(),
+        "Nested orphaned namespaced file should be removed"
+    );
+    assert!(
+        output.contains("test-app-a/legacy/unused.ftl"),
+        "Expected nested orphaned path in output:\n{}",
+        output
     );
 }
 

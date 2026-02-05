@@ -276,24 +276,12 @@ fn get_expected_ftl_files(
         ));
     }
 
-    // Check for namespaced files in the crate_name subdirectory
-    // Namespaced files are expected if they exist in the fallback locale
-    let fallback_crate_subdir = fallback_locale_dir.join(crate_name);
-    if fallback_crate_subdir.exists()
-        && fallback_crate_subdir.is_dir()
-        && let Ok(entries) = std::fs::read_dir(&fallback_crate_subdir)
-    {
-        for entry in entries.filter_map(|e| e.ok()) {
-            let fallback_path = entry.path();
-            if fallback_path.extension().is_some_and(|e| e == "ftl") {
-                // Get just the filename and construct path in current locale
-                if let Some(filename) = fallback_path.file_name() {
-                    let namespaced_path = locale_dir.join(crate_name).join(filename);
-                    expected.insert(namespaced_path);
-                }
-            }
-        }
-    }
+    add_expected_namespaced_files_from_fallback(
+        fallback_locale_dir,
+        locale_dir,
+        crate_name,
+        &mut expected,
+    );
 
     // Also add expected files for other crates (they're valid, not orphaned)
     for &other_crate in valid_crate_names.iter().filter(|&&c| c != crate_name) {
@@ -323,25 +311,39 @@ fn get_expected_ftl_files(
             ));
         }
 
-        // Only expect namespaced files if they exist in fallback
-        let other_fallback_subdir = fallback_locale_dir.join(other_crate);
-        if other_fallback_subdir.exists()
-            && other_fallback_subdir.is_dir()
-            && let Ok(entries) = std::fs::read_dir(&other_fallback_subdir)
-        {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let fallback_path = entry.path();
-                if fallback_path.extension().is_some_and(|e| e == "ftl")
-                    && let Some(filename) = fallback_path.file_name()
-                {
-                    let namespaced_path = locale_dir.join(other_crate).join(filename);
-                    expected.insert(namespaced_path);
-                }
-            }
-        }
+        add_expected_namespaced_files_from_fallback(
+            fallback_locale_dir,
+            locale_dir,
+            other_crate,
+            &mut expected,
+        );
     }
 
     expected
+}
+
+/// Add expected namespaced files for `crate_name` by mirroring fallback locale paths.
+///
+/// Supports nested file-relative namespaces (e.g., `crate/ui/button.ftl`).
+fn add_expected_namespaced_files_from_fallback(
+    fallback_locale_dir: &std::path::Path,
+    locale_dir: &std::path::Path,
+    crate_name: &str,
+    expected: &mut HashSet<std::path::PathBuf>,
+) {
+    let fallback_crate_subdir = fallback_locale_dir.join(crate_name);
+    if !fallback_crate_subdir.exists() || !fallback_crate_subdir.is_dir() {
+        return;
+    }
+
+    let locale_crate_subdir = locale_dir.join(crate_name);
+    if let Ok(fallback_files) = find_all_ftl_files(&fallback_crate_subdir) {
+        for fallback_path in fallback_files {
+            if let Ok(relative) = fallback_path.strip_prefix(&fallback_crate_subdir) {
+                expected.insert(locale_crate_subdir.join(relative));
+            }
+        }
+    }
 }
 
 /// Recursively find all FTL files in a directory.
@@ -365,4 +367,53 @@ fn find_all_ftl_files(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, 
     }
 
     Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expected_files_include_nested_namespaced_paths() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let i18n_dir = temp.path().join("i18n");
+        let fallback_dir = i18n_dir.join("en");
+        let locale_dir = i18n_dir.join("es");
+
+        std::fs::create_dir_all(fallback_dir.join("test-app-a/ui")).expect("create fallback dirs");
+        std::fs::create_dir_all(&locale_dir).expect("create locale dir");
+
+        // Main + nested namespaced file in fallback.
+        std::fs::write(fallback_dir.join("test-app-a.ftl"), "hello = Hello\n")
+            .expect("write fallback main");
+        std::fs::write(
+            fallback_dir.join("test-app-a/ui/button.ftl"),
+            "button = Click\n",
+        )
+        .expect("write fallback namespaced");
+
+        let valid_crates = HashSet::from(["test-app-a"]);
+        let expected =
+            get_expected_ftl_files("test-app-a", &locale_dir, &valid_crates, &fallback_dir);
+
+        assert!(expected.contains(&locale_dir.join("test-app-a.ftl")));
+        assert!(expected.contains(&locale_dir.join("test-app-a/ui/button.ftl")));
+    }
+
+    #[test]
+    fn find_all_ftl_files_discovers_nested_files() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let base = temp.path().join("nested");
+        std::fs::create_dir_all(base.join("a/b")).expect("create nested dirs");
+        std::fs::write(base.join("root.ftl"), "root = Root\n").expect("write root");
+        std::fs::write(base.join("a/b/deep.ftl"), "deep = Deep\n").expect("write deep");
+        std::fs::write(base.join("a/b/ignore.txt"), "noop").expect("write text");
+
+        let mut files = find_all_ftl_files(&base).expect("discover files");
+        files.sort();
+
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&base.join("root.ftl")));
+        assert!(files.contains(&base.join("a/b/deep.ftl")));
+    }
 }

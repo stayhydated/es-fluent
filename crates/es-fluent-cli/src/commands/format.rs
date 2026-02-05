@@ -5,7 +5,7 @@
 
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
-use crate::utils::{ftl::main_ftl_path, get_all_locales, ui};
+use crate::utils::{discover_ftl_files, get_all_locales, ui};
 use anyhow::{Context as _, Result};
 use clap::Parser;
 use es_fluent_toml::I18nConfig;
@@ -165,10 +165,10 @@ fn format_crate(
             continue;
         }
 
-        // Format only the FTL file for this crate
-        let ftl_file = main_ftl_path(&assets_dir, locale, &krate.name);
-        if ftl_file.exists() {
-            let ftl_file = fs::canonicalize(&ftl_file).unwrap_or(ftl_file);
+        // Format main + namespaced files for this crate.
+        let ftl_files = discover_ftl_files(&assets_dir, locale, &krate.name)?;
+        for file_info in ftl_files {
+            let ftl_file = fs::canonicalize(&file_info.abs_path).unwrap_or(file_info.abs_path);
             let result = format_ftl_file(&ftl_file, check_only);
             results.push(result);
         }
@@ -213,4 +213,97 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
     };
 
     FormatResult::changed(path, diff)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn write_test_crate(temp_dir: &Path) -> CrateInfo {
+        let src_dir = temp_dir.join("src");
+        let assets_dir = temp_dir.join("i18n/en");
+        std::fs::create_dir_all(&src_dir).expect("create src");
+        std::fs::create_dir_all(&assets_dir).expect("create assets");
+        std::fs::create_dir_all(assets_dir.join("test-crate")).expect("create namespace dir");
+
+        let config_path = temp_dir.join("i18n.toml");
+        std::fs::write(
+            &config_path,
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+
+        // Main file unchanged.
+        std::fs::write(assets_dir.join("test-crate.ftl"), "hello = Hello\n")
+            .expect("write main ftl");
+
+        // Namespaced file intentionally unsorted.
+        std::fs::write(
+            assets_dir.join("test-crate/ui.ftl"),
+            "zeta = Z\nalpha = A\n",
+        )
+        .expect("write namespaced ftl");
+
+        CrateInfo {
+            name: "test-crate".to_string(),
+            manifest_dir: temp_dir.to_path_buf(),
+            src_dir,
+            i18n_config_path: config_path,
+            ftl_output_dir: temp_dir.join("i18n/en"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn format_crate_formats_namespaced_files() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let krate = write_test_crate(temp.path());
+
+        let results = format_crate(&krate, false, false).expect("format crate");
+        assert_eq!(
+            results.len(),
+            2,
+            "main + namespaced files should be visited"
+        );
+
+        let namespaced_path = temp.path().join("i18n/en/test-crate/ui.ftl");
+        let namespaced_suffix = Path::new("test-crate").join("ui.ftl");
+        let namespaced_result = results
+            .iter()
+            .find(|r| r.path.ends_with(&namespaced_suffix))
+            .expect("namespaced result exists");
+        assert!(
+            namespaced_result.changed,
+            "namespaced file should be formatted"
+        );
+
+        let content = std::fs::read_to_string(&namespaced_path).expect("read namespaced file");
+        assert!(
+            content.starts_with("alpha = A\nzeta = Z"),
+            "expected sorted content, got:\n{content}"
+        );
+    }
+
+    #[test]
+    fn format_crate_dry_run_keeps_namespaced_file_unchanged() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let krate = write_test_crate(temp.path());
+        let namespaced_path = temp.path().join("i18n/en/test-crate/ui.ftl");
+        let before = std::fs::read_to_string(&namespaced_path).expect("read before");
+
+        let results = format_crate(&krate, false, true).expect("dry run format");
+        let namespaced_suffix = Path::new("test-crate").join("ui.ftl");
+        let namespaced_result = results
+            .iter()
+            .find(|r| r.path.ends_with(&namespaced_suffix))
+            .expect("namespaced result exists");
+
+        assert!(namespaced_result.changed);
+        assert!(namespaced_result.diff_info.is_some());
+
+        let after = std::fs::read_to_string(&namespaced_path).expect("read after");
+        assert_eq!(before, after, "dry run should not write files");
+    }
 }
