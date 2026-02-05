@@ -79,11 +79,12 @@ fn generate_unit_enum(
     opts: &StructVariantsOpts,
     _data: &syn::DataStruct,
     ident: &syn::Ident,
-    base_ident: &syn::Ident,
+    _base_ident: &syn::Ident,
     this_opts: Option<&ThisOpts>,
 ) -> TokenStream {
     let field_opts = opts.fields();
-    let base_key = namer::FluentKey::from(base_ident);
+    // Use the enum name (includes `Variants`) for the base key.
+    let base_key = namer::FluentKey::from(ident);
 
     // For structs, we store (variant_ident, original_field_name, field_opt)
     // variant_ident is PascalCase for the enum, original_field_name is snake_case for FTL key
@@ -328,11 +329,12 @@ pub fn process_enum(opts: &EnumKvOpts, this_opts: Option<&ThisOpts>) -> TokenStr
 fn generate_enum_unit_enum(
     opts: &EnumKvOpts,
     ident: &syn::Ident,
-    base_ident: &syn::Ident,
+    _base_ident: &syn::Ident,
     this_opts: Option<&ThisOpts>,
 ) -> TokenStream {
     let variant_opts = opts.variants();
-    let base_key = namer::FluentKey::from(base_ident);
+    // Use the enum name (includes `Variants`) for the base key.
+    let base_key = namer::FluentKey::from(ident);
 
     let variants: Vec<_> = variant_opts
         .iter()

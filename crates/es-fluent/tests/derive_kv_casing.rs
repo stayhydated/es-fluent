@@ -60,24 +60,24 @@ fn test_enum_kv_preserves_pascal_case_in_ftl_output() {
     let content = std::fs::read_to_string(&ftl_file_path).unwrap();
 
     // Verify FTL keys preserve PascalCase for enum variants
-    // Expected format: usa_state_label-California (not usa_state_label-california)
+    // Expected format: usa_state_label_variants-California (not usa_state_label-california)
     assert!(
-        content.contains("usa_state_label-California"),
+        content.contains("usa_state_label_variants-California"),
         "FTL key should preserve PascalCase 'California', got:\n{}",
         content
     );
     assert!(
-        content.contains("usa_state_label-Texas"),
+        content.contains("usa_state_label_variants-Texas"),
         "FTL key should preserve PascalCase 'Texas', got:\n{}",
         content
     );
     assert!(
-        content.contains("usa_state_label-NewYork"),
+        content.contains("usa_state_label_variants-NewYork"),
         "FTL key should preserve PascalCase 'NewYork', got:\n{}",
         content
     );
 
-    // Make sure it's NOT snake_case
+    // Make sure it's NOT snake_case and doesn't omit `variants`
     assert!(
         !content.contains("usa_state_label-california"),
         "FTL key should NOT use lowercase 'california'"
@@ -85,6 +85,10 @@ fn test_enum_kv_preserves_pascal_case_in_ftl_output() {
     assert!(
         !content.contains("usa_state_label-new_york"),
         "FTL key should NOT use snake_case 'new_york'"
+    );
+    assert!(
+        !content.contains("usa_state_label-California"),
+        "FTL key should include 'variants' in the base key"
     );
 }
 
@@ -121,24 +125,24 @@ fn test_struct_kv_preserves_snake_case_in_ftl_output() {
     let content = std::fs::read_to_string(&ftl_file_path).unwrap();
 
     // Verify FTL keys preserve snake_case for struct fields
-    // Expected format: user_profile_description-first_name (not user_profile_description-FirstName)
+    // Expected format: user_profile_description_variants-first_name (not user_profile_description-FirstName)
     assert!(
-        content.contains("user_profile_description-first_name"),
+        content.contains("user_profile_description_variants-first_name"),
         "FTL key should preserve snake_case 'first_name', got:\n{}",
         content
     );
     assert!(
-        content.contains("user_profile_description-last_name"),
+        content.contains("user_profile_description_variants-last_name"),
         "FTL key should preserve snake_case 'last_name', got:\n{}",
         content
     );
     assert!(
-        content.contains("user_profile_description-postal_code"),
+        content.contains("user_profile_description_variants-postal_code"),
         "FTL key should preserve snake_case 'postal_code', got:\n{}",
         content
     );
 
-    // Make sure it's NOT PascalCase
+    // Make sure it's NOT PascalCase and doesn't omit `variants`
     assert!(
         !content.contains("user_profile_description-FirstName"),
         "FTL key should NOT use PascalCase 'FirstName'"
@@ -146,5 +150,9 @@ fn test_struct_kv_preserves_snake_case_in_ftl_output() {
     assert!(
         !content.contains("user_profile_description-PostalCode"),
         "FTL key should NOT use PascalCase 'PostalCode'"
+    );
+    assert!(
+        !content.contains("user_profile_description-first_name"),
+        "FTL key should include 'variants' in the base key"
     );
 }

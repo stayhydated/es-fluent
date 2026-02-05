@@ -34,7 +34,7 @@ fn test_derive_this_fields() {
     // Generated name: TestKvStruct + Label + Variants = TestKvStructLabelVariants
     assert_eq!(
         TestKvStructLabelVariants::this_ftl(),
-        "test_kv_struct_label_this"
+        "test_kv_struct_label_variants_this"
     );
 }
 
@@ -44,6 +44,6 @@ fn test_derive_this_variants() {
     // Generated name: TestKvEnum + Description + Variants = TestKvEnumDescriptionVariants
     assert_eq!(
         TestKvEnumDescriptionVariants::this_ftl(),
-        "test_kv_enum_description_this"
+        "test_kv_enum_description_variants_this"
     );
 }
