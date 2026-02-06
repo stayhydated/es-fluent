@@ -66,7 +66,8 @@ runs:
           args+=(--all)
         fi
         if [[ -n "${{ inputs.ignore }}" ]]; then
-          args+=(--ignore "${{ inputs.ignore }}")
+          ignore_value=$(echo "${{ inputs.ignore }}" | tr '\n' ',' | sed 's/,*$//' | sed 's/^,*//')
+          args+=(--ignore "$ignore_value")
         fi
         if [[ "${{ inputs.force_run }}" == "true" ]]; then
           args+=(--force-run)
