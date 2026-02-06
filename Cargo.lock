@@ -3903,6 +3903,7 @@ dependencies = [
  "es-fluent-derive-core",
  "es-fluent-generate",
  "es-fluent-manager-core",
+ "es-fluent-toml",
  "fluent-bundle",
  "inventory",
  "rust-embed",

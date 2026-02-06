@@ -28,6 +28,11 @@ use arc_swap::ArcSwap;
 use es_fluent_manager_core::FluentManager;
 use std::sync::{Arc, OnceLock};
 
+#[cfg(feature = "build")]
+pub mod build {
+    pub use es_fluent_toml::build::*;
+}
+
 mod traits;
 pub use traits::{EsFluentChoice, FluentDisplay, ThisFtl, ToFluentString};
 

@@ -16,6 +16,7 @@ keywords = [ "fluent", "i18n", "locale" ]
 [features]
 default = [  ]
 derive = [ "dep:es-fluent-derive" ]
+build = [ "dep:es-fluent-toml" ]
 
 [dependencies]
 arc-swap = { workspace = true }
@@ -23,6 +24,7 @@ bon = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
 es-fluent-derive-core = { workspace = true }
 es-fluent-manager-core = { workspace = true }
+es-fluent-toml = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 rust-embed = { workspace = true }

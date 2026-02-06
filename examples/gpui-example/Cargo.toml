@@ -15,6 +15,9 @@ gpui-component = { workspace = true }
 rust-embed = { workspace = true }
 unic-langid = { workspace = true }
 
+[build-dependencies]
+es-fluent = { features = [ "build" ], workspace = true }
+
 [lints]
 workspace = true
 

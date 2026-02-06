@@ -7,6 +7,9 @@ publish = false
 [dependencies]
 es-fluent = { features = [ "derive" ], optional = true, workspace = true }
 
+[build-dependencies]
+es-fluent = { features = [ "build" ], workspace = true }
+
 [features]
 default = [  ]
 fluent = [ "dep:es-fluent" ]
