@@ -14,6 +14,7 @@ categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "i18n", "locale" ]
 
 [features]
+build = [ "dep:es-fluent-toml" ]
 default = [  ]
 derive = [ "dep:es-fluent-derive" ]
 
@@ -23,6 +24,7 @@ bon = { workspace = true }
 es-fluent-derive = { optional = true, workspace = true }
 es-fluent-derive-core = { workspace = true }
 es-fluent-manager-core = { workspace = true }
+es-fluent-toml = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 rust-embed = { workspace = true }

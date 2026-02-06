@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+pub mod build;
+
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};

@@ -14,6 +14,9 @@ strum = { features = [ "derive" ], workspace = true }
 thiserror = { workspace = true }
 unic-langid = { workspace = true }
 
+[build-dependencies]
+es-fluent = { features = [ "build" ], workspace = true }
+
 [lints]
 workspace = true
 

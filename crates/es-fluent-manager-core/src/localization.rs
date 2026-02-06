@@ -33,7 +33,7 @@ inventory::collect!(&'static dyn I18nModule);
 /// A manager for Fluent translations.
 #[derive(Default)]
 pub struct FluentManager {
-    localizers: Vec<Box<dyn Localizer>>,
+    localizers: Vec<(&'static str, Box<dyn Localizer>)>,
 }
 
 impl Clone for FluentManager {
@@ -48,17 +48,30 @@ impl FluentManager {
         let mut manager = Self::default();
         for module in inventory::iter::<&'static dyn I18nModule>() {
             tracing::info!("Discovered and loading i18n module: {}", module.name());
-            manager.localizers.push(module.create_localizer());
+            manager
+                .localizers
+                .push((module.name(), module.create_localizer()));
         }
         manager
     }
 
     /// Selects a language for all localizers.
     pub fn select_language(&self, lang: &LanguageIdentifier) {
-        for localizer in &self.localizers {
-            if let Err(e) = localizer.select_language(lang) {
-                tracing::warn!("Module failed to set language '{}': {}", lang, e);
+        let mut any_selected = false;
+
+        for (name, localizer) in &self.localizers {
+            match localizer.select_language(lang) {
+                Ok(()) => {
+                    any_selected = true;
+                },
+                Err(e) => {
+                    tracing::debug!("Module '{}' failed to set language '{}': {}", name, lang, e);
+                },
             }
+        }
+
+        if !any_selected {
+            tracing::warn!("No i18n modules support language '{}'", lang);
         }
     }
 
@@ -68,7 +81,7 @@ impl FluentManager {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        for localizer in &self.localizers {
+        for (_, localizer) in &self.localizers {
             if let Some(message) = localizer.localize(id, args) {
                 return Some(message);
             }

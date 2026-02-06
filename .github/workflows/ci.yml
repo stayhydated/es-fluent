@@ -11,6 +11,26 @@ env:
   RUSTC_WRAPPER: sccache
 
 jobs:
+  es-fluent-local-cli:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Setup mold
+        uses: rui314/setup-mold@v1
+
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+
+      - name: Run local es-fluent-cli check
+        run: cargo run -p es-fluent-cli -- es-fluent check --path . --all
+
   test:
     runs-on: ubuntu-latest
 

@@ -59,6 +59,25 @@ fluent_feature = ["my-feature"]
 namespaces = ["ui", "errors", "messages"]
 ```
 
+## Incremental builds for locale assets
+
+The manager macros discover locales at compile time. To ensure locale folder/file
+renames (for example `fr` to `fr-FR`) trigger rebuilds,
+enable the `build` feature of `es-fluent` in build dependencies and call the
+tracking helper from `build.rs`.
+
+```toml
+[build-dependencies]
+es-fluent = { version = "*", features = ["build"] }
+```
+
+```rs
+// build.rs
+fn main() {
+    es_fluent::build::track_i18n_assets();
+}
+```
+
 ## Namespaces (optional)
 
 You can route specific types into separate `.ftl` files by adding a namespace. All derive macros support the same namespace options:
@@ -210,8 +229,8 @@ pub struct LoginForm {
 }
 
 // Generates enums -> keys:
-// LoginFormLabelVariants::{Variants} -> (login_form_label-{variant})
-// LoginFormDescriptionVariants::{Variants} -> (login_form_description-{variant})
+// LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
+// LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
 
 // usage: LoginFormLabelVariants::Username.to_fluent_string()
 ```
@@ -251,8 +270,8 @@ pub struct LoginForm {
 }
 
 // Generates keys:
-// (login_form_label_this)
-// (login_form_description_this)
+// (login_form_label_variants_this)
+// (login_form_description_variants_this)
 
 // usage: LoginFormDescriptionVariants::this_ftl()
 ```

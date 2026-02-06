@@ -16,6 +16,9 @@ gpui = { optional = true, workspace = true }
 rust-embed = { optional = true, workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
+[build-dependencies]
+es-fluent = { features = [ "build" ], workspace = true }
+
 [lints]
 workspace = true
 
