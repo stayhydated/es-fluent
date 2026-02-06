@@ -31,16 +31,9 @@ pub trait I18nModule: Send + Sync {
 inventory::collect!(&'static dyn I18nModule);
 
 /// A manager for Fluent translations.
+#[derive(Default)]
 pub struct FluentManager {
     localizers: Vec<(&'static str, Box<dyn Localizer>)>,
-}
-
-impl Default for FluentManager {
-    fn default() -> Self {
-        Self {
-            localizers: Vec::new(),
-        }
-    }
 }
 
 impl Clone for FluentManager {
