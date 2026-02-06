@@ -19,13 +19,13 @@ Error: es_fluent::validate::missing_key
 Warning: es_fluent::validate::missing_variable
 
   ⚠ translation omits variable
-   ╭─[]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-check-issues.ftl]8;;\:1:1]
+   ╭─[i18n/en/test-check-issues.ftl:1:1]
    ╰────
-  help: Variable '$name' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:4]8;;\
+  help: Variable '$name' is declared at src/lib.rs:4
 
 Warning: es_fluent::validate::missing_variable
 
   ⚠ translation omits variable
-   ╭─[]8;;file://[TEMP_DIR]/i18n/en/test-check-issues.ftl\i18n/en/test-check-issues.ftl]8;;\:1:1]
+   ╭─[i18n/en/test-check-issues.ftl:1:1]
    ╰────
-  help: Variable '$count' is declared at ]8;;file://[TEMP_DIR]/src/lib.rs\src/lib.rs:10]8;;\
+  help: Variable '$count' is declared at src/lib.rs:10

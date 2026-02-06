@@ -730,6 +730,38 @@ fn test_check_warning_missing_arg() {
 }
 
 #[test]
+fn test_check_warning_missing_arg_no_hyperlinks() {
+    let temp = setup_workspace_env();
+    let ftl_path = temp.path().join("i18n/en/test-app-a.ftl");
+
+    // Copy fixture with missing argument (warning)
+    let fixture_path = FIXTURES_DIR.join("check-missing-arg/test-app-a.ftl");
+    std::fs::copy(&fixture_path, &ftl_path).expect("failed to copy fixture");
+
+    // Run check without e2e and ensure no OSC 8 hyperlink escapes are emitted.
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("cargo-es-fluent");
+    cmd.current_dir(temp.path());
+    cmd.args(&["es-fluent", "check"]);
+    cmd.env("CI", "1");
+    cmd.env_remove("NO_COLOR");
+
+    let assert = cmd.assert().failure();
+    let output = assert.get_output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(
+        !stderr.contains("\u{1b}]8;;"),
+        "Expected no terminal hyperlink escapes in stderr, got:\n{}",
+        stderr
+    );
+    assert!(
+        stderr.contains(".ftl"),
+        "Expected diagnostic to include an FTL path, got:\n{}",
+        stderr
+    );
+}
+
+#[test]
 fn test_clean_all() {
     let temp = setup_workspace_env();
 

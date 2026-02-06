@@ -4,6 +4,7 @@
 use crate::core::CrateInfo;
 use colored::Colorize as _;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::io::IsTerminal as _;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -24,17 +25,29 @@ pub fn is_e2e() -> bool {
     E2E_MODE.load(Ordering::SeqCst)
 }
 
+/// Whether terminal hyperlinks should be emitted.
+pub fn terminal_links_enabled() -> bool {
+    if let Ok(force) = std::env::var("FORCE_HYPERLINK") {
+        return force.trim() != "0";
+    }
+    if is_e2e() {
+        return false;
+    }
+    if std::env::var("NO_COLOR").is_ok() {
+        return false;
+    }
+    if std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok() {
+        return false;
+    }
+    std::io::stderr().is_terminal()
+}
+
 fn format_duration(duration: Duration) -> String {
     if is_e2e() {
         "[DURATION]".to_string()
     } else {
         humantime::format_duration(duration).to_string()
     }
-}
-
-pub fn init_logging() {
-    // No-op: we rely on standard output for CLI presentation.
-    // Kept to avoid breaking main.rs calls.
 }
 
 pub fn create_spinner(msg: &str) -> ProgressBar {

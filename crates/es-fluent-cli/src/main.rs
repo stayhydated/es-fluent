@@ -57,21 +57,22 @@ fn main() -> MietteResult<()> {
         es_fluent_cli::utils::ui::set_e2e_mode(true);
     }
 
-    miette::set_hook(Box::new(|_| {
+    let no_color = std::env::var("NO_COLOR").is_ok();
+    let use_color = !es_fluent_cli::utils::ui::is_e2e() && !no_color;
+    let use_links = es_fluent_cli::utils::ui::terminal_links_enabled();
+
+    miette::set_hook(Box::new(move |_| {
         Box::new(
             miette::MietteHandlerOpts::new()
-                .terminal_links(true)
+                .terminal_links(use_links)
                 .unicode(true)
                 .context_lines(2)
                 .tab_width(4)
-                .color(!es_fluent_cli::utils::ui::is_e2e()) // Respond to E2E mode
+                .color(use_color)
                 .build(),
         )
     }))
     .ok();
-
-    // Initialize logging
-    es_fluent_cli::utils::ui::init_logging();
 
     let result = match command {
         Commands::Generate(args) => run_generate(args),
