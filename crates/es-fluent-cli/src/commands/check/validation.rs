@@ -21,6 +21,14 @@ struct ValidationContext<'a> {
     manifest_dir: &'a Path,
 }
 
+fn format_terminal_link(label: &str, url: &str) -> String {
+    if crate::utils::ui::terminal_links_enabled() {
+        Link::new(label, url).to_string()
+    } else {
+        label.to_string()
+    }
+}
+
 /// Validate a single crate's FTL files using already-collected inventory data.
 pub(crate) fn validate_crate(
     krate: &CrateInfo,
@@ -55,11 +63,10 @@ fn validate_ftl_files(
                     // No FTL files found at all - treat as missing main file
                     let ftl_abs_path = main_ftl_path(assets_dir, locale, &locale_ctx.crate_name);
                     let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
-                    let ftl_header_link = Link::new(
+                    let ftl_header_link = format_terminal_link(
                         &ftl_relative_path,
                         &format!("file://{}", ftl_abs_path.display()),
-                    )
-                    .to_string();
+                    );
 
                     issues.extend(missing_file_issues(
                         expected_keys,
@@ -83,11 +90,10 @@ fn validate_ftl_files(
                 // Handle discovery/loading errors
                 let ftl_abs_path = main_ftl_path(assets_dir, locale, &locale_ctx.crate_name);
                 let ftl_relative_path = to_relative_path(&ftl_abs_path, workspace_root);
-                let ftl_header_link = Link::new(
+                let ftl_header_link = format_terminal_link(
                     &ftl_relative_path,
                     &format!("file://{}", ftl_abs_path.display()),
-                )
-                .to_string();
+                );
 
                 issues.push(ValidationIssue::SyntaxError(FtlSyntaxError {
                     src: NamedSource::new(ftl_header_link, String::new()),
@@ -135,11 +141,10 @@ fn validate_loaded_ftl_files(
     for file in loaded_files {
         let _content = fs::read_to_string(&file.abs_path).unwrap_or_default();
         let ftl_relative_path = to_relative_path(&file.abs_path, ctx.workspace_root);
-        let ftl_header_link = Link::new(
+        let ftl_header_link = format_terminal_link(
             &ftl_relative_path,
             &format!("file://{}", file.abs_path.display()),
-        )
-        .to_string();
+        );
 
         // Collect actual keys from this file
         for entry in &file.resource.body {
@@ -198,7 +203,7 @@ fn validate_loaded_ftl_files(
                     let rel_file = to_relative_path(&abs_file, ctx.workspace_root);
                     let file_label = format!("{rel_file}:{line}");
                     let file_url = format!("file://{}", abs_file.display());
-                    let file_link = Link::new(&file_label, &file_url);
+                    let file_link = format_terminal_link(&file_label, &file_url);
 
                     format!("Variable '${var}' is declared at {file_link}")
                 },
@@ -212,7 +217,7 @@ fn validate_loaded_ftl_files(
                     let rel_file = to_relative_path(&abs_file, ctx.workspace_root);
 
                     let file_url = format!("file://{}", abs_file.display());
-                    let file_link = Link::new(&rel_file, &file_url);
+                    let file_link = format_terminal_link(&rel_file, &file_url);
 
                     format!("Variable '${var}' is declared in {file_link}")
                 },
