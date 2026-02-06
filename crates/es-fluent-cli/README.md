@@ -145,7 +145,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check FTL files
-        uses: stayhydated/es-fluent/crates/es-fluent-cli@v0.9.0
+        uses: stayhydated/es-fluent/crates/es-fluent-cli@master
         with:
           path: .
           all: true

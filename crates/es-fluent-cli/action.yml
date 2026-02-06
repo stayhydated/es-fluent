@@ -29,6 +29,7 @@ inputs:
     description: Rust toolchain to install for running the CLI.
     required: false
     default: stable
+
 runs:
   using: composite
   steps:
@@ -36,6 +37,9 @@ runs:
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: ${{ inputs.toolchain }}
+
+    - name: Setup sccache
+      uses: mozilla-actions/sccache-action@v0.0.9
 
     - name: Install es-fluent-cli
       shell: bash
@@ -67,5 +71,5 @@ runs:
         if [[ "${{ inputs.force_run }}" == "true" ]]; then
           args+=(--force-run)
         fi
-        # shellcheck disable=SC2086
+
         cargo es-fluent check "${args[@]}"
