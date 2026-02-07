@@ -7,4 +7,5 @@ pub mod i18n;
 #[fluent(namespace = "ui")]
 pub enum GpuiScreenMessages {
     ToggleLanguageHint { current_language: Languages },
+    ChangeLocaleButton,
 }
