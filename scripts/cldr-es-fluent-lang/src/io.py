@@ -9,6 +9,9 @@ from pathlib import Path
 import requests
 from tqdm import tqdm
 
+DEFAULT_USER_AGENT = "es-fluent-cldr-updater/1.0"
+DEFAULT_TIMEOUT_SECONDS = 60
+
 
 class DownloadError(Exception):
     """Raised when a file download fails."""
@@ -30,7 +33,12 @@ def download_file(url: str, destination: Path) -> None:
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with requests.get(url, stream=True) as response:
+        with requests.get(
+            url,
+            stream=True,
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+            headers={"User-Agent": DEFAULT_USER_AGENT},
+        ) as response:
             response.raise_for_status()
             total_size = int(response.headers.get("content-length", 0))
 

@@ -1,0 +1,56 @@
+name: Update CLDR Language Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-cldr-lang
+  cancel-in-progress: false
+
+jobs:
+  update-cldr-lang:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install Python dependencies
+        run: uv sync --frozen
+
+      - name: Check for a new CLDR release and regenerate files
+        id: update
+        run: >
+          uv run scripts/cldr-es-fluent-lang/update_cldr_release.py
+          --apply
+          --github-output "${GITHUB_OUTPUT}"
+
+      - name: Create pull request
+        if: steps.update.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: chore/cldr-${{ steps.update.outputs.latest_release }}
+          commit-message: "chore(cldr): update CLDR to ${{ steps.update.outputs.latest_release }}"
+          title: "chore(cldr): update CLDR to ${{ steps.update.outputs.latest_release }}"
+          body: |
+            Automated CLDR data refresh.
+
+            - Previous release: `${{ steps.update.outputs.current_release }}`
+            - New release: `${{ steps.update.outputs.latest_release }}`
+            - Source: https://github.com/unicode-org/cldr-json/releases/tag/${{ steps.update.outputs.latest_release }}
+          labels: |
+            dependencies
+            i18n
+          delete-branch: true
+          add-paths: |
+            scripts/cldr-es-fluent-lang/main.py
+            crates/es-fluent-lang/es-fluent-lang.ftl
+            crates/es-fluent-lang/i18n
+            crates/es-fluent-lang-macro/src/supported_locales.rs
