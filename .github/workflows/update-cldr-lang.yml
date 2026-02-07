@@ -25,10 +25,11 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --frozen
 
-      - name: Check for a new CLDR release and regenerate files
+      - name: If update exists, bump CLDR_RELEASE and run main.py
         id: update
         run: >
           uv run scripts/cldr-es-fluent-lang/update_cldr_release.py
+          --main-py scripts/cldr-es-fluent-lang/main.py
           --apply
           --github-output "${GITHUB_OUTPUT}"
 

@@ -89,4 +89,7 @@ uv run scripts/cldr-es-fluent-lang/update_cldr_release.py
 
 # Update CLDR_RELEASE in main.py and regenerate outputs when a new release exists
 uv run scripts/cldr-es-fluent-lang/update_cldr_release.py --apply
+
+# Also create a git commit for the update
+uv run scripts/cldr-es-fluent-lang/update_cldr_release.py --apply --commit
 ```

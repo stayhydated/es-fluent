@@ -24,6 +24,12 @@ CLDR_RELEASE_PATTERN = re.compile(
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_MAIN_PY = SCRIPT_DIR / "main.py"
 DEFAULT_REPO_ROOT = SCRIPT_DIR.parent.parent
+DEFAULT_COMMIT_PATHS = (
+    "scripts/cldr-es-fluent-lang/main.py",
+    "crates/es-fluent-lang/es-fluent-lang.ftl",
+    "crates/es-fluent-lang/i18n",
+    "crates/es-fluent-lang-macro/src/supported_locales.rs",
+)
 
 app = typer.Typer(
     help=(
@@ -91,6 +97,65 @@ def run_generator(main_py_path: Path, repo_root: Path) -> None:
     subprocess.run(command, cwd=repo_root, check=True)
 
 
+def run_git_command(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+
+def commit_generated_files(
+    repo_root: Path,
+    main_py_path: Path,
+    latest_release: str,
+    commit_message: str | None,
+) -> bool:
+    try:
+        main_py_relative = str(main_py_path.resolve().relative_to(repo_root.resolve()))
+    except ValueError as error:
+        raise RuntimeError(
+            "--main-py must be inside --repo-root when using --commit."
+        ) from error
+
+    candidate_paths = [main_py_relative, *DEFAULT_COMMIT_PATHS]
+    existing_paths = [
+        path for path in dict.fromkeys(candidate_paths) if (repo_root / path).exists()
+    ]
+    if not existing_paths:
+        raise RuntimeError("No CLDR output paths were found to stage for commit.")
+
+    try:
+        run_git_command(repo_root, "add", "--", *existing_paths)
+    except subprocess.CalledProcessError as error:
+        stderr = (error.stderr or "").strip()
+        raise RuntimeError(
+            f"Failed to stage CLDR files. {stderr or 'Verify repository paths.'}"
+        ) from error
+
+    diff_result = subprocess.run(
+        ["git", "diff", "--cached", "--quiet", "--exit-code"],
+        cwd=repo_root,
+        check=False,
+    )
+    if diff_result.returncode == 0:
+        return False
+    if diff_result.returncode != 1:
+        raise RuntimeError("Failed to inspect staged changes.")
+
+    message = commit_message or f"chore(cldr): update CLDR to {latest_release}"
+    try:
+        run_git_command(repo_root, "commit", "-m", message)
+    except subprocess.CalledProcessError as error:
+        stderr = (error.stderr or "").strip()
+        raise RuntimeError(
+            f"Failed to create git commit. {stderr or 'Check git user.name/user.email configuration.'}"
+        ) from error
+    return True
+
+
 def write_github_outputs(path: Path, outputs: dict[str, str]) -> None:
     lines = [f"{key}={value}" for key, value in outputs.items()]
     with path.open("a", encoding="utf-8") as file:
@@ -138,6 +203,20 @@ def main(
             help="With --apply, update CLDR_RELEASE but skip running scripts/cldr-es-fluent-lang/main.py.",
         ),
     ] = False,
+    commit: Annotated[
+        bool,
+        typer.Option(
+            "--commit",
+            help="With --apply, create a git commit for updated CLDR files.",
+        ),
+    ] = False,
+    commit_message: Annotated[
+        str | None,
+        typer.Option(
+            "--commit-message",
+            help="Custom commit message used with --commit.",
+        ),
+    ] = None,
     github_output: Annotated[
         Path | None,
         typer.Option(
@@ -157,6 +236,10 @@ def main(
         latest_release = fetch_latest_release()
         update_available = latest_release != current_release
         updated = False
+        committed = False
+
+        if commit and not apply:
+            raise RuntimeError("--commit requires --apply.")
 
         typer.echo(f"Current CLDR release: {current_release}")
         typer.echo(f"Latest CLDR release:  {latest_release}")
@@ -168,6 +251,18 @@ def main(
                 if updated and not skip_generate:
                     typer.echo(f"Running {main_py_path}...")
                     run_generator(main_py_path, repo_root_path)
+                if updated and commit:
+                    typer.echo("Committing CLDR changes...")
+                    committed = commit_generated_files(
+                        repo_root_path,
+                        main_py_path,
+                        latest_release,
+                        commit_message,
+                    )
+                    if committed:
+                        typer.echo("Commit complete.")
+                    else:
+                        typer.echo("No staged changes to commit.")
                 if updated:
                     typer.echo("Update complete.")
             else:
@@ -185,6 +280,7 @@ def main(
                     "latest_release": latest_release,
                     "update_available": str(update_available).lower(),
                     "updated": str(updated).lower(),
+                    "committed": str(committed).lower(),
                 },
             )
     except RuntimeError as error:
