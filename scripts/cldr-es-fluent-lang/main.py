@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI entrypoint for generating es-fluent-lang.ftl from CLDR data."""
+"""CLI entrypoint for generating ftl files and supported_locales.rs from CLDR data."""
 
 from __future__ import annotations
 

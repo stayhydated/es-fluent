@@ -26,19 +26,19 @@ uv sync
 
 ```sh
 # Run with defaults (downloads CLDR, writes to crate locations)
-uv run run.py
+uv run scripts/cldr-es-fluent-lang/main.py
 
 # Use a pre-downloaded CLDR archive
-uv run run.py --cldr-zip /path/to/cldr-48.0.0-json-full.zip
+uv run scripts/cldr-es-fluent-lang/main.py --cldr-zip /path/to/cldr-48.0.0-json-full.zip
 
 # Generate localized language names (English) into i18n/en
-uv run run.py --display-locale en
+uv run scripts/cldr-es-fluent-lang/main.py --display-locale en
 
 # Skip per-locale i18n generation and only write the single output file
-uv run run.py --no-all-locales --display-locale en --output /path/to/es-fluent-lang.en.ftl
+uv run scripts/cldr-es-fluent-lang/main.py --no-all-locales --display-locale en --output /path/to/es-fluent-lang.en.ftl
 
 # Customize where per-locale i18n files are written
-uv run run.py --i18n-dir /path/to/i18n
+uv run scripts/cldr-es-fluent-lang/main.py --i18n-dir /path/to/i18n
 ```
 
 The CLDR zip is cached under `.es-fluent/cldr/` in the repository root. The script re-downloads automatically when the CLDR version changes.
@@ -77,4 +77,16 @@ pub const SUPPORTED_LANGUAGE_KEYS: &[&str] = &[
     "af-NA",
     // ...
 ];
+```
+
+## Automated release updates
+
+The repository includes `scripts/cldr-es-fluent-lang/update_cldr_release.py`, used by `.github/workflows/update-cldr-lang.yml`.
+
+```sh
+# Check current vs latest CLDR release
+uv run scripts/cldr-es-fluent-lang/update_cldr_release.py
+
+# Update CLDR_RELEASE in main.py and regenerate outputs when a new release exists
+uv run scripts/cldr-es-fluent-lang/update_cldr_release.py --apply
 ```
