@@ -14,7 +14,7 @@ from src.models import Locale
 from src.processing import collapse_entries, collect_entries
 from src.writers import write_ftl, write_supported_locales
 
-CLDR_RELEASE = "48.0.0"
+CLDR_RELEASE = "48.1.0"
 CLDR_ARCHIVE_NAME = f"cldr-{CLDR_RELEASE}-json-full.zip"
 CLDR_URL = (
     "https://github.com/unicode-org/cldr-json/releases/download/"
