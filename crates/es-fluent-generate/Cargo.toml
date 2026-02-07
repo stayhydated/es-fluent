@@ -19,7 +19,6 @@ fluent-syntax = { workspace = true }
 heck = { workspace = true }
 indexmap = { workspace = true }
 similar = { workspace = true }
-thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

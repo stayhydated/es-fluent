@@ -29,7 +29,6 @@ es-fluent-derive-core = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
-glob = { workspace = true }
 humantime = { workspace = true }
 indexmap = { features = [ "serde" ], workspace = true }
 indicatif = { workspace = true }
@@ -37,8 +36,6 @@ miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
 notify-debouncer-full = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
-rayon = { workspace = true }
-regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 similar = { workspace = true }

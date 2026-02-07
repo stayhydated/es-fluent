@@ -15,7 +15,6 @@ bevy = { workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-bevy = { workspace = true }
 example-shared-lib = { features = [ "bevy" ], path = "../example-shared-lib" }
-unic-langid = { workspace = true }
 
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }

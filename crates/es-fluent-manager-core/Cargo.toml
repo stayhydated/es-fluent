@@ -18,7 +18,6 @@ fluent-bundle = { workspace = true }
 fluent-fallback = { workspace = true }
 inventory = { workspace = true }
 rust-embed = { workspace = true }
-thiserror = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 

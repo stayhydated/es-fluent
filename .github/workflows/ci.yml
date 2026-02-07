@@ -85,3 +85,12 @@ jobs:
 
       - name: Lint code
         run: cargo clippy --workspace --all-features
+
+  machete:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Machete
+        uses: bnjbvr/cargo-machete@main

@@ -879,7 +879,6 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-bevy",
  "example-shared-lib",
- "unic-langid",
 ]
 
 [[package]]
@@ -3898,7 +3897,6 @@ name = "es-fluent"
 version = "0.11.0"
 dependencies = [
  "arc-swap",
- "bon",
  "chrono",
  "es-fluent-derive",
  "es-fluent-derive-core",
@@ -3909,7 +3907,6 @@ dependencies = [
  "inventory",
  "rust-embed",
  "rust_decimal",
- "serde",
  "strum 0.27.2",
  "tempfile",
  "tracing",
@@ -3933,7 +3930,6 @@ dependencies = [
  "es-fluent-generate",
  "es-fluent-toml",
  "fluent-syntax",
- "glob",
  "humantime",
  "indexmap",
  "indicatif",
@@ -3943,8 +3939,6 @@ dependencies = [
  "notify-debouncer-full 0.7.0",
  "predicates",
  "ratatui",
- "rayon",
- "regex",
  "serde",
  "serde_json",
  "similar",
@@ -3978,7 +3972,6 @@ version = "0.11.0"
 dependencies = [
  "darling 0.23.0",
  "es-fluent-derive-core",
- "getset",
  "heck 0.5.0",
  "insta",
  "proc-macro-error2",
@@ -4027,7 +4020,6 @@ dependencies = [
  "similar",
  "syn 2.0.114",
  "tempfile",
- "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -4083,7 +4075,6 @@ dependencies = [
  "fluent-fallback",
  "inventory",
  "rust-embed",
- "thiserror 2.0.18",
  "tracing",
  "unic-langid",
 ]
@@ -4104,7 +4095,6 @@ dependencies = [
 name = "es-fluent-manager-macros"
 version = "0.11.0"
 dependencies = [
- "darling 0.23.0",
  "es-fluent-toml",
  "heck 0.5.0",
  "proc-macro2",
@@ -8317,11 +8307,7 @@ name = "readme"
 version = "0.11.0"
 dependencies = [
  "es-fluent",
- "es-fluent-manager-embedded",
- "example-shared-lib",
  "rust-embed",
- "strum 0.27.2",
- "unic-langid",
 ]
 
 [[package]]
