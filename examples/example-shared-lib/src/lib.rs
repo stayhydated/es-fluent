@@ -70,7 +70,7 @@ pub enum CanadaProvince {
 }
 
 #[derive(EsFluent, EsFluentThis, EsFluentVariants)]
-#[fluent_this(members)]
+#[fluent_this(variants)]
 #[fluent_variants(keys = ["description", "label"])]
 pub struct SplitVariants {
     pub country: Country,

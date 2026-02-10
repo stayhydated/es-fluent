@@ -21,7 +21,7 @@ pub struct ThisAttributeArgs {
     #[darling(default)]
     origin: Option<bool>,
     #[darling(default)]
-    members: Option<bool>,
+    variants: Option<bool>,
     /// Optional namespace for FTL file generation.
     #[darling(default)]
     namespace: Option<super::namespace::NamespaceValue>,
@@ -33,9 +33,9 @@ impl ThisAttributeArgs {
         self.origin.unwrap_or(true)
     }
 
-    /// Returns `true` if `members` should be generated.
-    pub fn is_members(&self) -> bool {
-        self.members.unwrap_or(false)
+    /// Returns `true` if `variants` should be generated.
+    pub fn is_variants(&self) -> bool {
+        self.variants.unwrap_or(false)
     }
 
     /// Returns the namespace value if provided.

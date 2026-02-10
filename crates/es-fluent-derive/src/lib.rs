@@ -125,8 +125,8 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// # Attributes
 ///
 /// - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
-/// - `#[fluent_this(members)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated member enums.
-/// - `#[fluent_this(origin, members)]`: Combines both behaviors.
+/// - `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated variant enums.
+/// - `#[fluent_this(origin, variants)]`: Combines both behaviors.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 #[proc_macro_derive(EsFluentThis, attributes(fluent_this, fluent))]
 #[proc_macro_error]
