@@ -10,6 +10,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 const PD_TICK: Duration = Duration::from_millis(100);
+const FRIENDLY_DURATION_PRINTER: jiff::fmt::friendly::SpanPrinter =
+    jiff::fmt::friendly::SpanPrinter::new();
 
 static E2E_MODE: AtomicBool = AtomicBool::new(false);
 
@@ -42,11 +44,11 @@ pub fn terminal_links_enabled() -> bool {
     std::io::stderr().is_terminal()
 }
 
-fn format_duration(duration: Duration) -> String {
+pub(crate) fn format_duration(duration: Duration) -> String {
     if is_e2e() {
         "[DURATION]".to_string()
     } else {
-        humantime::format_duration(duration).to_string()
+        FRIENDLY_DURATION_PRINTER.unsigned_duration_to_string(&duration)
     }
 }
 
