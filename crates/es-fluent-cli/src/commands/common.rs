@@ -242,9 +242,7 @@ pub fn render_generation_results_with_dry_run(
                     println!(
                         "{} {} ({} resources)",
                         format!("{} {}", result.name, verb.dry_run_label()).yellow(),
-                        humantime::format_duration(result.duration)
-                            .to_string()
-                            .green(),
+                        ui::format_duration(result.duration).green(),
                         result.resource_count.to_string().cyan()
                     );
                 } else {
