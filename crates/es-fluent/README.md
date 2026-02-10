@@ -262,11 +262,11 @@ pub enum Gender {
 // usage: Gender::this_ftl()
 ```
 
-- `#[fluent_this(members)]`: Can be combined with `EsFluentVariants` derives to generate keys for members.
+- `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
 
 ```rs
 #[derive(EsFluentVariants, EsFluentThis)]
-#[fluent_this(origin, members)]
+#[fluent_this(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginForm {
     pub username: String,

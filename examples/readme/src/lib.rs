@@ -124,7 +124,7 @@ pub enum GenderThisOnly {
 
 // #[derive(EsFluentThis)] - origin and members combined with EsFluentVariants
 #[derive(EsFluentThis, EsFluentVariants)]
-#[fluent_this(origin, members)]
+#[fluent_this(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,

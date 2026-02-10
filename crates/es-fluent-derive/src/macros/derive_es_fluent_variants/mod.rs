@@ -137,7 +137,7 @@ fn generate_unit_enum(
     let cleaned_variants = variants.iter().map(|(ident, _, _)| ident);
     let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
-    let members_this = this_opts.is_some_and(|opts| opts.attr_args().is_members());
+    let variants_this = this_opts.is_some_and(|opts| opts.attr_args().is_variants());
 
     let derive_attr = if !derives.is_empty() {
         quote! { #[derive(#(#derives),*)] }
@@ -218,7 +218,7 @@ fn generate_unit_enum(
         }
     };
 
-    let this_impl = if members_this {
+    let this_impl = if variants_this {
         let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
         quote! {
             impl ::es_fluent::ThisFtl for #ident {
@@ -231,7 +231,7 @@ fn generate_unit_enum(
         quote! {}
     };
 
-    let this_inventory = if members_this {
+    let this_inventory = if variants_this {
         let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
         let this_mod_name =
             quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
@@ -370,7 +370,7 @@ fn generate_enum_unit_enum(
     let cleaned_variants = variants.iter().map(|(ident, _)| ident);
     let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
 
-    let members_this = this_opts.is_some_and(|opts| opts.attr_args().is_members());
+    let variants_this = this_opts.is_some_and(|opts| opts.attr_args().is_variants());
 
     let derive_attr = if !derives.is_empty() {
         quote! { #[derive(#(#derives),*)] }
@@ -452,7 +452,7 @@ fn generate_enum_unit_enum(
         }
     };
 
-    let this_impl = if members_this {
+    let this_impl = if variants_this {
         let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
         quote! {
             impl ::es_fluent::ThisFtl for #ident {
@@ -465,7 +465,7 @@ fn generate_enum_unit_enum(
         quote! {}
     };
 
-    let this_inventory = if members_this {
+    let this_inventory = if variants_this {
         let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
         let this_mod_name =
             quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());

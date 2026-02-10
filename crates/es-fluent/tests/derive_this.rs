@@ -9,7 +9,7 @@ struct TestStruct {
 
 #[derive(EsFluentThis, EsFluentVariants)]
 #[fluent_variants(keys = ["label"])]
-#[fluent_this(members)]
+#[fluent_this(variants)]
 #[allow(dead_code)]
 struct TestVariantsStruct {
     field: String,
@@ -17,7 +17,7 @@ struct TestVariantsStruct {
 
 #[derive(EsFluentThis, EsFluentVariants)]
 #[fluent_variants(keys = ["description"])]
-#[fluent_this(members)]
+#[fluent_this(variants)]
 #[allow(dead_code)]
 enum TestVariantsEnum {
     VariantA,
@@ -38,7 +38,7 @@ struct TestVariantsNamespace {
 #[derive(EsFluentThis, EsFluentVariants)]
 #[fluent(namespace = "shared_ns")]
 #[fluent_variants(keys = ["label"])]
-#[fluent_this(origin, members)]
+#[fluent_this(origin, variants)]
 #[allow(dead_code)]
 struct TestSharedNamespace {
     field: String,
@@ -113,7 +113,7 @@ fn test_derive_this_and_variants_share_fluent_namespace() {
     assert_eq!(
         infos.len(),
         3,
-        "Expected origin + variants + members-this registrations"
+        "Expected origin + variants + variants-this registrations"
     );
     assert!(
         infos
