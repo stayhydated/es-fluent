@@ -62,7 +62,8 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 /// # Container Attributes
 ///
 /// - `#[fluent_variants(keys = ["label", "description"])]`: Specifies which key variants to generate.
-#[proc_macro_derive(EsFluentVariants, attributes(fluent_variants))]
+/// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
+#[proc_macro_derive(EsFluentVariants, attributes(fluent_variants, fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent_variants::from(input)
@@ -126,7 +127,8 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
 /// - `#[fluent_this(members)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated member enums.
 /// - `#[fluent_this(origin, members)]`: Combines both behaviors.
-#[proc_macro_derive(EsFluentThis, attributes(fluent_this))]
+/// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
+#[proc_macro_derive(EsFluentThis, attributes(fluent_this, fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent_this(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent_this::from(input)

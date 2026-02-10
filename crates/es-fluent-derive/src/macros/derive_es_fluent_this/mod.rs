@@ -1,8 +1,13 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{namer, options::this::ThisOpts};
+use es_fluent_derive_core::{
+    namer,
+    options::{r#enum::EnumOpts, r#struct::StructOpts, this::ThisOpts},
+};
 use heck::ToSnakeCase as _;
 use quote::quote;
-use syn::{DeriveInput, parse_macro_input};
+use syn::{Data, DeriveInput, parse_macro_input};
+
+use crate::macros::utils::namespace_rule_tokens;
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -10,6 +15,18 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let opts = match ThisOpts::from_derive_input(&input) {
         Ok(opts) => opts,
         Err(err) => return err.write_errors().into(),
+    };
+
+    let fluent_namespace = match &input.data {
+        Data::Struct(_) => match StructOpts::from_derive_input(&input) {
+            Ok(opts) => opts.attr_args().namespace().cloned(),
+            Err(err) => return err.write_errors().into(),
+        },
+        Data::Enum(_) => match EnumOpts::from_derive_input(&input) {
+            Ok(opts) => opts.attr_args().namespace().cloned(),
+            Err(err) => return err.write_errors().into(),
+        },
+        Data::Union(_) => panic!("EsFluentThis cannot be used on unions"),
     };
 
     let original_ident = opts.ident();
@@ -30,19 +47,11 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let mod_name =
             quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
 
-        // Generate namespace expression based on attribute
-        let namespace_expr = match opts.attr_args().namespace() {
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
-            },
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
-            },
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
-            },
-            None => quote! { None },
-        };
+        let namespace_expr = namespace_rule_tokens(
+            fluent_namespace
+                .as_ref()
+                .or_else(|| opts.attr_args().namespace()),
+        );
 
         quote! {
             #[doc(hidden)]

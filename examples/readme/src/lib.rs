@@ -30,7 +30,8 @@ pub enum Gender {
 use es_fluent::EsFluentThis;
 
 #[derive(EsFluentThis)]
-#[fluent_this(origin, namespace = "forms")]
+#[fluent_this(origin)]
+#[fluent(namespace = "forms")]
 pub enum GenderThis {
     Male,
     Female,
@@ -38,28 +39,31 @@ pub enum GenderThis {
 }
 
 #[derive(EsFluentThis)]
-#[fluent_this(origin, namespace = file)]
+#[fluent_this(origin)]
+#[fluent(namespace = file)]
 pub enum Status {
     Active,
     Inactive,
 }
 
 #[derive(EsFluentThis)]
-#[fluent_this(origin, namespace(file(relative)))]
+#[fluent_this(origin)]
+#[fluent(namespace(file(relative)))]
 pub struct UserProfile;
 
 // EsFluentVariants examples
 use es_fluent::EsFluentVariants;
 
 #[derive(EsFluentVariants)]
-#[fluent_variants(keys = ["label", "description"], namespace = "forms")]
+#[fluent_variants(keys = ["label", "description"])]
+#[fluent(namespace = "forms")]
 pub struct LoginForm {
     pub username: String,
     pub password: String,
 }
 
 #[derive(EsFluentVariants)]
-#[fluent_variants(namespace = file)]
+#[fluent(namespace = file)]
 pub enum StatusVariants {
     Active,
     Inactive,
