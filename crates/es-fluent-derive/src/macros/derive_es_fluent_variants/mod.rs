@@ -1,7 +1,8 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::namer;
-use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
-use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
+use es_fluent_derive_core::options::r#enum::{EnumOpts, EnumVariantsOpts};
+use es_fluent_derive_core::options::namespace::NamespaceValue;
+use es_fluent_derive_core::options::r#struct::{StructOpts, StructVariantsOpts};
 use es_fluent_derive_core::options::this::ThisOpts;
 
 use heck::{ToPascalCase as _, ToSnakeCase as _};
@@ -9,10 +10,23 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
+use crate::macros::utils::namespace_rule_tokens;
+
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let this_opts = ThisOpts::from_derive_input(&input).ok();
+    let fluent_namespace = match &input.data {
+        Data::Struct(_) => match StructOpts::from_derive_input(&input) {
+            Ok(opts) => opts.attr_args().namespace().cloned(),
+            Err(err) => return err.write_errors().into(),
+        },
+        Data::Enum(_) => match EnumOpts::from_derive_input(&input) {
+            Ok(opts) => opts.attr_args().namespace().cloned(),
+            Err(err) => return err.write_errors().into(),
+        },
+        Data::Union(_) => panic!("EsFluentVariants cannot be used on unions"),
+    };
 
     let tokens = match &input.data {
         Data::Struct(data) => {
@@ -21,7 +35,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            process_struct(&opts, data, this_opts.as_ref())
+            process_struct(&opts, data, this_opts.as_ref(), fluent_namespace.as_ref())
         },
         Data::Enum(_data) => {
             let opts = match EnumVariantsOpts::from_derive_input(&input) {
@@ -29,7 +43,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            process_enum(&opts, this_opts.as_ref())
+            process_enum(&opts, this_opts.as_ref(), fluent_namespace.as_ref())
         },
         Data::Union(_) => panic!("EsFluentVariants cannot be used on unions"),
     };
@@ -41,6 +55,7 @@ pub fn process_struct(
     opts: &StructVariantsOpts,
     data: &syn::DataStruct,
     this_opts: Option<&ThisOpts>,
+    fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
     let keys = match opts.keyyed_idents() {
         Ok(keys) => keys,
@@ -59,7 +74,14 @@ pub fn process_struct(
 
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum = generate_unit_enum(opts, data, &ftl_enum_ident, opts.ident(), this_opts);
+        let ftl_enum = generate_unit_enum(
+            opts,
+            data,
+            &ftl_enum_ident,
+            opts.ident(),
+            this_opts,
+            fluent_namespace,
+        );
         quote! {
             #ftl_enum
         }
@@ -67,7 +89,9 @@ pub fn process_struct(
         let enums = keys
             .iter()
             .zip(base_idents.iter())
-            .map(|(key, base_ident)| generate_unit_enum(opts, data, key, base_ident, this_opts));
+            .map(|(key, base_ident)| {
+                generate_unit_enum(opts, data, key, base_ident, this_opts, fluent_namespace)
+            });
 
         quote! {
             #(#enums)*
@@ -81,6 +105,7 @@ fn generate_unit_enum(
     ident: &syn::Ident,
     _base_ident: &syn::Ident,
     this_opts: Option<&ThisOpts>,
+    fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
     let field_opts = opts.fields();
     // Use the enum name (includes `Variants`) for the base key.
@@ -164,36 +189,11 @@ fn generate_unit_enum(
     let type_name = ident.to_string();
     let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
-    // Generate namespace expression - prefer fluent_variants namespace, fall back to fluent_this
-    let namespace_expr = opts
-        .attr_args()
-        .namespace()
-        .map(|ns| match ns {
-            es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
-            },
-            es_fluent_derive_core::options::namespace::NamespaceValue::File => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
-            },
-            es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
-            },
-        })
-        .or_else(|| {
-            this_opts.and_then(|o| match o.attr_args().namespace() {
-                Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) })
-                },
-                Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::File) })
-                },
-                Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) })
-                },
-                None => None,
-            })
-        })
-        .unwrap_or_else(|| quote! { None });
+    let namespace_expr = namespace_rule_tokens(
+        fluent_namespace
+            .or_else(|| opts.attr_args().namespace())
+            .or_else(|| this_opts.and_then(|o| o.attr_args().namespace())),
+    );
 
     let inventory_submit = quote! {
         #[doc(hidden)]
@@ -292,7 +292,11 @@ fn generate_unit_enum(
     }
 }
 
-pub fn process_enum(opts: &EnumVariantsOpts, this_opts: Option<&ThisOpts>) -> TokenStream {
+pub fn process_enum(
+    opts: &EnumVariantsOpts,
+    this_opts: Option<&ThisOpts>,
+    fluent_namespace: Option<&NamespaceValue>,
+) -> TokenStream {
     let keys = match opts.keyyed_idents() {
         Ok(keys) => keys,
         Err(err) => err.abort(),
@@ -310,7 +314,13 @@ pub fn process_enum(opts: &EnumVariantsOpts, this_opts: Option<&ThisOpts>) -> To
 
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum = generate_enum_unit_enum(opts, &ftl_enum_ident, opts.ident(), this_opts);
+        let ftl_enum = generate_enum_unit_enum(
+            opts,
+            &ftl_enum_ident,
+            opts.ident(),
+            this_opts,
+            fluent_namespace,
+        );
         quote! {
             #ftl_enum
         }
@@ -318,7 +328,9 @@ pub fn process_enum(opts: &EnumVariantsOpts, this_opts: Option<&ThisOpts>) -> To
         let enums = keys
             .iter()
             .zip(base_idents.iter())
-            .map(|(key, base_ident)| generate_enum_unit_enum(opts, key, base_ident, this_opts));
+            .map(|(key, base_ident)| {
+                generate_enum_unit_enum(opts, key, base_ident, this_opts, fluent_namespace)
+            });
 
         quote! {
             #(#enums)*
@@ -331,6 +343,7 @@ fn generate_enum_unit_enum(
     ident: &syn::Ident,
     _base_ident: &syn::Ident,
     this_opts: Option<&ThisOpts>,
+    fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
     let variant_opts = opts.variants();
     // Use the enum name (includes `Variants`) for the base key.
@@ -410,36 +423,11 @@ fn generate_enum_unit_enum(
     let type_name = ident.to_string();
     let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
-    // Generate namespace expression - prefer fluent_variants namespace, fall back to fluent_this
-    let namespace_expr = opts
-        .attr_args()
-        .namespace()
-        .map(|ns| match ns {
-            es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
-            },
-            es_fluent_derive_core::options::namespace::NamespaceValue::File => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
-            },
-            es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
-            },
-        })
-        .or_else(|| {
-            this_opts.and_then(|o| match o.attr_args().namespace() {
-                Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) })
-                },
-                Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::File) })
-                },
-                Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                    Some(quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) })
-                },
-                None => None,
-            })
-        })
-        .unwrap_or_else(|| quote! { None });
+    let namespace_expr = namespace_rule_tokens(
+        fluent_namespace
+            .or_else(|| opts.attr_args().namespace())
+            .or_else(|| this_opts.and_then(|o| o.attr_args().namespace())),
+    );
 
     let inventory_submit = quote! {
         #[doc(hidden)]

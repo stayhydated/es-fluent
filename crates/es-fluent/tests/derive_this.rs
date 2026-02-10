@@ -1,3 +1,4 @@
+use es_fluent::registry::NamespaceRule;
 use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants, ThisFtl};
 
 #[derive(EsFluent, EsFluentThis)]
@@ -20,6 +21,27 @@ struct TestVariantsStruct {
 #[allow(dead_code)]
 enum TestVariantsEnum {
     VariantA,
+}
+
+#[derive(EsFluentThis)]
+#[fluent(namespace = "this_ns")]
+#[allow(dead_code)]
+struct TestThisNamespace;
+
+#[derive(EsFluentVariants)]
+#[fluent(namespace = "variants_ns")]
+#[allow(dead_code)]
+struct TestVariantsNamespace {
+    field: String,
+}
+
+#[derive(EsFluentThis, EsFluentVariants)]
+#[fluent(namespace = "shared_ns")]
+#[fluent_variants(keys = ["label"])]
+#[fluent_this(origin, members)]
+#[allow(dead_code)]
+struct TestSharedNamespace {
+    field: String,
 }
 
 #[test]
@@ -45,5 +67,57 @@ fn test_derive_this_variants() {
     assert_eq!(
         TestVariantsEnumDescriptionVariants::this_ftl(),
         "test_variants_enum_description_variants_this"
+    );
+}
+
+#[test]
+fn test_derive_this_namespace_from_fluent() {
+    let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
+        .filter(|info| info.type_name == "TestThisNamespace")
+        .collect();
+
+    assert_eq!(
+        infos.len(),
+        1,
+        "Expected one registration for TestThisNamespace"
+    );
+    assert_eq!(infos[0].namespace, Some(NamespaceRule::Literal("this_ns")));
+}
+
+#[test]
+fn test_derive_variants_namespace_from_fluent() {
+    let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
+        .filter(|info| info.type_name == "TestVariantsNamespaceVariants")
+        .collect();
+
+    assert_eq!(
+        infos.len(),
+        1,
+        "Expected one registration for TestVariantsNamespaceVariants"
+    );
+    assert_eq!(
+        infos[0].namespace,
+        Some(NamespaceRule::Literal("variants_ns"))
+    );
+}
+
+#[test]
+fn test_derive_this_and_variants_share_fluent_namespace() {
+    let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
+        .filter(|info| {
+            info.type_name == "TestSharedNamespace"
+                || info.type_name == "TestSharedNamespaceLabelVariants"
+        })
+        .collect();
+
+    assert_eq!(
+        infos.len(),
+        3,
+        "Expected origin + variants + members-this registrations"
+    );
+    assert!(
+        infos
+            .iter()
+            .all(|info| info.namespace == Some(NamespaceRule::Literal("shared_ns")))
     );
 }

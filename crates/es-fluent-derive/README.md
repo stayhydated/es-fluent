@@ -61,7 +61,7 @@ struct Dialog;
 struct Modal;
 ```
 
-For `EsFluentThis`, the same syntax is available via `#[fluent_this(namespace = "...")]`.
+The same `#[fluent(namespace = ...)]` syntax also applies to `EsFluentThis` and `EsFluentVariants`.
 
 ### `#[derive(EsFluentChoice)]`
 
@@ -97,6 +97,7 @@ use es_fluent::EsFluentVariants;
 
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys = ["label", "description"])]
+#[fluent(namespace = "forms")]
 pub struct LoginForm {
     pub username: String,
     pub password: String,
@@ -120,6 +121,7 @@ use es_fluent::EsFluentThis;
 
 #[derive(EsFluentThis)]
 #[fluent_this(origin)]
+#[fluent(namespace = "forms")]
 pub enum Gender {
     Male,
     Female,
@@ -138,6 +140,7 @@ pub enum Gender {
 #[derive(EsFluentVariants, EsFluentThis)]
 #[fluent_this(origin, members)]
 #[fluent_variants(keys = ["label", "description"])]
+#[fluent(namespace = "forms")]
 pub struct LoginForm {
     pub username: String,
     pub password: String,

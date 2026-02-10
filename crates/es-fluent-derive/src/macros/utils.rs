@@ -1,3 +1,4 @@
+use es_fluent_derive_core::options::namespace::NamespaceValue;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -18,5 +19,20 @@ pub fn generate_this_ftl_impl(
                 ::es_fluent::localize(#ftl_key, None)
             }
         }
+    }
+}
+
+pub fn namespace_rule_tokens(namespace: Option<&NamespaceValue>) -> TokenStream {
+    match namespace {
+        Some(NamespaceValue::Literal(s)) => {
+            quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
+        },
+        Some(NamespaceValue::File) => {
+            quote! { Some(::es_fluent::registry::NamespaceRule::File) }
+        },
+        Some(NamespaceValue::FileRelative) => {
+            quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
+        },
+        None => quote! { None },
     }
 }
