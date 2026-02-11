@@ -68,5 +68,7 @@ Derive macros can optionally attach a namespace to each registered `FtlTypeInfo`
 - `#[fluent(namespace = "ui")]`
 - `#[fluent(namespace = file)]` (uses the source file stem, e.g. `src/ui/button.rs` -> `button`)
 - `#[fluent(namespace(file(relative)))]` (uses the file path relative to the crate, e.g. `src/ui/button.rs` -> `ui/button`)
+- `#[fluent(namespace = folder)]` (uses the parent folder name, e.g. `src/ui/button.rs` -> `ui`)
+- `#[fluent(namespace(folder(relative)))]` (uses the parent folder path relative to the crate, e.g. `src/ui/button.rs` -> `ui`)
 
 The namespace value is recorded in `FtlTypeInfo` and later used by the generator to decide which `.ftl` file receives the messages.

@@ -67,6 +67,14 @@ struct Dialog;
 #[derive(EsFluent)]
 #[fluent(namespace(file(relative)))] // -> assets_dir/{locale}/{crate}/ui/button.ftl
 struct Modal;
+
+#[derive(EsFluent)]
+#[fluent(namespace = folder)] // -> assets_dir/{locale}/{crate}/{parent_folder}.ftl
+struct FolderModal;
+
+#[derive(EsFluent)]
+#[fluent(namespace(folder(relative)))] // -> assets_dir/{locale}/{crate}/ui.ftl
+struct FolderRelativeModal;
 ```
 
 ### Watch

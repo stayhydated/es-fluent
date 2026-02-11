@@ -1,6 +1,7 @@
 use darling::FromDeriveInput;
 use es_fluent_derive_core::options::{
     r#enum::{EnumChoiceOpts, EnumOpts},
+    namespace::NamespaceValue,
     r#struct::{StructOpts, StructVariantsOpts},
 };
 
@@ -233,6 +234,40 @@ fn struct_fluent_with_namespace_file_relative() {
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     insta::assert_debug_snapshot!(&opts);
+}
+
+#[test]
+fn struct_fluent_with_namespace_folder() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent(namespace = folder)]
+        struct FolderModal {
+            content: String,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(NamespaceValue::Folder)
+    ));
+}
+
+#[test]
+fn struct_fluent_with_namespace_folder_relative() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        #[fluent(namespace(folder(relative)))]
+        struct FolderRelativeModal {
+            content: String,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(NamespaceValue::FolderRelative)
+    ));
 }
 
 #[test]

@@ -50,8 +50,9 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
 ///
 /// - If `i18n.toml` doesn't exist or doesn't specify `namespaces`, validation passes.
 /// - For `NamespaceValue::Literal`, validates against the configured namespaces.
-/// - For `NamespaceValue::File` and `NamespaceValue::FileRelative`, validation is deferred
-///   to the CLI since the source file path isn't reliably available at macro expansion time.
+/// - For path-derived namespaces (`File`, `FileRelative`, `Folder`, `FolderRelative`),
+///   validation is deferred to the CLI since the source file path isn't reliably available at
+///   macro expansion time.
 ///
 /// Returns `Ok(())` if validation passes or should be deferred.
 pub fn validate_namespace(
@@ -62,7 +63,10 @@ pub fn validate_namespace(
     let literal_value = match namespace {
         NamespaceValue::Literal(s) => s,
         // File-based namespaces need runtime/CLI validation
-        NamespaceValue::File | NamespaceValue::FileRelative => return Ok(()),
+        NamespaceValue::File
+        | NamespaceValue::FileRelative
+        | NamespaceValue::Folder
+        | NamespaceValue::FolderRelative => return Ok(()),
     };
 
     // Try to read the config; if it doesn't exist, skip validation
@@ -169,6 +173,20 @@ mod tests {
             let ns = NamespaceValue::FileRelative;
             validate_namespace(&ns, None)
                 .expect("FileRelative namespace should be deferred (always pass)");
+        }
+
+        #[test]
+        fn folder_namespace_deferred() {
+            let ns = NamespaceValue::Folder;
+            validate_namespace(&ns, None)
+                .expect("Folder namespace should be deferred (always pass)");
+        }
+
+        #[test]
+        fn folder_relative_namespace_deferred() {
+            let ns = NamespaceValue::FolderRelative;
+            validate_namespace(&ns, None)
+                .expect("FolderRelative namespace should be deferred (always pass)");
         }
     }
 }
