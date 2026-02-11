@@ -524,3 +524,37 @@ fn test_generate_multiple_namespaces() {
     let errors_content = fs::read_to_string(&errors_path).unwrap();
     assert!(errors_content.contains("ApiError"));
 }
+
+#[test]
+fn test_generate_nested_namespace_creates_parent_dirs() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+
+    let nested_type = enum_type_with_namespace(
+        "FormError",
+        vec![variant(
+            "InvalidEmail",
+            &ftl_key("FormError", "InvalidEmail"),
+        )],
+        "ui/forms",
+    );
+
+    let result = generate(
+        "test_crate",
+        &i18n_path,
+        temp_dir.path(),
+        std::slice::from_ref(&nested_type),
+        FluentParseMode::Conservative,
+        false,
+    );
+    assert!(result.is_ok());
+
+    let nested_path = i18n_path.join("test_crate").join("ui").join("forms.ftl");
+    assert!(
+        nested_path.exists(),
+        "Nested namespace file should be created with parent dirs"
+    );
+
+    let content = fs::read_to_string(&nested_path).unwrap();
+    assert!(content.contains("FormError"));
+}

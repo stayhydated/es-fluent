@@ -126,6 +126,16 @@ pub enum Status { Active, Inactive }
 #[fluent_this(origin)]
 #[fluent(namespace(file(relative)))]
 pub struct UserProfile;
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin)]
+#[fluent(namespace = folder)]
+pub enum FolderStatus { Active, Inactive }
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin)]
+#[fluent(namespace(folder(relative)))]
+pub struct FolderUserProfile;
 ```
 
 ### `EsFluentVariants`
@@ -155,7 +165,9 @@ pub enum StatusVariants { Active, Inactive }
 
 - `namespace = "name"` - explicit namespace string
 - `namespace = file` - uses the source file stem (e.g., `src/ui/button.rs` -> `button`)
-- `namespace = file(relative)` - uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`)
+- `namespace(file(relative))` - uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`)
+- `namespace = folder` - uses the source file parent folder (e.g., `src/ui/button.rs` -> `ui`)
+- `namespace(folder(relative))` - uses the parent folder path relative to the crate root, strips `src/` when nested, and keeps `src` for root module files (e.g., `src/ui/button.rs` -> `ui`)
 
 If `namespaces = [...]` is set in `i18n.toml`, both the compiler (at compile-time) and the CLI will validate that string-based namespaces used by your code are in that allowlist.
 

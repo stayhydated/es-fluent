@@ -208,6 +208,69 @@ pub struct UiBanner;
     output
 }
 
+fn create_nested_namespace_test_modules(
+    temp: &assert_fs::TempDir,
+    leaf_module_name: &str,
+    leaf_module_content: &str,
+) {
+    let src_path = temp.path().join("crates/test-app-a/src/lib.rs");
+    let mut content = std::fs::read_to_string(&src_path).expect("read lib.rs");
+    content.push_str(
+        r#"
+
+pub mod ui;
+"#,
+    );
+    std::fs::write(&src_path, content).expect("write lib.rs");
+
+    let ui_dir = temp.path().join("crates/test-app-a/src/ui");
+    let forms_dir = ui_dir.join("forms");
+    std::fs::create_dir_all(&forms_dir).expect("create nested module directories");
+
+    std::fs::write(ui_dir.join("mod.rs"), "pub mod forms;\n").expect("write ui mod.rs");
+    std::fs::write(
+        forms_dir.join("mod.rs"),
+        format!("pub mod {};\n", leaf_module_name),
+    )
+    .expect("write forms mod.rs");
+    std::fs::write(
+        forms_dir.join(format!("{leaf_module_name}.rs")),
+        leaf_module_content,
+    )
+    .expect("write leaf module");
+}
+
+fn run_generate_file_namespace_test() -> String {
+    let temp = setup_workspace_env();
+
+    create_nested_namespace_test_modules(
+        &temp,
+        "file_ns",
+        r#"
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(namespace = file)]
+pub struct FileNamespaceCase;
+"#,
+    );
+
+    let output = run_cli(&temp, &["generate"]);
+
+    let namespaced_path = temp.path().join("i18n/en/test-app-a/file_ns.ftl");
+    assert!(
+        namespaced_path.exists(),
+        "File namespace should generate file_ns.ftl under i18n"
+    );
+    let namespaced_content = std::fs::read_to_string(&namespaced_path).expect("read file_ns.ftl");
+    assert!(
+        namespaced_content.contains("file_namespace_case"),
+        "Namespaced file should contain the new key"
+    );
+
+    output
+}
+
 fn run_generate_file_relative_namespace_test() -> String {
     let temp = setup_workspace_env();
 
@@ -239,6 +302,68 @@ pub struct FileRelativeNs;
     assert!(
         !stray_path.exists(),
         "Should not create lib.ftl inside the source directory"
+    );
+
+    output
+}
+
+fn run_generate_folder_namespace_test() -> String {
+    let temp = setup_workspace_env();
+
+    create_nested_namespace_test_modules(
+        &temp,
+        "folder_ns",
+        r#"
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(namespace = folder)]
+pub struct FolderNamespaceCase;
+"#,
+    );
+
+    let output = run_cli(&temp, &["generate"]);
+
+    let namespaced_path = temp.path().join("i18n/en/test-app-a/forms.ftl");
+    assert!(
+        namespaced_path.exists(),
+        "Folder namespace should generate forms.ftl under i18n"
+    );
+    let namespaced_content = std::fs::read_to_string(&namespaced_path).expect("read forms.ftl");
+    assert!(
+        namespaced_content.contains("folder_namespace_case"),
+        "Namespaced file should contain the new key"
+    );
+
+    output
+}
+
+fn run_generate_folder_relative_namespace_test() -> String {
+    let temp = setup_workspace_env();
+
+    create_nested_namespace_test_modules(
+        &temp,
+        "folder_relative_ns",
+        r#"
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(namespace(folder(relative)))]
+pub struct FolderRelativeNamespaceCase;
+"#,
+    );
+
+    let output = run_cli(&temp, &["generate"]);
+
+    let namespaced_path = temp.path().join("i18n/en/test-app-a/ui/forms.ftl");
+    assert!(
+        namespaced_path.exists(),
+        "Folder-relative namespace should generate ui/forms.ftl under i18n"
+    );
+    let namespaced_content = std::fs::read_to_string(&namespaced_path).expect("read ui/forms.ftl");
+    assert!(
+        namespaced_content.contains("folder_relative_namespace_case"),
+        "Namespaced file should contain the new key"
     );
 
     output
@@ -911,6 +1036,21 @@ fn test_generate_namespaced_output() {
 #[test]
 fn test_generate_file_relative_namespace() {
     assert_snapshot!(run_generate_file_relative_namespace_test());
+}
+
+#[test]
+fn test_generate_file_namespace() {
+    assert_snapshot!(run_generate_file_namespace_test());
+}
+
+#[test]
+fn test_generate_folder_namespace() {
+    assert_snapshot!(run_generate_folder_namespace_test());
+}
+
+#[test]
+fn test_generate_folder_relative_namespace() {
+    assert_snapshot!(run_generate_folder_relative_namespace_test());
 }
 
 #[test]

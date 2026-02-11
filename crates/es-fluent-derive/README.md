@@ -59,6 +59,14 @@ struct Dialog;
 #[derive(EsFluent)]
 #[fluent(namespace(file(relative)))] // -> {crate}/ui/button.ftl
 struct Modal;
+
+#[derive(EsFluent)]
+#[fluent(namespace = folder)] // -> {crate}/{parent_folder}.ftl
+struct FolderModal;
+
+#[derive(EsFluent)]
+#[fluent(namespace(folder(relative)))] // -> {crate}/ui.ftl
+struct FolderRelativeModal;
 ```
 
 The same `#[fluent(namespace = ...)]` syntax also applies to `EsFluentThis` and `EsFluentVariants`.

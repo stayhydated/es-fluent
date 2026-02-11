@@ -33,6 +33,12 @@ pub fn namespace_rule_tokens(namespace: Option<&NamespaceValue>) -> TokenStream 
         Some(NamespaceValue::FileRelative) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
         },
+        Some(NamespaceValue::Folder) => {
+            quote! { Some(::es_fluent::registry::NamespaceRule::Folder) }
+        },
+        Some(NamespaceValue::FolderRelative) => {
+            quote! { Some(::es_fluent::registry::NamespaceRule::FolderRelative) }
+        },
         None => quote! { None },
     }
 }

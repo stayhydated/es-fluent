@@ -4,76 +4,18 @@
 // Namespaces Section Examples
 // ============================================================================
 
-// EsFluent examples
-use es_fluent::EsFluent;
-
-#[derive(EsFluent)]
-#[fluent(namespace = "ui")]
-pub struct Button<'a>(&'a str);
-
-#[derive(EsFluent)]
-#[fluent(namespace = file)]
-pub struct Dialog {
-    pub title: String,
-}
-
-#[derive(EsFluent)]
-#[fluent(namespace(file(relative)))]
-pub enum Gender {
-    Male,
-    Female,
-    Other(String),
-    Helicopter { type_: String },
-}
-
-// EsFluentThis examples
-use es_fluent::EsFluentThis;
-
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
-#[fluent(namespace = "forms")]
-pub enum GenderThis {
-    Male,
-    Female,
-    Other,
-}
-
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
-#[fluent(namespace = file)]
-pub enum Status {
-    Active,
-    Inactive,
-}
-
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
-#[fluent(namespace(file(relative)))]
-pub struct UserProfile;
-
-// EsFluentVariants examples
-use es_fluent::EsFluentVariants;
-
-#[derive(EsFluentVariants)]
-#[fluent_variants(keys = ["label", "description"])]
-#[fluent(namespace = "forms")]
-pub struct LoginForm {
-    pub username: String,
-    pub password: String,
-}
-
-#[derive(EsFluentVariants)]
-#[fluent(namespace = file)]
-pub enum StatusVariants {
-    Active,
-    Inactive,
-}
+pub mod namespaces;
+pub use namespaces::{
+    Button, Dialog, FolderStatus, FolderUserProfile, Gender, GenderThis, LoginForm, Status,
+    StatusVariants, UserProfile,
+};
 
 // ============================================================================
 // Derives Section Examples
 // ============================================================================
 
 // #[derive(EsFluent)] - Enums and Structs
+use es_fluent::EsFluent;
 #[derive(EsFluent)]
 pub enum LoginError {
     InvalidPassword,                   // no params
@@ -114,6 +56,7 @@ pub struct LoginFormVariants {
 }
 
 // #[derive(EsFluentThis)] - origin only
+use es_fluent::EsFluentThis;
 #[derive(EsFluentThis)]
 #[fluent_this(origin)]
 pub enum GenderThisOnly {
@@ -123,6 +66,7 @@ pub enum GenderThisOnly {
 }
 
 // #[derive(EsFluentThis)] - origin and members combined with EsFluentVariants
+use es_fluent::EsFluentVariants;
 #[derive(EsFluentThis, EsFluentVariants)]
 #[fluent_this(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]

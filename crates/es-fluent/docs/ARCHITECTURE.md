@@ -99,7 +99,7 @@ A trait for types that have a "this" fluent key representing the type itself, ty
 
 ## Internal Namespace Helpers
 
-Derive macros can request a namespace based on the file path (e.g., `namespace = file` or `namespace(file(relative))`). The facade crate exposes small `const fn` helpers used by generated code to extract the file stem or relative path at compile time. These values are stored on `FtlTypeInfo` and later drive per-namespace `.ftl` output.
+Derive macros can request a namespace based on the file path (e.g., `namespace = file`, `namespace(file(relative))`, `namespace = folder`, or `namespace(folder(relative))`). The namespace rule is stored on `FtlTypeInfo` and resolved by the generator/CLI to drive per-namespace `.ftl` output.
 
 ## Integration
 

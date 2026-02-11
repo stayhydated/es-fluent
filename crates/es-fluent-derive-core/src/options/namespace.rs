@@ -7,7 +7,9 @@ use darling::FromMeta;
 /// Supports:
 /// - `namespace = "some_name"` - literal namespace
 /// - `namespace = file` - use the source file name (e.g., `lib.rs` -> `lib`)
-/// - `namespace = file(relative)` - use file path relative to crate root (e.g., `src/ui/button.rs` -> `src/ui/button`)
+/// - `namespace = file(relative)` - use file path relative to crate root (e.g., `src/ui/button.rs` -> `ui/button`)
+/// - `namespace = folder` - use the source file parent folder (e.g., `src/ui/button.rs` -> `ui`)
+/// - `namespace = folder(relative)` - use parent folder path relative to crate root (e.g., `src/ui/button.rs` -> `ui`)
 #[derive(Clone, Debug)]
 pub enum NamespaceValue {
     /// A literal namespace string.
@@ -16,6 +18,10 @@ pub enum NamespaceValue {
     File,
     /// Use the file path relative to the crate root as the namespace.
     FileRelative,
+    /// Use the source file parent folder as the namespace.
+    Folder,
+    /// Use the source file parent folder path relative to crate root as the namespace.
+    FolderRelative,
 }
 
 impl NamespaceValue {
@@ -43,6 +49,31 @@ impl NamespaceValue {
                     .unwrap_or(path_str)
                     .to_string()
             },
+            NamespaceValue::Folder => std::path::Path::new(file_path)
+                .parent()
+                .and_then(std::path::Path::file_name)
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string(),
+            NamespaceValue::FolderRelative => {
+                let path = std::path::Path::new(file_path);
+                let parent = path.parent().unwrap_or(path);
+                let parent_str = parent.to_str().unwrap_or("unknown");
+                let stripped = parent_str
+                    .strip_prefix("src/")
+                    .or_else(|| parent_str.strip_prefix("src\\"))
+                    .unwrap_or(parent_str);
+
+                if stripped.is_empty() {
+                    if parent_str.is_empty() {
+                        "unknown".to_string()
+                    } else {
+                        parent_str.to_string()
+                    }
+                } else {
+                    stripped.to_string()
+                }
+            },
         }
     }
 }
@@ -59,20 +90,42 @@ impl FromMeta for NamespaceValue {
                 {
                     Ok(NamespaceValue::Literal(s.value()))
                 } else if let syn::Expr::Path(path) = &nv.value {
-                    // namespace = file (without quotes - parsed as path)
+                    // namespace = file | folder (without quotes - parsed as path)
                     if path.path.is_ident("file") {
                         return Ok(NamespaceValue::File);
                     }
+                    if path.path.is_ident("folder") {
+                        return Ok(NamespaceValue::Folder);
+                    }
                     Err(darling::Error::custom(
-                        "expected string literal or 'file' identifier",
+                        "expected string literal, 'file', or 'folder' identifier",
+                    ))
+                } else if let syn::Expr::Call(call) = &nv.value {
+                    let Some((target, arg)) = parse_single_ident_call(call) else {
+                        return Err(darling::Error::custom(
+                            "expected string literal, 'file', 'folder', or '(file|folder)(relative)'",
+                        ));
+                    };
+
+                    if arg == "relative" {
+                        if target == "file" {
+                            return Ok(NamespaceValue::FileRelative);
+                        }
+                        if target == "folder" {
+                            return Ok(NamespaceValue::FolderRelative);
+                        }
+                    }
+
+                    Err(darling::Error::custom(
+                        "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
                     ))
                 } else {
                     Err(darling::Error::unexpected_type(
-                        "expected string literal or 'file'",
+                        "expected string literal, 'file', or 'folder'",
                     ))
                 }
             },
-            // namespace(file) or namespace(file(relative))
+            // namespace(file) / namespace(folder) / namespace(file(relative)) / namespace(folder(relative))
             syn::Meta::List(list) => {
                 let tokens = list.tokens.to_string();
                 // Normalize whitespace for comparison
@@ -88,17 +141,43 @@ impl FromMeta for NamespaceValue {
                     return Ok(NamespaceValue::File);
                 }
 
+                if normalized == "folder(relative)" {
+                    return Ok(NamespaceValue::FolderRelative);
+                }
+
+                if normalized == "folder" {
+                    return Ok(NamespaceValue::Folder);
+                }
+
                 // Try to parse as a string literal
                 let lit: syn::LitStr = syn::parse2(list.tokens.clone()).map_err(|_| {
-                    darling::Error::custom("expected string literal, 'file', or 'file(relative)'")
+                    darling::Error::custom(
+                        "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                    )
                 })?;
                 Ok(NamespaceValue::Literal(lit.value()))
             },
             _ => Err(darling::Error::unsupported_format(
-                "expected namespace = \"value\", namespace = file, or namespace = file(relative)",
+                "expected namespace = \"value\", namespace = file|folder, or namespace = file(relative)|folder(relative)",
             )),
         }
     }
+}
+
+fn parse_single_ident_call(call: &syn::ExprCall) -> Option<(String, String)> {
+    let syn::Expr::Path(target_path) = call.func.as_ref() else {
+        return None;
+    };
+    if call.args.len() != 1 {
+        return None;
+    }
+    let arg = call.args.first()?;
+    let syn::Expr::Path(arg_path) = arg else {
+        return None;
+    };
+    let target = target_path.path.get_ident()?.to_string();
+    let arg = arg_path.path.get_ident()?.to_string();
+    Some((target, arg))
 }
 
 #[cfg(test)]
@@ -137,6 +216,36 @@ mod tests {
     }
 
     #[test]
+    fn test_folder_namespace() {
+        let meta: syn::Meta = parse_quote!(namespace = folder);
+        let ns = NamespaceValue::from_meta(&meta).unwrap();
+        match ns {
+            NamespaceValue::Folder => {},
+            _ => panic!("expected Folder"),
+        }
+    }
+
+    #[test]
+    fn test_folder_relative_namespace() {
+        let meta: syn::Meta = parse_quote!(namespace(folder(relative)));
+        let ns = NamespaceValue::from_meta(&meta).unwrap();
+        match ns {
+            NamespaceValue::FolderRelative => {},
+            _ => panic!("expected FolderRelative"),
+        }
+    }
+
+    #[test]
+    fn test_folder_relative_namespace_name_value_call_syntax() {
+        let meta: syn::Meta = parse_quote!(namespace = folder(relative));
+        let ns = NamespaceValue::from_meta(&meta).unwrap();
+        match ns {
+            NamespaceValue::FolderRelative => {},
+            _ => panic!("expected FolderRelative"),
+        }
+    }
+
+    #[test]
     fn test_resolve_literal() {
         let ns = NamespaceValue::Literal("my_ns".to_string());
         assert_eq!(ns.resolve("/some/path/lib.rs"), "my_ns");
@@ -155,5 +264,21 @@ mod tests {
         assert_eq!(ns.resolve("src/ui/button.rs"), "ui/button");
         assert_eq!(ns.resolve("src/lib.rs"), "lib");
         assert_eq!(ns.resolve("lib.rs"), "lib");
+    }
+
+    #[test]
+    fn test_resolve_folder() {
+        let ns = NamespaceValue::Folder;
+        assert_eq!(ns.resolve("src/ui/button.rs"), "ui");
+        assert_eq!(ns.resolve("src/lib.rs"), "src");
+        assert_eq!(ns.resolve("lib.rs"), "unknown");
+    }
+
+    #[test]
+    fn test_resolve_folder_relative() {
+        let ns = NamespaceValue::FolderRelative;
+        assert_eq!(ns.resolve("src/ui/button.rs"), "ui");
+        assert_eq!(ns.resolve("src/lib.rs"), "src");
+        assert_eq!(ns.resolve("lib.rs"), "unknown");
     }
 }

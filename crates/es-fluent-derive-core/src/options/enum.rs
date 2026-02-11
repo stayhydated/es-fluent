@@ -129,7 +129,9 @@ pub struct EnumFluentAttributeArgs {
     /// Optional namespace for FTL file generation.
     /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
     /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
-    /// - `namespace(file(named))` - literal "file" namespace
+    /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_file_path}.ftl`
+    /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
+    /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
     #[darling(default)]
     namespace: Option<super::namespace::NamespaceValue>,
 }
@@ -287,6 +289,8 @@ pub struct EnumVariantsFluentAttributeArgs {
     /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
     /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
     /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_path}.ftl`
+    /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
+    /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
     #[darling(default)]
     namespace: Option<super::namespace::NamespaceValue>,
 }

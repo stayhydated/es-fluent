@@ -268,6 +268,10 @@ fn write_or_preview(
         return Ok(());
     }
 
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
     fs::write(file_path, final_content)?;
     let msg = match is_empty {
         true => format!("Wrote empty FTL file (no items): {}", file_path.display()),

@@ -90,6 +90,12 @@ fn generate(opts: &StructOpts) -> TokenStream {
             Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
                 quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
             },
+            Some(es_fluent_derive_core::options::namespace::NamespaceValue::Folder) => {
+                quote! { Some(::es_fluent::registry::NamespaceRule::Folder) }
+            },
+            Some(es_fluent_derive_core::options::namespace::NamespaceValue::FolderRelative) => {
+                quote! { Some(::es_fluent::registry::NamespaceRule::FolderRelative) }
+            },
             None => quote! { None },
         };
 

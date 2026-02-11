@@ -139,6 +139,21 @@ mod validate_namespace_tests {
     }
 
     #[test]
+    fn folder_namespace_always_passes() {
+        // Folder-based namespaces are deferred to CLI validation
+        let ns = NamespaceValue::Folder;
+        validate_namespace(&ns, None).expect("Folder namespace should always pass at compile time");
+    }
+
+    #[test]
+    fn folder_relative_namespace_always_passes() {
+        // Folder-based namespaces are deferred to CLI validation
+        let ns = NamespaceValue::FolderRelative;
+        validate_namespace(&ns, None)
+            .expect("FolderRelative namespace should always pass at compile time");
+    }
+
+    #[test]
     fn literal_namespace_passes_without_config() {
         // When no i18n.toml exists (or CARGO_MANIFEST_DIR is not set),
         // validation should pass for any literal namespace.

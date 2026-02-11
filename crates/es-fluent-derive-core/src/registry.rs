@@ -13,6 +13,10 @@ pub enum NamespaceRule {
     File,
     /// Use the file path relative to the crate root as the namespace.
     FileRelative,
+    /// Use the source file parent folder name as the namespace.
+    Folder,
+    /// Use the source file parent folder path relative to the crate root as the namespace.
+    FolderRelative,
 }
 
 impl NamespaceRule {
@@ -22,6 +26,8 @@ impl NamespaceRule {
             NamespaceRule::Literal(value) => value.to_string(),
             NamespaceRule::File => file_stem_namespace(file_path),
             NamespaceRule::FileRelative => file_relative_namespace(file_path, manifest_dir),
+            NamespaceRule::Folder => folder_namespace(file_path),
+            NamespaceRule::FolderRelative => folder_relative_namespace(file_path, manifest_dir),
         }
     }
 }
@@ -45,13 +51,46 @@ fn file_relative_namespace(file_path: &str, manifest_dir: &Path) -> String {
         }
     }
 
-    if let Ok(stripped) = relative.strip_prefix("src") {
-        relative = stripped;
-    }
-
     let mut without_ext = relative.to_path_buf();
     without_ext.set_extension("");
-    path_to_namespace(&without_ext)
+
+    let namespace_path = strip_src_prefix_if_not_empty(&without_ext);
+    path_to_namespace(&namespace_path)
+}
+
+fn folder_namespace(file_path: &str) -> String {
+    Path::new(file_path)
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn folder_relative_namespace(file_path: &str, manifest_dir: &Path) -> String {
+    let path = Path::new(file_path);
+    let mut relative = path;
+
+    if path.is_absolute() {
+        match path.strip_prefix(manifest_dir) {
+            Ok(stripped) => relative = stripped,
+            Err(_) => return folder_namespace(file_path),
+        }
+    }
+
+    let parent = relative.parent().unwrap_or(relative);
+    let namespace_path = strip_src_prefix_if_not_empty(parent);
+    path_to_namespace(&namespace_path)
+}
+
+fn strip_src_prefix_if_not_empty(path: &Path) -> std::path::PathBuf {
+    if let Ok(stripped) = path.strip_prefix("src")
+        && stripped.components().next().is_some()
+    {
+        return stripped.to_path_buf();
+    }
+
+    path.to_path_buf()
 }
 
 fn path_to_namespace(path: &Path) -> String {
@@ -156,5 +195,52 @@ mod tests {
         let namespace =
             NamespaceRule::FileRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
         assert_eq!(namespace, "lib");
+    }
+
+    #[test]
+    fn folder_namespace_uses_parent_folder_name() {
+        let manifest_dir = test_manifest_dir();
+        let file_path = manifest_dir
+            .join("src")
+            .join("ui")
+            .join("forms")
+            .join("button.rs");
+        let namespace = NamespaceRule::Folder.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        assert_eq!(namespace, "forms");
+    }
+
+    #[test]
+    fn folder_relative_strips_manifest_and_src() {
+        let manifest_dir = test_manifest_dir();
+        let file_path = manifest_dir
+            .join("src")
+            .join("ui")
+            .join("forms")
+            .join("button.rs");
+        let namespace =
+            NamespaceRule::FolderRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        assert_eq!(namespace, "ui/forms");
+    }
+
+    #[test]
+    fn folder_relative_keeps_src_for_root_module() {
+        let manifest_dir = test_manifest_dir();
+        let file_path = manifest_dir.join("src").join("lib.rs");
+        let namespace =
+            NamespaceRule::FolderRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        assert_eq!(namespace, "src");
+    }
+
+    #[test]
+    fn folder_relative_falls_back_to_parent_outside_manifest() {
+        let manifest_dir = test_manifest_dir();
+        let file_path = if cfg!(windows) {
+            PathBuf::from(r"C:\other\src\lib.rs")
+        } else {
+            PathBuf::from("/other/src/lib.rs")
+        };
+        let namespace =
+            NamespaceRule::FolderRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        assert_eq!(namespace, "src");
     }
 }
