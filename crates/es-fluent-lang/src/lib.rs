@@ -10,15 +10,15 @@ use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 use rust_embed::RustEmbed;
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 use std::collections::HashSet;
 
-#[cfg(feature = "minimal")]
+#[cfg(feature = "localized-langs")]
 const ES_FLUENT_LANG_FTL: &str = include_str!("../es-fluent-lang.ftl");
 
-#[cfg(feature = "minimal")]
+#[cfg(feature = "localized-langs")]
 fn embedded_resource() -> Arc<FluentResource> {
     static RESOURCE: OnceLock<Arc<FluentResource>> = OnceLock::new();
     RESOURCE
@@ -32,15 +32,15 @@ fn embedded_resource() -> Arc<FluentResource> {
         .clone()
 }
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 const I18N_RESOURCE_NAME: &str = "es-fluent-lang.ftl";
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 #[derive(RustEmbed)]
 #[folder = "i18n"]
 struct EsFluentLangAssets;
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 fn available_languages() -> &'static HashSet<LanguageIdentifier> {
     static AVAILABLE: OnceLock<HashSet<LanguageIdentifier>> = OnceLock::new();
     AVAILABLE.get_or_init(|| {
@@ -58,7 +58,7 @@ fn available_languages() -> &'static HashSet<LanguageIdentifier> {
     })
 }
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
     let mut candidates = Vec::new();
     let mut push = |candidate: LanguageIdentifier| {
@@ -96,7 +96,7 @@ fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
     candidates
 }
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
     let available = available_languages();
     candidate_languages(lang)
@@ -112,7 +112,7 @@ impl I18nModule for EsFluentLanguageModule {
     }
 
     fn create_localizer(&self) -> Box<dyn Localizer> {
-        #[cfg(feature = "minimal")]
+        #[cfg(feature = "localized-langs")]
         {
             Box::new(EsFluentLanguageLocalizer::new(
                 embedded_resource(),
@@ -120,20 +120,20 @@ impl I18nModule for EsFluentLanguageModule {
             ))
         }
 
-        #[cfg(not(feature = "minimal"))]
+        #[cfg(not(feature = "localized-langs"))]
         {
             Box::new(EsFluentLanguageLocalizer::new(langid!("en-US")))
         }
     }
 }
 
-#[cfg(feature = "minimal")]
+#[cfg(feature = "localized-langs")]
 struct EsFluentLanguageLocalizer {
     resource: Arc<FluentResource>,
     current_lang: RwLock<LanguageIdentifier>,
 }
 
-#[cfg(feature = "minimal")]
+#[cfg(feature = "localized-langs")]
 impl EsFluentLanguageLocalizer {
     fn new(resource: Arc<FluentResource>, default_lang: LanguageIdentifier) -> Self {
         Self {
@@ -143,7 +143,7 @@ impl EsFluentLanguageLocalizer {
     }
 }
 
-#[cfg(feature = "minimal")]
+#[cfg(feature = "localized-langs")]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         *self.current_lang.write().expect("lock poisoned") = lang.clone();
@@ -189,13 +189,13 @@ impl Localizer for EsFluentLanguageLocalizer {
     }
 }
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 struct EsFluentLanguageLocalizer {
     resources: RwLock<HashMap<LanguageIdentifier, Arc<FluentResource>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
 }
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 impl EsFluentLanguageLocalizer {
     fn new(default_lang: LanguageIdentifier) -> Self {
         let localizer = Self {
@@ -249,7 +249,7 @@ impl EsFluentLanguageLocalizer {
     }
 }
 
-#[cfg(not(feature = "minimal"))]
+#[cfg(not(feature = "localized-langs"))]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         self.set_language(lang)
@@ -306,7 +306,7 @@ inventory::submit! {
     &EsFluentLanguageModule as &dyn I18nModule
 }
 
-#[cfg(all(feature = "bevy", feature = "minimal"))]
+#[cfg(all(feature = "bevy", feature = "localized-langs"))]
 mod bevy_support {
     use super::*;
     use es_fluent_manager_core::StaticI18nResource;
@@ -331,7 +331,7 @@ mod bevy_support {
     }
 }
 
-#[cfg(all(feature = "bevy", not(feature = "minimal")))]
+#[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
 mod bevy_support {
     use super::*;
     use es_fluent_manager_core::StaticI18nResource;
