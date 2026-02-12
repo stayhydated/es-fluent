@@ -17,7 +17,5 @@ dist/
 .astro/
 
 # WASM build outputs
-web/public/bevy-example/*.js
-web/public/bevy-example/*.d.ts
-web/public/bevy-example/*.wasm
-web/public/bevy-example/assets/
+web/public/bevy-example/*
+!web/public/bevy-example/.gitkeep
