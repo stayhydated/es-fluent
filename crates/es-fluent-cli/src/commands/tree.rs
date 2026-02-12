@@ -275,3 +275,198 @@ fn extract_variables_from_inline(
         _ => {},
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fluent_syntax::parser;
+
+    fn parse_ftl(content: &str) -> ast::Resource<String> {
+        parser::parse(content.to_string()).unwrap()
+    }
+
+    fn get_message<'a>(
+        resource: &'a ast::Resource<String>,
+        id: &str,
+    ) -> Option<&'a ast::Message<String>> {
+        resource.body.iter().find_map(|entry| {
+            if let ast::Entry::Message(msg) = entry
+                && msg.id.name == id
+            {
+                return Some(msg);
+            }
+            None
+        })
+    }
+
+    #[test]
+    fn test_extract_variables_simple() {
+        let content = "hello = Hello { $name }!";
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "hello").unwrap();
+
+        let mut variables = Vec::new();
+        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+
+        assert_eq!(variables, vec!["name"]);
+    }
+
+    #[test]
+    fn test_extract_variables_multiple() {
+        let content = "greeting = Hello { $name }, you have { $count } messages";
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "greeting").unwrap();
+
+        let mut variables = Vec::new();
+        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+        variables.sort();
+
+        assert_eq!(variables, vec!["count", "name"]);
+    }
+
+    #[test]
+    fn test_extract_variables_select() {
+        let content = r#"count = { $num ->
+    [one] One item
+   *[other] { $num } items
+}"#;
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "count").unwrap();
+
+        let mut variables = Vec::new();
+        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+        variables.sort();
+        variables.dedup();
+
+        assert_eq!(variables, vec!["num"]);
+    }
+
+    #[test]
+    fn test_extract_variables_nested() {
+        let content = r#"message = Hello { $user }, today is { DATETIME($date) }"#;
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "message").unwrap();
+
+        let mut variables = Vec::new();
+        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+        variables.sort();
+
+        assert_eq!(variables, vec!["date", "user"]);
+    }
+
+    #[test]
+    fn test_build_message_tree_simple() {
+        let content = "hello = Hello World";
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "hello").unwrap();
+
+        let tree = build_message_tree("hello", msg, false, false);
+
+        match tree {
+            Tree::Leaf(lines) => assert_eq!(lines, vec!["hello"]),
+            _ => panic!("Expected leaf node"),
+        }
+    }
+
+    #[test]
+    fn test_build_message_tree_with_attributes() {
+        let content = r#"button = Button
+    .tooltip = Click me
+    .aria-label = Submit"#;
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "button").unwrap();
+
+        let tree = build_message_tree("button", msg, true, false);
+
+        match tree {
+            Tree::Node(label, children) => {
+                assert_eq!(label, "button");
+                assert_eq!(children.len(), 2);
+            },
+            _ => panic!("Expected node with children"),
+        }
+    }
+
+    #[test]
+    fn test_build_message_tree_with_variables() {
+        let content = "greeting = Hello { $name }";
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "greeting").unwrap();
+
+        let tree = build_message_tree("greeting", msg, false, true);
+
+        match tree {
+            Tree::Node(label, children) => {
+                assert_eq!(label, "greeting");
+                assert_eq!(children.len(), 1);
+            },
+            _ => panic!("Expected node with children"),
+        }
+    }
+
+    #[test]
+    fn test_build_entry_children_no_attributes_no_variables() {
+        let children = build_entry_children(&[], None, false, false);
+        assert!(children.is_empty());
+    }
+
+    #[test]
+    fn test_build_entry_children_attributes_only() {
+        let content = r#"button = Button
+    .tooltip = Click me"#;
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "button").unwrap();
+
+        let children = build_entry_children(&msg.attributes, msg.value.as_ref(), true, false);
+
+        assert_eq!(children.len(), 1);
+    }
+
+    #[test]
+    fn test_build_file_tree_nonexistent() {
+        let tree = build_file_tree("test.ftl", Path::new("/nonexistent/path.ftl"), false, false);
+
+        match tree {
+            Tree::Node(label, children) => {
+                assert!(label.contains("test.ftl"));
+                assert!(
+                    children.is_empty(),
+                    "nonexistent file should produce empty tree"
+                );
+            },
+            _ => panic!("Expected node"),
+        }
+    }
+
+    #[test]
+    fn test_tree_render_basic() {
+        let tree = Tree::Node(
+            "root".to_string(),
+            vec![
+                Tree::Leaf(vec!["item1".to_string()]),
+                Tree::Leaf(vec!["item2".to_string()]),
+            ],
+        );
+
+        let output = tree.render_to_string();
+        assert!(output.contains("root"));
+        assert!(output.contains("item1"));
+        assert!(output.contains("item2"));
+    }
+
+    #[test]
+    fn test_tree_render_nested() {
+        let tree = Tree::Node(
+            "crate".to_string(),
+            vec![Tree::Node(
+                "en".to_string(),
+                vec![Tree::Leaf(vec!["message".to_string()])],
+            )],
+        );
+
+        let output = tree.render_to_string();
+        assert!(output.contains("crate"));
+        assert!(output.contains("en"));
+        assert!(output.contains("message"));
+    }
+}
