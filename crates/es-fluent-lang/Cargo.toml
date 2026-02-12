@@ -17,8 +17,8 @@ build = "build.rs"
 [features]
 bevy = [  ]
 default = [ "macros" ]
+localized-langs = [  ]
 macros = [ "dep:es-fluent-lang-macro" ]
-minimal = [  ]
 
 [dependencies]
 es-fluent-lang-macro = { optional = true, workspace = true }
