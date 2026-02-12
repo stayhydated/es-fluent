@@ -1,0 +1,105 @@
+---
+interface Props {
+  moduleUrl: string;
+  initExport?: string;
+  loadingText?: string;
+  errorText?: string;
+  canvasId?: string;
+}
+
+const {
+  moduleUrl,
+  initExport = "default",
+  loadingText = "Loading...",
+  errorText = "Failed to load.",
+  canvasId,
+} = Astro.props;
+
+const hasDefaultSlot = Astro.slots.has("default");
+const resolveModuleStem = (url: string) =>
+  url
+    .split("?")[0]
+    .split("#")[0]
+    .split("/")
+    .pop()
+    ?.split(".")
+    .slice(0, -1)
+    .join(".")
+    || "wasm";
+const resolvedCanvasId = canvasId ?? resolveModuleStem(moduleUrl);
+---
+
+<div class="wasm-loader" data-state="loading">
+  <div class="wasm-loader__status" data-state="loading" aria-live="polite">
+    {loadingText}
+  </div>
+  <div class="wasm-loader__status" data-state="error" role="alert" aria-live="assertive">
+    {errorText}
+  </div>
+  <div class="wasm-loader__content" data-state="ready">
+    {hasDefaultSlot ? <slot /> : <canvas id={resolvedCanvasId}></canvas>}
+  </div>
+</div>
+
+<script is:inline define:vars={{ moduleUrl, initExport }}>
+  const root = document.currentScript?.previousElementSibling;
+  const setState = (state) => {
+    if (!root) {
+      return;
+    }
+    root.dataset.state = state;
+  };
+
+  (async () => {
+    try {
+      const module = await import(moduleUrl);
+      const init = module[initExport];
+      if (typeof init !== "function") {
+        throw new Error(`Missing init export: ${initExport}`);
+      }
+      await init();
+      setState("ready");
+    } catch (error) {
+      console.error(error);
+      setState("error");
+    }
+  })();
+</script>
+
+<style>
+  .wasm-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    width: 100vw;
+    margin: 0 auto;
+    text-align: center;
+    color: var(--color-text);
+  }
+
+  .wasm-loader__status,
+  .wasm-loader__content {
+    display: none;
+  }
+
+  .wasm-loader[data-state="loading"] .wasm-loader__status[data-state="loading"],
+  .wasm-loader[data-state="error"] .wasm-loader__status[data-state="error"] {
+    display: block;
+  }
+
+  .wasm-loader[data-state="ready"] .wasm-loader__content[data-state="ready"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100vh;
+  }
+
+  .wasm-loader__content canvas {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    max-height: 100%;
+  }
+</style>

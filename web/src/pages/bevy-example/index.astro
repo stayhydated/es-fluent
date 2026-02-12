@@ -1,14 +1,10 @@
 ---
-import WasmExampleLayout from "../../layouts/WasmExampleLayout.astro";
+import WasmExampleLayout from "@/layouts/WasmExampleLayout.astro";
+import WasmLoader from "@/components/WasmLoader.astro";
 
 const baseUrl = import.meta.env.BASE_URL;
 ---
 
 <WasmExampleLayout title="Bevy Example - es-fluent">
-  <script is:inline define:vars={{ baseUrl }}>
-    (async () => {
-      const { default: init } = await import(baseUrl + "/bevy-example/bevy-example.js");
-      init();
-    })();
-  </script>
+  <WasmLoader moduleUrl={`${baseUrl}/bevy-example/bevy-example.js`} />
 </WasmExampleLayout>
