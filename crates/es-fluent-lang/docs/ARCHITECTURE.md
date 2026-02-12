@@ -43,7 +43,7 @@ flowchart TD
 
 ### Embedded Translations
 
-By default, the crate embeds per-locale translation files under `i18n/<locale>/es-fluent-lang.ftl`, allowing language names to be localized to the current UI language. When the `minimal` feature is enabled, it falls back to the single `es-fluent-lang.ftl` autonym file.
+By default, the crate embeds the single `es-fluent-lang.ftl` autonym file (language names in their native scripts, e.g., "English", "Français", "日本語"). When the `localized-langs` feature is enabled, it uses per-locale translation files under `i18n/<locale>/es-fluent-lang.ftl`, allowing language names to be localized to the current UI language (e.g., displaying "English", "Spanish", "Japanese" when viewing in English).
 
 The localizer resolves fallback locales (e.g., `zh-CN` -> `zh`) so regioned languages still receive language-name translations when only a base locale is present.
 
@@ -59,7 +59,7 @@ inventory::submit! {
 
 ### Bevy Support
 
-When the optional `bevy` feature is enabled, it registers `StaticI18nResource` entries for each locale found under `i18n/<locale>/es-fluent-lang.ftl`. A small build script scans the `i18n` folder and generates the inventory registrations so Bevy can load the correct language-name resource for each locale. The static resources use the same fallback resolution, so `zh-CN` will match the `zh` resource when needed.
+When the optional `bevy` feature is enabled (along with `localized-langs`), it registers `StaticI18nResource` entries for each locale found under `i18n/<locale>/es-fluent-lang.ftl`. A small build script scans the `i18n` folder and generates the inventory registrations so Bevy can load the correct language-name resource for each locale. The static resources use the same fallback resolution, so `zh-CN` will match the `zh` resource when needed.
 
 ## Macro
 
