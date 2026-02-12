@@ -12,6 +12,7 @@ use clap::Parser;
 use colored::Colorize as _;
 use fluent_syntax::ast;
 use std::path::Path;
+use treelog::Tree;
 
 /// Arguments for the tree command.
 #[derive(Debug, Parser)]
@@ -59,9 +60,8 @@ fn print_crate_tree(
 ) -> Result<()> {
     let ctx = LocaleContext::from_crate(krate, all_locales)?;
 
-    println!("{}", krate.name.bold().cyan());
+    let mut locale_trees: Vec<Tree> = Vec::new();
 
-    let mut first_locale = true;
     for locale in &ctx.locales {
         let locale_dir = ctx.locale_dir(locale);
         if !locale_dir.exists() {
@@ -74,62 +74,60 @@ fn print_crate_tree(
             continue;
         }
 
-        let prefix = if first_locale { "" } else { "\n" };
-        println!("{}  {}", prefix, locale.green());
-        first_locale = false;
+        let file_trees: Vec<Tree> = ftl_files
+            .iter()
+            .map(|file_info| {
+                build_file_tree(
+                    &file_info.relative_path.display().to_string(),
+                    &file_info.abs_path,
+                    show_attributes,
+                    show_variables,
+                )
+            })
+            .collect();
 
-        for (idx, file_info) in ftl_files.iter().enumerate() {
-            let is_last_file = idx == ftl_files.len() - 1;
-            print_file_tree(
-                &file_info.relative_path.display().to_string(),
-                &file_info.abs_path,
-                is_last_file,
-                show_attributes,
-                show_variables,
-            );
-        }
+        locale_trees.push(Tree::Node(locale.green().to_string(), file_trees));
     }
+
+    let tree = Tree::Node(krate.name.bold().cyan().to_string(), locale_trees);
+    println!("{}", tree.render_to_string());
 
     Ok(())
 }
 
-/// Print the tree for a single FTL file.
-fn print_file_tree(
+/// Build a tree for a single FTL file.
+fn build_file_tree(
     relative_path: &str,
     abs_path: &Path,
-    is_last_file: bool,
     show_attributes: bool,
     show_variables: bool,
-) {
-    let file_prefix = if is_last_file {
-        "  └── "
-    } else {
-        "  ├── "
-    };
-    println!("{}{}", file_prefix, relative_path.yellow());
-
+) -> Tree {
     let resource = match parse_ftl_file(abs_path) {
         Ok(res) => res,
         Err(_) => {
-            println!("      {}", "<parse error>".red());
-            return;
+            return Tree::Node(
+                relative_path.yellow().to_string(),
+                vec![Tree::Leaf(vec!["<parse error>".red().to_string()])],
+            );
         },
     };
 
-    let entries: Vec<_> = resource
+    let entries: Vec<Tree> = resource
         .body
         .iter()
         .filter_map(|entry| match entry {
-            ast::Entry::Message(msg) => Some(FtlEntry::Message {
-                id: msg.id.name.clone(),
-                attributes: msg.attributes.iter().map(|a| a.id.name.clone()).collect(),
-                variables: extract_variables_from_message(msg),
-            }),
-            ast::Entry::Term(term) => Some(FtlEntry::Term {
-                id: term.id.name.clone(),
-                attributes: term.attributes.iter().map(|a| a.id.name.clone()).collect(),
-                variables: extract_variables_from_pattern(&term.value),
-            }),
+            ast::Entry::Message(msg) => Some(build_message_tree(
+                &msg.id.name,
+                msg,
+                show_attributes,
+                show_variables,
+            )),
+            ast::Entry::Term(term) => Some(build_term_tree(
+                &term.id.name,
+                term,
+                show_attributes,
+                show_variables,
+            )),
             ast::Entry::Comment(_) => None,
             ast::Entry::GroupComment(_) => None,
             ast::Entry::ResourceComment(_) => None,
@@ -137,136 +135,91 @@ fn print_file_tree(
         })
         .collect();
 
-    let entry_prefix = if is_last_file { "      " } else { "  │   " };
-
-    for (idx, entry) in entries.iter().enumerate() {
-        let is_last_entry = idx == entries.len() - 1;
-        let entry_connector = if is_last_entry {
-            "└── "
-        } else {
-            "├── "
-        };
-
-        match entry {
-            FtlEntry::Message {
-                id,
-                attributes,
-                variables,
-            } => {
-                println!("{}{}{}", entry_prefix, entry_connector, id);
-                print_details(
-                    entry_prefix,
-                    is_last_entry,
-                    show_attributes,
-                    show_variables,
-                    attributes,
-                    variables,
-                );
-            },
-            FtlEntry::Term {
-                id,
-                attributes,
-                variables,
-            } => {
-                println!("{}{}{} {}", entry_prefix, entry_connector, "-".dimmed(), id);
-                print_details(
-                    entry_prefix,
-                    is_last_entry,
-                    show_attributes,
-                    show_variables,
-                    attributes,
-                    variables,
-                );
-            },
-        }
-    }
+    Tree::Node(relative_path.yellow().to_string(), entries)
 }
 
-/// Print attributes and variables for an entry.
-fn print_details(
-    entry_prefix: &str,
-    is_last_entry: bool,
+/// Build a tree for a message entry.
+fn build_message_tree(
+    id: &str,
+    msg: &ast::Message<String>,
     show_attributes: bool,
     show_variables: bool,
-    attributes: &[String],
-    variables: &[String],
-) {
-    if !show_attributes && !show_variables {
-        return;
-    }
+) -> Tree {
+    let children = build_entry_children(
+        &msg.attributes,
+        msg.value.as_ref(),
+        show_attributes,
+        show_variables,
+    );
 
-    let detail_prefix = if is_last_entry {
-        format!("{}    ", entry_prefix)
+    if children.is_empty() {
+        Tree::Leaf(vec![id.to_string()])
     } else {
-        format!("{}│   ", entry_prefix)
-    };
+        Tree::Node(id.to_string(), children)
+    }
+}
 
-    let mut has_details = false;
+/// Build a tree for a term entry.
+fn build_term_tree(
+    id: &str,
+    term: &ast::Term<String>,
+    show_attributes: bool,
+    show_variables: bool,
+) -> Tree {
+    let children = build_entry_children(
+        &term.attributes,
+        Some(&term.value),
+        show_attributes,
+        show_variables,
+    );
 
-    if show_attributes && !attributes.is_empty() {
-        for (idx, attr) in attributes.iter().enumerate() {
-            let is_last_attr =
-                !show_variables || (idx == attributes.len() - 1 && variables.is_empty());
-            let connector = if is_last_attr {
-                "└── "
-            } else {
-                "├── "
-            };
-            println!("{}{}@{}", detail_prefix, connector, attr.dimmed());
+    let label = format!("-{}", id);
+
+    if children.is_empty() {
+        Tree::Leaf(vec![label.dimmed().to_string()])
+    } else {
+        Tree::Node(label.dimmed().to_string(), children)
+    }
+}
+
+/// Build child nodes for an entry (attributes and variables).
+fn build_entry_children(
+    attributes: &[ast::Attribute<String>],
+    value: Option<&ast::Pattern<String>>,
+    show_attributes: bool,
+    show_variables: bool,
+) -> Vec<Tree> {
+    let mut children: Vec<Tree> = Vec::new();
+
+    if show_attributes {
+        for attr in attributes {
+            let attr_label = format!("@{}", attr.id.name);
+            children.push(Tree::Leaf(vec![attr_label.dimmed().to_string()]));
         }
-        has_details = true;
     }
 
-    if show_variables && !variables.is_empty() {
-        let vars_str = variables.join(", ");
-        let prefix = if has_details {
-            format!("{}    ", detail_prefix)
-        } else {
-            detail_prefix.clone()
-        };
-        println!("{}${}", prefix, vars_str.magenta());
-    }
-}
+    if show_variables {
+        let mut variables = Vec::new();
+        if let Some(pattern) = value {
+            extract_variables_from_pattern_into(pattern, &mut variables);
+        }
+        for attr in attributes {
+            extract_variables_from_pattern_into(&attr.value, &mut variables);
+        }
 
-/// An entry in an FTL file.
-enum FtlEntry {
-    Message {
-        id: String,
-        attributes: Vec<String>,
-        variables: Vec<String>,
-    },
-    Term {
-        id: String,
-        attributes: Vec<String>,
-        variables: Vec<String>,
-    },
-}
-
-/// Extract variable names from a message.
-fn extract_variables_from_message(msg: &ast::Message<String>) -> Vec<String> {
-    let mut variables = Vec::new();
-    if let Some(ref value) = msg.value {
-        let mut vars = Vec::new();
-        extract_variables_from_pattern_into(value, &mut vars);
-        variables.extend(vars);
+        if !variables.is_empty() {
+            variables.sort();
+            variables.dedup();
+            let vars_str = variables
+                .iter()
+                .map(|v| format!("${}", v))
+                .collect::<Vec<_>>()
+                .join(", ");
+            children.push(Tree::Leaf(vec![vars_str.magenta().to_string()]));
+        }
     }
-    for attr in &msg.attributes {
-        let mut vars = Vec::new();
-        extract_variables_from_pattern_into(&attr.value, &mut vars);
-        variables.extend(vars);
-    }
-    variables.sort();
-    variables.dedup();
-    variables
-}
 
-/// Extract variable names from a pattern.
-fn extract_variables_from_pattern(pattern: &ast::Pattern<String>) -> Vec<String> {
-    let mut variables = Vec::new();
-    extract_variables_from_pattern_into(pattern, &mut variables);
-    variables.sort();
-    variables.dedup();
-    variables
+    children
 }
 
 /// Extract variable names from a pattern into a vector.

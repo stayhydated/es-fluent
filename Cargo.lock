@@ -3875,6 +3875,7 @@ dependencies = [
  "terminal-link",
  "thiserror 2.0.18",
  "throbber-widgets-tui",
+ "treelog",
  "walkdir",
 ]
 
@@ -9949,6 +9950,12 @@ name = "tree-sitter-language"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4013970217383f67b18aef68f6fb2e8d409bc5755227092d32efb0422ba24b8"
+
+[[package]]
+name = "treelog"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8ef568e76b5fb29dcccd133677bc93c9588383651506351ccf101a7374496c6"
 
 [[package]]
 name = "triomphe"
