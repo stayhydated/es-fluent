@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use es_fluent_cli::commands::{
-    CheckArgs, CleanArgs, FormatArgs, GenerateArgs, SyncArgs, WatchArgs, run_check, run_clean,
-    run_format, run_generate, run_sync, run_watch,
+    CheckArgs, CleanArgs, FormatArgs, GenerateArgs, SyncArgs, TreeArgs, WatchArgs, run_check,
+    run_clean, run_format, run_generate, run_sync, run_tree, run_watch,
 };
 use miette::Result as MietteResult;
 
@@ -46,6 +46,9 @@ enum Commands {
 
     /// Sync missing translations from fallback to other locales
     Sync(SyncArgs),
+
+    /// Display a tree view of FTL items for each crate
+    Tree(TreeArgs),
 }
 
 fn main() -> MietteResult<()> {
@@ -81,6 +84,7 @@ fn main() -> MietteResult<()> {
         Commands::Fmt(args) => run_format(args),
         Commands::Check(args) => run_check(args),
         Commands::Sync(args) => run_sync(args),
+        Commands::Tree(args) => run_tree(args),
     };
 
     result.map_err(miette::Report::new)

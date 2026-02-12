@@ -181,6 +181,10 @@ pub fn print_format_header() {
     println!("{}", "Fluent FTL Formatter".dimmed());
 }
 
+pub fn print_tree_header() {
+    println!("{}", "Fluent FTL Tree".dimmed());
+}
+
 pub fn print_would_format(path: &Path) {
     println!("{} {}", "Would format:".yellow(), path.display());
 }

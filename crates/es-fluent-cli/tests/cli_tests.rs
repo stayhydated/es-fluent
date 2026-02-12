@@ -1369,3 +1369,65 @@ mod check_issues {
         assert_snapshot!(output);
     }
 }
+
+mod tree {
+    use super::*;
+
+    fn run_tree_test(config: &E2eConfig) -> String {
+        let temp = (config.setup)();
+        run_cli(&temp, &["tree"])
+    }
+
+    fn run_tree_all_test(config: &E2eConfig) -> String {
+        let temp = (config.setup)();
+        run_cli(&temp, &["tree", "--all"])
+    }
+
+    fn run_tree_attributes_test(config: &E2eConfig) -> String {
+        let temp = (config.setup)();
+        run_cli(&temp, &["tree", "--attributes"])
+    }
+
+    fn run_tree_variables_test(config: &E2eConfig) -> String {
+        let temp = (config.setup)();
+        run_cli(&temp, &["tree", "--variables"])
+    }
+
+    mod workspace {
+        use super::*;
+
+        #[test]
+        fn test_tree() {
+            assert_snapshot!(run_tree_test(&WORKSPACE_CONFIG));
+        }
+
+        #[test]
+        fn test_tree_all() {
+            assert_snapshot!(run_tree_all_test(&WORKSPACE_CONFIG));
+        }
+
+        #[test]
+        fn test_tree_attributes() {
+            assert_snapshot!(run_tree_attributes_test(&WORKSPACE_CONFIG));
+        }
+
+        #[test]
+        fn test_tree_variables() {
+            assert_snapshot!(run_tree_variables_test(&WORKSPACE_CONFIG));
+        }
+    }
+
+    mod package {
+        use super::*;
+
+        #[test]
+        fn test_tree() {
+            assert_snapshot!(run_tree_test(&PACKAGE_CONFIG));
+        }
+
+        #[test]
+        fn test_tree_all() {
+            assert_snapshot!(run_tree_all_test(&PACKAGE_CONFIG));
+        }
+    }
+}
