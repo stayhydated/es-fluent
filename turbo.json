@@ -12,7 +12,8 @@
         "Cargo.lock",
         "crates/**",
         "examples/bevy-example/**",
-        "examples/assets/**"
+        "examples/assets/fonts/**",
+        "examples/assets/i18n/**/bevy-example/**"
       ],
       "outputs": ["web/public/bevy-example/**"]
     },
