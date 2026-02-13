@@ -170,6 +170,7 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #[derive(es_fluent::__rust_embed::RustEmbed)]
+        #[crate_path = "es_fluent::__rust_embed"]
         #[folder = #i18n_root_str]
         struct #assets_struct_name;
 
