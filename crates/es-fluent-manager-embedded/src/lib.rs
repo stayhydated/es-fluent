@@ -6,6 +6,15 @@ use es_fluent_manager_core::FluentManager;
 use std::sync::{Arc, OnceLock};
 use unic_langid::LanguageIdentifier;
 
+#[doc(hidden)]
+pub use es_fluent::__inventory;
+#[doc(hidden)]
+pub use es_fluent::__rust_embed;
+#[doc(hidden)]
+pub use es_fluent_manager_core as __manager_core;
+#[doc(hidden)]
+pub use unic_langid as __unic_langid;
+
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_module;
 
