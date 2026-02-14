@@ -93,10 +93,13 @@ fn load_i18n_assets(crate_name: &str) -> I18nAssets {
     }
 }
 
-fn language_identifier_tokens(languages: &[String]) -> Vec<proc_macro2::TokenStream> {
+fn language_identifier_tokens(
+    languages: &[String],
+    langid_path: &proc_macro2::TokenStream,
+) -> Vec<proc_macro2::TokenStream> {
     languages
         .iter()
-        .map(|lang| quote! { es_fluent::unic_langid::langid!(#lang) })
+        .map(|lang| quote! { #langid_path::langid!(#lang) })
         .collect()
 }
 
@@ -162,25 +165,27 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         namespaces,
     } = load_i18n_assets(&crate_name);
 
-    let language_identifiers = language_identifier_tokens(&languages);
+    let embedded_langid_path = quote! { ::es_fluent_manager_embedded::__unic_langid };
+    let language_identifiers = language_identifier_tokens(&languages, &embedded_langid_path);
 
     let namespace_strings = namespace_tokens(&namespaces);
 
     let i18n_root_str = i18n_root_path.to_string_lossy();
 
     let expanded = quote! {
-        #[derive(es_fluent::__rust_embed::RustEmbed)]
+        #[derive(::es_fluent_manager_embedded::__rust_embed::RustEmbed)]
+        #[crate_path = "es_fluent_manager_embedded::__rust_embed"]
         #[folder = #i18n_root_str]
         struct #assets_struct_name;
 
-        impl es_fluent::__manager_core::EmbeddedAssets for #assets_struct_name {
+        impl ::es_fluent_manager_embedded::__manager_core::EmbeddedAssets for #assets_struct_name {
             fn domain() -> &'static str {
                 #crate_name
             }
         }
 
-        static #module_data_name: es_fluent::__manager_core::EmbeddedModuleData =
-            es_fluent::__manager_core::EmbeddedModuleData {
+        static #module_data_name: ::es_fluent_manager_embedded::__manager_core::EmbeddedModuleData =
+            ::es_fluent_manager_embedded::__manager_core::EmbeddedModuleData {
                 name: #crate_name,
                 domain: #crate_name,
                 supported_languages: &[
@@ -191,9 +196,9 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
                 ],
             };
 
-        es_fluent::__inventory::submit!(
-            &es_fluent::__manager_core::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name)
-            as &dyn es_fluent::__manager_core::I18nModule
+        ::es_fluent_manager_embedded::__inventory::submit!(
+            &::es_fluent_manager_embedded::__manager_core::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name)
+            as &dyn ::es_fluent_manager_embedded::__manager_core::I18nModule
         );
     };
 
@@ -455,12 +460,13 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         ..
     } = load_i18n_assets(&crate_name);
 
-    let language_identifiers = language_identifier_tokens(&languages);
+    let bevy_langid_path = quote! { ::es_fluent_manager_bevy::__unic_langid };
+    let language_identifiers = language_identifier_tokens(&languages, &bevy_langid_path);
 
     let namespace_strings = namespace_tokens(&namespaces);
 
     let expanded = quote! {
-        static #static_data_name: es_fluent::__manager_core::AssetModuleData = es_fluent::__manager_core::AssetModuleData {
+        static #static_data_name: ::es_fluent_manager_bevy::__manager_core::AssetModuleData = ::es_fluent_manager_bevy::__manager_core::AssetModuleData {
             name: #crate_name,
             domain: #crate_name,
             supported_languages: &[
@@ -471,9 +477,9 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
             ],
         };
 
-        es_fluent::__inventory::submit!(
-            &es_fluent::__manager_core::AssetI18nModule::new(&#static_data_name)
-            as &dyn es_fluent::__manager_core::I18nAssetModule
+        ::es_fluent_manager_bevy::__inventory::submit!(
+            &::es_fluent_manager_bevy::__manager_core::AssetI18nModule::new(&#static_data_name)
+            as &dyn ::es_fluent_manager_bevy::__manager_core::I18nAssetModule
         );
     };
 

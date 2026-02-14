@@ -8,13 +8,9 @@ publish = false
 
 [dependencies]
 es-fluent = { features = [ "derive" ], workspace = true }
-rust-embed = { workspace = true }
 
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }
 
 [lints]
 workspace = true
-
-[package.metadata.cargo-machete]
-ignored = [ "rust-embed" ]

@@ -4099,7 +4099,6 @@ dependencies = [
  "es-fluent-manager-bevy",
  "es-fluent-manager-embedded",
  "gpui",
- "rust-embed",
  "strum 0.27.2",
 ]
 
@@ -4230,7 +4229,6 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
  "example-shared-lib",
- "rust-embed",
  "strum 0.27.2",
  "unic-langid",
 ]
@@ -5052,7 +5050,6 @@ dependencies = [
  "example-shared-lib",
  "gpui",
  "gpui-component",
- "rust-embed",
  "unic-langid",
 ]
 
@@ -8213,7 +8210,6 @@ name = "readme"
 version = "0.12.0"
 dependencies = [
  "es-fluent",
- "rust-embed",
 ]
 
 [[package]]
@@ -9602,7 +9598,6 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
  "example-shared-lib",
- "rust-embed",
  "strum 0.27.2",
  "thiserror 2.0.18",
  "unic-langid",

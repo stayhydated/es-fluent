@@ -96,7 +96,7 @@ enum Action {
 impl EsFluentGenerator {
     /// Runs the generator based on command line arguments.
     pub fn run_cli(self) -> Result<bool, GeneratorError> {
-        use clap::Parser;
+        use clap::Parser as _;
         let args = GeneratorArgs::parse();
 
         match args.action {
