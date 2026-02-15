@@ -67,40 +67,9 @@ fn available_languages() -> &'static HashSet<LanguageIdentifier> {
 #[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
-    let mut candidates = Vec::new();
-    let mut push = |candidate: LanguageIdentifier| {
-        if !candidates.iter().any(|existing| existing == &candidate) {
-            candidates.push(candidate);
-        }
-    };
+    use es_fluent_manager_core::locale_candidates;
 
-    push(lang.clone());
-
-    let mut without_variants = lang.clone();
-    without_variants.clear_variants();
-    push(without_variants.clone());
-
-    if without_variants.region.is_some() {
-        let mut no_region = without_variants.clone();
-        no_region.region = None;
-        push(no_region);
-    }
-
-    if without_variants.script.is_some() {
-        let mut no_script = without_variants.clone();
-        no_script.script = None;
-        push(no_script);
-    }
-
-    if let Ok(primary) = without_variants
-        .language
-        .as_str()
-        .parse::<LanguageIdentifier>()
-    {
-        push(primary);
-    }
-
-    candidates
+    locale_candidates(lang)
 }
 
 #[cfg(not(feature = "localized-langs"))]

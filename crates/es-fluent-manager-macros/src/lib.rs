@@ -215,7 +215,7 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
 /// - Use `register_fluent_text_from_locale` instead of `register_fluent_text`
 ///
 /// The `#[locale]` attribute marks fields that should be updated when the locale changes.
-/// The field type must implement `From<&LanguageIdentifier>`.
+/// The field type must implement `TryFrom<&LanguageIdentifier>`.
 ///
 /// # Example (simple)
 ///
@@ -396,7 +396,9 @@ fn generate_refresh_for_locale_impl(
 
                     quote! {
                         Self::#variant_ident { #field_ident, #(#other_patterns),* } => {
-                            *#field_ident = ::std::convert::From::from(lang);
+                            if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
+                                *#field_ident = value;
+                            }
                         }
                     }
                 })
@@ -419,7 +421,9 @@ fn generate_refresh_for_locale_impl(
                 .map(|info| {
                     let field_ident = &info.field_ident;
                     quote! {
-                        self.#field_ident = ::std::convert::From::from(lang);
+                        if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
+                            self.#field_ident = value;
+                        }
                     }
                 })
                 .collect();

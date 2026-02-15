@@ -1,5 +1,8 @@
 //! Namespace attribute for FTL file generation.
 
+use crate::namespace_resolver::{
+    file_relative_namespace, file_stem_namespace, folder_namespace, folder_relative_namespace,
+};
 use darling::FromMeta;
 
 /// Represents the namespace attribute value.
@@ -31,49 +34,10 @@ impl NamespaceValue {
     pub fn resolve(&self, file_path: &str) -> String {
         match self {
             NamespaceValue::Literal(s) => s.clone(),
-            NamespaceValue::File => std::path::Path::new(file_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            NamespaceValue::FileRelative => {
-                // Strip src/ prefix if present and remove extension
-                let path = std::path::Path::new(file_path);
-                let without_ext = path.with_extension("");
-                let path_str = without_ext.to_str().unwrap_or("unknown");
-
-                // Strip common prefixes like "src/"
-                path_str
-                    .strip_prefix("src/")
-                    .or_else(|| path_str.strip_prefix("src\\"))
-                    .unwrap_or(path_str)
-                    .to_string()
-            },
-            NamespaceValue::Folder => std::path::Path::new(file_path)
-                .parent()
-                .and_then(std::path::Path::file_name)
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            NamespaceValue::FolderRelative => {
-                let path = std::path::Path::new(file_path);
-                let parent = path.parent().unwrap_or(path);
-                let parent_str = parent.to_str().unwrap_or("unknown");
-                let stripped = parent_str
-                    .strip_prefix("src/")
-                    .or_else(|| parent_str.strip_prefix("src\\"))
-                    .unwrap_or(parent_str);
-
-                if stripped.is_empty() {
-                    if parent_str.is_empty() {
-                        "unknown".to_string()
-                    } else {
-                        parent_str.to_string()
-                    }
-                } else {
-                    stripped.to_string()
-                }
-            },
+            NamespaceValue::File => file_stem_namespace(file_path),
+            NamespaceValue::FileRelative => file_relative_namespace(file_path, None),
+            NamespaceValue::Folder => folder_namespace(file_path),
+            NamespaceValue::FolderRelative => folder_relative_namespace(file_path, None),
         }
     }
 }

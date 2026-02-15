@@ -38,7 +38,11 @@ It also implements:
 
 - `Default`: Uses the `fallback_language` from your config.
 - `FromStr`: Parses string codes (e.g., "en-US") into the enum variant.
+- `TryFrom<&LanguageIdentifier>` / `TryFrom<LanguageIdentifier>`: Converts from a locale ID and returns an error for unsupported locales.
 - `Into<LanguageIdentifier>`: Converts back to a standard locale ID.
+
+For user-facing labels, derive `EsFluent` on the generated enum and call
+`to_fluent_string()` instead of relying on `Display`.
 
 ### Feature Flags
 

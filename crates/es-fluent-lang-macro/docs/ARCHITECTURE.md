@@ -25,7 +25,7 @@ flowchart TD
 
     subgraph OUTPUT["Expanded Code"]
         EXP_ENUM["enum Languages {<br/>  En,<br/>  Fr,<br/>}"]
-        IMPL["impl FromStr/Display"]
+        IMPL["impl FromStr/TryFrom"]
     end
 
     TOML -->|defines| ASSETS
@@ -63,7 +63,7 @@ The detailed steps are:
    - The user provides an **empty enum**.
    - The macro populates it with variants corresponding to the discovered language codes (converted to PascalCase).
    - Each variant receives a `#[fluent(key = "...")]` attribute with the canonical language code.
-   - It implements helper traits for converting between the enum and string representations.
+   - It implements helper traits for converting between the enum and language identifiers (`From`, `TryFrom`, `FromStr`).
    - It implements `Default` based on the fallback language defined in `i18n.toml`.
 
 ## Modes

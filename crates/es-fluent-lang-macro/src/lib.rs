@@ -4,7 +4,7 @@ use heck::ToUpperCamelCase as _;
 use proc_macro::TokenStream;
 use proc_macro_error2::{abort, abort_call_site, proc_macro_error};
 use proc_macro2::Span;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
     Fields, ItemEnum, LitStr, Variant, parse_macro_input, parse_quote, spanned::Spanned as _,
 };
@@ -14,43 +14,9 @@ mod supported_locales;
 fn supported_language_keys_for(
     lang: &unic_langid::LanguageIdentifier,
 ) -> impl Iterator<Item = String> {
-    use std::collections::HashSet;
-
-    let mut seen = HashSet::new();
-    let mut keys = Vec::new();
-
-    let mut push_key = |key: String| {
-        if seen.insert(key.clone()) {
-            keys.push(key);
-        }
-    };
-
-    // Full canonical form (language-script-region-variants)
-    push_key(lang.to_string());
-
-    // Canonical form without variants (used for fallback checks)
-    let mut without_variants = lang.clone();
-    without_variants.clear_variants();
-    push_key(without_variants.to_string());
-
-    // Drop region (e.g., `en-Latn-US` -> `en-Latn`)
-    if without_variants.region.is_some() {
-        let mut no_region = without_variants.clone();
-        no_region.region = None;
-        push_key(no_region.to_string());
-    }
-
-    // Drop script (e.g., `sr-Cyrl-RS` -> `sr-RS`)
-    if without_variants.script.is_some() {
-        let mut no_script = without_variants.clone();
-        no_script.script = None;
-        push_key(no_script.to_string());
-    }
-
-    // Just the base language subtag (e.g., `en`)
-    push_key(without_variants.language.to_string());
-
-    keys.into_iter()
+    es_fluent_manager_core::locale_candidates(lang)
+        .into_iter()
+        .map(|candidate| candidate.to_string())
 }
 
 fn is_supported_language(
@@ -210,8 +176,11 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
         ),
     };
 
+    let conversion_error_ident = format_ident!("{enum_ident}LanguageConversionError");
     let language_literals_for_ref = language_literals.clone();
     let variant_idents_for_ref = variant_idents.clone();
+    let language_literals_for_try_from = language_literals.clone();
+    let variant_idents_for_try_from = variant_idents.clone();
 
     let expanded = quote! {
         #input_enum
@@ -232,13 +201,68 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
 
-        impl From<&es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
-            fn from(lang: &es_fluent::unic_langid::LanguageIdentifier) -> Self {
+        #[derive(Debug)]
+        pub enum #conversion_error_ident {
+            InvalidLanguageIdentifier {
+                input: String,
+                source: es_fluent::unic_langid::LanguageIdentifierError,
+            },
+            UnsupportedLanguageIdentifier(es_fluent::unic_langid::LanguageIdentifier),
+        }
+
+        impl ::std::fmt::Display for #conversion_error_ident {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                match self {
+                    Self::InvalidLanguageIdentifier { input, source } => {
+                        write!(f, "invalid language identifier '{input}': {source}")
+                    }
+                    Self::UnsupportedLanguageIdentifier(lang) => {
+                        write!(f, "unsupported language identifier: {lang}")
+                    }
+                }
+            }
+        }
+
+        impl ::std::error::Error for #conversion_error_ident {
+            fn source(&self) -> Option<&(dyn ::std::error::Error + 'static)> {
+                match self {
+                    Self::InvalidLanguageIdentifier { source, .. } => Some(source),
+                    Self::UnsupportedLanguageIdentifier(_) => None,
+                }
+            }
+        }
+
+        impl ::std::convert::TryFrom<&es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
+            type Error = #conversion_error_ident;
+
+            fn try_from(lang: &es_fluent::unic_langid::LanguageIdentifier) -> Result<Self, Self::Error> {
                 let lang_str = lang.to_string();
                 match lang_str.as_str() {
-                    #( #language_literals_for_ref => #enum_ident::#variant_idents, )*
-                    _ => panic!("Unsupported language identifier: {}", lang),
+                    #( #language_literals_for_try_from => Ok(#enum_ident::#variant_idents_for_try_from), )*
+                    _ => Err(#conversion_error_ident::UnsupportedLanguageIdentifier(lang.clone())),
                 }
+            }
+        }
+
+        impl ::std::convert::TryFrom<es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
+            type Error = #conversion_error_ident;
+
+            fn try_from(lang: es_fluent::unic_langid::LanguageIdentifier) -> Result<Self, Self::Error> {
+                Self::try_from(&lang)
+            }
+        }
+
+        impl ::std::str::FromStr for #enum_ident {
+            type Err = #conversion_error_ident;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                let lang = s.parse::<es_fluent::unic_langid::LanguageIdentifier>().map_err(|source| {
+                    #conversion_error_ident::InvalidLanguageIdentifier {
+                        input: s.to_string(),
+                        source,
+                    }
+                })?;
+                Self::try_from(&lang)
             }
         }
 
