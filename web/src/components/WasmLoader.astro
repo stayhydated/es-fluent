@@ -4,7 +4,6 @@ interface Props {
   initExport?: string;
   loadingText?: string;
   errorText?: string;
-  canvasId?: string;
 }
 
 const {
@@ -12,21 +11,7 @@ const {
   initExport = "default",
   loadingText = "Loading...",
   errorText = "Failed to load.",
-  canvasId,
 } = Astro.props;
-
-const hasDefaultSlot = Astro.slots.has("default");
-const resolveModuleStem = (url: string) =>
-  url
-    .split("?")[0]
-    .split("#")[0]
-    .split("/")
-    .pop()
-    ?.split(".")
-    .slice(0, -1)
-    .join(".")
-    || "wasm";
-const resolvedCanvasId = canvasId ?? resolveModuleStem(moduleUrl);
 ---
 
 <div class="wasm-loader" data-state="loading">
@@ -36,12 +21,10 @@ const resolvedCanvasId = canvasId ?? resolveModuleStem(moduleUrl);
   <div class="wasm-loader__status" data-state="error" role="alert" aria-live="assertive">
     {errorText}
   </div>
-  <div class="wasm-loader__content" data-state="ready">
-    {hasDefaultSlot ? <slot /> : <canvas id={resolvedCanvasId}></canvas>}
-  </div>
 </div>
 
 <script is:inline define:vars={{ moduleUrl, initExport }}>
+  // @ts-nocheck - Variables are injected by Astro's define:vars
   const root = document.currentScript?.previousElementSibling;
   const setState = (state) => {
     if (!root) {
@@ -72,14 +55,14 @@ const resolvedCanvasId = canvasId ?? resolveModuleStem(moduleUrl);
     align-items: center;
     justify-content: center;
     min-height: 100vh;
+    min-height: 100dvh;
     width: 100vw;
     margin: 0 auto;
     text-align: center;
     color: var(--color-text);
   }
 
-  .wasm-loader__status,
-  .wasm-loader__content {
+  .wasm-loader__status {
     display: none;
   }
 
@@ -88,18 +71,7 @@ const resolvedCanvasId = canvasId ?? resolveModuleStem(moduleUrl);
     display: block;
   }
 
-  .wasm-loader[data-state="ready"] .wasm-loader__content[data-state="ready"] {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: 100vh;
-  }
-
-  .wasm-loader__content canvas {
-    display: block;
-    margin: 0 auto;
-    max-width: 100%;
-    max-height: 100%;
+  .wasm-loader[data-state="ready"] {
+    display: none;
   }
 </style>

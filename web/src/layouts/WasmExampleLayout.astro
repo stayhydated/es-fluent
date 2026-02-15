@@ -25,14 +25,17 @@ const baseUrl = import.meta.env.BASE_URL;
     position: relative;
     display: block;
     min-height: 100vh;
+    min-height: 100dvh;
   }
 
   :global(body > canvas) {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
+    position: fixed;
+    inset: 0;
     display: block;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    margin: 0;
   }
 
   :global(canvas) {
