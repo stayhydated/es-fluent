@@ -1,0 +1,13 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: run_tree_test(&PACKAGE_CONFIG)
+---
+STDOUT:
+Fluent FTL Tree
+ test-app-package
+ └─ en
+    └─ test-app-package.ftl
+       └─ hello
+
+
+STDERR:

@@ -8,6 +8,6 @@ pub mod static_resource;
 
 pub use asset_localization::{AssetI18nModule, AssetModuleData, I18nAssetModule};
 pub use embedded_localization::{EmbeddedAssets, EmbeddedI18nModule, EmbeddedModuleData};
-pub use fallback::{fallback_locales, resolve_fallback_language};
+pub use fallback::{fallback_locales, locale_candidates, resolve_fallback_language};
 pub use localization::{FluentManager, I18nModule, LocalizationError, Localizer};
 pub use static_resource::StaticI18nResource;

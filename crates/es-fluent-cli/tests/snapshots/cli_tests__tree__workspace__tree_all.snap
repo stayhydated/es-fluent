@@ -1,0 +1,32 @@
+---
+source: crates/es-fluent-cli/tests/cli_tests.rs
+expression: run_tree_all_test(&WORKSPACE_CONFIG)
+---
+STDOUT:
+Fluent FTL Tree
+ test-app-a
+ ├─ en
+ │  └─ test-app-a.ftl
+ │     ├─ z_last
+ │     ├─ hello_a
+ │     ├─ orphan_key
+ │     ├─ shared-Photos
+ │     ├─ gender-Male
+ │     ├─ gender-Female
+ │     └─ gender-Other
+ └─ es
+    └─ test-app-a.ftl
+       ├─ hello_a
+       ├─ orphan_key
+       └─ z_last
+
+ test-lib-b
+ ├─ en
+ │  └─ test-lib-b.ftl
+ │     └─ hello_b
+ └─ es
+    └─ test-lib-b.ftl
+       └─ hello_b
+
+
+STDERR:

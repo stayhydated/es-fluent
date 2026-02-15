@@ -2338,9 +2338,9 @@ dependencies = [
 
 [[package]]
 name = "bon"
-version = "3.8.2"
+version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "234655ec178edd82b891e262ea7cf71f6584bcd09eff94db786be23f1821825c"
+checksum = "2d13a61f2963b88eef9c1be03df65d42f6996dfeac1054870d950fcf66686f83"
 dependencies = [
  "bon-macros",
  "rustversion",
@@ -2348,9 +2348,9 @@ dependencies = [
 
 [[package]]
 name = "bon-macros"
-version = "3.8.2"
+version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89ec27229c38ed0eb3c0feee3d2c1d6a4379ae44f418a29a658890e062d8f365"
+checksum = "d314cc62af2b6b0c65780555abb4d02a03dd3b799cd42419044f0c38d99738c0"
 dependencies = [
  "darling 0.23.0",
  "ident_case",
@@ -3875,6 +3875,7 @@ dependencies = [
  "terminal-link",
  "thiserror 2.0.18",
  "throbber-widgets-tui",
+ "treelog",
  "walkdir",
 ]
 
@@ -3931,7 +3932,7 @@ dependencies = [
  "strum 0.27.2",
  "syn 2.0.114",
  "thiserror 2.0.18",
- "toml 0.9.11+spec-1.1.0",
+ "toml 1.0.1+spec-1.1.0",
  "unic-langid",
 ]
 
@@ -3947,6 +3948,7 @@ dependencies = [
  "indexmap",
  "proc-macro2",
  "similar",
+ "strum 0.27.2",
  "syn 2.0.114",
  "tempfile",
  "tracing",
@@ -3969,6 +3971,7 @@ dependencies = [
 name = "es-fluent-lang-macro"
 version = "0.12.0"
 dependencies = [
+ "es-fluent-manager-core",
  "es-fluent-toml",
  "heck 0.5.0",
  "proc-macro-error2",
@@ -4038,7 +4041,7 @@ dependencies = [
  "serde",
  "tempfile",
  "thiserror 2.0.18",
- "toml 0.9.11+spec-1.1.0",
+ "toml 1.0.1+spec-1.1.0",
  "unic-langid",
 ]
 
@@ -4098,7 +4101,6 @@ dependencies = [
  "es-fluent-manager-bevy",
  "es-fluent-manager-embedded",
  "gpui",
- "rust-embed",
  "strum 0.27.2",
 ]
 
@@ -4229,7 +4231,6 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
  "example-shared-lib",
- "rust-embed",
  "strum 0.27.2",
  "unic-langid",
 ]
@@ -5051,7 +5052,6 @@ dependencies = [
  "example-shared-lib",
  "gpui",
  "gpui-component",
- "rust-embed",
  "unic-langid",
 ]
 
@@ -8212,7 +8212,6 @@ name = "readme"
 version = "0.12.0"
 dependencies = [
  "es-fluent",
- "rust-embed",
 ]
 
 [[package]]
@@ -9601,7 +9600,6 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
  "example-shared-lib",
- "rust-embed",
  "strum 0.27.2",
  "thiserror 2.0.18",
  "unic-langid",
@@ -9771,6 +9769,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "1.0.1+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbe30f93627849fa362d4a602212d41bb237dc2bd0f8ba0b2ce785012e124220"
+dependencies = [
+ "indexmap",
+ "serde_core",
+ "serde_spanned 1.0.4",
+ "toml_datetime 1.0.0+spec-1.1.0",
+ "toml_parser",
+ "toml_writer",
+ "winnow",
+]
+
+[[package]]
 name = "toml_datetime"
 version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9784,6 +9797,15 @@ name = "toml_datetime"
 version = "0.7.5+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "1.0.0+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32c2555c699578a4f59f0cc68e5116c8d7cabbd45e1409b989d4be085b53f13e"
 dependencies = [
  "serde_core",
 ]
@@ -9816,9 +9838,9 @@ dependencies = [
 
 [[package]]
 name = "toml_parser"
-version = "1.0.6+spec-1.1.0"
+version = "1.0.8+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3198b4b0a8e11f09dd03e133c0280504d0801269e9afa46362ffde1cbeebf44"
+checksum = "0742ff5ff03ea7e67c8ae6c93cac239e0d9784833362da3f9a9c1da8dfefcbdc"
 dependencies = [
  "winnow",
 ]
@@ -9949,6 +9971,12 @@ name = "tree-sitter-language"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4013970217383f67b18aef68f6fb2e8d409bc5755227092d32efb0422ba24b8"
+
+[[package]]
+name = "treelog"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8ef568e76b5fb29dcccd133677bc93c9588383651506351ccf101a7374496c6"
 
 [[package]]
 name = "triomphe"

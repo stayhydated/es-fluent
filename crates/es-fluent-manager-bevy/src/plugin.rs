@@ -6,11 +6,13 @@ use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
+#[doc(hidden)]
 pub struct I18nPluginConfig {
     pub initial_language: LanguageIdentifier,
     pub asset_path: String,
 }
 
+#[doc(hidden)]
 impl Default for I18nPluginConfig {
     fn default() -> Self {
         Self {
@@ -30,6 +32,7 @@ impl I18nPlugin {
         Self { config }
     }
 
+    #[doc(hidden)]
     pub fn with_language(initial_language: LanguageIdentifier) -> Self {
         Self {
             config: I18nPluginConfig {
@@ -39,6 +42,7 @@ impl I18nPlugin {
         }
     }
 
+    #[doc(hidden)]
     pub fn with_config(config: I18nPluginConfig) -> Self {
         Self::new(config)
     }
@@ -156,6 +160,7 @@ impl Plugin for I18nPlugin {
     }
 }
 
+#[doc(hidden)]
 fn handle_asset_loading(
     mut i18n_assets: ResMut<I18nAssets>,
     ftl_assets: Res<Assets<FtlAsset>>,
@@ -200,6 +205,7 @@ fn handle_asset_loading(
     }
 }
 
+#[doc(hidden)]
 fn build_fluent_bundles(
     mut i18n_bundle: ResMut<I18nBundle>,
     i18n_assets: Res<I18nAssets>,
@@ -258,6 +264,7 @@ fn build_fluent_bundles(
     }
 }
 
+#[doc(hidden)]
 fn handle_locale_changes(
     mut locale_change_events: MessageReader<LocaleChangeEvent>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
@@ -286,6 +293,7 @@ fn handle_locale_changes(
     }
 }
 
+#[doc(hidden)]
 fn sync_global_state(
     i18n_bundle: Res<I18nBundle>,
     i18n_resource: Res<I18nResource>,
@@ -305,14 +313,17 @@ fn sync_global_state(
     }
 }
 
+#[doc(hidden)]
 static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct BevyI18nState {
     current_language: LanguageIdentifier,
     bundle: I18nBundle,
 }
 
+#[doc(hidden)]
 impl BevyI18nState {
     pub fn new(initial_language: LanguageIdentifier) -> Self {
         Self {
@@ -361,6 +372,7 @@ impl BevyI18nState {
     }
 }
 
+#[doc(hidden)]
 pub fn set_bevy_i18n_state(state: BevyI18nState) {
     BEVY_I18N_STATE
         .set(ArcSwap::from_pointee(state))
@@ -368,6 +380,7 @@ pub fn set_bevy_i18n_state(state: BevyI18nState) {
         .expect("Failed to set Bevy i18n state");
 }
 
+#[doc(hidden)]
 pub fn update_global_bundle(bundle: I18nBundle) {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
@@ -376,6 +389,7 @@ pub fn update_global_bundle(bundle: I18nBundle) {
     }
 }
 
+#[doc(hidden)]
 pub fn update_global_language(lang: LanguageIdentifier) {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
@@ -384,6 +398,7 @@ pub fn update_global_language(lang: LanguageIdentifier) {
     }
 }
 
+#[doc(hidden)]
 fn bevy_custom_localizer<'a>(
     id: &str,
     args: Option<&HashMap<&str, FluentValue<'a>>>,

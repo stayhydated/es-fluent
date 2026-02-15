@@ -1,6 +1,7 @@
 use es_fluent_derive_core::namer;
 use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
 
+use crate::macros::utils::namespace_rule_tokens;
 use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -214,24 +215,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
 
         // Generate namespace expression based on attribute
-        let namespace_expr = match opts.attr_args().namespace() {
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::Literal(s)) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::Literal(#s)) }
-            },
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::File) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::File) }
-            },
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::FileRelative) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
-            },
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::Folder) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::Folder) }
-            },
-            Some(es_fluent_derive_core::options::namespace::NamespaceValue::FolderRelative) => {
-                quote! { Some(::es_fluent::registry::NamespaceRule::FolderRelative) }
-            },
-            None => quote! { None },
-        };
+        let namespace_expr = namespace_rule_tokens(opts.attr_args().namespace());
 
         quote! {
             #[doc(hidden)]

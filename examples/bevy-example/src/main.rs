@@ -41,10 +41,10 @@ fn locale_change_system(
     mut locale_change_events: MessageWriter<LocaleChangeEvent>,
     current_language: Res<CurrentLanguageId>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyT) {
-        locale_change_events.write(LocaleChangeEvent(
-            Languages::from(&current_language.0).next().into(),
-        ));
+    if keyboard.just_pressed(KeyCode::KeyT)
+        && let Ok(lang) = Languages::try_from(&current_language.0)
+    {
+        locale_change_events.write(LocaleChangeEvent(lang.next().into()));
     }
 }
 
@@ -110,9 +110,9 @@ fn locale_button_system(
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
                 *border_color = BorderColor::all(RED);
-                locale_change_events.write(LocaleChangeEvent(
-                    Languages::from(&current_language.0).next().into(),
-                ));
+                if let Ok(lang) = Languages::try_from(&current_language.0) {
+                    locale_change_events.write(LocaleChangeEvent(lang.next().into()));
+                }
             },
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();

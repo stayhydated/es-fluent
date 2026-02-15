@@ -3,6 +3,7 @@
 pub mod error;
 pub mod meta;
 pub mod namer;
+pub(crate) mod namespace_resolver;
 pub mod options;
 pub mod path_utils;
 pub mod registry;

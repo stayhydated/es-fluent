@@ -177,7 +177,7 @@ impl StructVariantsOpts {
     }
 
     /// Returns the identifiers of the keyed FTL enums.
-    pub fn keyyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
+    pub fn keyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
         self.attr_args.clone().keys.map_or_else(
             || Ok(Vec::new()),
             |keys| {
@@ -247,5 +247,12 @@ impl StructVariantsFluentAttributeArgs {
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
         self.namespace.as_ref()
+    }
+
+    /// Returns the raw key strings if provided.
+    pub fn key_strings(&self) -> Option<Vec<String>> {
+        self.keys
+            .as_ref()
+            .map(|keys| keys.iter().map(|k| k.value()).collect())
     }
 }

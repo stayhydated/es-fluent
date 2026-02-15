@@ -8,30 +8,30 @@
 
 ## Architecture Documentation Index
 
-| Crate                        | Link to Architecture Doc                                               | Purpose                                                                                     |
-| ---------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Core**                     |                                                                        |                                                                                             |
-| `es-fluent`                  | [Architecture](crates/es-fluent/docs/ARCHITECTURE.md)                  | Ecosystem facade, entry point, and registry types.                                          |
-| `es-fluent-derive-core`      | [Architecture](crates/es-fluent-derive-core/docs/ARCHITECTURE.md)      | Build-time logic (options, validation, namer) for derive macros.                            |
-| `es-fluent-derive`           | [Architecture](crates/es-fluent-derive/docs/ARCHITECTURE.md)           | Proc-macros for registration and trait implementation.                                      |
-| `es-fluent-toml`             | [Architecture](crates/es-fluent-toml/docs/ARCHITECTURE.md)             | Configuration (`i18n.toml`) parsing and path resolution.                                    |
-| **Language Support**         |                                                                        |                                                                                             |
-| `es-fluent-lang`             | [Architecture](crates/es-fluent-lang/docs/ARCHITECTURE.md)             | Runtime language identification and embedded translations.                                  |
-| `es-fluent-lang-macro`       | [Architecture](crates/es-fluent-lang-macro/docs/ARCHITECTURE.md)       | Generates type-safe language selection enums from asset folders.                            |
-| **Managers**                 |                                                                        |                                                                                             |
-| `es-fluent-manager-core`     | [Architecture](crates/es-fluent-manager-core/docs/ARCHITECTURE.md)     | Abstract traits for localization backends.                                                  |
-| `es-fluent-manager-embedded` | [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md) | Zero-setup backend for embedding FTL files in binary.                                       |
-| `es-fluent-manager-bevy`     | [Architecture](crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md)     | Backend integration for Bevy engine ECS and assets.                                         |
-| `es-fluent-manager-macros`   | [Architecture](crates/es-fluent-manager-macros/docs/ARCHITECTURE.md)   | Macros for asset discovery and module registration.                                         |
-| **CLI Tool**                 |                                                                        |                                                                                             |
-| `es-fluent-cli`              | [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md)              | Primary developer-facing CLI (`cargo es-fluent`) for validating and generating FTL files.   |
-| **Tooling Internals**        |                                                                        |                                                                                             |
-| `es-fluent-cli-helpers`      | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md)      | Runtime logic for checking/generating FTL files (runner crate).                             |
-| `es-fluent-generate`         | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md)         | FTL AST manipulation, diffing, and formatting logic.                                        |
-| **Scripts**                  |                                                                        |                                                                                             |
-| `cldr-es-fluent-lang`        | [Architecture](scripts/cldr-es-fluent-lang/docs/ARCHITECTURE.md)       | Python script to generate language name data from Unicode CLDR.                             |
-| **Web**                      |                                                                        |                                                                                             |
-| `web`                        |                                                                        | Astro-based site for GitHub Pages. Hosts WASM-compiled examples (e.g., Bevy) as live demos. |
+| Crate                        | Link to Architecture Doc                                               | Purpose                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Core**                     |                                                                        |                                                                                           |
+| `es-fluent`                  | [Architecture](crates/es-fluent/docs/ARCHITECTURE.md)                  | Ecosystem facade, entry point, and registry types.                                        |
+| `es-fluent-derive-core`      | [Architecture](crates/es-fluent-derive-core/docs/ARCHITECTURE.md)      | Build-time logic (options, validation, namer) for derive macros.                          |
+| `es-fluent-derive`           | [Architecture](crates/es-fluent-derive/docs/ARCHITECTURE.md)           | Proc-macros for registration and trait implementation.                                    |
+| `es-fluent-toml`             | [Architecture](crates/es-fluent-toml/docs/ARCHITECTURE.md)             | Configuration (`i18n.toml`) parsing and path resolution.                                  |
+| **Language Support**         |                                                                        |                                                                                           |
+| `es-fluent-lang`             | [Architecture](crates/es-fluent-lang/docs/ARCHITECTURE.md)             | Runtime language identification and embedded translations.                                |
+| `es-fluent-lang-macro`       | [Architecture](crates/es-fluent-lang-macro/docs/ARCHITECTURE.md)       | Generates type-safe language selection enums from asset folders.                          |
+| **Managers**                 |                                                                        |                                                                                           |
+| `es-fluent-manager-core`     | [Architecture](crates/es-fluent-manager-core/docs/ARCHITECTURE.md)     | Abstract traits for localization backends.                                                |
+| `es-fluent-manager-embedded` | [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md) | Zero-setup backend for embedding FTL files in binary.                                     |
+| `es-fluent-manager-bevy`     | [Architecture](crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md)     | Backend integration for Bevy engine ECS and assets.                                       |
+| `es-fluent-manager-macros`   | [Architecture](crates/es-fluent-manager-macros/docs/ARCHITECTURE.md)   | Macros for asset discovery and module registration.                                       |
+| **CLI Tool**                 |                                                                        |                                                                                           |
+| `es-fluent-cli`              | [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md)              | Primary developer-facing CLI (`cargo es-fluent`) for validating and generating FTL files. |
+| **Tooling Internals**        |                                                                        |                                                                                           |
+| `es-fluent-cli-helpers`      | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md)      | Runtime logic for checking/generating FTL files (runner crate).                           |
+| `es-fluent-generate`         | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md)         | FTL AST manipulation, diffing, and formatting logic.                                      |
+| **Scripts**                  |                                                                        |                                                                                           |
+| `cldr-es-fluent-lang`        | [Architecture](scripts/cldr-es-fluent-lang/docs/ARCHITECTURE.md)       | Python script to generate language name data from Unicode CLDR.                           |
+| **Web**                      |                                                                        |                                                                                           |
+| `web`                        |                                                                        | Astro-based site for GitHub Pages. Hosts WASM-compiled examples as live demos.            |
 
 ## Crate Descriptions
 
@@ -86,6 +86,7 @@
 **JavaScript**
 
 - Use [bun](https://bun.com/) for dependency management.
+- [turborepo](https://turborepo.org/) is used as the build system.
 
 **Python**
 

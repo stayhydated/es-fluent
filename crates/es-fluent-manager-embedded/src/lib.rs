@@ -1,14 +1,36 @@
 #![doc = include_str!("../README.md")]
 
+#[doc(hidden)]
 use arc_swap::ArcSwap;
+
+#[doc(hidden)]
 use es_fluent::set_shared_context;
+
+#[doc(hidden)]
 use es_fluent_manager_core::FluentManager;
+
+#[doc(hidden)]
 use std::sync::{Arc, OnceLock};
+
+#[doc(hidden)]
 use unic_langid::LanguageIdentifier;
+
+#[doc(hidden)]
+pub use es_fluent::__inventory;
+
+#[doc(hidden)]
+pub use es_fluent::__rust_embed;
+
+#[doc(hidden)]
+pub use es_fluent_manager_core as __manager_core;
+
+#[doc(hidden)]
+pub use unic_langid as __unic_langid;
 
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_module;
 
+#[doc(hidden)]
 static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
 /// Initializes the embedded singleton `FluentManager`.
