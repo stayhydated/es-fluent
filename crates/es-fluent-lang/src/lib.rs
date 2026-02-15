@@ -81,6 +81,46 @@ fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
         .find(|candidate| available.contains(candidate))
 }
 
+fn build_fluent_args<'a>(args: Option<&HashMap<&str, FluentValue<'a>>>) -> Option<FluentArgs<'a>> {
+    args.map(|args| {
+        let mut fluent_args = FluentArgs::new();
+        for (key, value) in args {
+            fluent_args.set((*key).to_string(), value.clone());
+        }
+        fluent_args
+    })
+}
+
+fn localize_from_resource<'a>(
+    lang: LanguageIdentifier,
+    resource: Arc<FluentResource>,
+    id: &str,
+    args: Option<&HashMap<&str, FluentValue<'a>>>,
+) -> Option<String> {
+    let mut bundle = FluentBundle::new(vec![lang]);
+    if let Err(err) = bundle.add_resource(resource) {
+        tracing::error!("Failed to add es-fluent-lang resource: {:?}", err);
+        return None;
+    }
+
+    let message = bundle.get_message(id)?;
+    let pattern = message.value()?;
+    let mut errors = Vec::new();
+    let fluent_args = build_fluent_args(args);
+    let formatted = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+
+    if errors.is_empty() {
+        Some(formatted.into_owned())
+    } else {
+        tracing::error!(
+            "Formatting errors while localizing '{}' from es-fluent-lang: {:?}",
+            id,
+            errors
+        );
+        None
+    }
+}
+
 #[doc(hidden)]
 struct EsFluentLanguageModule;
 
@@ -137,36 +177,7 @@ impl Localizer for EsFluentLanguageLocalizer {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         let lang = self.current_lang.read().expect("lock poisoned").clone();
-        let mut bundle = FluentBundle::new(vec![lang]);
-        if let Err(err) = bundle.add_resource(self.resource.clone()) {
-            tracing::error!("Failed to add es-fluent-lang resource: {:?}", err);
-            return None;
-        }
-
-        let message = bundle.get_message(id)?;
-        let pattern = message.value()?;
-        let mut errors = Vec::new();
-
-        let fluent_args = args.map(|args| {
-            let mut fluent_args = FluentArgs::new();
-            for (key, value) in args {
-                fluent_args.set(*key, value.clone());
-            }
-            fluent_args
-        });
-
-        let formatted = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
-
-        if errors.is_empty() {
-            Some(formatted.into_owned())
-        } else {
-            tracing::error!(
-                "Formatting errors while localizing '{}' from es-fluent-lang: {:?}",
-                id,
-                errors
-            );
-            None
-        }
+        localize_from_resource(lang, self.resource.clone(), id, args)
     }
 }
 
@@ -253,36 +264,7 @@ impl Localizer for EsFluentLanguageLocalizer {
             },
         };
 
-        let mut bundle = FluentBundle::new(vec![lang]);
-        if let Err(err) = bundle.add_resource(resource) {
-            tracing::error!("Failed to add es-fluent-lang resource: {:?}", err);
-            return None;
-        }
-
-        let message = bundle.get_message(id)?;
-        let pattern = message.value()?;
-        let mut errors = Vec::new();
-
-        let fluent_args = args.map(|args| {
-            let mut fluent_args = FluentArgs::new();
-            for (key, value) in args {
-                fluent_args.set(*key, value.clone());
-            }
-            fluent_args
-        });
-
-        let formatted = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
-
-        if errors.is_empty() {
-            Some(formatted.into_owned())
-        } else {
-            tracing::error!(
-                "Formatting errors while localizing '{}' from es-fluent-lang: {:?}",
-                id,
-                errors
-            );
-            None
-        }
+        localize_from_resource(lang, resource, id, args)
     }
 }
 

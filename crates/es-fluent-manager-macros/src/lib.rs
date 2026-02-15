@@ -12,45 +12,65 @@ struct I18nAssets {
     namespaces: Vec<String>,
 }
 
-fn load_i18n_assets(crate_name: &str) -> I18nAssets {
+fn macro_error(message: impl Into<String>) -> syn::Error {
+    syn::Error::new(proc_macro2::Span::call_site(), message.into())
+}
+
+fn current_crate_name() -> syn::Result<String> {
+    std::env::var("CARGO_PKG_NAME").map_err(|_| macro_error("CARGO_PKG_NAME must be set"))
+}
+
+fn load_i18n_assets(crate_name: &str) -> syn::Result<I18nAssets> {
     let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
         Ok(config) => config,
         Err(es_fluent_toml::I18nConfigError::NotFound) => {
-            panic!(
-                "No i18n.toml configuration file found in project root. Please create one with the required settings."
-            );
+            return Err(macro_error(
+                "No i18n.toml configuration file found in project root. Please create one with the required settings.",
+            ));
         },
         Err(e) => {
-            panic!("Failed to read i18n.toml configuration: {}", e);
+            return Err(macro_error(format!(
+                "Failed to read i18n.toml configuration: {}",
+                e
+            )));
         },
     };
 
     let i18n_root_path = match config.assets_dir_from_manifest() {
         Ok(path) => path,
         Err(e) => {
-            panic!(
+            return Err(macro_error(format!(
                 "Failed to resolve assets directory from configuration: {}",
                 e
-            );
+            )));
         },
     };
 
     if let Err(e) = config.validate_assets_dir() {
-        panic!("Assets directory validation failed: {}", e);
+        return Err(macro_error(format!(
+            "Assets directory validation failed: {}",
+            e
+        )));
     }
 
-    let entries = fs::read_dir(&i18n_root_path).unwrap_or_else(|e| {
-        panic!(
+    let entries = fs::read_dir(&i18n_root_path).map_err(|e| {
+        macro_error(format!(
             "Failed to read i18n directory at {:?}: {}",
             i18n_root_path, e
-        )
+        ))
     });
+    let entries = entries?;
 
     let mut namespaces = HashSet::new();
     let mut languages = Vec::new();
 
     for entry in entries {
-        let entry = entry.expect("Failed to read directory entry");
+        let entry = entry.map_err(|e| {
+            macro_error(format!(
+                "Failed to read directory entry in {:?}: {}",
+                i18n_root_path, e
+            ))
+        })?;
         let path = entry.path();
         if path.is_dir()
             && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
@@ -86,11 +106,11 @@ fn load_i18n_assets(crate_name: &str) -> I18nAssets {
         }
     }
 
-    I18nAssets {
+    Ok(I18nAssets {
         root_path: i18n_root_path,
         languages,
         namespaces: namespaces.into_iter().collect(),
-    }
+    })
 }
 
 fn language_identifier_tokens(
@@ -142,7 +162,10 @@ fn bevy_fluent_text_registration_module(
 /// 4.  Generate an `EmbeddedI18nModule` for the crate.
 #[proc_macro]
 pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
-    let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
+    let crate_name = match current_crate_name() {
+        Ok(name) => name,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
     let assets_struct_name = syn::Ident::new(
         &format!(
             "{}I18nAssets",
@@ -159,11 +182,16 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
+    let assets = match load_i18n_assets(&crate_name) {
+        Ok(assets) => assets,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
+
     let I18nAssets {
         root_path: i18n_root_path,
         languages,
         namespaces,
-    } = load_i18n_assets(&crate_name);
+    } = assets;
 
     let embedded_langid_path = quote! { ::es_fluent_manager_embedded::__unic_langid };
     let language_identifiers = language_identifier_tokens(&languages, &embedded_langid_path);
@@ -449,7 +477,10 @@ fn generate_refresh_for_locale_impl(
 /// 3.  Generate an `AssetI18nModule` for the crate.
 #[proc_macro]
 pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
-    let crate_name = std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME must be set");
+    let crate_name = match current_crate_name() {
+        Ok(name) => name,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
     let static_data_name = syn::Ident::new(
         &format!(
             "{}_I18N_ASSET_MODULE_DATA",
@@ -458,11 +489,16 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         proc_macro2::Span::call_site(),
     );
 
+    let assets = match load_i18n_assets(&crate_name) {
+        Ok(assets) => assets,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
+
     let I18nAssets {
         languages,
         namespaces,
         ..
-    } = load_i18n_assets(&crate_name);
+    } = assets;
 
     let bevy_langid_path = quote! { ::es_fluent_manager_bevy::__unic_langid };
     let language_identifiers = language_identifier_tokens(&languages, &bevy_langid_path);

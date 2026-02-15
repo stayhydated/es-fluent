@@ -57,7 +57,7 @@ pub fn process_struct(
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
-    let keys = match opts.keyyed_idents() {
+    let keys = match opts.keyed_idents() {
         Ok(keys) => keys,
         Err(err) => err.abort(),
     };
@@ -342,7 +342,7 @@ pub fn process_enum(
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
-    let keys = match opts.keyyed_idents() {
+    let keys = match opts.keyed_idents() {
         Ok(keys) => keys,
         Err(err) => err.abort(),
     };

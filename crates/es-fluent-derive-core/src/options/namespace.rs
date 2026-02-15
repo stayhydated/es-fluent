@@ -91,35 +91,52 @@ impl FromMeta for NamespaceValue {
             },
             // namespace(file) / namespace(folder) / namespace(file(relative)) / namespace(folder(relative))
             syn::Meta::List(list) => {
-                let tokens = list.tokens.to_string();
-                // Normalize whitespace for comparison
-                let normalized: String = tokens.split_whitespace().collect();
-
-                // namespace(file(relative)) -> use relative path
-                if normalized == "file(relative)" {
-                    return Ok(NamespaceValue::FileRelative);
-                }
-
-                // namespace(file) -> use file name
-                if normalized == "file" {
-                    return Ok(NamespaceValue::File);
-                }
-
-                if normalized == "folder(relative)" {
-                    return Ok(NamespaceValue::FolderRelative);
-                }
-
-                if normalized == "folder" {
-                    return Ok(NamespaceValue::Folder);
-                }
-
-                // Try to parse as a string literal
-                let lit: syn::LitStr = syn::parse2(list.tokens.clone()).map_err(|_| {
+                let expr: syn::Expr = syn::parse2(list.tokens.clone()).map_err(|_| {
                     darling::Error::custom(
                         "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
                     )
                 })?;
-                Ok(NamespaceValue::Literal(lit.value()))
+
+                match expr {
+                    syn::Expr::Path(path) => {
+                        if path.path.is_ident("file") {
+                            return Ok(NamespaceValue::File);
+                        }
+                        if path.path.is_ident("folder") {
+                            return Ok(NamespaceValue::Folder);
+                        }
+                        Err(darling::Error::custom(
+                            "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                        ))
+                    },
+                    syn::Expr::Call(call) => {
+                        let Some((target, arg)) = parse_single_ident_call(&call) else {
+                            return Err(darling::Error::custom(
+                                "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                            ));
+                        };
+
+                        if arg == "relative" {
+                            if target == "file" {
+                                return Ok(NamespaceValue::FileRelative);
+                            }
+                            if target == "folder" {
+                                return Ok(NamespaceValue::FolderRelative);
+                            }
+                        }
+
+                        Err(darling::Error::custom(
+                            "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                        ))
+                    },
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit),
+                        ..
+                    }) => Ok(NamespaceValue::Literal(lit.value())),
+                    _ => Err(darling::Error::custom(
+                        "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                    )),
+                }
             },
             _ => Err(darling::Error::unsupported_format(
                 "expected namespace = \"value\", namespace = file|folder, or namespace = file(relative)|folder(relative)",
