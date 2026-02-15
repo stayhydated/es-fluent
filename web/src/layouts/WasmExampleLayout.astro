@@ -1,5 +1,5 @@
 ---
-import Layout from "./Layout.astro";
+import Layout from "@/layouts/Layout.astro";
 
 interface Props {
   title: string;
@@ -22,9 +22,20 @@ const baseUrl = import.meta.env.BASE_URL;
 
 <style>
   :global(body) {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    position: relative;
+    display: block;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  :global(body > canvas) {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    margin: 0;
   }
 
   :global(canvas) {

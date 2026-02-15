@@ -1,0 +1,77 @@
+---
+interface Props {
+  moduleUrl: string;
+  initExport?: string;
+  loadingText?: string;
+  errorText?: string;
+}
+
+const {
+  moduleUrl,
+  initExport = "default",
+  loadingText = "Loading...",
+  errorText = "Failed to load.",
+} = Astro.props;
+---
+
+<div class="wasm-loader" data-state="loading">
+  <div class="wasm-loader__status" data-state="loading" aria-live="polite">
+    {loadingText}
+  </div>
+  <div class="wasm-loader__status" data-state="error" role="alert" aria-live="assertive">
+    {errorText}
+  </div>
+</div>
+
+<script is:inline define:vars={{ moduleUrl, initExport }}>
+  // @ts-nocheck - Variables are injected by Astro's define:vars
+  const root = document.currentScript?.previousElementSibling;
+  const setState = (state) => {
+    if (!root) {
+      return;
+    }
+    root.dataset.state = state;
+  };
+
+  (async () => {
+    try {
+      const module = await import(moduleUrl);
+      const init = module[initExport];
+      if (typeof init !== "function") {
+        throw new Error(`Missing init export: ${initExport}`);
+      }
+      await init();
+      setState("ready");
+    } catch (error) {
+      console.error(error);
+      setState("error");
+    }
+  })();
+</script>
+
+<style>
+  .wasm-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100vw;
+    margin: 0 auto;
+    text-align: center;
+    color: var(--color-text);
+  }
+
+  .wasm-loader__status {
+    display: none;
+  }
+
+  .wasm-loader[data-state="loading"] .wasm-loader__status[data-state="loading"],
+  .wasm-loader[data-state="error"] .wasm-loader__status[data-state="error"] {
+    display: block;
+  }
+
+  .wasm-loader[data-state="ready"] {
+    display: none;
+  }
+</style>

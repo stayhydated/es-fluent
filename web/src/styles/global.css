@@ -4,7 +4,7 @@
   /* OLED Background - Pure Black */
   --color-bg: #000000;
   --color-bg-elevated: #0a0a0a;
-  --color-bg-card: #111111;
+  --color-bg-card: #000000;
   --color-bg-hover: #1a1a1a;
 
   /* Primary - Neon Cyan */
