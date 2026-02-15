@@ -5,12 +5,14 @@ pub use unic_langid::{LanguageIdentifier, langid};
 #[cfg(feature = "macros")]
 pub use es_fluent_lang_macro::es_fluent_language;
 
+#[doc(hidden)]
 use es_fluent_manager_core::{I18nModule, LocalizationError, Localizer};
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 use rust_embed::RustEmbed;
 #[cfg(not(feature = "localized-langs"))]
 use std::collections::HashSet;
@@ -19,6 +21,7 @@ use std::collections::HashSet;
 const ES_FLUENT_LANG_FTL: &str = include_str!("../es-fluent-lang.ftl");
 
 #[cfg(feature = "localized-langs")]
+#[doc(hidden)]
 fn embedded_resource() -> Arc<FluentResource> {
     static RESOURCE: OnceLock<Arc<FluentResource>> = OnceLock::new();
     RESOURCE
@@ -33,14 +36,17 @@ fn embedded_resource() -> Arc<FluentResource> {
 }
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 const I18N_RESOURCE_NAME: &str = "es-fluent-lang.ftl";
 
 #[cfg(not(feature = "localized-langs"))]
 #[derive(RustEmbed)]
 #[folder = "i18n"]
+#[doc(hidden)]
 struct EsFluentLangAssets;
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 fn available_languages() -> &'static HashSet<LanguageIdentifier> {
     static AVAILABLE: OnceLock<HashSet<LanguageIdentifier>> = OnceLock::new();
     AVAILABLE.get_or_init(|| {
@@ -59,6 +65,7 @@ fn available_languages() -> &'static HashSet<LanguageIdentifier> {
 }
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
     let mut candidates = Vec::new();
     let mut push = |candidate: LanguageIdentifier| {
@@ -97,6 +104,7 @@ fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
 }
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
     let available = available_languages();
     candidate_languages(lang)
@@ -104,6 +112,7 @@ fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
         .find(|candidate| available.contains(candidate))
 }
 
+#[doc(hidden)]
 struct EsFluentLanguageModule;
 
 impl I18nModule for EsFluentLanguageModule {
@@ -128,12 +137,14 @@ impl I18nModule for EsFluentLanguageModule {
 }
 
 #[cfg(feature = "localized-langs")]
+#[doc(hidden)]
 struct EsFluentLanguageLocalizer {
     resource: Arc<FluentResource>,
     current_lang: RwLock<LanguageIdentifier>,
 }
 
 #[cfg(feature = "localized-langs")]
+#[doc(hidden)]
 impl EsFluentLanguageLocalizer {
     fn new(resource: Arc<FluentResource>, default_lang: LanguageIdentifier) -> Self {
         Self {
@@ -144,6 +155,7 @@ impl EsFluentLanguageLocalizer {
 }
 
 #[cfg(feature = "localized-langs")]
+#[doc(hidden)]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         *self.current_lang.write().expect("lock poisoned") = lang.clone();
@@ -190,12 +202,14 @@ impl Localizer for EsFluentLanguageLocalizer {
 }
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 struct EsFluentLanguageLocalizer {
     resources: RwLock<HashMap<LanguageIdentifier, Arc<FluentResource>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
 }
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 impl EsFluentLanguageLocalizer {
     fn new(default_lang: LanguageIdentifier) -> Self {
         let localizer = Self {
@@ -250,6 +264,7 @@ impl EsFluentLanguageLocalizer {
 }
 
 #[cfg(not(feature = "localized-langs"))]
+#[doc(hidden)]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         self.set_language(lang)
@@ -307,6 +322,7 @@ inventory::submit! {
 }
 
 #[cfg(all(feature = "bevy", feature = "localized-langs"))]
+#[doc(hidden)]
 mod bevy_support {
     use super::*;
     use es_fluent_manager_core::StaticI18nResource;
@@ -332,6 +348,7 @@ mod bevy_support {
 }
 
 #[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
+#[doc(hidden)]
 mod bevy_support {
     use super::*;
     use es_fluent_manager_core::StaticI18nResource;

@@ -5,6 +5,7 @@ pub use inventory;
 
 #[doc(hidden)]
 pub use es_fluent_manager_core as __manager_core;
+
 #[doc(hidden)]
 pub use inventory as __inventory;
 
@@ -243,23 +244,24 @@ impl I18nResource {
     }
 }
 
-/// A convenience function for localizing a message by its ID.
+/// A convenience method for localizing a message by its ID.
 ///
-/// This function uses the `I18nResource` and `I18nBundle` to look up the
+/// This method uses the `I18nResource` and `I18nBundle` to look up the
 /// translation. If the translation is not found, a warning is logged and the
 /// ID is returned as a fallback.
-pub fn localize<'a>(
-    i18n_resource: &I18nResource,
-    i18n_bundle: &I18nBundle,
-    id: &str,
-    args: Option<&HashMap<&str, FluentValue<'a>>>,
-) -> String {
-    i18n_resource
-        .localize(id, args, i18n_bundle)
-        .unwrap_or_else(|| {
+impl I18nResource {
+    #[doc(hidden)]
+    pub fn localize_with_fallback<'a>(
+        &self,
+        i18n_bundle: &I18nBundle,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        self.localize(id, args, i18n_bundle).unwrap_or_else(|| {
             warn!("Translation for '{}' not found", id);
             id.to_string()
         })
+    }
 }
 
 /// A Bevy system that listens for `LocaleChangedEvent`s and updates components
@@ -351,4 +353,5 @@ impl FluentTextRegistration for App {
     }
 }
 
-pub use unic_langid::langid;
+#[doc(hidden)]
+pub use unic_langid::langid as __langid;
