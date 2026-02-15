@@ -11,19 +11,26 @@ use syn::{
 
 mod supported_locales;
 
-fn supported_language_keys_for(
-    lang: &unic_langid::LanguageIdentifier,
-) -> impl Iterator<Item = String> {
-    es_fluent_manager_core::locale_candidates(lang)
-        .into_iter()
-        .map(|candidate| candidate.to_string())
+struct SupportedLanguageSet {
+    keys: std::collections::HashSet<&'static str>,
 }
 
-fn is_supported_language(
-    lang: &unic_langid::LanguageIdentifier,
-    supported: &std::collections::HashSet<&'static str>,
-) -> bool {
-    supported_language_keys_for(lang).any(|key| supported.contains(key.as_str()))
+impl SupportedLanguageSet {
+    fn new() -> Self {
+        Self {
+            keys: supported_locales::SUPPORTED_LANGUAGE_KEYS
+                .iter()
+                .copied()
+                .collect(),
+        }
+    }
+
+    fn contains(&self, lang: &unic_langid::LanguageIdentifier) -> bool {
+        es_fluent_manager_core::locale_candidates(lang)
+            .into_iter()
+            .map(|candidate| candidate.to_string())
+            .any(|key| self.keys.contains(key.as_str()))
+    }
 }
 
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
@@ -106,16 +113,12 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
     language_entries.sort_by(|a, b| a.0.cmp(&b.0));
     language_entries.dedup_by(|a, b| a.0 == b.0);
 
-    let supported_keys: std::collections::HashSet<&'static str> =
-        supported_locales::SUPPORTED_LANGUAGE_KEYS
-            .iter()
-            .copied()
-            .collect();
+    let supported_languages = SupportedLanguageSet::new();
 
     let unsupported_languages: Vec<_> = language_entries
         .iter()
         .filter_map(|(canonical, language)| {
-            if is_supported_language(language, &supported_keys) {
+            if supported_languages.contains(language) {
                 None
             } else {
                 Some(canonical.clone())

@@ -14,6 +14,111 @@ use fluent_syntax::ast;
 use std::path::Path;
 use treelog::Tree;
 
+#[derive(Clone, Copy)]
+struct TreeRenderer {
+    show_attributes: bool,
+    show_variables: bool,
+}
+
+impl TreeRenderer {
+    fn new(show_attributes: bool, show_variables: bool) -> Self {
+        Self {
+            show_attributes,
+            show_variables,
+        }
+    }
+
+    /// Build a tree for a single FTL file.
+    fn build_file_tree(&self, relative_path: &str, abs_path: &Path) -> Tree {
+        let resource = match parse_ftl_file(abs_path) {
+            Ok(res) => res,
+            Err(_) => {
+                return Tree::Node(
+                    relative_path.yellow().to_string(),
+                    vec![Tree::Leaf(vec!["<parse error>".red().to_string()])],
+                );
+            },
+        };
+
+        let entries: Vec<Tree> = resource
+            .body
+            .iter()
+            .filter_map(|entry| match entry {
+                ast::Entry::Message(msg) => Some(self.build_message_tree(&msg.id.name, msg)),
+                ast::Entry::Term(term) => Some(self.build_term_tree(&term.id.name, term)),
+                ast::Entry::Comment(_) => None,
+                ast::Entry::GroupComment(_) => None,
+                ast::Entry::ResourceComment(_) => None,
+                ast::Entry::Junk { .. } => None,
+            })
+            .collect();
+
+        Tree::Node(relative_path.yellow().to_string(), entries)
+    }
+
+    /// Build a tree for a message entry.
+    fn build_message_tree(&self, id: &str, msg: &ast::Message<String>) -> Tree {
+        let children = self.build_entry_children(&msg.attributes, msg.value.as_ref());
+
+        if children.is_empty() {
+            Tree::Leaf(vec![id.to_string()])
+        } else {
+            Tree::Node(id.to_string(), children)
+        }
+    }
+
+    /// Build a tree for a term entry.
+    fn build_term_tree(&self, id: &str, term: &ast::Term<String>) -> Tree {
+        let children = self.build_entry_children(&term.attributes, Some(&term.value));
+        let label = format!("-{}", id);
+
+        if children.is_empty() {
+            Tree::Leaf(vec![label.dimmed().to_string()])
+        } else {
+            Tree::Node(label.dimmed().to_string(), children)
+        }
+    }
+
+    /// Build child nodes for an entry (attributes and variables).
+    fn build_entry_children(
+        &self,
+        attributes: &[ast::Attribute<String>],
+        value: Option<&ast::Pattern<String>>,
+    ) -> Vec<Tree> {
+        let mut children: Vec<Tree> = Vec::new();
+
+        if self.show_attributes {
+            for attr in attributes {
+                let attr_label = format!("@{}", attr.id.name);
+                children.push(Tree::Leaf(vec![attr_label.dimmed().to_string()]));
+            }
+        }
+
+        if self.show_variables {
+            let mut variables = Vec::new();
+            if let Some(pattern) = value {
+                extract_variables_from_pattern_into(pattern, &mut variables);
+            }
+            for attr in attributes {
+                extract_variables_from_pattern_into(&attr.value, &mut variables);
+            }
+
+            if !variables.is_empty() {
+                variables.sort();
+                variables.dedup();
+                let vars_str = variables
+                    .iter()
+                    .map(|v| format!("${}", v))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                children.push(Tree::Leaf(vec![vars_str.magenta().to_string()]));
+            }
+        }
+
+        children
+    }
+}
+
 /// Arguments for the tree command.
 #[derive(Debug, Parser)]
 pub struct TreeArgs {
@@ -59,6 +164,7 @@ fn print_crate_tree(
     show_variables: bool,
 ) -> Result<()> {
     let ctx = LocaleContext::from_crate(krate, all_locales)?;
+    let renderer = TreeRenderer::new(show_attributes, show_variables);
 
     let mut locale_trees: Vec<Tree> = Vec::new();
 
@@ -77,11 +183,9 @@ fn print_crate_tree(
         let file_trees: Vec<Tree> = ftl_files
             .iter()
             .map(|file_info| {
-                build_file_tree(
+                renderer.build_file_tree(
                     &file_info.relative_path.display().to_string(),
                     &file_info.abs_path,
-                    show_attributes,
-                    show_variables,
                 )
             })
             .collect();
@@ -93,133 +197,6 @@ fn print_crate_tree(
     println!("{}", tree.render_to_string());
 
     Ok(())
-}
-
-/// Build a tree for a single FTL file.
-fn build_file_tree(
-    relative_path: &str,
-    abs_path: &Path,
-    show_attributes: bool,
-    show_variables: bool,
-) -> Tree {
-    let resource = match parse_ftl_file(abs_path) {
-        Ok(res) => res,
-        Err(_) => {
-            return Tree::Node(
-                relative_path.yellow().to_string(),
-                vec![Tree::Leaf(vec!["<parse error>".red().to_string()])],
-            );
-        },
-    };
-
-    let entries: Vec<Tree> = resource
-        .body
-        .iter()
-        .filter_map(|entry| match entry {
-            ast::Entry::Message(msg) => Some(build_message_tree(
-                &msg.id.name,
-                msg,
-                show_attributes,
-                show_variables,
-            )),
-            ast::Entry::Term(term) => Some(build_term_tree(
-                &term.id.name,
-                term,
-                show_attributes,
-                show_variables,
-            )),
-            ast::Entry::Comment(_) => None,
-            ast::Entry::GroupComment(_) => None,
-            ast::Entry::ResourceComment(_) => None,
-            ast::Entry::Junk { .. } => None,
-        })
-        .collect();
-
-    Tree::Node(relative_path.yellow().to_string(), entries)
-}
-
-/// Build a tree for a message entry.
-fn build_message_tree(
-    id: &str,
-    msg: &ast::Message<String>,
-    show_attributes: bool,
-    show_variables: bool,
-) -> Tree {
-    let children = build_entry_children(
-        &msg.attributes,
-        msg.value.as_ref(),
-        show_attributes,
-        show_variables,
-    );
-
-    if children.is_empty() {
-        Tree::Leaf(vec![id.to_string()])
-    } else {
-        Tree::Node(id.to_string(), children)
-    }
-}
-
-/// Build a tree for a term entry.
-fn build_term_tree(
-    id: &str,
-    term: &ast::Term<String>,
-    show_attributes: bool,
-    show_variables: bool,
-) -> Tree {
-    let children = build_entry_children(
-        &term.attributes,
-        Some(&term.value),
-        show_attributes,
-        show_variables,
-    );
-
-    let label = format!("-{}", id);
-
-    if children.is_empty() {
-        Tree::Leaf(vec![label.dimmed().to_string()])
-    } else {
-        Tree::Node(label.dimmed().to_string(), children)
-    }
-}
-
-/// Build child nodes for an entry (attributes and variables).
-fn build_entry_children(
-    attributes: &[ast::Attribute<String>],
-    value: Option<&ast::Pattern<String>>,
-    show_attributes: bool,
-    show_variables: bool,
-) -> Vec<Tree> {
-    let mut children: Vec<Tree> = Vec::new();
-
-    if show_attributes {
-        for attr in attributes {
-            let attr_label = format!("@{}", attr.id.name);
-            children.push(Tree::Leaf(vec![attr_label.dimmed().to_string()]));
-        }
-    }
-
-    if show_variables {
-        let mut variables = Vec::new();
-        if let Some(pattern) = value {
-            extract_variables_from_pattern_into(pattern, &mut variables);
-        }
-        for attr in attributes {
-            extract_variables_from_pattern_into(&attr.value, &mut variables);
-        }
-
-        if !variables.is_empty() {
-            variables.sort();
-            variables.dedup();
-            let vars_str = variables
-                .iter()
-                .map(|v| format!("${}", v))
-                .collect::<Vec<_>>()
-                .join(", ");
-            children.push(Tree::Leaf(vec![vars_str.magenta().to_string()]));
-        }
-    }
-
-    children
 }
 
 /// Extract variable names from a pattern into a vector.
@@ -299,6 +276,10 @@ mod tests {
         })
     }
 
+    fn renderer(show_attributes: bool, show_variables: bool) -> TreeRenderer {
+        TreeRenderer::new(show_attributes, show_variables)
+    }
+
     #[test]
     fn test_extract_variables_simple() {
         let content = "hello = Hello { $name }!";
@@ -360,7 +341,7 @@ mod tests {
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "hello").unwrap();
 
-        let tree = build_message_tree("hello", msg, false, false);
+        let tree = renderer(false, false).build_message_tree("hello", msg);
 
         match tree {
             Tree::Leaf(lines) => assert_eq!(lines, vec!["hello"]),
@@ -376,7 +357,7 @@ mod tests {
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "button").unwrap();
 
-        let tree = build_message_tree("button", msg, true, false);
+        let tree = renderer(true, false).build_message_tree("button", msg);
 
         match tree {
             Tree::Node(label, children) => {
@@ -393,7 +374,7 @@ mod tests {
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "greeting").unwrap();
 
-        let tree = build_message_tree("greeting", msg, false, true);
+        let tree = renderer(false, true).build_message_tree("greeting", msg);
 
         match tree {
             Tree::Node(label, children) => {
@@ -406,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_build_entry_children_no_attributes_no_variables() {
-        let children = build_entry_children(&[], None, false, false);
+        let children = renderer(false, false).build_entry_children(&[], None);
         assert!(children.is_empty());
     }
 
@@ -417,14 +398,16 @@ mod tests {
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "button").unwrap();
 
-        let children = build_entry_children(&msg.attributes, msg.value.as_ref(), true, false);
+        let children =
+            renderer(true, false).build_entry_children(&msg.attributes, msg.value.as_ref());
 
         assert_eq!(children.len(), 1);
     }
 
     #[test]
     fn test_build_file_tree_nonexistent() {
-        let tree = build_file_tree("test.ftl", Path::new("/nonexistent/path.ftl"), false, false);
+        let tree =
+            renderer(false, false).build_file_tree("test.ftl", Path::new("/nonexistent/path.ftl"));
 
         match tree {
             Tree::Node(label, children) => {
