@@ -862,7 +862,7 @@ dependencies = [
 
 [[package]]
 name = "bevy-example"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -3826,7 +3826,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "arc-swap",
  "es-fluent-derive",
@@ -3845,7 +3845,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -3881,7 +3881,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli-helpers"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "bon",
  "cargo_metadata",
@@ -3898,7 +3898,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "darling 0.23.0",
  "es-fluent-derive-core",
@@ -3913,7 +3913,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive-core"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "bon",
@@ -3938,7 +3938,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-generate"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "clap",
  "colored",
@@ -3956,7 +3956,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "es-fluent-lang-macro",
  "es-fluent-manager-core",
@@ -3969,7 +3969,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang-macro"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "es-fluent-manager-core",
  "es-fluent-toml",
@@ -3983,7 +3983,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-bevy"
-version = "0.18.7"
+version = "0.18.8"
 dependencies = [
  "arc-swap",
  "bevy",
@@ -3999,7 +3999,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-core"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anyhow",
  "es-fluent-derive-core",
@@ -4013,7 +4013,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-embedded"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "arc-swap",
  "es-fluent",
@@ -4025,7 +4025,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-macros"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "es-fluent-toml",
  "heck 0.5.0",
@@ -4036,7 +4036,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-toml"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "serde",
  "tempfile",
@@ -4093,7 +4093,7 @@ dependencies = [
 
 [[package]]
 name = "example-shared-lib"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -4226,7 +4226,7 @@ checksum = "9844ddc3a6e533d62bba727eb6c28b5d360921d5175e9ff0f1e621a5c590a4d5"
 
 [[package]]
 name = "first-example"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
@@ -5045,7 +5045,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-example"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
@@ -8209,7 +8209,7 @@ dependencies = [
 
 [[package]]
 name = "readme"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "es-fluent",
 ]
