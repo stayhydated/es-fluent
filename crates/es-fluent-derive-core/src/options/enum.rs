@@ -300,4 +300,11 @@ impl EnumVariantsFluentAttributeArgs {
     pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
         self.namespace.as_ref()
     }
+
+    /// Returns the raw key strings if provided.
+    pub fn key_strings(&self) -> Option<Vec<String>> {
+        self.keys
+            .as_ref()
+            .map(|keys| keys.iter().map(|k| k.value()).collect())
+    }
 }

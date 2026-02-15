@@ -61,10 +61,7 @@ pub fn process_struct(
         Ok(keys) => keys,
         Err(err) => err.abort(),
     };
-    let base_idents = match opts.keyed_base_idents() {
-        Ok(base_idents) => base_idents,
-        Err(err) => err.abort(),
-    };
+    let key_strings = opts.attr_args().key_strings().unwrap_or_default();
 
     // For empty structs, don't generate any enums
     let is_empty = opts.fields().is_empty();
@@ -78,7 +75,7 @@ pub fn process_struct(
             opts,
             data,
             &ftl_enum_ident,
-            opts.ident(),
+            None,
             this_opts,
             fluent_namespace,
         );
@@ -86,12 +83,9 @@ pub fn process_struct(
             #ftl_enum
         }
     } else {
-        let enums = keys
-            .iter()
-            .zip(base_idents.iter())
-            .map(|(key, base_ident)| {
-                generate_unit_enum(opts, data, key, base_ident, this_opts, fluent_namespace)
-            });
+        let enums = keys.iter().zip(key_strings.iter()).map(|(key, key_str)| {
+            generate_unit_enum(opts, data, key, Some(key_str), this_opts, fluent_namespace)
+        });
 
         quote! {
             #(#enums)*
@@ -103,11 +97,12 @@ fn generate_unit_enum(
     opts: &StructVariantsOpts,
     _data: &syn::DataStruct,
     ident: &syn::Ident,
-    _base_ident: &syn::Ident,
+    key_name: Option<&String>,
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
     let field_opts = opts.fields();
+    let origin_ident = opts.ident();
     // Use the enum name (includes `Variants`) for the base key.
     let base_key = namer::FluentKey::from(ident);
 
@@ -145,10 +140,25 @@ fn generate_unit_enum(
         quote! {}
     };
 
+    let enum_doc = match key_name {
+        Some(key) => format!("`{key}` variants of [`{origin_ident}`]."),
+        None => format!("Variants of [`{origin_ident}`]."),
+    };
+    let variant_docs: Vec<_> = variants
+        .iter()
+        .map(|(_, original_field_name, _)| match key_name {
+            Some(key) => {
+                format!("The `{original_field_name}` `{key}` variant of [`{origin_ident}`].")
+            },
+            None => format!("The `{original_field_name}` variant of [`{origin_ident}`]."),
+        })
+        .collect();
+
     let new_enum = quote! {
+      #[doc = #enum_doc]
       #derive_attr
       pub enum #ident {
-          #(#cleaned_variants),*
+          #(#[doc = #variant_docs] #cleaned_variants),*
       }
     };
 
@@ -301,10 +311,7 @@ pub fn process_enum(
         Ok(keys) => keys,
         Err(err) => err.abort(),
     };
-    let base_idents = match opts.keyed_base_idents() {
-        Ok(base_idents) => base_idents,
-        Err(err) => err.abort(),
-    };
+    let key_strings = opts.attr_args().key_strings().unwrap_or_default();
 
     // For empty enums, don't generate any new enums
     let is_empty = opts.variants().is_empty();
@@ -314,23 +321,15 @@ pub fn process_enum(
 
     if keys.is_empty() {
         let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum = generate_enum_unit_enum(
-            opts,
-            &ftl_enum_ident,
-            opts.ident(),
-            this_opts,
-            fluent_namespace,
-        );
+        let ftl_enum =
+            generate_enum_unit_enum(opts, &ftl_enum_ident, None, this_opts, fluent_namespace);
         quote! {
             #ftl_enum
         }
     } else {
-        let enums = keys
-            .iter()
-            .zip(base_idents.iter())
-            .map(|(key, base_ident)| {
-                generate_enum_unit_enum(opts, key, base_ident, this_opts, fluent_namespace)
-            });
+        let enums = keys.iter().zip(key_strings.iter()).map(|(key, key_str)| {
+            generate_enum_unit_enum(opts, key, Some(key_str), this_opts, fluent_namespace)
+        });
 
         quote! {
             #(#enums)*
@@ -341,11 +340,12 @@ pub fn process_enum(
 fn generate_enum_unit_enum(
     opts: &EnumVariantsOpts,
     ident: &syn::Ident,
-    _base_ident: &syn::Ident,
+    key_name: Option<&String>,
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
     let variant_opts = opts.variants();
+    let origin_ident = opts.ident();
     // Use the enum name (includes `Variants`) for the base key.
     let base_key = namer::FluentKey::from(ident);
 
@@ -378,10 +378,26 @@ fn generate_enum_unit_enum(
         quote! {}
     };
 
+    let enum_doc = match key_name {
+        Some(key) => format!("`{key}` variants of [`{origin_ident}`]."),
+        None => format!("Variants of [`{origin_ident}`]."),
+    };
+    let variant_docs: Vec<_> = variants
+        .iter()
+        .map(|(variant_ident, _)| {
+            let variant_name = variant_ident.to_string();
+            match key_name {
+                Some(key) => format!("The `{variant_name}` `{key}` variant of [`{origin_ident}`]."),
+                None => format!("The `{variant_name}` variant of [`{origin_ident}`]."),
+            }
+        })
+        .collect();
+
     let new_enum = quote! {
+      #[doc = #enum_doc]
       #derive_attr
       pub enum #ident {
-          #(#cleaned_variants),*
+          #(#[doc = #variant_docs] #cleaned_variants),*
       }
     };
 

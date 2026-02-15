@@ -5,6 +5,7 @@ use es_fluent::ToFluentString;
 /// Updates `Text` components based on changed `FluentText` values.
 ///
 /// This system handles incremental updates when `FluentText` components change.
+#[doc(hidden)]
 pub fn update_fluent_text_system<T: ToFluentString + Clone + Component>(
     mut text_query: Query<&mut Text>,
     fluent_text_query: Query<
@@ -24,6 +25,7 @@ pub fn update_fluent_text_system<T: ToFluentString + Clone + Component>(
 
 /// Marks all `FluentText<T>` components as changed when locale changes,
 /// and performs a full refresh when the i18n bundle becomes ready.
+#[doc(hidden)]
 pub fn update_all_fluent_text_on_locale_change<T: ToFluentString + Clone + Component>(
     mut locale_changed_events: MessageReader<LocaleChangedEvent>,
     i18n_bundle: Res<I18nBundle>,
@@ -51,6 +53,7 @@ pub fn update_all_fluent_text_on_locale_change<T: ToFluentString + Clone + Compo
     }
 }
 
+#[doc(hidden)]
 fn update_text_for_entity<T: ToFluentString>(
     text_query: &mut Query<&mut Text>,
     entity: Entity,
