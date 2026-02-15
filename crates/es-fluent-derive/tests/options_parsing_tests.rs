@@ -90,9 +90,9 @@ fn struct_variants_keys_parsing_and_field_skipping() {
     // ftl_enum_ident is <StructName>Variants
     assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructVariants");
 
-    // keyyed_idents are <StructName><Key>Variants
+    // keyed_idents are <StructName><Key>Variants
     let mut key_names: Vec<String> = opts
-        .keyyed_idents()
+        .keyed_idents()
         .unwrap()
         .into_iter()
         .map(|k| k.to_string())
@@ -125,7 +125,7 @@ fn struct_variants_keys_must_be_lowercase_snake_case() {
     let opts =
         StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
     let err = opts
-        .keyyed_idents()
+        .keyed_idents()
         .expect_err("Non-snake_case keys should be rejected");
 
     let err_message = err.to_string();

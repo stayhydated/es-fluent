@@ -231,7 +231,7 @@ impl EnumVariantsOpts {
     }
 
     /// Returns the identifiers of the keyed FTL enums.
-    pub fn keyyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
+    pub fn keyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
         self.attr_args.clone().keys.map_or_else(
             || Ok(Vec::new()),
             |keys| {

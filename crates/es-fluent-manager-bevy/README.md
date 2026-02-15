@@ -111,7 +111,9 @@ impl RefreshForLocale for UiMessage {
     fn refresh_for_locale(&mut self, lang: &unic_langid::LanguageIdentifier) {
         match self {
             UiMessage::LanguageHint { current_language } => {
-                *current_language = Languages::from(lang);
+                if let Ok(value) = Languages::try_from(lang) {
+                    *current_language = value;
+                }
             }
         }
     }

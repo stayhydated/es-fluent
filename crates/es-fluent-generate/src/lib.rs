@@ -16,22 +16,14 @@ use es_fluent_derive_core::EsFluentResult;
 use value::ValueFormatter;
 
 /// The mode to use when parsing Fluent files.
-#[derive(Clone, Debug, Default, PartialEq, ValueEnum)]
+#[derive(Clone, Debug, Default, strum::Display, PartialEq, ValueEnum)]
+#[strum(serialize_all = "snake_case")]
 pub enum FluentParseMode {
     /// Overwrite existing translations.
     Aggressive,
     /// Preserve existing translations.
     #[default]
     Conservative,
-}
-
-impl std::fmt::Display for FluentParseMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Aggressive => write!(f, "aggressive"),
-            Self::Conservative => write!(f, "conservative"),
-        }
-    }
 }
 
 // Internal owned types for merge operations

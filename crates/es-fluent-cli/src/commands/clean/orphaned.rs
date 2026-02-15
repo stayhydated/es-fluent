@@ -4,6 +4,149 @@ use crate::ftl::LocaleContext;
 use crate::utils::{ftl::main_ftl_path, ui};
 use colored::Colorize as _;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
+struct OrphanedCleaner<'a> {
+    valid_crate_names: HashSet<&'a str>,
+}
+
+impl<'a> OrphanedCleaner<'a> {
+    fn new(valid_crate_names: HashSet<&'a str>) -> Self {
+        Self { valid_crate_names }
+    }
+
+    /// Get the expected FTL file paths for a crate based on registered types.
+    /// This looks at what files the generate command would create.
+    ///
+    /// The logic:
+    /// - A main FTL file (crate_name.ftl) is expected ONLY if it exists in the fallback locale
+    /// - Namespaced files are expected if they exist in the fallback locale's crate subdirectory
+    fn get_expected_ftl_files(
+        &self,
+        crate_name: &str,
+        locale_dir: &Path,
+        fallback_locale_dir: &Path,
+    ) -> HashSet<PathBuf> {
+        let mut expected = HashSet::new();
+
+        // Extract locales from paths
+        let fallback_locale = fallback_locale_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+        let locale = locale_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+
+        // Check if main FTL file exists in fallback locale - if so, it's expected here too
+        let fallback_main_ftl = main_ftl_path(
+            fallback_locale_dir.parent().unwrap(),
+            fallback_locale,
+            crate_name,
+        );
+        if fallback_main_ftl.exists() {
+            expected.insert(main_ftl_path(
+                locale_dir.parent().unwrap(),
+                locale,
+                crate_name,
+            ));
+        }
+
+        self.add_expected_namespaced_files_from_fallback(
+            fallback_locale_dir,
+            locale_dir,
+            crate_name,
+            &mut expected,
+        );
+
+        // Also add expected files for other crates (they're valid, not orphaned)
+        for &other_crate in self.valid_crate_names.iter().filter(|&&c| c != crate_name) {
+            // Extract fallback locale from fallback_locale_dir
+            let fallback_locale = fallback_locale_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+
+            // Extract current locale from locale_dir
+            let locale = locale_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+
+            // Only expect main FTL file if it exists in fallback
+            let other_fallback_main = main_ftl_path(
+                fallback_locale_dir.parent().unwrap(),
+                fallback_locale,
+                other_crate,
+            );
+            if other_fallback_main.exists() {
+                expected.insert(main_ftl_path(
+                    locale_dir.parent().unwrap(),
+                    locale,
+                    other_crate,
+                ));
+            }
+
+            self.add_expected_namespaced_files_from_fallback(
+                fallback_locale_dir,
+                locale_dir,
+                other_crate,
+                &mut expected,
+            );
+        }
+
+        expected
+    }
+
+    /// Add expected namespaced files for `crate_name` by mirroring fallback locale paths.
+    ///
+    /// Supports nested file-relative namespaces (e.g., `crate/ui/button.ftl`).
+    fn add_expected_namespaced_files_from_fallback(
+        &self,
+        fallback_locale_dir: &Path,
+        locale_dir: &Path,
+        crate_name: &str,
+        expected: &mut HashSet<PathBuf>,
+    ) {
+        let fallback_crate_subdir = fallback_locale_dir.join(crate_name);
+        if !fallback_crate_subdir.exists() || !fallback_crate_subdir.is_dir() {
+            return;
+        }
+
+        let locale_crate_subdir = locale_dir.join(crate_name);
+        if let Ok(fallback_files) = self.find_all_ftl_files(&fallback_crate_subdir) {
+            for fallback_path in fallback_files {
+                if let Ok(relative) = fallback_path.strip_prefix(&fallback_crate_subdir) {
+                    expected.insert(locale_crate_subdir.join(relative));
+                }
+            }
+        }
+    }
+
+    /// Recursively find all FTL files in a directory.
+    fn find_all_ftl_files(&self, dir: &Path) -> Result<Vec<PathBuf>, CliError> {
+        let mut files = Vec::new();
+
+        if !dir.exists() {
+            return Ok(files);
+        }
+
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.is_dir() {
+                // Recurse into subdirectories
+                files.extend(self.find_all_ftl_files(&path)?);
+            } else if path.extension().is_some_and(|e| e == "ftl") {
+                files.push(path);
+            }
+        }
+
+        Ok(files)
+    }
+}
 
 /// Clean orphaned FTL files that are no longer tied to any registered types.
 pub(super) fn clean_orphaned_files(
@@ -20,6 +163,7 @@ pub(super) fn clean_orphaned_files(
     // Collect all valid crate names for quick lookup
     let valid_crate_names: HashSet<&str> =
         workspace.crates.iter().map(|c| c.name.as_str()).collect();
+    let cleaner = OrphanedCleaner::new(valid_crate_names);
 
     // Track which files we've already processed to avoid duplicates
     // Use canonical paths to handle different ways of referring to the same file
@@ -39,15 +183,11 @@ pub(super) fn clean_orphaned_files(
             let locale_dir = ctx.locale_dir(locale);
 
             // Get the expected FTL files for this crate (based on what's in fallback)
-            let expected_files = get_expected_ftl_files(
-                &krate.name,
-                &locale_dir,
-                &valid_crate_names,
-                &fallback_locale_dir,
-            );
+            let expected_files =
+                cleaner.get_expected_ftl_files(&krate.name, &locale_dir, &fallback_locale_dir);
 
             // Find all actual FTL files in the locale directory
-            let actual_files = find_all_ftl_files(&locale_dir)?;
+            let actual_files = cleaner.find_all_ftl_files(&locale_dir)?;
 
             // Find orphaned files (actual files that are not in expected files)
             for file_path in actual_files {
@@ -122,137 +262,6 @@ pub(super) fn clean_orphaned_files(
     Ok(())
 }
 
-/// Get the expected FTL file paths for a crate based on registered types.
-/// This looks at what files the generate command would create.
-///
-/// The logic:
-/// - A main FTL file (crate_name.ftl) is expected ONLY if it exists in the fallback locale
-/// - Namespaced files are expected if they exist in the fallback locale's crate subdirectory
-fn get_expected_ftl_files(
-    crate_name: &str,
-    locale_dir: &std::path::Path,
-    valid_crate_names: &HashSet<&str>,
-    fallback_locale_dir: &std::path::Path,
-) -> HashSet<std::path::PathBuf> {
-    let mut expected = HashSet::new();
-
-    // Extract locales from paths
-    let fallback_locale = fallback_locale_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown");
-    let locale = locale_dir
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown");
-
-    // Check if main FTL file exists in fallback locale - if so, it's expected here too
-    let fallback_main_ftl = main_ftl_path(
-        fallback_locale_dir.parent().unwrap(),
-        fallback_locale,
-        crate_name,
-    );
-    if fallback_main_ftl.exists() {
-        expected.insert(main_ftl_path(
-            locale_dir.parent().unwrap(),
-            locale,
-            crate_name,
-        ));
-    }
-
-    add_expected_namespaced_files_from_fallback(
-        fallback_locale_dir,
-        locale_dir,
-        crate_name,
-        &mut expected,
-    );
-
-    // Also add expected files for other crates (they're valid, not orphaned)
-    for &other_crate in valid_crate_names.iter().filter(|&&c| c != crate_name) {
-        // Extract fallback locale from fallback_locale_dir
-        let fallback_locale = fallback_locale_dir
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown");
-
-        // Extract current locale from locale_dir
-        let locale = locale_dir
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("unknown");
-
-        // Only expect main FTL file if it exists in fallback
-        let other_fallback_main = main_ftl_path(
-            fallback_locale_dir.parent().unwrap(),
-            fallback_locale,
-            other_crate,
-        );
-        if other_fallback_main.exists() {
-            expected.insert(main_ftl_path(
-                locale_dir.parent().unwrap(),
-                locale,
-                other_crate,
-            ));
-        }
-
-        add_expected_namespaced_files_from_fallback(
-            fallback_locale_dir,
-            locale_dir,
-            other_crate,
-            &mut expected,
-        );
-    }
-
-    expected
-}
-
-/// Add expected namespaced files for `crate_name` by mirroring fallback locale paths.
-///
-/// Supports nested file-relative namespaces (e.g., `crate/ui/button.ftl`).
-fn add_expected_namespaced_files_from_fallback(
-    fallback_locale_dir: &std::path::Path,
-    locale_dir: &std::path::Path,
-    crate_name: &str,
-    expected: &mut HashSet<std::path::PathBuf>,
-) {
-    let fallback_crate_subdir = fallback_locale_dir.join(crate_name);
-    if !fallback_crate_subdir.exists() || !fallback_crate_subdir.is_dir() {
-        return;
-    }
-
-    let locale_crate_subdir = locale_dir.join(crate_name);
-    if let Ok(fallback_files) = find_all_ftl_files(&fallback_crate_subdir) {
-        for fallback_path in fallback_files {
-            if let Ok(relative) = fallback_path.strip_prefix(&fallback_crate_subdir) {
-                expected.insert(locale_crate_subdir.join(relative));
-            }
-        }
-    }
-}
-
-/// Recursively find all FTL files in a directory.
-fn find_all_ftl_files(dir: &std::path::Path) -> Result<Vec<std::path::PathBuf>, CliError> {
-    let mut files = Vec::new();
-
-    if !dir.exists() {
-        return Ok(files);
-    }
-
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.is_dir() {
-            // Recurse into subdirectories
-            files.extend(find_all_ftl_files(&path)?);
-        } else if path.extension().is_some_and(|e| e == "ftl") {
-            files.push(path);
-        }
-    }
-
-    Ok(files)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,8 +286,8 @@ mod tests {
         .expect("write fallback namespaced");
 
         let valid_crates = HashSet::from(["test-app-a"]);
-        let expected =
-            get_expected_ftl_files("test-app-a", &locale_dir, &valid_crates, &fallback_dir);
+        let cleaner = OrphanedCleaner::new(valid_crates);
+        let expected = cleaner.get_expected_ftl_files("test-app-a", &locale_dir, &fallback_dir);
 
         assert!(expected.contains(&locale_dir.join("test-app-a.ftl")));
         assert!(expected.contains(&locale_dir.join("test-app-a/ui/button.ftl")));
@@ -293,7 +302,8 @@ mod tests {
         std::fs::write(base.join("a/b/deep.ftl"), "deep = Deep\n").expect("write deep");
         std::fs::write(base.join("a/b/ignore.txt"), "noop").expect("write text");
 
-        let mut files = find_all_ftl_files(&base).expect("discover files");
+        let cleaner = OrphanedCleaner::new(HashSet::new());
+        let mut files = cleaner.find_all_ftl_files(&base).expect("discover files");
         files.sort();
 
         assert_eq!(files.len(), 2);

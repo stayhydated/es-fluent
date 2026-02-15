@@ -1,5 +1,8 @@
 //! Namespace attribute for FTL file generation.
 
+use crate::namespace_resolver::{
+    file_relative_namespace, file_stem_namespace, folder_namespace, folder_relative_namespace,
+};
 use darling::FromMeta;
 
 /// Represents the namespace attribute value.
@@ -31,49 +34,10 @@ impl NamespaceValue {
     pub fn resolve(&self, file_path: &str) -> String {
         match self {
             NamespaceValue::Literal(s) => s.clone(),
-            NamespaceValue::File => std::path::Path::new(file_path)
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            NamespaceValue::FileRelative => {
-                // Strip src/ prefix if present and remove extension
-                let path = std::path::Path::new(file_path);
-                let without_ext = path.with_extension("");
-                let path_str = without_ext.to_str().unwrap_or("unknown");
-
-                // Strip common prefixes like "src/"
-                path_str
-                    .strip_prefix("src/")
-                    .or_else(|| path_str.strip_prefix("src\\"))
-                    .unwrap_or(path_str)
-                    .to_string()
-            },
-            NamespaceValue::Folder => std::path::Path::new(file_path)
-                .parent()
-                .and_then(std::path::Path::file_name)
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            NamespaceValue::FolderRelative => {
-                let path = std::path::Path::new(file_path);
-                let parent = path.parent().unwrap_or(path);
-                let parent_str = parent.to_str().unwrap_or("unknown");
-                let stripped = parent_str
-                    .strip_prefix("src/")
-                    .or_else(|| parent_str.strip_prefix("src\\"))
-                    .unwrap_or(parent_str);
-
-                if stripped.is_empty() {
-                    if parent_str.is_empty() {
-                        "unknown".to_string()
-                    } else {
-                        parent_str.to_string()
-                    }
-                } else {
-                    stripped.to_string()
-                }
-            },
+            NamespaceValue::File => file_stem_namespace(file_path),
+            NamespaceValue::FileRelative => file_relative_namespace(file_path, None),
+            NamespaceValue::Folder => folder_namespace(file_path),
+            NamespaceValue::FolderRelative => folder_relative_namespace(file_path, None),
         }
     }
 }
@@ -127,35 +91,52 @@ impl FromMeta for NamespaceValue {
             },
             // namespace(file) / namespace(folder) / namespace(file(relative)) / namespace(folder(relative))
             syn::Meta::List(list) => {
-                let tokens = list.tokens.to_string();
-                // Normalize whitespace for comparison
-                let normalized: String = tokens.split_whitespace().collect();
-
-                // namespace(file(relative)) -> use relative path
-                if normalized == "file(relative)" {
-                    return Ok(NamespaceValue::FileRelative);
-                }
-
-                // namespace(file) -> use file name
-                if normalized == "file" {
-                    return Ok(NamespaceValue::File);
-                }
-
-                if normalized == "folder(relative)" {
-                    return Ok(NamespaceValue::FolderRelative);
-                }
-
-                if normalized == "folder" {
-                    return Ok(NamespaceValue::Folder);
-                }
-
-                // Try to parse as a string literal
-                let lit: syn::LitStr = syn::parse2(list.tokens.clone()).map_err(|_| {
+                let expr: syn::Expr = syn::parse2(list.tokens.clone()).map_err(|_| {
                     darling::Error::custom(
                         "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
                     )
                 })?;
-                Ok(NamespaceValue::Literal(lit.value()))
+
+                match expr {
+                    syn::Expr::Path(path) => {
+                        if path.path.is_ident("file") {
+                            return Ok(NamespaceValue::File);
+                        }
+                        if path.path.is_ident("folder") {
+                            return Ok(NamespaceValue::Folder);
+                        }
+                        Err(darling::Error::custom(
+                            "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                        ))
+                    },
+                    syn::Expr::Call(call) => {
+                        let Some((target, arg)) = parse_single_ident_call(&call) else {
+                            return Err(darling::Error::custom(
+                                "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                            ));
+                        };
+
+                        if arg == "relative" {
+                            if target == "file" {
+                                return Ok(NamespaceValue::FileRelative);
+                            }
+                            if target == "folder" {
+                                return Ok(NamespaceValue::FolderRelative);
+                            }
+                        }
+
+                        Err(darling::Error::custom(
+                            "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                        ))
+                    },
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit),
+                        ..
+                    }) => Ok(NamespaceValue::Literal(lit.value())),
+                    _ => Err(darling::Error::custom(
+                        "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+                    )),
+                }
             },
             _ => Err(darling::Error::unsupported_format(
                 "expected namespace = \"value\", namespace = file|folder, or namespace = file(relative)|folder(relative)",
