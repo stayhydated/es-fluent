@@ -129,8 +129,45 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::ftl::extract_message_keys;
     use fluent_syntax::parser;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn create_workspace_with_i18n() -> tempfile::TempDir {
+        let temp = tempdir().expect("tempdir");
+
+        fs::create_dir_all(temp.path().join("src")).expect("create src");
+        fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n/en");
+        fs::create_dir_all(temp.path().join("i18n/es")).expect("create i18n/es");
+
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"[package]
+name = "test-app"
+version = "0.1.0"
+edition = "2024"
+"#,
+        )
+        .expect("write Cargo.toml");
+        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+
+        fs::write(
+            temp.path().join("i18n/en/test-app.ftl"),
+            "hello = Hello\nworld = World\n",
+        )
+        .expect("write fallback ftl");
+        fs::write(temp.path().join("i18n/es/test-app.ftl"), "hello = Hola\n")
+            .expect("write es ftl");
+
+        temp
+    }
 
     #[test]
     fn test_extract_message_keys() {
@@ -142,5 +179,119 @@ world = World"#;
         assert!(keys.contains("hello"));
         assert!(keys.contains("world"));
         assert_eq!(keys.len(), 2);
+    }
+
+    #[test]
+    fn run_sync_returns_ok_when_no_locales_specified() {
+        let temp = create_workspace_with_i18n();
+
+        let result = run_sync(SyncArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            locale: Vec::new(),
+            all: false,
+            dry_run: false,
+        });
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn run_sync_returns_ok_when_no_crates_match_filter() {
+        let temp = create_workspace_with_i18n();
+
+        let result = run_sync(SyncArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: Some("missing-package".to_string()),
+            },
+            locale: vec!["es".to_string()],
+            all: false,
+            dry_run: false,
+        });
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn run_sync_fails_for_unknown_locale() {
+        let temp = create_workspace_with_i18n();
+
+        let result = run_sync(SyncArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            locale: vec!["zz-unknown".to_string()],
+            all: false,
+            dry_run: false,
+        });
+
+        assert!(matches!(result, Err(CliError::LocaleNotFound(_))));
+    }
+
+    #[test]
+    fn run_sync_dry_run_does_not_write_missing_keys() {
+        let temp = create_workspace_with_i18n();
+        let es_path = temp.path().join("i18n/es/test-app.ftl");
+        let before = fs::read_to_string(&es_path).expect("read before");
+
+        let result = run_sync(SyncArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            locale: vec!["es".to_string()],
+            all: false,
+            dry_run: true,
+        });
+
+        assert!(result.is_ok());
+        let after = fs::read_to_string(&es_path).expect("read after");
+        assert_eq!(before, after, "dry-run should not modify locale files");
+    }
+
+    #[test]
+    fn run_sync_writes_missing_keys_for_target_locale() {
+        let temp = create_workspace_with_i18n();
+        let es_path = temp.path().join("i18n/es/test-app.ftl");
+
+        let result = run_sync(SyncArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            locale: vec!["es".to_string()],
+            all: false,
+            dry_run: false,
+        });
+
+        assert!(result.is_ok());
+        let es_content = fs::read_to_string(&es_path).expect("read synced es");
+        assert!(es_content.contains("world = World"));
+    }
+
+    #[test]
+    fn run_sync_all_processes_non_fallback_locales() {
+        let temp = create_workspace_with_i18n();
+        fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr");
+        fs::write(temp.path().join("i18n/fr/test-app.ftl"), "hello = Salut\n").expect("write fr");
+
+        let result = run_sync(SyncArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            locale: Vec::new(),
+            all: true,
+            dry_run: false,
+        });
+
+        assert!(result.is_ok());
+        let fr_content =
+            fs::read_to_string(temp.path().join("i18n/fr/test-app.ftl")).expect("read fr");
+        assert!(fr_content.contains("world = World"));
     }
 }

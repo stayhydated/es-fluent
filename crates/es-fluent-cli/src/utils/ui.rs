@@ -313,3 +313,152 @@ pub fn print_diff(old: &str, new: &str) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn test_crate(name: &str) -> CrateInfo {
+        CrateInfo {
+            name: name.to_string(),
+            manifest_dir: std::path::PathBuf::from("/tmp/test"),
+            src_dir: std::path::PathBuf::from("/tmp/test/src"),
+            i18n_config_path: std::path::PathBuf::from("/tmp/test/i18n.toml"),
+            ftl_output_dir: std::path::PathBuf::from("/tmp/test/i18n/en"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn terminal_links_enabled_honors_env_and_modes() {
+        let _guard = env_lock().lock().unwrap();
+
+        set_e2e_mode(false);
+        // SAFETY: We serialize env var mutations with a global mutex.
+        unsafe {
+            std::env::remove_var("FORCE_HYPERLINK");
+            std::env::remove_var("NO_COLOR");
+            std::env::remove_var("CI");
+            std::env::remove_var("GITHUB_ACTIONS");
+            std::env::set_var("FORCE_HYPERLINK", "1");
+        }
+        assert!(terminal_links_enabled());
+
+        // SAFETY: Protected by the same global mutex.
+        unsafe {
+            std::env::set_var("FORCE_HYPERLINK", "0");
+        }
+        assert!(!terminal_links_enabled());
+
+        // SAFETY: Protected by the same global mutex.
+        unsafe {
+            std::env::remove_var("FORCE_HYPERLINK");
+            std::env::set_var("NO_COLOR", "1");
+        }
+        assert!(!terminal_links_enabled());
+
+        // SAFETY: Protected by the same global mutex.
+        unsafe {
+            std::env::remove_var("NO_COLOR");
+            std::env::set_var("CI", "1");
+        }
+        assert!(!terminal_links_enabled());
+
+        // SAFETY: Protected by the same global mutex.
+        unsafe {
+            std::env::remove_var("CI");
+        }
+        set_e2e_mode(true);
+        assert!(!terminal_links_enabled());
+
+        set_e2e_mode(false);
+    }
+
+    #[test]
+    fn duration_and_progress_helpers_cover_e2e_and_default_modes() {
+        set_e2e_mode(true);
+        assert_eq!(format_duration(Duration::from_millis(5)), "[DURATION]");
+        assert!(create_spinner("spin").is_hidden());
+        assert!(create_progress_bar(3, "progress").is_hidden());
+
+        set_e2e_mode(false);
+        let formatted = format_duration(Duration::from_millis(5));
+        assert!(!formatted.is_empty());
+
+        let spinner = create_spinner("spin");
+        spinner.finish_and_clear();
+
+        let pb = create_progress_bar(3, "progress");
+        pb.finish_and_clear();
+    }
+
+    #[test]
+    fn terminal_links_enabled_falls_back_to_terminal_probe_branch() {
+        let _guard = env_lock().lock().unwrap();
+        set_e2e_mode(false);
+        // SAFETY: Protected by env_lock mutex.
+        unsafe {
+            std::env::remove_var("FORCE_HYPERLINK");
+            std::env::remove_var("NO_COLOR");
+            std::env::remove_var("CI");
+            std::env::remove_var("GITHUB_ACTIONS");
+        }
+
+        // Environment-dependent; the assertion is that the code path executes without panicking.
+        let _ = terminal_links_enabled();
+    }
+
+    #[test]
+    fn print_helpers_do_not_panic() {
+        let crates = vec![test_crate("crate-a"), test_crate("crate-b")];
+
+        print_header();
+        print_discovered(&crates);
+        print_discovered(&[]);
+        print_missing_lib_rs("crate-missing");
+        print_generating("crate-a");
+        print_generated("crate-a", Duration::from_millis(1), 2);
+        print_cleaning("crate-a");
+        print_cleaned("crate-a", Duration::from_millis(1), 2);
+        print_generation_error("crate-a", "boom");
+        print_package_not_found("crate-z");
+
+        print_check_header();
+        print_checking("crate-a");
+        print_check_error("crate-a", "bad check");
+        print_check_success();
+
+        print_format_header();
+        print_tree_header();
+        print_would_format(Path::new("i18n/en/test.ftl"));
+        print_formatted(Path::new("i18n/en/test.ftl"));
+        print_format_dry_run_summary(1);
+        print_format_summary(2, 3);
+
+        print_sync_header();
+        print_syncing("crate-a");
+        print_would_add_keys(2, "es", "crate-a");
+        print_added_keys(2, "es");
+        print_synced_key("hello_world");
+        print_all_in_sync();
+        print_sync_dry_run_summary(3, 2);
+        print_sync_summary(3, 2);
+        print_no_locales_specified();
+        print_no_crates_found();
+        print_locale_not_found("zz", &["en".to_string(), "es".to_string()]);
+        print_locale_not_found("zz", &[]);
+
+        print_diff("a = 1\nb = 2\n", "a = 1\nc = 3\n");
+        print_diff(
+            "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\n",
+            "l1\nx2\nl3\nl4\nl5\nl6\nl7\nx8\nl9\nl10\n",
+        );
+    }
+}

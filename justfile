@@ -18,11 +18,6 @@ test:
     cargo test --workspace --all-features
 
 cov:
-    cargo llvm-cov --workspace --all-features --summary-only \
-        --exclude-from-test es-fluent-cli \
-        --exclude-from-report es-fluent-cli
-
-cov-full:
     cargo llvm-cov --workspace --all-features
 
 test-publish:

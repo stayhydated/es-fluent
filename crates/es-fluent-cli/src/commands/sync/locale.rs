@@ -155,3 +155,186 @@ fn sync_locale_file(
         diff_info,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
+
+    fn write_file(path: &Path, content: &str) {
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("create parent");
+        std::fs::write(path, content).expect("write file");
+    }
+
+    fn test_crate_with_i18n(temp: &tempfile::TempDir) -> CrateInfo {
+        let manifest_dir = temp.path().to_path_buf();
+        let src_dir = manifest_dir.join("src");
+        std::fs::create_dir_all(&src_dir).expect("create src");
+
+        let i18n_toml = manifest_dir.join("i18n.toml");
+        std::fs::write(
+            &i18n_toml,
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+
+        CrateInfo {
+            name: "test-crate".to_string(),
+            manifest_dir: manifest_dir.clone(),
+            src_dir,
+            i18n_config_path: i18n_toml,
+            ftl_output_dir: manifest_dir.join("i18n/en"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        }
+    }
+
+    fn parse_resource(content: &str) -> ast::Resource<String> {
+        fluent_syntax::parser::parse(content.to_string()).unwrap()
+    }
+
+    #[test]
+    fn sync_locale_file_returns_unchanged_when_no_missing_keys() {
+        let temp = tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("es");
+        let relative_path = PathBuf::from("test-crate.ftl");
+        write_file(&locale_dir.join(&relative_path), "hello = Hola\n");
+
+        let fallback_resource = parse_resource("hello = Hello\n");
+        let fallback_keys = extract_message_keys(&fallback_resource);
+        let result = sync_locale_file(
+            &locale_dir,
+            &relative_path,
+            "es",
+            &fallback_resource,
+            &fallback_keys,
+            false,
+        )
+        .expect("sync");
+
+        assert_eq!(result.locale, "es");
+        assert_eq!(result.keys_added, 0);
+        assert!(result.added_keys.is_empty());
+        assert!(result.diff_info.is_none());
+    }
+
+    #[test]
+    fn sync_locale_file_dry_run_reports_diff_without_writing() {
+        let temp = tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("es");
+        let relative_path = PathBuf::from("test-crate.ftl");
+        let ftl_path = locale_dir.join(&relative_path);
+        write_file(&ftl_path, "hello = Hola\n");
+        let before = std::fs::read_to_string(&ftl_path).expect("read before");
+
+        let fallback_resource = parse_resource("hello = Hello\nworld = World\n");
+        let fallback_keys = extract_message_keys(&fallback_resource);
+        let result = sync_locale_file(
+            &locale_dir,
+            &relative_path,
+            "es",
+            &fallback_resource,
+            &fallback_keys,
+            true,
+        )
+        .expect("sync");
+
+        assert_eq!(result.keys_added, 1);
+        assert_eq!(result.added_keys, vec!["world".to_string()]);
+        assert!(result.diff_info.is_some());
+
+        let after = std::fs::read_to_string(&ftl_path).expect("read after");
+        assert_eq!(before, after, "dry-run must not write locale file");
+    }
+
+    #[test]
+    fn sync_locale_file_writes_and_creates_parent_dirs() {
+        let temp = tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("es");
+        let relative_path = PathBuf::from("test-crate/ui.ftl");
+        let ftl_path = locale_dir.join(&relative_path);
+
+        let fallback_resource = parse_resource("hello = Hello\n");
+        let fallback_keys = extract_message_keys(&fallback_resource);
+        let result = sync_locale_file(
+            &locale_dir,
+            &relative_path,
+            "es",
+            &fallback_resource,
+            &fallback_keys,
+            false,
+        )
+        .expect("sync");
+
+        assert_eq!(result.keys_added, 1);
+        assert!(result.diff_info.is_none());
+        assert!(
+            ftl_path.exists(),
+            "sync should create namespaced parent dirs"
+        );
+        let content = std::fs::read_to_string(&ftl_path).expect("read synced file");
+        assert!(content.contains("hello = Hello"));
+    }
+
+    #[test]
+    fn sync_crate_returns_empty_when_fallback_locale_missing() {
+        let temp = tempdir().expect("tempdir");
+        let krate = test_crate_with_i18n(&temp);
+        std::fs::create_dir_all(temp.path().join("i18n/es")).expect("create non-fallback locale");
+
+        let results = sync_crate(&krate, None, false).expect("sync crate");
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn sync_crate_filters_target_locales_and_syncs_namespaced_files() {
+        let temp = tempdir().expect("tempdir");
+        let krate = test_crate_with_i18n(&temp);
+
+        // Fallback files (main + namespaced).
+        write_file(
+            &temp.path().join("i18n/en/test-crate.ftl"),
+            "hello = Hello\nworld = World\n",
+        );
+        write_file(
+            &temp.path().join("i18n/en/test-crate/ui.ftl"),
+            "button = Button\n",
+        );
+
+        // Target locale with partial content.
+        write_file(
+            &temp.path().join("i18n/es/test-crate.ftl"),
+            "hello = Hola\n",
+        );
+
+        // Another locale that should be ignored by target filter.
+        write_file(
+            &temp.path().join("i18n/fr/test-crate.ftl"),
+            "hello = Salut\n",
+        );
+
+        let targets = HashSet::from(["es".to_string()]);
+        let results = sync_crate(&krate, Some(&targets), false).expect("sync crate");
+
+        // Only `es` should be touched, and both main + namespaced files are considered.
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|r| r.locale == "es"));
+        assert!(results.iter().any(|r| r.keys_added > 0));
+
+        let es_main = std::fs::read_to_string(temp.path().join("i18n/es/test-crate.ftl"))
+            .expect("read es main");
+        assert!(es_main.contains("world = World"));
+
+        let es_ns = std::fs::read_to_string(temp.path().join("i18n/es/test-crate/ui.ftl"))
+            .expect("read es namespaced");
+        assert!(es_ns.contains("button = Button"));
+
+        let fr_main = std::fs::read_to_string(temp.path().join("i18n/fr/test-crate.ftl"))
+            .expect("read fr main");
+        assert!(
+            !fr_main.contains("world = World"),
+            "fr should be untouched by target filter"
+        );
+    }
+}

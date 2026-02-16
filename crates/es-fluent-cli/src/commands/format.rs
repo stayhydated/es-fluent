@@ -212,6 +212,7 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
 mod tests {
     use super::*;
     use std::path::Path;
+    use tempfile::tempdir;
 
     fn write_test_crate(temp_dir: &Path) -> CrateInfo {
         let src_dir = temp_dir.join("src");
@@ -247,6 +248,20 @@ mod tests {
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }
+    }
+
+    fn write_workspace_files(temp_dir: &Path) {
+        std::fs::create_dir_all(temp_dir.join("src")).expect("create src");
+        std::fs::write(
+            temp_dir.join("Cargo.toml"),
+            r#"[package]
+name = "test-crate"
+version = "0.1.0"
+edition = "2024"
+"#,
+        )
+        .expect("write Cargo.toml");
+        std::fs::write(temp_dir.join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
     }
 
     #[test]
@@ -298,5 +313,108 @@ mod tests {
 
         let after = std::fs::read_to_string(&namespaced_path).expect("read after");
         assert_eq!(before, after, "dry run should not write files");
+    }
+
+    #[test]
+    fn run_format_dry_run_and_real_cover_command_paths() {
+        let temp = tempdir().expect("tempdir");
+        write_workspace_files(temp.path());
+        write_test_crate(temp.path());
+        let namespaced_path = temp.path().join("i18n/en/test-crate/ui.ftl");
+        let before = std::fs::read_to_string(&namespaced_path).expect("read before");
+
+        let dry_run = run_format(FormatArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            all: false,
+            dry_run: true,
+        });
+        assert!(dry_run.is_ok());
+        let after_dry_run = std::fs::read_to_string(&namespaced_path).expect("read after dry-run");
+        assert_eq!(before, after_dry_run);
+
+        let real = run_format(FormatArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            all: false,
+            dry_run: false,
+        });
+        assert!(real.is_ok());
+
+        let after_real = std::fs::read_to_string(&namespaced_path).expect("read after real");
+        assert_ne!(before, after_real);
+        assert!(after_real.starts_with("alpha = A\nzeta = Z"));
+    }
+
+    #[test]
+    fn run_format_returns_ok_when_package_filter_matches_nothing() {
+        let temp = tempdir().expect("tempdir");
+        write_workspace_files(temp.path());
+        write_test_crate(temp.path());
+
+        let result = run_format(FormatArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: Some("missing-package".to_string()),
+            },
+            all: false,
+            dry_run: false,
+        });
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn format_ftl_file_covers_read_empty_and_partial_parse_paths() {
+        let temp = tempdir().expect("tempdir");
+
+        let missing = temp.path().join("missing.ftl");
+        let missing_result = format_ftl_file(&missing, false);
+        assert!(missing_result.error.is_some());
+
+        let empty = temp.path().join("empty.ftl");
+        std::fs::write(&empty, "   \n").expect("write empty");
+        let empty_result = format_ftl_file(&empty, false);
+        assert!(!empty_result.changed);
+        assert!(empty_result.error.is_none());
+
+        let invalid = temp.path().join("invalid.ftl");
+        std::fs::write(&invalid, "zeta = { $name\nalpha = A\n").expect("write invalid");
+        let partial = format_ftl_file(&invalid, true);
+        assert!(partial.changed);
+        assert!(partial.diff_info.is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn format_ftl_file_returns_write_error_for_read_only_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().expect("tempdir");
+        let ftl = temp.path().join("read-only.ftl");
+        std::fs::write(&ftl, "zeta = Z\nalpha = A\n").expect("write ftl");
+
+        let mut perms = std::fs::metadata(&ftl).unwrap().permissions();
+        perms.set_mode(0o444);
+        std::fs::set_permissions(&ftl, perms).unwrap();
+
+        let result = format_ftl_file(&ftl, false);
+
+        let mut restore = std::fs::metadata(&ftl).unwrap().permissions();
+        restore.set_mode(0o644);
+        std::fs::set_permissions(&ftl, restore).unwrap();
+
+        assert!(
+            result
+                .error
+                .as_deref()
+                .is_some_and(|err| err.contains("Failed to write file")),
+            "expected write error, got: {:?}",
+            result.error
+        );
     }
 }

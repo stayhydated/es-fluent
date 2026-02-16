@@ -34,3 +34,28 @@ impl DryRunSummary {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dry_run_diff_new_stores_before_and_after() {
+        let diff = DryRunDiff::new("old".to_string(), "new".to_string());
+        assert_eq!(diff.before, "old");
+        assert_eq!(diff.after, "new");
+    }
+
+    #[test]
+    fn dry_run_diff_print_and_summary_print_do_not_panic() {
+        let diff = DryRunDiff::new("a = 1\n".to_string(), "a = 2\n".to_string());
+        diff.print();
+
+        DryRunSummary::Format { formatted: 3 }.print();
+        DryRunSummary::Sync {
+            keys: 5,
+            locales: 2,
+        }
+        .print();
+    }
+}

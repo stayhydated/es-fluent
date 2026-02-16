@@ -3,6 +3,7 @@ use es_fluent_cli::commands::{
     CheckArgs, CleanArgs, FormatArgs, GenerateArgs, SyncArgs, TreeArgs, WatchArgs, run_check,
     run_clean, run_format, run_generate, run_sync, run_tree, run_watch,
 };
+use es_fluent_cli::core::CliError;
 use miette::Result as MietteResult;
 
 #[derive(Parser)]
@@ -77,7 +78,13 @@ fn main() -> MietteResult<()> {
     }))
     .ok();
 
-    let result = match command {
+    let result = dispatch(command);
+
+    result.map_err(miette::Report::new)
+}
+
+fn dispatch(command: Commands) -> Result<(), CliError> {
+    match command {
         Commands::Generate(args) => run_generate(args),
         Commands::Watch(args) => run_watch(args),
         Commands::Clean(args) => run_clean(args),
@@ -85,7 +92,143 @@ fn main() -> MietteResult<()> {
         Commands::Check(args) => run_check(args),
         Commands::Sync(args) => run_sync(args),
         Commands::Tree(args) => run_tree(args),
-    };
+    }
+}
 
-    result.map_err(miette::Report::new)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent_cli::commands::WorkspaceArgs;
+    use std::fs;
+    use tempfile::tempdir;
+
+    fn create_workspace() -> tempfile::TempDir {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("create src");
+        fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"[package]
+name = "test-app"
+version = "0.1.0"
+edition = "2024"
+"#,
+        )
+        .expect("write Cargo.toml");
+        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+        fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n").expect("write ftl");
+        temp
+    }
+
+    fn missing_package_workspace_args(path: &std::path::Path) -> WorkspaceArgs {
+        WorkspaceArgs {
+            path: Some(path.to_path_buf()),
+            package: Some("missing-package".to_string()),
+        }
+    }
+
+    #[test]
+    fn cli_parses_e2e_flag_and_generate_subcommand() {
+        let cli = Cli::try_parse_from(["cargo", "es-fluent", "generate", "--e2e"]).expect("parse");
+
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(e2e);
+        assert!(matches!(command, Commands::Generate(_)));
+    }
+
+    #[test]
+    fn dispatch_handles_all_commands_without_matching_packages() {
+        let temp = create_workspace();
+        let workspace = missing_package_workspace_args(temp.path());
+
+        assert!(
+            dispatch(Commands::Generate(GenerateArgs {
+                workspace: workspace.clone(),
+                mode: es_fluent_cli::core::FluentParseMode::default(),
+                dry_run: false,
+                force_run: false,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Watch(WatchArgs {
+                workspace: workspace.clone(),
+                mode: es_fluent_cli::core::FluentParseMode::default(),
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Clean(CleanArgs {
+                workspace: workspace.clone(),
+                all: false,
+                dry_run: false,
+                force_run: false,
+                orphaned: false,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Fmt(FormatArgs {
+                workspace: workspace.clone(),
+                all: false,
+                dry_run: false,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Check(CheckArgs {
+                workspace: workspace.clone(),
+                all: false,
+                ignore: Vec::new(),
+                force_run: false,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Sync(SyncArgs {
+                workspace: workspace.clone(),
+                locale: vec!["en".to_string()],
+                all: false,
+                dry_run: false,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Tree(TreeArgs {
+                workspace,
+                all: false,
+                attributes: false,
+                variables: false,
+            }))
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn dispatch_propagates_errors_for_invalid_workspace_paths() {
+        let invalid_workspace = WorkspaceArgs {
+            path: Some(std::path::PathBuf::from("/definitely/missing/path")),
+            package: None,
+        };
+
+        let result = dispatch(Commands::Generate(GenerateArgs {
+            workspace: invalid_workspace,
+            mode: es_fluent_cli::core::FluentParseMode::default(),
+            dry_run: false,
+            force_run: false,
+        }));
+
+        assert!(result.is_err());
+    }
 }

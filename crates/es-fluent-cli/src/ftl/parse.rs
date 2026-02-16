@@ -114,6 +114,7 @@ fn extract_variables_from_inline(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
     fn test_parse_ftl_file_nonexistent() {
@@ -161,6 +162,66 @@ world = World"#;
             assert!(vars.contains("num"));
         } else {
             panic!("Expected a message");
+        }
+    }
+
+    #[test]
+    fn test_parse_ftl_file_empty_and_partial_parse_recovery() {
+        let temp = tempdir().expect("tempdir");
+        let empty = temp.path().join("empty.ftl");
+        std::fs::write(&empty, "   \n").expect("write empty ftl");
+        let empty_res = parse_ftl_file(&empty).expect("parse empty");
+        assert!(empty_res.body.is_empty());
+
+        let invalid = temp.path().join("invalid.ftl");
+        std::fs::write(&invalid, "hello = { $name\nworld = World\n").expect("write invalid ftl");
+        let partial = parse_ftl_file(&invalid).expect("parse invalid");
+        assert!(
+            !partial.body.is_empty(),
+            "invalid FTL should still return partial parse result"
+        );
+    }
+
+    #[test]
+    fn test_parse_ftl_file_errors_when_path_is_directory() {
+        let temp = tempdir().expect("tempdir");
+        let dir_path = temp.path().join("not-a-file");
+        std::fs::create_dir_all(&dir_path).expect("create dir");
+
+        let err = parse_ftl_file(&dir_path).err().expect("expected io error");
+        assert!(
+            err.to_string().contains("Is a directory") || err.to_string().contains("directory")
+        );
+    }
+
+    #[test]
+    fn test_extract_message_keys_ignores_non_message_entries() {
+        let content = "-term = Value\n# Comment\n";
+        let resource = parser::parse(content.to_string()).unwrap();
+        let keys = extract_message_keys(&resource);
+        assert!(keys.is_empty());
+    }
+
+    #[test]
+    fn test_extract_variables_includes_attributes_and_function_arguments() {
+        let content = r#"msg = { FUNC($direct, named: 1) }
+    .attr = Attr { $attr }
+nested = { { $wrapped } }"#;
+        let resource = parser::parse(content.to_string()).unwrap();
+
+        if let ast::Entry::Message(msg) = &resource.body[0] {
+            let vars = extract_variables_from_message(msg);
+            assert!(vars.contains("direct"));
+            assert!(vars.contains("attr"));
+        } else {
+            panic!("Expected a message");
+        }
+
+        if let ast::Entry::Message(msg) = &resource.body[1] {
+            let vars = extract_variables_from_message(msg);
+            assert!(vars.contains("wrapped"));
+        } else {
+            panic!("Expected nested message");
         }
     }
 }

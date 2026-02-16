@@ -458,4 +458,56 @@ line3"#;
         assert_eq!(span.offset(), 6); // "line1\n" = 6 chars
         assert_eq!(span.len(), 5);
     }
+
+    #[test]
+    fn test_line_col_and_span_helpers_cover_edge_cases() {
+        let source = "first\nsecond\nthird";
+        assert_eq!(line_col_from_offset(source, 0), (1, 1));
+        assert_eq!(line_col_from_offset(source, 7), (2, 2));
+        assert_eq!(line_col_from_offset(source, usize::MAX), (3, 1));
+
+        assert!(find_key_span(source, "missing").is_none());
+        assert!(find_message_span(source, "missing").is_none());
+    }
+
+    #[test]
+    fn test_validation_issue_sort_key_orders_issue_kinds() {
+        let src = NamedSource::new("test.ftl", "hello = Hello\n".to_string());
+
+        let syntax = ValidationIssue::SyntaxError(FtlSyntaxError {
+            src: src.clone(),
+            span: SourceSpan::new(0usize.into(), 1),
+            locale: "en".to_string(),
+            help: "syntax".to_string(),
+        });
+        let missing_key = ValidationIssue::MissingKey(MissingKeyError {
+            src: src.clone(),
+            key: "hello".to_string(),
+            locale: "en".to_string(),
+            help: "add key".to_string(),
+        });
+        let missing_var = ValidationIssue::MissingVariable(MissingVariableWarning {
+            src,
+            span: SourceSpan::new(0usize.into(), 1),
+            variable: "name".to_string(),
+            key: "hello".to_string(),
+            locale: "en".to_string(),
+            help: "add var".to_string(),
+        });
+
+        assert!(syntax.sort_key().starts_with("1:"));
+        assert!(missing_key.sort_key().starts_with("2:"));
+        assert!(missing_var.sort_key().starts_with("3:"));
+    }
+
+    #[test]
+    fn test_cli_error_from_anyhow_and_io() {
+        let anyhow_err = anyhow::anyhow!("boom");
+        let cli_anyhow = CliError::from(anyhow_err);
+        assert!(matches!(cli_anyhow, CliError::Other(msg) if msg == "boom"));
+
+        let io_err = std::io::Error::other("io boom");
+        let cli_io = CliError::from(io_err);
+        assert!(matches!(cli_io, CliError::Io(_)));
+    }
 }

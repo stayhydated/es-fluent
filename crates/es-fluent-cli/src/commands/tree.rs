@@ -256,7 +256,10 @@ fn extract_variables_from_inline(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::CrateInfo;
     use fluent_syntax::parser;
+    use std::fs;
+    use tempfile::tempdir;
 
     fn parse_ftl(content: &str) -> ast::Resource<String> {
         parser::parse(content.to_string()).unwrap()
@@ -278,6 +281,50 @@ mod tests {
 
     fn renderer(show_attributes: bool, show_variables: bool) -> TreeRenderer {
         TreeRenderer::new(show_attributes, show_variables)
+    }
+
+    fn create_workspace_with_tree_data() -> tempfile::TempDir {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("create src");
+        fs::create_dir_all(temp.path().join("i18n/en/test-app")).expect("create i18n dirs");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"[package]
+name = "test-app"
+version = "0.1.0"
+edition = "2024"
+"#,
+        )
+        .expect("write Cargo.toml");
+        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+        fs::write(
+            temp.path().join("i18n/en/test-app.ftl"),
+            "hello = Hello { $name }\n-term = Term Value\n",
+        )
+        .expect("write main ftl");
+        fs::write(
+            temp.path().join("i18n/en/test-app/ui.ftl"),
+            "button = Click\n",
+        )
+        .expect("write namespaced ftl");
+        temp
+    }
+
+    fn crate_info_from_temp(temp: &tempfile::TempDir) -> CrateInfo {
+        CrateInfo {
+            name: "test-app".to_string(),
+            manifest_dir: temp.path().to_path_buf(),
+            src_dir: temp.path().join("src"),
+            i18n_config_path: temp.path().join("i18n.toml"),
+            ftl_output_dir: temp.path().join("i18n/en"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        }
     }
 
     #[test]
@@ -451,5 +498,45 @@ mod tests {
         assert!(output.contains("crate"));
         assert!(output.contains("en"));
         assert!(output.contains("message"));
+    }
+
+    #[test]
+    fn test_build_term_tree_and_print_crate_tree() {
+        let temp = create_workspace_with_tree_data();
+        let krate = crate_info_from_temp(&temp);
+
+        // Exercise print path for crate tree.
+        let printed = print_crate_tree(&krate, false, true, true);
+        assert!(printed.is_ok());
+
+        let resource = parse_ftl("-term = Term\n");
+        let term = resource
+            .body
+            .iter()
+            .find_map(|entry| match entry {
+                ast::Entry::Term(term) => Some(term),
+                _ => None,
+            })
+            .expect("term exists");
+        let tree = renderer(false, false).build_term_tree(&term.id.name, term);
+        match tree {
+            Tree::Leaf(lines) => assert!(lines[0].contains("-term")),
+            _ => panic!("expected leaf term tree"),
+        }
+    }
+
+    #[test]
+    fn run_tree_returns_ok_for_missing_package_filter() {
+        let temp = create_workspace_with_tree_data();
+        let result = run_tree(TreeArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: Some("missing-package".to_string()),
+            },
+            all: false,
+            attributes: false,
+            variables: false,
+        });
+        assert!(result.is_ok());
     }
 }

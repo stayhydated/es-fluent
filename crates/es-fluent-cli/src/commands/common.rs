@@ -257,3 +257,339 @@ pub fn render_generation_results_with_dry_run(
         |result| ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::{CrateInfo, FluentParseMode, GenerationAction, WorkspaceInfo};
+    use crate::generation::cache::{RunnerCache, compute_content_hash};
+    use std::cell::Cell;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::Duration;
+    use tempfile::tempdir;
+
+    fn create_test_crate_workspace() -> tempfile::TempDir {
+        let temp = tempdir().unwrap();
+
+        fs::create_dir_all(temp.path().join("src")).unwrap();
+        fs::create_dir_all(temp.path().join("i18n/en")).unwrap();
+
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            r#"[package]
+name = "test-app"
+version = "0.1.0"
+edition = "2024"
+"#,
+        )
+        .unwrap();
+
+        fs::write(temp.path().join("src/lib.rs"), "pub struct Hello;\n").unwrap();
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .unwrap();
+
+        temp
+    }
+
+    fn create_workspace_info(temp: &tempfile::TempDir) -> WorkspaceInfo {
+        let manifest_dir = temp.path().to_path_buf();
+        let src_dir = manifest_dir.join("src");
+        let i18n_toml = manifest_dir.join("i18n.toml");
+        let krate = CrateInfo {
+            name: "test-app".to_string(),
+            manifest_dir: manifest_dir.clone(),
+            src_dir,
+            i18n_config_path: i18n_toml,
+            ftl_output_dir: manifest_dir.join("i18n/en"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        };
+
+        WorkspaceInfo {
+            root_dir: manifest_dir.clone(),
+            target_dir: manifest_dir.join("target"),
+            crates: vec![krate],
+        }
+    }
+
+    #[cfg(unix)]
+    fn set_executable(path: &std::path::Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(path).expect("metadata").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(path, perms).expect("set permissions");
+    }
+
+    #[cfg(not(unix))]
+    fn set_executable(_path: &std::path::Path) {}
+
+    #[test]
+    fn read_changed_status_handles_missing_invalid_and_valid_json() {
+        let temp = tempdir().unwrap();
+        let crate_name = "demo";
+        let result_path = es_fluent_derive_core::get_metadata_result_path(temp.path(), crate_name);
+        fs::create_dir_all(result_path.parent().unwrap()).unwrap();
+
+        assert!(!read_changed_status(temp.path(), crate_name));
+
+        fs::write(&result_path, "{not-json").unwrap();
+        assert!(!read_changed_status(temp.path(), crate_name));
+
+        fs::write(&result_path, r#"{"changed":true}"#).unwrap();
+        assert!(read_changed_status(temp.path(), crate_name));
+    }
+
+    #[test]
+    fn render_generation_results_reports_error_presence() {
+        let success = GenerateResult::success(
+            "ok-crate".to_string(),
+            Duration::from_millis(10),
+            1,
+            None,
+            false,
+        );
+        let failure = GenerateResult::failure(
+            "bad-crate".to_string(),
+            Duration::from_millis(5),
+            "boom".to_string(),
+        );
+
+        let success_calls = Cell::new(0usize);
+        let error_calls = Cell::new(0usize);
+
+        let has_errors = render_generation_results(
+            &[success, failure],
+            |_| success_calls.set(success_calls.get() + 1),
+            |_| error_calls.set(error_calls.get() + 1),
+        );
+
+        assert!(has_errors);
+        assert_eq!(success_calls.get(), 1);
+        assert_eq!(error_calls.get(), 1);
+    }
+
+    #[test]
+    fn generation_verb_labels_match_expected_text() {
+        assert_eq!(
+            GenerationVerb::Generate.dry_run_label(),
+            "would be generated in"
+        );
+        assert_eq!(GenerationVerb::Clean.dry_run_label(), "would be cleaned in");
+    }
+
+    #[test]
+    fn workspace_discover_supports_package_filtering() {
+        let temp = create_test_crate_workspace();
+
+        let all = WorkspaceCrates::discover(WorkspaceArgs {
+            path: Some(temp.path().to_path_buf()),
+            package: None,
+        })
+        .unwrap();
+        assert_eq!(all.crates.len(), 1);
+        assert_eq!(all.valid.len(), 1);
+
+        let filtered = WorkspaceCrates::discover(WorkspaceArgs {
+            path: Some(temp.path().to_path_buf()),
+            package: Some("missing-crate".to_string()),
+        })
+        .unwrap();
+        assert!(filtered.crates.is_empty());
+        assert!(filtered.valid.is_empty());
+    }
+
+    #[test]
+    fn parallel_generate_uses_cached_runner_and_reads_changed_status() {
+        let temp = create_test_crate_workspace();
+        let workspace = create_workspace_info(&temp);
+        let krate = workspace.crates[0].clone();
+
+        let runner_binary = workspace.target_dir.join("debug/es-fluent-runner");
+        fs::create_dir_all(runner_binary.parent().unwrap()).expect("create target/debug");
+        fs::write(
+            &runner_binary,
+            "#!/bin/sh\necho generated-from-fake-runner\n",
+        )
+        .expect("write fake runner");
+        set_executable(&runner_binary);
+
+        let mtime = fs::metadata(&runner_binary)
+            .and_then(|m| m.modified())
+            .expect("runner mtime")
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .expect("mtime duration")
+            .as_secs();
+        let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+        let mut crate_hashes = indexmap::IndexMap::new();
+        crate_hashes.insert(krate.name.clone(), hash);
+        let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
+        fs::create_dir_all(&temp_dir).expect("create .es-fluent");
+        RunnerCache {
+            crate_hashes,
+            runner_mtime: mtime,
+            cli_version: env!("CARGO_PKG_VERSION").to_string(),
+        }
+        .save(&temp_dir)
+        .expect("save runner cache");
+
+        let result_json = es_fluent_derive_core::get_metadata_result_path(&temp_dir, &krate.name);
+        fs::create_dir_all(result_json.parent().unwrap()).expect("create metadata dir");
+        fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
+
+        let results = parallel_generate(
+            &workspace,
+            std::slice::from_ref(&krate),
+            &GenerationAction::Generate {
+                mode: FluentParseMode::default(),
+                dry_run: false,
+            },
+            false,
+        );
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].error.is_none());
+        assert!(results[0].changed);
+        assert!(
+            results[0]
+                .output
+                .as_ref()
+                .expect("captured output")
+                .contains("generated-from-fake-runner")
+        );
+    }
+
+    #[test]
+    fn workspace_print_discovery_handles_empty_and_skipped_crates() {
+        let empty = WorkspaceCrates {
+            path: PathBuf::from("."),
+            workspace_info: WorkspaceInfo {
+                root_dir: PathBuf::from("."),
+                target_dir: PathBuf::from("./target"),
+                crates: Vec::new(),
+            },
+            crates: Vec::new(),
+            valid: Vec::new(),
+            skipped: Vec::new(),
+        };
+        assert!(!empty.print_discovery(|| {}));
+
+        let skipped_crate = CrateInfo {
+            name: "missing-lib".to_string(),
+            manifest_dir: PathBuf::from("/tmp/test"),
+            src_dir: PathBuf::from("/tmp/test/src"),
+            i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
+            ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
+            has_lib_rs: false,
+            fluent_features: Vec::new(),
+        };
+        let non_empty = WorkspaceCrates {
+            path: PathBuf::from("."),
+            workspace_info: WorkspaceInfo {
+                root_dir: PathBuf::from("."),
+                target_dir: PathBuf::from("./target"),
+                crates: vec![skipped_crate.clone()],
+            },
+            crates: vec![skipped_crate.clone()],
+            valid: Vec::new(),
+            skipped: vec![skipped_crate],
+        };
+        assert!(non_empty.print_discovery(|| {}));
+    }
+
+    #[test]
+    fn parallel_generate_returns_failures_when_runner_preparation_fails() {
+        let krate = CrateInfo {
+            name: "broken".to_string(),
+            manifest_dir: PathBuf::from("/dev/null"),
+            src_dir: PathBuf::from("/dev/null/src"),
+            i18n_config_path: PathBuf::from("/dev/null/i18n.toml"),
+            ftl_output_dir: PathBuf::from("/dev/null/i18n/en"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        };
+        let workspace = WorkspaceInfo {
+            root_dir: PathBuf::from("/dev/null"),
+            target_dir: PathBuf::from("/dev/null/target"),
+            crates: vec![krate.clone()],
+        };
+
+        let results = parallel_generate(
+            &workspace,
+            std::slice::from_ref(&krate),
+            &GenerationAction::Generate {
+                mode: FluentParseMode::default(),
+                dry_run: false,
+            },
+            false,
+        );
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].error.is_some());
+    }
+
+    #[test]
+    fn parallel_generate_handles_empty_output_and_dry_run_render_paths() {
+        let temp = create_test_crate_workspace();
+        let workspace = create_workspace_info(&temp);
+        let krate = workspace.crates[0].clone();
+
+        let runner_binary = workspace.target_dir.join("debug/es-fluent-runner");
+        fs::create_dir_all(runner_binary.parent().unwrap()).expect("create target/debug");
+        fs::write(&runner_binary, "#!/bin/sh\n:\n").expect("write fake runner");
+        set_executable(&runner_binary);
+
+        let mtime = fs::metadata(&runner_binary)
+            .and_then(|m| m.modified())
+            .expect("runner mtime")
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .expect("mtime duration")
+            .as_secs();
+        let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+        let mut crate_hashes = indexmap::IndexMap::new();
+        crate_hashes.insert(krate.name.clone(), hash);
+        let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
+        fs::create_dir_all(&temp_dir).expect("create .es-fluent");
+        RunnerCache {
+            crate_hashes,
+            runner_mtime: mtime,
+            cli_version: env!("CARGO_PKG_VERSION").to_string(),
+        }
+        .save(&temp_dir)
+        .expect("save runner cache");
+
+        let results = parallel_generate(
+            &workspace,
+            std::slice::from_ref(&krate),
+            &GenerationAction::Generate {
+                mode: FluentParseMode::default(),
+                dry_run: true,
+            },
+            false,
+        );
+        assert_eq!(results.len(), 1);
+        assert!(results[0].error.is_none());
+        assert!(
+            results[0].output.is_none(),
+            "empty runner output should map to None"
+        );
+
+        let dry_run_has_errors =
+            render_generation_results_with_dry_run(&results, true, GenerationVerb::Generate);
+        assert!(!dry_run_has_errors);
+
+        let clean_result = GenerateResult::success(
+            "crate-clean".to_string(),
+            Duration::from_millis(1),
+            1,
+            None,
+            true,
+        );
+        let clean_has_errors =
+            render_generation_results_with_dry_run(&[clean_result], false, GenerationVerb::Clean);
+        assert!(!clean_has_errors);
+    }
+}
