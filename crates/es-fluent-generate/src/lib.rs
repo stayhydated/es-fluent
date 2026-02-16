@@ -761,18 +761,17 @@ mod tests {
         assert_eq!(owned.variants[0].ftl_key, "greeter-hello_name");
 
         let message = create_message_entry(&owned.variants[0]);
-        match message {
-            ast::Entry::Message(msg) => assert_eq!(msg.id.name, "greeter-hello_name"),
-            _ => panic!("expected message entry"),
-        }
+        assert!(matches!(
+            &message,
+            ast::Entry::Message(msg) if msg.id.name == "greeter-hello_name"
+        ));
 
         let group = create_group_comment_entry("Greeter");
-        match &group {
-            ast::Entry::GroupComment(comment) => {
-                assert_eq!(group_comment_name(comment), Some("Greeter".to_string()));
-            },
-            _ => panic!("expected group comment"),
-        }
+        assert!(matches!(
+            &group,
+            ast::Entry::GroupComment(comment)
+                if group_comment_name(comment) == Some("Greeter".to_string())
+        ));
     }
 
     #[test]
@@ -837,6 +836,43 @@ mod tests {
     }
 
     #[test]
+    fn write_updated_resource_covers_unchanged_empty_and_dry_run_empty_paths() {
+        let temp = tempdir().expect("tempdir");
+        let file_path = temp.path().join("empty.ftl");
+        std::fs::write(&file_path, "").expect("write empty file");
+
+        let empty_resource = ast::Resource { body: vec![] };
+        let unchanged = write_updated_resource(
+            &file_path,
+            &empty_resource,
+            false,
+            formatting::sort_ftl_resource,
+        )
+        .expect("unchanged empty write");
+        assert!(!unchanged);
+
+        let unchanged_dry_run = write_updated_resource(
+            &file_path,
+            &empty_resource,
+            true,
+            formatting::sort_ftl_resource,
+        )
+        .expect("unchanged dry run");
+        assert!(!unchanged_dry_run);
+
+        write_or_preview(&file_path, "old = value\n", "", true, true)
+            .expect("dry-run empty from non-empty");
+        write_or_preview(&file_path, "", "", true, true).expect("dry-run empty from empty");
+    }
+
+    #[test]
+    fn print_diff_handles_equal_lines_and_multiple_groups() {
+        let old = "line1 = old\nkeep1 = 1\nkeep2 = 2\nkeep3 = 3\nkeep4 = 4\nkeep5 = 5\nkeep6 = 6\nkeep7 = 7\nkeep8 = 8\nkeep9 = 9\nkeep10 = 10\nline12 = old\n";
+        let new = "line1 = new\nkeep1 = 1\nkeep2 = 2\nkeep3 = 3\nkeep4 = 4\nkeep5 = 5\nkeep6 = 6\nkeep7 = 7\nkeep8 = 8\nkeep9 = 9\nkeep10 = 10\nline12 = new\n";
+        print_diff(old, new);
+    }
+
+    #[test]
     fn collect_existing_keys_and_remove_empty_group_comments_cover_terms_and_pending_groups() {
         let resource = parse_resource_allowing_errors(
             "## Empty\n# orphan-comment\n\n## Keep\nkeep = yes\n\n-shared = shared\n",
@@ -851,6 +887,15 @@ mod tests {
         assert!(!formatted.contains("## Empty"));
         assert!(formatted.contains("## Keep"));
         assert!(formatted.contains("-shared = shared"));
+    }
+
+    #[test]
+    fn remove_empty_group_comments_keeps_top_level_entries_without_group() {
+        let resource = parse_resource_allowing_errors("top-level = value\n# loose comment\n");
+        let cleaned = remove_empty_group_comments(resource);
+        let formatted = formatting::sort_ftl_resource(&cleaned);
+        assert!(formatted.contains("top-level = value"));
+        assert!(formatted.contains("# loose comment"));
     }
 
     #[test]
@@ -926,6 +971,59 @@ mod tests {
         assert!(merged_clean_text.contains("-shared_term = shared"));
         assert!(merged_clean_text.contains("group_b-B1 = wrong-group"));
         assert!(!merged_clean_text.contains("group_a-A1"));
+    }
+
+    #[test]
+    fn smart_merge_handles_duplicates_empty_group_headers_and_comment_entries() {
+        let group_a = test_type(
+            "GroupA",
+            vec![
+                test_variant("A1", "dup-key", &[]),
+                test_variant("SharedTerm", "-dup-term", &[]),
+            ],
+        );
+        let items = vec![&group_a];
+
+        let mut existing = parse_resource_allowing_errors(
+            "## GroupA\ndup-key = first\ndup-key = second\n-dup-term = one\n-dup-term = two\n",
+        );
+        existing.body.push(ast::Entry::Comment(ast::Comment {
+            content: vec!["loose-comment".to_string()],
+        }));
+        existing
+            .body
+            .push(ast::Entry::GroupComment(ast::Comment { content: vec![] }));
+
+        let merged = smart_merge(existing, &items, MergeBehavior::Append);
+        let merged_text = formatting::sort_ftl_resource(&merged);
+        assert_eq!(merged_text.matches("dup-key =").count(), 1);
+        assert_eq!(merged_text.matches("-dup-term =").count(), 1);
+        assert!(merged_text.contains("# loose-comment"));
+    }
+
+    #[test]
+    fn smart_merge_appends_relocated_entries_for_group_switch_and_missing_group_header() {
+        let group_x = test_type("GroupX", vec![]);
+        let group_a = test_type(
+            "GroupA",
+            vec![
+                test_variant("A1", "group_a-A1", &[]),
+                test_variant("A2", "group_a-A2", &[]),
+            ],
+        );
+        let group_b = test_type("GroupB", vec![test_variant("B1", "group_b-B1", &[])]);
+        let group_c = test_type("GroupC", vec![test_variant("C1", "group_c-C1", &[])]);
+        let items = vec![&group_x, &group_a, &group_b, &group_c];
+
+        let existing = parse_resource_allowing_errors(
+            "## GroupX\ngroup_a-A1 = moved-to-a\ngroup_b-B1 = moved-to-b\n\n## GroupA\ngroup_a-A2 = keep-a2\n\n## GroupC\ngroup_c-C1 = keep-c1\n",
+        );
+        let merged = smart_merge(existing, &items, MergeBehavior::Append);
+        let merged_text = formatting::sort_ftl_resource(&merged);
+
+        assert!(merged_text.contains("group_a-A1 = moved-to-a"));
+        assert!(merged_text.contains("## GroupB"));
+        assert!(merged_text.contains("group_b-B1 = moved-to-b"));
     }
 
     #[test]

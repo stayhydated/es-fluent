@@ -285,4 +285,45 @@ mod tests {
             EsFluentError::FallbackLanguageNotFound { .. }
         ));
     }
+
+    #[test]
+    fn emit_and_abort_paths_are_callable() {
+        let span = proc_macro2::Span::call_site();
+
+        let emit_with_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "emit-with-span".to_string(),
+                span: Some(span),
+            }
+            .emit();
+        });
+        assert!(emit_with_span.is_err());
+
+        let emit_without_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "emit-without-span".to_string(),
+                span: None,
+            }
+            .emit();
+        });
+        assert!(emit_without_span.is_err());
+
+        let abort_with_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "abort-with-span".to_string(),
+                span: Some(span),
+            }
+            .abort();
+        });
+        assert!(abort_with_span.is_err());
+
+        let abort_without_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "abort-without-span".to_string(),
+                span: None,
+            }
+            .abort();
+        });
+        assert!(abort_without_span.is_err());
+    }
 }

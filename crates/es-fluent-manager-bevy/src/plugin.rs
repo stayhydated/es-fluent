@@ -413,6 +413,7 @@ mod tests {
     use super::*;
     use bevy::{MinimalPlugins, asset::AssetPlugin};
     use es_fluent_manager_core::{AssetI18nModule, AssetModuleData};
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
 
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
@@ -426,6 +427,19 @@ mod tests {
 
     inventory::submit! {
         &TEST_ASSET_MODULE as &dyn I18nAssetModule
+    }
+
+    static TEST_NAMESPACED_ASSET_DATA: AssetModuleData = AssetModuleData {
+        name: "test-namespaced-module",
+        domain: "namespaced-domain",
+        supported_languages: SUPPORTED_LANGUAGES,
+        namespaces: &["menu", "hud"],
+    };
+    static TEST_NAMESPACED_ASSET_MODULE: AssetI18nModule =
+        AssetI18nModule::new(&TEST_NAMESPACED_ASSET_DATA);
+
+    inventory::submit! {
+        &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nAssetModule
     }
 
     struct TestStaticResource;
@@ -453,6 +467,47 @@ mod tests {
         &TEST_STATIC_RESOURCE as &dyn StaticI18nResource
     }
 
+    struct DuplicateStaticResource;
+
+    impl StaticI18nResource for DuplicateStaticResource {
+        fn domain(&self) -> &'static str {
+            "duplicate-static-domain"
+        }
+
+        fn matches_language(&self, lang: &LanguageIdentifier) -> bool {
+            lang == &langid!("en")
+        }
+
+        fn resource(&self) -> Arc<FluentResource> {
+            Arc::new(
+                FluentResource::try_new("hello = duplicate".to_string())
+                    .expect("valid duplicate static ftl"),
+            )
+        }
+    }
+
+    static DUPLICATE_STATIC_RESOURCE: DuplicateStaticResource = DuplicateStaticResource;
+
+    inventory::submit! {
+        &DUPLICATE_STATIC_RESOURCE as &dyn StaticI18nResource
+    }
+
+    static REGISTER_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    struct TestFluentTextRegistration;
+
+    impl BevyFluentTextRegistration for TestFluentTextRegistration {
+        fn register(&self, _app: &mut App) {
+            REGISTER_CALLS.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    static TEST_FLUENT_TEXT_REGISTRATION: TestFluentTextRegistration = TestFluentTextRegistration;
+
+    inventory::submit! {
+        &TEST_FLUENT_TEXT_REGISTRATION as &dyn BevyFluentTextRegistration
+    }
+
     #[test]
     fn plugin_constructors_keep_configuration() {
         let default_config = I18nPluginConfig::default();
@@ -471,6 +526,8 @@ mod tests {
 
     #[test]
     fn plugin_pipeline_loads_assets_and_updates_global_state() {
+        REGISTER_CALLS.store(0, Ordering::SeqCst);
+
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.add_message::<RequestRedraw>();
@@ -482,41 +539,120 @@ mod tests {
         assert!(app.world().contains_resource::<I18nAssets>());
         assert!(app.world().contains_resource::<I18nResource>());
         assert!(app.world().contains_resource::<CurrentLanguageId>());
+        assert!(REGISTER_CALLS.load(Ordering::SeqCst) > 0);
+        assert_eq!(TEST_STATIC_RESOURCE.domain(), "test-domain");
 
-        let handle = app
-            .world()
-            .resource::<I18nAssets>()
-            .assets
-            .values()
-            .next()
-            .cloned()
-            .expect("expected one discovered asset handle");
+        let (base_handle, menu_handle, hud_handle) = {
+            let assets = &app.world().resource::<I18nAssets>().assets;
+            let base = assets
+                .iter()
+                .find(|((lang, domain), _)| *lang == langid!("en") && domain == "test-domain")
+                .map(|(_, handle)| handle.clone())
+                .expect("expected discovered base domain handle");
+            let menu = assets
+                .iter()
+                .find(|((lang, domain), _)| {
+                    *lang == langid!("en") && domain == "namespaced-domain/menu"
+                })
+                .map(|(_, handle)| handle.clone())
+                .expect("expected discovered namespaced menu handle");
+            let hud = assets
+                .iter()
+                .find(|((lang, domain), _)| {
+                    *lang == langid!("en") && domain == "namespaced-domain/hud"
+                })
+                .map(|(_, handle)| handle.clone())
+                .expect("expected discovered namespaced hud handle");
+            (base, menu, hud)
+        };
+
+        // Trigger missing-asset path in handle_asset_loading.
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Added {
+                id: base_handle.id(),
+            });
+        app.update();
 
         {
             let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
             let _ = assets.insert(
-                handle.id(),
+                base_handle.id(),
                 FtlAsset {
                     content: "hello = Hello".to_string(),
                 },
             );
+            let _ = assets.insert(
+                menu_handle.id(),
+                FtlAsset {
+                    content: "hello = Hello from menu".to_string(),
+                },
+            );
         }
         app.world_mut()
-            .write_message(AssetEvent::<FtlAsset>::Added { id: handle.id() });
+            .write_message(AssetEvent::<FtlAsset>::Added {
+                id: base_handle.id(),
+            });
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Added {
+                id: menu_handle.id(),
+            });
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Added {
+                id: hud_handle.id(),
+            });
         app.update();
 
         let lang = langid!("en");
+        // One namespaced asset is still missing, so bundle cache should be removed.
+        assert!(!app.world().resource::<I18nBundle>().0.contains_key(&lang));
+
+        {
+            let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+            let _ = assets.insert(
+                hud_handle.id(),
+                FtlAsset {
+                    content: "from-hud = Hud".to_string(),
+                },
+            );
+        }
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Modified {
+                id: hud_handle.id(),
+            });
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Removed {
+                id: base_handle.id(),
+            });
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Unused {
+                id: base_handle.id(),
+            });
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::LoadedWithDependencies {
+                id: base_handle.id(),
+            });
+        app.update();
+
         assert!(
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
                 .contains_key(&(lang.clone(), "test-domain".to_string()))
         );
-        assert!(app.world().resource::<I18nBundle>().0.contains_key(&lang));
-        assert_eq!(
-            bevy_custom_localizer("hello", None),
-            Some("Hello".to_string())
+        assert!(
+            app.world()
+                .resource::<I18nAssets>()
+                .loaded_resources
+                .contains_key(&(lang.clone(), "namespaced-domain/menu".to_string()))
         );
+        assert!(
+            app.world()
+                .resource::<I18nAssets>()
+                .loaded_resources
+                .contains_key(&(lang.clone(), "namespaced-domain/hud".to_string()))
+        );
+        assert!(app.world().resource::<I18nBundle>().0.contains_key(&lang));
+        assert!(bevy_custom_localizer("hello", None).is_some());
         assert_eq!(
             bevy_custom_localizer("from-static", None),
             Some("static".to_string())
@@ -526,14 +662,16 @@ mod tests {
         {
             let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
             let _ = assets.insert(
-                handle.id(),
+                base_handle.id(),
                 FtlAsset {
                     content: "broken = {".to_string(),
                 },
             );
         }
         app.world_mut()
-            .write_message(AssetEvent::<FtlAsset>::Modified { id: handle.id() });
+            .write_message(AssetEvent::<FtlAsset>::Modified {
+                id: base_handle.id(),
+            });
         app.update();
 
         // Exercise locale-change handling and fallback resolution.
@@ -541,8 +679,61 @@ mod tests {
             .write_message(LocaleChangeEvent(langid!("en-US")));
         app.update();
         assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("en"));
+        app.world_mut()
+            .write_message(LocaleChangeEvent(langid!("zz")));
+        app.update();
+        assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("zz"));
 
         update_global_language(langid!("en"));
         assert_eq!(bevy_custom_localizer("missing", None), None);
+    }
+
+    #[test]
+    fn helper_paths_cover_args_and_missing_bundle_cases() {
+        let mut app = App::new();
+        app.add_message::<LocaleChangeEvent>();
+        app.add_message::<LocaleChangedEvent>();
+        app.insert_resource(I18nAssets::new());
+        app.insert_resource(I18nResource::new(langid!("en")));
+        app.insert_resource(CurrentLanguageId(langid!("en")));
+        app.add_systems(Update, handle_locale_changes);
+
+        // No available language candidates triggers fallback to requested locale.
+        app.world_mut()
+            .write_message(LocaleChangeEvent(langid!("zz")));
+        app.update();
+        assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("zz"));
+
+        let missing_bundle_state = BevyI18nState::new(langid!("en"));
+        assert_eq!(missing_bundle_state.localize("hello", None), None);
+
+        let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![langid!("en")]);
+        let resource = Arc::new(
+            FluentResource::try_new(
+                "hello = Hello { $name }\nonly-attr =\n    .label = Label".to_string(),
+            )
+            .expect("valid ftl"),
+        );
+        bundle.add_resource(resource).expect("add resource");
+
+        let mut bundles = HashMap::new();
+        bundles.insert(langid!("en"), Arc::new(bundle));
+        let state = BevyI18nState::new(langid!("en")).with_bundle(I18nBundle(bundles));
+
+        assert_eq!(state.localize("only-attr", None), None);
+
+        let mut args = HashMap::new();
+        args.insert("name", FluentValue::from("Mark"));
+        let with_args = state.localize("hello", Some(&args)).expect("localized");
+        assert!(with_args.contains("Mark"));
+
+        let without_args = state
+            .localize("hello", None)
+            .expect("formatting with missing args still returns output");
+        assert!(without_args.contains("Hello"));
+
+        update_global_bundle(I18nBundle::default());
+        update_global_language(langid!("en"));
+        let _ = bevy_custom_localizer("unknown-key", None);
     }
 }

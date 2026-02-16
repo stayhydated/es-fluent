@@ -321,4 +321,32 @@ usa_state_this = Usa State"#;
 
         assert!(this_pos < a_pos, "_this should be sorted to top of group");
     }
+
+    #[test]
+    fn test_sort_ftl_handles_resource_comments_and_fallback_group_matching() {
+        let content = r#"### Resource Header
+stray_root = keep
+
+## UserVariants
+user_name = Name"#;
+
+        let resource = parser::parse(content.to_string()).unwrap();
+        let sorted = sort_ftl_resource(&resource);
+
+        assert!(sorted.contains("### Resource Header"));
+        let header_pos = sorted.find("## UserVariants").unwrap();
+        let msg_pos = sorted.find("user_name = Name").unwrap();
+        assert!(msg_pos > header_pos);
+    }
+
+    #[test]
+    fn test_sort_ftl_skips_junk_entries_from_partial_parses() {
+        let content = "## Group\nvalid = ok\nbroken = {\n";
+        let resource = parser::parse(content.to_string()).unwrap_or_else(|(resource, _)| resource);
+        let sorted = sort_ftl_resource(&resource);
+
+        assert!(sorted.contains("## Group"));
+        assert!(sorted.contains("valid = ok"));
+        assert!(!sorted.contains("broken = {"));
+    }
 }

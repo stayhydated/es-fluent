@@ -254,6 +254,16 @@ mod tests {
         }
     }
 
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_ns_errors"]
+    struct NamespaceErrorAssets;
+
+    impl EmbeddedAssets for NamespaceErrorAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -265,6 +275,13 @@ mod tests {
         name: "test-module",
         domain: "test-domain",
         supported_languages: SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
+    };
+    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("cd")];
+    static NS_ERROR_MODULE_DATA: EmbeddedModuleData = EmbeddedModuleData {
+        name: "ns-error-module",
+        domain: "test-domain",
+        supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
 
@@ -347,5 +364,26 @@ mod tests {
         assert_eq!(module.name(), "test-module");
         let localizer = module.create_localizer();
         assert_eq!(localizer.localize("hello", None), None);
+    }
+
+    #[test]
+    fn embedded_localizer_exercises_namespaced_parse_and_utf8_error_paths() {
+        let localizer = EmbeddedLocalizer::<NamespaceErrorAssets>::new(&NS_ERROR_MODULE_DATA);
+
+        let parse_err = localizer
+            .select_language(&langid!("ab"))
+            .expect_err("invalid namespaced FTL should fail");
+        assert!(matches!(
+            parse_err,
+            LocalizationError::LanguageNotSupported(_)
+        ));
+
+        let utf8_err = localizer
+            .select_language(&langid!("cd"))
+            .expect_err("invalid namespaced UTF-8 should fail");
+        assert!(matches!(
+            utf8_err,
+            LocalizationError::LanguageNotSupported(_)
+        ));
     }
 }

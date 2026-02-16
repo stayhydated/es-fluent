@@ -324,7 +324,41 @@ fn ensure_supported_language_identifier(
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::{LazyLock, Mutex};
     use tempfile::TempDir;
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("lock poisoned");
+        let previous = std::env::var("CARGO_MANIFEST_DIR").ok();
+
+        match value {
+            Some(path) => {
+                // SAFETY: tests hold a global lock and restore the previous value afterwards.
+                unsafe { std::env::set_var("CARGO_MANIFEST_DIR", path) };
+            },
+            None => {
+                // SAFETY: tests hold a global lock and restore the previous value afterwards.
+                unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
+            },
+        }
+
+        let result = f();
+
+        match previous {
+            Some(prev) => {
+                // SAFETY: tests hold a global lock and restore the previous value afterwards.
+                unsafe { std::env::set_var("CARGO_MANIFEST_DIR", prev) };
+            },
+            None => {
+                // SAFETY: tests hold a global lock and restore the previous value afterwards.
+                unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
+            },
+        }
+
+        result
+    }
 
     #[test]
     fn test_read_from_path_success() {
@@ -528,5 +562,176 @@ assets_dir = "i18n"
 
         let config = I18nConfig::read_from_path(&config_path).unwrap();
         assert!(config.fluent_feature.is_none());
+    }
+
+    #[test]
+    fn test_fluent_feature_is_empty_variants() {
+        assert!(FluentFeature::Single(String::new()).is_empty());
+        assert!(!FluentFeature::Single("fluent".to_string()).is_empty());
+        assert!(FluentFeature::Multiple(Vec::new()).is_empty());
+        assert!(!FluentFeature::Multiple(vec!["fluent".to_string()]).is_empty());
+    }
+
+    #[test]
+    fn test_available_languages_uses_manifest_env_when_base_not_provided() {
+        let temp_dir = TempDir::new().unwrap();
+        let assets = temp_dir.path().join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join("en")).unwrap();
+
+        let config = I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        let languages = with_manifest_env(Some(temp_dir.path()), || config.available_languages())
+            .expect("available languages");
+        assert_eq!(
+            languages
+                .into_iter()
+                .map(|lang| lang.to_string())
+                .collect::<Vec<_>>(),
+            vec!["en"]
+        );
+    }
+
+    #[test]
+    fn test_validate_assets_dir_reports_missing_and_non_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let config = I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        let missing = with_manifest_env(Some(temp_dir.path()), || config.validate_assets_dir());
+        assert!(matches!(
+            missing,
+            Err(I18nConfigError::ReadError(err)) if err.kind() == std::io::ErrorKind::NotFound
+        ));
+
+        fs::write(temp_dir.path().join("i18n"), "not a directory").unwrap();
+        let not_directory =
+            with_manifest_env(Some(temp_dir.path()), || config.validate_assets_dir());
+        assert!(matches!(
+            not_directory,
+            Err(I18nConfigError::ReadError(err)) if err.kind() == std::io::ErrorKind::InvalidInput
+        ));
+    }
+
+    #[test]
+    fn test_manifest_dir_helper_methods() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(
+            temp_dir.path().join("i18n.toml"),
+            "fallback_language = \"en-US\"\nassets_dir = \"locales\"\n",
+        )
+        .unwrap();
+
+        let config = I18nConfig::from_manifest_dir(temp_dir.path()).expect("config");
+        assert_eq!(config.fallback_language, "en-US");
+        assert_eq!(config.assets_dir, PathBuf::from("locales"));
+
+        let assets = I18nConfig::assets_dir_from_manifest_dir(temp_dir.path()).expect("assets");
+        assert_eq!(assets, temp_dir.path().join("locales"));
+
+        let output = I18nConfig::output_dir_from_manifest_dir(temp_dir.path()).expect("output");
+        assert_eq!(output, temp_dir.path().join("locales/en-US"));
+    }
+
+    #[test]
+    fn test_available_languages_rejects_invalid_language_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let assets = temp_dir.path().join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join("invalid-lang!")).unwrap();
+
+        let config = I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        let err = config
+            .available_languages_from_base(Some(temp_dir.path()))
+            .expect_err("invalid language directory must fail");
+        assert!(matches!(
+            err,
+            I18nConfigError::InvalidLanguageIdentifier { name, .. } if name == "invalid-lang!"
+        ));
+    }
+
+    #[test]
+    fn test_available_languages_rejects_variant_language_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let assets = temp_dir.path().join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join("en-oxendict")).unwrap();
+
+        let config = I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        let err = config
+            .available_languages_from_base(Some(temp_dir.path()))
+            .expect_err("variant language directory must fail");
+        assert!(matches!(
+            err,
+            I18nConfigError::UnsupportedLanguageIdentifier { name, reason }
+                if name == "en-oxendict" && reason == "variants are not supported"
+        ));
+    }
+
+    #[test]
+    fn test_fallback_language_identifier_rejects_variants() {
+        let config = I18nConfig {
+            fallback_language: "en-oxendict".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        let err = config
+            .fallback_language_identifier()
+            .expect_err("variant fallback should fail");
+        assert!(matches!(
+            err,
+            I18nConfigError::UnsupportedLanguageIdentifier { name, reason }
+                if name == "en-oxendict" && reason == "variants are not supported"
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_available_languages_rejects_non_utf8_directory_name() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp_dir = TempDir::new().unwrap();
+        let assets = temp_dir.path().join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join(OsString::from_vec(vec![0x66, 0x6f, 0x80]))).unwrap();
+
+        let config = I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: PathBuf::from("i18n"),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        let err = config
+            .available_languages_from_base(Some(temp_dir.path()))
+            .expect_err("non utf8 directory should fail");
+        assert!(matches!(
+            err,
+            I18nConfigError::ReadError(io_err) if io_err.kind() == std::io::ErrorKind::InvalidData
+        ));
     }
 }

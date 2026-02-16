@@ -131,6 +131,27 @@ mod tests {
         RegisteredFtlType(&INFO)
     }
 
+    static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant {
+        name: "NoFilePath",
+        ftl_key: "empty_file_key",
+        args: &[],
+        module_path: "test_crate_empty_file",
+        line: 7,
+    }];
+
+    static INFO_NO_FILE: FtlTypeInfo = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "InventoryTypeNoFile",
+        variants: VARIANTS_NO_FILE,
+        file_path: "",
+        module_path: "test_crate_empty_file",
+        namespace: None,
+    };
+
+    es_fluent::__inventory::submit! {
+        RegisteredFtlType(&INFO_NO_FILE)
+    }
+
     fn with_temp_cwd<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
         let _guard = crate::TEST_CWD_LOCK.lock().expect("lock poisoned");
         let original = std::env::current_dir().expect("cwd");
@@ -186,6 +207,27 @@ mod tests {
                     .len(),
                 0
             );
+        });
+    }
+
+    #[test]
+    fn write_inventory_sets_source_file_to_null_when_missing() {
+        with_temp_cwd(|cwd| {
+            write_inventory_for_crate("test-crate-empty-file");
+
+            let inventory_path = cwd.join("metadata/test-crate-empty-file/inventory.json");
+            let content = std::fs::read_to_string(inventory_path).expect("read inventory");
+            let json: serde_json::Value = serde_json::from_str(&content).expect("parse json");
+
+            let keys = json["expected_keys"]
+                .as_array()
+                .expect("expected_keys array");
+            assert_eq!(keys.len(), 1);
+
+            let key = &keys[0];
+            assert_eq!(key["key"], "empty_file_key");
+            assert!(key["source_file"].is_null());
+            assert_eq!(key["source_line"], 7);
         });
     }
 }

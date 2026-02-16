@@ -27,7 +27,11 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
         .status()
         .expect("run check");
     assert!(check_status.success());
-    assert!(temp.path().join("metadata/unknown-crate/inventory.json").exists());
+    assert!(
+        temp.path()
+            .join("metadata/unknown-crate/inventory.json")
+            .exists()
+    );
 
     let generate_status = Command::new(run_bin)
         .current_dir(temp.path())
@@ -43,7 +47,26 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
         .status()
         .expect("run generate");
     assert!(generate_status.success());
-    assert!(temp.path().join("metadata/unknown-crate/result.json").exists());
+    assert!(
+        temp.path()
+            .join("metadata/unknown-crate/result.json")
+            .exists()
+    );
+
+    let generate_default_mode_status = Command::new(run_bin)
+        .current_dir(temp.path())
+        .args([
+            "generate",
+            i18n_toml.to_str().expect("path"),
+            "--crate",
+            "unknown-crate",
+            "--mode",
+            "not-a-real-mode",
+            "--dry-run",
+        ])
+        .status()
+        .expect("run generate with unknown mode");
+    assert!(generate_default_mode_status.success());
 
     let clean_status = Command::new(run_bin)
         .current_dir(temp.path())
@@ -92,5 +115,9 @@ fn run_generate_entrypoint_supports_generate_and_clean_subcommands() {
         .expect("run clean subcommand");
     assert!(clean_status.success());
 
-    assert!(temp.path().join("metadata/unknown-crate/result.json").exists());
+    assert!(
+        temp.path()
+            .join("metadata/unknown-crate/result.json")
+            .exists()
+    );
 }

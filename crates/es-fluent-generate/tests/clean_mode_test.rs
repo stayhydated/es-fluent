@@ -130,3 +130,30 @@ country_label_variants-USA = USA
     assert!(content.contains("country_label_variants-Canada"));
     assert!(content.contains("country_label_variants-USA"));
 }
+
+#[test]
+fn test_clean_writes_namespaced_files() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+    let crate_name = "test_crate";
+    let namespaced_file = i18n_path.join(crate_name).join("ui.ftl");
+
+    fs::create_dir_all(&i18n_path).unwrap();
+    fs::create_dir_all(namespaced_file.parent().unwrap()).unwrap();
+    fs::write(&namespaced_file, "## Legacy\n\nlegacy-Old = Remove me\n").unwrap();
+
+    let variant = variant("Title", &ftl_key("Ui", "Title"));
+    let item = common::enum_type_with_namespace("Ui", vec![variant], "ui");
+    let changed = es_fluent_generate::clean::clean(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        std::slice::from_ref(&item),
+        false,
+    )
+    .unwrap();
+
+    assert!(changed);
+    let content = fs::read_to_string(&namespaced_file).unwrap();
+    assert!(!content.contains("legacy-Old"));
+}

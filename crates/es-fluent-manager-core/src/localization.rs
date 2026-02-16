@@ -208,4 +208,16 @@ mod tests {
             Some("ok-value".to_string())
         );
     }
+
+    #[test]
+    fn manager_select_language_with_only_failing_localizers_covers_warn_path() {
+        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+
+        let manager = FluentManager {
+            localizers: vec![("module-err", Box::new(LocalizerErr))],
+        };
+        manager.select_language(&langid!("en-US"));
+
+        assert_eq!(SELECT_ERR_CALLS.load(Ordering::Relaxed), 1);
+    }
 }
