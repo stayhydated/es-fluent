@@ -9,9 +9,13 @@ use syn::{DeriveInput, parse_macro_input};
 /// The entry point for the `EsFluentChoice` derive macro.
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    expand_choice(input).into()
+}
+
+fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
     let opts = match ChoiceOpts::from_derive_input(&input) {
         Ok(opts) => opts,
-        Err(err) => return err.write_errors().into(),
+        Err(err) => return err.write_errors(),
     };
 
     let enum_ident = opts.ident();
@@ -35,8 +39,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         enum_ident.span(),
                         format!("{}. Supported values are: {}", msg, supported),
                     )
-                    .to_compile_error()
-                    .into();
+                    .to_compile_error();
                 },
             }
         } else {
@@ -61,5 +64,55 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     };
 
-    generated.into()
+    generated
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_choice;
+    use syn::parse_quote;
+
+    #[test]
+    fn expand_choice_generates_expected_tokens_for_default_and_serialized_modes() {
+        let default_input: syn::DeriveInput = parse_quote! {
+            enum ChoiceDefault {
+                VeryHigh
+            }
+        };
+        let default_tokens = expand_choice(default_input).to_string();
+        assert!(default_tokens.contains("VeryHigh"));
+
+        let snake_input: syn::DeriveInput = parse_quote! {
+            #[fluent_choice(serialize_all = "snake_case")]
+            enum ChoiceSnake {
+                VeryHigh
+            }
+        };
+        let snake_tokens = expand_choice(snake_input).to_string();
+        assert!(snake_tokens.contains("very_high"));
+    }
+
+    #[test]
+    fn expand_choice_emits_compile_error_for_invalid_serialize_all() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_choice(serialize_all = "not_a_style")]
+            enum BadChoice {
+                A
+            }
+        };
+
+        let tokens = expand_choice(input).to_string();
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("Supported values are"));
+    }
+
+    #[test]
+    fn expand_choice_returns_darling_errors_for_unsupported_input_shapes() {
+        let input: syn::DeriveInput = parse_quote! {
+            struct NotAnEnum;
+        };
+
+        let tokens = expand_choice(input).to_string();
+        assert!(tokens.contains("compile_error"));
+    }
 }

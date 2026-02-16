@@ -88,3 +88,49 @@ impl From<usize> for UnnamedItem {
         Self(index)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+
+    #[test]
+    fn fluent_key_conversions_and_joining_work() {
+        let from_string = FluentKey::from("hello_world".to_string());
+        let from_str = FluentKey::from("hello_world");
+        let from_ident = FluentKey::from(&syn::Ident::new(
+            "HelloWorld",
+            proc_macro2::Span::call_site(),
+        ));
+
+        assert_eq!(from_string.to_string(), "hello_world");
+        assert_eq!(from_str.to_string(), "hello_world");
+        assert_eq!(from_ident.to_string(), "hello_world");
+
+        assert_eq!(from_ident.join("suffix").to_string(), "hello_world-suffix");
+        assert_eq!(from_ident.join("").to_string(), "hello_world");
+    }
+
+    #[test]
+    fn fluent_key_this_and_token_generation_work() {
+        let this_key =
+            FluentKey::new_this(&syn::Ident::new("MyType", proc_macro2::Span::call_site()));
+        assert_eq!(this_key.to_string(), "my_type_this");
+
+        let tokens = quote!(#this_key).to_string();
+        assert!(tokens.contains("my_type_this"));
+    }
+
+    #[test]
+    fn fluent_doc_and_unnamed_item_cover_display_and_tokens() {
+        let key = FluentKey::from("field_name");
+        let doc = FluentDoc::from(&key);
+        let doc_tokens = quote!(#doc).to_string();
+        assert!(doc_tokens.contains("Key ="));
+        assert!(doc_tokens.contains("field_name"));
+
+        let unnamed = UnnamedItem::from(3);
+        assert_eq!(unnamed.to_string(), "f3");
+        assert_eq!(unnamed.to_ident().to_string(), "f3");
+    }
+}

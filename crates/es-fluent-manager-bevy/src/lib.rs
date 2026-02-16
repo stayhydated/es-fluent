@@ -278,6 +278,21 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Component, Debug, PartialEq, Eq)]
+    struct RefreshableMessage(pub String);
+
+    impl RefreshForLocale for RefreshableMessage {
+        fn refresh_for_locale(&mut self, lang: &LanguageIdentifier) {
+            self.0 = lang.to_string();
+        }
+    }
+
+    impl ToFluentString for RefreshableMessage {
+        fn to_fluent_string(&self) -> String {
+            self.0.clone()
+        }
+    }
+
     #[test]
     fn primary_language_extracts_language_subtag() {
         assert_eq!(primary_language(&langid!("en-US")), "en");
@@ -346,6 +361,37 @@ mod tests {
             i18n_resource.localize_with_fallback(&i18n_bundle, "missing", None),
             "missing"
         );
+    }
+
+    #[test]
+    fn update_values_on_locale_change_updates_registered_fluent_text_values() {
+        let mut app = App::new();
+        app.add_message::<LocaleChangedEvent>();
+        app.add_systems(Update, update_values_on_locale_change::<RefreshableMessage>);
+
+        let entity = app
+            .world_mut()
+            .spawn(FluentText::new(RefreshableMessage("initial".to_string())))
+            .id();
+
+        app.world_mut()
+            .write_message(LocaleChangedEvent(langid!("fr-CA")));
+        app.update();
+
+        let updated = app
+            .world()
+            .get::<FluentText<RefreshableMessage>>(entity)
+            .expect("entity should still exist");
+        assert_eq!(updated.value.0, "fr-CA");
+    }
+
+    #[test]
+    fn bevy_plugins_and_registration_helpers_build_without_panics() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(EsFluentBevyPlugin);
+        app.register_fluent_text::<RefreshableMessage>();
+        app.register_fluent_text_from_locale::<RefreshableMessage>();
     }
 }
 

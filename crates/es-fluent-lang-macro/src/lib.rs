@@ -2,12 +2,10 @@
 
 use heck::ToUpperCamelCase as _;
 use proc_macro::TokenStream;
-use proc_macro_error2::{abort, abort_call_site, proc_macro_error};
+use proc_macro_error2::proc_macro_error;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
-use syn::{
-    Fields, ItemEnum, LitStr, Variant, parse_macro_input, parse_quote, spanned::Spanned as _,
-};
+use syn::{Fields, ItemEnum, LitStr, Variant, parse_quote, spanned::Spanned as _};
 
 mod supported_locales;
 
@@ -46,6 +44,13 @@ impl SupportedLanguageSet {
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
+    expand_es_fluent_language(attr.into(), item.into()).into()
+}
+
+fn expand_es_fluent_language(
+    attr: proc_macro2::TokenStream,
+    item: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     let custom_mode = if attr.is_empty() {
         false
     } else {
@@ -53,51 +58,83 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
         if attr_str.trim() == "custom" {
             true
         } else {
-            abort_call_site!(
-                "#[es_fluent_language] only accepts `custom` as an argument; found `{}`",
-                attr_str
-            );
+            return syn::Error::new(
+                Span::call_site(),
+                format!(
+                    "#[es_fluent_language] only accepts `custom` as an argument; found `{}`",
+                    attr_str
+                ),
+            )
+            .to_compile_error();
         }
     };
 
-    let mut input_enum = parse_macro_input!(item as ItemEnum);
+    let mut input_enum: ItemEnum = match syn::parse2(item) {
+        Ok(input_enum) => input_enum,
+        Err(err) => return err.to_compile_error(),
+    };
     let enum_ident = input_enum.ident.clone();
     let enum_span = enum_ident.span();
 
     if !input_enum.generics.params.is_empty() {
-        abort!(
+        return syn::Error::new(
             input_enum.generics.span(),
-            "#[es_fluent_language] does not support generic enums"
-        );
+            "#[es_fluent_language] does not support generic enums",
+        )
+        .to_compile_error();
     }
 
     if !input_enum.variants.is_empty() {
-        abort!(
+        return syn::Error::new(
             enum_span,
-            "#[es_fluent_language] expects an enum without variants"
-        );
+            "#[es_fluent_language] expects an enum without variants",
+        )
+        .to_compile_error();
     }
 
-    let config = es_fluent_toml::I18nConfig::read_from_manifest_dir()
-        .unwrap_or_else(|err| abort!(enum_span, "failed to read i18n configuration: {}", err));
+    let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
+        Ok(config) => config,
+        Err(err) => {
+            return syn::Error::new(
+                enum_span,
+                format!("failed to read i18n configuration: {err}"),
+            )
+            .to_compile_error();
+        },
+    };
 
-    let mut languages = config
-        .available_languages()
-        .unwrap_or_else(|err| abort!(enum_span, "failed to collect available languages: {}", err));
+    let mut languages = match config.available_languages() {
+        Ok(languages) => languages,
+        Err(err) => {
+            return syn::Error::new(
+                enum_span,
+                format!("failed to collect available languages: {err}"),
+            )
+            .to_compile_error();
+        },
+    };
 
-    let fallback_language = config
-        .fallback_language_identifier()
-        .unwrap_or_else(|err| abort!(enum_span, "failed to parse fallback language: {}", err));
+    let fallback_language = match config.fallback_language_identifier() {
+        Ok(language) => language,
+        Err(err) => {
+            return syn::Error::new(
+                enum_span,
+                format!("failed to parse fallback language: {err}"),
+            )
+            .to_compile_error();
+        },
+    };
 
     if !languages.iter().any(|lang| lang == &fallback_language) {
         languages.push(fallback_language.clone());
     }
 
     if languages.is_empty() {
-        abort!(
+        return syn::Error::new(
             enum_span,
-            "no languages found under the configured assets directory"
-        );
+            "no languages found under the configured assets directory",
+        )
+        .to_compile_error();
     }
 
     let fallback_canonical = fallback_language.to_string();
@@ -128,7 +165,11 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     if !unsupported_languages.is_empty() {
         let formatted = unsupported_languages.join(", ");
-        abort!(enum_span, "unsupported languages in assets: {}.", formatted);
+        return syn::Error::new(
+            enum_span,
+            format!("unsupported languages in assets: {formatted}."),
+        )
+        .to_compile_error();
     }
 
     let mut variant_idents = Vec::with_capacity(language_entries.len());
@@ -173,10 +214,13 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let fallback_variant_ident = match fallback_variant_ident {
         Some(ident) => ident,
-        None => abort!(
-            enum_span,
-            "fallback language was not found among available languages"
-        ),
+        None => {
+            return syn::Error::new(
+                enum_span,
+                "fallback language was not found among available languages",
+            )
+            .to_compile_error();
+        },
     };
 
     let conversion_error_ident = format_ident!("{enum_ident}LanguageConversionError");
@@ -276,5 +320,143 @@ pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    expanded.into()
+    expanded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_es_fluent_language;
+    use std::sync::{LazyLock, Mutex};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn with_manifest_dir<T>(
+        manifest_toml: Option<&str>,
+        locale_dirs: &[&str],
+        f: impl FnOnce() -> T,
+    ) -> T {
+        let _guard = ENV_LOCK.lock().expect("lock poisoned");
+        let previous = std::env::var_os("CARGO_MANIFEST_DIR");
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be after unix epoch")
+            .as_nanos();
+        let manifest_dir = std::env::temp_dir().join(format!(
+            "es-fluent-lang-macro-test-{pid}-{unique}",
+            pid = std::process::id()
+        ));
+        std::fs::create_dir_all(&manifest_dir).expect("create temp manifest dir");
+
+        if let Some(manifest_toml) = manifest_toml {
+            std::fs::write(manifest_dir.join("i18n.toml"), manifest_toml).expect("write i18n.toml");
+        }
+
+        for locale in locale_dirs {
+            std::fs::create_dir_all(manifest_dir.join("i18n").join(locale))
+                .expect("create locale dir");
+        }
+
+        // SAFETY: tests serialize environment updates with a global lock.
+        unsafe { std::env::set_var("CARGO_MANIFEST_DIR", &manifest_dir) };
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+
+        match previous {
+            Some(previous) => {
+                // SAFETY: tests serialize environment updates with a global lock.
+                unsafe { std::env::set_var("CARGO_MANIFEST_DIR", previous) };
+            },
+            None => {
+                // SAFETY: tests serialize environment updates with a global lock.
+                unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
+            },
+        }
+        let _ = std::fs::remove_dir_all(&manifest_dir);
+
+        match result {
+            Ok(value) => value,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
+    }
+
+    fn run_macro(attr: &str, item: &str) -> String {
+        let attr_tokens = if attr.trim().is_empty() {
+            proc_macro2::TokenStream::new()
+        } else {
+            attr.parse().expect("parse attribute tokens")
+        };
+        let item_tokens: proc_macro2::TokenStream = item.parse().expect("parse item tokens");
+        expand_es_fluent_language(attr_tokens, item_tokens).to_string()
+    }
+
+    #[test]
+    fn macro_rejects_invalid_attribute_arguments_and_input_shapes() {
+        let invalid_attr = run_macro("bad", "enum Languages {}");
+        assert!(invalid_attr.contains("only accepts `custom`"));
+
+        let generic_enum = run_macro("", "enum Languages<T> {}");
+        assert!(generic_enum.contains("does not support generic enums"));
+
+        let enum_with_variants = run_macro("", "enum Languages { En }");
+        assert!(enum_with_variants.contains("expects an enum without variants"));
+    }
+
+    #[test]
+    fn macro_reports_configuration_and_language_discovery_errors() {
+        with_manifest_dir(None, &[], || {
+            let output = run_macro("", "enum MissingConfig {}");
+            assert!(output.contains("failed to read i18n configuration"));
+        });
+
+        with_manifest_dir(
+            Some("fallback_language = \"en-US\"\nassets_dir = \"missing\"\n"),
+            &[],
+            || {
+                let output = run_macro("", "enum MissingAssets {}");
+                assert!(output.contains("failed to collect available languages"));
+            },
+        );
+
+        with_manifest_dir(
+            Some("fallback_language = \"not-a-lang\"\nassets_dir = \"i18n\"\n"),
+            &["en"],
+            || {
+                let output = run_macro("", "enum BadFallback {}");
+                assert!(output.contains("failed to parse fallback language"));
+            },
+        );
+    }
+
+    #[test]
+    fn macro_adds_missing_fallback_and_supports_custom_mode() {
+        with_manifest_dir(
+            Some("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n"),
+            &["fr"],
+            || {
+                let default_mode = run_macro("", "enum Languages {}");
+                assert!(default_mode.contains("resource = \"es-fluent-lang\""));
+                assert!(default_mode.contains("Fr"));
+                assert!(default_mode.contains("EnUs"));
+
+                let custom_mode = run_macro("custom", "enum CustomLanguages {}");
+                assert!(!custom_mode.contains("resource = \"es-fluent-lang\""));
+                assert!(custom_mode.contains("enum CustomLanguages"));
+            },
+        );
+    }
+
+    #[test]
+    fn macro_rejects_unsupported_languages() {
+        with_manifest_dir(
+            Some("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n"),
+            &["zz"],
+            || {
+                let output = run_macro("", "enum Unsupported {}");
+                assert!(output.contains("unsupported languages in assets"));
+                assert!(output.contains("zz"));
+            },
+        );
+    }
 }

@@ -11,20 +11,23 @@ use crate::macros::utils::namespace_rule_tokens;
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    expand_es_fluent_this(input).into()
+}
 
+fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     let opts = match ThisOpts::from_derive_input(&input) {
         Ok(opts) => opts,
-        Err(err) => return err.write_errors().into(),
+        Err(err) => return err.write_errors(),
     };
 
     let fluent_namespace = match &input.data {
         Data::Struct(_) => match StructOpts::from_derive_input(&input) {
             Ok(opts) => opts.attr_args().namespace().cloned(),
-            Err(err) => return err.write_errors().into(),
+            Err(err) => return err.write_errors(),
         },
         Data::Enum(_) => match EnumOpts::from_derive_input(&input) {
             Ok(opts) => opts.attr_args().namespace().cloned(),
-            Err(err) => return err.write_errors().into(),
+            Err(err) => return err.write_errors(),
         },
         Data::Union(_) => panic!("EsFluentThis cannot be used on unions"),
     };
@@ -90,5 +93,66 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #inventory_submit
     };
 
-    tokens.into()
+    tokens
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_es_fluent_this;
+    use syn::parse_quote;
+
+    #[test]
+    fn expand_es_fluent_this_generates_inventory_when_origin_is_enabled() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_this]
+            #[fluent(namespace = "ui")]
+            struct LoginForm;
+        };
+
+        let tokens = expand_es_fluent_this(input).to_string();
+        assert!(tokens.contains("__es_fluent_this_inventory_login_form"));
+        assert!(tokens.contains("login_form_this"));
+    }
+
+    #[test]
+    fn expand_es_fluent_this_skips_inventory_when_origin_is_disabled() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_this(origin = false)]
+            enum NoOrigin {
+                A
+            }
+        };
+
+        let tokens = expand_es_fluent_this(input).to_string();
+        assert!(!tokens.contains("__es_fluent_this_inventory_no_origin"));
+        assert!(!tokens.contains("_this"));
+    }
+
+    #[test]
+    fn expand_es_fluent_this_returns_compile_errors_for_parse_failures() {
+        let this_opts_error: syn::DeriveInput = parse_quote! {
+            #[fluent_this(origin = "nope")]
+            struct InvalidThisOpts;
+        };
+        let this_opts_tokens = expand_es_fluent_this(this_opts_error).to_string();
+        assert!(this_opts_tokens.contains("compile_error"));
+
+        let struct_namespace_error: syn::DeriveInput = parse_quote! {
+            #[fluent_this]
+            #[fluent(namespace = 123)]
+            struct InvalidStructNamespace;
+        };
+        let struct_tokens = expand_es_fluent_this(struct_namespace_error).to_string();
+        assert!(struct_tokens.contains("compile_error"));
+
+        let enum_namespace_error: syn::DeriveInput = parse_quote! {
+            #[fluent_this]
+            #[fluent(namespace = 123)]
+            enum InvalidEnumNamespace {
+                A
+            }
+        };
+        let enum_tokens = expand_es_fluent_this(enum_namespace_error).to_string();
+        assert!(enum_tokens.contains("compile_error"));
+    }
 }

@@ -64,3 +64,28 @@ impl CaseStyle {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::CaseStyle;
+
+    #[test]
+    fn case_style_apply_covers_all_variants() {
+        assert_eq!(CaseStyle::SnakeCase.apply("HelloWorld"), "hello_world");
+        assert_eq!(CaseStyle::PascalCase.apply("hello world"), "HelloWorld");
+        assert_eq!(CaseStyle::CamelCase.apply("hello world"), "helloWorld");
+        assert_eq!(CaseStyle::KebabCase.apply("HelloWorld"), "hello-world");
+        assert_eq!(
+            CaseStyle::ScreamingSnakeCase.apply("hello world"),
+            "HELLO_WORLD"
+        );
+        assert_eq!(
+            CaseStyle::ScreamingKebabCase.apply("hello world"),
+            "HELLO-WORLD"
+        );
+        assert_eq!(CaseStyle::TitleCase.apply("hello world"), "Hello World");
+        assert_eq!(CaseStyle::TrainCase.apply("hello world"), "Hello-World");
+        assert_eq!(CaseStyle::Lowercase.apply("Hello_World"), "hello_world");
+        assert_eq!(CaseStyle::Uppercase.apply("Hello_World"), "HELLO_WORLD");
+    }
+}
