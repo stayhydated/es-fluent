@@ -517,3 +517,218 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
 
     TokenStream::from(expanded)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+    use std::sync::{LazyLock, Mutex};
+    use tempfile::tempdir;
+
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("lock poisoned");
+        let previous = std::env::var(key).ok();
+
+        match value {
+            Some(value) => {
+                // SAFETY: tests serialize environment updates with a global lock.
+                unsafe { std::env::set_var(key, value) };
+            },
+            None => {
+                // SAFETY: tests serialize environment updates with a global lock.
+                unsafe { std::env::remove_var(key) };
+            },
+        }
+
+        let result = f();
+
+        match previous {
+            Some(previous) => {
+                // SAFETY: tests serialize environment updates with a global lock.
+                unsafe { std::env::set_var(key, previous) };
+            },
+            None => {
+                // SAFETY: tests serialize environment updates with a global lock.
+                unsafe { std::env::remove_var(key) };
+            },
+        }
+
+        result
+    }
+
+    fn write_manifest(manifest_dir: &std::path::Path, assets_dir: &str) {
+        std::fs::write(
+            manifest_dir.join("i18n.toml"),
+            format!(
+                "fallback_language = \"en-US\"\nassets_dir = \"{}\"\n",
+                assets_dir
+            ),
+        )
+        .expect("write i18n.toml");
+    }
+
+    #[test]
+    fn macro_error_and_current_crate_name_behave_as_expected() {
+        let err = macro_error("boom");
+        assert_eq!(err.to_string(), "boom");
+
+        with_env_var("CARGO_PKG_NAME", Some("example-crate"), || {
+            assert_eq!(current_crate_name().expect("crate name"), "example-crate");
+        });
+
+        with_env_var("CARGO_PKG_NAME", None, || {
+            let err = current_crate_name().expect_err("missing env should fail");
+            assert!(err.to_string().contains("CARGO_PKG_NAME must be set"));
+        });
+    }
+
+    #[test]
+    fn i18n_assets_load_discovers_languages_and_namespaces() {
+        let temp = tempdir().expect("tempdir");
+        write_manifest(temp.path(), "i18n");
+
+        std::fs::create_dir_all(temp.path().join("i18n/en")).expect("mkdir en");
+        std::fs::create_dir_all(temp.path().join("i18n/fr/my-crate")).expect("mkdir fr crate");
+        std::fs::write(temp.path().join("i18n/en/my-crate.ftl"), "hello = Hello").expect("write");
+        std::fs::write(temp.path().join("i18n/fr/my-crate/ui.ftl"), "title = Titre")
+            .expect("write");
+        std::fs::write(
+            temp.path().join("i18n/fr/my-crate/not-ftl.txt"),
+            "ignore me",
+        )
+        .expect("write");
+
+        with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
+            let assets = I18nAssets::load("my-crate").expect("load assets");
+            assert_eq!(assets.root_path, temp.path().join("i18n"));
+
+            let mut languages = assets.languages.clone();
+            languages.sort();
+            assert_eq!(languages, vec!["en".to_string(), "fr".to_string()]);
+
+            let mut namespaces = assets.namespaces.clone();
+            namespaces.sort();
+            assert_eq!(namespaces, vec!["ui".to_string()]);
+
+            assert_eq!(
+                assets
+                    .language_identifier_tokens(&quote!(::es_fluent_manager_bevy::__unic_langid))
+                    .len(),
+                2
+            );
+            assert_eq!(assets.namespace_tokens().len(), 1);
+        });
+    }
+
+    #[test]
+    fn i18n_assets_load_reports_configuration_errors() {
+        let missing_temp = tempdir().expect("tempdir");
+        with_env_var("CARGO_MANIFEST_DIR", missing_temp.path().to_str(), || {
+            let err = I18nAssets::load("my-crate")
+                .err()
+                .expect("missing config should fail");
+            assert!(err.to_string().contains("No i18n.toml"));
+        });
+
+        let invalid_temp = tempdir().expect("tempdir");
+        write_manifest(invalid_temp.path(), "missing-assets");
+        with_env_var("CARGO_MANIFEST_DIR", invalid_temp.path().to_str(), || {
+            let err = I18nAssets::load("my-crate")
+                .err()
+                .expect("invalid assets should fail");
+            assert!(
+                err.to_string()
+                    .contains("Assets directory validation failed")
+            );
+        });
+    }
+
+    #[test]
+    fn locale_field_collection_and_generation_cover_enum_struct_and_union() {
+        let enum_input: DeriveInput = syn::parse_quote! {
+            enum Example {
+                A {
+                    #[locale]
+                    current_language: Lang,
+                    count: usize,
+                },
+                B { value: usize },
+            }
+        };
+
+        let enum_fields = collect_locale_fields(&enum_input.data);
+        assert_eq!(enum_fields.len(), 1);
+        assert_eq!(
+            enum_fields[0]
+                .variant_ident
+                .as_ref()
+                .expect("variant")
+                .to_string(),
+            "A"
+        );
+        assert_eq!(enum_fields[0].field_ident.to_string(), "current_language");
+        assert_eq!(enum_fields[0].other_fields.len(), 1);
+        let enum_tokens =
+            generate_refresh_for_locale_impl(&enum_input.ident, &enum_input.data, &enum_fields)
+                .to_string();
+        assert!(enum_tokens.contains("match"));
+        assert!(enum_tokens.contains("current_language"));
+
+        let struct_input: DeriveInput = syn::parse_quote! {
+            struct ExampleStruct {
+                #[locale]
+                locale: Lang,
+                value: usize,
+            }
+        };
+        let struct_fields = collect_locale_fields(&struct_input.data);
+        assert_eq!(struct_fields.len(), 1);
+        assert!(struct_fields[0].variant_ident.is_none());
+        let struct_tokens = generate_refresh_for_locale_impl(
+            &struct_input.ident,
+            &struct_input.data,
+            &struct_fields,
+        )
+        .to_string();
+        assert!(struct_tokens.contains("self . locale"));
+
+        let union_input: DeriveInput = syn::parse_quote! {
+            union ExampleUnion {
+                a: u32,
+                b: f32,
+            }
+        };
+        let union_fields = collect_locale_fields(&union_input.data);
+        assert!(union_fields.is_empty());
+        let union_tokens =
+            generate_refresh_for_locale_impl(&union_input.ident, &union_input.data, &union_fields)
+                .to_string();
+        assert_eq!(union_tokens, "");
+    }
+
+    #[test]
+    fn locale_attr_and_registration_module_helpers_emit_expected_tokens() {
+        let locale_field: syn::Field = syn::parse_quote! {
+            #[locale]
+            language: Lang
+        };
+        let plain_field: syn::Field = syn::parse_quote! {
+            language: Lang
+        };
+        assert!(has_locale_attr(&locale_field));
+        assert!(!has_locale_attr(&plain_field));
+
+        let module_tokens = bevy_fluent_text_registration_module(
+            &syn::Ident::new("__test_module", proc_macro2::Span::call_site()),
+            &syn::Ident::new("Example", proc_macro2::Span::call_site()),
+            quote! { register_me(app); },
+        )
+        .to_string();
+
+        assert!(module_tokens.contains("__test_module"));
+        assert!(module_tokens.contains("register_me"));
+        assert!(module_tokens.contains("inventory"));
+    }
+}

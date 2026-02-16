@@ -68,3 +68,24 @@ impl<T: ToFluentString + Clone> Display for FluentText<T> {
         write!(f, "{}", self.value.to_fluent_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Clone)]
+    struct FakeMessage(&'static str);
+
+    impl ToFluentString for FakeMessage {
+        fn to_fluent_string(&self) -> String {
+            self.0.to_string()
+        }
+    }
+
+    #[test]
+    fn fluent_text_new_and_display_use_inner_to_fluent_string() {
+        let component = FluentText::new(FakeMessage("hello"));
+        assert_eq!(component.value.to_fluent_string(), "hello");
+        assert_eq!(component.to_string(), "hello");
+    }
+}

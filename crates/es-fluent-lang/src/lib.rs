@@ -387,3 +387,80 @@ mod bevy_support {
         "/es_fluent_lang_static_resources.rs"
     ));
 }
+
+#[cfg(all(test, feature = "localized-langs"))]
+mod tests {
+    use super::*;
+    use unic_langid::langid;
+
+    #[test]
+    fn embedded_resource_is_cached_and_localizes_known_keys() {
+        let first = embedded_resource();
+        let second = embedded_resource();
+        assert!(Arc::ptr_eq(&first, &second));
+
+        assert_eq!(
+            localize_from_resource(langid!("en-US"), first, "es-fluent-lang-en", None),
+            Some("English".to_string())
+        );
+        assert_eq!(
+            localize_from_resource(langid!("en-US"), second, "missing-key", None),
+            None
+        );
+    }
+
+    #[test]
+    fn localize_from_resource_formats_args_and_reports_missing_args() {
+        let resource = Arc::new(
+            FluentResource::try_new("welcome = Welcome, { $name }!".to_string())
+                .expect("valid ftl"),
+        );
+
+        assert_eq!(
+            localize_from_resource(langid!("en-US"), resource.clone(), "welcome", None),
+            None
+        );
+
+        let mut args = HashMap::new();
+        args.insert("name", FluentValue::from("Mark"));
+        let localized = localize_from_resource(langid!("en-US"), resource, "welcome", Some(&args));
+        assert!(
+            localized
+                .as_deref()
+                .is_some_and(|value| value.contains("Welcome"))
+        );
+        assert!(
+            localized
+                .as_deref()
+                .is_some_and(|value| value.contains("Mark"))
+        );
+    }
+
+    #[test]
+    fn language_module_creates_localizer_and_selects_language() {
+        let module = EsFluentLanguageModule;
+        assert_eq!(module.name(), "es-fluent-lang");
+
+        let localizer = module.create_localizer();
+        localizer
+            .select_language(&langid!("fr"))
+            .expect("language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("français".to_string())
+        );
+    }
+
+    #[cfg(feature = "bevy")]
+    #[test]
+    fn bevy_static_resource_is_registered_for_es_fluent_lang() {
+        use es_fluent_manager_core::StaticI18nResource;
+
+        let resource = inventory::iter::<&'static dyn StaticI18nResource>()
+            .find(|resource| resource.domain() == "es-fluent-lang")
+            .expect("es-fluent-lang static resource should be registered");
+
+        assert!(resource.matches_language(&langid!("en-US")));
+        assert!(resource.resource().get_entry(0).is_some());
+    }
+}

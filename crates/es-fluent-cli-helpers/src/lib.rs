@@ -7,6 +7,10 @@ use es_fluent_derive_core::{EsFluentError, write_metadata_result};
 use es_fluent_toml::I18nConfig;
 use std::path::Path;
 
+#[cfg(test)]
+pub(crate) static TEST_CWD_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+
 pub use cli::{ExpectedKey, InventoryData, write_inventory_for_crate};
 pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs};
 
@@ -180,5 +184,80 @@ pub fn run() {
             eprintln!("Unknown command: {}", command);
             std::process::exit(1);
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn with_temp_cwd<T>(f: impl FnOnce(&Path) -> T) -> T {
+        let _guard = crate::TEST_CWD_LOCK.lock().expect("lock poisoned");
+        let original = std::env::current_dir().expect("cwd");
+        let temp = tempdir().expect("tempdir");
+        std::env::set_current_dir(temp.path()).expect("set cwd");
+        let result = f(temp.path());
+        std::env::set_current_dir(original).expect("restore cwd");
+        result
+    }
+
+    fn write_basic_manifest(manifest_dir: &Path) {
+        std::fs::create_dir_all(manifest_dir.join("i18n/en-US")).expect("mkdir en-US");
+        std::fs::create_dir_all(manifest_dir.join("i18n/fr")).expect("mkdir fr");
+        std::fs::write(
+            manifest_dir.join("i18n.toml"),
+            "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+    }
+
+    fn read_changed_result(base: &Path, crate_name: &str) -> bool {
+        let result_path = base.join("metadata").join(crate_name).join("result.json");
+        let content = std::fs::read_to_string(result_path).expect("read result json");
+        let value: serde_json::Value = serde_json::from_str(&content).expect("parse result json");
+        value["changed"].as_bool().expect("changed bool")
+    }
+
+    #[test]
+    fn run_generate_and_clean_with_options_write_metadata_result() {
+        with_temp_cwd(|cwd| {
+            write_basic_manifest(cwd);
+            let i18n_path = cwd.join("i18n.toml");
+
+            let changed = run_generate_with_options(
+                i18n_path.to_str().expect("path"),
+                "missing-crate",
+                FluentParseMode::Conservative,
+                false,
+            );
+            assert_eq!(changed, read_changed_result(cwd, "missing-crate"));
+
+            let clean_changed = run_clean_with_options(
+                i18n_path.to_str().expect("path"),
+                "missing-crate",
+                true,
+                true,
+            );
+            assert_eq!(clean_changed, read_changed_result(cwd, "missing-crate"));
+        });
+    }
+
+    #[test]
+    fn run_check_writes_inventory_json_for_requested_crate() {
+        with_temp_cwd(|cwd| {
+            run_check("unknown-crate");
+
+            let inventory_path = cwd.join("metadata/unknown-crate/inventory.json");
+            let content = std::fs::read_to_string(inventory_path).expect("read inventory");
+            let value: serde_json::Value = serde_json::from_str(&content).expect("parse json");
+            assert_eq!(
+                value["expected_keys"]
+                    .as_array()
+                    .expect("expected_keys")
+                    .len(),
+                0
+            );
+        });
     }
 }

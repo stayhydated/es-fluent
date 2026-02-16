@@ -293,3 +293,154 @@ fn collect_type_infos(crate_name: &str) -> Vec<&'static FtlTypeInfo> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent::registry::{FtlVariant, NamespaceRule};
+    use es_fluent_derive_core::meta::TypeKind;
+    use tempfile::tempdir;
+
+    static EMPTY_VARIANTS: &[FtlVariant] = &[];
+    static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "AllowedType",
+        variants: EMPTY_VARIANTS,
+        file_path: "src/lib.rs",
+        module_path: "test_crate",
+        namespace: Some(NamespaceRule::Literal("ui")),
+    };
+    static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "DisallowedType",
+        variants: EMPTY_VARIANTS,
+        file_path: "src/lib.rs",
+        module_path: "test_crate",
+        namespace: Some(NamespaceRule::Literal("errors")),
+    };
+
+    fn write_basic_i18n_config(manifest_dir: &Path) {
+        std::fs::create_dir_all(manifest_dir.join("i18n/en-US")).expect("mkdir en-US");
+        std::fs::create_dir_all(manifest_dir.join("i18n/fr")).expect("mkdir fr");
+        std::fs::write(
+            manifest_dir.join("i18n.toml"),
+            "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\nnamespaces = [\"ui\"]\n",
+        )
+        .expect("write i18n.toml");
+    }
+
+    #[test]
+    fn resolve_helpers_use_overrides_and_config_defaults() {
+        let temp = tempdir().expect("tempdir");
+        write_basic_i18n_config(temp.path());
+
+        let output_override = temp.path().join("custom-output");
+        let assets_override = temp.path().join("custom-assets");
+        let generator = EsFluentGenerator::builder()
+            .crate_name("my-crate")
+            .output_path(&output_override)
+            .assets_dir(&assets_override)
+            .manifest_dir(temp.path())
+            .build();
+
+        assert_eq!(
+            generator.resolve_crate_name().expect("crate name"),
+            "my-crate"
+        );
+        assert_eq!(
+            generator.resolve_output_path().expect("output"),
+            output_override
+        );
+        assert_eq!(
+            generator.resolve_assets_dir().expect("assets"),
+            assets_override
+        );
+        assert_eq!(
+            generator.resolve_manifest_dir().expect("manifest"),
+            temp.path()
+        );
+    }
+
+    #[test]
+    fn resolve_clean_paths_supports_single_or_all_locales() {
+        let temp = tempdir().expect("tempdir");
+        write_basic_i18n_config(temp.path());
+
+        let generator = EsFluentGenerator::builder()
+            .crate_name("missing-crate")
+            .manifest_dir(temp.path())
+            .build();
+
+        let single = generator
+            .resolve_clean_paths(false)
+            .expect("single clean path");
+        assert_eq!(single, vec![temp.path().join("i18n/en-US")]);
+
+        let all = generator
+            .resolve_clean_paths(true)
+            .expect("all clean paths");
+        assert_eq!(
+            all,
+            vec![temp.path().join("i18n/en-US"), temp.path().join("i18n/fr")]
+        );
+    }
+
+    #[test]
+    fn validate_namespaces_allows_configured_namespaces_only() {
+        let temp = tempdir().expect("tempdir");
+        write_basic_i18n_config(temp.path());
+
+        let generator = EsFluentGenerator::builder()
+            .crate_name("missing-crate")
+            .manifest_dir(temp.path())
+            .build();
+
+        generator
+            .validate_namespaces(&[&ALLOWED_INFO], temp.path())
+            .expect("allowed namespace should pass");
+
+        let err = generator
+            .validate_namespaces(&[&DISALLOWED_INFO], temp.path())
+            .expect_err("disallowed namespace should fail");
+        assert!(matches!(
+            err,
+            GeneratorError::InvalidNamespace {
+                namespace,
+                type_name,
+                ..
+            } if namespace == "errors" && type_name == "DisallowedType"
+        ));
+    }
+
+    #[test]
+    fn generate_and_clean_handle_empty_inventory() {
+        let temp = tempdir().expect("tempdir");
+        write_basic_i18n_config(temp.path());
+
+        let generator = EsFluentGenerator::builder()
+            .crate_name("missing-crate")
+            .manifest_dir(temp.path())
+            .build();
+
+        let generate_changed = generator.generate().expect("generate");
+        assert!(!generate_changed);
+
+        let clean_changed = generator.clean(false, false).expect("clean");
+        assert!(!clean_changed);
+
+        let clean_all_changed = generator.clean(true, true).expect("clean all");
+        assert!(!clean_all_changed);
+    }
+
+    #[test]
+    fn detect_crate_name_works_in_test_environment() {
+        let crate_name = EsFluentGenerator::detect_crate_name().expect("crate name");
+        assert!(!crate_name.is_empty());
+    }
+
+    #[test]
+    fn collect_type_infos_returns_empty_for_unknown_crate() {
+        let infos = collect_type_infos("definitely_unknown_crate_name");
+        assert!(infos.is_empty());
+    }
+}

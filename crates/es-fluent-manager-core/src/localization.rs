@@ -89,3 +89,123 @@ impl FluentManager {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use unic_langid::langid;
+
+    static SELECT_OK_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static SELECT_ERR_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    struct ModuleOk;
+    struct ModuleErr;
+
+    struct LocalizerOk;
+    struct LocalizerErr;
+
+    impl Localizer for LocalizerOk {
+        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            SELECT_OK_CALLS.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+
+        fn localize<'a>(
+            &self,
+            id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            match id {
+                "from-ok" => Some("ok-value".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    impl Localizer for LocalizerErr {
+        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            SELECT_ERR_CALLS.fetch_add(1, Ordering::Relaxed);
+            Err(LocalizationError::LanguageNotSupported(lang.clone()))
+        }
+
+        fn localize<'a>(
+            &self,
+            id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            if id == "from-err" {
+                Some("err-value".to_string())
+            } else {
+                None
+            }
+        }
+    }
+
+    impl I18nModule for ModuleOk {
+        fn name(&self) -> &'static str {
+            "module-ok"
+        }
+
+        fn create_localizer(&self) -> Box<dyn Localizer> {
+            Box::new(LocalizerOk)
+        }
+    }
+
+    impl I18nModule for ModuleErr {
+        fn name(&self) -> &'static str {
+            "module-err"
+        }
+
+        fn create_localizer(&self) -> Box<dyn Localizer> {
+            Box::new(LocalizerErr)
+        }
+    }
+
+    static MODULE_OK: ModuleOk = ModuleOk;
+    static MODULE_ERR: ModuleErr = ModuleErr;
+
+    inventory::submit! {
+        &MODULE_OK as &dyn I18nModule
+    }
+
+    inventory::submit! {
+        &MODULE_ERR as &dyn I18nModule
+    }
+
+    #[test]
+    fn manager_select_language_calls_all_localizers() {
+        SELECT_OK_CALLS.store(0, Ordering::Relaxed);
+        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+
+        let manager = FluentManager::new_with_discovered_modules();
+        manager.select_language(&langid!("en-US"));
+
+        assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) >= 1);
+        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) >= 1);
+    }
+
+    #[test]
+    fn manager_localize_returns_first_matching_message() {
+        let manager = FluentManager::new_with_discovered_modules();
+        assert_eq!(
+            manager.localize("from-ok", None),
+            Some("ok-value".to_string())
+        );
+        assert_eq!(
+            manager.localize("from-err", None),
+            Some("err-value".to_string())
+        );
+        assert_eq!(manager.localize("missing", None), None);
+    }
+
+    #[test]
+    fn manager_clone_rebuilds_discovered_modules() {
+        let manager = FluentManager::new_with_discovered_modules();
+        let clone = manager.clone();
+        assert_eq!(
+            clone.localize("from-ok", None),
+            Some("ok-value".to_string())
+        );
+    }
+}

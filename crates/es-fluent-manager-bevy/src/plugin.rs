@@ -407,3 +407,142 @@ fn bevy_custom_localizer<'a>(
     let state = state_swap.load();
     state.localize(id, args)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::{MinimalPlugins, asset::AssetPlugin};
+    use es_fluent_manager_core::{AssetI18nModule, AssetModuleData};
+    use unic_langid::langid;
+
+    static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static TEST_ASSET_DATA: AssetModuleData = AssetModuleData {
+        name: "test-module",
+        domain: "test-domain",
+        supported_languages: SUPPORTED_LANGUAGES,
+        namespaces: &[],
+    };
+    static TEST_ASSET_MODULE: AssetI18nModule = AssetI18nModule::new(&TEST_ASSET_DATA);
+
+    inventory::submit! {
+        &TEST_ASSET_MODULE as &dyn I18nAssetModule
+    }
+
+    struct TestStaticResource;
+
+    impl StaticI18nResource for TestStaticResource {
+        fn domain(&self) -> &'static str {
+            "test-domain"
+        }
+
+        fn matches_language(&self, lang: &LanguageIdentifier) -> bool {
+            lang == &langid!("en")
+        }
+
+        fn resource(&self) -> Arc<FluentResource> {
+            Arc::new(
+                FluentResource::try_new("from-static = static".to_string())
+                    .expect("valid static ftl"),
+            )
+        }
+    }
+
+    static TEST_STATIC_RESOURCE: TestStaticResource = TestStaticResource;
+
+    inventory::submit! {
+        &TEST_STATIC_RESOURCE as &dyn StaticI18nResource
+    }
+
+    #[test]
+    fn plugin_constructors_keep_configuration() {
+        let default_config = I18nPluginConfig::default();
+        assert_eq!(default_config.initial_language, langid!("en-US"));
+        assert_eq!(default_config.asset_path, "i18n");
+
+        let plugin = I18nPlugin::new(I18nPluginConfig {
+            initial_language: langid!("fr"),
+            asset_path: "custom-assets".to_string(),
+        });
+        let _ = plugin;
+
+        let _ = I18nPlugin::with_language(langid!("es"));
+        let _ = I18nPlugin::with_config(I18nPluginConfig::default());
+    }
+
+    #[test]
+    fn plugin_pipeline_loads_assets_and_updates_global_state() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.add_message::<RequestRedraw>();
+        app.add_plugins(I18nPlugin::with_config(I18nPluginConfig {
+            initial_language: langid!("en-US"),
+            asset_path: "i18n".to_string(),
+        }));
+
+        assert!(app.world().contains_resource::<I18nAssets>());
+        assert!(app.world().contains_resource::<I18nResource>());
+        assert!(app.world().contains_resource::<CurrentLanguageId>());
+
+        let handle = app
+            .world()
+            .resource::<I18nAssets>()
+            .assets
+            .values()
+            .next()
+            .cloned()
+            .expect("expected one discovered asset handle");
+
+        {
+            let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+            let _ = assets.insert(
+                handle.id(),
+                FtlAsset {
+                    content: "hello = Hello".to_string(),
+                },
+            );
+        }
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Added { id: handle.id() });
+        app.update();
+
+        let lang = langid!("en");
+        assert!(
+            app.world()
+                .resource::<I18nAssets>()
+                .loaded_resources
+                .contains_key(&(lang.clone(), "test-domain".to_string()))
+        );
+        assert!(app.world().resource::<I18nBundle>().0.contains_key(&lang));
+        assert_eq!(
+            bevy_custom_localizer("hello", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            bevy_custom_localizer("from-static", None),
+            Some("static".to_string())
+        );
+
+        // Trigger parse error branch in asset loading.
+        {
+            let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+            let _ = assets.insert(
+                handle.id(),
+                FtlAsset {
+                    content: "broken = {".to_string(),
+                },
+            );
+        }
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Modified { id: handle.id() });
+        app.update();
+
+        // Exercise locale-change handling and fallback resolution.
+        app.world_mut()
+            .write_message(LocaleChangeEvent(langid!("en-US")));
+        app.update();
+        assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("en"));
+
+        update_global_language(langid!("en"));
+        assert_eq!(bevy_custom_localizer("missing", None), None);
+    }
+}

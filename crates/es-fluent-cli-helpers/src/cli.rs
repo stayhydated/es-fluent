@@ -93,3 +93,99 @@ pub fn write_inventory_for_crate(crate_name: &str) {
 
     std::fs::write(&inventory_path, json).expect("Failed to write inventory file");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType};
+    use es_fluent_derive_core::meta::TypeKind;
+    use tempfile::tempdir;
+
+    static VARIANTS: &[FtlVariant] = &[
+        FtlVariant {
+            name: "Primary",
+            ftl_key: "my_key",
+            args: &["name", "count"],
+            module_path: "test_crate",
+            line: 42,
+        },
+        FtlVariant {
+            name: "Secondary",
+            ftl_key: "my_key",
+            args: &["extra"],
+            module_path: "test_crate",
+            line: 55,
+        },
+    ];
+
+    static INFO: FtlTypeInfo = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "InventoryType",
+        variants: VARIANTS,
+        file_path: "src/lib.rs",
+        module_path: "test_crate",
+        namespace: Some(NamespaceRule::Literal("ui")),
+    };
+
+    es_fluent::__inventory::submit! {
+        RegisteredFtlType(&INFO)
+    }
+
+    fn with_temp_cwd<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
+        let _guard = crate::TEST_CWD_LOCK.lock().expect("lock poisoned");
+        let original = std::env::current_dir().expect("cwd");
+        let temp = tempdir().expect("tempdir");
+        std::env::set_current_dir(temp.path()).expect("set cwd");
+        let result = f(temp.path());
+        std::env::set_current_dir(original).expect("restore cwd");
+        result
+    }
+
+    #[test]
+    fn write_inventory_for_crate_writes_expected_key_data() {
+        with_temp_cwd(|cwd| {
+            write_inventory_for_crate("test-crate");
+
+            let inventory_path = cwd.join("metadata/test-crate/inventory.json");
+            let content = std::fs::read_to_string(inventory_path).expect("read inventory");
+            let json: serde_json::Value = serde_json::from_str(&content).expect("parse json");
+
+            let keys = json["expected_keys"]
+                .as_array()
+                .expect("expected_keys array");
+            assert_eq!(keys.len(), 1);
+
+            let key = &keys[0];
+            assert_eq!(key["key"], "my_key");
+            assert_eq!(key["source_file"], "src/lib.rs");
+            assert_eq!(key["source_line"], 42);
+
+            let mut vars: Vec<_> = key["variables"]
+                .as_array()
+                .expect("variables array")
+                .iter()
+                .filter_map(|value| value.as_str())
+                .collect();
+            vars.sort_unstable();
+            assert_eq!(vars, vec!["count", "extra", "name"]);
+        });
+    }
+
+    #[test]
+    fn write_inventory_for_unknown_crate_writes_empty_result() {
+        with_temp_cwd(|cwd| {
+            write_inventory_for_crate("unknown-crate");
+            let inventory_path = cwd.join("metadata/unknown-crate/inventory.json");
+            let content = std::fs::read_to_string(inventory_path).expect("read inventory");
+            let json: serde_json::Value = serde_json::from_str(&content).expect("parse json");
+
+            assert_eq!(
+                json["expected_keys"]
+                    .as_array()
+                    .expect("expected_keys")
+                    .len(),
+                0
+            );
+        });
+    }
+}
