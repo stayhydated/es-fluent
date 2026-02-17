@@ -252,4 +252,80 @@ mod tests {
         assert!(loaded_files[0].resource.body.len() > 0);
         assert!(loaded_files[0].keys.contains("hello"));
     }
+
+    #[test]
+    fn test_parse_ftl_file_with_errors_handles_missing_empty_and_invalid_files() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let missing = temp_dir.path().join("missing.ftl");
+        let (resource, errors) = parse_ftl_file_with_errors(&missing).unwrap();
+        assert!(resource.body.is_empty());
+        assert!(errors.is_empty());
+
+        let empty = temp_dir.path().join("empty.ftl");
+        fs::write(&empty, "   \n").unwrap();
+        let (resource, errors) = parse_ftl_file_with_errors(&empty).unwrap();
+        assert!(resource.body.is_empty());
+        assert!(errors.is_empty());
+
+        let invalid = temp_dir.path().join("invalid.ftl");
+        fs::write(&invalid, "hello = { $name\nworld = World\n").unwrap();
+        let (resource, errors) = parse_ftl_file_with_errors(&invalid).unwrap();
+        assert!(!resource.body.is_empty());
+        assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn test_load_ftl_files_skips_nonexistent_paths() {
+        let temp_dir = TempDir::new().unwrap();
+        let existing = temp_dir.path().join("existing.ftl");
+        fs::write(&existing, "hello = Hello").unwrap();
+
+        let files = vec![
+            FtlFileInfo::new(existing.clone(), PathBuf::from("existing.ftl")),
+            FtlFileInfo::new(
+                temp_dir.path().join("missing.ftl"),
+                PathBuf::from("missing.ftl"),
+            ),
+        ];
+        let loaded = load_ftl_files(files).unwrap();
+
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].abs_path, existing);
+    }
+
+    #[test]
+    fn test_locale_output_dir_and_recursive_namespace_discovery() {
+        let temp_dir = TempDir::new().unwrap();
+        let locale_dir = locale_output_dir(temp_dir.path(), "en");
+        fs::create_dir_all(locale_dir.join("test-crate/nested")).unwrap();
+        fs::write(locale_dir.join("test-crate/nested/deep.ftl"), "deep = Deep").unwrap();
+
+        let files = discover_ftl_files(temp_dir.path(), "en", "test-crate").unwrap();
+        assert_eq!(locale_dir, temp_dir.path().join("en"));
+        assert!(
+            files
+                .iter()
+                .any(|f| f.relative_path == PathBuf::from("test-crate/nested/deep.ftl"))
+        );
+    }
+
+    #[test]
+    fn test_parse_ftl_file_with_errors_covers_success_and_read_error_paths() {
+        let temp_dir = TempDir::new().unwrap();
+        let valid = temp_dir.path().join("valid.ftl");
+        fs::write(&valid, "hello = Hello").unwrap();
+        let (resource, errors) = parse_ftl_file_with_errors(&valid).unwrap();
+        assert_eq!(errors.len(), 0);
+        assert!(!resource.body.is_empty());
+
+        let dir_path = temp_dir.path().join("dir.ftl");
+        fs::create_dir_all(&dir_path).unwrap();
+        let err = parse_ftl_file_with_errors(&dir_path)
+            .err()
+            .expect("directory read should fail");
+        assert!(
+            err.to_string().contains("directory") || err.to_string().contains("Is a directory")
+        );
+    }
 }

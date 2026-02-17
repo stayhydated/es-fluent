@@ -237,3 +237,153 @@ impl<T: EmbeddedAssets> I18nModule for EmbeddedI18nModule<T> {
         Box::new(EmbeddedLocalizer::<T>::new(self.data))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_embed::RustEmbed;
+    use unic_langid::langid;
+
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n"]
+    struct TestAssets;
+
+    impl EmbeddedAssets for TestAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+    }
+
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_ns_errors"]
+    struct NamespaceErrorAssets;
+
+    impl EmbeddedAssets for NamespaceErrorAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+    }
+
+    static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
+        langid!("en"),
+        langid!("en-GB"),
+        langid!("fr"),
+        langid!("it"),
+    ];
+    static NAMESPACES: &[&str] = &["ui"];
+    static MODULE_DATA: EmbeddedModuleData = EmbeddedModuleData {
+        name: "test-module",
+        domain: "test-domain",
+        supported_languages: SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
+    };
+    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("cd")];
+    static NS_ERROR_MODULE_DATA: EmbeddedModuleData = EmbeddedModuleData {
+        name: "ns-error-module",
+        domain: "test-domain",
+        supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
+    };
+
+    #[test]
+    fn discover_languages_collects_and_sorts_unique_languages() {
+        let languages = EmbeddedI18nModule::<TestAssets>::discover_languages();
+        assert_eq!(
+            languages,
+            vec![langid!("en"), langid!("en-GB"), langid!("fr")]
+        );
+    }
+
+    #[test]
+    fn embedded_localizer_uses_fallback_and_formats_with_args() {
+        let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
+
+        assert_eq!(localizer.localize("hello", None), None);
+
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("fallback to en should work");
+
+        let mut args = HashMap::new();
+        args.insert("name", FluentValue::from("Mark"));
+        let welcome = localizer.localize("welcome", Some(&args));
+        assert!(
+            welcome
+                .as_deref()
+                .is_some_and(|value| value.contains("Welcome"))
+        );
+        assert!(
+            welcome
+                .as_deref()
+                .is_some_and(|value| value.contains("Mark"))
+        );
+        assert_eq!(
+            localizer.localize("ui-title", None),
+            Some("UI Title".to_string())
+        );
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("re-selecting current language should no-op");
+    }
+
+    #[test]
+    fn embedded_localizer_exercises_parse_and_utf8_error_paths() {
+        let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
+
+        // en-GB has an invalid FTL file, so selection should fall back to en.
+        localizer
+            .select_language(&langid!("en-GB"))
+            .expect("should fall back from en-GB to en");
+
+        // Missing required argument should produce formatting errors and return None.
+        assert_eq!(localizer.localize("welcome", None), None);
+
+        // fr has invalid UTF-8 content.
+        let fr_err = localizer
+            .select_language(&langid!("fr"))
+            .expect_err("invalid UTF-8 should fail");
+        assert!(matches!(fr_err, LocalizationError::LanguageNotSupported(_)));
+
+        // it is declared as supported but has no resources.
+        let it_err = localizer
+            .select_language(&langid!("it"))
+            .expect_err("missing files should fail");
+        assert!(matches!(it_err, LocalizationError::LanguageNotSupported(_)));
+
+        // de is not in the supported list.
+        let de_err = localizer
+            .select_language(&langid!("de"))
+            .expect_err("unsupported language should fail");
+        assert!(matches!(de_err, LocalizationError::LanguageNotSupported(_)));
+    }
+
+    #[test]
+    fn embedded_module_name_and_factory_work() {
+        let module = EmbeddedI18nModule::<TestAssets>::new(&MODULE_DATA);
+        assert_eq!(module.name(), "test-module");
+        let localizer = module.create_localizer();
+        assert_eq!(localizer.localize("hello", None), None);
+    }
+
+    #[test]
+    fn embedded_localizer_exercises_namespaced_parse_and_utf8_error_paths() {
+        let localizer = EmbeddedLocalizer::<NamespaceErrorAssets>::new(&NS_ERROR_MODULE_DATA);
+
+        let parse_err = localizer
+            .select_language(&langid!("ab"))
+            .expect_err("invalid namespaced FTL should fail");
+        assert!(matches!(
+            parse_err,
+            LocalizationError::LanguageNotSupported(_)
+        ));
+
+        let utf8_err = localizer
+            .select_language(&langid!("cd"))
+            .expect_err("invalid namespaced UTF-8 should fail");
+        assert!(matches!(
+            utf8_err,
+            LocalizationError::LanguageNotSupported(_)
+        ));
+    }
+}

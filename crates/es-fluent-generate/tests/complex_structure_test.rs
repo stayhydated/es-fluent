@@ -1,7 +1,9 @@
 mod common;
+mod fixtures;
 
 use common::{enum_type, ftl_key, leak_slice, struct_type, variant, variant_with_args};
 use es_fluent_generate::{FluentParseMode, generate};
+use fixtures::COMPLEX_STRUCTURE;
 use std::fs;
 use tempfile::TempDir;
 
@@ -14,35 +16,7 @@ fn test_complex_structure_preservation() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    // Initial Complex Content
-    let initial_content = r#"## Gender
-
-gender-Female = Female
-gender-Helicopter = Helicopter
-gender-Male = Male
-gender-Other = Other
-
-## HelloUser
-
-hello_user = Hello, { $f0 } !
-
-## Shared
-
-shared-Photos =
-    { $user_name } { $photo_count ->
-        [one] added a new photo
-       *[other] added { $photo_count } new photos
-    } to { $user_gender ->
-        [male] his stream
-        [female] her stream
-       *[other] their stream
-    }.
-
-## What
-
-what-Hi = Hi
-"#;
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, COMPLEX_STRUCTURE).unwrap();
 
     // Define items.
     // We will mimic the existing items to ensure they are "handled" (preserved).

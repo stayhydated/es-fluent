@@ -1,7 +1,9 @@
 mod common;
+mod fixtures;
 
 use common::{enum_type, ftl_key, variant};
 use es_fluent_generate::{FluentParseMode, generate};
+use fixtures::SINGLE_GROUP_KEY;
 use std::fs;
 use tempfile::TempDir;
 
@@ -14,13 +16,7 @@ fn test_conservative_mode_new_key_placement() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    // 1. Initial State: GroupA with Key1
-    let initial_content = "
-## GroupA
-
-group-a-key1 = Initial Value
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, SINGLE_GROUP_KEY).unwrap();
 
     // 2. New State: GroupA with Key1 AND Key2
     let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));

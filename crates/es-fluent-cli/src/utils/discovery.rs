@@ -100,6 +100,25 @@ pub fn count_ftl_resources(ftl_output_dir: &Path, crate_name: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    use crate::test_fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS, WORKSPACE_CARGO_TOML};
+
+    fn create_single_crate_workspace(with_i18n: bool) -> tempfile::TempDir {
+        let temp = tempdir().expect("tempdir");
+        fs::create_dir_all(temp.path().join("src")).expect("create src");
+        fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).expect("write Cargo.toml");
+        fs::write(temp.path().join("src/lib.rs"), LIB_RS).expect("write lib.rs");
+
+        if with_i18n {
+            fs::write(temp.path().join("i18n.toml"), I18N_TOML).expect("write i18n.toml");
+            fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n/en");
+            fs::write(temp.path().join("i18n/en/test-app.ftl"), HELLO_FTL).expect("write ftl");
+        }
+
+        temp
+    }
 
     #[test]
     fn test_count_ftl_resources_empty() {
@@ -113,5 +132,100 @@ mod tests {
             count_ftl_resources(Path::new("/nonexistent/path"), "test-crate"),
             0
         );
+    }
+
+    #[test]
+    fn discover_workspace_finds_i18n_enabled_crate() {
+        let temp = create_single_crate_workspace(true);
+        let ws = discover_workspace(temp.path()).expect("discover workspace");
+
+        assert_eq!(ws.crates.len(), 1);
+        let krate = &ws.crates[0];
+        assert_eq!(krate.name, "test-app");
+        assert!(krate.has_lib_rs);
+        assert!(krate.i18n_config_path.ends_with("i18n.toml"));
+    }
+
+    #[test]
+    fn discover_crates_ignores_crates_without_i18n_toml() {
+        let temp = create_single_crate_workspace(false);
+        let crates = discover_crates(temp.path()).expect("discover crates");
+        assert!(crates.is_empty());
+    }
+
+    #[test]
+    fn count_ftl_resources_counts_only_message_lines() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("en");
+        fs::create_dir_all(&locale_dir).expect("create locale");
+        fs::write(
+            locale_dir.join("test-crate.ftl"),
+            "# comment\nhello = Hello\n  .attr = Attr\n\n-world = Term\nplain = Value\n",
+        )
+        .expect("write ftl");
+
+        // Count logic is line-based and should count `hello`, `-world`, and `plain`.
+        assert_eq!(count_ftl_resources(&locale_dir, "test-crate"), 3);
+    }
+
+    #[test]
+    fn discover_workspace_errors_without_cargo_manifest() {
+        let temp = tempdir().expect("tempdir");
+        let err = discover_workspace(temp.path())
+            .err()
+            .expect("expected cargo metadata failure");
+        assert!(err.to_string().contains("cargo metadata") || err.to_string().contains("manifest"));
+    }
+
+    #[test]
+    fn discover_workspace_errors_for_invalid_i18n_toml() {
+        let temp = create_single_crate_workspace(true);
+        fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write invalid i18n");
+
+        let err = discover_workspace(temp.path())
+            .err()
+            .expect("expected i18n parse failure");
+        assert!(err.to_string().contains("Failed to read"));
+    }
+
+    #[test]
+    fn discover_workspace_collects_fluent_features_and_sorts_crates() {
+        let temp = tempdir().expect("tempdir");
+        fs::write(temp.path().join("Cargo.toml"), WORKSPACE_CARGO_TOML)
+            .expect("write workspace Cargo.toml");
+
+        for (name, feature) in [("zeta", "z_feature"), ("alpha", "a_feature")] {
+            let crate_dir = temp.path().join(name);
+            fs::create_dir_all(crate_dir.join("src")).expect("create src");
+            fs::write(
+                crate_dir.join("Cargo.toml"),
+                format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
+            )
+            .expect("write crate Cargo.toml");
+            fs::write(crate_dir.join("src/lib.rs"), LIB_RS).expect("write lib.rs");
+            fs::write(
+                crate_dir.join("i18n.toml"),
+                format!(
+                    "fallback_language = \"en\"\nassets_dir = \"i18n\"\nfluent_feature = \"{feature}\"\n"
+                ),
+            )
+            .expect("write i18n.toml");
+        }
+
+        let ws = discover_workspace(temp.path()).expect("discover workspace");
+        assert_eq!(ws.crates.len(), 2);
+        assert_eq!(ws.crates[0].name, "alpha");
+        assert_eq!(ws.crates[1].name, "zeta");
+        assert_eq!(ws.crates[0].fluent_features, vec!["a_feature".to_string()]);
+        assert_eq!(ws.crates[1].fluent_features, vec!["z_feature".to_string()]);
+    }
+
+    #[test]
+    fn count_ftl_resources_returns_zero_when_ftl_path_is_directory() {
+        let temp = tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("en");
+        fs::create_dir_all(locale_dir.join("test-crate.ftl")).expect("create fake ftl dir");
+
+        assert_eq!(count_ftl_resources(&locale_dir, "test-crate"), 0);
     }
 }

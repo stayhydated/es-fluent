@@ -1,0 +1,10 @@
+{
+  "expected_keys": [
+    {
+      "key": "missing_key",
+      "variables": [],
+      "source_file": null,
+      "source_line": null
+    }
+  ]
+}

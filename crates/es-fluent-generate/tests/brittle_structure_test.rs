@@ -1,7 +1,9 @@
 mod common;
+mod fixtures;
 
 use common::{enum_type, ftl_key, leak_slice, variant};
 use es_fluent_generate::{FluentParseMode, generate};
+use fixtures::GROUP_ORDERING;
 use std::fs;
 use tempfile::TempDir;
 
@@ -14,20 +16,7 @@ fn test_conservative_mode_preserves_structure() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    // Initial Custom Structure
-    // Note: GroupB is before GroupA.
-    // Note: manual-key is inside GroupA.
-    let initial_content = "
-## GroupB
-
-group_b-Key1 = Value B
-
-## GroupA
-
-group_a-Key1 = Value A
-manual-key = Contains manual stuff
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, GROUP_ORDERING).unwrap();
 
     // Define items corresponding to GroupA and GroupB
     // Add a NEW key to GroupA (Key2)

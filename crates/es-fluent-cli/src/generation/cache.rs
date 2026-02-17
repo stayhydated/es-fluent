@@ -251,4 +251,45 @@ mod tests {
 
         assert_eq!(hash1, hash2);
     }
+
+    #[test]
+    fn metadata_cache_save_load_and_validity_round_trip() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        fs::write(temp_dir.path().join("Cargo.lock"), "lock-content").unwrap();
+
+        let cache = MetadataCache {
+            cargo_lock_hash: MetadataCache::hash_cargo_lock(temp_dir.path()).unwrap(),
+            es_fluent_dep: "es-fluent = { path = \"../es-fluent\" }".to_string(),
+            es_fluent_cli_helpers_dep: "es-fluent-cli-helpers = { path = \"../helpers\" }"
+                .to_string(),
+            target_dir: "target".to_string(),
+        };
+        cache.save(temp_dir.path()).unwrap();
+
+        let loaded = MetadataCache::load(temp_dir.path()).unwrap();
+        assert_eq!(loaded.es_fluent_dep, cache.es_fluent_dep);
+        assert!(loaded.is_valid(temp_dir.path()));
+
+        fs::write(temp_dir.path().join("Cargo.lock"), "changed-lock-content").unwrap();
+        assert!(!loaded.is_valid(temp_dir.path()));
+    }
+
+    #[test]
+    fn runner_cache_save_and_load_round_trip() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut hashes = IndexMap::new();
+        hashes.insert("test-crate".to_string(), "abc123".to_string());
+
+        let cache = RunnerCache {
+            crate_hashes: hashes.clone(),
+            runner_mtime: 42,
+            cli_version: "0.1.0".to_string(),
+        };
+        cache.save(temp_dir.path()).unwrap();
+
+        let loaded = RunnerCache::load(temp_dir.path()).unwrap();
+        assert_eq!(loaded.runner_mtime, 42);
+        assert_eq!(loaded.cli_version, "0.1.0");
+        assert_eq!(loaded.crate_hashes, hashes);
+    }
 }

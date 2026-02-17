@@ -149,6 +149,132 @@ mod tests {
     use fluent_syntax::{parser, serializer};
 
     #[test]
+    fn classify_entry_covers_comment_term_and_other() {
+        let parsed =
+            parser::parse("## Group\n# Note\n-term = value\nmessage = Value\n".to_string())
+                .unwrap();
+        let comment_entry = ast::Entry::Comment(ast::Comment {
+            content: vec!["inline".to_string()],
+        });
+
+        assert!(
+            parsed
+                .body
+                .iter()
+                .any(|entry| matches!(classify_entry(entry), EntryKind::SectionComment))
+        );
+        assert!(matches!(classify_entry(&comment_entry), EntryKind::Comment));
+        assert!(
+            parsed.body.iter().any(
+                |entry| matches!(classify_entry(entry), EntryKind::Term(key) if key == "-term")
+            )
+        );
+        assert!(parsed.body.iter().any(
+            |entry| matches!(classify_entry(entry), EntryKind::Message(key) if key == "message")
+        ));
+
+        let (partial, _) = parser::parse("broken = { $x\n".to_string()).unwrap_err();
+        assert!(
+            partial
+                .body
+                .iter()
+                .any(|entry| matches!(classify_entry(entry), EntryKind::Other))
+        );
+    }
+
+    #[test]
+    fn group_comment_helpers_handle_empty_and_non_empty_content() {
+        let parsed =
+            parser::parse("## Header Name\n\nkey = Value\n##    \nother = Value\n".to_string())
+                .unwrap();
+
+        let first = match &parsed.body[0] {
+            ast::Entry::GroupComment(comment) => comment,
+            _ => panic!("expected group comment"),
+        };
+        assert_eq!(group_comment_name(first).as_deref(), Some("Header Name"));
+
+        let second = parsed
+            .body
+            .iter()
+            .find_map(|entry| match entry {
+                ast::Entry::GroupComment(comment)
+                    if comment
+                        .content
+                        .first()
+                        .is_some_and(|line| line.trim().is_empty()) =>
+                {
+                    Some(comment)
+                },
+                _ => None,
+            })
+            .expect("blank group comment");
+        assert!(group_comment_name(second).is_none());
+
+        let groups = collect_group_comments(&parsed);
+        assert!(groups.contains("Header Name"));
+    }
+
+    #[test]
+    fn merge_missing_keys_merges_terms_and_resets_fallback_comments_for_non_missing_entries() {
+        let existing = parser::parse("hello = Hello\n".to_string()).unwrap();
+        let fallback = parser::parse(
+            "## Group\n# carry\npresent = Present\n# drop-me\n-brand = Brand\n".to_string(),
+        )
+        .unwrap();
+
+        let term = "-brand".to_string();
+        let missing_keys: Vec<&String> = vec![&term];
+        let mut added = Vec::new();
+
+        let merged = merge_missing_keys(&existing, &fallback, &missing_keys, &mut added);
+        let content = serializer::serialize(&merged);
+
+        assert_eq!(added, vec!["-brand".to_string()]);
+        assert!(content.contains("-brand = Brand"));
+        assert!(
+            !content.contains("# carry"),
+            "comments before non-missing key should be cleared before merge"
+        );
+    }
+
+    #[test]
+    fn merge_missing_keys_covers_comment_term_resource_comment_and_other_entries() {
+        let mut existing =
+            parser::parse("existing = Existing\n-existing_term = Existing Term\n".to_string())
+                .unwrap();
+        existing.body.insert(
+            0,
+            ast::Entry::Comment(ast::Comment {
+                content: vec!["existing-comment".to_string()],
+            }),
+        );
+
+        let (junk_resource, _) = parser::parse("broken = { $x\n".to_string()).unwrap_err();
+        let junk = junk_resource.body.first().cloned().expect("junk entry");
+        existing.body.push(junk.clone());
+
+        let mut fallback = parser::parse(
+            "### Resource Header\n## NewGroup\n# fallback-comment\nnew = New\n-new_term = New Term\n"
+                .to_string(),
+        )
+        .unwrap();
+        fallback.body.push(junk);
+
+        let new_msg = "new".to_string();
+        let new_term = "-new_term".to_string();
+        let missing_keys: Vec<&String> = vec![&new_msg, &new_term];
+        let mut added = Vec::new();
+        let merged = merge_missing_keys(&existing, &fallback, &missing_keys, &mut added);
+        let content = serializer::serialize(&merged);
+
+        assert!(added.contains(&"new".to_string()));
+        assert!(added.contains(&"-new_term".to_string()));
+        assert!(content.contains("new = New"));
+        assert!(content.contains("-new_term = New Term"));
+    }
+
+    #[test]
     fn test_merge_missing_keys() {
         let existing_content = "hello = Hello";
         let fallback_content = "hello = Hello\nworld = World\ngoodbye = Goodbye";

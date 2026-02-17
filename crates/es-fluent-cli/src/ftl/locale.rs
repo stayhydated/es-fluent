@@ -225,4 +225,19 @@ mod tests {
         assert!(non_fallback.contains(&"fr"));
         assert!(non_fallback.contains(&"de"));
     }
+
+    #[test]
+    fn test_iter_and_is_fallback_cover_directory_presence() {
+        let (temp, krate) = create_test_crate();
+        // Remove one locale directory to ensure iter() skips missing dirs.
+        std::fs::remove_dir_all(temp.path().join("i18n/fr")).unwrap();
+
+        let ctx = LocaleContext::from_crate(&krate, true).unwrap();
+        let locales_from_iter: Vec<_> = ctx.iter().map(|(l, _)| l.to_string()).collect();
+
+        assert!(ctx.is_fallback("en"));
+        assert!(!ctx.is_fallback("de"));
+        assert!(locales_from_iter.contains(&"en".to_string()));
+        assert!(!locales_from_iter.contains(&"fr".to_string()));
+    }
 }

@@ -76,3 +76,71 @@ pub fn select_language<L: Into<LanguageIdentifier>>(lang: L) {
         tracing::error!("Generic fluent manager not initialized. Call init() first.");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent::FluentValue;
+    use es_fluent_manager_core::{I18nModule, LocalizationError, Localizer};
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use unic_langid::langid;
+
+    static SELECT_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    struct EmbeddedTestModule;
+    struct EmbeddedTestLocalizer;
+
+    impl Localizer for EmbeddedTestLocalizer {
+        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            SELECT_CALLS.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+
+        fn localize<'a>(
+            &self,
+            id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            if id == "embedded-key" {
+                Some("embedded-value".to_string())
+            } else {
+                None
+            }
+        }
+    }
+
+    impl I18nModule for EmbeddedTestModule {
+        fn name(&self) -> &'static str {
+            "embedded-test-module"
+        }
+
+        fn create_localizer(&self) -> Box<dyn Localizer> {
+            Box::new(EmbeddedTestLocalizer)
+        }
+    }
+
+    static TEST_MODULE: EmbeddedTestModule = EmbeddedTestModule;
+
+    crate::__inventory::submit! {
+        &TEST_MODULE as &dyn I18nModule
+    }
+
+    #[test]
+    fn init_and_select_language_cover_singleton_paths() {
+        // Exercise the pre-init error path.
+        select_language(langid!("en-US"));
+        assert!(GENERIC_MANAGER.get().is_none());
+
+        init();
+        assert!(GENERIC_MANAGER.get().is_some());
+
+        select_language(langid!("en-US"));
+        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
+
+        // Second init should hit the already-initialized branch.
+        init();
+
+        assert_eq!(es_fluent::localize("embedded-key", None), "embedded-value");
+    }
+}

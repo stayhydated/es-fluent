@@ -235,3 +235,148 @@ pub fn poll_quit_event(timeout: Duration) -> io::Result<bool> {
 
     Ok(false)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::GenerateResult;
+    use ratatui::{Terminal, backend::TestBackend};
+    use std::path::PathBuf;
+
+    fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
+        CrateInfo {
+            name: name.to_string(),
+            manifest_dir: PathBuf::from("/tmp/test"),
+            src_dir: PathBuf::from("/tmp/test/src"),
+            i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
+            ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
+            has_lib_rs,
+            fluent_features: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn app_new_initializes_states_from_crates() {
+        let crates = vec![test_crate("a", true), test_crate("b", false)];
+        let app = TuiApp::new(&crates);
+
+        assert!(matches!(app.states.get("a"), Some(CrateState::Generating)));
+        assert!(matches!(
+            app.states.get("b"),
+            Some(CrateState::MissingLibRs)
+        ));
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn app_update_covers_message_transitions() {
+        let crates = vec![test_crate("a", true)];
+        let mut app = TuiApp::new(&crates);
+
+        assert!(app.update(Message::Tick));
+
+        // Already generating => no redraw request.
+        assert!(!app.update(Message::FileChanged {
+            crate_name: "a".to_string(),
+        }));
+
+        app.set_state("a", CrateState::Watching { resource_count: 1 });
+        assert!(app.update(Message::FileChanged {
+            crate_name: "a".to_string(),
+        }));
+        assert!(matches!(app.states.get("a"), Some(CrateState::Generating)));
+
+        assert!(app.update(Message::GenerationStarted {
+            crate_name: "a".to_string(),
+        }));
+
+        assert!(app.update(Message::GenerationComplete {
+            result: GenerateResult::success(
+                "a".to_string(),
+                Duration::from_millis(1),
+                3,
+                None,
+                true,
+            ),
+        }));
+        assert!(matches!(
+            app.states.get("a"),
+            Some(CrateState::Watching { resource_count: 3 })
+        ));
+
+        assert!(app.update(Message::GenerationComplete {
+            result: GenerateResult::failure(
+                "a".to_string(),
+                Duration::from_millis(1),
+                "boom".to_string(),
+            ),
+        }));
+        assert!(matches!(
+            app.states.get("a"),
+            Some(CrateState::Error { message }) if message == "boom"
+        ));
+
+        assert!(!app.update(Message::WatchError {
+            error: "watch failed".to_string(),
+        }));
+        assert!(!app.update(Message::Quit));
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn draw_renders_without_panicking() {
+        let crates = vec![test_crate("a", true)];
+        let app = TuiApp::new(&crates);
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).expect("create terminal");
+
+        terminal.draw(|f| draw(f, &app)).expect("draw");
+    }
+
+    #[test]
+    fn poll_quit_event_times_out_to_false() {
+        match poll_quit_event(Duration::from_millis(0)) {
+            Ok(quit) => assert!(!quit),
+            Err(err) => assert!(
+                err.to_string()
+                    .contains("Failed to initialize input reader"),
+                "unexpected poll error: {err}"
+            ),
+        }
+    }
+
+    #[test]
+    fn tick_advances_throbber_when_interval_elapsed() {
+        let crates = vec![test_crate("a", true)];
+        let mut app = TuiApp::new(&crates);
+        app.tick_interval = Duration::ZERO;
+
+        let before = app.throbber_state.index();
+        app.tick();
+        let after = app.throbber_state.index();
+
+        assert_ne!(before, after, "tick should advance throbber frame");
+    }
+
+    #[test]
+    fn draw_covers_watching_error_and_pending_states() {
+        let crates = vec![
+            test_crate("watching", true),
+            test_crate("error", true),
+            test_crate("pending", true),
+        ];
+        let mut app = TuiApp::new(&crates);
+        app.set_state("watching", CrateState::Watching { resource_count: 2 });
+        app.set_state(
+            "error",
+            CrateState::Error {
+                message: "boom".to_string(),
+            },
+        );
+        app.states.shift_remove("pending");
+
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).expect("create terminal");
+        terminal.draw(|f| draw(f, &app)).expect("draw");
+    }
+}

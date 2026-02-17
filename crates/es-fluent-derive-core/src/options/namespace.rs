@@ -170,60 +170,60 @@ mod tests {
     fn test_literal_namespace() {
         let meta: syn::Meta = parse_quote!(namespace = "my_namespace");
         let ns = NamespaceValue::from_meta(&meta).unwrap();
-        match ns {
-            NamespaceValue::Literal(s) => assert_eq!(s, "my_namespace"),
-            _ => panic!("expected literal"),
-        }
+        assert!(matches!(ns, NamespaceValue::Literal(ref s) if s == "my_namespace"));
     }
 
     #[test]
     fn test_file_namespace() {
         let meta: syn::Meta = parse_quote!(namespace = file);
         let ns = NamespaceValue::from_meta(&meta).unwrap();
-        match ns {
-            NamespaceValue::File => {},
-            _ => panic!("expected file"),
-        }
+        assert!(matches!(ns, NamespaceValue::File));
     }
 
     #[test]
     fn test_file_relative_namespace() {
         let meta: syn::Meta = parse_quote!(namespace(file(relative)));
         let ns = NamespaceValue::from_meta(&meta).unwrap();
-        match ns {
-            NamespaceValue::FileRelative => {},
-            _ => panic!("expected FileRelative"),
-        }
+        assert!(matches!(ns, NamespaceValue::FileRelative));
     }
 
     #[test]
     fn test_folder_namespace() {
         let meta: syn::Meta = parse_quote!(namespace = folder);
         let ns = NamespaceValue::from_meta(&meta).unwrap();
-        match ns {
-            NamespaceValue::Folder => {},
-            _ => panic!("expected Folder"),
-        }
+        assert!(matches!(ns, NamespaceValue::Folder));
     }
 
     #[test]
     fn test_folder_relative_namespace() {
         let meta: syn::Meta = parse_quote!(namespace(folder(relative)));
         let ns = NamespaceValue::from_meta(&meta).unwrap();
-        match ns {
-            NamespaceValue::FolderRelative => {},
-            _ => panic!("expected FolderRelative"),
-        }
+        assert!(matches!(ns, NamespaceValue::FolderRelative));
     }
 
     #[test]
     fn test_folder_relative_namespace_name_value_call_syntax() {
         let meta: syn::Meta = parse_quote!(namespace = folder(relative));
         let ns = NamespaceValue::from_meta(&meta).unwrap();
-        match ns {
-            NamespaceValue::FolderRelative => {},
-            _ => panic!("expected FolderRelative"),
-        }
+        assert!(matches!(ns, NamespaceValue::FolderRelative));
+    }
+
+    #[test]
+    fn test_file_relative_namespace_name_value_call_syntax() {
+        let meta: syn::Meta = parse_quote!(namespace = file(relative));
+        let ns = NamespaceValue::from_meta(&meta).unwrap();
+        assert!(matches!(ns, NamespaceValue::FileRelative));
+    }
+
+    #[test]
+    fn test_list_path_namespace_variants() {
+        let file_meta: syn::Meta = parse_quote!(namespace(file));
+        let file_ns = NamespaceValue::from_meta(&file_meta).unwrap();
+        assert!(matches!(file_ns, NamespaceValue::File));
+
+        let folder_meta: syn::Meta = parse_quote!(namespace(folder));
+        let folder_ns = NamespaceValue::from_meta(&folder_meta).unwrap();
+        assert!(matches!(folder_ns, NamespaceValue::Folder));
     }
 
     #[test]
@@ -261,5 +261,80 @@ mod tests {
         assert_eq!(ns.resolve("src/ui/button.rs"), "ui");
         assert_eq!(ns.resolve("src/lib.rs"), "src");
         assert_eq!(ns.resolve("lib.rs"), "unknown");
+    }
+
+    #[test]
+    fn test_name_value_and_list_error_paths() {
+        let bad_ident: syn::Meta = parse_quote!(namespace = invalid_ident);
+        let err = NamespaceValue::from_meta(&bad_ident).expect_err("invalid identifier");
+        assert!(err.to_string().contains("expected string literal"));
+
+        let bad_call_target: syn::Meta = parse_quote!(namespace = unknown(relative));
+        let err = NamespaceValue::from_meta(&bad_call_target).expect_err("invalid call target");
+        assert!(err.to_string().contains("file(relative)"));
+
+        let bad_call_arg: syn::Meta = parse_quote!(namespace = file(absolute));
+        let err = NamespaceValue::from_meta(&bad_call_arg).expect_err("invalid call argument");
+        assert!(err.to_string().contains("folder(relative)"));
+
+        let malformed_name_value_call: syn::Meta = parse_quote!(namespace = file(relative, extra));
+        let err =
+            NamespaceValue::from_meta(&malformed_name_value_call).expect_err("invalid call arity");
+        assert!(err.to_string().contains("expected string literal"));
+
+        let non_string: syn::Meta = parse_quote!(namespace = 123);
+        let err = NamespaceValue::from_meta(&non_string).expect_err("non-string literal");
+        assert!(!err.to_string().is_empty());
+
+        let list_unknown: syn::Meta = parse_quote!(namespace(unknown));
+        let err = NamespaceValue::from_meta(&list_unknown).expect_err("unknown list path");
+        assert!(err.to_string().contains("file(relative)"));
+
+        let list_non_expr_path: syn::Meta = parse_quote!(namespace(123));
+        let err = NamespaceValue::from_meta(&list_non_expr_path).expect_err("unsupported expr");
+        assert!(err.to_string().contains("file(relative)"));
+
+        let malformed_list_call = syn::parse_str::<syn::Meta>("namespace(file, relative)")
+            .expect("meta parse should succeed");
+        let err =
+            NamespaceValue::from_meta(&malformed_list_call).expect_err("list parse2 should fail");
+        assert!(err.to_string().contains("file(relative)"));
+
+        let malformed_list_nested_call: syn::Meta = parse_quote!(namespace((file)(relative)));
+        let err = NamespaceValue::from_meta(&malformed_list_nested_call)
+            .expect_err("nested call should be rejected");
+        assert!(err.to_string().contains("file(relative)"));
+
+        let list_literal: syn::Meta = parse_quote!(namespace("literal_ns"));
+        let ns = NamespaceValue::from_meta(&list_literal).expect("list literal should work");
+        assert!(matches!(ns, NamespaceValue::Literal(ref s) if s == "literal_ns"));
+
+        let path_meta: syn::Meta = parse_quote!(namespace);
+        let err = NamespaceValue::from_meta(&path_meta).expect_err("unsupported format");
+        assert!(err.to_string().contains("expected namespace ="));
+    }
+
+    #[test]
+    fn test_parse_single_ident_call_variants() {
+        let valid: syn::ExprCall = parse_quote!(file(relative));
+        assert_eq!(
+            parse_single_ident_call(&valid),
+            Some(("file".to_string(), "relative".to_string()))
+        );
+
+        let invalid_func: syn::ExprCall = parse_quote!((file)(relative));
+        assert_eq!(parse_single_ident_call(&invalid_func), None);
+
+        let invalid_arity: syn::ExprCall = parse_quote!(file(relative, extra));
+        assert_eq!(parse_single_ident_call(&invalid_arity), None);
+
+        let invalid_arg_kind: syn::ExprCall = parse_quote!(file("relative"));
+        assert_eq!(parse_single_ident_call(&invalid_arg_kind), None);
+
+        let invalid_target_ident: syn::ExprCall = parse_quote!(file::nested(relative));
+        assert_eq!(parse_single_ident_call(&invalid_target_ident), None);
+
+        let invalid_arg_ident: syn::ExprCall = parse_quote!(file(relative::nested));
+        assert_eq!(parse_single_ident_call(&invalid_arg_ident), None);
     }
 }

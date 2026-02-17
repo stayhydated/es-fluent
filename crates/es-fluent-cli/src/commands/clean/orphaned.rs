@@ -265,6 +265,7 @@ pub(super) fn clean_orphaned_files(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::WorkspaceInfo;
 
     #[test]
     fn expected_files_include_nested_namespaced_paths() {
@@ -309,5 +310,146 @@ mod tests {
         assert_eq!(files.len(), 2);
         assert!(files.contains(&base.join("root.ftl")));
         assert!(files.contains(&base.join("a/b/deep.ftl")));
+    }
+
+    #[test]
+    fn expected_files_include_other_valid_crates_with_fallback_files() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let i18n_dir = temp.path().join("i18n");
+        let fallback_dir = i18n_dir.join("en");
+        let locale_dir = i18n_dir.join("es");
+        std::fs::create_dir_all(&fallback_dir).expect("create fallback");
+        std::fs::create_dir_all(&locale_dir).expect("create locale");
+
+        std::fs::write(fallback_dir.join("crate-a.ftl"), "a = A\n").expect("write fallback a");
+        std::fs::write(fallback_dir.join("crate-b.ftl"), "b = B\n").expect("write fallback b");
+
+        let valid_crates = HashSet::from(["crate-a", "crate-b"]);
+        let cleaner = OrphanedCleaner::new(valid_crates);
+        let expected = cleaner.get_expected_ftl_files("crate-a", &locale_dir, &fallback_dir);
+
+        assert!(expected.contains(&locale_dir.join("crate-a.ftl")));
+        assert!(expected.contains(&locale_dir.join("crate-b.ftl")));
+    }
+
+    #[test]
+    fn find_all_ftl_files_returns_empty_for_missing_directory() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let cleaner = OrphanedCleaner::new(HashSet::new());
+        let missing = temp.path().join("missing");
+        let files = cleaner
+            .find_all_ftl_files(&missing)
+            .expect("missing dir should be ok");
+        assert!(files.is_empty());
+    }
+
+    fn build_workspace(temp: &tempfile::TempDir) -> WorkspaceCrates {
+        let manifest_dir = temp.path().to_path_buf();
+        let src_dir = manifest_dir.join("src");
+        std::fs::create_dir_all(&src_dir).expect("create src");
+        std::fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+        let i18n_toml = manifest_dir.join("i18n.toml");
+        std::fs::write(
+            &i18n_toml,
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+
+        let krate = crate::core::CrateInfo {
+            name: "test-app".to_string(),
+            manifest_dir: manifest_dir.clone(),
+            src_dir,
+            i18n_config_path: i18n_toml,
+            ftl_output_dir: manifest_dir.join("i18n/en"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        };
+
+        WorkspaceCrates {
+            path: manifest_dir.clone(),
+            workspace_info: WorkspaceInfo {
+                root_dir: manifest_dir.clone(),
+                target_dir: manifest_dir.join("target"),
+                crates: vec![krate.clone()],
+            },
+            crates: vec![krate.clone()],
+            valid: vec![krate],
+            skipped: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn clean_orphaned_files_dry_run_preserves_orphans() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace = build_workspace(&temp);
+
+        std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create en");
+        std::fs::create_dir_all(temp.path().join("i18n/es/test-app")).expect("create es");
+        std::fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n")
+            .expect("write fallback");
+        std::fs::write(temp.path().join("i18n/es/test-app.ftl"), "hello = Hola\n")
+            .expect("write expected");
+        std::fs::write(temp.path().join("i18n/es/orphan.ftl"), "orphan = Orphan\n")
+            .expect("write orphan");
+
+        let result = clean_orphaned_files(&workspace, true, true);
+        assert!(result.is_ok());
+        assert!(temp.path().join("i18n/es/orphan.ftl").exists());
+    }
+
+    #[test]
+    fn clean_orphaned_files_removes_orphans_in_real_mode() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace = build_workspace(&temp);
+
+        std::fs::create_dir_all(temp.path().join("i18n/en/test-app/ui")).expect("create en");
+        std::fs::create_dir_all(temp.path().join("i18n/es/test-app/ui")).expect("create es");
+        std::fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n")
+            .expect("write fallback");
+        std::fs::write(
+            temp.path().join("i18n/en/test-app/ui/button.ftl"),
+            "button = Button\n",
+        )
+        .expect("write fallback namespace");
+        std::fs::write(temp.path().join("i18n/es/test-app.ftl"), "hello = Hola\n")
+            .expect("write expected");
+        std::fs::write(
+            temp.path().join("i18n/es/test-app/ui/button.ftl"),
+            "button = Boton\n",
+        )
+        .expect("write expected namespace");
+        std::fs::write(
+            temp.path().join("i18n/es/test-app/ui/orphan.ftl"),
+            "orphan = Orphan\n",
+        )
+        .expect("write orphan");
+
+        let result = clean_orphaned_files(&workspace, true, false);
+        assert!(result.is_ok());
+        assert!(
+            !temp.path().join("i18n/es/test-app/ui/orphan.ftl").exists(),
+            "orphaned namespaced file should be removed"
+        );
+        assert!(
+            temp.path().join("i18n/es/test-app/ui/button.ftl").exists(),
+            "expected namespaced file should remain"
+        );
+    }
+
+    #[test]
+    fn clean_orphaned_files_keeps_expected_files_when_nothing_is_orphaned() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let workspace = build_workspace(&temp);
+
+        std::fs::create_dir_all(temp.path().join("i18n/en")).expect("create en");
+        std::fs::create_dir_all(temp.path().join("i18n/es")).expect("create es");
+        std::fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n")
+            .expect("write fallback");
+        std::fs::write(temp.path().join("i18n/es/test-app.ftl"), "hello = Hola\n")
+            .expect("write expected");
+
+        let result = clean_orphaned_files(&workspace, true, false);
+        assert!(result.is_ok());
+        assert!(temp.path().join("i18n/es/test-app.ftl").exists());
     }
 }

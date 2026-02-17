@@ -60,3 +60,53 @@ impl darling::FromMeta for ValueAttr {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use darling::FromMeta as _;
+
+    #[test]
+    fn validate_snake_case_key_accepts_and_rejects_expected_values() {
+        let good: syn::LitStr = syn::parse_quote!("user_label");
+        let converted = validate_snake_case_key(&good).expect("valid snake_case");
+        assert_eq!(converted, "UserLabel");
+
+        let bad: syn::LitStr = syn::parse_quote!("UserLabel");
+        let err = validate_snake_case_key(&bad).expect_err("invalid key should fail");
+        let message = err.to_string();
+        assert!(message.contains("lowercase snake_case"));
+        assert!(message.contains("help: Use values like"));
+    }
+
+    #[test]
+    fn value_attr_from_meta_supports_list_and_name_value_string() {
+        let list_meta: syn::Meta = syn::parse_quote!(value(|x: &String| x.len()));
+        let list = ValueAttr::from_meta(&list_meta).expect("list format");
+        let list_expr = list.0;
+        assert_eq!(
+            quote::quote!(#list_expr).to_string(),
+            "| x : & String | x . len ()"
+        );
+
+        let nv_meta: syn::Meta = syn::parse_quote!(value = "|x: &str| x.len()");
+        let nv = ValueAttr::from_meta(&nv_meta).expect("name-value string");
+        let nv_expr = nv.0;
+        assert_eq!(
+            quote::quote!(#nv_expr).to_string(),
+            "| x : & str | x . len ()"
+        );
+    }
+
+    #[test]
+    fn value_attr_from_meta_rejects_non_string_and_unsupported_formats() {
+        let non_string_meta: syn::Meta = syn::parse_quote!(value = 123);
+        let non_string_err =
+            ValueAttr::from_meta(&non_string_meta).expect_err("non-string should fail");
+        assert!(!non_string_err.to_string().is_empty());
+
+        let path_meta: syn::Meta = syn::parse_quote!(value);
+        let path_err = ValueAttr::from_meta(&path_meta).expect_err("path format should fail");
+        assert!(!path_err.to_string().is_empty());
+    }
+}

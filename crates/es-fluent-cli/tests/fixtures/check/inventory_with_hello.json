@@ -1,0 +1,10 @@
+{
+  "expected_keys": [
+    {
+      "key": "hello",
+      "variables": [],
+      "source_file": null,
+      "source_line": null
+    }
+  ]
+}

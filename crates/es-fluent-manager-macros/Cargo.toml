@@ -21,5 +21,8 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [lints]
 workspace = true

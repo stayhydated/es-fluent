@@ -15,3 +15,20 @@ pub trait FluentParseModeExt {
     /// Returns the string representation for use in generated code.
     fn as_code(&self) -> &'static str;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fluent_parse_mode_ext_as_code_matches_variants() {
+        assert_eq!(
+            FluentParseMode::Aggressive.as_code(),
+            "FluentParseMode::Aggressive"
+        );
+        assert_eq!(
+            FluentParseMode::Conservative.as_code(),
+            "FluentParseMode::Conservative"
+        );
+    }
+}

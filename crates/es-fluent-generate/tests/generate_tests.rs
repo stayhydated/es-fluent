@@ -1,9 +1,11 @@
 mod common;
+mod fixtures;
 
 use common::{
     enum_type, enum_type_with_namespace, ftl_key, leak_slice, struct_type, this_key, variant,
 };
 use es_fluent_generate::{FluentParseMode, generate};
+use fixtures::{EMPTY_GROUP, EMPTY_GROUPS_SIMILAR, ORPHAN_GROUPS, RELOCATE_GROUPS};
 use std::fs;
 use tempfile::TempDir;
 
@@ -124,10 +126,7 @@ fn test_generate_inserts_variants_into_empty_group() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    let initial_content = "
-## CountryLabelVariants
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, EMPTY_GROUP).unwrap();
 
     let type_info = enum_type(
         "CountryLabelVariants",
@@ -163,14 +162,7 @@ fn test_generate_relocates_late_group_keys_without_duplicates() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    let initial_content = "
-## GroupA
-
-## GroupB
-
-group_a-A1 = Value A1
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, RELOCATE_GROUPS).unwrap();
 
     let group_a = enum_type("GroupA", vec![variant("A1", &ftl_key("GroupA", "A1"))]);
     let group_b = enum_type("GroupB", vec![variant("B1", &ftl_key("GroupB", "B1"))]);
@@ -215,16 +207,7 @@ fn test_generate_relocates_keys_between_similar_group_names() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    let initial_content = "
-## EmptyStructVariants
-
-## EmptyStruct
-
-empty_struct_variants_this = Empty Struct Variants
-empty_struct_this = Empty Struct
-empty_struct = Empty Struct
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, EMPTY_GROUPS_SIMILAR).unwrap();
 
     let empty_struct = enum_type(
         "EmptyStruct",
@@ -276,17 +259,7 @@ fn test_generate_clean_mode_removes_orphans() {
     let ftl_file_path = i18n_path.join("test_crate.ftl");
     fs::create_dir_all(&i18n_path).unwrap();
 
-    let initial_content = "
-## OrphanGroup
-
-what-Hi = Hi
-awdawd = awdwa
-
-## ExistingGroup
-
-existing_group-ExistingKey = Existing Value
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, ORPHAN_GROUPS).unwrap();
 
     // Define items that match ExistingGroup but NOT OrphanGroup
     let type_info = enum_type(

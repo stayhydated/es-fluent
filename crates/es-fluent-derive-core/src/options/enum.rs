@@ -308,3 +308,232 @@ impl EnumVariantsFluentAttributeArgs {
             .map(|keys| keys.iter().map(|k| k.value()).collect())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::options::namespace::NamespaceValue;
+    use quote::quote;
+    use syn::{DeriveInput, parse_quote};
+
+    #[test]
+    fn enum_opts_cover_base_key_variant_helpers_and_field_flags() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(resource = "custom_error", skip_inventory, namespace = "errors")]
+            enum StatusCode {
+                Data {
+                    #[fluent(choice, value = "|x: &String| x.len()")]
+                    label: String,
+                    #[fluent(skip)]
+                    hidden: bool,
+                },
+                Tuple(#[fluent(skip)] u8, String),
+                #[fluent(skip, key = "skipped")]
+                Skipped,
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        assert_eq!(opts.base_key(), "custom_error");
+        assert!(opts.attr_args().skip_inventory());
+        assert!(matches!(
+            opts.attr_args().namespace(),
+            Some(NamespaceValue::Literal(value)) if value == "errors"
+        ));
+
+        let variants = opts.variants();
+        let data = variants
+            .iter()
+            .find(|variant| variant.ident().to_string() == "Data")
+            .expect("Data variant should exist");
+        assert_eq!(data.fields().len(), 1);
+        assert_eq!(data.all_fields().len(), 2);
+        assert!(data.fields()[0].is_choice());
+
+        let value_expr = data.fields()[0]
+            .value()
+            .expect("value expression should be present");
+        assert_eq!(
+            quote!(#value_expr).to_string(),
+            "| x : & String | x . len ()"
+        );
+
+        let tuple = variants
+            .iter()
+            .find(|variant| variant.ident().to_string() == "Tuple")
+            .expect("Tuple variant should exist");
+        assert_eq!(tuple.fields().len(), 1);
+        assert_eq!(tuple.all_fields().len(), 2);
+        assert!(tuple.fields()[0].ident().is_none());
+
+        let skipped = variants
+            .iter()
+            .find(|variant| variant.ident().to_string() == "Skipped")
+            .expect("Skipped variant should exist");
+        assert!(skipped.is_skipped());
+        assert_eq!(skipped.key(), Some("skipped"));
+
+        let no_resource_input: DeriveInput = parse_quote! {
+            enum HttpStatus {
+                Ok
+            }
+        };
+        let no_resource_opts =
+            EnumOpts::from_derive_input(&no_resource_input).expect("EnumOpts should parse");
+        assert_eq!(no_resource_opts.base_key(), "http_status");
+    }
+
+    #[test]
+    fn enum_variants_opts_cover_key_generation_styles_and_skip_filtering() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent_variants(
+                keys = ["primary_key", "secondary_key"],
+                derive(Debug),
+                namespace = "ui"
+            )]
+            enum Status {
+                One(u8),
+                Two(u8, u8),
+                Three { value: u8 },
+                #[fluent_variants(skip)]
+                Hidden,
+            }
+        };
+
+        let opts =
+            EnumVariantsOpts::from_derive_input(&input).expect("EnumVariantsOpts should parse");
+        assert_eq!(opts.ftl_enum_ident().to_string(), "StatusVariants");
+
+        let keyed_idents: Vec<String> = opts
+            .keyed_idents()
+            .expect("keyed idents should parse")
+            .into_iter()
+            .map(|ident| ident.to_string())
+            .collect();
+        assert_eq!(
+            keyed_idents,
+            vec!["StatusPrimaryKeyVariants", "StatusSecondaryKeyVariants"]
+        );
+
+        let keyed_base_idents: Vec<String> = opts
+            .keyed_base_idents()
+            .expect("keyed base idents should parse")
+            .into_iter()
+            .map(|ident| ident.to_string())
+            .collect();
+        assert_eq!(
+            keyed_base_idents,
+            vec!["StatusPrimaryKey", "StatusSecondaryKey"]
+        );
+        assert_eq!(
+            opts.attr_args().key_strings(),
+            Some(vec!["primary_key".to_string(), "secondary_key".to_string()])
+        );
+        assert!(matches!(
+            opts.attr_args().namespace(),
+            Some(NamespaceValue::Literal(value)) if value == "ui"
+        ));
+
+        let variants = opts.variants();
+        assert_eq!(variants.len(), 3, "Skipped variants should be filtered");
+
+        let one = variants
+            .iter()
+            .find(|variant| variant.ident().to_string() == "One")
+            .expect("One variant should exist");
+        assert!(matches!(one.style(), darling::ast::Style::Tuple));
+        assert!(one.is_single_tuple());
+
+        let two = variants
+            .iter()
+            .find(|variant| variant.ident().to_string() == "Two")
+            .expect("Two variant should exist");
+        assert!(matches!(two.style(), darling::ast::Style::Tuple));
+        assert!(!two.is_single_tuple());
+
+        let three = variants
+            .iter()
+            .find(|variant| variant.ident().to_string() == "Three")
+            .expect("Three variant should exist");
+        assert!(matches!(three.style(), darling::ast::Style::Struct));
+        assert!(!three.is_single_tuple());
+    }
+
+    #[test]
+    fn enum_variants_opts_key_methods_cover_empty_and_invalid_keys() {
+        let no_key_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            enum Plain {
+                Only
+            }
+        };
+        let no_key_opts =
+            EnumVariantsOpts::from_derive_input(&no_key_input).expect("parse without keys");
+        assert!(no_key_opts.keyed_idents().expect("keyed_idents").is_empty());
+        assert!(
+            no_key_opts
+                .keyed_base_idents()
+                .expect("keyed_base_idents")
+                .is_empty()
+        );
+
+        let invalid_key_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent_variants(keys = ["NotSnake"])]
+            enum Invalid {
+                A
+            }
+        };
+        let invalid_opts =
+            EnumVariantsOpts::from_derive_input(&invalid_key_input).expect("input should parse");
+
+        let idents_err = invalid_opts
+            .keyed_idents()
+            .expect_err("invalid key should fail");
+        assert!(idents_err.to_string().contains("lowercase snake_case"));
+
+        let base_err = invalid_opts
+            .keyed_base_idents()
+            .expect_err("invalid key should fail");
+        assert!(base_err.to_string().contains("lowercase snake_case"));
+    }
+
+    #[test]
+    fn enum_methods_panic_on_unexpected_internal_shapes() {
+        let enum_input: DeriveInput = parse_quote! {
+            enum InternalShape {
+                A
+            }
+        };
+        let mut enum_opts = EnumOpts::from_derive_input(&enum_input).expect("EnumOpts parse");
+        enum_opts.data = darling::ast::Data::Struct(darling::ast::Fields::new(
+            darling::ast::Style::Unit,
+            Vec::<darling::util::Ignored>::new(),
+        ));
+
+        let variants_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = enum_opts.variants();
+        }));
+        assert!(variants_result.is_err());
+
+        let variants_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            enum InternalVariantsShape {
+                A
+            }
+        };
+        let mut variants_opts =
+            EnumVariantsOpts::from_derive_input(&variants_input).expect("EnumVariantsOpts parse");
+        variants_opts.data = darling::ast::Data::Struct(darling::ast::Fields::new(
+            darling::ast::Style::Unit,
+            Vec::<darling::util::Ignored>::new(),
+        ));
+
+        let filtered_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = variants_opts.variants();
+        }));
+        assert!(filtered_result.is_err());
+    }
+}

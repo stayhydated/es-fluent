@@ -56,3 +56,75 @@ pub(crate) fn read_inventory_file(
 
     Ok(expected_keys)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn read_inventory_file_parses_expected_key_metadata() {
+        let temp = tempdir().unwrap();
+        let inventory_path =
+            es_fluent_derive_core::get_metadata_inventory_path(temp.path(), "test-crate");
+        fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
+        fs::write(
+            &inventory_path,
+            r#"{
+  "expected_keys": [
+    {
+      "key": "hello",
+      "variables": ["name", "count"],
+      "source_file": "src/lib.rs",
+      "source_line": 42
+    },
+    {
+      "key": "goodbye",
+      "variables": [],
+      "source_file": null,
+      "source_line": null
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+
+        let inventory = read_inventory_file(temp.path(), "test-crate").unwrap();
+
+        assert_eq!(inventory.len(), 2);
+        let hello = inventory.get("hello").unwrap();
+        assert!(hello.variables.contains("name"));
+        assert!(hello.variables.contains("count"));
+        assert_eq!(hello.source_file.as_deref(), Some("src/lib.rs"));
+        assert_eq!(hello.source_line, Some(42));
+
+        let goodbye = inventory.get("goodbye").unwrap();
+        assert!(goodbye.variables.is_empty());
+        assert!(goodbye.source_file.is_none());
+        assert!(goodbye.source_line.is_none());
+    }
+
+    #[test]
+    fn read_inventory_file_returns_error_for_invalid_json() {
+        let temp = tempdir().unwrap();
+        let inventory_path =
+            es_fluent_derive_core::get_metadata_inventory_path(temp.path(), "test-crate");
+        fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
+        fs::write(&inventory_path, "{invalid-json").unwrap();
+
+        let error = read_inventory_file(temp.path(), "test-crate")
+            .err()
+            .expect("expected invalid json to fail");
+        assert!(error.to_string().contains("Failed to parse inventory JSON"));
+    }
+
+    #[test]
+    fn read_inventory_file_returns_error_when_missing() {
+        let temp = tempdir().unwrap();
+        let error = read_inventory_file(temp.path(), "missing-crate")
+            .err()
+            .expect("missing inventory should fail");
+        assert!(error.to_string().contains("Failed to read"));
+    }
+}

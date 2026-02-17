@@ -194,3 +194,136 @@ impl EsFluentError {
 
 /// A result type for common es-fluent operations.
 pub type EsFluentResult<T> = Result<T, EsFluentError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn field_error_display_includes_field_name_when_present() {
+        let with_name = EsFluentCoreError::FieldError {
+            message: "must not be empty".to_string(),
+            field_name: Some("title".to_string()),
+            span: None,
+        };
+        let without_name = EsFluentCoreError::FieldError {
+            message: "must not be empty".to_string(),
+            field_name: None,
+            span: None,
+        };
+
+        assert_eq!(
+            with_name.to_string(),
+            "Field 'title' error: must not be empty"
+        );
+        assert_eq!(without_name.to_string(), "Field error: must not be empty");
+    }
+
+    #[test]
+    fn core_error_span_and_message_mut_work_for_all_variants() {
+        let span = proc_macro2::Span::call_site();
+        let mut errors = vec![
+            EsFluentCoreError::AttributeError {
+                message: "a".to_string(),
+                span: Some(span),
+            },
+            EsFluentCoreError::VariantError {
+                message: "b".to_string(),
+                variant_name: "MyVariant".to_string(),
+                span: Some(span),
+            },
+            EsFluentCoreError::FieldError {
+                message: "c".to_string(),
+                field_name: Some("field".to_string()),
+                span: Some(span),
+            },
+            EsFluentCoreError::TransformError {
+                message: "d".to_string(),
+                span: Some(span),
+            },
+        ];
+
+        for (idx, err) in errors.iter_mut().enumerate() {
+            assert!(err.span().is_some());
+            *err.message_mut() = format!("updated-{idx}");
+            assert!(err.to_string().contains(&format!("updated-{idx}")));
+        }
+    }
+
+    #[test]
+    fn error_ext_appends_note_and_help() {
+        let err = EsFluentCoreError::AttributeError {
+            message: "base".to_string(),
+            span: None,
+        }
+        .with_note("extra context".to_string())
+        .with_help("try this".to_string());
+
+        let rendered = err.to_string();
+        assert!(rendered.contains("base"));
+        assert!(rendered.contains("note: extra context"));
+        assert!(rendered.contains("help: try this"));
+    }
+
+    #[test]
+    fn helper_constructors_create_expected_errors() {
+        let config = EsFluentError::config_not_found("/tmp/i18n.toml");
+        assert!(matches!(config, EsFluentError::ConfigNotFound { .. }));
+
+        let assets = EsFluentError::assets_not_found("/tmp/i18n");
+        assert!(matches!(assets, EsFluentError::AssetsNotFound { .. }));
+
+        let invalid = EsFluentError::invalid_language_identifier("bad", "parse failure");
+        assert!(matches!(
+            invalid,
+            EsFluentError::InvalidLanguageIdentifier { .. }
+        ));
+
+        let fallback = EsFluentError::fallback_language_not_found("en-US");
+        assert!(matches!(
+            fallback,
+            EsFluentError::FallbackLanguageNotFound { .. }
+        ));
+    }
+
+    #[test]
+    fn emit_and_abort_paths_are_callable() {
+        let span = proc_macro2::Span::call_site();
+
+        let emit_with_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "emit-with-span".to_string(),
+                span: Some(span),
+            }
+            .emit();
+        });
+        assert!(emit_with_span.is_err());
+
+        let emit_without_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "emit-without-span".to_string(),
+                span: None,
+            }
+            .emit();
+        });
+        assert!(emit_without_span.is_err());
+
+        let abort_with_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "abort-with-span".to_string(),
+                span: Some(span),
+            }
+            .abort();
+        });
+        assert!(abort_with_span.is_err());
+
+        let abort_without_span = std::panic::catch_unwind(|| {
+            EsFluentCoreError::AttributeError {
+                message: "abort-without-span".to_string(),
+                span: None,
+            }
+            .abort();
+        });
+        assert!(abort_without_span.is_err());
+    }
+}
