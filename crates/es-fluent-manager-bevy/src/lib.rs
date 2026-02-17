@@ -269,7 +269,7 @@ mod tests {
     use super::*;
     use unic_langid::langid;
 
-    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, Eq, PartialEq)]
     struct LocaleBacked(pub String);
 
     impl FromLocale for LocaleBacked {
@@ -278,7 +278,7 @@ mod tests {
         }
     }
 
-    #[derive(Clone, Component, Debug, PartialEq, Eq)]
+    #[derive(Clone, Component, Debug, Eq, PartialEq)]
     struct RefreshableMessage(pub String);
 
     impl RefreshForLocale for RefreshableMessage {

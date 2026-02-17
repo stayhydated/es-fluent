@@ -214,33 +214,27 @@ mod tests {
     use std::path::Path;
     use tempfile::tempdir;
 
+    use crate::test_fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS, UI_UNSORTED_FTL};
+
     fn write_test_crate(temp_dir: &Path) -> CrateInfo {
         let src_dir = temp_dir.join("src");
         let assets_dir = temp_dir.join("i18n/en");
         std::fs::create_dir_all(&src_dir).expect("create src");
         std::fs::create_dir_all(&assets_dir).expect("create assets");
-        std::fs::create_dir_all(assets_dir.join("test-crate")).expect("create namespace dir");
+        std::fs::create_dir_all(assets_dir.join("test-app")).expect("create namespace dir");
 
         let config_path = temp_dir.join("i18n.toml");
-        std::fs::write(
-            &config_path,
-            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-        )
-        .expect("write i18n.toml");
+        std::fs::write(&config_path, I18N_TOML).expect("write i18n.toml");
 
         // Main file unchanged.
-        std::fs::write(assets_dir.join("test-crate.ftl"), "hello = Hello\n")
-            .expect("write main ftl");
+        std::fs::write(assets_dir.join("test-app.ftl"), HELLO_FTL).expect("write main ftl");
 
         // Namespaced file intentionally unsorted.
-        std::fs::write(
-            assets_dir.join("test-crate/ui.ftl"),
-            "zeta = Z\nalpha = A\n",
-        )
-        .expect("write namespaced ftl");
+        std::fs::write(assets_dir.join("test-app/ui.ftl"), UI_UNSORTED_FTL)
+            .expect("write namespaced ftl");
 
         CrateInfo {
-            name: "test-crate".to_string(),
+            name: "test-app".to_string(),
             manifest_dir: temp_dir.to_path_buf(),
             src_dir,
             i18n_config_path: config_path,
@@ -252,16 +246,8 @@ mod tests {
 
     fn write_workspace_files(temp_dir: &Path) {
         std::fs::create_dir_all(temp_dir.join("src")).expect("create src");
-        std::fs::write(
-            temp_dir.join("Cargo.toml"),
-            r#"[package]
-name = "test-crate"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )
-        .expect("write Cargo.toml");
-        std::fs::write(temp_dir.join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+        std::fs::write(temp_dir.join("Cargo.toml"), CARGO_TOML).expect("write Cargo.toml");
+        std::fs::write(temp_dir.join("src/lib.rs"), LIB_RS).expect("write lib.rs");
     }
 
     #[test]
@@ -276,8 +262,8 @@ edition = "2024"
             "main + namespaced files should be visited"
         );
 
-        let namespaced_path = temp.path().join("i18n/en/test-crate/ui.ftl");
-        let namespaced_suffix = Path::new("test-crate").join("ui.ftl");
+        let namespaced_path = temp.path().join("i18n/en/test-app/ui.ftl");
+        let namespaced_suffix = Path::new("test-app").join("ui.ftl");
         let namespaced_result = results
             .iter()
             .find(|r| r.path.ends_with(&namespaced_suffix))
@@ -298,11 +284,11 @@ edition = "2024"
     fn format_crate_dry_run_keeps_namespaced_file_unchanged() {
         let temp = tempfile::tempdir().expect("create temp dir");
         let krate = write_test_crate(temp.path());
-        let namespaced_path = temp.path().join("i18n/en/test-crate/ui.ftl");
+        let namespaced_path = temp.path().join("i18n/en/test-app/ui.ftl");
         let before = std::fs::read_to_string(&namespaced_path).expect("read before");
 
         let results = format_crate(&krate, false, true).expect("dry run format");
-        let namespaced_suffix = Path::new("test-crate").join("ui.ftl");
+        let namespaced_suffix = Path::new("test-app").join("ui.ftl");
         let namespaced_result = results
             .iter()
             .find(|r| r.path.ends_with(&namespaced_suffix))
@@ -320,7 +306,7 @@ edition = "2024"
         let temp = tempdir().expect("tempdir");
         write_workspace_files(temp.path());
         write_test_crate(temp.path());
-        let namespaced_path = temp.path().join("i18n/en/test-crate/ui.ftl");
+        let namespaced_path = temp.path().join("i18n/en/test-app/ui.ftl");
         let before = std::fs::read_to_string(&namespaced_path).expect("read before");
 
         let dry_run = run_format(FormatArgs {

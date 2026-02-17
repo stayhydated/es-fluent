@@ -103,29 +103,18 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
+    use crate::test_fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS, WORKSPACE_CARGO_TOML};
+
     fn create_single_crate_workspace(with_i18n: bool) -> tempfile::TempDir {
         let temp = tempdir().expect("tempdir");
         fs::create_dir_all(temp.path().join("src")).expect("create src");
-        fs::write(
-            temp.path().join("Cargo.toml"),
-            r#"[package]
-name = "test-app"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )
-        .expect("write Cargo.toml");
-        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+        fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).expect("write Cargo.toml");
+        fs::write(temp.path().join("src/lib.rs"), LIB_RS).expect("write lib.rs");
 
         if with_i18n {
-            fs::write(
-                temp.path().join("i18n.toml"),
-                "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-            )
-            .expect("write i18n.toml");
+            fs::write(temp.path().join("i18n.toml"), I18N_TOML).expect("write i18n.toml");
             fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n/en");
-            fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n")
-                .expect("write ftl");
+            fs::write(temp.path().join("i18n/en/test-app.ftl"), HELLO_FTL).expect("write ftl");
         }
 
         temp
@@ -202,13 +191,8 @@ edition = "2024"
     #[test]
     fn discover_workspace_collects_fluent_features_and_sorts_crates() {
         let temp = tempdir().expect("tempdir");
-        fs::write(
-            temp.path().join("Cargo.toml"),
-            r#"[workspace]
-members = ["zeta", "alpha"]
-"#,
-        )
-        .expect("write workspace Cargo.toml");
+        fs::write(temp.path().join("Cargo.toml"), WORKSPACE_CARGO_TOML)
+            .expect("write workspace Cargo.toml");
 
         for (name, feature) in [("zeta", "z_feature"), ("alpha", "a_feature")] {
             let crate_dir = temp.path().join(name);
@@ -218,7 +202,7 @@ members = ["zeta", "alpha"]
                 format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
             )
             .expect("write crate Cargo.toml");
-            fs::write(crate_dir.join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+            fs::write(crate_dir.join("src/lib.rs"), LIB_RS).expect("write lib.rs");
             fs::write(
                 crate_dir.join("i18n.toml"),
                 format!(

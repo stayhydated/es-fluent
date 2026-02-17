@@ -178,27 +178,20 @@ mod tests {
     use std::time::SystemTime;
     use tempfile::tempdir;
 
+    use crate::test_fixtures::{
+        CARGO_TOML, HELLO_FTL, I18N_TOML, INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY, LIB_RS,
+        RUNNER_FAILING_SCRIPT, RUNNER_SCRIPT,
+    };
+
     fn create_test_crate_workspace() -> tempfile::TempDir {
         let temp = tempdir().unwrap();
 
         fs::create_dir_all(temp.path().join("src")).unwrap();
         fs::create_dir_all(temp.path().join("i18n/en")).unwrap();
-        fs::write(
-            temp.path().join("Cargo.toml"),
-            r#"[package]
-name = "test-app"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )
-        .unwrap();
-        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").unwrap();
-        fs::write(
-            temp.path().join("i18n.toml"),
-            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-        )
-        .unwrap();
-        fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n").unwrap();
+        fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).unwrap();
+        fs::write(temp.path().join("src/lib.rs"), LIB_RS).unwrap();
+        fs::write(temp.path().join("i18n.toml"), I18N_TOML).unwrap();
+        fs::write(temp.path().join("i18n/en/test-app.ftl"), HELLO_FTL).unwrap();
 
         temp
     }
@@ -244,7 +237,7 @@ edition = "2024"
     }
 
     fn setup_fake_runner_and_cache(temp: &tempfile::TempDir) {
-        setup_fake_runner_and_cache_with_script(temp, "#!/bin/sh\necho check\n");
+        setup_fake_runner_and_cache_with_script(temp, RUNNER_SCRIPT);
     }
 
     #[test]
@@ -293,20 +286,7 @@ edition = "2024"
             "test-app",
         );
         fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
-        fs::write(
-            &inventory_path,
-            r#"{
-  "expected_keys": [
-    {
-      "key": "hello",
-      "variables": [],
-      "source_file": null,
-      "source_line": null
-    }
-  ]
-}"#,
-        )
-        .expect("write inventory");
+        fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
 
         let result = run_check(CheckArgs {
             workspace: WorkspaceArgs {
@@ -331,20 +311,7 @@ edition = "2024"
             "test-app",
         );
         fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
-        fs::write(
-            &inventory_path,
-            r#"{
-  "expected_keys": [
-    {
-      "key": "missing_key",
-      "variables": [],
-      "source_file": null,
-      "source_line": null
-    }
-  ]
-}"#,
-        )
-        .expect("write inventory");
+        fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
 
         let result = run_check(CheckArgs {
             workspace: WorkspaceArgs {
@@ -378,7 +345,7 @@ edition = "2024"
     #[test]
     fn run_check_returns_other_error_when_runner_execution_fails() {
         let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache_with_script(&temp, "#!/bin/sh\necho boom 1>&2\nexit 1\n");
+        setup_fake_runner_and_cache_with_script(&temp, RUNNER_FAILING_SCRIPT);
 
         let result = run_check(CheckArgs {
             workspace: WorkspaceArgs {

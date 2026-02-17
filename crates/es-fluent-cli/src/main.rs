@@ -102,26 +102,19 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
+    const CARGO_TOML: &str = include_str!("../tests/fixtures/base/Cargo.toml");
+    const I18N_TOML: &str = include_str!("../tests/fixtures/base/i18n.toml");
+    const LIB_RS: &str = include_str!("../tests/fixtures/base/lib.rs");
+    const HELLO_FTL: &str = include_str!("../tests/fixtures/base/ftl/hello.ftl");
+
     fn create_workspace() -> tempfile::TempDir {
         let temp = tempdir().expect("tempdir");
         fs::create_dir_all(temp.path().join("src")).expect("create src");
         fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n");
-        fs::write(
-            temp.path().join("Cargo.toml"),
-            r#"[package]
-name = "test-app"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )
-        .expect("write Cargo.toml");
-        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
-        fs::write(
-            temp.path().join("i18n.toml"),
-            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-        )
-        .expect("write i18n.toml");
-        fs::write(temp.path().join("i18n/en/test-app.ftl"), "hello = Hello\n").expect("write ftl");
+        fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).expect("write Cargo.toml");
+        fs::write(temp.path().join("src/lib.rs"), LIB_RS).expect("write lib.rs");
+        fs::write(temp.path().join("i18n.toml"), I18N_TOML).expect("write i18n.toml");
+        fs::write(temp.path().join("i18n/en/test-app.ftl"), HELLO_FTL).expect("write ftl");
         temp
     }
 

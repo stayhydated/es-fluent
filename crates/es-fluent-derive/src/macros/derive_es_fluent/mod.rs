@@ -14,7 +14,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
-    let tokens = match &input.data {
+    match &input.data {
         Data::Enum(data) => {
             let opts = match EnumOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
@@ -50,9 +50,7 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
             r#struct::process_struct(&opts, data)
         },
         _ => panic!("Unsupported data type"),
-    };
-
-    tokens
+    }
 }
 
 #[cfg(test)]

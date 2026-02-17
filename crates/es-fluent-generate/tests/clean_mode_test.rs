@@ -1,6 +1,8 @@
 mod common;
+mod fixtures;
 
 use common::{enum_type, ftl_key, variant};
+use fixtures::{COUNTRY_VARIANTS, EMPTY_GROUP_A, ORPHAN_GROUPS};
 use std::fs;
 use tempfile::TempDir;
 
@@ -13,24 +15,7 @@ fn test_clean_mode_orphans() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    // 1. Initial State: Valid keys + Orphans
-    // orphans: orphan-Key, orphan-Other
-    // valid: GroupA-Key1
-    let initial_content = "
-## GroupA
-
-group_a-Key1 = Valid Value
-
-## Orphans
-
-orphan-Key = I should be deleted
-orphan-Other = Me too
-
-## What
-what-Hi = Hi
-awdawd = awdwa
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, ORPHAN_GROUPS).unwrap();
 
     // 2. Define valid items (only GroupA Key1)
     let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));
@@ -69,14 +54,7 @@ fn test_clean_removes_empty_group_comments_for_valid_groups() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    let initial_content = "
-## GroupA
-
-## GroupB
-
-group_b-Key1 = Value B
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, EMPTY_GROUP_A).unwrap();
 
     let group_a = enum_type("GroupA", vec![variant("Key1", &ftl_key("GroupA", "Key1"))]);
     let group_b = enum_type("GroupB", vec![variant("Key1", &ftl_key("GroupB", "Key1"))]);
@@ -101,13 +79,7 @@ fn test_clean_preserves_variants_items() {
 
     fs::create_dir_all(&i18n_path).unwrap();
 
-    let initial_content = "
-## CountryLabelVariants
-
-country_label_variants-Canada = Canada
-country_label_variants-USA = USA
-";
-    fs::write(&ftl_file_path, initial_content).unwrap();
+    fs::write(&ftl_file_path, COUNTRY_VARIANTS).unwrap();
 
     let variants = vec![
         variant("Canada", &ftl_key("CountryLabelVariants", "Canada")),
