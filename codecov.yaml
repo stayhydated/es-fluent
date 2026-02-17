@@ -1,0 +1,83 @@
+codecov:
+  require_ci_to_pass: true
+
+# https://docs.codecov.com/docs/components
+components:
+  - name: "es-fluent"
+    paths:
+      - crates/es-fluent
+    description: "Ecosystem facade, entry point, and registry types"
+
+  - name: "es-fluent-cli"
+    paths:
+      - crates/es-fluent-cli
+    description: "Primary developer-facing CLI (`cargo es-fluent`) for validating and generating FTL files"
+
+  - name: "es-fluent-cli-helpers"
+    paths:
+      - crates/es-fluent-cli-helpers
+    description: "Runtime logic for checking/generating FTL files (runner crate)"
+
+  - name: "es-fluent-derive"
+    paths:
+      - crates/es-fluent-derive
+    description: "Proc-macros for registration and trait implementation"
+
+  - name: "es-fluent-derive-core"
+    paths:
+      - crates/es-fluent-derive-core
+    description: "Build-time logic (options, validation, namer) for derive macros"
+
+  - name: "es-fluent-manager-macros"
+    paths:
+      - crates/es-fluent-manager-macros
+    description: "Macros for asset discovery and module registration"
+
+  - name: "es-fluent-manager-core"
+    paths:
+      - crates/es-fluent-manager-core
+    description: "Abstract traits for localization backends"
+
+  - name: "es-fluent-manager-bevy"
+    paths:
+      - crates/es-fluent-manager-bevy
+    description: "Backend integration for Bevy engine ECS and assets"
+
+  - name: "es-fluent-manager-embedded"
+    paths:
+      - crates/es-fluent-manager-embedded
+    description: "Zero-setup backend for embedding FTL files in binary"
+
+  - name: "es-fluent-lang"
+    paths:
+      - crates/es-fluent-lang
+    description: "Runtime language identification and embedded translations"
+
+  - name: "es-fluent-lang-macro"
+    paths:
+      - crates/es-fluent-lang-macro
+    description: "Generates type-safe language selection enums from asset folders"
+
+  - name: "es-fluent-toml"
+    paths:
+      - crates/es-fluent-toml
+    description: "Configuration (`i18n.toml`) parsing and path resolution"
+
+  - name: "es-fluent-generate"
+    paths:
+      - crates/es-fluent-generate
+    description: "FTL AST manipulation, diffing, and formatting logic"
+
+coverage:
+  precision: 2
+  round: down
+  range: "90...100"
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 1%
+    patch:
+      default:
+        target: 90%
+        threshold: 1%
