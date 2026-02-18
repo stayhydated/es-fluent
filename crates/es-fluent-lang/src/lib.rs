@@ -11,16 +11,16 @@ use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 use rust_embed::RustEmbed;
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 use std::collections::HashSet;
 
-#[cfg(feature = "localized-langs")]
+#[cfg(not(feature = "localized-langs"))]
 const ES_FLUENT_LANG_FTL: &str = include_str!("../es-fluent-lang.ftl");
 
-#[cfg(feature = "localized-langs")]
+#[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 fn embedded_resource() -> Arc<FluentResource> {
     static RESOURCE: OnceLock<Arc<FluentResource>> = OnceLock::new();
@@ -35,17 +35,22 @@ fn embedded_resource() -> Arc<FluentResource> {
         .clone()
 }
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 const I18N_RESOURCE_NAME: &str = "es-fluent-lang.ftl";
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[derive(RustEmbed)]
 #[folder = "i18n"]
 #[doc(hidden)]
 struct EsFluentLangAssets;
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
+#[allow(dead_code)]
+#[doc(hidden)]
+const AUTONYM_FTL: &str = include_str!("../es-fluent-lang.ftl");
+
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 fn available_languages() -> &'static HashSet<LanguageIdentifier> {
     static AVAILABLE: OnceLock<HashSet<LanguageIdentifier>> = OnceLock::new();
@@ -64,7 +69,7 @@ fn available_languages() -> &'static HashSet<LanguageIdentifier> {
     })
 }
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
     use es_fluent_manager_core::locale_candidates;
@@ -72,7 +77,7 @@ fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
     locale_candidates(lang)
 }
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
     let available = available_languages();
@@ -130,7 +135,7 @@ impl I18nModule for EsFluentLanguageModule {
     }
 
     fn create_localizer(&self) -> Box<dyn Localizer> {
-        #[cfg(feature = "localized-langs")]
+        #[cfg(not(feature = "localized-langs"))]
         {
             Box::new(EsFluentLanguageLocalizer::new(
                 embedded_resource(),
@@ -138,21 +143,21 @@ impl I18nModule for EsFluentLanguageModule {
             ))
         }
 
-        #[cfg(not(feature = "localized-langs"))]
+        #[cfg(feature = "localized-langs")]
         {
             Box::new(EsFluentLanguageLocalizer::new(langid!("en-US")))
         }
     }
 }
 
-#[cfg(feature = "localized-langs")]
+#[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 struct EsFluentLanguageLocalizer {
     resource: Arc<FluentResource>,
     current_lang: RwLock<LanguageIdentifier>,
 }
 
-#[cfg(feature = "localized-langs")]
+#[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 impl EsFluentLanguageLocalizer {
     fn new(resource: Arc<FluentResource>, default_lang: LanguageIdentifier) -> Self {
@@ -163,7 +168,7 @@ impl EsFluentLanguageLocalizer {
     }
 }
 
-#[cfg(feature = "localized-langs")]
+#[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -181,14 +186,14 @@ impl Localizer for EsFluentLanguageLocalizer {
     }
 }
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 struct EsFluentLanguageLocalizer {
     resources: RwLock<HashMap<LanguageIdentifier, Arc<FluentResource>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
 }
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 impl EsFluentLanguageLocalizer {
     fn new(default_lang: LanguageIdentifier) -> Self {
@@ -243,7 +248,7 @@ impl EsFluentLanguageLocalizer {
     }
 }
 
-#[cfg(not(feature = "localized-langs"))]
+#[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -272,7 +277,7 @@ inventory::submit! {
     &EsFluentLanguageModule as &dyn I18nModule
 }
 
-#[cfg(all(feature = "bevy", feature = "localized-langs"))]
+#[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
 #[doc(hidden)]
 mod bevy_support {
     use super::*;
@@ -298,21 +303,21 @@ mod bevy_support {
     }
 }
 
-#[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
+#[cfg(all(feature = "bevy", feature = "localized-langs"))]
 #[doc(hidden)]
 mod bevy_support {
     use super::*;
     use es_fluent_manager_core::StaticI18nResource;
     use std::sync::Arc;
 
-    struct EsFluentLangStaticResource {
+    pub(super) struct EsFluentLangStaticResource {
         locale: &'static str,
         language: OnceLock<Option<LanguageIdentifier>>,
         resource: OnceLock<Option<Arc<FluentResource>>>,
     }
 
     impl EsFluentLangStaticResource {
-        const fn new(locale: &'static str) -> Self {
+        pub const fn new(locale: &'static str) -> Self {
             Self {
                 locale,
                 language: OnceLock::new(),
@@ -327,30 +332,16 @@ mod bevy_support {
         }
 
         fn load_resource(&self) -> Option<Arc<FluentResource>> {
-            let path = format!("{}/{}", self.locale, I18N_RESOURCE_NAME);
-            let resource = self.resource.get_or_init(|| {
-                let file = EsFluentLangAssets::get(&path)?;
-                let content = match String::from_utf8(file.data.to_vec()) {
-                    Ok(content) => content,
-                    Err(err) => {
-                        tracing::error!("Invalid UTF-8 in embedded file '{}': {}", path, err);
-                        String::from_utf8_lossy(err.as_bytes()).into_owned()
-                    },
-                };
-                let resource = match FluentResource::try_new(content) {
-                    Ok(resource) => resource,
-                    Err((_, errs)) => {
-                        tracing::error!(
-                            "Failed to parse fluent resource from '{}': {:?}",
-                            path,
-                            errs
-                        );
-                        return None;
-                    },
-                };
-                Some(Arc::new(resource))
-            });
-            resource.clone()
+            self.resource
+                .get_or_init(|| {
+                    let locale = self.language()?;
+                    let path = format!("{}/{}", locale, I18N_RESOURCE_NAME);
+                    let file = EsFluentLangAssets::get(&path)?;
+                    let content = String::from_utf8(file.data.to_vec()).ok()?;
+                    let resource = FluentResource::try_new(content).ok()?;
+                    Some(Arc::new(resource))
+                })
+                .clone()
         }
     }
 
@@ -360,16 +351,7 @@ mod bevy_support {
         }
 
         fn matches_language(&self, lang: &LanguageIdentifier) -> bool {
-            let Some(resolved) = resolve_language(lang) else {
-                return false;
-            };
-            let Some(candidate) = self.language() else {
-                return false;
-            };
-            if candidate != &resolved {
-                return false;
-            }
-            self.load_resource().is_some()
+            self.language().is_some_and(|l| l == lang)
         }
 
         fn resource(&self) -> Arc<FluentResource> {
@@ -388,7 +370,42 @@ mod bevy_support {
     ));
 }
 
-#[cfg(all(test, feature = "localized-langs"))]
+#[cfg(all(test, feature = "bevy", not(feature = "localized-langs")))]
+mod bevy_static_resource_tests {
+    use es_fluent_manager_core::StaticI18nResource;
+    use inventory::iter;
+
+    #[test]
+    fn with_bevy_feature_static_resource_is_registered() {
+        let resources: Vec<_> = iter::<&dyn StaticI18nResource>()
+            .filter(|r| r.domain() == "es-fluent-lang")
+            .collect();
+        assert!(
+            !resources.is_empty(),
+            "Expected es-fluent-lang static resource with bevy feature"
+        );
+    }
+}
+
+#[cfg(all(test, not(feature = "bevy")))]
+mod static_resource_tests {
+    use es_fluent_manager_core::StaticI18nResource;
+    use inventory::iter;
+
+    #[test]
+    fn without_localized_langs_feature_no_static_resources_registered() {
+        let resources: Vec<_> = iter::<&dyn StaticI18nResource>()
+            .filter(|r| r.domain() == "es-fluent-lang")
+            .collect();
+        assert!(
+            resources.is_empty(),
+            "Expected no es-fluent-lang static resources without localized-langs feature, but found {}",
+            resources.len()
+        );
+    }
+}
+
+#[cfg(all(test, not(feature = "localized-langs")))]
 mod tests {
     use super::*;
     use unic_langid::langid;
@@ -443,7 +460,7 @@ mod tests {
 
         let localizer = module.create_localizer();
         localizer
-            .select_language(&langid!("fr"))
+            .select_language(&langid!("en-US"))
             .expect("language selection should succeed");
         assert_eq!(
             localizer.localize("es-fluent-lang-fr", None),
@@ -462,5 +479,77 @@ mod tests {
 
         assert!(resource.matches_language(&langid!("en-US")));
         assert!(resource.resource().get_entry(0).is_some());
+    }
+}
+
+#[cfg(all(test, feature = "localized-langs"))]
+mod tests_localized {
+    use super::*;
+    use unic_langid::langid;
+
+    #[test]
+    fn localize_from_resource_formats_args_and_reports_missing_args() {
+        let resource = Arc::new(
+            FluentResource::try_new("welcome = Welcome, { $name }!".to_string())
+                .expect("valid ftl"),
+        );
+
+        assert_eq!(
+            localize_from_resource(langid!("en-US"), resource.clone(), "welcome", None),
+            None
+        );
+
+        let mut args = HashMap::new();
+        args.insert("name", FluentValue::from("Mark"));
+        let localized = localize_from_resource(langid!("en-US"), resource, "welcome", Some(&args));
+        assert!(
+            localized
+                .as_deref()
+                .is_some_and(|value| value.contains("Welcome"))
+        );
+        assert!(
+            localized
+                .as_deref()
+                .is_some_and(|value| value.contains("Mark"))
+        );
+    }
+
+    #[test]
+    fn language_module_creates_localizer_and_selects_language() {
+        let module = EsFluentLanguageModule;
+        assert_eq!(module.name(), "es-fluent-lang");
+
+        let localizer = module.create_localizer();
+        localizer
+            .select_language(&langid!("fr"))
+            .expect("language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("français".to_string())
+        );
+    }
+
+    #[cfg(feature = "bevy")]
+    #[test]
+    fn bevy_static_resource_is_registered_for_es_fluent_lang() {
+        use es_fluent_manager_core::StaticI18nResource;
+
+        let resources: Vec<_> = inventory::iter::<&'static dyn StaticI18nResource>()
+            .filter(|r| r.domain() == "es-fluent-lang")
+            .collect();
+
+        assert!(
+            !resources.is_empty(),
+            "Expected es-fluent-lang static resources"
+        );
+
+        let en_resource = inventory::iter::<&'static dyn StaticI18nResource>()
+            .find(|r| r.domain() == "es-fluent-lang" && r.matches_language(&langid!("en")));
+
+        assert!(
+            en_resource.is_some(),
+            "Expected es-fluent-lang static resource for 'en' locale"
+        );
+        assert!(en_resource.unwrap().resource().get_entry(0).is_some());
     }
 }

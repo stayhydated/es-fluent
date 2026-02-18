@@ -3,6 +3,15 @@ use std::fs;
 use std::path::PathBuf;
 
 fn main() {
+    let is_localized_langs = env::var("CARGO_FEATURE_LOCALIZED_LANGS").is_ok();
+
+    if !is_localized_langs {
+        let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+        let out_path = out_dir.join("es_fluent_lang_static_resources.rs");
+        fs::write(out_path, "").unwrap();
+        return;
+    }
+
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let i18n_dir = manifest_dir.join("i18n");
 
