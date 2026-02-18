@@ -6,6 +6,9 @@ edition.workspace = true
 license = "Unlicense"
 publish = false
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [features]
 default = [ "native" ]
 native = [ "bevy/wayland", "bevy/file_watcher", "es-fluent-manager-bevy/file_watcher" ]
@@ -15,6 +18,9 @@ bevy = { workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-bevy = { workspace = true }
 example-shared-lib = { features = [ "bevy" ], path = "../example-shared-lib" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
 
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }

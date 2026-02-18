@@ -853,6 +853,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-bevy",
  "example-shared-lib",
+ "wasm-bindgen",
 ]
 
 [[package]]
