@@ -468,9 +468,55 @@ mod tests {
         );
     }
 
+    #[test]
+    fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
+        let module = EsFluentLanguageModule;
+        let localizer = module.create_localizer();
+
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("language selection should succeed");
+
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("English".to_string()),
+            "English autonym should be 'English'"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("français".to_string()),
+            "French autonym should be 'français' (native script)"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-ja", None),
+            Some("日本語".to_string()),
+            "Japanese autonym should be '日本語' (native script)"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-de", None),
+            Some("Deutsch".to_string()),
+            "German autonym should be 'Deutsch' (native script)"
+        );
+
+        localizer
+            .select_language(&langid!("ja-JP"))
+            .expect("language selection should succeed");
+
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("français".to_string()),
+            "Autonym mode should still return 'français' even with Japanese locale selected"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-ja", None),
+            Some("日本語".to_string()),
+            "Autonym mode should still return '日本語' even with Japanese locale selected"
+        );
+    }
+
     #[cfg(feature = "bevy")]
     #[test]
-    fn bevy_static_resource_is_registered_for_es_fluent_lang() {
+    fn bevy_static_resource_uses_autonym_file() {
         use es_fluent_manager_core::StaticI18nResource;
 
         let resource = inventory::iter::<&'static dyn StaticI18nResource>()
@@ -515,23 +561,95 @@ mod tests_localized {
     }
 
     #[test]
-    fn language_module_creates_localizer_and_selects_language() {
+    fn localized_mode_returns_translated_language_names() {
         let module = EsFluentLanguageModule;
-        assert_eq!(module.name(), "es-fluent-lang");
-
         let localizer = module.create_localizer();
+
         localizer
-            .select_language(&langid!("fr"))
-            .expect("language selection should succeed");
+            .select_language(&langid!("en"))
+            .expect("English language selection should succeed");
         assert_eq!(
             localizer.localize("es-fluent-lang-fr", None),
-            Some("français".to_string())
+            Some("French".to_string()),
+            "With English UI, French should be 'French'"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-de", None),
+            Some("German".to_string()),
+            "With English UI, German should be 'German'"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-ja", None),
+            Some("Japanese".to_string()),
+            "With English UI, Japanese should be 'Japanese'"
+        );
+
+        localizer
+            .select_language(&langid!("fr"))
+            .expect("French language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("français".to_string()),
+            "With French UI, French should be 'français'"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-de", None),
+            Some("allemand".to_string()),
+            "With French UI, German should be 'allemand'"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("anglais".to_string()),
+            "With French UI, English should be 'anglais'"
+        );
+
+        localizer
+            .select_language(&langid!("ja"))
+            .expect("Japanese language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("フランス語".to_string()),
+            "With Japanese UI, French should be 'フランス語'"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-de", None),
+            Some("ドイツ語".to_string()),
+            "With Japanese UI, German should be 'ドイツ語'"
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("英語".to_string()),
+            "With Japanese UI, English should be '英語'"
+        );
+    }
+
+    #[test]
+    fn localized_mode_fallback_to_base_locale() {
+        let module = EsFluentLanguageModule;
+        let localizer = module.create_localizer();
+
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("en-US should fall back to en");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("French".to_string()),
+            "en-US should fall back to en translations"
+        );
+
+        localizer
+            .select_language(&langid!("fr-FR"))
+            .expect("fr-FR should fall back to fr");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("anglais".to_string()),
+            "fr-FR should fall back to fr translations"
         );
     }
 
     #[cfg(feature = "bevy")]
     #[test]
-    fn bevy_static_resource_is_registered_for_es_fluent_lang() {
+    fn bevy_static_resources_registered_for_each_locale() {
         use es_fluent_manager_core::StaticI18nResource;
 
         let resources: Vec<_> = inventory::iter::<&'static dyn StaticI18nResource>()
@@ -545,11 +663,23 @@ mod tests_localized {
 
         let en_resource = inventory::iter::<&'static dyn StaticI18nResource>()
             .find(|r| r.domain() == "es-fluent-lang" && r.matches_language(&langid!("en")));
-
         assert!(
             en_resource.is_some(),
             "Expected es-fluent-lang static resource for 'en' locale"
         );
-        assert!(en_resource.unwrap().resource().get_entry(0).is_some());
+
+        let fr_resource = inventory::iter::<&'static dyn StaticI18nResource>()
+            .find(|r| r.domain() == "es-fluent-lang" && r.matches_language(&langid!("fr")));
+        assert!(
+            fr_resource.is_some(),
+            "Expected es-fluent-lang static resource for 'fr' locale"
+        );
+
+        let ja_resource = inventory::iter::<&'static dyn StaticI18nResource>()
+            .find(|r| r.domain() == "es-fluent-lang" && r.matches_language(&langid!("ja")));
+        assert!(
+            ja_resource.is_some(),
+            "Expected es-fluent-lang static resource for 'ja' locale"
+        );
     }
 }
