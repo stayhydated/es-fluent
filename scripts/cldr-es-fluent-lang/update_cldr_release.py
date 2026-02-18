@@ -12,6 +12,8 @@ import urllib.request
 from pathlib import Path
 from typing import Annotated
 
+import tomli
+import tomli_w
 import typer
 
 CLDR_RELEASES_API_URL = (
@@ -24,6 +26,8 @@ CLDR_RELEASE_PATTERN = re.compile(
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_MAIN_PY = SCRIPT_DIR / "main.py"
 DEFAULT_REPO_ROOT = SCRIPT_DIR.parent.parent
+CRATES_DIR = DEFAULT_REPO_ROOT / "crates"
+DEFAULT_CARGO_TOML = CRATES_DIR / "es-fluent-lang" / "Cargo.toml"
 
 app = typer.Typer(
     help=(
@@ -98,6 +102,32 @@ def write_github_outputs(path: Path, outputs: dict[str, str]) -> None:
         file.write("\n")
 
 
+def update_cargo_toml_description(cargo_toml_path: Path, cldr_version: str) -> None:
+    """Update the description in Cargo.toml with the CLDR version.
+
+    Args:
+        cargo_toml_path: Path to the Cargo.toml file.
+        cldr_version: The CLDR version string (e.g., "48.1.0").
+    """
+    if not cargo_toml_path.is_file():
+        raise FileNotFoundError(f"Cargo.toml not found at {cargo_toml_path}")
+
+    with cargo_toml_path.open("rb") as f:
+        data = tomli.load(f)
+
+    if "package" not in data:
+        raise RuntimeError(f"[package] section not found in {cargo_toml_path}")
+
+    data["package"]["description"] = (
+        f"cldr {cldr_version} based crate for adding variants to a Language Enum."
+    )
+
+    with cargo_toml_path.open("wb") as f:
+        tomli_w.dump(data, f)
+
+    typer.echo(f"Updated description in {cargo_toml_path} to cldr {cldr_version}")
+
+
 @app.command()
 def main(
     main_py: Annotated[
@@ -147,11 +177,21 @@ def main(
             resolve_path=True,
         ),
     ] = None,
+    cargo_toml: Annotated[
+        Path | None,
+        typer.Option(
+            "--cargo-toml",
+            help="Path to es-fluent-lang's Cargo.toml to update with CLDR version.",
+            writable=True,
+            resolve_path=True,
+        ),
+    ] = DEFAULT_CARGO_TOML,
 ) -> None:
     """Check for a new CLDR release and optionally update via `main.py`."""
     try:
         main_py_path = main_py.resolve()
         repo_root_path = repo_root.resolve()
+        cargo_toml_path = cargo_toml.resolve() if cargo_toml else None
 
         current_release = read_current_release(main_py_path)
         latest_release = fetch_latest_release()
@@ -168,6 +208,9 @@ def main(
                 if updated and not skip_generate:
                     typer.echo(f"Running {main_py_path}...")
                     run_generator(main_py_path, repo_root_path)
+                if updated and cargo_toml_path:
+                    typer.echo(f"Updating Cargo.toml at {cargo_toml_path}...")
+                    update_cargo_toml_description(cargo_toml_path, latest_release)
                 if updated:
                     typer.echo("Update complete.")
             else:

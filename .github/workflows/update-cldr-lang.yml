@@ -51,6 +51,7 @@ jobs:
           delete-branch: true
           add-paths: |
             scripts/cldr-es-fluent-lang/main.py
+            crates/es-fluent-lang/Cargo.toml
             crates/es-fluent-lang/es-fluent-lang.ftl
             crates/es-fluent-lang/i18n
             crates/es-fluent-lang-macro/src/supported_locales.rs
