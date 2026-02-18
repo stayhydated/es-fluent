@@ -278,6 +278,13 @@ def collect_entries(
         if expanded_locale.language not in base_language_names:
             base_language_names[expanded_locale.language] = autonym
 
+    # Build reverse map to detect collisions
+    name_to_tags: dict[str, list[str]] = {}
+    for tag, name in entries.items():
+        if name not in name_to_tags:
+            name_to_tags[name] = []
+        name_to_tags[name].append(tag)
+
     # Second pass: add region qualifiers and filter out unhelpful entries
     qualified_entries: dict[str, str] = {}
     for locale_tag, name in entries.items():
@@ -292,14 +299,16 @@ def collect_entries(
                 # Skip this entry - it's a numeric region with no distinct name
                 continue
 
-        # If this locale has a region and its name matches the base language name,
-        # add a region qualifier
-        if parsed.region and not parsed.region.isdigit():
-            base_name = base_language_names.get(parsed.language)
-            if base_name and name == base_name:
-                territory_name = territory_names.get(parsed.region)
-                if territory_name:
-                    name = f"{name} ({territory_name})"
+        # If this locale has a region and its name is ambiguous (shared by multiple locales),
+        # add a region qualifier. This handles cases like:
+        # - en-US vs en (both "English")
+        # - zh-Hans-HK vs zh-Hans (both "简体中文")
+        # - ff-Adlm-BF vs ff-Adlm-CM (both "𞤆𞤵𞤤𞤢𞤪")
+        is_ambiguous = len(name_to_tags[name]) > 1
+        if parsed.region and not parsed.region.isdigit() and is_ambiguous:
+            territory_name = territory_names.get(parsed.region)
+            if territory_name:
+                name = f"{name} ({territory_name})"
 
         qualified_entries[locale_tag] = name
 

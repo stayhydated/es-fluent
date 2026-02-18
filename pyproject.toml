@@ -1,11 +1,12 @@
 [project]
 dependencies = [
- "pydantic>=2.12.5",
- "requests>=2.32.5",
- "tomli>=2.0",
- "tomli-w>=1.0",
- "tqdm>=4.67.1",
- "typer[all]>=0.19.2",
+  "pydantic>=2.12.5",
+  "pytest>=9.0.2",
+  "requests>=2.32.5",
+  "tomli>=2.0",
+  "tomli-w>=1.0",
+  "tqdm>=4.67.1",
+  "typer[all]>=0.19.2",
 ]
 description = "Add your description here"
 name = "es-fluent"

@@ -351,7 +351,16 @@ mod bevy_support {
         }
 
         fn matches_language(&self, lang: &LanguageIdentifier) -> bool {
-            self.language().is_some_and(|l| l == lang)
+            let Some(resolved) = resolve_language(lang) else {
+                return false;
+            };
+            let Some(candidate) = self.language() else {
+                return false;
+            };
+            if candidate != &resolved {
+                return false;
+            }
+            self.load_resource().is_some()
         }
 
         fn resource(&self) -> Arc<FluentResource> {

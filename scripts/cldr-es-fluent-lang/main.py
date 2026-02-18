@@ -201,26 +201,26 @@ def main(
                     # Try to find localized territory name
                     localized_territory = None
 
-                    # First try: language's own territory names (e.g., xog -> Yuganda)
-                    if language in territory_localizations:
+                    # First try: language-script combination (most specific)
+                    if parsed.script:
+                        lang_script = f"{language}-{parsed.script}"
+                        if lang_script in territory_localizations:
+                            localized_territory = territory_localizations[
+                                lang_script
+                            ].get(region)
+
+                    # Second try: language's own territory names (e.g., xog -> Yuganda)
+                    if not localized_territory and language in territory_localizations:
                         localized_territory = territory_localizations[language].get(
                             region
                         )
 
-                    # Second try: base language if specific not found
+                    # Third try: base language if specific not found
                     if not localized_territory and len(language) > 2:
                         base_lang = language[:2]
                         if base_lang in territory_localizations:
                             localized_territory = territory_localizations[
                                 base_lang
-                            ].get(region)
-
-                    # Third try: language-script combination
-                    if not localized_territory and parsed.script:
-                        lang_script = f"{language}-{parsed.script}"
-                        if lang_script in territory_localizations:
-                            localized_territory = territory_localizations[
-                                lang_script
                             ].get(region)
 
                     # If we found a localized territory name and the current name uses English
