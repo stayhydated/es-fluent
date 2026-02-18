@@ -7,7 +7,7 @@
   "scripts": {
     "build": "turbo build",
     "build:wasm": "bun run build:wasm:bevy",
-    "build:wasm:bevy": "cargo build --release --target wasm32-unknown-unknown -p bevy-example --no-default-features && ~/.cargo/bin/wasm-bindgen --out-dir web/public/bevy-example --target web target/wasm32-unknown-unknown/release/bevy-example.wasm && cp -r examples/assets web/public/bevy-example/",
+    "build:wasm:bevy": "cd examples/bevy-example && wasm-pack build --release --target web --out-dir ../../web/public/bevy-example --out-name bevy-example --no-default-features && cp -r ../assets ../../web/public/bevy-example/",
     "build:web": "turbo run build --filter=web",
     "dev": "turbo dev",
     "fmt": "oxfmt",

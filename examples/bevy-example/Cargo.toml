@@ -6,6 +6,9 @@ edition.workspace = true
 license = "Unlicense"
 publish = false
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [features]
 default = [ "native" ]
 native = [ "bevy/wayland", "bevy/file_watcher", "es-fluent-manager-bevy/file_watcher" ]
