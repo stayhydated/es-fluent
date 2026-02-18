@@ -1,8 +1,6 @@
 [package]
 name = "es-fluent-lang"
-description = """
-cldr 48 based crate for adding variants to a Language Enum.
-"""
+description = """cldr 48.1.0 based crate for adding variants to a Language Enum."""
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
@@ -28,6 +26,9 @@ inventory = { workspace = true }
 rust-embed = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

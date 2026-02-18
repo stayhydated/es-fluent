@@ -10,6 +10,7 @@ from typing import Annotated
 import typer
 
 from src.io import DownloadError, ExtractionError, download_file, extract_archive
+from src.loaders import load_territory_names
 from src.models import Locale
 from src.processing import collapse_entries, collect_entries
 from src.writers import write_ftl, write_supported_locales
@@ -149,7 +150,9 @@ def main(
                 f"Collecting locale entries (display locale: {display_locale})..."
             )
             try:
-                raw_entries = collect_entries(extract_dir, display_locale=display_locale)
+                raw_entries = collect_entries(
+                    extract_dir, display_locale=display_locale
+                )
             except ValueError as e:
                 typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
                 raise typer.Exit(code=1)
@@ -163,17 +166,16 @@ def main(
             # - Language names in their native script (autonyms)
             # - Territory names in their localized form (not English)
             # So we collect entries for each available locale's language and merge territory names
-            typer.echo("Collecting locale entries (autonyms with localized territories)...")
-            
+            typer.echo(
+                "Collecting locale entries (autonyms with localized territories)..."
+            )
+
             # First, collect base entries with autonyms (English territory names as fallback)
             raw_entries = collect_entries(extract_dir, display_locale=None)
-            
+
             # Now enhance with localized territory names from each language's CLDR data
-            from src.loaders import load_territory_names
-            from src.models import Locale
-            
             languages_root = extract_dir / "cldr-localenames-full" / "main"
-            
+
             # Build a mapping of territory codes to their localized names per language
             # We use localename_locales which already contains all available locales
             territory_localizations: dict[str, dict[str, str]] = {}
@@ -184,56 +186,65 @@ def main(
                         territory_localizations[lang] = lang_territories
                 except FileNotFoundError:
                     continue
-            
+
             # Enhance entries with localized territory names
             enhanced_entries = {}
             for locale_tag, name in raw_entries.items():
                 enhanced_entries[locale_tag] = name
-                
+
                 # Check if this locale has a region and needs localization
                 parsed = Locale.parse(locale_tag)
                 if parsed.region and not parsed.region.isdigit():
                     region = parsed.region
                     language = parsed.language
-                    
+
                     # Try to find localized territory name
                     localized_territory = None
-                    
+
                     # First try: language's own territory names (e.g., xog -> Yuganda)
                     if language in territory_localizations:
-                        localized_territory = territory_localizations[language].get(region)
-                    
+                        localized_territory = territory_localizations[language].get(
+                            region
+                        )
+
                     # Second try: base language if specific not found
                     if not localized_territory and len(language) > 2:
                         base_lang = language[:2]
                         if base_lang in territory_localizations:
-                            localized_territory = territory_localizations[base_lang].get(region)
-                    
+                            localized_territory = territory_localizations[
+                                base_lang
+                            ].get(region)
+
                     # Third try: language-script combination
                     if not localized_territory and parsed.script:
                         lang_script = f"{language}-{parsed.script}"
                         if lang_script in territory_localizations:
-                            localized_territory = territory_localizations[lang_script].get(region)
-                    
+                            localized_territory = territory_localizations[
+                                lang_script
+                            ].get(region)
+
                     # If we found a localized territory name and the current name uses English
                     if localized_territory and "(" in name:
                         # Replace English territory name with localized one
                         import re
+
                         # Match pattern like "Olusoga (Uganda)" or "Language (Country)"
-                        match = re.match(r'^(.+?)\s*\(([^)]+)\)$', name)
+                        match = re.match(r"^(.+?)\s*\(([^)]+)\)$", name)
                         if match:
                             base_name = match.group(1)
                             eng_territory = match.group(2)
                             if eng_territory != localized_territory:
-                                enhanced_entries[locale_tag] = f"{base_name} ({localized_territory})"
-            
+                                enhanced_entries[locale_tag] = (
+                                    f"{base_name} ({localized_territory})"
+                                )
+
             typer.echo(f"Collapsing {len(enhanced_entries)} entries...")
             collapsed_entries = collapse_entries(enhanced_entries)
             sorted_entries = sorted(collapsed_entries.items())
-            
+
             typer.echo(f"Writing {len(sorted_entries)} locales to {output}...")
             write_ftl(output, sorted_entries)
-        
+
         supported_locales = [locale for locale, _ in sorted_entries]
         typer.echo(
             f"Writing {len(supported_locales)} supported locales to {supported_output}..."

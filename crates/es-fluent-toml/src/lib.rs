@@ -321,25 +321,21 @@ fn ensure_supported_language_identifier(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
+pub(crate) mod test_utils {
+    use std::path::Path;
     use std::sync::{LazyLock, Mutex};
-    use tempfile::TempDir;
 
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+    pub static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
-    fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
+    pub fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
         let _guard = ENV_LOCK.lock().expect("lock poisoned");
         let previous = std::env::var("CARGO_MANIFEST_DIR").ok();
 
         match value {
             Some(path) => {
-                // SAFETY: tests hold a global lock and restore the previous value afterwards.
                 unsafe { std::env::set_var("CARGO_MANIFEST_DIR", path) };
             },
             None => {
-                // SAFETY: tests hold a global lock and restore the previous value afterwards.
                 unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
             },
         }
@@ -348,17 +344,24 @@ mod tests {
 
         match previous {
             Some(prev) => {
-                // SAFETY: tests hold a global lock and restore the previous value afterwards.
                 unsafe { std::env::set_var("CARGO_MANIFEST_DIR", prev) };
             },
             None => {
-                // SAFETY: tests hold a global lock and restore the previous value afterwards.
                 unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
             },
         }
 
         result
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    use crate::test_utils::with_manifest_env;
 
     #[test]
     fn test_read_from_path_success() {
