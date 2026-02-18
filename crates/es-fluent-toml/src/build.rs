@@ -9,7 +9,7 @@ use std::path::Path;
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// // build.rs
 /// fn main() {
 ///     es_fluent_toml::build::track_i18n_assets();
