@@ -62,7 +62,8 @@ The detailed steps are:
 1. **Generate Enum**:
    - The user provides an **empty enum**.
    - The macro populates it with variants corresponding to the discovered language codes (converted to PascalCase).
-   - Each variant receives a `#[fluent(key = "...")]` attribute with the canonical language code.
+   - In default mode, each variant receives a `#[fluent(key = "...")]` attribute using the nearest supported bundled key (e.g., `fr-FR` -> `fr`) so `es-fluent-lang` lookups succeed.
+   - In custom mode, variant keys stay canonical (e.g., `fr-FR`) so user-defined resources can target exact locale tags.
    - It implements helper traits for converting between the enum and language identifiers (`From`, `TryFrom`, `FromStr`).
    - It implements `Default` based on the fallback language defined in `i18n.toml`.
 
