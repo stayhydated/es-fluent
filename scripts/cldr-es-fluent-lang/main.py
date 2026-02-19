@@ -214,8 +214,6 @@ def main(
                             region
                         )
 
-
-
                     # If we found a localized territory name and the current name uses English
                     if localized_territory and "(" in name:
                         # Match pattern like "Olusoga (Uganda)" or "Language (Country)"

@@ -1,0 +1,16 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { features = [ "derive" ], workspace = true }
+icu_collections = { workspace = true }
+icu_experimental = { workspace = true }
+icu_experimental_data = { workspace = true }
+icu_locale = { workspace = true }
+icu_plurals = { workspace = true }
+icu_provider = { workspace = true }
+zerovec = { workspace = true }

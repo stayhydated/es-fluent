@@ -78,9 +78,6 @@ def merge_names_for_locale(
     return merged
 
 
-
-
-
 def format_locale(
     expanded_locale: Locale,
     original_locale: Locale,
