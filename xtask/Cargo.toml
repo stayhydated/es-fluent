@@ -13,9 +13,8 @@ icu_experimental_data = { workspace = true }
 icu_locale = { workspace = true }
 icu_plurals = { workspace = true }
 icu_provider = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
 tempfile = { workspace = true }
-ureq = { workspace = true }
 zerovec = { workspace = true }
-zip = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = [ "zerovec" ]
