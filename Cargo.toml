@@ -103,8 +103,10 @@ toml = "1.0"
 tracing = "0.1"
 treelog = "0.0.6"
 unic-langid = "0.9"
+ureq = "3"
 walkdir = "2.5"
 zerovec = "0.11"
+zip = "2"
 
 [profile.dev]
 codegen-units = 16
