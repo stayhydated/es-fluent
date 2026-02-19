@@ -29,7 +29,7 @@
 | `es-fluent-cli-helpers`          | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md)      | Runtime logic for checking/generating FTL files (runner crate).                           |
 | `es-fluent-generate`             | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md)         | FTL AST manipulation, diffing, and formatting logic.                                      |
 | **Automation**                   |                                                                        |                                                                                           |
-| `xtask`                          |                                                                        | Rust task runner that generates `es-fluent-lang` language data from ICU4X baked data.    |
+| `xtask`                          |                                                                        | Rust task runner that generates `es-fluent-lang` language data from ICU4X baked data.     |
 | **Examples**                     |                                                                        |                                                                                           |
 | `examples/first-example`         |                                                                        | Minimal getting-started example using the embedded manager.                               |
 | `examples/thiserror-example`     |                                                                        | Demonstrates `thiserror` integration with localizable error types.                        |

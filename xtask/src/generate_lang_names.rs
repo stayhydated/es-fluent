@@ -1,10 +1,10 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use icu_experimental::displaynames::{
-    DisplayNamesOptions, LocaleDisplayNamesFormatter,
     provider::{
         LanguageDisplayNamesV1, LocaleDisplayNamesV1, RegionDisplayNamesV1, ScriptDisplayNamesV1,
         VariantDisplayNamesV1,
     },
+    DisplayNamesOptions, LocaleDisplayNamesFormatter,
 };
 use icu_experimental_data::*;
 use icu_locale::Locale;
@@ -393,6 +393,8 @@ fn load_display_locales(
     supported_locales: &[String],
 ) -> Result<(Vec<String>, Vec<String>)> {
     let formatter_locales = load_formatter_locales()?;
+    let formatter_locale_set: BTreeSet<&str> =
+        formatter_locales.iter().map(String::as_str).collect();
     let mut candidates = BTreeSet::new();
 
     if i18n_dir.is_dir() {
@@ -421,6 +423,12 @@ fn load_display_locales(
     let mut display_locales = Vec::new();
     for candidate in candidates {
         if candidate.parse::<Locale>().is_err() {
+            continue;
+        }
+        let candidate_base = candidate.split('-').next().unwrap_or(&candidate);
+        if !formatter_locale_set.contains(candidate.as_str())
+            && !formatter_locale_set.contains(candidate_base)
+        {
             continue;
         }
         display_locales.push(candidate);
