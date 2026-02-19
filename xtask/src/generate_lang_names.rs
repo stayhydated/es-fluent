@@ -123,8 +123,8 @@ pub fn run(
     }
 
     println!(
-        "Wrote {} locales to {}",
-        supported_locales.len(),
+        "Wrote {} autonyms to {}",
+        autonym_entries.len(),
         ftl_output.display()
     );
     println!(
