@@ -13,33 +13,13 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Generate language-name resources and supported_locales.rs from ICU4X data
-    GenerateLangNames {
-        /// Optional path to es-fluent-lang.ftl (defaults to crate location)
-        #[arg(long)]
-        ftl_output: Option<String>,
-
-        /// Optional path to supported_locales.rs (defaults to crate location)
-        #[arg(long)]
-        rs_output: Option<String>,
-
-        /// Optional path to i18n directory (defaults to crate location)
-        #[arg(long)]
-        i18n_dir: Option<String>,
-    },
+    GenerateLangNames(generate_lang_names::GenerateLangNamesArgs),
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::GenerateLangNames {
-            ftl_output,
-            rs_output,
-            i18n_dir,
-        } => {
-            generate_lang_names::run(ftl_output, rs_output, i18n_dir)?;
-        },
+        Commands::GenerateLangNames(args) => generate_lang_names::run(args),
     }
-
-    Ok(())
 }

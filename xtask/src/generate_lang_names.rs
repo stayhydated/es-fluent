@@ -1,15 +1,16 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
+use clap::Args;
 use icu_experimental::displaynames::{
-    DisplayNamesOptions, LocaleDisplayNamesFormatter,
     provider::{
         LanguageDisplayNamesV1, LocaleDisplayNamesV1, RegionDisplayNamesV1, ScriptDisplayNamesV1,
         VariantDisplayNamesV1,
     },
+    DisplayNamesOptions, LocaleDisplayNamesFormatter,
 };
 use icu_experimental_data::*;
 use icu_locale::Locale;
 use icu_provider::{DataMarker, IterableDataProvider};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{hash_map::Entry, BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -35,29 +36,55 @@ const _: () = {
     impl_variant_display_names_v1!(DisplayNamesProvider, ITER);
 };
 
-pub fn run(
-    ftl_output: Option<String>,
-    rs_output: Option<String>,
-    i18n_dir: Option<String>,
-) -> Result<()> {
-    let workspace = workspace_root()?;
-    let default_ftl_output = workspace.join("crates/es-fluent-lang/es-fluent-lang.ftl");
-    let default_rs_output = workspace.join("crates/es-fluent-lang-macro/src/supported_locales.rs");
-    let default_i18n_dir = workspace.join("crates/es-fluent-lang/i18n");
+#[derive(Args, Debug, Clone)]
+pub struct GenerateLangNamesArgs {
+    /// Optional path to es-fluent-lang.ftl (defaults to crate location)
+    #[arg(long)]
+    pub ftl_output: Option<PathBuf>,
 
-    let ftl_output = resolve_path(ftl_output, &default_ftl_output);
-    let rs_output = resolve_path(rs_output, &default_rs_output);
-    let i18n_dir = resolve_path(i18n_dir, &default_i18n_dir);
+    /// Optional path to supported_locales.rs (defaults to crate location)
+    #[arg(long)]
+    pub rs_output: Option<PathBuf>,
+
+    /// Optional path to i18n directory (defaults to crate location)
+    #[arg(long)]
+    pub i18n_dir: Option<PathBuf>,
+}
+
+struct OutputPaths {
+    ftl_output: PathBuf,
+    rs_output: PathBuf,
+    i18n_dir: PathBuf,
+}
+
+impl OutputPaths {
+    fn from_args(args: GenerateLangNamesArgs) -> Result<Self> {
+        let workspace = workspace_root()?;
+        let default_ftl_output = workspace.join("crates/es-fluent-lang/es-fluent-lang.ftl");
+        let default_rs_output =
+            workspace.join("crates/es-fluent-lang-macro/src/supported_locales.rs");
+        let default_i18n_dir = workspace.join("crates/es-fluent-lang/i18n");
+
+        Ok(Self {
+            ftl_output: args.ftl_output.unwrap_or(default_ftl_output),
+            rs_output: args.rs_output.unwrap_or(default_rs_output),
+            i18n_dir: args.i18n_dir.unwrap_or(default_i18n_dir),
+        })
+    }
+}
+
+pub fn run(args: GenerateLangNamesArgs) -> Result<()> {
+    let output_paths = OutputPaths::from_args(args)?;
 
     let supported_locales = discover_locales_from_icu4x()?;
     let parsed_locales = parse_target_locales(&supported_locales)?;
-
-    let (display_locales, formatter_locales) = load_display_locales(&i18n_dir, &supported_locales)?;
     let formatter_locale_set: BTreeSet<&str> =
-        formatter_locales.iter().map(String::as_str).collect();
-
-    let locales_with_native_display: BTreeSet<&str> =
-        formatter_locale_set.iter().copied().collect();
+        supported_locales.iter().map(String::as_str).collect();
+    let display_locales = load_display_locales(
+        &output_paths.i18n_dir,
+        &supported_locales,
+        &formatter_locale_set,
+    )?;
 
     let mut formatter_cache: HashMap<String, LocaleDisplayNamesFormatter> = HashMap::new();
 
@@ -65,7 +92,7 @@ pub fn run(
     let mut skipped_without_native = 0usize;
     for (locale_tag, locale) in &parsed_locales {
         let display_locale = choose_display_locale_for_autonym(locale_tag, &formatter_locale_set);
-        if display_locale == "en" && !locales_with_native_display.contains(locale_tag.as_str()) {
+        if display_locale == "en" && !formatter_locale_set.contains(locale_tag.as_str()) {
             skipped_without_native += 1;
             continue;
         }
@@ -86,8 +113,8 @@ pub fn run(
         display_locales.len()
     );
 
-    write_ftl(&ftl_output, &autonym_entries)?;
-    write_supported_locales(&rs_output, &supported_locales)?;
+    write_ftl(&output_paths.ftl_output, &autonym_entries)?;
+    write_supported_locales(&output_paths.rs_output, &supported_locales)?;
 
     let mut written_locales = 0usize;
     for display_locale in &display_locales {
@@ -99,7 +126,10 @@ pub fn run(
             localized_entries.push((locale_tag.clone(), display_name));
         }
 
-        let output_path = i18n_dir.join(display_locale).join(I18N_RESOURCE_NAME);
+        let output_path = output_paths
+            .i18n_dir
+            .join(display_locale)
+            .join(I18N_RESOURCE_NAME);
         write_ftl(&output_path, &localized_entries)?;
         written_locales += 1;
     }
@@ -107,17 +137,17 @@ pub fn run(
     println!(
         "Wrote {} autonyms to {}",
         autonym_entries.len(),
-        ftl_output.display()
+        output_paths.ftl_output.display()
     );
     println!(
         "Wrote {} supported locale keys to {}",
         supported_locales.len(),
-        rs_output.display()
+        output_paths.rs_output.display()
     );
     println!(
         "Wrote {} localized i18n files to {}",
         written_locales,
-        i18n_dir.display()
+        output_paths.i18n_dir.display()
     );
 
     Ok(())
@@ -129,12 +159,6 @@ fn workspace_root() -> Result<PathBuf> {
         .parent()
         .map(Path::to_path_buf)
         .context("failed to resolve workspace root from xtask manifest directory")
-}
-
-fn resolve_path(value: Option<String>, default_path: &Path) -> PathBuf {
-    value
-        .map(PathBuf::from)
-        .unwrap_or_else(|| default_path.to_path_buf())
 }
 
 fn parse_target_locales(locales: &[String]) -> Result<Vec<(String, Locale)>> {
@@ -158,21 +182,7 @@ fn canonicalize_locale_tag(locale_tag: &str) -> Result<String> {
 
 fn discover_locales_from_icu4x() -> Result<Vec<String>> {
     let provider = DisplayNamesProvider;
-    let mut locales = marker_locales::<LanguageDisplayNamesV1>(&provider, "language")?;
-
-    let locale_locales = marker_locales::<LocaleDisplayNamesV1>(&provider, "locale")?;
-    let region_locales = marker_locales::<RegionDisplayNamesV1>(&provider, "region")?;
-    let script_locales = marker_locales::<ScriptDisplayNamesV1>(&provider, "script")?;
-    let variant_locales = marker_locales::<VariantDisplayNamesV1>(&provider, "variant")?;
-
-    locales.retain(|locale| locale_locales.contains(locale));
-    locales.retain(|locale| region_locales.contains(locale));
-    locales.retain(|locale| script_locales.contains(locale));
-    locales.retain(|locale| variant_locales.contains(locale));
-
-    if locales.is_empty() {
-        anyhow::bail!("ICU4X compiled data did not provide any locales");
-    }
+    let locales = load_shared_marker_locales(&provider)?;
 
     let result: Vec<String> = locales.into_iter().collect();
     println!(
@@ -185,10 +195,8 @@ fn discover_locales_from_icu4x() -> Result<Vec<String>> {
 fn load_display_locales(
     i18n_dir: &Path,
     supported_locales: &[String],
-) -> Result<(Vec<String>, Vec<String>)> {
-    let formatter_locales = load_formatter_locales()?;
-    let formatter_locale_set: BTreeSet<&str> =
-        formatter_locales.iter().map(String::as_str).collect();
+    formatter_locale_set: &BTreeSet<&str>,
+) -> Result<Vec<String>> {
     let mut candidates = BTreeSet::new();
 
     if i18n_dir.is_dir() {
@@ -234,11 +242,10 @@ fn load_display_locales(
         bail!("no usable output display locales were found");
     }
 
-    Ok((display_locales, formatter_locales))
+    Ok(display_locales)
 }
 
-fn load_formatter_locales() -> Result<Vec<String>> {
-    let provider = DisplayNamesProvider;
+fn load_shared_marker_locales(provider: &DisplayNamesProvider) -> Result<BTreeSet<String>> {
     let mut shared_locales = marker_locales::<LanguageDisplayNamesV1>(&provider, "language")?;
 
     let locale_locales = marker_locales::<LocaleDisplayNamesV1>(&provider, "locale")?;
@@ -255,7 +262,7 @@ fn load_formatter_locales() -> Result<Vec<String>> {
         bail!("ICU4X compiled data did not provide any shared display locales");
     }
 
-    Ok(shared_locales.into_iter().collect())
+    Ok(shared_locales)
 }
 
 fn marker_locales<M>(provider: &DisplayNamesProvider, marker_name: &str) -> Result<BTreeSet<String>>
@@ -317,21 +324,21 @@ fn format_locale_name(
     display_locale: &str,
     target_locale: &Locale,
 ) -> Result<String> {
-    if !formatter_cache.contains_key(display_locale) {
-        let locale: Locale = display_locale
-            .parse()
-            .with_context(|| format!("failed to parse display locale '{display_locale}'"))?;
-        let formatter =
-            LocaleDisplayNamesFormatter::try_new(locale.into(), DisplayNamesOptions::default())
-                .with_context(|| {
-                    format!("failed to construct locale formatter for '{display_locale}'")
-                })?;
-        formatter_cache.insert(display_locale.to_owned(), formatter);
-    }
+    let formatter = match formatter_cache.entry(display_locale.to_owned()) {
+        Entry::Occupied(entry) => entry.into_mut(),
+        Entry::Vacant(entry) => {
+            let locale: Locale = display_locale
+                .parse()
+                .with_context(|| format!("failed to parse display locale '{display_locale}'"))?;
+            let formatter =
+                LocaleDisplayNamesFormatter::try_new(locale.into(), DisplayNamesOptions::default())
+                    .with_context(|| {
+                        format!("failed to construct locale formatter for '{display_locale}'")
+                    })?;
+            entry.insert(formatter)
+        },
+    };
 
-    let formatter = formatter_cache
-        .get(display_locale)
-        .context("formatter cache unexpectedly missing display locale")?;
     Ok(formatter.of(target_locale).into_owned())
 }
 
@@ -376,4 +383,87 @@ fn write_supported_locales(path: &Path, locales: &[String]) -> Result<()> {
 
 fn escape_fluent_value(value: &str) -> String {
     value.replace('{', "{{").replace('}', "}}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn choose_display_locale_prefers_exact_match() {
+        let display_locale_set = BTreeSet::from(["en", "pt-BR"]);
+
+        let chosen = choose_display_locale_for_autonym("pt-BR", &display_locale_set);
+
+        assert_eq!(chosen, "pt-BR");
+    }
+
+    #[test]
+    fn choose_display_locale_falls_back_to_parent() {
+        let display_locale_set = BTreeSet::from(["en", "zh"]);
+
+        let chosen = choose_display_locale_for_autonym("zh-Hant-TW", &display_locale_set);
+
+        assert_eq!(chosen, "zh");
+    }
+
+    #[test]
+    fn choose_display_locale_falls_back_to_en_when_available() {
+        let display_locale_set = BTreeSet::from(["en", "fr"]);
+
+        let chosen = choose_display_locale_for_autonym("x-private", &display_locale_set);
+
+        assert_eq!(chosen, "en");
+    }
+
+    #[test]
+    fn choose_display_locale_falls_back_to_first_sorted_locale() {
+        let display_locale_set = BTreeSet::from(["fr", "ja"]);
+
+        let chosen = choose_display_locale_for_autonym("x-private", &display_locale_set);
+
+        assert_eq!(chosen, "fr");
+    }
+
+    #[test]
+    fn load_display_locales_uses_i18n_subdirectories() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let i18n_dir = temp_dir.path();
+        fs::create_dir_all(i18n_dir.join("ja"))?;
+        fs::create_dir_all(i18n_dir.join("en-US"))?;
+        fs::create_dir_all(i18n_dir.join("__invalid__"))?;
+
+        let supported_locales = vec!["en".to_owned(), "ja".to_owned()];
+        let formatter_locale_set: BTreeSet<&str> =
+            supported_locales.iter().map(String::as_str).collect();
+
+        let display_locales =
+            load_display_locales(i18n_dir, &supported_locales, &formatter_locale_set)?;
+
+        assert_eq!(display_locales, vec!["en-US", "ja"]);
+        Ok(())
+    }
+
+    #[test]
+    fn load_display_locales_falls_back_to_supported_locales() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let supported_locales = vec!["en".to_owned(), "ja".to_owned()];
+        let formatter_locale_set: BTreeSet<&str> =
+            supported_locales.iter().map(String::as_str).collect();
+
+        let display_locales =
+            load_display_locales(temp_dir.path(), &supported_locales, &formatter_locale_set)?;
+
+        assert_eq!(display_locales, vec!["en", "ja"]);
+        Ok(())
+    }
+
+    #[test]
+    fn escape_fluent_value_escapes_braces() {
+        assert_eq!(
+            escape_fluent_value("a {value} and {other}"),
+            "a {{value}} and {{other}}"
+        );
+    }
 }
