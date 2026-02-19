@@ -79,6 +79,23 @@ fn main() {
 }
 ```
 
+## Regenerating bundled language-name data
+
+The bundled language-name resources used by `es-fluent-lang` and
+`es-fluent-lang-macro` are generated from ICU4X compiled data via `xtask`:
+
+```bash
+cargo run -p xtask -- generate-lang-names
+```
+
+This command updates:
+
+- `crates/es-fluent-lang/es-fluent-lang.ftl` (autonyms)
+- `crates/es-fluent-lang/i18n/<locale>/es-fluent-lang.ftl` (localized language names)
+- `crates/es-fluent-lang-macro/src/supported_locales.rs` (compile-time locale allowlist)
+
+Use `cargo run -p xtask -- generate-lang-names --help` for optional output-path overrides.
+
 ## Namespaces (optional)
 
 You can route specific types into separate `.ftl` files by adding a namespace. All derive macros support the same namespace options:

@@ -29,7 +29,7 @@
 | `es-fluent-cli-helpers`          | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md)      | Runtime logic for checking/generating FTL files (runner crate).                           |
 | `es-fluent-generate`             | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md)         | FTL AST manipulation, diffing, and formatting logic.                                      |
 | **Automation**                   |                                                                        |                                                                                           |
-| `xtask`                          |                                                                        | Rust task runner that generates `es-fluent-lang` language data from ICU4X baked data.     |
+| `xtask`                          | [Architecture](xtask/docs/ARCHITECTURE.md)                             | Rust task runner that generates `es-fluent-lang` language data from ICU4X baked data.     |
 | **Examples**                     |                                                                        |                                                                                           |
 | `examples/first-example`         |                                                                        | Minimal getting-started example using the embedded manager.                               |
 | `examples/thiserror-example`     |                                                                        | Demonstrates `thiserror` integration with localizable error types.                        |
@@ -72,7 +72,7 @@
 
 ### Automation
 
-- **`xtask`**: A Rust task runner that generates `es-fluent-lang.ftl` (language autonyms like "English", "Français", "日本語"), localized per-locale `es-fluent-lang.ftl` files under `i18n/`, and `supported_locales.rs` (the list of valid language keys for compile-time validation in `es-fluent-lang-macro`) using ICU4X data.
+- **`xtask`**: A Rust task runner that generates `es-fluent-lang.ftl` (language autonyms like "English", "Français", "日本語"), localized per-locale `es-fluent-lang.ftl` files under `i18n/`, and `supported_locales.rs` (the list of valid language keys for compile-time validation in `es-fluent-lang-macro`) using ICU4X data. Run `cargo run -p xtask -- generate-lang-names` to regenerate these artifacts.
 
 ### Examples
 
@@ -105,7 +105,3 @@
 
 - Use [bun](https://bun.com/) for dependency management.
 - [turborepo](https://turborepo.org/) is used as the build system.
-
-**Python**
-
-- Use [uv](https://docs.astral.sh/uv/) for dependency management and running Python scripts.
