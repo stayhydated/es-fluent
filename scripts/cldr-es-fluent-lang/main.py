@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -12,7 +13,7 @@ import typer
 from src.io import DownloadError, ExtractionError, download_file, extract_archive
 from src.loaders import load_territory_names
 from src.models import Locale
-from src.processing import collapse_entries, collect_entries
+from src.processing import collect_entries
 from src.writers import write_ftl, write_supported_locales
 
 CLDR_RELEASE = "48.1.0"
@@ -156,9 +157,7 @@ def main(
             except ValueError as e:
                 typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
                 raise typer.Exit(code=1)
-            typer.echo(f"Collapsing {len(raw_entries)} entries...")
-            collapsed_entries = collapse_entries(raw_entries)
-            sorted_entries = sorted(collapsed_entries.items())
+            sorted_entries = sorted(raw_entries.items())
             typer.echo(f"Writing {len(sorted_entries)} locales to {output}...")
             write_ftl(output, sorted_entries)
         else:
@@ -215,19 +214,10 @@ def main(
                             region
                         )
 
-                    # Third try: base language if specific not found
-                    if not localized_territory and len(language) > 2:
-                        base_lang = language[:2]
-                        if base_lang in territory_localizations:
-                            localized_territory = territory_localizations[
-                                base_lang
-                            ].get(region)
+
 
                     # If we found a localized territory name and the current name uses English
                     if localized_territory and "(" in name:
-                        # Replace English territory name with localized one
-                        import re
-
                         # Match pattern like "Olusoga (Uganda)" or "Language (Country)"
                         match = re.match(r"^(.+?)\s*\(([^)]+)\)$", name)
                         if match:
@@ -238,10 +228,7 @@ def main(
                                     f"{base_name} ({localized_territory})"
                                 )
 
-            typer.echo(f"Collapsing {len(enhanced_entries)} entries...")
-            collapsed_entries = collapse_entries(enhanced_entries)
-            sorted_entries = sorted(collapsed_entries.items())
-
+            sorted_entries = sorted(enhanced_entries.items())
             typer.echo(f"Writing {len(sorted_entries)} locales to {output}...")
             write_ftl(output, sorted_entries)
 
@@ -276,8 +263,7 @@ def main(
                 except ValueError as e:
                     typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
                     raise typer.Exit(code=1)
-                collapsed_localized = collapse_entries(localized_entries)
-                sorted_localized = sorted(collapsed_localized.items())
+                sorted_localized = sorted(localized_entries.items())
                 output_path = i18n_dir / canonical_locale / I18N_RESOURCE_NAME
                 typer.echo(
                     f"Writing {len(sorted_localized)} locales to {output_path}..."

@@ -78,15 +78,7 @@ def merge_names_for_locale(
     return merged
 
 
-def collapse_entries(entries: dict[str, str]) -> dict[str, str]:
-    """Preserve all locale entries without collapsing region variants.
 
-    Previously this function would deduplicate entries where multiple region
-    variants shared the same name (e.g., en-US, en-GB -> en). Now it preserves
-    all entries to ensure region-specific locales like en-US are available.
-    """
-    # Return entries as-is without collapsing
-    return dict(entries)
 
 
 def format_locale(
