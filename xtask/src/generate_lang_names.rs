@@ -74,20 +74,35 @@ pub fn run(
     let formatter_locale_set: BTreeSet<&str> =
         formatter_locales.iter().map(String::as_str).collect();
 
-    println!(
-        "Generating language names for {} locales and {} display locales...",
-        parsed_locales.len(),
-        display_locales.len()
-    );
+    let locales_with_native_display: BTreeSet<&str> =
+        formatter_locale_set.iter().copied().collect();
 
     let mut formatter_cache: HashMap<String, LocaleDisplayNamesFormatter> = HashMap::new();
 
     let mut autonym_entries = Vec::with_capacity(parsed_locales.len());
+    let mut skipped_without_native = 0usize;
     for (locale_tag, locale) in &parsed_locales {
         let display_locale = choose_display_locale_for_autonym(locale_tag, &formatter_locale_set);
+        if display_locale == "en" && !locales_with_native_display.contains(locale_tag.as_str()) {
+            skipped_without_native += 1;
+            continue;
+        }
         let display_name = format_locale_name(&mut formatter_cache, &display_locale, locale)?;
         autonym_entries.push((locale_tag.clone(), display_name));
     }
+
+    if skipped_without_native > 0 {
+        println!(
+            "Skipped {} locales without native display data",
+            skipped_without_native
+        );
+    }
+
+    println!(
+        "Generating language names for {} locales and {} display locales...",
+        autonym_entries.len(),
+        display_locales.len()
+    );
 
     write_ftl(&ftl_output, &autonym_entries)?;
     write_supported_locales(&rs_output, &supported_locales)?;
