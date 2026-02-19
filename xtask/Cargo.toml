@@ -13,4 +13,9 @@ icu_experimental_data = { workspace = true }
 icu_locale = { workspace = true }
 icu_plurals = { workspace = true }
 icu_provider = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+ureq = "3"
+zip = "2"
 zerovec = { workspace = true }

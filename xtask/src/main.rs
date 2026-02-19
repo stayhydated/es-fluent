@@ -25,6 +25,18 @@ enum Commands {
         /// Optional path to i18n directory (defaults to crate location)
         #[arg(long)]
         i18n_dir: Option<String>,
+
+        /// Discover locales from CLDR data instead of reading existing files
+        #[arg(long)]
+        discover: bool,
+
+        /// CLDR tag to download (e.g., "48.1.0"). Requires --discover.
+        #[arg(long, requires = "discover")]
+        cldr_tag: Option<String>,
+
+        /// Path to local CLDR archive (directory or ZIP). Requires --discover.
+        #[arg(long, requires = "discover")]
+        cldr_path: Option<String>,
     },
 }
 
@@ -36,8 +48,13 @@ fn main() -> anyhow::Result<()> {
             ftl_output,
             rs_output,
             i18n_dir,
+            discover,
+            cldr_tag,
+            cldr_path,
         } => {
-            generate_lang_names::run(ftl_output, rs_output, i18n_dir)?;
+            generate_lang_names::run(
+                ftl_output, rs_output, i18n_dir, discover, cldr_tag, cldr_path,
+            )?;
         },
     }
 
