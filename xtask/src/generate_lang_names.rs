@@ -36,7 +36,7 @@ const _: () = {
     impl_variant_display_names_v1!(DisplayNamesProvider, ITER);
 };
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Clone, Debug)]
 pub struct GenerateLangNamesArgs {
     /// Optional path to es-fluent-lang.ftl (defaults to crate location)
     #[arg(long)]
