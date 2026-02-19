@@ -44,6 +44,7 @@ pub fn run() {
     #[cfg(target_arch = "wasm32")]
     app.add_plugins(DefaultPlugins.set(AssetPlugin {
         file_path: "assets".to_string(),
+        meta_check: bevy::asset::AssetMetaCheck::Never,
         ..default()
     }));
 
