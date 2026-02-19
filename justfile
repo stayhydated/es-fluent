@@ -5,7 +5,6 @@ fmt:
     cargo sort-derives
     cargo fmt
     taplo fmt
-    uv format
     bun run fmt
 
 clippy:
@@ -27,3 +26,4 @@ test-docs:
     cargo doc --workspace --all-features --no-deps --open
 
 ci: fmt check clippy test cov
+    cargo machete

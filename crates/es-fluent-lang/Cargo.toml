@@ -1,8 +1,6 @@
 [package]
 name = "es-fluent-lang"
-description = """
-cldr 48 based crate for adding variants to a Language Enum.
-"""
+description = """icu4x based crate for adding variants to a Language Enum."""
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
@@ -11,7 +9,7 @@ rust-version.workspace = true
 version.workspace = true
 readme = "README.md"
 categories = [ "localization", "internationalization" ]
-keywords = [ "fluent", "i18n", "locale", "cldr" ]
+keywords = [ "fluent", "i18n", "locale", "icu4x" ]
 build = "build.rs"
 
 [features]
@@ -28,6 +26,9 @@ inventory = { workspace = true }
 rust-embed = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

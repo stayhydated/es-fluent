@@ -23,11 +23,15 @@ impl SupportedLanguageSet {
         }
     }
 
-    fn contains(&self, lang: &unic_langid::LanguageIdentifier) -> bool {
+    fn resolve_supported_key(&self, lang: &unic_langid::LanguageIdentifier) -> Option<String> {
         es_fluent_manager_core::locale_candidates(lang)
             .into_iter()
             .map(|candidate| candidate.to_string())
-            .any(|key| self.keys.contains(key.as_str()))
+            .find(|key| self.keys.contains(key.as_str()))
+    }
+
+    fn contains(&self, lang: &unic_langid::LanguageIdentifier) -> bool {
+        self.resolve_supported_key(lang).is_some()
     }
 }
 
@@ -189,13 +193,22 @@ fn expand_es_fluent_language(
 
     input_enum.variants.clear();
 
-    for (canonical, _language) in &language_entries {
+    for (canonical, language) in &language_entries {
         let variant_name = canonical.replace('-', "_").to_upper_camel_case();
+        let fluent_key = if custom_mode {
+            canonical.clone()
+        } else {
+            // Map region/script variants to the nearest bundled key (e.g. fr-FR -> fr).
+            supported_languages
+                .resolve_supported_key(language)
+                .unwrap_or_else(|| canonical.clone())
+        };
 
         let variant_ident = syn::Ident::new(&variant_name, Span::call_site());
         let literal = LitStr::new(canonical, Span::call_site());
+        let fluent_key_literal = LitStr::new(&fluent_key, Span::call_site());
 
-        let attr = parse_quote!(#[fluent(key = #literal)]);
+        let attr = parse_quote!(#[fluent(key = #fluent_key_literal)]);
         let variant = Variant {
             attrs: vec![attr],
             ident: variant_ident.clone(),
@@ -439,10 +452,36 @@ mod tests {
                 assert!(default_mode.contains("resource = \"es-fluent-lang\""));
                 assert!(default_mode.contains("Fr"));
                 assert!(default_mode.contains("EnUs"));
+                assert!(default_mode.contains("key = \"en\""));
+                assert!(!default_mode.contains("key = \"en-US\""));
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert!(!custom_mode.contains("resource = \"es-fluent-lang\""));
                 assert!(custom_mode.contains("enum CustomLanguages"));
+                assert!(custom_mode.contains("key = \"en-US\""));
+            },
+        );
+    }
+
+    #[test]
+    fn macro_uses_supported_lookup_keys_for_default_mode() {
+        with_manifest_dir(
+            Some("fallback_language = \"en\"\nassets_dir = \"i18n\"\n"),
+            &["fr-FR", "zh-CN"],
+            || {
+                let default_mode = run_macro("", "enum Languages {}");
+                assert!(default_mode.contains("FrFr"));
+                assert!(default_mode.contains("ZhCn"));
+                assert!(default_mode.contains("key = \"fr\""));
+                assert!(default_mode.contains("key = \"zh\""));
+                assert!(!default_mode.contains("key = \"fr-FR\""));
+                assert!(!default_mode.contains("key = \"zh-CN\""));
+                assert!(default_mode.contains("\"fr-FR\" => Ok"));
+                assert!(default_mode.contains("\"zh-CN\" => Ok"));
+
+                let custom_mode = run_macro("custom", "enum CustomLanguages {}");
+                assert!(custom_mode.contains("key = \"fr-FR\""));
+                assert!(custom_mode.contains("key = \"zh-CN\""));
             },
         );
     }
