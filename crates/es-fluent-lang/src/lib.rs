@@ -2,6 +2,12 @@
 
 pub use unic_langid::{LanguageIdentifier, langid};
 
+/// Force the linker to include this crate.
+///
+/// This is sometimes necessary in WASM builds where the crate is only used for side effects
+/// (like `inventory` registration) and might otherwise be stripped.
+pub fn force_link() {}
+
 #[cfg(feature = "macros")]
 pub use es_fluent_lang_macro::es_fluent_language;
 
