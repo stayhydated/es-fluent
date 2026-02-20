@@ -3991,6 +3991,7 @@ dependencies = [
  "es-fluent-derive-core",
  "fluent-bundle",
  "fluent-fallback",
+ "intl-memoizer",
  "inventory",
  "rust-embed",
  "tracing",

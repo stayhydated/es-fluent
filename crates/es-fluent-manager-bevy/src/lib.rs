@@ -11,7 +11,7 @@ pub use inventory as __inventory;
 
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
-use es_fluent_manager_core::{locale_is_ready, localize_with_bundle};
+use es_fluent_manager_core::{ModuleResourceSpec, locale_is_ready, localize_with_bundle};
 use fluent_bundle::{FluentResource, FluentValue, bundle::FluentBundle};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -125,6 +125,8 @@ pub struct LocaleChangedEvent(pub LanguageIdentifier);
 pub struct I18nAssets {
     /// A map from `(LanguageIdentifier, domain)` to the corresponding `Handle<FtlAsset>`.
     pub assets: HashMap<(LanguageIdentifier, String), Handle<FtlAsset>>,
+    /// Canonical resource metadata for each registered asset key.
+    pub resource_specs: HashMap<(LanguageIdentifier, String), ModuleResourceSpec>,
     /// Optional assets that should not block bundle readiness when absent.
     pub optional_assets: HashSet<(LanguageIdentifier, String)>,
     /// A map from `(LanguageIdentifier, domain)` to the parsed `FluentResource`.
@@ -144,6 +146,14 @@ impl I18nAssets {
         Self::default()
     }
 
+    fn inferred_spec_for_key(key: &str, required: bool) -> ModuleResourceSpec {
+        ModuleResourceSpec {
+            key: key.to_string(),
+            locale_relative_path: format!("{key}.ftl"),
+            required,
+        }
+    }
+
     /// Adds an FTL asset to be managed.
     pub fn add_asset(
         &mut self,
@@ -151,8 +161,20 @@ impl I18nAssets {
         domain: String,
         handle: Handle<FtlAsset>,
     ) {
-        let key = (lang, domain);
+        let spec = Self::inferred_spec_for_key(&domain, true);
+        self.add_asset_spec(lang, spec, handle);
+    }
+
+    /// Adds a required FTL asset with explicit canonical spec.
+    pub fn add_asset_spec(
+        &mut self,
+        lang: LanguageIdentifier,
+        spec: ModuleResourceSpec,
+        handle: Handle<FtlAsset>,
+    ) {
+        let key = (lang, spec.key.clone());
         self.optional_assets.remove(&key);
+        self.resource_specs.insert(key.clone(), spec);
         self.assets.insert(key, handle);
     }
 
@@ -163,8 +185,20 @@ impl I18nAssets {
         domain: String,
         handle: Handle<FtlAsset>,
     ) {
-        let key = (lang, domain);
+        let spec = Self::inferred_spec_for_key(&domain, false);
+        self.add_optional_asset_spec(lang, spec, handle);
+    }
+
+    /// Adds an optional FTL asset with explicit canonical spec.
+    pub fn add_optional_asset_spec(
+        &mut self,
+        lang: LanguageIdentifier,
+        spec: ModuleResourceSpec,
+        handle: Handle<FtlAsset>,
+    ) {
+        let key = (lang, spec.key.clone());
         self.optional_assets.insert(key.clone());
+        self.resource_specs.insert(key.clone(), spec);
         self.assets.insert(key, handle);
     }
 

@@ -2,7 +2,8 @@ use crate::*;
 use arc_swap::ArcSwap;
 use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{
-    I18nModuleDescriptor, StaticI18nResource, localize_with_bundle, resolve_fallback_language,
+    I18nModuleDescriptor, ResourceLoadError, StaticI18nResource, build_sync_bundle,
+    localize_with_bundle, parse_fluent_resource_content, resolve_fallback_language,
     resource_plan_for,
 };
 use fluent_bundle::{FluentResource, FluentValue};
@@ -121,10 +122,10 @@ impl Plugin for I18nPlugin {
                     );
                     let handle: Handle<FtlAsset> = asset_server.load(&path);
                     if spec.required {
-                        i18n_assets.add_asset(lang.clone(), spec.key, handle);
+                        i18n_assets.add_asset_spec(lang.clone(), spec, handle);
                         debug!("Loading required i18n asset: {}", path);
                     } else {
-                        i18n_assets.add_optional_asset(lang.clone(), spec.key, handle);
+                        i18n_assets.add_optional_asset_spec(lang.clone(), spec, handle);
                         debug!("Loading optional i18n asset: {}", path);
                     }
                 }
@@ -189,32 +190,46 @@ fn handle_asset_loading(
         match event {
             AssetEvent::Added { id } | AssetEvent::Modified { id } => {
                 if let Some((lang_key, domain_key)) = find_asset_key(&i18n_assets, *id) {
+                    let Some(spec) = i18n_assets
+                        .resource_specs
+                        .get(&(lang_key.clone(), domain_key.clone()))
+                        .cloned()
+                    else {
+                        continue;
+                    };
+
                     if let Some(ftl_asset) = ftl_assets.get(*id) {
-                        match FluentResource::try_new(ftl_asset.content.clone()) {
+                        match parse_fluent_resource_content(&spec, ftl_asset.content.clone()) {
                             Ok(resource) => {
-                                i18n_assets.loaded_resources.insert(
-                                    (lang_key.clone(), domain_key.clone()),
-                                    Arc::new(resource),
-                                );
+                                i18n_assets
+                                    .loaded_resources
+                                    .insert((lang_key.clone(), domain_key.clone()), resource);
                                 debug!(
                                     "Loaded FTL resource for language: {}, domain: {}",
                                     lang_key, domain_key
                                 );
                             },
-                            Err((_, errors)) => {
+                            Err(err) => {
                                 i18n_assets
                                     .loaded_resources
                                     .remove(&(lang_key.clone(), domain_key.clone()));
-                                error!(
-                                    "Failed to parse FTL resource for {}/{}: {:?}",
-                                    lang_key, domain_key, errors
-                                );
+                                if err.is_required() {
+                                    error!("{}", err);
+                                } else {
+                                    debug!("{}", err);
+                                }
                             },
                         }
                     } else {
                         i18n_assets
                             .loaded_resources
                             .remove(&(lang_key.clone(), domain_key.clone()));
+                        let err = ResourceLoadError::missing(&spec);
+                        if err.is_required() {
+                            warn!("{}", err);
+                        } else {
+                            debug!("{}", err);
+                        }
                     }
                 }
             },
@@ -266,23 +281,22 @@ fn build_fluent_bundles(
 
     for lang in dirty_languages {
         if i18n_assets.is_language_loaded(&lang) {
-            let mut bundle =
-                fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
-            for resource in i18n_assets.get_language_resources(&lang) {
-                if let Err(e) = bundle.add_resource(resource.clone()) {
-                    error!("Failed to add resource to bundle while caching: {:?}", e);
+            let mut resources: Vec<Arc<FluentResource>> = i18n_assets
+                .get_language_resources(&lang)
+                .into_iter()
+                .cloned()
+                .collect();
+            for static_resource in inventory::iter::<&'static dyn StaticI18nResource>() {
+                if static_resource.matches_language(&lang) {
+                    resources.push(static_resource.resource());
                 }
             }
-            for static_resource in inventory::iter::<&'static dyn StaticI18nResource>() {
-                if static_resource.matches_language(&lang)
-                    && let Err(e) = bundle.add_resource(static_resource.resource())
-                {
-                    error!(
-                        "Failed to add static resource '{}' to bundle: {:?}",
-                        static_resource.domain(),
-                        e
-                    );
-                }
+            let (bundle, add_errors) = build_sync_bundle(&lang, resources);
+            for errors in add_errors {
+                error!(
+                    "Failed to add resource to bundle while caching: {:?}",
+                    errors
+                );
             }
             i18n_bundle.0.insert(lang.clone(), Arc::new(bundle));
             debug!("Updated fluent bundle cache for {}", lang);

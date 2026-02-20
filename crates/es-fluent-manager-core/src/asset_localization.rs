@@ -1,6 +1,9 @@
 //! Shared module metadata and discovery contracts.
 
+use fluent_bundle::FluentResource;
 use std::collections::HashSet;
+use std::fmt;
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 /// Static metadata describing an i18n module.
@@ -116,6 +119,128 @@ pub fn optional_resource_keys_from_plan(plan: &[ModuleResourceSpec]) -> HashSet<
 /// Returns true when all required keys are present in the loaded set.
 pub fn locale_is_ready(required_keys: &HashSet<String>, loaded_keys: &HashSet<String>) -> bool {
     required_keys.iter().all(|key| loaded_keys.contains(key))
+}
+
+/// Canonical resource-load failure categories shared across managers.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ResourceLoadError {
+    /// A required resource was not present.
+    Missing {
+        key: String,
+        path: String,
+        required: bool,
+    },
+    /// Resource bytes were not valid UTF-8.
+    InvalidUtf8 {
+        key: String,
+        path: String,
+        required: bool,
+        details: String,
+    },
+    /// Resource content failed Fluent parsing.
+    Parse {
+        key: String,
+        path: String,
+        required: bool,
+        details: String,
+    },
+}
+
+impl ResourceLoadError {
+    /// Constructs a missing-file error for a resource spec.
+    pub fn missing(spec: &ModuleResourceSpec) -> Self {
+        Self::Missing {
+            key: spec.key.clone(),
+            path: spec.locale_relative_path.clone(),
+            required: spec.required,
+        }
+    }
+
+    /// Returns true when this failure affects required readiness.
+    pub fn is_required(&self) -> bool {
+        match self {
+            Self::Missing { required, .. }
+            | Self::InvalidUtf8 { required, .. }
+            | Self::Parse { required, .. } => *required,
+        }
+    }
+}
+
+impl fmt::Display for ResourceLoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Missing {
+                key,
+                path,
+                required,
+            } => write!(
+                f,
+                "missing {} resource '{}' at '{}'",
+                if *required { "required" } else { "optional" },
+                key,
+                path
+            ),
+            Self::InvalidUtf8 {
+                key,
+                path,
+                required,
+                details,
+            } => write!(
+                f,
+                "invalid UTF-8 in {} resource '{}' at '{}': {}",
+                if *required { "required" } else { "optional" },
+                key,
+                path,
+                details
+            ),
+            Self::Parse {
+                key,
+                path,
+                required,
+                details,
+            } => write!(
+                f,
+                "failed to parse {} resource '{}' at '{}': {}",
+                if *required { "required" } else { "optional" },
+                key,
+                path,
+                details
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ResourceLoadError {}
+
+/// Parses UTF-8 bytes into a `FluentResource` using the shared load contract.
+pub fn parse_fluent_resource_bytes(
+    spec: &ModuleResourceSpec,
+    bytes: &[u8],
+) -> Result<Arc<FluentResource>, ResourceLoadError> {
+    let content =
+        String::from_utf8(bytes.to_vec()).map_err(|e| ResourceLoadError::InvalidUtf8 {
+            key: spec.key.clone(),
+            path: spec.locale_relative_path.clone(),
+            required: spec.required,
+            details: e.to_string(),
+        })?;
+
+    parse_fluent_resource_content(spec, content)
+}
+
+/// Parses Fluent source text into a `FluentResource` using the shared load contract.
+pub fn parse_fluent_resource_content(
+    spec: &ModuleResourceSpec,
+    content: String,
+) -> Result<Arc<FluentResource>, ResourceLoadError> {
+    FluentResource::try_new(content)
+        .map(Arc::new)
+        .map_err(|(_, errs)| ResourceLoadError::Parse {
+            key: spec.key.clone(),
+            path: spec.locale_relative_path.clone(),
+            required: spec.required,
+            details: format!("{errs:?}"),
+        })
 }
 
 /// Common discovery contract for managers.
@@ -241,5 +366,40 @@ mod tests {
         let plan = DATA.resource_plan();
         let direct = resource_plan_for(DATA.domain, DATA.namespaces);
         assert_eq!(plan, direct);
+    }
+
+    #[test]
+    fn parse_fluent_resource_content_reports_parse_errors() {
+        let spec = ModuleResourceSpec {
+            key: "app/ui".to_string(),
+            locale_relative_path: "app/ui.ftl".to_string(),
+            required: true,
+        };
+
+        let err = parse_fluent_resource_content(&spec, "broken = {".to_string())
+            .expect_err("invalid fluent should fail");
+        assert!(matches!(
+            err,
+            ResourceLoadError::Parse { required: true, .. }
+        ));
+    }
+
+    #[test]
+    fn parse_fluent_resource_bytes_reports_utf8_errors() {
+        let spec = ModuleResourceSpec {
+            key: "app/ui".to_string(),
+            locale_relative_path: "app/ui.ftl".to_string(),
+            required: false,
+        };
+
+        let err =
+            parse_fluent_resource_bytes(&spec, &[0xFF, 0xFE]).expect_err("invalid utf-8 bytes");
+        assert!(matches!(
+            err,
+            ResourceLoadError::InvalidUtf8 {
+                required: false,
+                ..
+            }
+        ));
     }
 }

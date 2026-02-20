@@ -8,9 +8,40 @@ use fluent_bundle::{
 };
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 pub type LocalizationError = EsFluentError;
+pub type SyncFluentBundle =
+    FluentBundle<Arc<FluentResource>, intl_memoizer::concurrent::IntlLangMemoizer>;
+
+/// Adds resources to a bundle and returns all resource-add errors.
+pub fn add_resources_to_bundle<R, M>(
+    bundle: &mut FluentBundle<R, M>,
+    resources: impl IntoIterator<Item = R>,
+) -> Vec<Vec<FluentError>>
+where
+    R: Borrow<FluentResource>,
+    M: MemoizerKind,
+{
+    let mut add_errors = Vec::new();
+    for resource in resources {
+        if let Err(errors) = bundle.add_resource(resource) {
+            add_errors.push(errors);
+        }
+    }
+    add_errors
+}
+
+/// Builds a concurrent `FluentBundle` from a locale and resources.
+pub fn build_sync_bundle(
+    lang: &LanguageIdentifier,
+    resources: impl IntoIterator<Item = Arc<FluentResource>>,
+) -> (SyncFluentBundle, Vec<Vec<FluentError>>) {
+    let mut bundle = FluentBundle::new_concurrent(vec![lang.clone()]);
+    let add_errors = add_resources_to_bundle(&mut bundle, resources);
+    (bundle, add_errors)
+}
 
 /// Converts hash-map arguments into `FluentArgs`.
 pub fn build_fluent_args<'a>(
@@ -128,6 +159,7 @@ impl FluentManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fluent_bundle::FluentResource;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
 
@@ -260,5 +292,21 @@ mod tests {
         manager.select_language(&langid!("en-US"));
 
         assert_eq!(SELECT_ERR_CALLS.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn build_sync_bundle_reports_resource_add_errors() {
+        let lang = langid!("en-US");
+        let first =
+            Arc::new(FluentResource::try_new("hello = first".to_string()).expect("valid ftl"));
+        let duplicate =
+            Arc::new(FluentResource::try_new("hello = second".to_string()).expect("valid ftl"));
+
+        let (bundle, add_errors) = build_sync_bundle(&lang, vec![first, duplicate]);
+        assert!(!add_errors.is_empty());
+
+        let (localized, _format_errors) =
+            localize_with_bundle(&bundle, "hello", None).expect("message should exist");
+        assert_eq!(localized, "first");
     }
 }

@@ -1,11 +1,14 @@
 //! This module provides types for managing embedded translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, locale_is_ready, required_resource_keys_from_plan,
+    I18nModuleDescriptor, ModuleData, ResourceLoadError, locale_is_ready,
+    parse_fluent_resource_bytes, required_resource_keys_from_plan,
 };
 use crate::fallback::fallback_locales;
-use crate::localization::{I18nModule, LocalizationError, Localizer, localize_with_bundle};
-use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
+use crate::localization::{
+    I18nModule, LocalizationError, Localizer, build_sync_bundle, localize_with_bundle,
+};
+use fluent_bundle::{FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
 use std::collections::{HashMap, HashSet};
@@ -48,25 +51,14 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 
             match T::get(&file_path) {
                 Some(file_data) => {
-                    let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
-                        LocalizationError::BackendError(anyhow::anyhow!(
-                            "Invalid UTF-8 in embedded file '{}': {}",
-                            file_path,
-                            e
-                        ))
-                    })?;
-
-                    let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
-                        LocalizationError::BackendError(anyhow::anyhow!(
-                            "Failed to parse fluent resource from '{}': {:?}",
-                            file_path,
-                            errs
-                        ))
-                    })?;
-                    resources.push(Arc::new(resource));
+                    let resource = parse_fluent_resource_bytes(spec, file_data.data.as_ref())
+                        .map_err(|err| LocalizationError::BackendError(anyhow::anyhow!("{err}")))?;
+                    resources.push(resource);
                     loaded_keys.insert(spec.key.clone());
                 },
                 None if spec.required => {
+                    let err = ResourceLoadError::missing(spec);
+                    tracing::debug!("{}", err);
                     return Err(LocalizationError::LanguageNotSupported(lang.clone()));
                 },
                 None => {},
@@ -127,11 +119,9 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             .as_ref()
             .expect("Language not selected before localization");
 
-        let mut bundle = FluentBundle::new(vec![lang.clone()]);
-        for resource in resources.iter() {
-            if let Err(e) = bundle.add_resource(resource.clone()) {
-                tracing::error!("Failed to add resource to bundle: {:?}", e);
-            }
+        let (bundle, add_errors) = build_sync_bundle(lang, resources.iter().cloned());
+        for errors in add_errors {
+            tracing::error!("Failed to add resource to bundle: {:?}", errors);
         }
 
         let (value, errors) = localize_with_bundle(&bundle, id, args)?;
