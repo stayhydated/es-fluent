@@ -11,6 +11,7 @@ pub use inventory as __inventory;
 
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
+use es_fluent_manager_core::localize_with_bundle;
 use fluent_bundle::{FluentResource, FluentValue, bundle::FluentBundle};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -221,26 +222,13 @@ impl I18nResource {
         i18n_bundle: &I18nBundle,
     ) -> Option<String> {
         let bundle = i18n_bundle.0.get(&self.current_language)?;
-
-        let message = bundle.get_message(id)?;
-        let pattern = message.value()?;
-
-        let mut errors = Vec::new();
-        let fluent_args = args.map(|args| {
-            let mut fa = fluent_bundle::FluentArgs::new();
-            for (key, value) in args {
-                fa.set(*key, value.clone());
-            }
-            fa
-        });
-
-        let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+        let (value, errors) = localize_with_bundle(bundle, id, args)?;
 
         if !errors.is_empty() {
             error!("Fluent formatting errors for '{}': {:?}", id, errors);
         }
 
-        Some(value.into_owned())
+        Some(value)
     }
 }
 

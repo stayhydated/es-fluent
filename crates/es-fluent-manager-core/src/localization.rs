@@ -1,11 +1,50 @@
 //! This module provides the core types for managing translations.
 
+use crate::asset_localization::{I18nModuleDescriptor, ModuleData};
 use es_fluent_derive_core::EsFluentError;
-use fluent_bundle::FluentValue;
+use fluent_bundle::{
+    FluentArgs, FluentError, FluentResource, FluentValue, bundle::FluentBundle,
+    memoizer::MemoizerKind,
+};
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
 
 pub type LocalizationError = EsFluentError;
+
+/// Converts hash-map arguments into `FluentArgs`.
+pub fn build_fluent_args<'a>(
+    args: Option<&HashMap<&str, FluentValue<'a>>>,
+) -> Option<FluentArgs<'a>> {
+    args.map(|args| {
+        let mut fluent_args = FluentArgs::new();
+        for (key, value) in args {
+            fluent_args.set((*key).to_string(), value.clone());
+        }
+        fluent_args
+    })
+}
+
+/// Localizes a message from an already-built Fluent bundle.
+///
+/// Returns `None` when the message or value is missing.
+/// Returns the formatted value and collected formatting errors otherwise.
+pub fn localize_with_bundle<'a, R, M>(
+    bundle: &FluentBundle<R, M>,
+    id: &str,
+    args: Option<&HashMap<&str, FluentValue<'a>>>,
+) -> Option<(String, Vec<FluentError>)>
+where
+    R: Borrow<FluentResource>,
+    M: MemoizerKind,
+{
+    let message = bundle.get_message(id)?;
+    let pattern = message.value()?;
+    let fluent_args = build_fluent_args(args);
+    let mut errors = Vec::new();
+    let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+    Some((value.into_owned(), errors))
+}
 
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
@@ -21,9 +60,7 @@ pub trait Localizer: Send + Sync {
     ) -> Option<String>;
 }
 
-pub trait I18nModule: Send + Sync {
-    /// Returns the name of the module.
-    fn name(&self) -> &'static str;
+pub trait I18nModule: I18nModuleDescriptor {
     /// Creates a localizer for the module.
     fn create_localizer(&self) -> Box<dyn Localizer>;
 }
@@ -33,7 +70,7 @@ inventory::collect!(&'static dyn I18nModule);
 /// A manager for Fluent translations.
 #[derive(Default)]
 pub struct FluentManager {
-    localizers: Vec<(&'static str, Box<dyn Localizer>)>,
+    localizers: Vec<(&'static ModuleData, Box<dyn Localizer>)>,
 }
 
 impl Clone for FluentManager {
@@ -47,10 +84,9 @@ impl FluentManager {
     pub fn new_with_discovered_modules() -> Self {
         let mut manager = Self::default();
         for module in inventory::iter::<&'static dyn I18nModule>() {
-            tracing::info!("Discovered and loading i18n module: {}", module.name());
-            manager
-                .localizers
-                .push((module.name(), module.create_localizer()));
+            let data = module.data();
+            tracing::info!("Discovered and loading i18n module: {}", data.name);
+            manager.localizers.push((data, module.create_localizer()));
         }
         manager
     }
@@ -59,13 +95,18 @@ impl FluentManager {
     pub fn select_language(&self, lang: &LanguageIdentifier) {
         let mut any_selected = false;
 
-        for (name, localizer) in &self.localizers {
+        for (data, localizer) in &self.localizers {
             match localizer.select_language(lang) {
                 Ok(()) => {
                     any_selected = true;
                 },
                 Err(e) => {
-                    tracing::debug!("Module '{}' failed to set language '{}': {}", name, lang, e);
+                    tracing::debug!(
+                        "Module '{}' failed to set language '{}': {}",
+                        data.name,
+                        lang,
+                        e
+                    );
                 },
             }
         }
@@ -98,6 +139,18 @@ mod tests {
 
     static SELECT_OK_CALLS: AtomicUsize = AtomicUsize::new(0);
     static SELECT_ERR_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static MODULE_OK_DATA: ModuleData = ModuleData {
+        name: "module-ok",
+        domain: "module-ok",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static MODULE_ERR_DATA: ModuleData = ModuleData {
+        name: "module-err",
+        domain: "module-err",
+        supported_languages: &[],
+        namespaces: &[],
+    };
 
     struct ModuleOk;
     struct ModuleErr;
@@ -142,21 +195,25 @@ mod tests {
         }
     }
 
-    impl I18nModule for ModuleOk {
-        fn name(&self) -> &'static str {
-            "module-ok"
+    impl I18nModuleDescriptor for ModuleOk {
+        fn data(&self) -> &'static ModuleData {
+            &MODULE_OK_DATA
         }
+    }
 
+    impl I18nModule for ModuleOk {
         fn create_localizer(&self) -> Box<dyn Localizer> {
             Box::new(LocalizerOk)
         }
     }
 
-    impl I18nModule for ModuleErr {
-        fn name(&self) -> &'static str {
-            "module-err"
+    impl I18nModuleDescriptor for ModuleErr {
+        fn data(&self) -> &'static ModuleData {
+            &MODULE_ERR_DATA
         }
+    }
 
+    impl I18nModule for ModuleErr {
         fn create_localizer(&self) -> Box<dyn Localizer> {
             Box::new(LocalizerErr)
         }
@@ -214,7 +271,7 @@ mod tests {
         SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
 
         let manager = FluentManager {
-            localizers: vec![("module-err", Box::new(LocalizerErr))],
+            localizers: vec![(&MODULE_ERR_DATA, Box::new(LocalizerErr))],
         };
         manager.select_language(&langid!("en-US"));
 

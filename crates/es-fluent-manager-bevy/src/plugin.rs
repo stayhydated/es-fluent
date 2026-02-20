@@ -1,8 +1,10 @@
 use crate::*;
 use arc_swap::ArcSwap;
 use bevy::window::RequestRedraw;
-use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource, resolve_fallback_language};
-use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
+use es_fluent_manager_core::{
+    I18nModuleDescriptor, StaticI18nResource, localize_with_bundle, resolve_fallback_language,
+};
+use fluent_bundle::{FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
@@ -65,7 +67,7 @@ impl Plugin for I18nPlugin {
             std::collections::HashMap::new();
         let mut discovered_languages = std::collections::HashSet::new();
 
-        for module in inventory::iter::<&'static dyn I18nAssetModule>() {
+        for module in inventory::iter::<&'static dyn I18nModuleDescriptor>() {
             let data = module.data();
             let domain = data.domain.to_string();
             discovered_domains.insert(domain.clone());
@@ -349,26 +351,13 @@ impl BevyI18nState {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         let bundle = self.bundle.0.get(&self.current_language)?;
-
-        let message = bundle.get_message(id)?;
-        let pattern = message.value()?;
-
-        let mut errors = Vec::new();
-        let fluent_args = args.map(|args| {
-            let mut fa = FluentArgs::new();
-            for (key, value) in args {
-                fa.set(*key, value.clone());
-            }
-            fa
-        });
-
-        let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+        let (value, errors) = localize_with_bundle(bundle, id, args)?;
 
         if !errors.is_empty() {
             error!("Fluent formatting errors for '{}': {:?}", id, errors);
         }
 
-        Some(value.into_owned())
+        Some(value)
     }
 }
 
@@ -412,34 +401,35 @@ fn bevy_custom_localizer<'a>(
 mod tests {
     use super::*;
     use bevy::{MinimalPlugins, asset::AssetPlugin};
-    use es_fluent_manager_core::{AssetI18nModule, AssetModuleData};
+    use es_fluent_manager_core::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
 
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
-    static TEST_ASSET_DATA: AssetModuleData = AssetModuleData {
+    static TEST_ASSET_DATA: ModuleData = ModuleData {
         name: "test-module",
         domain: "test-domain",
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
-    static TEST_ASSET_MODULE: AssetI18nModule = AssetI18nModule::new(&TEST_ASSET_DATA);
+    static TEST_ASSET_MODULE: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&TEST_ASSET_DATA);
 
     inventory::submit! {
-        &TEST_ASSET_MODULE as &dyn I18nAssetModule
+        &TEST_ASSET_MODULE as &dyn I18nModuleDescriptor
     }
 
-    static TEST_NAMESPACED_ASSET_DATA: AssetModuleData = AssetModuleData {
+    static TEST_NAMESPACED_ASSET_DATA: ModuleData = ModuleData {
         name: "test-namespaced-module",
         domain: "namespaced-domain",
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &["menu", "hud"],
     };
-    static TEST_NAMESPACED_ASSET_MODULE: AssetI18nModule =
-        AssetI18nModule::new(&TEST_NAMESPACED_ASSET_DATA);
+    static TEST_NAMESPACED_ASSET_MODULE: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&TEST_NAMESPACED_ASSET_DATA);
 
     inventory::submit! {
-        &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nAssetModule
+        &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nModuleDescriptor
     }
 
     struct TestStaticResource;

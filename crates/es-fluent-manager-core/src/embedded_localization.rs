@@ -1,8 +1,9 @@
 //! This module provides types for managing embedded translations.
 
+use crate::asset_localization::{I18nModuleDescriptor, ModuleData};
 use crate::fallback::fallback_locales;
-use crate::localization::{I18nModule, LocalizationError, Localizer};
-use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
+use crate::localization::{I18nModule, LocalizationError, Localizer, localize_with_bundle};
+use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
 use std::collections::HashMap;
@@ -14,28 +15,15 @@ pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
 }
 
 #[derive(Debug)]
-pub struct EmbeddedModuleData {
-    /// The name of the module.
-    pub name: &'static str,
-    /// The domain of the module.
-    pub domain: &'static str,
-    /// The supported languages of the module.
-    pub supported_languages: &'static [LanguageIdentifier],
-    /// The namespaces used by this module's types (e.g., "ui", "errors").
-    /// If empty, only the main domain file (e.g., `bevy-example.ftl`) is loaded.
-    pub namespaces: &'static [&'static str],
-}
-
-#[derive(Debug)]
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
-    data: &'static EmbeddedModuleData,
+    data: &'static ModuleData,
     current_resources: RwLock<Vec<Arc<FluentResource>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
     _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
-    pub fn new(data: &'static EmbeddedModuleData) -> Self {
+    pub fn new(data: &'static ModuleData) -> Self {
         Self {
             data,
             current_resources: RwLock::new(Vec::new()),
@@ -155,36 +143,24 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             }
         }
 
-        let message = bundle.get_message(id)?;
-        let pattern = message.value()?;
-
-        let fluent_args = args.map(|args| {
-            let mut fa = FluentArgs::new();
-            for (key, value) in args {
-                fa.set(*key, value.clone());
-            }
-            fa
-        });
-
-        let mut errors = Vec::new();
-        let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+        let (value, errors) = localize_with_bundle(&bundle, id, args)?;
 
         if !errors.is_empty() {
             tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
             return None;
         }
 
-        Some(value.into_owned())
+        Some(value)
     }
 }
 
 pub struct EmbeddedI18nModule<T: EmbeddedAssets> {
-    data: &'static EmbeddedModuleData,
+    data: &'static ModuleData,
     _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
-    pub const fn new(data: &'static EmbeddedModuleData) -> Self {
+    pub const fn new(data: &'static ModuleData) -> Self {
         Self {
             data,
             _phantom: std::marker::PhantomData,
@@ -228,11 +204,13 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
     }
 }
 
-impl<T: EmbeddedAssets> I18nModule for EmbeddedI18nModule<T> {
-    fn name(&self) -> &'static str {
-        self.data.name
+impl<T: EmbeddedAssets> I18nModuleDescriptor for EmbeddedI18nModule<T> {
+    fn data(&self) -> &'static ModuleData {
+        self.data
     }
+}
 
+impl<T: EmbeddedAssets> I18nModule for EmbeddedI18nModule<T> {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         Box::new(EmbeddedLocalizer::<T>::new(self.data))
     }
@@ -271,14 +249,14 @@ mod tests {
         langid!("it"),
     ];
     static NAMESPACES: &[&str] = &["ui"];
-    static MODULE_DATA: EmbeddedModuleData = EmbeddedModuleData {
+    static MODULE_DATA: ModuleData = ModuleData {
         name: "test-module",
         domain: "test-domain",
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
     static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("cd")];
-    static NS_ERROR_MODULE_DATA: EmbeddedModuleData = EmbeddedModuleData {
+    static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "ns-error-module",
         domain: "test-domain",
         supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
@@ -359,9 +337,9 @@ mod tests {
     }
 
     #[test]
-    fn embedded_module_name_and_factory_work() {
+    fn embedded_module_data_and_factory_work() {
         let module = EmbeddedI18nModule::<TestAssets>::new(&MODULE_DATA);
-        assert_eq!(module.name(), "test-module");
+        assert_eq!(module.data().name, "test-module");
         let localizer = module.create_localizer();
         assert_eq!(localizer.localize("hello", None), None);
     }

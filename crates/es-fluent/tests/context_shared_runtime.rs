@@ -1,10 +1,19 @@
-use es_fluent::__manager_core::{FluentManager, I18nModule, LocalizationError, Localizer};
+use es_fluent::__manager_core::{
+    FluentManager, I18nModule, I18nModuleDescriptor, LocalizationError, Localizer, ModuleData,
+};
 use es_fluent::{FluentValue, localize, set_shared_context};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 struct SharedModule;
 struct SharedLocalizer;
+
+static SHARED_MODULE_DATA: ModuleData = ModuleData {
+    name: "es-fluent-shared-context-test",
+    domain: "es-fluent-shared-context-test",
+    supported_languages: &[],
+    namespaces: &[],
+};
 
 impl Localizer for SharedLocalizer {
     fn select_language(
@@ -27,11 +36,13 @@ impl Localizer for SharedLocalizer {
     }
 }
 
-impl I18nModule for SharedModule {
-    fn name(&self) -> &'static str {
-        "es-fluent-shared-context-test"
+impl I18nModuleDescriptor for SharedModule {
+    fn data(&self) -> &'static ModuleData {
+        &SHARED_MODULE_DATA
     }
+}
 
+impl I18nModule for SharedModule {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         Box::new(SharedLocalizer)
     }

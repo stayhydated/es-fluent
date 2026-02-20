@@ -18,9 +18,13 @@ classDiagram
         +localize(id, args)
     }
 
+    class I18nModuleDescriptor {
+        <<interface>>
+        +data() ModuleData
+    }
+
     class I18nModule {
         <<interface>>
-        +name()
         +create_localizer()
     }
 
@@ -30,17 +34,18 @@ classDiagram
         +localize(id, args)
     }
 
-    class AssetI18nModule {
-        +new(data: AssetModuleData)
+    class StaticModuleDescriptor {
+        +new(data: ModuleData)
     }
 
     class EmbeddedI18nModule {
-        +new(data: EmbeddedModuleData)
+        +new(data: ModuleData)
     }
 
+    I18nModule --|> I18nModuleDescriptor
     FluentManager "1" *-- "*" I18nModule : manages
     I18nModule ..> Localizer : creates
-    AssetI18nModule --|> I18nModule
+    StaticModuleDescriptor --|> I18nModuleDescriptor
     EmbeddedI18nModule --|> I18nModule
 ```
 
@@ -52,6 +57,14 @@ Represents a source of localization data (e.g., a crate's translations).
 
 - Modules are registered automatically using `inventory`.
 - They act as factories for `Localizer`s.
+- They also expose shared metadata via `I18nModuleDescriptor::data()`.
+
+### `I18nModuleDescriptor`
+
+Common metadata contract for manager discovery.
+
+- Returns a shared `ModuleData` shape (`name`, `domain`, languages, namespaces).
+- Enables metadata-only registration for managers that don't create `Localizer`s (for example Bevy runtime asset loading).
 
 ### `Localizer`
 
@@ -67,11 +80,11 @@ A trait that provides access to encoded file content for embedded translations.
 - Requires implementing `RustEmbed` (typically via `#[derive(RustEmbed)]`).
 - The `domain()` method returns the base name for FTL files (e.g., `"my-crate"` for `my-crate.ftl`).
 
-### `I18nAssetModule`
+### `StaticModuleDescriptor`
 
-A trait for asset-based (filesystem/Bevy) translation modules.
+Simple wrapper used for metadata-only registrations.
 
-- Registered via `inventory` for automatic discovery.
+- Registered via `inventory` as `I18nModuleDescriptor`.
 - Used by `es-fluent-manager-bevy` for runtime asset loading.
 
 ### `StaticI18nResource`
@@ -86,7 +99,7 @@ A trait for injecting pre-parsed Fluent resources directly into localization bun
 
 - `localization`: Core traits (`FluentManager`, `I18nModule`, `Localizer`).
 - `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`).
-- `asset_localization`: Implementation for filesystem/bevy asset loaded assets (`AssetI18nModule`).
+- `asset_localization`: Shared module metadata contracts (`ModuleData`, `I18nModuleDescriptor`, `StaticModuleDescriptor`).
 - `static_resource`: shared resource types for Bevy or other static contexts.
 
 ## Usage
@@ -94,4 +107,4 @@ A trait for injecting pre-parsed Fluent resources directly into localization bun
 This crate is the common dependency for:
 
 - `es-fluent-manager-embedded` (Wraps `EmbeddedI18nModule` setup).
-- `es-fluent-manager-bevy` (Wraps `AssetI18nModule` setup).
+- `es-fluent-manager-bevy` (Wraps `StaticModuleDescriptor` setup).

@@ -15,7 +15,7 @@ Used by `es-fluent-manager-embedded`.
 1. **Scans**: `i18n/` directory defined in `i18n.toml`.
 1. **Generates**:
    - A struct deriving `RustEmbed` (from `rust-embed` crate), embedding files into the binary.
-   - Static `EmbeddedModuleData` listing supported languages (found by file existence).
+   - Static `ModuleData` listing supported languages (found by file existence).
    - `inventory::submit!` block to register the module.
 
 ### `define_bevy_i18n_module!`
@@ -24,8 +24,8 @@ Used by `es-fluent-manager-bevy`.
 
 1. **Scans**: `assets/` directory (or configured path).
 1. **Generates**:
-   - Static `AssetModuleData` listing supported languages.
-   - `inventory::submit!` block to register the module as an `AssetI18nModule`.
+   - Static `ModuleData` listing supported languages.
+   - `inventory::submit!` block to register the module as an `I18nModuleDescriptor` via `StaticModuleDescriptor`.
    - _Note_: Does not embed files; Bevy handles loading at runtime.
 
 ## Rationale

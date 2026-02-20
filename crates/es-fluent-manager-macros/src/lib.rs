@@ -183,6 +183,13 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
         ),
         proc_macro2::Span::call_site(),
     );
+    let module_instance_name = syn::Ident::new(
+        &format!(
+            "{}_I18N_MODULE",
+            &crate_name.to_uppercase().replace('-', "_")
+        ),
+        proc_macro2::Span::call_site(),
+    );
 
     let assets = match I18nAssets::load(&crate_name) {
         Ok(assets) => assets,
@@ -210,8 +217,8 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
             }
         }
 
-        static #module_data_name: ::es_fluent_manager_embedded::__manager_core::EmbeddedModuleData =
-            ::es_fluent_manager_embedded::__manager_core::EmbeddedModuleData {
+        static #module_data_name: ::es_fluent_manager_embedded::__manager_core::ModuleData =
+            ::es_fluent_manager_embedded::__manager_core::ModuleData {
                 name: #crate_name,
                 domain: #crate_name,
                 supported_languages: &[
@@ -222,8 +229,12 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
                 ],
             };
 
+        static #module_instance_name:
+            ::es_fluent_manager_embedded::__manager_core::EmbeddedI18nModule<#assets_struct_name> =
+            ::es_fluent_manager_embedded::__manager_core::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name);
+
         ::es_fluent_manager_embedded::__inventory::submit!(
-            &::es_fluent_manager_embedded::__manager_core::EmbeddedI18nModule::<#assets_struct_name>::new(&#module_data_name)
+            &#module_instance_name
             as &dyn ::es_fluent_manager_embedded::__manager_core::I18nModule
         );
     };
@@ -472,7 +483,7 @@ fn generate_refresh_for_locale_impl(
 ///
 /// 1.  Read the `i18n.toml` configuration file.
 /// 2.  Discover the available languages in the `i18n` directory.
-/// 3.  Generate an `AssetI18nModule` for the crate.
+/// 3.  Generate a metadata descriptor (`StaticModuleDescriptor`) for the crate.
 #[proc_macro]
 pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = match current_crate_name() {
@@ -482,6 +493,13 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let static_data_name = syn::Ident::new(
         &format!(
             "{}_I18N_ASSET_MODULE_DATA",
+            &crate_name.to_uppercase().replace('-', "_")
+        ),
+        proc_macro2::Span::call_site(),
+    );
+    let descriptor_name = syn::Ident::new(
+        &format!(
+            "{}_I18N_DESCRIPTOR",
             &crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
@@ -498,7 +516,7 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let namespace_strings = assets.namespace_tokens();
 
     let expanded = quote! {
-        static #static_data_name: ::es_fluent_manager_bevy::__manager_core::AssetModuleData = ::es_fluent_manager_bevy::__manager_core::AssetModuleData {
+        static #static_data_name: ::es_fluent_manager_bevy::__manager_core::ModuleData = ::es_fluent_manager_bevy::__manager_core::ModuleData {
             name: #crate_name,
             domain: #crate_name,
             supported_languages: &[
@@ -509,9 +527,11 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
             ],
         };
 
+        static #descriptor_name: ::es_fluent_manager_bevy::__manager_core::StaticModuleDescriptor =
+            ::es_fluent_manager_bevy::__manager_core::StaticModuleDescriptor::new(&#static_data_name);
+
         ::es_fluent_manager_bevy::__inventory::submit!(
-            &::es_fluent_manager_bevy::__manager_core::AssetI18nModule::new(&#static_data_name)
-            as &dyn ::es_fluent_manager_bevy::__manager_core::I18nAssetModule
+            &#descriptor_name as &dyn ::es_fluent_manager_bevy::__manager_core::I18nModuleDescriptor
         );
     };
 

@@ -29,8 +29,11 @@ pub fn force_link() -> usize {
 pub use es_fluent_lang_macro::es_fluent_language;
 
 #[doc(hidden)]
-use es_fluent_manager_core::{I18nModule, LocalizationError, Localizer};
-use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
+use es_fluent_manager_core::{
+    I18nModule, I18nModuleDescriptor, LocalizationError, Localizer, ModuleData,
+    localize_with_bundle,
+};
+use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -109,16 +112,6 @@ fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
         .find(|candidate| available.contains(candidate))
 }
 
-fn build_fluent_args<'a>(args: Option<&HashMap<&str, FluentValue<'a>>>) -> Option<FluentArgs<'a>> {
-    args.map(|args| {
-        let mut fluent_args = FluentArgs::new();
-        for (key, value) in args {
-            fluent_args.set((*key).to_string(), value.clone());
-        }
-        fluent_args
-    })
-}
-
 fn localize_from_resource<'a>(
     lang: LanguageIdentifier,
     resource: Arc<FluentResource>,
@@ -131,14 +124,10 @@ fn localize_from_resource<'a>(
         return None;
     }
 
-    let message = bundle.get_message(id)?;
-    let pattern = message.value()?;
-    let mut errors = Vec::new();
-    let fluent_args = build_fluent_args(args);
-    let formatted = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+    let (formatted, errors) = localize_with_bundle(&bundle, id, args)?;
 
     if errors.is_empty() {
-        Some(formatted.into_owned())
+        Some(formatted)
     } else {
         tracing::error!(
             "Formatting errors while localizing '{}' from es-fluent-lang: {:?}",
@@ -152,11 +141,20 @@ fn localize_from_resource<'a>(
 #[doc(hidden)]
 struct EsFluentLanguageModule;
 
-impl I18nModule for EsFluentLanguageModule {
-    fn name(&self) -> &'static str {
-        "es-fluent-lang"
-    }
+static ES_FLUENT_LANG_MODULE_DATA: ModuleData = ModuleData {
+    name: "es-fluent-lang",
+    domain: "es-fluent-lang",
+    supported_languages: &[],
+    namespaces: &[],
+};
 
+impl I18nModuleDescriptor for EsFluentLanguageModule {
+    fn data(&self) -> &'static ModuleData {
+        &ES_FLUENT_LANG_MODULE_DATA
+    }
+}
+
+impl I18nModule for EsFluentLanguageModule {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         #[cfg(not(feature = "localized-langs"))]
         {
@@ -499,7 +497,7 @@ mod tests {
     #[test]
     fn language_module_creates_localizer_and_selects_language() {
         let module = EsFluentLanguageModule;
-        assert_eq!(module.name(), "es-fluent-lang");
+        assert_eq!(module.data().name, "es-fluent-lang");
 
         let localizer = module.create_localizer();
         localizer

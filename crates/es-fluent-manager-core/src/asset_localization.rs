@@ -1,43 +1,54 @@
-//! This module provides types for managing asset-based translations.
+//! Shared module metadata and discovery contracts.
 
 use unic_langid::LanguageIdentifier;
 
+/// Static metadata describing an i18n module.
+///
+/// This single shape is shared by all managers (embedded, Bevy, and future
+/// third-party backends) so module discovery and routing can be standardized.
 #[derive(Debug)]
-pub struct AssetModuleData {
-    /// The name of the module.
+pub struct ModuleData {
+    /// The unique module name (typically crate name).
     pub name: &'static str,
-    /// The domain of the module.
+    /// The Fluent domain for this module.
     pub domain: &'static str,
-    /// The supported languages of the module.
+    /// Languages that this module can provide.
     pub supported_languages: &'static [LanguageIdentifier],
-    /// The namespaces used by this module's types (e.g., "ui", "errors").
-    /// If empty, only the main domain file (e.g., `bevy-example.ftl`) is loaded.
+    /// Namespaces used by the module (e.g., "ui", "errors").
+    /// If empty, only the main `{domain}.ftl` file is used.
     pub namespaces: &'static [&'static str],
 }
 
-pub trait I18nAssetModule: Send + Sync {
-    /// Returns the data for the module.
-    fn data(&self) -> &'static AssetModuleData;
+/// Common discovery contract for managers.
+///
+/// Any backend can iterate this inventory to discover registered modules.
+pub trait I18nModuleDescriptor: Send + Sync {
+    /// Returns static metadata for this module.
+    fn data(&self) -> &'static ModuleData;
 }
 
-pub struct AssetI18nModule {
-    data: &'static AssetModuleData,
+/// A simple descriptor wrapper for metadata-only registrations.
+///
+/// This is used by asset-driven managers (e.g., Bevy) where runtime localization
+/// is handled by the host runtime rather than by `Localizer`.
+pub struct StaticModuleDescriptor {
+    data: &'static ModuleData,
 }
 
-impl AssetI18nModule {
-    /// Creates a new `AssetI18nModule`.
-    pub const fn new(data: &'static AssetModuleData) -> Self {
+impl StaticModuleDescriptor {
+    /// Creates a new metadata-only descriptor.
+    pub const fn new(data: &'static ModuleData) -> Self {
         Self { data }
     }
 }
 
-impl I18nAssetModule for AssetI18nModule {
-    fn data(&self) -> &'static AssetModuleData {
+impl I18nModuleDescriptor for StaticModuleDescriptor {
+    fn data(&self) -> &'static ModuleData {
         self.data
     }
 }
 
-inventory::collect!(&'static dyn I18nAssetModule);
+inventory::collect!(&'static dyn I18nModuleDescriptor);
 
 #[cfg(test)]
 mod tests {
@@ -46,7 +57,7 @@ mod tests {
 
     static SUPPORTED: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
     static NAMESPACES: &[&str] = &["ui", "errors"];
-    static DATA: AssetModuleData = AssetModuleData {
+    static DATA: ModuleData = ModuleData {
         name: "test-module",
         domain: "test-domain",
         supported_languages: SUPPORTED,
@@ -54,8 +65,8 @@ mod tests {
     };
 
     #[test]
-    fn asset_module_new_and_data_round_trip() {
-        let module = AssetI18nModule::new(&DATA);
+    fn static_descriptor_new_and_data_round_trip() {
+        let module = StaticModuleDescriptor::new(&DATA);
         let data = module.data();
 
         assert_eq!(data.name, "test-module");
