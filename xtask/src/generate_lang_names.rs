@@ -246,12 +246,12 @@ fn load_display_locales(
 }
 
 fn load_shared_marker_locales(provider: &DisplayNamesProvider) -> Result<BTreeSet<String>> {
-    let mut shared_locales = marker_locales::<LanguageDisplayNamesV1>(&provider, "language")?;
+    let mut shared_locales = marker_locales::<LanguageDisplayNamesV1>(provider, "language")?;
 
-    let locale_locales = marker_locales::<LocaleDisplayNamesV1>(&provider, "locale")?;
-    let region_locales = marker_locales::<RegionDisplayNamesV1>(&provider, "region")?;
-    let script_locales = marker_locales::<ScriptDisplayNamesV1>(&provider, "script")?;
-    let variant_locales = marker_locales::<VariantDisplayNamesV1>(&provider, "variant")?;
+    let locale_locales = marker_locales::<LocaleDisplayNamesV1>(provider, "locale")?;
+    let region_locales = marker_locales::<RegionDisplayNamesV1>(provider, "region")?;
+    let script_locales = marker_locales::<ScriptDisplayNamesV1>(provider, "script")?;
+    let variant_locales = marker_locales::<VariantDisplayNamesV1>(provider, "variant")?;
 
     shared_locales.retain(|locale| locale_locales.contains(locale));
     shared_locales.retain(|locale| region_locales.contains(locale));

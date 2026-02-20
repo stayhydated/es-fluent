@@ -2,11 +2,28 @@
 
 pub use unic_langid::{LanguageIdentifier, langid};
 
-/// Force the linker to include this crate.
+/// Force the linker to keep `es-fluent-lang` runtime resources.
 ///
-/// This is sometimes necessary in WASM builds where the crate is only used for side effects
-/// (like `inventory` registration) and might otherwise be stripped.
-pub fn force_link() {}
+/// This is used by WASM examples where localization inventory registration can be
+/// stripped by aggressive release optimization.
+#[doc(hidden)]
+#[cfg(feature = "bevy")]
+#[used]
+static FORCE_LINK_KEEPALIVE: fn() -> usize = bevy_support::force_link;
+
+#[doc(hidden)]
+#[inline(never)]
+pub fn force_link() -> usize {
+    #[cfg(feature = "bevy")]
+    {
+        bevy_support::force_link()
+    }
+
+    #[cfg(not(feature = "bevy"))]
+    {
+        0
+    }
+}
 
 #[cfg(feature = "macros")]
 pub use es_fluent_lang_macro::es_fluent_language;
@@ -307,6 +324,10 @@ mod bevy_support {
     inventory::submit! {
         &STATIC_RESOURCE as &dyn StaticI18nResource
     }
+
+    pub(crate) fn force_link() -> usize {
+        usize::from(STATIC_RESOURCE.resource().get_entry(0).is_some())
+    }
 }
 
 #[cfg(all(feature = "bevy", feature = "localized-langs"))]
@@ -383,6 +404,13 @@ mod bevy_support {
         env!("OUT_DIR"),
         "/es_fluent_lang_static_resources.rs"
     ));
+
+    pub(crate) fn force_link() -> usize {
+        if let Some(resource) = ES_FLUENT_LANG_STATIC_RESOURCES.first() {
+            let _ = resource.resource().get_entry(0);
+        }
+        ES_FLUENT_LANG_STATIC_RESOURCES.len()
+    }
 }
 
 #[cfg(all(test, feature = "bevy", not(feature = "localized-langs")))]
@@ -541,6 +569,12 @@ mod tests {
         assert!(resource.matches_language(&langid!("en-US")));
         assert!(resource.resource().get_entry(0).is_some());
     }
+
+    #[cfg(feature = "bevy")]
+    #[test]
+    fn force_link_reports_linked_resources() {
+        assert!(force_link() > 0);
+    }
 }
 
 #[cfg(all(test, feature = "localized-langs"))]
@@ -696,5 +730,11 @@ mod tests_localized {
             ja_resource.is_some(),
             "Expected es-fluent-lang static resource for 'ja' locale"
         );
+    }
+
+    #[cfg(feature = "bevy")]
+    #[test]
+    fn force_link_reports_linked_resources() {
+        assert!(force_link() > 0);
     }
 }
