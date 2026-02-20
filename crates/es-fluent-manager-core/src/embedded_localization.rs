@@ -1,12 +1,14 @@
 //! This module provides types for managing embedded translations.
 
-use crate::asset_localization::{I18nModuleDescriptor, ModuleData};
+use crate::asset_localization::{
+    I18nModuleDescriptor, ModuleData, locale_is_ready, required_resource_keys_from_plan,
+};
 use crate::fallback::fallback_locales;
 use crate::localization::{I18nModule, LocalizationError, Localizer, localize_with_bundle};
 use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use unic_langid::LanguageIdentifier;
 
@@ -36,64 +38,43 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         &self,
         lang: &LanguageIdentifier,
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
+        let resource_plan = self.data.resource_plan();
+        let required_keys = required_resource_keys_from_plan(&resource_plan);
         let mut resources = Vec::new();
-        let has_namespaces = !self.data.namespaces.is_empty();
+        let mut loaded_keys = HashSet::new();
 
-        // Load main resource. It is required for non-namespaced modules and optional
-        // for namespaced modules (backwards compatibility while migrating to splits).
-        let main_file_name = format!("{}.ftl", self.data.domain);
-        let main_file_path = format!("{}/{}", lang, main_file_name);
+        for spec in &resource_plan {
+            let file_path = spec.locale_path(lang);
 
-        match T::get(&main_file_path) {
-            Some(file_data) => {
-                let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
-                    LocalizationError::BackendError(anyhow::anyhow!(
-                        "Invalid UTF-8 in embedded file '{}': {}",
-                        main_file_path,
-                        e
-                    ))
-                })?;
+            match T::get(&file_path) {
+                Some(file_data) => {
+                    let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
+                        LocalizationError::BackendError(anyhow::anyhow!(
+                            "Invalid UTF-8 in embedded file '{}': {}",
+                            file_path,
+                            e
+                        ))
+                    })?;
 
-                let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
-                    LocalizationError::BackendError(anyhow::anyhow!(
-                        "Failed to parse fluent resource from '{}': {:?}",
-                        main_file_path,
-                        errs
-                    ))
-                })?;
-                resources.push(Arc::new(resource));
-            },
-            None if !has_namespaces => {
-                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
-            },
-            None => {},
+                    let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
+                        LocalizationError::BackendError(anyhow::anyhow!(
+                            "Failed to parse fluent resource from '{}': {:?}",
+                            file_path,
+                            errs
+                        ))
+                    })?;
+                    resources.push(Arc::new(resource));
+                    loaded_keys.insert(spec.key.clone());
+                },
+                None if spec.required => {
+                    return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+                },
+                None => {},
+            }
         }
 
-        // When namespaces are declared, each namespace file is required.
-        for ns in self.data.namespaces {
-            let ns_file_name = format!("{}.ftl", ns);
-            let ns_file_path = format!("{}/{}/{}", lang, self.data.domain, ns_file_name);
-
-            let Some(file_data) = T::get(&ns_file_path) else {
-                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
-            };
-
-            let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
-                LocalizationError::BackendError(anyhow::anyhow!(
-                    "Invalid UTF-8 in embedded file '{}': {}",
-                    ns_file_path,
-                    e
-                ))
-            })?;
-
-            let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
-                LocalizationError::BackendError(anyhow::anyhow!(
-                    "Failed to parse fluent resource from '{}': {:?}",
-                    ns_file_path,
-                    errs
-                ))
-            })?;
-            resources.push(Arc::new(resource));
+        if !locale_is_ready(&required_keys, &loaded_keys) {
+            return Err(LocalizationError::LanguageNotSupported(lang.clone()));
         }
 
         if resources.is_empty() {

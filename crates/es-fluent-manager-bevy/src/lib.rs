@@ -11,7 +11,7 @@ pub use inventory as __inventory;
 
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
-use es_fluent_manager_core::localize_with_bundle;
+use es_fluent_manager_core::{locale_is_ready, localize_with_bundle};
 use fluent_bundle::{FluentResource, FluentValue, bundle::FluentBundle};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -170,11 +170,22 @@ impl I18nAssets {
 
     /// Checks if all registered FTL assets for a given language have been loaded.
     pub fn is_language_loaded(&self, lang: &LanguageIdentifier) -> bool {
-        self.assets
+        let required_keys = self
+            .assets
             .keys()
             .filter(|(l, _)| l == lang)
             .filter(|key| !self.optional_assets.contains(*key))
-            .all(|key| self.loaded_resources.contains_key(key))
+            .map(|(_, key)| key.clone())
+            .collect::<HashSet<_>>();
+
+        let loaded_keys = self
+            .loaded_resources
+            .keys()
+            .filter(|(l, _)| l == lang)
+            .map(|(_, key)| key.clone())
+            .collect::<HashSet<_>>();
+
+        locale_is_ready(&required_keys, &loaded_keys)
     }
 
     /// Retrieves all loaded `FluentResource`s for a given language.

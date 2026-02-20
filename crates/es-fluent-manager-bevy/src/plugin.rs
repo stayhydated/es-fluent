@@ -3,6 +3,7 @@ use arc_swap::ArcSwap;
 use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{
     I18nModuleDescriptor, StaticI18nResource, localize_with_bundle, resolve_fallback_language,
+    resource_plan_for,
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -107,28 +108,25 @@ impl Plugin for I18nPlugin {
 
         for lang in &discovered_language_list {
             for domain in &discovered_domain_list {
-                // Always try to load the base file for compatibility with embedded behavior.
-                // For namespaced domains this base file is optional.
-                let base_path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
-                let base_handle: Handle<FtlAsset> = asset_server.load(&base_path);
+                let namespaces: Vec<&str> = discovered_namespaces
+                    .get(domain)
+                    .map(|ns_set| ns_set.iter().map(String::as_str).collect())
+                    .unwrap_or_default();
+                let resource_plan = resource_plan_for(domain, &namespaces);
 
-                if let Some(namespaces) = discovered_namespaces.get(domain) {
-                    i18n_assets.add_optional_asset(lang.clone(), domain.clone(), base_handle);
-                    debug!("Loading optional base i18n asset: {}", base_path);
-
-                    // Load namespaced files: {asset_path}/{lang}/{domain}/{namespace}.ftl
-                    for ns in namespaces {
-                        let path =
-                            format!("{}/{}/{}/{}.ftl", self.config.asset_path, lang, domain, ns);
-                        let handle: Handle<FtlAsset> = asset_server.load(&path);
-                        // Use "{domain}/{namespace}" as the unique key for this asset
-                        let domain_key = format!("{}/{}", domain, ns);
-                        i18n_assets.add_asset(lang.clone(), domain_key, handle);
-                        debug!("Loading namespaced i18n asset: {}", path);
+                for spec in resource_plan {
+                    let path = format!(
+                        "{}/{}/{}",
+                        self.config.asset_path, lang, spec.locale_relative_path
+                    );
+                    let handle: Handle<FtlAsset> = asset_server.load(&path);
+                    if spec.required {
+                        i18n_assets.add_asset(lang.clone(), spec.key, handle);
+                        debug!("Loading required i18n asset: {}", path);
+                    } else {
+                        i18n_assets.add_optional_asset(lang.clone(), spec.key, handle);
+                        debug!("Loading optional i18n asset: {}", path);
                     }
-                } else {
-                    i18n_assets.add_asset(lang.clone(), domain.clone(), base_handle);
-                    debug!("Loading discovered i18n asset: {}", base_path);
                 }
             }
         }

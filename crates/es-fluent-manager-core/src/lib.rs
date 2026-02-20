@@ -6,7 +6,10 @@ pub mod fallback;
 pub mod localization;
 pub mod static_resource;
 
-pub use asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
+pub use asset_localization::{
+    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, StaticModuleDescriptor, locale_is_ready,
+    optional_resource_keys_from_plan, required_resource_keys_from_plan, resource_plan_for,
+};
 pub use embedded_localization::{EmbeddedAssets, EmbeddedI18nModule};
 pub use fallback::{fallback_locales, locale_candidates, resolve_fallback_language};
 pub use localization::{
