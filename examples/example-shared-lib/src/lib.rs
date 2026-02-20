@@ -11,6 +11,11 @@ es_fluent_manager_bevy::define_i18n_module!();
 #[cfg(any(feature = "embedded", feature = "gpui"))]
 es_fluent_manager_embedded::define_i18n_module!();
 
+/// Force the linker to include this crate and its dependencies.
+pub fn force_link() {
+    es_fluent_lang::force_link();
+}
+
 #[derive(Clone, Copy, Debug, Default, EsFluent, PartialEq)]
 #[cfg_attr(
     feature = "bevy",
