@@ -67,7 +67,6 @@ pub fn resolve_fallback_language(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fluent_fallback::env::LocalesProvider;
     use unic_langid::langid;
 
     #[test]

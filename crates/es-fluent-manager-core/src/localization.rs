@@ -73,12 +73,6 @@ pub struct FluentManager {
     localizers: Vec<(&'static ModuleData, Box<dyn Localizer>)>,
 }
 
-impl Clone for FluentManager {
-    fn clone(&self) -> Self {
-        Self::new_with_discovered_modules()
-    }
-}
-
 impl FluentManager {
     /// Creates a new `FluentManager` with discovered i18n modules.
     pub fn new_with_discovered_modules() -> Self {
@@ -254,16 +248,6 @@ mod tests {
             Some("err-value".to_string())
         );
         assert_eq!(manager.localize("missing", None), None);
-    }
-
-    #[test]
-    fn manager_clone_rebuilds_discovered_modules() {
-        let manager = FluentManager::new_with_discovered_modules();
-        let clone = manager.clone();
-        assert_eq!(
-            clone.localize("from-ok", None),
-            Some("ok-value".to_string())
-        );
     }
 
     #[test]

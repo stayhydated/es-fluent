@@ -14,7 +14,7 @@ use bevy::prelude::*;
 use es_fluent_manager_core::localize_with_bundle;
 use fluent_bundle::{FluentResource, FluentValue, bundle::FluentBundle};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
@@ -125,6 +125,8 @@ pub struct LocaleChangedEvent(pub LanguageIdentifier);
 pub struct I18nAssets {
     /// A map from `(LanguageIdentifier, domain)` to the corresponding `Handle<FtlAsset>`.
     pub assets: HashMap<(LanguageIdentifier, String), Handle<FtlAsset>>,
+    /// Optional assets that should not block bundle readiness when absent.
+    pub optional_assets: HashSet<(LanguageIdentifier, String)>,
     /// A map from `(LanguageIdentifier, domain)` to the parsed `FluentResource`.
     pub loaded_resources: HashMap<(LanguageIdentifier, String), Arc<FluentResource>>,
 }
@@ -149,7 +151,21 @@ impl I18nAssets {
         domain: String,
         handle: Handle<FtlAsset>,
     ) {
-        self.assets.insert((lang, domain), handle);
+        let key = (lang, domain);
+        self.optional_assets.remove(&key);
+        self.assets.insert(key, handle);
+    }
+
+    /// Adds an optional FTL asset to be managed.
+    pub fn add_optional_asset(
+        &mut self,
+        lang: LanguageIdentifier,
+        domain: String,
+        handle: Handle<FtlAsset>,
+    ) {
+        let key = (lang, domain);
+        self.optional_assets.insert(key.clone());
+        self.assets.insert(key, handle);
     }
 
     /// Checks if all registered FTL assets for a given language have been loaded.
@@ -157,6 +173,7 @@ impl I18nAssets {
         self.assets
             .keys()
             .filter(|(l, _)| l == lang)
+            .filter(|key| !self.optional_assets.contains(*key))
             .all(|key| self.loaded_resources.contains_key(key))
     }
 

@@ -37,40 +37,19 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         lang: &LanguageIdentifier,
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
         let mut resources = Vec::new();
+        let has_namespaces = !self.data.namespaces.is_empty();
 
-        // Load main resource if it exists (for backwards compatibility)
+        // Load main resource. It is required for non-namespaced modules and optional
+        // for namespaced modules (backwards compatibility while migrating to splits).
         let main_file_name = format!("{}.ftl", self.data.domain);
         let main_file_path = format!("{}/{}", lang, main_file_name);
 
-        if let Some(file_data) = T::get(&main_file_path) {
-            let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
-                LocalizationError::BackendError(anyhow::anyhow!(
-                    "Invalid UTF-8 in embedded file '{}': {}",
-                    main_file_path,
-                    e
-                ))
-            })?;
-
-            let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
-                LocalizationError::BackendError(anyhow::anyhow!(
-                    "Failed to parse fluent resource from '{}': {:?}",
-                    main_file_path,
-                    errs
-                ))
-            })?;
-            resources.push(Arc::new(resource));
-        }
-
-        // Load namespaced resources
-        for ns in self.data.namespaces {
-            let ns_file_name = format!("{}.ftl", ns);
-            let ns_file_path = format!("{}/{}/{}", lang, self.data.domain, ns_file_name);
-
-            if let Some(file_data) = T::get(&ns_file_path) {
+        match T::get(&main_file_path) {
+            Some(file_data) => {
                 let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
                     LocalizationError::BackendError(anyhow::anyhow!(
                         "Invalid UTF-8 in embedded file '{}': {}",
-                        ns_file_path,
+                        main_file_path,
                         e
                     ))
                 })?;
@@ -78,12 +57,43 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
                 let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
                     LocalizationError::BackendError(anyhow::anyhow!(
                         "Failed to parse fluent resource from '{}': {:?}",
-                        ns_file_path,
+                        main_file_path,
                         errs
                     ))
                 })?;
                 resources.push(Arc::new(resource));
-            }
+            },
+            None if !has_namespaces => {
+                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+            },
+            None => {},
+        }
+
+        // When namespaces are declared, each namespace file is required.
+        for ns in self.data.namespaces {
+            let ns_file_name = format!("{}.ftl", ns);
+            let ns_file_path = format!("{}/{}/{}", lang, self.data.domain, ns_file_name);
+
+            let Some(file_data) = T::get(&ns_file_path) else {
+                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+            };
+
+            let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
+                LocalizationError::BackendError(anyhow::anyhow!(
+                    "Invalid UTF-8 in embedded file '{}': {}",
+                    ns_file_path,
+                    e
+                ))
+            })?;
+
+            let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
+                LocalizationError::BackendError(anyhow::anyhow!(
+                    "Failed to parse fluent resource from '{}': {:?}",
+                    ns_file_path,
+                    errs
+                ))
+            })?;
+            resources.push(Arc::new(resource));
         }
 
         if resources.is_empty() {
@@ -255,7 +265,8 @@ mod tests {
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
-    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("cd")];
+    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
+        &[langid!("ab"), langid!("cd"), langid!("ef")];
     static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "ns-error-module",
         domain: "test-domain",
@@ -361,6 +372,14 @@ mod tests {
             .expect_err("invalid namespaced UTF-8 should fail");
         assert!(matches!(
             utf8_err,
+            LocalizationError::LanguageNotSupported(_)
+        ));
+
+        let missing_namespace_err = localizer
+            .select_language(&langid!("ef"))
+            .expect_err("missing required namespace file should fail");
+        assert!(matches!(
+            missing_namespace_err,
             LocalizationError::LanguageNotSupported(_)
         ));
     }

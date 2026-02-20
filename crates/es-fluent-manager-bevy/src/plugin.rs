@@ -5,7 +5,7 @@ use es_fluent_manager_core::{
     I18nModuleDescriptor, StaticI18nResource, localize_with_bundle, resolve_fallback_language,
 };
 use fluent_bundle::{FluentResource, FluentValue};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
 
 #[doc(hidden)]
@@ -63,7 +63,7 @@ impl Plugin for I18nPlugin {
         let asset_server = app.world().resource::<AssetServer>();
 
         let mut discovered_domains = std::collections::HashSet::new();
-        let mut discovered_namespaces: std::collections::HashMap<String, Vec<String>> =
+        let mut discovered_namespaces: std::collections::HashMap<String, BTreeSet<String>> =
             std::collections::HashMap::new();
         let mut discovered_languages = std::collections::HashSet::new();
 
@@ -74,10 +74,12 @@ impl Plugin for I18nPlugin {
             for lang in data.supported_languages {
                 discovered_languages.insert(lang.clone());
             }
-            // Collect namespaces for this domain
-            let ns_list: Vec<String> = data.namespaces.iter().map(|s| s.to_string()).collect();
-            if !ns_list.is_empty() {
-                discovered_namespaces.insert(domain, ns_list);
+            // Collect namespaces for this domain and merge registrations.
+            if !data.namespaces.is_empty() {
+                discovered_namespaces
+                    .entry(domain.clone())
+                    .or_default()
+                    .extend(data.namespaces.iter().map(|s| s.to_string()));
             }
             info!(
                 "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
@@ -85,6 +87,8 @@ impl Plugin for I18nPlugin {
             );
         }
 
+        let mut discovered_domain_list: Vec<_> = discovered_domains.iter().cloned().collect();
+        discovered_domain_list.sort();
         let mut discovered_language_list: Vec<_> = discovered_languages.iter().cloned().collect();
         discovered_language_list.sort_by_key(|lang| lang.to_string());
         let resolved_language =
@@ -101,10 +105,17 @@ impl Plugin for I18nPlugin {
         set_bevy_i18n_state(BevyI18nState::new(resolved_language.clone()));
         let i18n_resource = I18nResource::new(resolved_language.clone());
 
-        for lang in &discovered_languages {
-            for domain in &discovered_domains {
-                // Check if this domain has namespaces
+        for lang in &discovered_language_list {
+            for domain in &discovered_domain_list {
+                // Always try to load the base file for compatibility with embedded behavior.
+                // For namespaced domains this base file is optional.
+                let base_path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
+                let base_handle: Handle<FtlAsset> = asset_server.load(&base_path);
+
                 if let Some(namespaces) = discovered_namespaces.get(domain) {
+                    i18n_assets.add_optional_asset(lang.clone(), domain.clone(), base_handle);
+                    debug!("Loading optional base i18n asset: {}", base_path);
+
                     // Load namespaced files: {asset_path}/{lang}/{domain}/{namespace}.ftl
                     for ns in namespaces {
                         let path =
@@ -116,11 +127,8 @@ impl Plugin for I18nPlugin {
                         debug!("Loading namespaced i18n asset: {}", path);
                     }
                 } else {
-                    // Load main file: {asset_path}/{lang}/{domain}.ftl
-                    let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
-                    let handle: Handle<FtlAsset> = asset_server.load(&path);
-                    i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
-                    debug!("Loading discovered i18n asset: {}", path);
+                    i18n_assets.add_asset(lang.clone(), domain.clone(), base_handle);
+                    debug!("Loading discovered i18n asset: {}", base_path);
                 }
             }
         }
@@ -168,16 +176,21 @@ fn handle_asset_loading(
     ftl_assets: Res<Assets<FtlAsset>>,
     mut asset_events: MessageReader<AssetEvent<FtlAsset>>,
 ) {
+    fn find_asset_key(
+        i18n_assets: &I18nAssets,
+        id: bevy::asset::AssetId<FtlAsset>,
+    ) -> Option<(LanguageIdentifier, String)> {
+        i18n_assets
+            .assets
+            .iter()
+            .find(|(_, handle)| handle.id() == id)
+            .map(|((lang, domain), _)| (lang.clone(), domain.clone()))
+    }
+
     for event in asset_events.read() {
         match event {
             AssetEvent::Added { id } | AssetEvent::Modified { id } => {
-                if let Some(((lang, domain), _)) = i18n_assets
-                    .assets
-                    .iter()
-                    .find(|(_, handle)| handle.id() == *id)
-                {
-                    let lang_key = lang.clone();
-                    let domain_key = domain.clone();
+                if let Some((lang_key, domain_key)) = find_asset_key(&i18n_assets, *id) {
                     if let Some(ftl_asset) = ftl_assets.get(*id) {
                         match FluentResource::try_new(ftl_asset.content.clone()) {
                             Ok(resource) => {
@@ -191,18 +204,34 @@ fn handle_asset_loading(
                                 );
                             },
                             Err((_, errors)) => {
+                                i18n_assets
+                                    .loaded_resources
+                                    .remove(&(lang_key.clone(), domain_key.clone()));
                                 error!(
                                     "Failed to parse FTL resource for {}/{}: {:?}",
                                     lang_key, domain_key, errors
                                 );
                             },
                         }
+                    } else {
+                        i18n_assets
+                            .loaded_resources
+                            .remove(&(lang_key.clone(), domain_key.clone()));
                     }
                 }
             },
-            AssetEvent::Removed { .. }
-            | AssetEvent::Unused { .. }
-            | AssetEvent::LoadedWithDependencies { .. } => {},
+            AssetEvent::Removed { id } | AssetEvent::Unused { id } => {
+                if let Some((lang_key, domain_key)) = find_asset_key(&i18n_assets, *id) {
+                    i18n_assets
+                        .loaded_resources
+                        .remove(&(lang_key.clone(), domain_key.clone()));
+                    debug!(
+                        "Unloaded FTL resource for language: {}, domain: {}",
+                        lang_key, domain_key
+                    );
+                }
+            },
+            AssetEvent::LoadedWithDependencies { .. } => {},
         }
     }
 }
@@ -363,10 +392,18 @@ impl BevyI18nState {
 
 #[doc(hidden)]
 pub fn set_bevy_i18n_state(state: BevyI18nState) {
-    BEVY_I18N_STATE
-        .set(ArcSwap::from_pointee(state))
-        .map_err(|_| "State already set")
-        .expect("Failed to set Bevy i18n state");
+    if let Some(state_swap) = BEVY_I18N_STATE.get() {
+        state_swap.store(Arc::new(state));
+        return;
+    }
+
+    if BEVY_I18N_STATE
+        .set(ArcSwap::from_pointee(state.clone()))
+        .is_err()
+        && let Some(state_swap) = BEVY_I18N_STATE.get()
+    {
+        state_swap.store(Arc::new(state));
+    }
 }
 
 #[doc(hidden)]
@@ -532,13 +569,18 @@ mod tests {
         assert!(REGISTER_CALLS.load(Ordering::SeqCst) > 0);
         assert_eq!(TEST_STATIC_RESOURCE.domain(), "test-domain");
 
-        let (base_handle, menu_handle, hud_handle) = {
+        let (base_handle, namespaced_base_handle, menu_handle, hud_handle) = {
             let assets = &app.world().resource::<I18nAssets>().assets;
             let base = assets
                 .iter()
                 .find(|((lang, domain), _)| *lang == langid!("en") && domain == "test-domain")
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered base domain handle");
+            let namespaced_base = assets
+                .iter()
+                .find(|((lang, domain), _)| *lang == langid!("en") && domain == "namespaced-domain")
+                .map(|(_, handle)| handle.clone())
+                .expect("expected discovered optional namespaced base domain handle");
             let menu = assets
                 .iter()
                 .find(|((lang, domain), _)| {
@@ -553,8 +595,14 @@ mod tests {
                 })
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered namespaced hud handle");
-            (base, menu, hud)
+            (base, namespaced_base, menu, hud)
         };
+        assert!(
+            app.world()
+                .resource::<I18nAssets>()
+                .optional_assets
+                .contains(&(langid!("en"), "namespaced-domain".to_string()))
+        );
 
         // Trigger missing-asset path in handle_asset_loading.
         app.world_mut()
@@ -611,15 +659,15 @@ mod tests {
             });
         app.world_mut()
             .write_message(AssetEvent::<FtlAsset>::Removed {
-                id: base_handle.id(),
+                id: namespaced_base_handle.id(),
             });
         app.world_mut()
             .write_message(AssetEvent::<FtlAsset>::Unused {
-                id: base_handle.id(),
+                id: namespaced_base_handle.id(),
             });
         app.world_mut()
             .write_message(AssetEvent::<FtlAsset>::LoadedWithDependencies {
-                id: base_handle.id(),
+                id: namespaced_base_handle.id(),
             });
         app.update();
 

@@ -3,7 +3,7 @@
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro::TokenStream;
 use quote::quote;
-use std::{collections::HashSet, fs, path::PathBuf};
+use std::{collections::BTreeSet, fs, path::PathBuf};
 use syn::{DeriveInput, parse_macro_input};
 
 struct I18nAssets {
@@ -62,8 +62,8 @@ impl I18nAssets {
         });
         let entries = entries?;
 
-        let mut namespaces = HashSet::new();
-        let mut languages = Vec::new();
+        let mut namespaces = BTreeSet::new();
+        let mut languages = BTreeSet::new();
 
         for entry in entries {
             let entry = entry.map_err(|e| {
@@ -87,7 +87,7 @@ impl I18nAssets {
                 let has_namespace_dir = crate_dir_path.is_dir();
 
                 if has_main_file || has_namespace_dir {
-                    languages.push(lang_code.to_string());
+                    languages.insert(lang_code.to_string());
                 }
 
                 // Discover namespaces from the crate's subdirectory
@@ -109,7 +109,7 @@ impl I18nAssets {
 
         Ok(Self {
             root_path: i18n_root_path,
-            languages,
+            languages: languages.into_iter().collect(),
             namespaces: namespaces.into_iter().collect(),
         })
     }

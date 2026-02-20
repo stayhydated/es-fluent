@@ -65,6 +65,9 @@ Common metadata contract for manager discovery.
 
 - Returns a shared `ModuleData` shape (`name`, `domain`, languages, namespaces).
 - Enables metadata-only registration for managers that don't create `Localizer`s (for example Bevy runtime asset loading).
+- Namespace semantics are shared across managers: when `namespaces` is non-empty,
+  namespace files are required for readiness while `{domain}.ftl` remains
+  optional compatibility data.
 
 ### `Localizer`
 
