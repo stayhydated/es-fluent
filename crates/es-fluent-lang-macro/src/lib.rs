@@ -237,13 +237,25 @@ fn expand_es_fluent_language(
     };
 
     let conversion_error_ident = format_ident!("{enum_ident}LanguageConversionError");
+    let force_link_static_ident = format_ident!("__ES_FLUENT_LANG_FORCE_LINK_{enum_ident}");
     let language_literals_for_ref = language_literals.clone();
     let variant_idents_for_ref = variant_idents.clone();
     let language_literals_for_try_from = language_literals.clone();
     let variant_idents_for_try_from = variant_idents.clone();
+    let force_link_keepalive = if custom_mode {
+        quote! {}
+    } else {
+        quote! {
+            #[cfg(target_arch = "wasm32")]
+            #[doc(hidden)]
+            #[used]
+            static #force_link_static_ident: fn() -> usize = ::es_fluent_lang::force_link;
+        }
+    };
 
     let expanded = quote! {
         #input_enum
+        #force_link_keepalive
 
         impl From<#enum_ident> for es_fluent::unic_langid::LanguageIdentifier {
             fn from(val: #enum_ident) -> Self {
@@ -454,11 +466,14 @@ mod tests {
                 assert!(default_mode.contains("EnUs"));
                 assert!(default_mode.contains("key = \"en\""));
                 assert!(!default_mode.contains("key = \"en-US\""));
+                assert!(default_mode.contains(":: es_fluent_lang :: force_link"));
+                assert!(default_mode.contains("# [used]"));
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert!(!custom_mode.contains("resource = \"es-fluent-lang\""));
                 assert!(custom_mode.contains("enum CustomLanguages"));
                 assert!(custom_mode.contains("key = \"en-US\""));
+                assert!(!custom_mode.contains(":: es_fluent_lang :: force_link"));
             },
         );
     }

@@ -2,6 +2,7 @@ use crate::I18nConfig;
 use std::fs;
 use std::path::Path;
 
+#[allow(clippy::needless_doctest_main)]
 /// Emits Cargo rebuild hints for `i18n.toml` and the configured assets directory.
 ///
 /// Call this from your crate's `build.rs` to ensure changes to locale files
