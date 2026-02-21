@@ -64,10 +64,23 @@ pub fn resolve_fallback_language(
         .find(|candidate| available.iter().any(|lang| lang == candidate))
 }
 
+/// Picks the best locale for active use, preferring ready locales over merely available locales.
+///
+/// Resolution order:
+/// 1. First fallback candidate present in `ready`.
+/// 2. If no ready match exists, first fallback candidate present in `available`.
+pub fn resolve_ready_locale(
+    requested: &LanguageIdentifier,
+    ready: &[LanguageIdentifier],
+    available: &[LanguageIdentifier],
+) -> Option<LanguageIdentifier> {
+    resolve_fallback_language(requested, ready)
+        .or_else(|| resolve_fallback_language(requested, available))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fluent_fallback::env::LocalesProvider;
     use unic_langid::langid;
 
     #[test]
@@ -106,6 +119,30 @@ mod tests {
         let available = vec![langid!("fr")];
 
         assert_eq!(resolve_fallback_language(&requested, &available), None);
+    }
+
+    #[test]
+    fn resolve_ready_locale_prefers_ready_candidates() {
+        let requested = langid!("en-US");
+        let ready = vec![langid!("en")];
+        let available = vec![langid!("en-US"), langid!("en")];
+
+        assert_eq!(
+            resolve_ready_locale(&requested, &ready, &available),
+            Some(langid!("en"))
+        );
+    }
+
+    #[test]
+    fn resolve_ready_locale_falls_back_to_available_when_not_ready() {
+        let requested = langid!("en-US");
+        let ready = vec![langid!("fr")];
+        let available = vec![langid!("en-US"), langid!("en")];
+
+        assert_eq!(
+            resolve_ready_locale(&requested, &ready, &available),
+            Some(langid!("en-US"))
+        );
     }
 
     #[test]

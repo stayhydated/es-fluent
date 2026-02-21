@@ -14,10 +14,10 @@ check:
     cargo check --workspace --all-features
 
 test:
-    cargo test --workspace --all-features
+    cargo test --workspace --all-features --all-targets
 
 cov:
-    cargo llvm-cov --workspace --all-features
+    cargo llvm-cov --workspace --all-features --all-targets
 
 test-publish:
     cargo publish --workspace --dry-run --allow-dirty

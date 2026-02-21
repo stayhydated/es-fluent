@@ -1,9 +1,18 @@
 use crate::*;
 use arc_swap::ArcSwap;
+use bevy::asset::AssetLoadFailedEvent;
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::asset::io::{AssetReaderError, AssetSourceId};
 use bevy::window::RequestRedraw;
-use es_fluent_manager_core::{I18nAssetModule, StaticI18nResource, resolve_fallback_language};
-use fluent_bundle::{FluentArgs, FluentResource, FluentValue};
+use es_fluent_manager_core::{
+    FluentManager, I18nModuleRegistration, ResourceKey, ResourceLoadError, build_sync_bundle,
+    filter_module_registry, localize_with_bundle, parse_fluent_resource_content,
+    resolve_ready_locale,
+};
+use fluent_bundle::{FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
+#[cfg(not(target_arch = "wasm32"))]
+use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
 #[doc(hidden)]
@@ -48,6 +57,43 @@ impl I18nPlugin {
     }
 }
 
+fn should_load_optional_asset(asset_server: &AssetServer, relative_path: &str) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = asset_server;
+        let _ = relative_path;
+        // wasm32 without threads does not support blocking waits used by
+        // `bevy::tasks::block_on`, so we keep optional loads optimistic.
+        return true;
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let source = match asset_server.get_source(AssetSourceId::Default) {
+            Ok(source) => source,
+            Err(err) => {
+                debug!(
+                    "Could not query default asset source while probing optional i18n asset '{}': {}",
+                    relative_path, err
+                );
+                return true;
+            },
+        };
+
+        match bevy::tasks::block_on(source.reader().read(Path::new(relative_path))) {
+            Ok(_) => true,
+            Err(AssetReaderError::NotFound(_)) => false,
+            Err(err) => {
+                debug!(
+                    "Failed to probe optional i18n asset '{}' (loading anyway): {}",
+                    relative_path, err
+                );
+                true
+            },
+        }
+    }
+}
+
 impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
         es_fluent::set_custom_localizer(bevy_custom_localizer);
@@ -60,23 +106,24 @@ impl Plugin for I18nPlugin {
 
         let asset_server = app.world().resource::<AssetServer>();
 
-        let mut discovered_domains = std::collections::HashSet::new();
-        let mut discovered_namespaces: std::collections::HashMap<String, Vec<String>> =
-            std::collections::HashMap::new();
+        let discovered_modules = filter_module_registry(
+            inventory::iter::<&'static dyn I18nModuleRegistration>()
+                .copied()
+                .collect::<Vec<_>>(),
+        );
+
+        let discovered_domains = discovered_modules
+            .iter()
+            .map(|module| module.data().domain)
+            .collect::<std::collections::HashSet<_>>();
         let mut discovered_languages = std::collections::HashSet::new();
 
-        for module in inventory::iter::<&'static dyn I18nAssetModule>() {
+        for module in &discovered_modules {
             let data = module.data();
-            let domain = data.domain.to_string();
-            discovered_domains.insert(domain.clone());
             for lang in data.supported_languages {
                 discovered_languages.insert(lang.clone());
             }
-            // Collect namespaces for this domain
-            let ns_list: Vec<String> = data.namespaces.iter().map(|s| s.to_string()).collect();
-            if !ns_list.is_empty() {
-                discovered_namespaces.insert(domain, ns_list);
-            }
+
             info!(
                 "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
                 data.name, data.domain, data.namespaces
@@ -85,9 +132,12 @@ impl Plugin for I18nPlugin {
 
         let mut discovered_language_list: Vec<_> = discovered_languages.iter().cloned().collect();
         discovered_language_list.sort_by_key(|lang| lang.to_string());
-        let resolved_language =
-            resolve_fallback_language(&self.config.initial_language, &discovered_language_list)
-                .unwrap_or_else(|| self.config.initial_language.clone());
+        let resolved_language = resolve_ready_locale(
+            &self.config.initial_language,
+            &[],
+            &discovered_language_list,
+        )
+        .unwrap_or_else(|| self.config.initial_language.clone());
 
         if resolved_language != self.config.initial_language {
             info!(
@@ -96,38 +146,53 @@ impl Plugin for I18nPlugin {
             );
         }
 
-        set_bevy_i18n_state(BevyI18nState::new(resolved_language.clone()));
+        let fallback_manager = Arc::new(FluentManager::new_with_discovered_modules());
+        fallback_manager.select_language(&resolved_language);
+        set_bevy_i18n_state(
+            BevyI18nState::new(resolved_language.clone()).with_fallback_manager(fallback_manager),
+        );
         let i18n_resource = I18nResource::new(resolved_language.clone());
 
-        for lang in &discovered_languages {
-            for domain in &discovered_domains {
-                // Check if this domain has namespaces
-                if let Some(namespaces) = discovered_namespaces.get(domain) {
-                    // Load namespaced files: {asset_path}/{lang}/{domain}/{namespace}.ftl
-                    for ns in namespaces {
-                        let path =
-                            format!("{}/{}/{}/{}.ftl", self.config.asset_path, lang, domain, ns);
-                        let handle: Handle<FtlAsset> = asset_server.load(&path);
-                        // Use "{domain}/{namespace}" as the unique key for this asset
-                        let domain_key = format!("{}/{}", domain, ns);
-                        i18n_assets.add_asset(lang.clone(), domain_key, handle);
-                        debug!("Loading namespaced i18n asset: {}", path);
-                    }
+        for module in &discovered_modules {
+            let data = module.data();
+            let canonical_resource_plan = data.resource_plan();
+            for lang in data.supported_languages {
+                let manifest_plan = module.resource_plan_for_language(lang);
+                let (resource_plan, has_manifest_plan) = if let Some(manifest_plan) = manifest_plan
+                {
+                    (manifest_plan, true)
                 } else {
-                    // Load main file: {asset_path}/{lang}/{domain}.ftl
-                    let path = format!("{}/{}/{}.ftl", self.config.asset_path, lang, domain);
+                    (canonical_resource_plan.clone(), false)
+                };
+                for spec in &resource_plan {
+                    let path = format!(
+                        "{}/{}/{}",
+                        self.config.asset_path, lang, spec.locale_relative_path
+                    );
+                    if !spec.required
+                        && !has_manifest_plan
+                        && !should_load_optional_asset(asset_server, &path)
+                    {
+                        debug!("Skipping missing optional i18n asset: {}", path);
+                        continue;
+                    }
                     let handle: Handle<FtlAsset> = asset_server.load(&path);
-                    i18n_assets.add_asset(lang.clone(), domain.clone(), handle);
-                    debug!("Loading discovered i18n asset: {}", path);
+                    if spec.required {
+                        i18n_assets.add_asset_spec(lang.clone(), spec.clone(), handle);
+                        debug!("Loading required i18n asset: {}", path);
+                    } else {
+                        i18n_assets.add_optional_asset_spec(lang.clone(), spec.clone(), handle);
+                        debug!("Loading optional i18n asset: {}", path);
+                    }
                 }
             }
         }
 
         info!(
-            "Auto-discovered {} domains, {} languages, {} namespaced domains",
+            "Auto-discovered {} modules, {} domains, {} languages",
+            discovered_modules.len(),
             discovered_domains.len(),
             discovered_languages.len(),
-            discovered_namespaces.len()
         );
 
         // Auto-register FluentText types from inventory
@@ -165,42 +230,120 @@ fn handle_asset_loading(
     mut i18n_assets: ResMut<I18nAssets>,
     ftl_assets: Res<Assets<FtlAsset>>,
     mut asset_events: MessageReader<AssetEvent<FtlAsset>>,
+    mut asset_failed_events: MessageReader<AssetLoadFailedEvent<FtlAsset>>,
 ) {
+    fn find_asset_key(
+        i18n_assets: &I18nAssets,
+        id: bevy::asset::AssetId<FtlAsset>,
+    ) -> Option<(LanguageIdentifier, ResourceKey)> {
+        i18n_assets
+            .assets
+            .iter()
+            .find(|(_, handle)| handle.id() == id)
+            .map(|((lang, key), _)| (lang.clone(), key.clone()))
+    }
+
     for event in asset_events.read() {
         match event {
             AssetEvent::Added { id } | AssetEvent::Modified { id } => {
-                if let Some(((lang, domain), _)) = i18n_assets
-                    .assets
-                    .iter()
-                    .find(|(_, handle)| handle.id() == *id)
-                {
-                    let lang_key = lang.clone();
-                    let domain_key = domain.clone();
+                if let Some((lang_key, resource_key)) = find_asset_key(&i18n_assets, *id) {
+                    let Some(spec) = i18n_assets
+                        .resource_specs
+                        .get(&(lang_key.clone(), resource_key.clone()))
+                        .cloned()
+                    else {
+                        continue;
+                    };
+
                     if let Some(ftl_asset) = ftl_assets.get(*id) {
-                        match FluentResource::try_new(ftl_asset.content.clone()) {
+                        match parse_fluent_resource_content(&spec, ftl_asset.content.clone()) {
                             Ok(resource) => {
-                                i18n_assets.loaded_resources.insert(
-                                    (lang_key.clone(), domain_key.clone()),
-                                    Arc::new(resource),
-                                );
+                                i18n_assets
+                                    .loaded_resources
+                                    .insert((lang_key.clone(), resource_key.clone()), resource);
+                                i18n_assets
+                                    .load_errors
+                                    .remove(&(lang_key.clone(), resource_key.clone()));
                                 debug!(
-                                    "Loaded FTL resource for language: {}, domain: {}",
-                                    lang_key, domain_key
+                                    "Loaded FTL resource for language: {}, key: {}",
+                                    lang_key, resource_key
                                 );
                             },
-                            Err((_, errors)) => {
-                                error!(
-                                    "Failed to parse FTL resource for {}/{}: {:?}",
-                                    lang_key, domain_key, errors
-                                );
+                            Err(err) => {
+                                i18n_assets
+                                    .loaded_resources
+                                    .remove(&(lang_key.clone(), resource_key.clone()));
+                                i18n_assets
+                                    .load_errors
+                                    .insert((lang_key.clone(), resource_key.clone()), err.clone());
+                                if err.is_required() {
+                                    error!("{}", err);
+                                } else {
+                                    debug!("{}", err);
+                                }
                             },
+                        }
+                    } else {
+                        i18n_assets
+                            .loaded_resources
+                            .remove(&(lang_key.clone(), resource_key.clone()));
+                        let err = ResourceLoadError::missing(&spec);
+                        i18n_assets
+                            .load_errors
+                            .insert((lang_key.clone(), resource_key.clone()), err.clone());
+                        if err.is_required() {
+                            warn!("{}", err);
+                        } else {
+                            debug!("{}", err);
                         }
                     }
                 }
             },
-            AssetEvent::Removed { .. }
-            | AssetEvent::Unused { .. }
-            | AssetEvent::LoadedWithDependencies { .. } => {},
+            AssetEvent::Removed { id } | AssetEvent::Unused { id } => {
+                if let Some((lang_key, resource_key)) = find_asset_key(&i18n_assets, *id) {
+                    i18n_assets
+                        .loaded_resources
+                        .remove(&(lang_key.clone(), resource_key.clone()));
+                    i18n_assets
+                        .load_errors
+                        .remove(&(lang_key.clone(), resource_key.clone()));
+                    debug!(
+                        "Unloaded FTL resource for language: {}, key: {}",
+                        lang_key, resource_key
+                    );
+                }
+            },
+            AssetEvent::LoadedWithDependencies { .. } => {},
+        }
+    }
+
+    for event in asset_failed_events.read() {
+        if let Some((lang_key, resource_key)) = find_asset_key(&i18n_assets, event.id) {
+            let Some(spec) = i18n_assets
+                .resource_specs
+                .get(&(lang_key.clone(), resource_key.clone()))
+                .cloned()
+            else {
+                continue;
+            };
+
+            i18n_assets
+                .loaded_resources
+                .remove(&(lang_key.clone(), resource_key.clone()));
+
+            let err = ResourceLoadError::load(
+                &spec,
+                format!("{} (asset path: {})", event.error, event.path),
+            );
+            i18n_assets
+                .load_errors
+                .insert((lang_key.clone(), resource_key.clone()), err.clone());
+
+            if err.is_required() {
+                error!("{}", err);
+            } else {
+                debug!("{}", err);
+            }
         }
     }
 }
@@ -210,8 +353,9 @@ fn build_fluent_bundles(
     mut i18n_bundle: ResMut<I18nBundle>,
     i18n_assets: Res<I18nAssets>,
     mut asset_events: MessageReader<AssetEvent<FtlAsset>>,
+    mut asset_failed_events: MessageReader<AssetLoadFailedEvent<FtlAsset>>,
 ) {
-    let mut dirty_languages = asset_events
+    let mut dirty_asset_ids = asset_events
         .read()
         .map(|event| match event {
             AssetEvent::Added { id }
@@ -220,11 +364,17 @@ fn build_fluent_bundles(
             | AssetEvent::Unused { id }
             | AssetEvent::LoadedWithDependencies { id } => id,
         })
+        .copied()
+        .collect::<Vec<_>>();
+    dirty_asset_ids.extend(asset_failed_events.read().map(|event| event.id));
+
+    let mut dirty_languages = dirty_asset_ids
+        .into_iter()
         .flat_map(|id| {
             i18n_assets
                 .assets
                 .iter()
-                .find(|(_, handle)| handle.id() == *id)
+                .find(|(_, handle)| handle.id() == id)
                 .map(|((lang, _), _)| lang.clone())
         })
         .collect::<HashSet<_>>();
@@ -237,23 +387,17 @@ fn build_fluent_bundles(
 
     for lang in dirty_languages {
         if i18n_assets.is_language_loaded(&lang) {
-            let mut bundle =
-                fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
-            for resource in i18n_assets.get_language_resources(&lang) {
-                if let Err(e) = bundle.add_resource(resource.clone()) {
-                    error!("Failed to add resource to bundle while caching: {:?}", e);
-                }
-            }
-            for static_resource in inventory::iter::<&'static dyn StaticI18nResource>() {
-                if static_resource.matches_language(&lang)
-                    && let Err(e) = bundle.add_resource(static_resource.resource())
-                {
-                    error!(
-                        "Failed to add static resource '{}' to bundle: {:?}",
-                        static_resource.domain(),
-                        e
-                    );
-                }
+            let resources: Vec<Arc<FluentResource>> = i18n_assets
+                .get_language_resources(&lang)
+                .into_iter()
+                .cloned()
+                .collect();
+            let (bundle, add_errors) = build_sync_bundle(&lang, resources);
+            for errors in add_errors {
+                error!(
+                    "Failed to add resource to bundle while caching: {:?}",
+                    errors
+                );
             }
             i18n_bundle.0.insert(lang.clone(), Arc::new(bundle));
             debug!("Updated fluent bundle cache for {}", lang);
@@ -269,6 +413,7 @@ fn handle_locale_changes(
     mut locale_change_events: MessageReader<LocaleChangeEvent>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
     mut i18n_resource: ResMut<I18nResource>,
+    i18n_bundle: Res<I18nBundle>,
     i18n_assets: Res<I18nAssets>,
     mut current_language_id: ResMut<CurrentLanguageId>,
 ) {
@@ -276,8 +421,10 @@ fn handle_locale_changes(
         info!("Changing locale to: {}", event.0);
 
         let available_languages = i18n_assets.available_languages();
-        let resolved_language = resolve_fallback_language(&event.0, &available_languages)
-            .unwrap_or_else(|| event.0.clone());
+        let ready_languages = i18n_bundle.0.keys().cloned().collect::<Vec<_>>();
+        let resolved_language =
+            resolve_ready_locale(&event.0, &ready_languages, &available_languages)
+                .unwrap_or_else(|| event.0.clone());
 
         if resolved_language != event.0 {
             info!(
@@ -321,6 +468,7 @@ static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 pub struct BevyI18nState {
     current_language: LanguageIdentifier,
     bundle: I18nBundle,
+    fallback_manager: Option<Arc<FluentManager>>,
 }
 
 #[doc(hidden)]
@@ -329,6 +477,7 @@ impl BevyI18nState {
         Self {
             current_language: initial_language,
             bundle: I18nBundle::default(),
+            fallback_manager: None,
         }
     }
 
@@ -343,41 +492,48 @@ impl BevyI18nState {
         }
     }
 
+    pub fn with_fallback_manager(self, fallback_manager: Arc<FluentManager>) -> Self {
+        Self {
+            fallback_manager: Some(fallback_manager),
+            ..self
+        }
+    }
+
     pub fn localize<'a>(
         &self,
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let bundle = self.bundle.0.get(&self.current_language)?;
-
-        let message = bundle.get_message(id)?;
-        let pattern = message.value()?;
-
-        let mut errors = Vec::new();
-        let fluent_args = args.map(|args| {
-            let mut fa = FluentArgs::new();
-            for (key, value) in args {
-                fa.set(*key, value.clone());
+        if let Some(bundle) = self.bundle.0.get(&self.current_language)
+            && let Some((value, errors)) = localize_with_bundle(bundle, id, args)
+        {
+            if !errors.is_empty() {
+                error!("Fluent formatting errors for '{}': {:?}", id, errors);
             }
-            fa
-        });
 
-        let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
-
-        if !errors.is_empty() {
-            error!("Fluent formatting errors for '{}': {:?}", id, errors);
+            return Some(value);
         }
 
-        Some(value.into_owned())
+        self.fallback_manager
+            .as_ref()
+            .and_then(|manager| manager.localize(id, args))
     }
 }
 
 #[doc(hidden)]
 pub fn set_bevy_i18n_state(state: BevyI18nState) {
-    BEVY_I18N_STATE
-        .set(ArcSwap::from_pointee(state))
-        .map_err(|_| "State already set")
-        .expect("Failed to set Bevy i18n state");
+    if let Some(state_swap) = BEVY_I18N_STATE.get() {
+        state_swap.store(Arc::new(state));
+        return;
+    }
+
+    if BEVY_I18N_STATE
+        .set(ArcSwap::from_pointee(state.clone()))
+        .is_err()
+        && let Some(state_swap) = BEVY_I18N_STATE.get()
+    {
+        state_swap.store(Arc::new(state));
+    }
 }
 
 #[doc(hidden)]
@@ -393,6 +549,9 @@ pub fn update_global_bundle(bundle: I18nBundle) {
 pub fn update_global_language(lang: LanguageIdentifier) {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
+        if let Some(fallback_manager) = &old_state.fallback_manager {
+            fallback_manager.select_language(&lang);
+        }
         let new_state = BevyI18nState::clone(&old_state).with_language(lang);
         state_swap.store(Arc::new(new_state));
     }
@@ -412,84 +571,123 @@ fn bevy_custom_localizer<'a>(
 mod tests {
     use super::*;
     use bevy::{MinimalPlugins, asset::AssetPlugin};
-    use es_fluent_manager_core::{AssetI18nModule, AssetModuleData};
+    use es_fluent_manager_core::{
+        I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
+        ModuleData, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
+    };
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
 
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
-    static TEST_ASSET_DATA: AssetModuleData = AssetModuleData {
+    static TEST_ASSET_DATA: ModuleData = ModuleData {
         name: "test-module",
         domain: "test-domain",
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
-    static TEST_ASSET_MODULE: AssetI18nModule = AssetI18nModule::new(&TEST_ASSET_DATA);
+    static TEST_ASSET_MODULE: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&TEST_ASSET_DATA);
 
     inventory::submit! {
-        &TEST_ASSET_MODULE as &dyn I18nAssetModule
+        &TEST_ASSET_MODULE as &dyn I18nModuleRegistration
     }
 
-    static TEST_NAMESPACED_ASSET_DATA: AssetModuleData = AssetModuleData {
+    static TEST_NAMESPACED_ASSET_DATA: ModuleData = ModuleData {
         name: "test-namespaced-module",
         domain: "namespaced-domain",
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &["menu", "hud"],
     };
-    static TEST_NAMESPACED_ASSET_MODULE: AssetI18nModule =
-        AssetI18nModule::new(&TEST_NAMESPACED_ASSET_DATA);
+    static TEST_NAMESPACED_ASSET_MODULE: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&TEST_NAMESPACED_ASSET_DATA);
 
     inventory::submit! {
-        &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nAssetModule
+        &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nModuleRegistration
     }
 
-    struct TestStaticResource;
+    static TEST_MANIFEST_DATA: ModuleData = ModuleData {
+        name: "test-manifest-module",
+        domain: "manifest-domain",
+        supported_languages: SUPPORTED_LANGUAGES,
+        namespaces: &[],
+    };
 
-    impl StaticI18nResource for TestStaticResource {
-        fn domain(&self) -> &'static str {
-            "test-domain"
-        }
+    struct TestManifestModule;
 
-        fn matches_language(&self, lang: &LanguageIdentifier) -> bool {
-            lang == &langid!("en")
-        }
-
-        fn resource(&self) -> Arc<FluentResource> {
-            Arc::new(
-                FluentResource::try_new("from-static = static".to_string())
-                    .expect("valid static ftl"),
-            )
+    impl I18nModuleDescriptor for TestManifestModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_MANIFEST_DATA
         }
     }
 
-    static TEST_STATIC_RESOURCE: TestStaticResource = TestStaticResource;
+    impl I18nModuleRegistration for TestManifestModule {
+        fn resource_plan_for_language(
+            &self,
+            lang: &LanguageIdentifier,
+        ) -> Option<Vec<ModuleResourceSpec>> {
+            if lang != &langid!("en") {
+                return None;
+            }
+
+            Some(vec![ModuleResourceSpec {
+                key: ResourceKey::new("manifest-domain"),
+                locale_relative_path: "manifest-domain.ftl".to_string(),
+                required: false,
+            }])
+        }
+    }
+
+    static TEST_MANIFEST_MODULE: TestManifestModule = TestManifestModule;
 
     inventory::submit! {
-        &TEST_STATIC_RESOURCE as &dyn StaticI18nResource
+        &TEST_MANIFEST_MODULE as &dyn I18nModuleRegistration
     }
 
-    struct DuplicateStaticResource;
+    static TEST_FALLBACK_DATA: ModuleData = ModuleData {
+        name: "test-fallback-module",
+        domain: "fallback-domain",
+        supported_languages: &[],
+        namespaces: &[],
+    };
 
-    impl StaticI18nResource for DuplicateStaticResource {
-        fn domain(&self) -> &'static str {
-            "duplicate-static-domain"
-        }
+    struct TestFallbackModule;
 
-        fn matches_language(&self, lang: &LanguageIdentifier) -> bool {
-            lang == &langid!("en")
-        }
-
-        fn resource(&self) -> Arc<FluentResource> {
-            Arc::new(
-                FluentResource::try_new("hello = duplicate".to_string())
-                    .expect("valid duplicate static ftl"),
-            )
+    impl I18nModuleDescriptor for TestFallbackModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_FALLBACK_DATA
         }
     }
 
-    static DUPLICATE_STATIC_RESOURCE: DuplicateStaticResource = DuplicateStaticResource;
+    impl I18nModule for TestFallbackModule {
+        fn create_localizer(&self) -> Box<dyn Localizer> {
+            Box::new(TestFallbackLocalizer)
+        }
+    }
+
+    struct TestFallbackLocalizer;
+
+    impl Localizer for TestFallbackLocalizer {
+        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            Ok(())
+        }
+
+        fn localize<'a>(
+            &self,
+            id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            match id {
+                "from-fallback" => Some("fallback".to_string()),
+                "hello" => Some("fallback-hello".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    static TEST_FALLBACK_MODULE: TestFallbackModule = TestFallbackModule;
 
     inventory::submit! {
-        &DUPLICATE_STATIC_RESOURCE as &dyn StaticI18nResource
+        &TEST_FALLBACK_MODULE as &dyn I18nModuleRegistration
     }
 
     static REGISTER_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -540,31 +738,53 @@ mod tests {
         assert!(app.world().contains_resource::<I18nResource>());
         assert!(app.world().contains_resource::<CurrentLanguageId>());
         assert!(REGISTER_CALLS.load(Ordering::SeqCst) > 0);
-        assert_eq!(TEST_STATIC_RESOURCE.domain(), "test-domain");
+        assert_eq!(
+            bevy_custom_localizer("from-fallback", None),
+            Some("fallback".to_string())
+        );
+        assert_eq!(
+            bevy_custom_localizer("hello", None),
+            Some("fallback-hello".to_string())
+        );
 
         let (base_handle, menu_handle, hud_handle) = {
             let assets = &app.world().resource::<I18nAssets>().assets;
             let base = assets
                 .iter()
-                .find(|((lang, domain), _)| *lang == langid!("en") && domain == "test-domain")
+                .find(|((lang, domain), _)| {
+                    *lang == langid!("en") && domain == &ResourceKey::new("test-domain")
+                })
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered base domain handle");
             let menu = assets
                 .iter()
                 .find(|((lang, domain), _)| {
-                    *lang == langid!("en") && domain == "namespaced-domain/menu"
+                    *lang == langid!("en") && domain == &ResourceKey::new("namespaced-domain/menu")
                 })
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered namespaced menu handle");
             let hud = assets
                 .iter()
                 .find(|((lang, domain), _)| {
-                    *lang == langid!("en") && domain == "namespaced-domain/hud"
+                    *lang == langid!("en") && domain == &ResourceKey::new("namespaced-domain/hud")
                 })
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered namespaced hud handle");
             (base, menu, hud)
         };
+        assert!(
+            !app.world()
+                .resource::<I18nAssets>()
+                .assets
+                .contains_key(&(langid!("en"), ResourceKey::new("namespaced-domain")))
+        );
+        assert!(
+            app.world()
+                .resource::<I18nAssets>()
+                .assets
+                .contains_key(&(langid!("en"), ResourceKey::new("manifest-domain"))),
+            "manifest-driven optional resources should be loaded without runtime probing"
+        );
 
         // Trigger missing-asset path in handle_asset_loading.
         app.world_mut()
@@ -631,31 +851,38 @@ mod tests {
             .write_message(AssetEvent::<FtlAsset>::LoadedWithDependencies {
                 id: base_handle.id(),
             });
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Added {
+                id: base_handle.id(),
+            });
         app.update();
 
         assert!(
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
-                .contains_key(&(lang.clone(), "test-domain".to_string()))
+                .contains_key(&(lang.clone(), ResourceKey::new("test-domain")))
         );
         assert!(
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
-                .contains_key(&(lang.clone(), "namespaced-domain/menu".to_string()))
+                .contains_key(&(lang.clone(), ResourceKey::new("namespaced-domain/menu")))
         );
         assert!(
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
-                .contains_key(&(lang.clone(), "namespaced-domain/hud".to_string()))
+                .contains_key(&(lang.clone(), ResourceKey::new("namespaced-domain/hud")))
         );
         assert!(app.world().resource::<I18nBundle>().0.contains_key(&lang));
-        assert!(bevy_custom_localizer("hello", None).is_some());
         assert_eq!(
-            bevy_custom_localizer("from-static", None),
-            Some("static".to_string())
+            bevy_custom_localizer("from-fallback", None),
+            Some("fallback".to_string())
+        );
+        assert_ne!(
+            bevy_custom_localizer("hello", None),
+            Some("fallback-hello".to_string())
         );
 
         // Trigger parse error branch in asset loading.
@@ -694,6 +921,7 @@ mod tests {
         app.add_message::<LocaleChangeEvent>();
         app.add_message::<LocaleChangedEvent>();
         app.insert_resource(I18nAssets::new());
+        app.insert_resource(I18nBundle::default());
         app.insert_resource(I18nResource::new(langid!("en")));
         app.insert_resource(CurrentLanguageId(langid!("en")));
         app.add_systems(Update, handle_locale_changes);

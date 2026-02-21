@@ -81,12 +81,21 @@ pub fn select_language<L: Into<LanguageIdentifier>>(lang: L) {
 mod tests {
     use super::*;
     use es_fluent::FluentValue;
-    use es_fluent_manager_core::{I18nModule, LocalizationError, Localizer};
+    use es_fluent_manager_core::{
+        I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
+        ModuleData,
+    };
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
 
     static SELECT_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static EMBEDDED_TEST_MODULE_DATA: ModuleData = ModuleData {
+        name: "embedded-test-module",
+        domain: "embedded-test-module",
+        supported_languages: &[],
+        namespaces: &[],
+    };
 
     struct EmbeddedTestModule;
     struct EmbeddedTestLocalizer;
@@ -110,11 +119,13 @@ mod tests {
         }
     }
 
-    impl I18nModule for EmbeddedTestModule {
-        fn name(&self) -> &'static str {
-            "embedded-test-module"
+    impl I18nModuleDescriptor for EmbeddedTestModule {
+        fn data(&self) -> &'static ModuleData {
+            &EMBEDDED_TEST_MODULE_DATA
         }
+    }
 
+    impl I18nModule for EmbeddedTestModule {
         fn create_localizer(&self) -> Box<dyn Localizer> {
             Box::new(EmbeddedTestLocalizer)
         }
@@ -123,7 +134,7 @@ mod tests {
     static TEST_MODULE: EmbeddedTestModule = EmbeddedTestModule;
 
     crate::__inventory::submit! {
-        &TEST_MODULE as &dyn I18nModule
+        &TEST_MODULE as &dyn I18nModuleRegistration
     }
 
     #[test]

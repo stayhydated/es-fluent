@@ -1,11 +1,84 @@
 //! This module provides the core types for managing translations.
 
+use crate::asset_localization::{
+    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, StaticModuleDescriptor,
+    validate_module_registry,
+};
 use es_fluent_derive_core::EsFluentError;
-use fluent_bundle::FluentValue;
+use fluent_bundle::{
+    FluentArgs, FluentError, FluentResource, FluentValue, bundle::FluentBundle,
+    memoizer::MemoizerKind,
+};
+use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 pub type LocalizationError = EsFluentError;
+pub type SyncFluentBundle =
+    FluentBundle<Arc<FluentResource>, intl_memoizer::concurrent::IntlLangMemoizer>;
+
+/// Adds resources to a bundle and returns all resource-add errors.
+pub fn add_resources_to_bundle<R, M>(
+    bundle: &mut FluentBundle<R, M>,
+    resources: impl IntoIterator<Item = R>,
+) -> Vec<Vec<FluentError>>
+where
+    R: Borrow<FluentResource>,
+    M: MemoizerKind,
+{
+    let mut add_errors = Vec::new();
+    for resource in resources {
+        if let Err(errors) = bundle.add_resource(resource) {
+            add_errors.push(errors);
+        }
+    }
+    add_errors
+}
+
+/// Builds a concurrent `FluentBundle` from a locale and resources.
+pub fn build_sync_bundle(
+    lang: &LanguageIdentifier,
+    resources: impl IntoIterator<Item = Arc<FluentResource>>,
+) -> (SyncFluentBundle, Vec<Vec<FluentError>>) {
+    let mut bundle = FluentBundle::new_concurrent(vec![lang.clone()]);
+    let add_errors = add_resources_to_bundle(&mut bundle, resources);
+    (bundle, add_errors)
+}
+
+/// Converts hash-map arguments into `FluentArgs`.
+pub fn build_fluent_args<'a>(
+    args: Option<&HashMap<&str, FluentValue<'a>>>,
+) -> Option<FluentArgs<'a>> {
+    args.map(|args| {
+        let mut fluent_args = FluentArgs::new();
+        for (key, value) in args {
+            fluent_args.set((*key).to_string(), value.clone());
+        }
+        fluent_args
+    })
+}
+
+/// Localizes a message from an already-built Fluent bundle.
+///
+/// Returns `None` when the message or value is missing.
+/// Returns the formatted value and collected formatting errors otherwise.
+pub fn localize_with_bundle<'a, R, M>(
+    bundle: &FluentBundle<R, M>,
+    id: &str,
+    args: Option<&HashMap<&str, FluentValue<'a>>>,
+) -> Option<(String, Vec<FluentError>)>
+where
+    R: Borrow<FluentResource>,
+    M: MemoizerKind,
+{
+    let message = bundle.get_message(id)?;
+    let pattern = message.value()?;
+    let fluent_args = build_fluent_args(args);
+    let mut errors = Vec::new();
+    let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+    Some((value.into_owned(), errors))
+}
 
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
@@ -21,36 +94,197 @@ pub trait Localizer: Send + Sync {
     ) -> Option<String>;
 }
 
-pub trait I18nModule: Send + Sync {
-    /// Returns the name of the module.
-    fn name(&self) -> &'static str;
+/// Unified inventory contract for all module registrations.
+///
+/// Backends that only provide metadata (for example Bevy asset-driven loading)
+/// can return `None` from `create_localizer`.
+pub trait I18nModuleRegistration: I18nModuleDescriptor {
+    /// Creates a localizer when the registration supports runtime localization.
+    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+        None
+    }
+
+    /// Returns whether this registration can provide a runtime localizer.
+    ///
+    /// Implementations can override this to avoid constructing a localizer just
+    /// for capability checks during duplicate-resolution.
+    fn supports_runtime_localization(&self) -> bool {
+        self.create_localizer().is_some()
+    }
+
+    /// Returns an optional manifest-derived resource plan for a specific language.
+    ///
+    /// When this returns `Some`, managers should use this plan directly instead of
+    /// inferring optional resource existence at runtime.
+    fn resource_plan_for_language(
+        &self,
+        _lang: &LanguageIdentifier,
+    ) -> Option<Vec<ModuleResourceSpec>> {
+        None
+    }
+}
+
+pub trait I18nModule: I18nModuleDescriptor {
     /// Creates a localizer for the module.
     fn create_localizer(&self) -> Box<dyn Localizer>;
 }
 
-inventory::collect!(&'static dyn I18nModule);
+impl<T: I18nModule> I18nModuleRegistration for T {
+    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+        Some(I18nModule::create_localizer(self))
+    }
+
+    fn supports_runtime_localization(&self) -> bool {
+        true
+    }
+}
+
+impl I18nModuleRegistration for StaticModuleDescriptor {}
+
+inventory::collect!(&'static dyn I18nModuleRegistration);
+
+/// Normalizes discovered module registrations into a consistent, deduplicated list.
+///
+/// This applies shared validation and keeps only entries that satisfy:
+/// - non-empty module name and domain
+/// - unique module identity (`name` + `domain`)
+/// - no conflicting duplicate names/domains
+///
+/// For exact duplicates (`name` + `domain`), runtime-localizer registrations are
+/// preferred over metadata-only registrations.
+pub fn filter_module_registry(
+    modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
+) -> Vec<&'static dyn I18nModuleRegistration> {
+    let modules = modules.into_iter().collect::<Vec<_>>();
+    let mut discovered_data_by_identity: HashMap<
+        (&'static str, &'static str),
+        &'static ModuleData,
+    > = HashMap::new();
+    for module in &modules {
+        let data = module.data();
+        discovered_data_by_identity
+            .entry((data.name, data.domain))
+            .or_insert(data);
+    }
+    let discovered_data = discovered_data_by_identity
+        .into_values()
+        .collect::<Vec<_>>();
+
+    if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
+        for error in errors {
+            tracing::error!("Invalid i18n module registry entry: {}", error);
+        }
+    }
+
+    let mut filtered: Vec<&'static dyn I18nModuleRegistration> = Vec::with_capacity(modules.len());
+    let mut seen_module_names: HashMap<&'static str, usize> = HashMap::new();
+    let mut seen_domains: HashMap<&'static str, usize> = HashMap::new();
+
+    for module in modules {
+        let data = module.data();
+        if data.name.trim().is_empty() || data.domain.trim().is_empty() {
+            tracing::warn!(
+                "Skipping i18n module with invalid metadata: name='{}', domain='{}'",
+                data.name,
+                data.domain
+            );
+            continue;
+        }
+        if let Some(&existing_index) = seen_module_names.get(data.name) {
+            let existing = filtered[existing_index];
+            let existing_data = existing.data();
+            if existing_data.domain != data.domain {
+                tracing::warn!(
+                    "Skipping duplicate i18n module name '{}' (domain '{}')",
+                    data.name,
+                    data.domain
+                );
+                continue;
+            }
+
+            if !existing.supports_runtime_localization() && module.supports_runtime_localization() {
+                tracing::warn!(
+                    "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
+                    data.name
+                );
+                filtered[existing_index] = module;
+            } else {
+                tracing::warn!(
+                    "Skipping duplicate i18n module name '{}' (domain '{}')",
+                    data.name,
+                    data.domain
+                );
+            }
+            continue;
+        }
+
+        if let Some(&existing_index) = seen_domains.get(data.domain) {
+            let existing = filtered[existing_index];
+            let existing_data = existing.data();
+            if existing_data.name == data.name {
+                if !existing.supports_runtime_localization()
+                    && module.supports_runtime_localization()
+                {
+                    tracing::warn!(
+                        "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
+                        data.name
+                    );
+                    filtered[existing_index] = module;
+                } else {
+                    tracing::warn!(
+                        "Skipping duplicate i18n module name '{}' (domain '{}')",
+                        data.name,
+                        data.domain
+                    );
+                }
+                continue;
+            }
+
+            tracing::warn!(
+                "Skipping duplicate i18n domain '{}' from module '{}'",
+                data.domain,
+                data.name
+            );
+            continue;
+        }
+
+        let index = filtered.len();
+        seen_module_names.insert(data.name, index);
+        seen_domains.insert(data.domain, index);
+        filtered.push(module);
+    }
+
+    filtered
+}
 
 /// A manager for Fluent translations.
 #[derive(Default)]
 pub struct FluentManager {
-    localizers: Vec<(&'static str, Box<dyn Localizer>)>,
-}
-
-impl Clone for FluentManager {
-    fn clone(&self) -> Self {
-        Self::new_with_discovered_modules()
-    }
+    localizers: Vec<(&'static ModuleData, Box<dyn Localizer>)>,
 }
 
 impl FluentManager {
     /// Creates a new `FluentManager` with discovered i18n modules.
     pub fn new_with_discovered_modules() -> Self {
+        let discovered_modules = filter_module_registry(
+            inventory::iter::<&'static dyn I18nModuleRegistration>()
+                .copied()
+                .collect::<Vec<_>>(),
+        );
+
         let mut manager = Self::default();
-        for module in inventory::iter::<&'static dyn I18nModule>() {
-            tracing::info!("Discovered and loading i18n module: {}", module.name());
-            manager
-                .localizers
-                .push((module.name(), module.create_localizer()));
+
+        for module in discovered_modules {
+            let data = module.data();
+            tracing::info!("Discovered and loading i18n module: {}", data.name);
+            if let Some(localizer) = module.create_localizer() {
+                manager.localizers.push((data, localizer));
+            } else {
+                tracing::debug!(
+                    "Skipping metadata-only i18n module '{}' for FluentManager runtime localization",
+                    data.name
+                );
+            }
         }
         manager
     }
@@ -59,13 +293,18 @@ impl FluentManager {
     pub fn select_language(&self, lang: &LanguageIdentifier) {
         let mut any_selected = false;
 
-        for (name, localizer) in &self.localizers {
+        for (data, localizer) in &self.localizers {
             match localizer.select_language(lang) {
                 Ok(()) => {
                     any_selected = true;
                 },
                 Err(e) => {
-                    tracing::debug!("Module '{}' failed to set language '{}': {}", name, lang, e);
+                    tracing::debug!(
+                        "Module '{}' failed to set language '{}': {}",
+                        data.name,
+                        lang,
+                        e
+                    );
                 },
             }
         }
@@ -93,17 +332,64 @@ impl FluentManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fluent_bundle::FluentResource;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
 
     static SELECT_OK_CALLS: AtomicUsize = AtomicUsize::new(0);
     static SELECT_ERR_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static MODULE_OK_DATA: ModuleData = ModuleData {
+        name: "module-ok",
+        domain: "module-ok",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static MODULE_ERR_DATA: ModuleData = ModuleData {
+        name: "module-err",
+        domain: "module-err",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_MODULE_DATA: ModuleData = ModuleData {
+        name: "filter-module",
+        domain: "filter-domain",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_DUP_NAME_DATA: ModuleData = ModuleData {
+        name: "filter-module",
+        domain: "filter-domain-b",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_DUP_DOMAIN_DATA: ModuleData = ModuleData {
+        name: "filter-module-b",
+        domain: "filter-domain",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_EXACT_DUP_DATA: ModuleData = ModuleData {
+        name: "filter-exact-module",
+        domain: "filter-exact-domain",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
+    static FILTER_DUP_NAME_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_DUP_NAME_DATA);
+    static FILTER_DUP_DOMAIN_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_DUP_DOMAIN_DATA);
+    static FILTER_EXACT_DUP_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 
     struct ModuleOk;
     struct ModuleErr;
+    struct FilterRuntimeModule;
 
     struct LocalizerOk;
     struct LocalizerErr;
+    struct FilterRuntimeLocalizer;
 
     impl Localizer for LocalizerOk {
         fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -142,47 +428,78 @@ mod tests {
         }
     }
 
-    impl I18nModule for ModuleOk {
-        fn name(&self) -> &'static str {
-            "module-ok"
+    impl Localizer for FilterRuntimeLocalizer {
+        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            Ok(())
         }
 
+        fn localize<'a>(
+            &self,
+            _id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            None
+        }
+    }
+
+    impl I18nModuleDescriptor for ModuleOk {
+        fn data(&self) -> &'static ModuleData {
+            &MODULE_OK_DATA
+        }
+    }
+
+    impl I18nModule for ModuleOk {
         fn create_localizer(&self) -> Box<dyn Localizer> {
             Box::new(LocalizerOk)
         }
     }
 
-    impl I18nModule for ModuleErr {
-        fn name(&self) -> &'static str {
-            "module-err"
+    impl I18nModuleDescriptor for ModuleErr {
+        fn data(&self) -> &'static ModuleData {
+            &MODULE_ERR_DATA
         }
+    }
 
+    impl I18nModule for ModuleErr {
         fn create_localizer(&self) -> Box<dyn Localizer> {
             Box::new(LocalizerErr)
         }
     }
 
+    impl I18nModuleDescriptor for FilterRuntimeModule {
+        fn data(&self) -> &'static ModuleData {
+            &FILTER_EXACT_DUP_DATA
+        }
+    }
+
+    impl I18nModule for FilterRuntimeModule {
+        fn create_localizer(&self) -> Box<dyn Localizer> {
+            Box::new(FilterRuntimeLocalizer)
+        }
+    }
+
     static MODULE_OK: ModuleOk = ModuleOk;
     static MODULE_ERR: ModuleErr = ModuleErr;
+    static FILTER_RUNTIME_MODULE: FilterRuntimeModule = FilterRuntimeModule;
 
     inventory::submit! {
-        &MODULE_OK as &dyn I18nModule
+        &MODULE_OK as &dyn I18nModuleRegistration
     }
 
     inventory::submit! {
-        &MODULE_ERR as &dyn I18nModule
+        &MODULE_ERR as &dyn I18nModuleRegistration
     }
 
     #[test]
     fn manager_select_language_calls_all_localizers() {
-        SELECT_OK_CALLS.store(0, Ordering::Relaxed);
-        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+        let ok_before = SELECT_OK_CALLS.load(Ordering::Relaxed);
+        let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
         let manager = FluentManager::new_with_discovered_modules();
         manager.select_language(&langid!("en-US"));
 
-        assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) >= 1);
-        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) >= 1);
+        assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
+        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     }
 
     #[test]
@@ -200,24 +517,64 @@ mod tests {
     }
 
     #[test]
-    fn manager_clone_rebuilds_discovered_modules() {
-        let manager = FluentManager::new_with_discovered_modules();
-        let clone = manager.clone();
-        assert_eq!(
-            clone.localize("from-ok", None),
-            Some("ok-value".to_string())
-        );
-    }
-
-    #[test]
     fn manager_select_language_with_only_failing_localizers_covers_warn_path() {
-        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+        let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
         let manager = FluentManager {
-            localizers: vec![("module-err", Box::new(LocalizerErr))],
+            localizers: vec![(&MODULE_ERR_DATA, Box::new(LocalizerErr))],
         };
         manager.select_language(&langid!("en-US"));
 
-        assert_eq!(SELECT_ERR_CALLS.load(Ordering::Relaxed), 1);
+        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
+    }
+
+    #[test]
+    fn build_sync_bundle_reports_resource_add_errors() {
+        let lang = langid!("en-US");
+        let first =
+            Arc::new(FluentResource::try_new("hello = first".to_string()).expect("valid ftl"));
+        let duplicate =
+            Arc::new(FluentResource::try_new("hello = second".to_string()).expect("valid ftl"));
+
+        let (bundle, add_errors) = build_sync_bundle(&lang, vec![first, duplicate]);
+        assert!(!add_errors.is_empty());
+
+        let (localized, _format_errors) =
+            localize_with_bundle(&bundle, "hello", None).expect("message should exist");
+        assert_eq!(localized, "first");
+    }
+
+    #[test]
+    fn filter_module_registry_skips_duplicate_name_and_domain() {
+        let filtered = filter_module_registry([
+            &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
+            &FILTER_DUP_NAME_DESCRIPTOR as &dyn I18nModuleRegistration,
+            &FILTER_DUP_DOMAIN_DESCRIPTOR as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].data().name, "filter-module");
+    }
+
+    #[test]
+    fn filter_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
+        let filtered = filter_module_registry([
+            &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+            &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].create_localizer().is_some());
+    }
+
+    #[test]
+    fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
+        let filtered = filter_module_registry([
+            &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
+            &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].create_localizer().is_some());
     }
 }

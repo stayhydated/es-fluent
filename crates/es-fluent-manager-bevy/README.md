@@ -24,7 +24,16 @@ This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and As
 
 ## Quick Start
 
-### 1. Setup
+### 1. Define the Module
+
+In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+
+```rs
+// a i18n.toml file must exist in the root of the crate
+es_fluent_manager_embedded::define_i18n_module!();
+```
+
+### 2. Initialize & Use
 
 Add the plugin to your `App` and define your I18n module:
 
@@ -45,7 +54,7 @@ fn main() {
 }
 ```
 
-### 2. Define Localizable Components (Recommended)
+### 3. Define Localizable Components (Recommended)
 
 Prefer the `BevyFluentText` derive macro. It auto-registers your type with
 `I18nPlugin` via inventory, so you don't have to call any registration
@@ -72,7 +81,7 @@ pub enum UiMessage {
 }
 ```
 
-### 3. Using in UI
+### 4. Using in UI
 
 Use the `FluentText` component wrapper for any type that implements `ToFluentString`
 (which `#[derive(EsFluent)]` provides).

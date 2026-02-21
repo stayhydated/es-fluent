@@ -18,7 +18,7 @@ flowchart TD
         RES["Embedded .ftl Resource(s)"]
         LOC["Localizer Implementation"]
         MOD["I18nModule Implementation"]
-        BUILD["build.rs (Bevy static resources)"]
+        BUILD["build.rs (localized-langs change tracking)"]
     end
 
     subgraph MACRO["es-fluent-lang-macro"]
@@ -31,7 +31,7 @@ flowchart TD
     end
 
     RES -->|bundled into| LOC
-    BUILD --> MOD
+    BUILD --> RES
     LOC -->|creates| MOD
     MOD -->|registers via inventory| MGR
     APP -->|calls| MGR
@@ -54,14 +54,18 @@ The localizer resolves fallback locales (e.g., `zh-CN` -> `zh`) so regioned lang
 It automatically registers itself with `es-fluent-manager-core` using `inventory::submit!`.
 
 ```rs
+static ES_FLUENT_LANGUAGE_MODULE: EsFluentLanguageModule = EsFluentLanguageModule;
+
 inventory::submit! {
-    &EsFluentLanguageModule as &dyn I18nModule
+    &ES_FLUENT_LANGUAGE_MODULE as &dyn I18nModuleRegistration
 }
 ```
 
 ### Bevy Support
 
-When the optional `bevy` feature is enabled (along with `localized-langs`), it registers `StaticI18nResource` entries for each locale found under `i18n/<locale>/es-fluent-lang.ftl`. A small build script scans the `i18n` folder and generates the inventory registrations so Bevy can load the correct language-name resource for each locale. The static resources use the same fallback resolution, so `zh-CN` will match the `zh` resource when needed.
+When the optional `bevy` feature is enabled, it reuses the same standard `I18nModuleRegistration` path as other managers. Bevy fallback localization comes directly from the module localizer.
+
+`build.rs` remains only to track locale-folder changes (including deletions) for `localized-langs` builds.
 
 ## Macro
 

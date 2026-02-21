@@ -1,8 +1,15 @@
 //! This module provides types for managing embedded translations.
 
+use crate::asset_localization::{
+    I18nModuleDescriptor, LocaleLoadReport, ModuleData, ResourceLoadError,
+    parse_fluent_resource_bytes,
+};
 use crate::fallback::fallback_locales;
-use crate::localization::{I18nModule, LocalizationError, Localizer};
-use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
+use crate::localization::{
+    I18nModule, LocalizationError, Localizer, SyncFluentBundle, build_sync_bundle,
+    localize_with_bundle,
+};
+use fluent_bundle::{FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
 use std::collections::HashMap;
@@ -13,32 +20,18 @@ pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
     fn domain() -> &'static str;
 }
 
-#[derive(Debug)]
-pub struct EmbeddedModuleData {
-    /// The name of the module.
-    pub name: &'static str,
-    /// The domain of the module.
-    pub domain: &'static str,
-    /// The supported languages of the module.
-    pub supported_languages: &'static [LanguageIdentifier],
-    /// The namespaces used by this module's types (e.g., "ui", "errors").
-    /// If empty, only the main domain file (e.g., `bevy-example.ftl`) is loaded.
-    pub namespaces: &'static [&'static str],
-}
-
-#[derive(Debug)]
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
-    data: &'static EmbeddedModuleData,
-    current_resources: RwLock<Vec<Arc<FluentResource>>>,
+    data: &'static ModuleData,
+    current_bundle: RwLock<Option<Arc<SyncFluentBundle>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
     _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
-    pub fn new(data: &'static EmbeddedModuleData) -> Self {
+    pub fn new(data: &'static ModuleData) -> Self {
         Self {
             data,
-            current_resources: RwLock::new(Vec::new()),
+            current_bundle: RwLock::new(None),
             current_lang: RwLock::new(None),
             _phantom: std::marker::PhantomData,
         }
@@ -48,54 +41,48 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         &self,
         lang: &LanguageIdentifier,
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
+        let resource_plan = self.data.resource_plan();
+        let mut report = LocaleLoadReport::from_plan(&resource_plan);
         let mut resources = Vec::new();
 
-        // Load main resource if it exists (for backwards compatibility)
-        let main_file_name = format!("{}.ftl", self.data.domain);
-        let main_file_path = format!("{}/{}", lang, main_file_name);
+        for spec in &resource_plan {
+            let file_path = spec.locale_path(lang);
 
-        if let Some(file_data) = T::get(&main_file_path) {
-            let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
-                LocalizationError::BackendError(anyhow::anyhow!(
-                    "Invalid UTF-8 in embedded file '{}': {}",
-                    main_file_path,
-                    e
-                ))
-            })?;
-
-            let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
-                LocalizationError::BackendError(anyhow::anyhow!(
-                    "Failed to parse fluent resource from '{}': {:?}",
-                    main_file_path,
-                    errs
-                ))
-            })?;
-            resources.push(Arc::new(resource));
+            match T::get(&file_path) {
+                Some(file_data) => match parse_fluent_resource_bytes(spec, file_data.data.as_ref())
+                {
+                    Ok(resource) => {
+                        resources.push(resource);
+                        report.mark_loaded(spec.key.clone());
+                    },
+                    Err(err) => {
+                        tracing::debug!("{}", err);
+                        report.record_error(err);
+                    },
+                },
+                None => {
+                    let err = ResourceLoadError::missing(spec);
+                    tracing::debug!("{}", err);
+                    report.record_error(err);
+                },
+            }
         }
 
-        // Load namespaced resources
-        for ns in self.data.namespaces {
-            let ns_file_name = format!("{}.ftl", ns);
-            let ns_file_path = format!("{}/{}/{}", lang, self.data.domain, ns_file_name);
-
-            if let Some(file_data) = T::get(&ns_file_path) {
-                let content = String::from_utf8(file_data.data.to_vec()).map_err(|e| {
-                    LocalizationError::BackendError(anyhow::anyhow!(
-                        "Invalid UTF-8 in embedded file '{}': {}",
-                        ns_file_path,
-                        e
-                    ))
-                })?;
-
-                let resource = FluentResource::try_new(content).map_err(|(_, errs)| {
-                    LocalizationError::BackendError(anyhow::anyhow!(
-                        "Failed to parse fluent resource from '{}': {:?}",
-                        ns_file_path,
-                        errs
-                    ))
-                })?;
-                resources.push(Arc::new(resource));
-            }
+        if !report.is_ready() {
+            let mut missing_required = report
+                .missing_required_keys()
+                .into_iter()
+                .map(|key| key.to_string())
+                .collect::<Vec<_>>();
+            missing_required.sort();
+            tracing::debug!(
+                "Locale '{}' is not ready for module '{}': missing_required={:?}, errors={:?}",
+                lang,
+                self.data.name,
+                missing_required,
+                report.errors()
+            );
+            return Err(LocalizationError::LanguageNotSupported(lang.clone()));
         }
 
         if resources.is_empty() {
@@ -124,7 +111,11 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             }
 
             if let Ok(resources) = self.load_resource_for_language(&candidate) {
-                *self.current_resources.write().unwrap() = resources;
+                let (bundle, add_errors) = build_sync_bundle(&candidate, resources);
+                for errors in add_errors {
+                    tracing::error!("Failed to add resource to bundle: {:?}", errors);
+                }
+                *self.current_bundle.write().unwrap() = Some(Arc::new(bundle));
                 *current_lang_guard = Some(candidate);
                 return Ok(());
             }
@@ -138,53 +129,26 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let resources = self.current_resources.read().unwrap();
-        if resources.is_empty() {
-            return None;
-        }
-
-        let lang_guard = self.current_lang.read().unwrap();
-        let lang = lang_guard
-            .as_ref()
-            .expect("Language not selected before localization");
-
-        let mut bundle = FluentBundle::new(vec![lang.clone()]);
-        for resource in resources.iter() {
-            if let Err(e) = bundle.add_resource(resource.clone()) {
-                tracing::error!("Failed to add resource to bundle: {:?}", e);
-            }
-        }
-
-        let message = bundle.get_message(id)?;
-        let pattern = message.value()?;
-
-        let fluent_args = args.map(|args| {
-            let mut fa = FluentArgs::new();
-            for (key, value) in args {
-                fa.set(*key, value.clone());
-            }
-            fa
-        });
-
-        let mut errors = Vec::new();
-        let value = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+        let bundle_guard = self.current_bundle.read().unwrap();
+        let bundle = bundle_guard.as_ref()?;
+        let (value, errors) = localize_with_bundle(bundle.as_ref(), id, args)?;
 
         if !errors.is_empty() {
             tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
             return None;
         }
 
-        Some(value.into_owned())
+        Some(value)
     }
 }
 
 pub struct EmbeddedI18nModule<T: EmbeddedAssets> {
-    data: &'static EmbeddedModuleData,
+    data: &'static ModuleData,
     _phantom: std::marker::PhantomData<T>,
 }
 
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
-    pub const fn new(data: &'static EmbeddedModuleData) -> Self {
+    pub const fn new(data: &'static ModuleData) -> Self {
         Self {
             data,
             _phantom: std::marker::PhantomData,
@@ -228,11 +192,13 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
     }
 }
 
-impl<T: EmbeddedAssets> I18nModule for EmbeddedI18nModule<T> {
-    fn name(&self) -> &'static str {
-        self.data.name
+impl<T: EmbeddedAssets> I18nModuleDescriptor for EmbeddedI18nModule<T> {
+    fn data(&self) -> &'static ModuleData {
+        self.data
     }
+}
 
+impl<T: EmbeddedAssets> I18nModule for EmbeddedI18nModule<T> {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         Box::new(EmbeddedLocalizer::<T>::new(self.data))
     }
@@ -264,6 +230,16 @@ mod tests {
         }
     }
 
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_optional_base_error"]
+    struct OptionalBaseErrorAssets;
+
+    impl EmbeddedAssets for OptionalBaseErrorAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -271,17 +247,25 @@ mod tests {
         langid!("it"),
     ];
     static NAMESPACES: &[&str] = &["ui"];
-    static MODULE_DATA: EmbeddedModuleData = EmbeddedModuleData {
+    static MODULE_DATA: ModuleData = ModuleData {
         name: "test-module",
         domain: "test-domain",
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
-    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("cd")];
-    static NS_ERROR_MODULE_DATA: EmbeddedModuleData = EmbeddedModuleData {
+    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
+        &[langid!("ab"), langid!("cd"), langid!("ef")];
+    static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "ns-error-module",
         domain: "test-domain",
         supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
+    };
+    static OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static OPTIONAL_BASE_ERROR_MODULE_DATA: ModuleData = ModuleData {
+        name: "optional-base-error-module",
+        domain: "test-domain",
+        supported_languages: OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
 
@@ -359,9 +343,9 @@ mod tests {
     }
 
     #[test]
-    fn embedded_module_name_and_factory_work() {
+    fn embedded_module_data_and_factory_work() {
         let module = EmbeddedI18nModule::<TestAssets>::new(&MODULE_DATA);
-        assert_eq!(module.name(), "test-module");
+        assert_eq!(module.data().name, "test-module");
         let localizer = module.create_localizer();
         assert_eq!(localizer.localize("hello", None), None);
     }
@@ -385,5 +369,27 @@ mod tests {
             utf8_err,
             LocalizationError::LanguageNotSupported(_)
         ));
+
+        let missing_namespace_err = localizer
+            .select_language(&langid!("ef"))
+            .expect_err("missing required namespace file should fail");
+        assert!(matches!(
+            missing_namespace_err,
+            LocalizationError::LanguageNotSupported(_)
+        ));
+    }
+
+    #[test]
+    fn embedded_localizer_tolerates_optional_base_parse_failures() {
+        let localizer =
+            EmbeddedLocalizer::<OptionalBaseErrorAssets>::new(&OPTIONAL_BASE_ERROR_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("optional base parse failure should not block namespaced readiness");
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from optional-base fixture".to_string())
+        );
     }
 }

@@ -105,6 +105,14 @@ When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change` s
 
 Re-exported from `es-fluent-manager-macros::define_bevy_i18n_module`. See the [es-fluent-manager-macros architecture](../../es-fluent-manager-macros/docs/ARCHITECTURE.md) for details on how the macro discovers languages and generates module data. This macro registers the crate's assets with the system so Bevy knows which domains to load.
 
+When namespaces are declared for a domain, namespace files are treated as
+required for that locale. The base `{domain}.ftl` file is loaded as optional
+compatibility data.
+
+For macro-generated modules, Bevy uses a compile-time manifest-derived
+`resource_plan_for_language` to decide which optional files exist, avoiding
+runtime file probing and wasm-specific blocking issues.
+
 ## Flow
 
 1. **Startup**: `I18nPlugin` initializes resources, registers the global custom localizer, and auto-registers any `BevyFluentText` types discovered via inventory.

@@ -29,8 +29,11 @@ pub fn force_link() -> usize {
 pub use es_fluent_lang_macro::es_fluent_language;
 
 #[doc(hidden)]
-use es_fluent_manager_core::{I18nModule, LocalizationError, Localizer};
-use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
+use es_fluent_manager_core::{
+    I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
+    ModuleData, localize_with_bundle,
+};
+use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -68,11 +71,6 @@ const I18N_RESOURCE_NAME: &str = "es-fluent-lang.ftl";
 #[doc(hidden)]
 struct EsFluentLangAssets;
 
-#[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
-#[allow(dead_code)]
-#[doc(hidden)]
-const AUTONYM_FTL: &str = include_str!("../es-fluent-lang.ftl");
-
 #[cfg(feature = "localized-langs")]
 #[doc(hidden)]
 fn available_languages() -> &'static HashSet<LanguageIdentifier> {
@@ -109,16 +107,6 @@ fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
         .find(|candidate| available.contains(candidate))
 }
 
-fn build_fluent_args<'a>(args: Option<&HashMap<&str, FluentValue<'a>>>) -> Option<FluentArgs<'a>> {
-    args.map(|args| {
-        let mut fluent_args = FluentArgs::new();
-        for (key, value) in args {
-            fluent_args.set((*key).to_string(), value.clone());
-        }
-        fluent_args
-    })
-}
-
 fn localize_from_resource<'a>(
     lang: LanguageIdentifier,
     resource: Arc<FluentResource>,
@@ -131,14 +119,10 @@ fn localize_from_resource<'a>(
         return None;
     }
 
-    let message = bundle.get_message(id)?;
-    let pattern = message.value()?;
-    let mut errors = Vec::new();
-    let fluent_args = build_fluent_args(args);
-    let formatted = bundle.format_pattern(pattern, fluent_args.as_ref(), &mut errors);
+    let (formatted, errors) = localize_with_bundle(&bundle, id, args)?;
 
     if errors.is_empty() {
-        Some(formatted.into_owned())
+        Some(formatted)
     } else {
         tracing::error!(
             "Formatting errors while localizing '{}' from es-fluent-lang: {:?}",
@@ -152,11 +136,20 @@ fn localize_from_resource<'a>(
 #[doc(hidden)]
 struct EsFluentLanguageModule;
 
-impl I18nModule for EsFluentLanguageModule {
-    fn name(&self) -> &'static str {
-        "es-fluent-lang"
-    }
+static ES_FLUENT_LANG_MODULE_DATA: ModuleData = ModuleData {
+    name: "es-fluent-lang",
+    domain: "es-fluent-lang",
+    supported_languages: &[],
+    namespaces: &[],
+};
 
+impl I18nModuleDescriptor for EsFluentLanguageModule {
+    fn data(&self) -> &'static ModuleData {
+        &ES_FLUENT_LANG_MODULE_DATA
+    }
+}
+
+impl I18nModule for EsFluentLanguageModule {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         #[cfg(not(feature = "localized-langs"))]
         {
@@ -297,154 +290,20 @@ impl Localizer for EsFluentLanguageLocalizer {
 }
 
 inventory::submit! {
-    &EsFluentLanguageModule as &dyn I18nModule
+    &ES_FLUENT_LANGUAGE_MODULE as &dyn I18nModuleRegistration
 }
 
-#[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
+static ES_FLUENT_LANGUAGE_MODULE: EsFluentLanguageModule = EsFluentLanguageModule;
+
+#[cfg(feature = "bevy")]
 #[doc(hidden)]
 mod bevy_support {
     use super::*;
-    use es_fluent_manager_core::StaticI18nResource;
-    use std::sync::Arc;
-
-    struct EsFluentLangStaticResource;
-
-    static STATIC_RESOURCE: EsFluentLangStaticResource = EsFluentLangStaticResource;
-
-    impl StaticI18nResource for EsFluentLangStaticResource {
-        fn domain(&self) -> &'static str {
-            "es-fluent-lang"
-        }
-
-        fn resource(&self) -> Arc<FluentResource> {
-            embedded_resource()
-        }
-    }
-
-    inventory::submit! {
-        &STATIC_RESOURCE as &dyn StaticI18nResource
-    }
 
     pub(crate) fn force_link() -> usize {
-        usize::from(STATIC_RESOURCE.resource().get_entry(0).is_some())
-    }
-}
-
-#[cfg(all(feature = "bevy", feature = "localized-langs"))]
-#[doc(hidden)]
-mod bevy_support {
-    use super::*;
-    use es_fluent_manager_core::StaticI18nResource;
-    use std::sync::Arc;
-
-    pub(super) struct EsFluentLangStaticResource {
-        locale: &'static str,
-        language: OnceLock<Option<LanguageIdentifier>>,
-        resource: OnceLock<Option<Arc<FluentResource>>>,
-    }
-
-    impl EsFluentLangStaticResource {
-        pub const fn new(locale: &'static str) -> Self {
-            Self {
-                locale,
-                language: OnceLock::new(),
-                resource: OnceLock::new(),
-            }
-        }
-
-        fn language(&self) -> Option<&LanguageIdentifier> {
-            self.language
-                .get_or_init(|| self.locale.parse().ok())
-                .as_ref()
-        }
-
-        fn load_resource(&self) -> Option<Arc<FluentResource>> {
-            self.resource
-                .get_or_init(|| {
-                    let locale = self.language()?;
-                    let path = format!("{}/{}", locale, I18N_RESOURCE_NAME);
-                    let file = EsFluentLangAssets::get(&path)?;
-                    let content = String::from_utf8(file.data.to_vec()).ok()?;
-                    let resource = FluentResource::try_new(content).ok()?;
-                    Some(Arc::new(resource))
-                })
-                .clone()
-        }
-    }
-
-    impl StaticI18nResource for EsFluentLangStaticResource {
-        fn domain(&self) -> &'static str {
-            "es-fluent-lang"
-        }
-
-        fn matches_language(&self, lang: &LanguageIdentifier) -> bool {
-            let Some(resolved) = resolve_language(lang) else {
-                return false;
-            };
-            let Some(candidate) = self.language() else {
-                return false;
-            };
-            if candidate != &resolved {
-                return false;
-            }
-            self.load_resource().is_some()
-        }
-
-        fn resource(&self) -> Arc<FluentResource> {
-            self.load_resource().unwrap_or_else(|| {
-                Arc::new(
-                    FluentResource::try_new(String::new())
-                        .expect("Empty fluent resource should parse"),
-                )
-            })
-        }
-    }
-
-    include!(concat!(
-        env!("OUT_DIR"),
-        "/es_fluent_lang_static_resources.rs"
-    ));
-
-    pub(crate) fn force_link() -> usize {
-        if let Some(resource) = ES_FLUENT_LANG_STATIC_RESOURCES.first() {
-            let _ = resource.resource().get_entry(0);
-        }
-        ES_FLUENT_LANG_STATIC_RESOURCES.len()
-    }
-}
-
-#[cfg(all(test, feature = "bevy", not(feature = "localized-langs")))]
-mod bevy_static_resource_tests {
-    use es_fluent_manager_core::StaticI18nResource;
-    use inventory::iter;
-
-    #[test]
-    fn with_bevy_feature_static_resource_is_registered() {
-        let resources: Vec<_> = iter::<&dyn StaticI18nResource>()
-            .filter(|r| r.domain() == "es-fluent-lang")
-            .collect();
-        assert!(
-            !resources.is_empty(),
-            "Expected es-fluent-lang static resource with bevy feature"
-        );
-    }
-}
-
-#[cfg(all(test, not(feature = "bevy")))]
-mod static_resource_tests {
-    use es_fluent_manager_core::StaticI18nResource;
-    use inventory::iter;
-
-    #[test]
-    fn without_localized_langs_feature_no_static_resources_registered() {
-        let resources: Vec<_> = iter::<&dyn StaticI18nResource>()
-            .filter(|r| r.domain() == "es-fluent-lang")
-            .collect();
-        assert!(
-            resources.is_empty(),
-            "Expected no es-fluent-lang static resources without localized-langs feature, but found {}",
-            resources.len()
-        );
+        let module: &'static dyn I18nModuleRegistration = &ES_FLUENT_LANGUAGE_MODULE;
+        let _ = module.create_localizer();
+        usize::from(!module.data().domain.is_empty())
     }
 }
 
@@ -499,9 +358,9 @@ mod tests {
     #[test]
     fn language_module_creates_localizer_and_selects_language() {
         let module = EsFluentLanguageModule;
-        assert_eq!(module.name(), "es-fluent-lang");
+        assert_eq!(module.data().name, "es-fluent-lang");
 
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
         localizer
             .select_language(&langid!("en-US"))
             .expect("language selection should succeed");
@@ -514,7 +373,7 @@ mod tests {
     #[test]
     fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
         let module = EsFluentLanguageModule;
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
 
         localizer
             .select_language(&langid!("en-US"))
@@ -559,15 +418,21 @@ mod tests {
 
     #[cfg(feature = "bevy")]
     #[test]
-    fn bevy_static_resource_uses_autonym_file() {
-        use es_fluent_manager_core::StaticI18nResource;
+    fn bevy_uses_standard_module_registration_for_autonyms() {
+        let registration = inventory::iter::<&'static dyn I18nModuleRegistration>()
+            .find(|registration| registration.data().domain == "es-fluent-lang")
+            .expect("es-fluent-lang module registration should be present");
+        let localizer = registration
+            .create_localizer()
+            .expect("es-fluent-lang should provide a localizer");
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("language selection should succeed");
 
-        let resource = inventory::iter::<&'static dyn StaticI18nResource>()
-            .find(|resource| resource.domain() == "es-fluent-lang")
-            .expect("es-fluent-lang static resource should be registered");
-
-        assert!(resource.matches_language(&langid!("en-US")));
-        assert!(resource.resource().get_entry(0).is_some());
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("English".to_string())
+        );
     }
 
     #[cfg(feature = "bevy")]
@@ -612,7 +477,7 @@ mod tests_localized {
     #[test]
     fn localized_mode_returns_translated_language_names() {
         let module = EsFluentLanguageModule;
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
 
         localizer
             .select_language(&langid!("en"))
@@ -675,7 +540,7 @@ mod tests_localized {
     #[test]
     fn localized_mode_fallback_to_base_locale() {
         let module = EsFluentLanguageModule;
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
 
         localizer
             .select_language(&langid!("en-US"))
@@ -698,37 +563,20 @@ mod tests_localized {
 
     #[cfg(feature = "bevy")]
     #[test]
-    fn bevy_static_resources_registered_for_each_locale() {
-        use es_fluent_manager_core::StaticI18nResource;
+    fn bevy_uses_standard_module_registration_for_localized_names() {
+        let registration = inventory::iter::<&'static dyn I18nModuleRegistration>()
+            .find(|registration| registration.data().domain == "es-fluent-lang")
+            .expect("es-fluent-lang module registration should be present");
+        let localizer = registration
+            .create_localizer()
+            .expect("es-fluent-lang should provide a localizer");
 
-        let resources: Vec<_> = inventory::iter::<&'static dyn StaticI18nResource>()
-            .filter(|r| r.domain() == "es-fluent-lang")
-            .collect();
-
-        assert!(
-            !resources.is_empty(),
-            "Expected es-fluent-lang static resources"
-        );
-
-        let en_resource = inventory::iter::<&'static dyn StaticI18nResource>()
-            .find(|r| r.domain() == "es-fluent-lang" && r.matches_language(&langid!("en")));
-        assert!(
-            en_resource.is_some(),
-            "Expected es-fluent-lang static resource for 'en' locale"
-        );
-
-        let fr_resource = inventory::iter::<&'static dyn StaticI18nResource>()
-            .find(|r| r.domain() == "es-fluent-lang" && r.matches_language(&langid!("fr")));
-        assert!(
-            fr_resource.is_some(),
-            "Expected es-fluent-lang static resource for 'fr' locale"
-        );
-
-        let ja_resource = inventory::iter::<&'static dyn StaticI18nResource>()
-            .find(|r| r.domain() == "es-fluent-lang" && r.matches_language(&langid!("ja")));
-        assert!(
-            ja_resource.is_some(),
-            "Expected es-fluent-lang static resource for 'ja' locale"
+        localizer
+            .select_language(&langid!("fr"))
+            .expect("language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("anglais".to_string())
         );
     }
 
