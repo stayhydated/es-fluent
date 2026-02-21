@@ -69,6 +69,14 @@ Common metadata contract for manager discovery.
   namespace files are required for readiness while `{domain}.ftl` remains
   optional compatibility data.
 
+### `I18nModuleRegistration`
+
+Unified inventory contract used by managers.
+
+- Extends `I18nModuleDescriptor` with optional runtime hooks.
+- `create_localizer()` supports runtime localization backends.
+- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid optional-file probing).
+
 ### `Localizer`
 
 Responsible for the actual string formatting logic.
@@ -101,4 +109,4 @@ Simple wrapper used for metadata-only registrations.
 This crate is the common dependency for:
 
 - `es-fluent-manager-embedded` (Wraps `EmbeddedI18nModule` setup).
-- `es-fluent-manager-bevy` (Wraps `StaticModuleDescriptor` setup).
+- `es-fluent-manager-bevy` (Wraps `I18nModuleRegistration` setup).

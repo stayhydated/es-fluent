@@ -1,7 +1,8 @@
 //! This module provides the core types for managing translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, StaticModuleDescriptor, validate_module_registry,
+    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, StaticModuleDescriptor,
+    validate_module_registry,
 };
 use es_fluent_derive_core::EsFluentError;
 use fluent_bundle::{
@@ -100,6 +101,17 @@ pub trait Localizer: Send + Sync {
 pub trait I18nModuleRegistration: I18nModuleDescriptor {
     /// Creates a localizer when the registration supports runtime localization.
     fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+        None
+    }
+
+    /// Returns an optional manifest-derived resource plan for a specific language.
+    ///
+    /// When this returns `Some`, managers should use this plan directly instead of
+    /// inferring optional resource existence at runtime.
+    fn resource_plan_for_language(
+        &self,
+        _lang: &LanguageIdentifier,
+    ) -> Option<Vec<ModuleResourceSpec>> {
         None
     }
 }
@@ -326,14 +338,14 @@ mod tests {
 
     #[test]
     fn manager_select_language_calls_all_localizers() {
-        SELECT_OK_CALLS.store(0, Ordering::Relaxed);
-        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+        let ok_before = SELECT_OK_CALLS.load(Ordering::Relaxed);
+        let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
         let manager = FluentManager::new_with_discovered_modules();
         manager.select_language(&langid!("en-US"));
 
-        assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) >= 1);
-        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) >= 1);
+        assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
+        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     }
 
     #[test]
@@ -352,14 +364,14 @@ mod tests {
 
     #[test]
     fn manager_select_language_with_only_failing_localizers_covers_warn_path() {
-        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+        let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
         let manager = FluentManager {
             localizers: vec![(&MODULE_ERR_DATA, Box::new(LocalizerErr))],
         };
         manager.select_language(&langid!("en-US"));
 
-        assert_eq!(SELECT_ERR_CALLS.load(Ordering::Relaxed), 1);
+        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     }
 
     #[test]

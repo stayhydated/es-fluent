@@ -1,9 +1,8 @@
 use crate::*;
 use arc_swap::ArcSwap;
-use bevy::asset::{
-    AssetLoadFailedEvent,
-    io::{AssetReaderError, AssetSourceId},
-};
+use bevy::asset::AssetLoadFailedEvent;
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::asset::io::{AssetReaderError, AssetSourceId};
 use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{
     FluentManager, I18nModuleRegistration, ResourceKey, ResourceLoadError, build_sync_bundle,
@@ -12,6 +11,7 @@ use es_fluent_manager_core::{
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
@@ -58,27 +58,39 @@ impl I18nPlugin {
 }
 
 fn should_load_optional_asset(asset_server: &AssetServer, relative_path: &str) -> bool {
-    let source = match asset_server.get_source(AssetSourceId::Default) {
-        Ok(source) => source,
-        Err(err) => {
-            debug!(
-                "Could not query default asset source while probing optional i18n asset '{}': {}",
-                relative_path, err
-            );
-            return true;
-        },
-    };
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = asset_server;
+        let _ = relative_path;
+        // wasm32 without threads does not support blocking waits used by
+        // `bevy::tasks::block_on`, so we keep optional loads optimistic.
+        return true;
+    }
 
-    match bevy::tasks::block_on(source.reader().read(Path::new(relative_path))) {
-        Ok(_) => true,
-        Err(AssetReaderError::NotFound(_)) => false,
-        Err(err) => {
-            debug!(
-                "Failed to probe optional i18n asset '{}' (loading anyway): {}",
-                relative_path, err
-            );
-            true
-        },
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let source = match asset_server.get_source(AssetSourceId::Default) {
+            Ok(source) => source,
+            Err(err) => {
+                debug!(
+                    "Could not query default asset source while probing optional i18n asset '{}': {}",
+                    relative_path, err
+                );
+                return true;
+            },
+        };
+
+        match bevy::tasks::block_on(source.reader().read(Path::new(relative_path))) {
+            Ok(_) => true,
+            Err(AssetReaderError::NotFound(_)) => false,
+            Err(err) => {
+                debug!(
+                    "Failed to probe optional i18n asset '{}' (loading anyway): {}",
+                    relative_path, err
+                );
+                true
+            },
+        }
     }
 }
 
@@ -94,10 +106,13 @@ impl Plugin for I18nPlugin {
 
         let asset_server = app.world().resource::<AssetServer>();
 
-        let discovered_modules = inventory::iter::<&'static dyn I18nModuleRegistration>()
+        let discovered_modules =
+            inventory::iter::<&'static dyn I18nModuleRegistration>().collect::<Vec<_>>();
+        let discovered_data = discovered_modules
+            .iter()
             .map(|module| module.data())
             .collect::<Vec<_>>();
-        if let Err(errors) = validate_module_registry(discovered_modules.iter().copied()) {
+        if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
             for error in errors {
                 error!("Invalid Bevy i18n module descriptor: {}", error);
             }
@@ -107,7 +122,8 @@ impl Plugin for I18nPlugin {
         let mut filtered_modules = Vec::new();
         let mut discovered_languages = std::collections::HashSet::new();
 
-        for data in discovered_modules {
+        for module in discovered_modules {
+            let data = module.data();
             if data.name.trim().is_empty() || data.domain.trim().is_empty() {
                 warn!(
                     "Skipping invalid i18n descriptor: name='{}', domain='{}'",
@@ -128,7 +144,7 @@ impl Plugin for I18nPlugin {
                 discovered_languages.insert(lang.clone());
             }
 
-            filtered_modules.push(data);
+            filtered_modules.push(module);
             info!(
                 "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
                 data.name, data.domain, data.namespaces
@@ -159,14 +175,25 @@ impl Plugin for I18nPlugin {
         let i18n_resource = I18nResource::new(resolved_language.clone());
 
         for module in &filtered_modules {
-            let resource_plan = module.resource_plan();
-            for lang in module.supported_languages {
+            let data = module.data();
+            let canonical_resource_plan = data.resource_plan();
+            for lang in data.supported_languages {
+                let manifest_plan = module.resource_plan_for_language(lang);
+                let (resource_plan, has_manifest_plan) = if let Some(manifest_plan) = manifest_plan
+                {
+                    (manifest_plan, true)
+                } else {
+                    (canonical_resource_plan.clone(), false)
+                };
                 for spec in &resource_plan {
                     let path = format!(
                         "{}/{}/{}",
                         self.config.asset_path, lang, spec.locale_relative_path
                     );
-                    if !spec.required && !should_load_optional_asset(asset_server, &path) {
+                    if !spec.required
+                        && !has_manifest_plan
+                        && !should_load_optional_asset(asset_server, &path)
+                    {
                         debug!("Skipping missing optional i18n asset: {}", path);
                         continue;
                     }
@@ -567,7 +594,7 @@ mod tests {
     use bevy::{MinimalPlugins, asset::AssetPlugin};
     use es_fluent_manager_core::{
         I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-        ModuleData, ResourceKey, StaticModuleDescriptor,
+        ModuleData, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
     };
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
@@ -597,6 +624,44 @@ mod tests {
 
     inventory::submit! {
         &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nModuleRegistration
+    }
+
+    static TEST_MANIFEST_DATA: ModuleData = ModuleData {
+        name: "test-manifest-module",
+        domain: "manifest-domain",
+        supported_languages: SUPPORTED_LANGUAGES,
+        namespaces: &[],
+    };
+
+    struct TestManifestModule;
+
+    impl I18nModuleDescriptor for TestManifestModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_MANIFEST_DATA
+        }
+    }
+
+    impl I18nModuleRegistration for TestManifestModule {
+        fn resource_plan_for_language(
+            &self,
+            lang: &LanguageIdentifier,
+        ) -> Option<Vec<ModuleResourceSpec>> {
+            if lang != &langid!("en") {
+                return None;
+            }
+
+            Some(vec![ModuleResourceSpec {
+                key: ResourceKey::new("manifest-domain"),
+                locale_relative_path: "manifest-domain.ftl".to_string(),
+                required: false,
+            }])
+        }
+    }
+
+    static TEST_MANIFEST_MODULE: TestManifestModule = TestManifestModule;
+
+    inventory::submit! {
+        &TEST_MANIFEST_MODULE as &dyn I18nModuleRegistration
     }
 
     static TEST_FALLBACK_DATA: ModuleData = ModuleData {
@@ -733,6 +798,13 @@ mod tests {
                 .resource::<I18nAssets>()
                 .assets
                 .contains_key(&(langid!("en"), ResourceKey::new("namespaced-domain")))
+        );
+        assert!(
+            app.world()
+                .resource::<I18nAssets>()
+                .assets
+                .contains_key(&(langid!("en"), ResourceKey::new("manifest-domain"))),
+            "manifest-driven optional resources should be loaded without runtime probing"
         );
 
         // Trigger missing-asset path in handle_asset_loading.

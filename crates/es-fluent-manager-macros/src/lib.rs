@@ -10,6 +10,13 @@ struct I18nAssets {
     root_path: PathBuf,
     languages: Vec<String>,
     namespaces: Vec<String>,
+    bevy_resource_specs_by_language: Vec<(String, Vec<BevyResourceSpec>)>,
+}
+
+struct BevyResourceSpec {
+    key: String,
+    locale_relative_path: String,
+    required: bool,
 }
 
 fn macro_error(message: impl Into<String>) -> syn::Error {
@@ -107,10 +114,47 @@ impl I18nAssets {
             }
         }
 
+        let languages: Vec<String> = languages.into_iter().collect();
+        let namespaces: Vec<String> = namespaces.into_iter().collect();
+        let mut bevy_resource_specs_by_language = Vec::with_capacity(languages.len());
+
+        for lang in &languages {
+            let lang_path = i18n_root_path.join(lang);
+            let base_path = lang_path.join(format!("{}.ftl", crate_name));
+
+            let mut specs = Vec::new();
+            if namespaces.is_empty() {
+                specs.push(BevyResourceSpec {
+                    key: crate_name.to_string(),
+                    locale_relative_path: format!("{crate_name}.ftl"),
+                    required: true,
+                });
+            } else {
+                if base_path.is_file() {
+                    specs.push(BevyResourceSpec {
+                        key: crate_name.to_string(),
+                        locale_relative_path: format!("{crate_name}.ftl"),
+                        required: false,
+                    });
+                }
+
+                for namespace in &namespaces {
+                    specs.push(BevyResourceSpec {
+                        key: format!("{crate_name}/{namespace}"),
+                        locale_relative_path: format!("{crate_name}/{namespace}.ftl"),
+                        required: true,
+                    });
+                }
+            }
+
+            bevy_resource_specs_by_language.push((lang.clone(), specs));
+        }
+
         Ok(Self {
             root_path: i18n_root_path,
-            languages: languages.into_iter().collect(),
-            namespaces: namespaces.into_iter().collect(),
+            languages,
+            namespaces,
+            bevy_resource_specs_by_language,
         })
     }
 
@@ -126,6 +170,32 @@ impl I18nAssets {
 
     fn namespace_tokens(&self) -> Vec<proc_macro2::TokenStream> {
         self.namespaces.iter().map(|ns| quote! { #ns }).collect()
+    }
+
+    fn bevy_resource_plan_match_arms(&self) -> Vec<proc_macro2::TokenStream> {
+        self.bevy_resource_specs_by_language
+            .iter()
+            .map(|(language, specs)| {
+                let spec_tokens = specs.iter().map(|spec| {
+                    let key = &spec.key;
+                    let locale_relative_path = &spec.locale_relative_path;
+                    let required = spec.required;
+                    quote! {
+                        ::es_fluent_manager_bevy::__manager_core::ModuleResourceSpec {
+                            key: ::es_fluent_manager_bevy::__manager_core::ResourceKey::new(#key),
+                            locale_relative_path: ::std::string::String::from(#locale_relative_path),
+                            required: #required,
+                        }
+                    }
+                });
+
+                quote! {
+                    value if value == &::es_fluent_manager_bevy::__unic_langid::langid!(#language) => Some(vec![
+                        #(#spec_tokens),*
+                    ])
+                }
+            })
+            .collect()
     }
 }
 
@@ -483,7 +553,7 @@ fn generate_refresh_for_locale_impl(
 ///
 /// 1.  Read the `i18n.toml` configuration file.
 /// 2.  Discover the available languages in the `i18n` directory.
-/// 3.  Generate a metadata descriptor (`StaticModuleDescriptor`) for the crate.
+/// 3.  Generate a metadata descriptor and language resource manifest for the crate.
 #[proc_macro]
 pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let crate_name = match current_crate_name() {
@@ -497,9 +567,16 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
         ),
         proc_macro2::Span::call_site(),
     );
-    let descriptor_name = syn::Ident::new(
+    let registration_struct_name = syn::Ident::new(
         &format!(
-            "{}_I18N_DESCRIPTOR",
+            "{}I18nRegistration",
+            &crate_name.replace('-', "_").to_pascal_case()
+        ),
+        proc_macro2::Span::call_site(),
+    );
+    let registration_instance_name = syn::Ident::new(
+        &format!(
+            "{}_I18N_REGISTRATION_INSTANCE",
             &crate_name.to_uppercase().replace('-', "_")
         ),
         proc_macro2::Span::call_site(),
@@ -514,6 +591,7 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     let language_identifiers = assets.language_identifier_tokens(&bevy_langid_path);
 
     let namespace_strings = assets.namespace_tokens();
+    let manifest_match_arms = assets.bevy_resource_plan_match_arms();
 
     let expanded = quote! {
         static #static_data_name: ::es_fluent_manager_bevy::__manager_core::ModuleData = ::es_fluent_manager_bevy::__manager_core::ModuleData {
@@ -527,11 +605,30 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
             ],
         };
 
-        static #descriptor_name: ::es_fluent_manager_bevy::__manager_core::StaticModuleDescriptor =
-            ::es_fluent_manager_bevy::__manager_core::StaticModuleDescriptor::new(&#static_data_name);
+        struct #registration_struct_name;
+
+        impl ::es_fluent_manager_bevy::__manager_core::I18nModuleDescriptor for #registration_struct_name {
+            fn data(&self) -> &'static ::es_fluent_manager_bevy::__manager_core::ModuleData {
+                &#static_data_name
+            }
+        }
+
+        impl ::es_fluent_manager_bevy::__manager_core::I18nModuleRegistration for #registration_struct_name {
+            fn resource_plan_for_language(
+                &self,
+                lang: &::es_fluent_manager_bevy::__unic_langid::LanguageIdentifier,
+            ) -> Option<Vec<::es_fluent_manager_bevy::__manager_core::ModuleResourceSpec>> {
+                match lang {
+                    #(#manifest_match_arms,)*
+                    _ => None,
+                }
+            }
+        }
+
+        static #registration_instance_name: #registration_struct_name = #registration_struct_name;
 
         ::es_fluent_manager_bevy::__inventory::submit!(
-            &#descriptor_name as &dyn ::es_fluent_manager_bevy::__manager_core::I18nModuleRegistration
+            &#registration_instance_name as &dyn ::es_fluent_manager_bevy::__manager_core::I18nModuleRegistration
         );
     };
 
@@ -631,6 +728,31 @@ mod tests {
             let mut namespaces = assets.namespaces.clone();
             namespaces.sort();
             assert_eq!(namespaces, vec!["ui".to_string()]);
+
+            let en_specs = assets
+                .bevy_resource_specs_by_language
+                .iter()
+                .find(|(lang, _)| lang == "en")
+                .map(|(_, specs)| specs)
+                .expect("en specs");
+            assert_eq!(en_specs.len(), 2);
+            assert_eq!(en_specs[0].key, "my-crate");
+            assert_eq!(en_specs[0].locale_relative_path, "my-crate.ftl");
+            assert!(!en_specs[0].required);
+            assert_eq!(en_specs[1].key, "my-crate/ui");
+            assert_eq!(en_specs[1].locale_relative_path, "my-crate/ui.ftl");
+            assert!(en_specs[1].required);
+
+            let fr_specs = assets
+                .bevy_resource_specs_by_language
+                .iter()
+                .find(|(lang, _)| lang == "fr")
+                .map(|(_, specs)| specs)
+                .expect("fr specs");
+            assert_eq!(fr_specs.len(), 1);
+            assert_eq!(fr_specs[0].key, "my-crate/ui");
+            assert_eq!(fr_specs[0].locale_relative_path, "my-crate/ui.ftl");
+            assert!(fr_specs[0].required);
 
             assert_eq!(
                 assets
