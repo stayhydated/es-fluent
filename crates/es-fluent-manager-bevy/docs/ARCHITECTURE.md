@@ -109,6 +109,10 @@ When namespaces are declared for a domain, namespace files are treated as
 required for that locale. The base `{domain}.ftl` file is loaded as optional
 compatibility data.
 
+For macro-generated modules, Bevy uses a compile-time manifest-derived
+`resource_plan_for_language` to decide which optional files exist, avoiding
+runtime file probing and wasm-specific blocking issues.
+
 ## Flow
 
 1. **Startup**: `I18nPlugin` initializes resources, registers the global custom localizer, and auto-registers any `BevyFluentText` types discovered via inventory.

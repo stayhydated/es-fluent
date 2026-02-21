@@ -1,7 +1,8 @@
 //! This module provides the core types for managing translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, StaticModuleDescriptor, validate_module_registry,
+    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, StaticModuleDescriptor,
+    validate_module_registry,
 };
 use es_fluent_derive_core::EsFluentError;
 use fluent_bundle::{
@@ -102,6 +103,17 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
     fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
         None
     }
+
+    /// Returns an optional manifest-derived resource plan for a specific language.
+    ///
+    /// When this returns `Some`, managers should use this plan directly instead of
+    /// inferring optional resource existence at runtime.
+    fn resource_plan_for_language(
+        &self,
+        _lang: &LanguageIdentifier,
+    ) -> Option<Vec<ModuleResourceSpec>> {
+        None
+    }
 }
 
 pub trait I18nModule: I18nModuleDescriptor {
@@ -119,6 +131,63 @@ impl I18nModuleRegistration for StaticModuleDescriptor {}
 
 inventory::collect!(&'static dyn I18nModuleRegistration);
 
+/// Normalizes discovered module registrations into a consistent, deduplicated list.
+///
+/// This applies shared validation and keeps only entries that satisfy:
+/// - non-empty module name and domain
+/// - unique module name
+/// - unique domain
+pub fn filter_module_registry(
+    modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
+) -> Vec<&'static dyn I18nModuleRegistration> {
+    let modules = modules.into_iter().collect::<Vec<_>>();
+    let discovered_data = modules
+        .iter()
+        .map(|module| module.data())
+        .collect::<Vec<_>>();
+
+    if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
+        for error in errors {
+            tracing::error!("Invalid i18n module registry entry: {}", error);
+        }
+    }
+
+    let mut filtered = Vec::with_capacity(modules.len());
+    let mut seen_module_names = HashSet::new();
+    let mut seen_domains = HashSet::new();
+
+    for module in modules {
+        let data = module.data();
+        if data.name.trim().is_empty() || data.domain.trim().is_empty() {
+            tracing::warn!(
+                "Skipping i18n module with invalid metadata: name='{}', domain='{}'",
+                data.name,
+                data.domain
+            );
+            continue;
+        }
+        if !seen_module_names.insert(data.name) {
+            tracing::warn!(
+                "Skipping duplicate i18n module name '{}' (domain '{}')",
+                data.name,
+                data.domain
+            );
+            continue;
+        }
+        if !seen_domains.insert(data.domain) {
+            tracing::warn!(
+                "Skipping duplicate i18n domain '{}' from module '{}'",
+                data.domain,
+                data.name
+            );
+            continue;
+        }
+        filtered.push(module);
+    }
+
+    filtered
+}
+
 /// A manager for Fluent translations.
 #[derive(Default)]
 pub struct FluentManager {
@@ -128,49 +197,16 @@ pub struct FluentManager {
 impl FluentManager {
     /// Creates a new `FluentManager` with discovered i18n modules.
     pub fn new_with_discovered_modules() -> Self {
-        let discovered_modules: Vec<_> =
-            inventory::iter::<&'static dyn I18nModuleRegistration>().collect();
-        let discovered_data = discovered_modules
-            .iter()
-            .map(|module| module.data())
-            .collect::<Vec<_>>();
-
-        if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
-            for error in errors {
-                tracing::error!("Invalid i18n module registry entry: {}", error);
-            }
-        }
+        let discovered_modules = filter_module_registry(
+            inventory::iter::<&'static dyn I18nModuleRegistration>()
+                .copied()
+                .collect::<Vec<_>>(),
+        );
 
         let mut manager = Self::default();
-        let mut seen_module_names = HashSet::new();
-        let mut seen_domains = HashSet::new();
 
         for module in discovered_modules {
             let data = module.data();
-            if data.name.trim().is_empty() || data.domain.trim().is_empty() {
-                tracing::warn!(
-                    "Skipping i18n module with invalid metadata: name='{}', domain='{}'",
-                    data.name,
-                    data.domain
-                );
-                continue;
-            }
-            if !seen_module_names.insert(data.name) {
-                tracing::warn!(
-                    "Skipping duplicate i18n module name '{}' (domain '{}')",
-                    data.name,
-                    data.domain
-                );
-                continue;
-            }
-            if !seen_domains.insert(data.domain) {
-                tracing::warn!(
-                    "Skipping duplicate i18n domain '{}' from module '{}'",
-                    data.domain,
-                    data.name
-                );
-                continue;
-            }
             tracing::info!("Discovered and loading i18n module: {}", data.name);
             if let Some(localizer) = module.create_localizer() {
                 manager.localizers.push((data, localizer));
@@ -245,6 +281,30 @@ mod tests {
         supported_languages: &[],
         namespaces: &[],
     };
+    static FILTER_MODULE_DATA: ModuleData = ModuleData {
+        name: "filter-module",
+        domain: "filter-domain",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_DUP_NAME_DATA: ModuleData = ModuleData {
+        name: "filter-module",
+        domain: "filter-domain-b",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_DUP_DOMAIN_DATA: ModuleData = ModuleData {
+        name: "filter-module-b",
+        domain: "filter-domain",
+        supported_languages: &[],
+        namespaces: &[],
+    };
+    static FILTER_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
+    static FILTER_DUP_NAME_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_DUP_NAME_DATA);
+    static FILTER_DUP_DOMAIN_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_DUP_DOMAIN_DATA);
 
     struct ModuleOk;
     struct ModuleErr;
@@ -326,14 +386,14 @@ mod tests {
 
     #[test]
     fn manager_select_language_calls_all_localizers() {
-        SELECT_OK_CALLS.store(0, Ordering::Relaxed);
-        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+        let ok_before = SELECT_OK_CALLS.load(Ordering::Relaxed);
+        let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
         let manager = FluentManager::new_with_discovered_modules();
         manager.select_language(&langid!("en-US"));
 
-        assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) >= 1);
-        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) >= 1);
+        assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
+        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     }
 
     #[test]
@@ -352,14 +412,14 @@ mod tests {
 
     #[test]
     fn manager_select_language_with_only_failing_localizers_covers_warn_path() {
-        SELECT_ERR_CALLS.store(0, Ordering::Relaxed);
+        let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
         let manager = FluentManager {
             localizers: vec![(&MODULE_ERR_DATA, Box::new(LocalizerErr))],
         };
         manager.select_language(&langid!("en-US"));
 
-        assert_eq!(SELECT_ERR_CALLS.load(Ordering::Relaxed), 1);
+        assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     }
 
     #[test]
@@ -376,5 +436,17 @@ mod tests {
         let (localized, _format_errors) =
             localize_with_bundle(&bundle, "hello", None).expect("message should exist");
         assert_eq!(localized, "first");
+    }
+
+    #[test]
+    fn filter_module_registry_skips_duplicate_name_and_domain() {
+        let filtered = filter_module_registry([
+            &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
+            &FILTER_DUP_NAME_DESCRIPTOR as &dyn I18nModuleRegistration,
+            &FILTER_DUP_DOMAIN_DESCRIPTOR as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].data().name, "filter-module");
     }
 }

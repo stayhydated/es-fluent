@@ -6,7 +6,8 @@ use crate::asset_localization::{
 };
 use crate::fallback::fallback_locales;
 use crate::localization::{
-    I18nModule, LocalizationError, Localizer, build_sync_bundle, localize_with_bundle,
+    I18nModule, LocalizationError, Localizer, SyncFluentBundle, build_sync_bundle,
+    localize_with_bundle,
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
@@ -19,10 +20,9 @@ pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
     fn domain() -> &'static str;
 }
 
-#[derive(Debug)]
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     data: &'static ModuleData,
-    current_resources: RwLock<Vec<Arc<FluentResource>>>,
+    current_bundle: RwLock<Option<Arc<SyncFluentBundle>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
     _phantom: std::marker::PhantomData<T>,
 }
@@ -31,7 +31,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     pub fn new(data: &'static ModuleData) -> Self {
         Self {
             data,
-            current_resources: RwLock::new(Vec::new()),
+            current_bundle: RwLock::new(None),
             current_lang: RwLock::new(None),
             _phantom: std::marker::PhantomData,
         }
@@ -111,7 +111,11 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             }
 
             if let Ok(resources) = self.load_resource_for_language(&candidate) {
-                *self.current_resources.write().unwrap() = resources;
+                let (bundle, add_errors) = build_sync_bundle(&candidate, resources);
+                for errors in add_errors {
+                    tracing::error!("Failed to add resource to bundle: {:?}", errors);
+                }
+                *self.current_bundle.write().unwrap() = Some(Arc::new(bundle));
                 *current_lang_guard = Some(candidate);
                 return Ok(());
             }
@@ -125,22 +129,9 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let resources = self.current_resources.read().unwrap();
-        if resources.is_empty() {
-            return None;
-        }
-
-        let lang_guard = self.current_lang.read().unwrap();
-        let lang = lang_guard
-            .as_ref()
-            .expect("Language not selected before localization");
-
-        let (bundle, add_errors) = build_sync_bundle(lang, resources.iter().cloned());
-        for errors in add_errors {
-            tracing::error!("Failed to add resource to bundle: {:?}", errors);
-        }
-
-        let (value, errors) = localize_with_bundle(&bundle, id, args)?;
+        let bundle_guard = self.current_bundle.read().unwrap();
+        let bundle = bundle_guard.as_ref()?;
+        let (value, errors) = localize_with_bundle(bundle.as_ref(), id, args)?;
 
         if !errors.is_empty() {
             tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
