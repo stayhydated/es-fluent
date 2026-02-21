@@ -21,7 +21,7 @@ In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets
 
 ```rs
 // a i18n.toml file must exist in the root of the crate
-es_fluent_manager_embedded::define_embedded_i18n_module!();
+es_fluent_manager_embedded::define_i18n_module!();
 ```
 
 ### 2. Initialize & Use
@@ -44,8 +44,3 @@ fn main() {
     println!("{}", msg.to_fluent_string());
 }
 ```
-
-## When to use
-
-- **Use this if**: You are building a standalone app and want simplicity.
-- **Don't use this if**: You are using Bevy (use `es-fluent-manager-bevy`) or need strictly decoupled, dependency-injected managers.
