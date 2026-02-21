@@ -87,23 +87,14 @@ A trait that provides access to encoded file content for embedded translations.
 
 Simple wrapper used for metadata-only registrations.
 
-- Registered via `inventory` as `I18nModuleDescriptor`.
+- Registered via `inventory` as `I18nModuleRegistration`.
 - Used by `es-fluent-manager-bevy` for runtime asset loading.
-
-### `StaticI18nResource`
-
-A trait for injecting pre-parsed Fluent resources directly into localization bundles.
-
-- Useful for language-agnostic resources or resources that should be available for all languages.
-- Registered via `inventory` for automatic discovery.
-- The `matches_language()` method can filter resources by language (defaults to matching all).
 
 ## Modules
 
 - `localization`: Core traits (`FluentManager`, `I18nModule`, `Localizer`).
 - `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`).
 - `asset_localization`: Shared module metadata contracts (`ModuleData`, `I18nModuleDescriptor`, `StaticModuleDescriptor`).
-- `static_resource`: shared resource types for Bevy or other static contexts.
 
 ## Usage
 

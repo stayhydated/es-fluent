@@ -63,7 +63,7 @@ inventory::submit! {
 
 ### Bevy Support
 
-When the optional `bevy` feature is enabled, it reuses the same standard `I18nModuleRegistration` path as other managers. Bevy fallback localization now comes from the module localizer directly instead of `StaticI18nResource`.
+When the optional `bevy` feature is enabled, it reuses the same standard `I18nModuleRegistration` path as other managers. Bevy fallback localization comes directly from the module localizer.
 
 `build.rs` remains only to track locale-folder changes (including deletions) for `localized-langs` builds.
 

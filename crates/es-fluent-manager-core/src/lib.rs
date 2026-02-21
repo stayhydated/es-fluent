@@ -4,7 +4,6 @@ pub mod asset_localization;
 pub mod embedded_localization;
 pub mod fallback;
 pub mod localization;
-pub mod static_resource;
 
 pub use asset_localization::{
     I18nModuleDescriptor, LocaleLoadReport, ModuleData, ModuleRegistryError, ModuleResourceSpec,
@@ -21,4 +20,3 @@ pub use localization::{
     SyncFluentBundle, add_resources_to_bundle, build_fluent_args, build_sync_bundle,
     localize_with_bundle,
 };
-pub use static_resource::StaticI18nResource;
