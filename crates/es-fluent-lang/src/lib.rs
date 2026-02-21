@@ -298,6 +298,11 @@ inventory::submit! {
     &EsFluentLanguageModule as &dyn I18nModule
 }
 
+#[cfg(feature = "bevy")]
+inventory::submit! {
+    &EsFluentLanguageModule as &dyn I18nModuleDescriptor
+}
+
 #[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
 #[doc(hidden)]
 mod bevy_support {

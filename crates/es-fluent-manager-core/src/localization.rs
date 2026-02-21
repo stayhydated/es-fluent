@@ -1,13 +1,13 @@
 //! This module provides the core types for managing translations.
 
-use crate::asset_localization::{I18nModuleDescriptor, ModuleData};
+use crate::asset_localization::{I18nModuleDescriptor, ModuleData, validate_module_registry};
 use es_fluent_derive_core::EsFluentError;
 use fluent_bundle::{
     FluentArgs, FluentError, FluentResource, FluentValue, bundle::FluentBundle,
     memoizer::MemoizerKind,
 };
 use std::borrow::Borrow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
@@ -107,9 +107,48 @@ pub struct FluentManager {
 impl FluentManager {
     /// Creates a new `FluentManager` with discovered i18n modules.
     pub fn new_with_discovered_modules() -> Self {
+        let discovered_modules: Vec<_> = inventory::iter::<&'static dyn I18nModule>().collect();
+        let discovered_data = discovered_modules
+            .iter()
+            .map(|module| module.data())
+            .collect::<Vec<_>>();
+
+        if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
+            for error in errors {
+                tracing::error!("Invalid i18n module registry entry: {}", error);
+            }
+        }
+
         let mut manager = Self::default();
-        for module in inventory::iter::<&'static dyn I18nModule>() {
+        let mut seen_module_names = HashSet::new();
+        let mut seen_domains = HashSet::new();
+
+        for module in discovered_modules {
             let data = module.data();
+            if data.name.trim().is_empty() || data.domain.trim().is_empty() {
+                tracing::warn!(
+                    "Skipping i18n module with invalid metadata: name='{}', domain='{}'",
+                    data.name,
+                    data.domain
+                );
+                continue;
+            }
+            if !seen_module_names.insert(data.name) {
+                tracing::warn!(
+                    "Skipping duplicate i18n module name '{}' (domain '{}')",
+                    data.name,
+                    data.domain
+                );
+                continue;
+            }
+            if !seen_domains.insert(data.domain) {
+                tracing::warn!(
+                    "Skipping duplicate i18n domain '{}' from module '{}'",
+                    data.domain,
+                    data.name
+                );
+                continue;
+            }
             tracing::info!("Discovered and loading i18n module: {}", data.name);
             manager.localizers.push((data, module.create_localizer()));
         }

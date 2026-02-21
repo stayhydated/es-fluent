@@ -81,6 +81,7 @@ fn update_text_for_entity<T: ToFluentString>(
 mod tests {
     use super::*;
     use crate::{CurrentLanguageId, FtlAsset};
+    use es_fluent_manager_core::ResourceKey;
     use fluent_bundle::FluentResource;
     use std::sync::Arc;
     use unic_langid::langid;
@@ -102,7 +103,7 @@ mod tests {
             Handle::<FtlAsset>::default(),
         );
         assets.loaded_resources.insert(
-            (lang, "app".to_string()),
+            (lang, ResourceKey::new("app")),
             Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("ftl")),
         );
         assets

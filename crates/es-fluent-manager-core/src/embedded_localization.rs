@@ -1,8 +1,8 @@
 //! This module provides types for managing embedded translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, ResourceLoadError, locale_is_ready,
-    parse_fluent_resource_bytes, required_resource_keys_from_plan,
+    I18nModuleDescriptor, LocaleLoadReport, ModuleData, ResourceLoadError,
+    parse_fluent_resource_bytes,
 };
 use crate::fallback::fallback_locales;
 use crate::localization::{
@@ -11,7 +11,7 @@ use crate::localization::{
 use fluent_bundle::{FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use unic_langid::LanguageIdentifier;
 
@@ -42,30 +42,46 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         lang: &LanguageIdentifier,
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
         let resource_plan = self.data.resource_plan();
-        let required_keys = required_resource_keys_from_plan(&resource_plan);
+        let mut report = LocaleLoadReport::from_plan(&resource_plan);
         let mut resources = Vec::new();
-        let mut loaded_keys = HashSet::new();
 
         for spec in &resource_plan {
             let file_path = spec.locale_path(lang);
 
             match T::get(&file_path) {
-                Some(file_data) => {
-                    let resource = parse_fluent_resource_bytes(spec, file_data.data.as_ref())
-                        .map_err(|err| LocalizationError::BackendError(anyhow::anyhow!("{err}")))?;
-                    resources.push(resource);
-                    loaded_keys.insert(spec.key.clone());
+                Some(file_data) => match parse_fluent_resource_bytes(spec, file_data.data.as_ref())
+                {
+                    Ok(resource) => {
+                        resources.push(resource);
+                        report.mark_loaded(spec.key.clone());
+                    },
+                    Err(err) => {
+                        tracing::debug!("{}", err);
+                        report.record_error(err);
+                    },
                 },
-                None if spec.required => {
+                None => {
                     let err = ResourceLoadError::missing(spec);
                     tracing::debug!("{}", err);
-                    return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+                    report.record_error(err);
                 },
-                None => {},
             }
         }
 
-        if !locale_is_ready(&required_keys, &loaded_keys) {
+        if !report.is_ready() {
+            let mut missing_required = report
+                .missing_required_keys()
+                .into_iter()
+                .map(|key| key.to_string())
+                .collect::<Vec<_>>();
+            missing_required.sort();
+            tracing::debug!(
+                "Locale '{}' is not ready for module '{}': missing_required={:?}, errors={:?}",
+                lang,
+                self.data.name,
+                missing_required,
+                report.errors()
+            );
             return Err(LocalizationError::LanguageNotSupported(lang.clone()));
         }
 
@@ -223,6 +239,16 @@ mod tests {
         }
     }
 
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_optional_base_error"]
+    struct OptionalBaseErrorAssets;
+
+    impl EmbeddedAssets for OptionalBaseErrorAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -242,6 +268,13 @@ mod tests {
         name: "ns-error-module",
         domain: "test-domain",
         supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
+    };
+    static OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static OPTIONAL_BASE_ERROR_MODULE_DATA: ModuleData = ModuleData {
+        name: "optional-base-error-module",
+        domain: "test-domain",
+        supported_languages: OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
 
@@ -353,5 +386,19 @@ mod tests {
             missing_namespace_err,
             LocalizationError::LanguageNotSupported(_)
         ));
+    }
+
+    #[test]
+    fn embedded_localizer_tolerates_optional_base_parse_failures() {
+        let localizer =
+            EmbeddedLocalizer::<OptionalBaseErrorAssets>::new(&OPTIONAL_BASE_ERROR_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("optional base parse failure should not block namespaced readiness");
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from optional-base fixture".to_string())
+        );
     }
 }

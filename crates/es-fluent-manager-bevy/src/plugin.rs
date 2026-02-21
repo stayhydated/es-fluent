@@ -1,13 +1,18 @@
 use crate::*;
 use arc_swap::ArcSwap;
+use bevy::asset::{
+    AssetLoadFailedEvent,
+    io::{AssetReaderError, AssetSourceId},
+};
 use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{
-    I18nModuleDescriptor, ResourceLoadError, StaticI18nResource, build_sync_bundle,
-    localize_with_bundle, parse_fluent_resource_content, resolve_fallback_language,
-    resource_plan_for,
+    I18nModuleDescriptor, ResourceKey, ResourceLoadError, StaticI18nResource, build_sync_bundle,
+    localize_with_bundle, parse_fluent_resource_content, resolve_ready_locale,
+    validate_module_registry,
 };
 use fluent_bundle::{FluentResource, FluentValue};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
 #[doc(hidden)]
@@ -52,6 +57,31 @@ impl I18nPlugin {
     }
 }
 
+fn should_load_optional_asset(asset_server: &AssetServer, relative_path: &str) -> bool {
+    let source = match asset_server.get_source(AssetSourceId::Default) {
+        Ok(source) => source,
+        Err(err) => {
+            debug!(
+                "Could not query default asset source while probing optional i18n asset '{}': {}",
+                relative_path, err
+            );
+            return true;
+        },
+    };
+
+    match bevy::tasks::block_on(source.reader().read(Path::new(relative_path))) {
+        Ok(_) => true,
+        Err(AssetReaderError::NotFound(_)) => false,
+        Err(err) => {
+            debug!(
+                "Failed to probe optional i18n asset '{}' (loading anyway): {}",
+                relative_path, err
+            );
+            true
+        },
+    }
+}
+
 impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
         es_fluent::set_custom_localizer(bevy_custom_localizer);
@@ -64,38 +94,56 @@ impl Plugin for I18nPlugin {
 
         let asset_server = app.world().resource::<AssetServer>();
 
+        let discovered_modules = inventory::iter::<&'static dyn I18nModuleDescriptor>()
+            .map(|module| module.data())
+            .collect::<Vec<_>>();
+        if let Err(errors) = validate_module_registry(discovered_modules.iter().copied()) {
+            for error in errors {
+                error!("Invalid Bevy i18n module descriptor: {}", error);
+            }
+        }
+
         let mut discovered_domains = std::collections::HashSet::new();
-        let mut discovered_namespaces: std::collections::HashMap<String, BTreeSet<String>> =
-            std::collections::HashMap::new();
+        let mut filtered_modules = Vec::new();
         let mut discovered_languages = std::collections::HashSet::new();
 
-        for module in inventory::iter::<&'static dyn I18nModuleDescriptor>() {
-            let data = module.data();
-            let domain = data.domain.to_string();
-            discovered_domains.insert(domain.clone());
+        for data in discovered_modules {
+            if data.name.trim().is_empty() || data.domain.trim().is_empty() {
+                warn!(
+                    "Skipping invalid i18n descriptor: name='{}', domain='{}'",
+                    data.name, data.domain
+                );
+                continue;
+            }
+
+            if !discovered_domains.insert(data.domain.to_string()) {
+                warn!(
+                    "Skipping duplicate i18n domain '{}' from module '{}'",
+                    data.domain, data.name
+                );
+                continue;
+            }
+
             for lang in data.supported_languages {
                 discovered_languages.insert(lang.clone());
             }
-            // Collect namespaces for this domain and merge registrations.
-            if !data.namespaces.is_empty() {
-                discovered_namespaces
-                    .entry(domain.clone())
-                    .or_default()
-                    .extend(data.namespaces.iter().map(|s| s.to_string()));
-            }
+
+            filtered_modules.push(data);
+            i18n_assets.register_domain(data.domain);
             info!(
                 "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
                 data.name, data.domain, data.namespaces
             );
         }
 
-        let mut discovered_domain_list: Vec<_> = discovered_domains.iter().cloned().collect();
-        discovered_domain_list.sort();
         let mut discovered_language_list: Vec<_> = discovered_languages.iter().cloned().collect();
         discovered_language_list.sort_by_key(|lang| lang.to_string());
-        let resolved_language =
-            resolve_fallback_language(&self.config.initial_language, &discovered_language_list)
-                .unwrap_or_else(|| self.config.initial_language.clone());
+        let resolved_language = resolve_ready_locale(
+            &self.config.initial_language,
+            &[],
+            &discovered_language_list,
+        )
+        .unwrap_or_else(|| self.config.initial_language.clone());
 
         if resolved_language != self.config.initial_language {
             info!(
@@ -107,25 +155,24 @@ impl Plugin for I18nPlugin {
         set_bevy_i18n_state(BevyI18nState::new(resolved_language.clone()));
         let i18n_resource = I18nResource::new(resolved_language.clone());
 
-        for lang in &discovered_language_list {
-            for domain in &discovered_domain_list {
-                let namespaces: Vec<&str> = discovered_namespaces
-                    .get(domain)
-                    .map(|ns_set| ns_set.iter().map(String::as_str).collect())
-                    .unwrap_or_default();
-                let resource_plan = resource_plan_for(domain, &namespaces);
-
-                for spec in resource_plan {
+        for module in &filtered_modules {
+            let resource_plan = module.resource_plan();
+            for lang in module.supported_languages {
+                for spec in &resource_plan {
                     let path = format!(
                         "{}/{}/{}",
                         self.config.asset_path, lang, spec.locale_relative_path
                     );
+                    if !spec.required && !should_load_optional_asset(asset_server, &path) {
+                        debug!("Skipping missing optional i18n asset: {}", path);
+                        continue;
+                    }
                     let handle: Handle<FtlAsset> = asset_server.load(&path);
                     if spec.required {
-                        i18n_assets.add_asset_spec(lang.clone(), spec, handle);
+                        i18n_assets.add_asset_spec(lang.clone(), spec.clone(), handle);
                         debug!("Loading required i18n asset: {}", path);
                     } else {
-                        i18n_assets.add_optional_asset_spec(lang.clone(), spec, handle);
+                        i18n_assets.add_optional_asset_spec(lang.clone(), spec.clone(), handle);
                         debug!("Loading optional i18n asset: {}", path);
                     }
                 }
@@ -133,10 +180,10 @@ impl Plugin for I18nPlugin {
         }
 
         info!(
-            "Auto-discovered {} domains, {} languages, {} namespaced domains",
+            "Auto-discovered {} modules, {} domains, {} languages",
+            filtered_modules.len(),
             discovered_domains.len(),
             discovered_languages.len(),
-            discovered_namespaces.len()
         );
 
         // Auto-register FluentText types from inventory
@@ -174,25 +221,26 @@ fn handle_asset_loading(
     mut i18n_assets: ResMut<I18nAssets>,
     ftl_assets: Res<Assets<FtlAsset>>,
     mut asset_events: MessageReader<AssetEvent<FtlAsset>>,
+    mut asset_failed_events: MessageReader<AssetLoadFailedEvent<FtlAsset>>,
 ) {
     fn find_asset_key(
         i18n_assets: &I18nAssets,
         id: bevy::asset::AssetId<FtlAsset>,
-    ) -> Option<(LanguageIdentifier, String)> {
+    ) -> Option<(LanguageIdentifier, ResourceKey)> {
         i18n_assets
             .assets
             .iter()
             .find(|(_, handle)| handle.id() == id)
-            .map(|((lang, domain), _)| (lang.clone(), domain.clone()))
+            .map(|((lang, key), _)| (lang.clone(), key.clone()))
     }
 
     for event in asset_events.read() {
         match event {
             AssetEvent::Added { id } | AssetEvent::Modified { id } => {
-                if let Some((lang_key, domain_key)) = find_asset_key(&i18n_assets, *id) {
+                if let Some((lang_key, resource_key)) = find_asset_key(&i18n_assets, *id) {
                     let Some(spec) = i18n_assets
                         .resource_specs
-                        .get(&(lang_key.clone(), domain_key.clone()))
+                        .get(&(lang_key.clone(), resource_key.clone()))
                         .cloned()
                     else {
                         continue;
@@ -203,16 +251,22 @@ fn handle_asset_loading(
                             Ok(resource) => {
                                 i18n_assets
                                     .loaded_resources
-                                    .insert((lang_key.clone(), domain_key.clone()), resource);
+                                    .insert((lang_key.clone(), resource_key.clone()), resource);
+                                i18n_assets
+                                    .load_errors
+                                    .remove(&(lang_key.clone(), resource_key.clone()));
                                 debug!(
-                                    "Loaded FTL resource for language: {}, domain: {}",
-                                    lang_key, domain_key
+                                    "Loaded FTL resource for language: {}, key: {}",
+                                    lang_key, resource_key
                                 );
                             },
                             Err(err) => {
                                 i18n_assets
                                     .loaded_resources
-                                    .remove(&(lang_key.clone(), domain_key.clone()));
+                                    .remove(&(lang_key.clone(), resource_key.clone()));
+                                i18n_assets
+                                    .load_errors
+                                    .insert((lang_key.clone(), resource_key.clone()), err.clone());
                                 if err.is_required() {
                                     error!("{}", err);
                                 } else {
@@ -223,8 +277,11 @@ fn handle_asset_loading(
                     } else {
                         i18n_assets
                             .loaded_resources
-                            .remove(&(lang_key.clone(), domain_key.clone()));
+                            .remove(&(lang_key.clone(), resource_key.clone()));
                         let err = ResourceLoadError::missing(&spec);
+                        i18n_assets
+                            .load_errors
+                            .insert((lang_key.clone(), resource_key.clone()), err.clone());
                         if err.is_required() {
                             warn!("{}", err);
                         } else {
@@ -234,17 +291,50 @@ fn handle_asset_loading(
                 }
             },
             AssetEvent::Removed { id } | AssetEvent::Unused { id } => {
-                if let Some((lang_key, domain_key)) = find_asset_key(&i18n_assets, *id) {
+                if let Some((lang_key, resource_key)) = find_asset_key(&i18n_assets, *id) {
                     i18n_assets
                         .loaded_resources
-                        .remove(&(lang_key.clone(), domain_key.clone()));
+                        .remove(&(lang_key.clone(), resource_key.clone()));
+                    i18n_assets
+                        .load_errors
+                        .remove(&(lang_key.clone(), resource_key.clone()));
                     debug!(
-                        "Unloaded FTL resource for language: {}, domain: {}",
-                        lang_key, domain_key
+                        "Unloaded FTL resource for language: {}, key: {}",
+                        lang_key, resource_key
                     );
                 }
             },
             AssetEvent::LoadedWithDependencies { .. } => {},
+        }
+    }
+
+    for event in asset_failed_events.read() {
+        if let Some((lang_key, resource_key)) = find_asset_key(&i18n_assets, event.id) {
+            let Some(spec) = i18n_assets
+                .resource_specs
+                .get(&(lang_key.clone(), resource_key.clone()))
+                .cloned()
+            else {
+                continue;
+            };
+
+            i18n_assets
+                .loaded_resources
+                .remove(&(lang_key.clone(), resource_key.clone()));
+
+            let err = ResourceLoadError::load(
+                &spec,
+                format!("{} (asset path: {})", event.error, event.path),
+            );
+            i18n_assets
+                .load_errors
+                .insert((lang_key.clone(), resource_key.clone()), err.clone());
+
+            if err.is_required() {
+                error!("{}", err);
+            } else {
+                debug!("{}", err);
+            }
         }
     }
 }
@@ -254,8 +344,9 @@ fn build_fluent_bundles(
     mut i18n_bundle: ResMut<I18nBundle>,
     i18n_assets: Res<I18nAssets>,
     mut asset_events: MessageReader<AssetEvent<FtlAsset>>,
+    mut asset_failed_events: MessageReader<AssetLoadFailedEvent<FtlAsset>>,
 ) {
-    let mut dirty_languages = asset_events
+    let mut dirty_asset_ids = asset_events
         .read()
         .map(|event| match event {
             AssetEvent::Added { id }
@@ -264,11 +355,17 @@ fn build_fluent_bundles(
             | AssetEvent::Unused { id }
             | AssetEvent::LoadedWithDependencies { id } => id,
         })
+        .copied()
+        .collect::<Vec<_>>();
+    dirty_asset_ids.extend(asset_failed_events.read().map(|event| event.id));
+
+    let mut dirty_languages = dirty_asset_ids
+        .into_iter()
         .flat_map(|id| {
             i18n_assets
                 .assets
                 .iter()
-                .find(|(_, handle)| handle.id() == *id)
+                .find(|(_, handle)| handle.id() == id)
                 .map(|((lang, _), _)| lang.clone())
         })
         .collect::<HashSet<_>>();
@@ -286,8 +383,19 @@ fn build_fluent_bundles(
                 .into_iter()
                 .cloned()
                 .collect();
-            for static_resource in inventory::iter::<&'static dyn StaticI18nResource>() {
+            let mut static_resources =
+                inventory::iter::<&'static dyn StaticI18nResource>().collect::<Vec<_>>();
+            static_resources.sort_by_key(|resource| resource.domain());
+
+            for static_resource in static_resources {
                 if static_resource.matches_language(&lang) {
+                    if !i18n_assets.is_domain_registered(static_resource.domain()) {
+                        debug!(
+                            "Skipping static i18n resource for unregistered domain '{}'",
+                            static_resource.domain()
+                        );
+                        continue;
+                    }
                     resources.push(static_resource.resource());
                 }
             }
@@ -312,6 +420,7 @@ fn handle_locale_changes(
     mut locale_change_events: MessageReader<LocaleChangeEvent>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
     mut i18n_resource: ResMut<I18nResource>,
+    i18n_bundle: Res<I18nBundle>,
     i18n_assets: Res<I18nAssets>,
     mut current_language_id: ResMut<CurrentLanguageId>,
 ) {
@@ -319,8 +428,10 @@ fn handle_locale_changes(
         info!("Changing locale to: {}", event.0);
 
         let available_languages = i18n_assets.available_languages();
-        let resolved_language = resolve_fallback_language(&event.0, &available_languages)
-            .unwrap_or_else(|| event.0.clone());
+        let ready_languages = i18n_bundle.0.keys().cloned().collect::<Vec<_>>();
+        let resolved_language =
+            resolve_ready_locale(&event.0, &ready_languages, &available_languages)
+                .unwrap_or_else(|| event.0.clone());
 
         if resolved_language != event.0 {
             info!(
@@ -450,7 +561,9 @@ fn bevy_custom_localizer<'a>(
 mod tests {
     use super::*;
     use bevy::{MinimalPlugins, asset::AssetPlugin};
-    use es_fluent_manager_core::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
+    use es_fluent_manager_core::{
+        I18nModuleDescriptor, ModuleData, ResourceKey, StaticModuleDescriptor,
+    };
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
 
@@ -581,39 +694,36 @@ mod tests {
         assert!(REGISTER_CALLS.load(Ordering::SeqCst) > 0);
         assert_eq!(TEST_STATIC_RESOURCE.domain(), "test-domain");
 
-        let (base_handle, namespaced_base_handle, menu_handle, hud_handle) = {
+        let (base_handle, menu_handle, hud_handle) = {
             let assets = &app.world().resource::<I18nAssets>().assets;
             let base = assets
                 .iter()
-                .find(|((lang, domain), _)| *lang == langid!("en") && domain == "test-domain")
+                .find(|((lang, domain), _)| {
+                    *lang == langid!("en") && domain == &ResourceKey::new("test-domain")
+                })
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered base domain handle");
-            let namespaced_base = assets
-                .iter()
-                .find(|((lang, domain), _)| *lang == langid!("en") && domain == "namespaced-domain")
-                .map(|(_, handle)| handle.clone())
-                .expect("expected discovered optional namespaced base domain handle");
             let menu = assets
                 .iter()
                 .find(|((lang, domain), _)| {
-                    *lang == langid!("en") && domain == "namespaced-domain/menu"
+                    *lang == langid!("en") && domain == &ResourceKey::new("namespaced-domain/menu")
                 })
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered namespaced menu handle");
             let hud = assets
                 .iter()
                 .find(|((lang, domain), _)| {
-                    *lang == langid!("en") && domain == "namespaced-domain/hud"
+                    *lang == langid!("en") && domain == &ResourceKey::new("namespaced-domain/hud")
                 })
                 .map(|(_, handle)| handle.clone())
                 .expect("expected discovered namespaced hud handle");
-            (base, namespaced_base, menu, hud)
+            (base, menu, hud)
         };
         assert!(
-            app.world()
+            !app.world()
                 .resource::<I18nAssets>()
-                .optional_assets
-                .contains(&(langid!("en"), "namespaced-domain".to_string()))
+                .assets
+                .contains_key(&(langid!("en"), ResourceKey::new("namespaced-domain")))
         );
 
         // Trigger missing-asset path in handle_asset_loading.
@@ -671,15 +781,19 @@ mod tests {
             });
         app.world_mut()
             .write_message(AssetEvent::<FtlAsset>::Removed {
-                id: namespaced_base_handle.id(),
+                id: base_handle.id(),
             });
         app.world_mut()
             .write_message(AssetEvent::<FtlAsset>::Unused {
-                id: namespaced_base_handle.id(),
+                id: base_handle.id(),
             });
         app.world_mut()
             .write_message(AssetEvent::<FtlAsset>::LoadedWithDependencies {
-                id: namespaced_base_handle.id(),
+                id: base_handle.id(),
+            });
+        app.world_mut()
+            .write_message(AssetEvent::<FtlAsset>::Added {
+                id: base_handle.id(),
             });
         app.update();
 
@@ -687,22 +801,25 @@ mod tests {
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
-                .contains_key(&(lang.clone(), "test-domain".to_string()))
+                .contains_key(&(lang.clone(), ResourceKey::new("test-domain")))
         );
         assert!(
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
-                .contains_key(&(lang.clone(), "namespaced-domain/menu".to_string()))
+                .contains_key(&(lang.clone(), ResourceKey::new("namespaced-domain/menu")))
         );
         assert!(
             app.world()
                 .resource::<I18nAssets>()
                 .loaded_resources
-                .contains_key(&(lang.clone(), "namespaced-domain/hud".to_string()))
+                .contains_key(&(lang.clone(), ResourceKey::new("namespaced-domain/hud")))
         );
         assert!(app.world().resource::<I18nBundle>().0.contains_key(&lang));
-        assert!(bevy_custom_localizer("hello", None).is_some());
+        assert_ne!(
+            bevy_custom_localizer("hello", None),
+            Some("duplicate".to_string())
+        );
         assert_eq!(
             bevy_custom_localizer("from-static", None),
             Some("static".to_string())
@@ -744,6 +861,7 @@ mod tests {
         app.add_message::<LocaleChangeEvent>();
         app.add_message::<LocaleChangedEvent>();
         app.insert_resource(I18nAssets::new());
+        app.insert_resource(I18nBundle::default());
         app.insert_resource(I18nResource::new(langid!("en")));
         app.insert_resource(CurrentLanguageId(langid!("en")));
         app.add_systems(Update, handle_locale_changes);
