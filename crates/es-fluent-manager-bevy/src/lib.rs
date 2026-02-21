@@ -16,7 +16,7 @@ use es_fluent_manager_core::{
 };
 use fluent_bundle::{FluentResource, FluentValue, bundle::FluentBundle};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
@@ -125,8 +125,6 @@ pub struct LocaleChangedEvent(pub LanguageIdentifier);
 /// A Bevy resource that manages the loading of `FtlAsset`s.
 #[derive(Clone, Default, Resource)]
 pub struct I18nAssets {
-    /// Domains registered by discovered module descriptors.
-    pub registered_domains: HashSet<String>,
     /// A map from `(LanguageIdentifier, resource_key)` to the corresponding `Handle<FtlAsset>`.
     pub assets: HashMap<(LanguageIdentifier, ResourceKey), Handle<FtlAsset>>,
     /// Canonical resource metadata for each registered asset key.
@@ -148,11 +146,6 @@ impl I18nAssets {
     /// Creates a new, empty `I18nAssets` resource.
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Registers an i18n domain discovered from module metadata.
-    pub fn register_domain(&mut self, domain: impl Into<String>) {
-        self.registered_domains.insert(domain.into());
     }
 
     fn inferred_spec_for_key(key: &str, required: bool) -> ModuleResourceSpec {
@@ -262,11 +255,6 @@ impl I18nAssets {
             .into_iter()
             .map(|(_, resource)| resource)
             .collect()
-    }
-
-    /// Returns true when the provided domain is registered.
-    pub fn is_domain_registered(&self, domain: &str) -> bool {
-        self.registered_domains.contains(domain)
     }
 
     /// Returns the set of languages that have assets registered.

@@ -1,14 +1,9 @@
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
-    let is_localized_langs = env::var("CARGO_FEATURE_LOCALIZED_LANGS").is_ok();
-
-    if !is_localized_langs {
-        let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-        let out_path = out_dir.join("es_fluent_lang_static_resources.rs");
-        fs::write(out_path, "").unwrap();
+    if env::var("CARGO_FEATURE_LOCALIZED_LANGS").is_err() {
         return;
     }
 
@@ -21,22 +16,12 @@ fn main() {
     println!("cargo:rerun-if-changed={}", i18n_dir.display());
 
     let locales = scan_locales(&i18n_dir);
-
-    let new_stamp_content = locales.join("\n");
-    let existing_stamp = fs::read_to_string(&locales_stamp).unwrap_or_default();
-    if existing_stamp != new_stamp_content {
-        fs::write(&locales_stamp, &new_stamp_content).unwrap();
-    }
+    update_locales_stamp(&locales_stamp, &locales);
 
     println!("cargo:rerun-if-changed={}", locales_stamp.display());
-
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let out_path = out_dir.join("es_fluent_lang_static_resources.rs");
-
-    fs::write(&out_path, generate_static_resources(&locales)).unwrap();
 }
 
-fn scan_locales(i18n_dir: &std::path::Path) -> Vec<String> {
+fn scan_locales(i18n_dir: &Path) -> Vec<String> {
     let mut locales = Vec::new();
 
     if i18n_dir.is_dir() {
@@ -63,32 +48,17 @@ fn scan_locales(i18n_dir: &std::path::Path) -> Vec<String> {
     locales
 }
 
-fn generate_static_resources(locales: &[String]) -> String {
-    let mut output = String::new();
-    output.push_str(&format!(
-        "static ES_FLUENT_LANG_STATIC_RESOURCES: [EsFluentLangStaticResource; {}] = [\n",
-        locales.len()
-    ));
-    for locale in locales {
-        output.push_str(&format!(
-            "    EsFluentLangStaticResource::new(\"{}\"),\n",
-            locale
-        ));
+fn update_locales_stamp(stamp_path: &Path, locales: &[String]) {
+    let new_stamp_content = locales.join("\n");
+    let existing_stamp = fs::read_to_string(stamp_path).unwrap_or_default();
+    if existing_stamp != new_stamp_content {
+        fs::write(stamp_path, new_stamp_content).expect("write locales stamp");
     }
-    output.push_str("];\n\n");
-    for idx in 0..locales.len() {
-        output.push_str(&format!(
-            "inventory::submit! {{ &ES_FLUENT_LANG_STATIC_RESOURCES[{}] as &dyn es_fluent_manager_core::StaticI18nResource }}\n",
-            idx
-        ));
-    }
-    output
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
     use tempfile::TempDir;
 
     #[test]
@@ -170,33 +140,18 @@ mod tests {
     }
 
     #[test]
-    fn generate_static_resources_empty() {
-        let output = generate_static_resources(&[]);
-        assert!(output.contains("[EsFluentLangStaticResource; 0]"));
-        assert!(!output.contains("inventory::submit!"));
-    }
+    fn update_locales_stamp_writes_when_changed() {
+        let temp = TempDir::new().expect("tempdir");
+        let stamp_path = temp.path().join("locales.stamp");
 
-    #[test]
-    fn generate_static_resources_single_locale() {
-        let output = generate_static_resources(&["en".to_string()]);
+        update_locales_stamp(&stamp_path, &["en".to_string(), "fr".to_string()]);
+        assert_eq!(
+            fs::read_to_string(&stamp_path).expect("read stamp"),
+            "en\nfr"
+        );
 
-        assert!(output.contains("[EsFluentLangStaticResource; 1]"));
-        assert!(output.contains("EsFluentLangStaticResource::new(\"en\")"));
-        assert!(output.contains("inventory::submit!"));
-    }
-
-    #[test]
-    fn generate_static_resources_multiple_locales() {
-        let output =
-            generate_static_resources(&["en".to_string(), "fr".to_string(), "ja".to_string()]);
-
-        assert!(output.contains("[EsFluentLangStaticResource; 3]"));
-        assert!(output.contains("EsFluentLangStaticResource::new(\"en\")"));
-        assert!(output.contains("EsFluentLangStaticResource::new(\"fr\")"));
-        assert!(output.contains("EsFluentLangStaticResource::new(\"ja\")"));
-        assert!(output.contains("ES_FLUENT_LANG_STATIC_RESOURCES[0]"));
-        assert!(output.contains("ES_FLUENT_LANG_STATIC_RESOURCES[1]"));
-        assert!(output.contains("ES_FLUENT_LANG_STATIC_RESOURCES[2]"));
+        update_locales_stamp(&stamp_path, &["en".to_string()]);
+        assert_eq!(fs::read_to_string(&stamp_path).expect("read stamp"), "en");
     }
 
     #[test]
@@ -215,20 +170,17 @@ mod tests {
 
         let locales = scan_locales(&i18n_dir);
         let stamp_path = es_fluent_dir.join("locales.stamp");
-        let stamp_content = locales.join("\n");
-        fs::write(&stamp_path, &stamp_content).expect("write stamp");
+        update_locales_stamp(&stamp_path, &locales);
+        let stamp_content = fs::read_to_string(&stamp_path).expect("read initial stamp");
 
-        assert_eq!(
-            fs::read_to_string(&stamp_path).unwrap(),
-            "de\nen\nfr",
-            "initial stamp has all locales"
-        );
+        assert_eq!(stamp_content, "de\nen\nfr", "initial stamp has all locales");
 
         fs::remove_dir_all(i18n_dir.join("fr")).expect("delete fr");
         fs::remove_dir_all(i18n_dir.join("de")).expect("delete de");
 
         let new_locales = scan_locales(&i18n_dir);
-        let new_stamp_content = new_locales.join("\n");
+        update_locales_stamp(&stamp_path, &new_locales);
+        let new_stamp_content = fs::read_to_string(&stamp_path).expect("read updated stamp");
 
         assert_ne!(
             stamp_content, new_stamp_content,
