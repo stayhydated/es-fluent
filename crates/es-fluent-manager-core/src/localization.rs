@@ -10,7 +10,7 @@ use fluent_bundle::{
     memoizer::MemoizerKind,
 };
 use std::borrow::Borrow;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
@@ -104,6 +104,14 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
         None
     }
 
+    /// Returns whether this registration can provide a runtime localizer.
+    ///
+    /// Implementations can override this to avoid constructing a localizer just
+    /// for capability checks during duplicate-resolution.
+    fn supports_runtime_localization(&self) -> bool {
+        self.create_localizer().is_some()
+    }
+
     /// Returns an optional manifest-derived resource plan for a specific language.
     ///
     /// When this returns `Some`, managers should use this plan directly instead of
@@ -125,6 +133,10 @@ impl<T: I18nModule> I18nModuleRegistration for T {
     fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
         Some(I18nModule::create_localizer(self))
     }
+
+    fn supports_runtime_localization(&self) -> bool {
+        true
+    }
 }
 
 impl I18nModuleRegistration for StaticModuleDescriptor {}
@@ -135,15 +147,27 @@ inventory::collect!(&'static dyn I18nModuleRegistration);
 ///
 /// This applies shared validation and keeps only entries that satisfy:
 /// - non-empty module name and domain
-/// - unique module name
-/// - unique domain
+/// - unique module identity (`name` + `domain`)
+/// - no conflicting duplicate names/domains
+///
+/// For exact duplicates (`name` + `domain`), runtime-localizer registrations are
+/// preferred over metadata-only registrations.
 pub fn filter_module_registry(
     modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
 ) -> Vec<&'static dyn I18nModuleRegistration> {
     let modules = modules.into_iter().collect::<Vec<_>>();
-    let discovered_data = modules
-        .iter()
-        .map(|module| module.data())
+    let mut discovered_data_by_identity: HashMap<
+        (&'static str, &'static str),
+        &'static ModuleData,
+    > = HashMap::new();
+    for module in &modules {
+        let data = module.data();
+        discovered_data_by_identity
+            .entry((data.name, data.domain))
+            .or_insert(data);
+    }
+    let discovered_data = discovered_data_by_identity
+        .into_values()
         .collect::<Vec<_>>();
 
     if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
@@ -152,9 +176,9 @@ pub fn filter_module_registry(
         }
     }
 
-    let mut filtered = Vec::with_capacity(modules.len());
-    let mut seen_module_names = HashSet::new();
-    let mut seen_domains = HashSet::new();
+    let mut filtered: Vec<&'static dyn I18nModuleRegistration> = Vec::with_capacity(modules.len());
+    let mut seen_module_names: HashMap<&'static str, usize> = HashMap::new();
+    let mut seen_domains: HashMap<&'static str, usize> = HashMap::new();
 
     for module in modules {
         let data = module.data();
@@ -166,15 +190,56 @@ pub fn filter_module_registry(
             );
             continue;
         }
-        if !seen_module_names.insert(data.name) {
-            tracing::warn!(
-                "Skipping duplicate i18n module name '{}' (domain '{}')",
-                data.name,
-                data.domain
-            );
+        if let Some(&existing_index) = seen_module_names.get(data.name) {
+            let existing = filtered[existing_index];
+            let existing_data = existing.data();
+            if existing_data.domain != data.domain {
+                tracing::warn!(
+                    "Skipping duplicate i18n module name '{}' (domain '{}')",
+                    data.name,
+                    data.domain
+                );
+                continue;
+            }
+
+            if !existing.supports_runtime_localization() && module.supports_runtime_localization() {
+                tracing::warn!(
+                    "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
+                    data.name
+                );
+                filtered[existing_index] = module;
+            } else {
+                tracing::warn!(
+                    "Skipping duplicate i18n module name '{}' (domain '{}')",
+                    data.name,
+                    data.domain
+                );
+            }
             continue;
         }
-        if !seen_domains.insert(data.domain) {
+
+        if let Some(&existing_index) = seen_domains.get(data.domain) {
+            let existing = filtered[existing_index];
+            let existing_data = existing.data();
+            if existing_data.name == data.name {
+                if !existing.supports_runtime_localization()
+                    && module.supports_runtime_localization()
+                {
+                    tracing::warn!(
+                        "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
+                        data.name
+                    );
+                    filtered[existing_index] = module;
+                } else {
+                    tracing::warn!(
+                        "Skipping duplicate i18n module name '{}' (domain '{}')",
+                        data.name,
+                        data.domain
+                    );
+                }
+                continue;
+            }
+
             tracing::warn!(
                 "Skipping duplicate i18n domain '{}' from module '{}'",
                 data.domain,
@@ -182,6 +247,10 @@ pub fn filter_module_registry(
             );
             continue;
         }
+
+        let index = filtered.len();
+        seen_module_names.insert(data.name, index);
+        seen_domains.insert(data.domain, index);
         filtered.push(module);
     }
 
@@ -299,18 +368,28 @@ mod tests {
         supported_languages: &[],
         namespaces: &[],
     };
+    static FILTER_EXACT_DUP_DATA: ModuleData = ModuleData {
+        name: "filter-exact-module",
+        domain: "filter-exact-domain",
+        supported_languages: &[],
+        namespaces: &[],
+    };
     static FILTER_DESCRIPTOR: StaticModuleDescriptor =
         StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
     static FILTER_DUP_NAME_DESCRIPTOR: StaticModuleDescriptor =
         StaticModuleDescriptor::new(&FILTER_DUP_NAME_DATA);
     static FILTER_DUP_DOMAIN_DESCRIPTOR: StaticModuleDescriptor =
         StaticModuleDescriptor::new(&FILTER_DUP_DOMAIN_DATA);
+    static FILTER_EXACT_DUP_DESCRIPTOR: StaticModuleDescriptor =
+        StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 
     struct ModuleOk;
     struct ModuleErr;
+    struct FilterRuntimeModule;
 
     struct LocalizerOk;
     struct LocalizerErr;
+    struct FilterRuntimeLocalizer;
 
     impl Localizer for LocalizerOk {
         fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -349,6 +428,20 @@ mod tests {
         }
     }
 
+    impl Localizer for FilterRuntimeLocalizer {
+        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            Ok(())
+        }
+
+        fn localize<'a>(
+            &self,
+            _id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            None
+        }
+    }
+
     impl I18nModuleDescriptor for ModuleOk {
         fn data(&self) -> &'static ModuleData {
             &MODULE_OK_DATA
@@ -373,8 +466,21 @@ mod tests {
         }
     }
 
+    impl I18nModuleDescriptor for FilterRuntimeModule {
+        fn data(&self) -> &'static ModuleData {
+            &FILTER_EXACT_DUP_DATA
+        }
+    }
+
+    impl I18nModule for FilterRuntimeModule {
+        fn create_localizer(&self) -> Box<dyn Localizer> {
+            Box::new(FilterRuntimeLocalizer)
+        }
+    }
+
     static MODULE_OK: ModuleOk = ModuleOk;
     static MODULE_ERR: ModuleErr = ModuleErr;
+    static FILTER_RUNTIME_MODULE: FilterRuntimeModule = FilterRuntimeModule;
 
     inventory::submit! {
         &MODULE_OK as &dyn I18nModuleRegistration
@@ -448,5 +554,27 @@ mod tests {
 
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].data().name, "filter-module");
+    }
+
+    #[test]
+    fn filter_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
+        let filtered = filter_module_registry([
+            &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+            &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].create_localizer().is_some());
+    }
+
+    #[test]
+    fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
+        let filtered = filter_module_registry([
+            &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
+            &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].create_localizer().is_some());
     }
 }
