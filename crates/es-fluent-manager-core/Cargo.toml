@@ -12,7 +12,6 @@ rust-version.workspace = true
 readme = "README.md"
 
 [dependencies]
-anyhow = { workspace = true }
 es-fluent-derive-core = { workspace = true }
 fluent-bundle = { workspace = true }
 fluent-fallback = { workspace = true }
