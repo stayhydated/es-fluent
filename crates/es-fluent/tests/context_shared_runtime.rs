@@ -1,5 +1,6 @@
 use es_fluent::__manager_core::{
-    FluentManager, I18nModule, I18nModuleDescriptor, LocalizationError, Localizer, ModuleData,
+    FluentManager, I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError,
+    Localizer, ModuleData,
 };
 use es_fluent::{FluentValue, localize, set_shared_context};
 use std::collections::HashMap;
@@ -51,7 +52,7 @@ impl I18nModule for SharedModule {
 static SHARED_MODULE: SharedModule = SharedModule;
 
 es_fluent::__inventory::submit! {
-    &SHARED_MODULE as &dyn I18nModule
+    &SHARED_MODULE as &dyn I18nModuleRegistration
 }
 
 #[test]

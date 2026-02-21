@@ -235,7 +235,7 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
 
         ::es_fluent_manager_embedded::__inventory::submit!(
             &#module_instance_name
-            as &dyn ::es_fluent_manager_embedded::__manager_core::I18nModule
+            as &dyn ::es_fluent_manager_embedded::__manager_core::I18nModuleRegistration
         );
     };
 
@@ -531,7 +531,7 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
             ::es_fluent_manager_bevy::__manager_core::StaticModuleDescriptor::new(&#static_data_name);
 
         ::es_fluent_manager_bevy::__inventory::submit!(
-            &#descriptor_name as &dyn ::es_fluent_manager_bevy::__manager_core::I18nModuleDescriptor
+            &#descriptor_name as &dyn ::es_fluent_manager_bevy::__manager_core::I18nModuleRegistration
         );
     };
 

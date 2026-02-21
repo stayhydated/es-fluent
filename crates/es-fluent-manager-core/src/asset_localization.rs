@@ -600,8 +600,6 @@ impl I18nModuleDescriptor for StaticModuleDescriptor {
     }
 }
 
-inventory::collect!(&'static dyn I18nModuleDescriptor);
-
 #[cfg(test)]
 mod tests {
     use super::*;

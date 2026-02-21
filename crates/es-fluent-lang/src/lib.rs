@@ -30,8 +30,8 @@ pub use es_fluent_lang_macro::es_fluent_language;
 
 #[doc(hidden)]
 use es_fluent_manager_core::{
-    I18nModule, I18nModuleDescriptor, LocalizationError, Localizer, ModuleData,
-    localize_with_bundle,
+    I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
+    ModuleData, localize_with_bundle,
 };
 use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
@@ -295,12 +295,7 @@ impl Localizer for EsFluentLanguageLocalizer {
 }
 
 inventory::submit! {
-    &EsFluentLanguageModule as &dyn I18nModule
-}
-
-#[cfg(feature = "bevy")]
-inventory::submit! {
-    &EsFluentLanguageModule as &dyn I18nModuleDescriptor
+    &EsFluentLanguageModule as &dyn I18nModuleRegistration
 }
 
 #[cfg(all(feature = "bevy", not(feature = "localized-langs")))]
@@ -504,7 +499,7 @@ mod tests {
         let module = EsFluentLanguageModule;
         assert_eq!(module.data().name, "es-fluent-lang");
 
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
         localizer
             .select_language(&langid!("en-US"))
             .expect("language selection should succeed");
@@ -517,7 +512,7 @@ mod tests {
     #[test]
     fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
         let module = EsFluentLanguageModule;
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
 
         localizer
             .select_language(&langid!("en-US"))
@@ -615,7 +610,7 @@ mod tests_localized {
     #[test]
     fn localized_mode_returns_translated_language_names() {
         let module = EsFluentLanguageModule;
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
 
         localizer
             .select_language(&langid!("en"))
@@ -678,7 +673,7 @@ mod tests_localized {
     #[test]
     fn localized_mode_fallback_to_base_locale() {
         let module = EsFluentLanguageModule;
-        let localizer = module.create_localizer();
+        let localizer = I18nModule::create_localizer(&module);
 
         localizer
             .select_language(&langid!("en-US"))

@@ -6,7 +6,7 @@ use bevy::asset::{
 };
 use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{
-    I18nModuleDescriptor, ResourceKey, ResourceLoadError, StaticI18nResource, build_sync_bundle,
+    I18nModuleRegistration, ResourceKey, ResourceLoadError, StaticI18nResource, build_sync_bundle,
     localize_with_bundle, parse_fluent_resource_content, resolve_ready_locale,
     validate_module_registry,
 };
@@ -94,7 +94,7 @@ impl Plugin for I18nPlugin {
 
         let asset_server = app.world().resource::<AssetServer>();
 
-        let discovered_modules = inventory::iter::<&'static dyn I18nModuleDescriptor>()
+        let discovered_modules = inventory::iter::<&'static dyn I18nModuleRegistration>()
             .map(|module| module.data())
             .collect::<Vec<_>>();
         if let Err(errors) = validate_module_registry(discovered_modules.iter().copied()) {
@@ -562,7 +562,7 @@ mod tests {
     use super::*;
     use bevy::{MinimalPlugins, asset::AssetPlugin};
     use es_fluent_manager_core::{
-        I18nModuleDescriptor, ModuleData, ResourceKey, StaticModuleDescriptor,
+        I18nModuleRegistration, ModuleData, ResourceKey, StaticModuleDescriptor,
     };
     use std::sync::atomic::{AtomicUsize, Ordering};
     use unic_langid::langid;
@@ -578,7 +578,7 @@ mod tests {
         StaticModuleDescriptor::new(&TEST_ASSET_DATA);
 
     inventory::submit! {
-        &TEST_ASSET_MODULE as &dyn I18nModuleDescriptor
+        &TEST_ASSET_MODULE as &dyn I18nModuleRegistration
     }
 
     static TEST_NAMESPACED_ASSET_DATA: ModuleData = ModuleData {
@@ -591,7 +591,7 @@ mod tests {
         StaticModuleDescriptor::new(&TEST_NAMESPACED_ASSET_DATA);
 
     inventory::submit! {
-        &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nModuleDescriptor
+        &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nModuleRegistration
     }
 
     struct TestStaticResource;

@@ -82,7 +82,8 @@ mod tests {
     use super::*;
     use es_fluent::FluentValue;
     use es_fluent_manager_core::{
-        I18nModule, I18nModuleDescriptor, LocalizationError, Localizer, ModuleData,
+        I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
+        ModuleData,
     };
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -133,7 +134,7 @@ mod tests {
     static TEST_MODULE: EmbeddedTestModule = EmbeddedTestModule;
 
     crate::__inventory::submit! {
-        &TEST_MODULE as &dyn I18nModule
+        &TEST_MODULE as &dyn I18nModuleRegistration
     }
 
     #[test]

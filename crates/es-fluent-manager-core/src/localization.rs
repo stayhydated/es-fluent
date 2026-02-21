@@ -1,6 +1,8 @@
 //! This module provides the core types for managing translations.
 
-use crate::asset_localization::{I18nModuleDescriptor, ModuleData, validate_module_registry};
+use crate::asset_localization::{
+    I18nModuleDescriptor, ModuleData, StaticModuleDescriptor, validate_module_registry,
+};
 use es_fluent_derive_core::EsFluentError;
 use fluent_bundle::{
     FluentArgs, FluentError, FluentResource, FluentValue, bundle::FluentBundle,
@@ -91,12 +93,31 @@ pub trait Localizer: Send + Sync {
     ) -> Option<String>;
 }
 
+/// Unified inventory contract for all module registrations.
+///
+/// Backends that only provide metadata (for example Bevy asset-driven loading)
+/// can return `None` from `create_localizer`.
+pub trait I18nModuleRegistration: I18nModuleDescriptor {
+    /// Creates a localizer when the registration supports runtime localization.
+    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+        None
+    }
+}
+
 pub trait I18nModule: I18nModuleDescriptor {
     /// Creates a localizer for the module.
     fn create_localizer(&self) -> Box<dyn Localizer>;
 }
 
-inventory::collect!(&'static dyn I18nModule);
+impl<T: I18nModule> I18nModuleRegistration for T {
+    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+        Some(I18nModule::create_localizer(self))
+    }
+}
+
+impl I18nModuleRegistration for StaticModuleDescriptor {}
+
+inventory::collect!(&'static dyn I18nModuleRegistration);
 
 /// A manager for Fluent translations.
 #[derive(Default)]
@@ -107,7 +128,8 @@ pub struct FluentManager {
 impl FluentManager {
     /// Creates a new `FluentManager` with discovered i18n modules.
     pub fn new_with_discovered_modules() -> Self {
-        let discovered_modules: Vec<_> = inventory::iter::<&'static dyn I18nModule>().collect();
+        let discovered_modules: Vec<_> =
+            inventory::iter::<&'static dyn I18nModuleRegistration>().collect();
         let discovered_data = discovered_modules
             .iter()
             .map(|module| module.data())
@@ -150,7 +172,14 @@ impl FluentManager {
                 continue;
             }
             tracing::info!("Discovered and loading i18n module: {}", data.name);
-            manager.localizers.push((data, module.create_localizer()));
+            if let Some(localizer) = module.create_localizer() {
+                manager.localizers.push((data, localizer));
+            } else {
+                tracing::debug!(
+                    "Skipping metadata-only i18n module '{}' for FluentManager runtime localization",
+                    data.name
+                );
+            }
         }
         manager
     }
@@ -288,11 +317,11 @@ mod tests {
     static MODULE_ERR: ModuleErr = ModuleErr;
 
     inventory::submit! {
-        &MODULE_OK as &dyn I18nModule
+        &MODULE_OK as &dyn I18nModuleRegistration
     }
 
     inventory::submit! {
-        &MODULE_ERR as &dyn I18nModule
+        &MODULE_ERR as &dyn I18nModuleRegistration
     }
 
     #[test]

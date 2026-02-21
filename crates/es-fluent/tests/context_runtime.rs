@@ -1,5 +1,6 @@
 use es_fluent::__manager_core::{
-    FluentManager, I18nModule, I18nModuleDescriptor, LocalizationError, Localizer, ModuleData,
+    FluentManager, I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError,
+    Localizer, ModuleData,
 };
 use es_fluent::{FluentValue, localize, select_language, set_context, set_custom_localizer};
 use std::collections::HashMap;
@@ -54,7 +55,7 @@ impl I18nModule for TestModule {
 static TEST_MODULE: TestModule = TestModule;
 
 es_fluent::__inventory::submit! {
-    &TEST_MODULE as &dyn I18nModule
+    &TEST_MODULE as &dyn I18nModuleRegistration
 }
 
 #[test]

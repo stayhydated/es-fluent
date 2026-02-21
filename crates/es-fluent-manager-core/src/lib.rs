@@ -17,7 +17,8 @@ pub use fallback::{
     fallback_locales, locale_candidates, resolve_fallback_language, resolve_ready_locale,
 };
 pub use localization::{
-    FluentManager, I18nModule, LocalizationError, Localizer, SyncFluentBundle,
-    add_resources_to_bundle, build_fluent_args, build_sync_bundle, localize_with_bundle,
+    FluentManager, I18nModule, I18nModuleRegistration, LocalizationError, Localizer,
+    SyncFluentBundle, add_resources_to_bundle, build_fluent_args, build_sync_bundle,
+    localize_with_bundle,
 };
 pub use static_resource::StaticI18nResource;
