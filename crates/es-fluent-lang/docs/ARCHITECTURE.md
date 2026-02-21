@@ -18,7 +18,7 @@ flowchart TD
         RES["Embedded .ftl Resource(s)"]
         LOC["Localizer Implementation"]
         MOD["I18nModule Implementation"]
-        BUILD["build.rs (localized-langs stamp tracking)"]
+        BUILD["build.rs (localized-langs change tracking)"]
     end
 
     subgraph MACRO["es-fluent-lang-macro"]
