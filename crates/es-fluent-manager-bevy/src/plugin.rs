@@ -6,8 +6,8 @@ use bevy::asset::io::{AssetReaderError, AssetSourceId};
 use bevy::window::RequestRedraw;
 use es_fluent_manager_core::{
     FluentManager, I18nModuleRegistration, ResourceKey, ResourceLoadError, build_sync_bundle,
-    localize_with_bundle, parse_fluent_resource_content, resolve_ready_locale,
-    validate_module_registry,
+    filter_module_registry, localize_with_bundle, parse_fluent_resource_content,
+    resolve_ready_locale,
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use std::collections::{HashMap, HashSet};
@@ -106,45 +106,24 @@ impl Plugin for I18nPlugin {
 
         let asset_server = app.world().resource::<AssetServer>();
 
-        let discovered_modules =
-            inventory::iter::<&'static dyn I18nModuleRegistration>().collect::<Vec<_>>();
-        let discovered_data = discovered_modules
-            .iter()
-            .map(|module| module.data())
-            .collect::<Vec<_>>();
-        if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
-            for error in errors {
-                error!("Invalid Bevy i18n module descriptor: {}", error);
-            }
-        }
+        let discovered_modules = filter_module_registry(
+            inventory::iter::<&'static dyn I18nModuleRegistration>()
+                .copied()
+                .collect::<Vec<_>>(),
+        );
 
-        let mut discovered_domains = std::collections::HashSet::new();
-        let mut filtered_modules = Vec::new();
+        let discovered_domains = discovered_modules
+            .iter()
+            .map(|module| module.data().domain)
+            .collect::<std::collections::HashSet<_>>();
         let mut discovered_languages = std::collections::HashSet::new();
 
-        for module in discovered_modules {
+        for module in &discovered_modules {
             let data = module.data();
-            if data.name.trim().is_empty() || data.domain.trim().is_empty() {
-                warn!(
-                    "Skipping invalid i18n descriptor: name='{}', domain='{}'",
-                    data.name, data.domain
-                );
-                continue;
-            }
-
-            if !discovered_domains.insert(data.domain.to_string()) {
-                warn!(
-                    "Skipping duplicate i18n domain '{}' from module '{}'",
-                    data.domain, data.name
-                );
-                continue;
-            }
-
             for lang in data.supported_languages {
                 discovered_languages.insert(lang.clone());
             }
 
-            filtered_modules.push(module);
             info!(
                 "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
                 data.name, data.domain, data.namespaces
@@ -174,7 +153,7 @@ impl Plugin for I18nPlugin {
         );
         let i18n_resource = I18nResource::new(resolved_language.clone());
 
-        for module in &filtered_modules {
+        for module in &discovered_modules {
             let data = module.data();
             let canonical_resource_plan = data.resource_plan();
             for lang in data.supported_languages {
@@ -211,7 +190,7 @@ impl Plugin for I18nPlugin {
 
         info!(
             "Auto-discovered {} modules, {} domains, {} languages",
-            filtered_modules.len(),
+            discovered_modules.len(),
             discovered_domains.len(),
             discovered_languages.len(),
         );

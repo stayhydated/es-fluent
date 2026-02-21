@@ -27,6 +27,27 @@ fn current_crate_name() -> syn::Result<String> {
     std::env::var("CARGO_PKG_NAME").map_err(|_| macro_error("CARGO_PKG_NAME must be set"))
 }
 
+fn module_data_static_tokens(
+    manager_core_path: &proc_macro2::TokenStream,
+    static_name: &syn::Ident,
+    crate_name: &str,
+    language_identifiers: &[proc_macro2::TokenStream],
+    namespace_strings: &[proc_macro2::TokenStream],
+) -> proc_macro2::TokenStream {
+    quote! {
+        static #static_name: #manager_core_path::ModuleData = #manager_core_path::ModuleData {
+            name: #crate_name,
+            domain: #crate_name,
+            supported_languages: &[
+                #(#language_identifiers),*
+            ],
+            namespaces: &[
+                #(#namespace_strings),*
+            ],
+        };
+    }
+}
+
 impl I18nAssets {
     fn load(crate_name: &str) -> syn::Result<Self> {
         let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
@@ -272,6 +293,14 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
     let language_identifiers = assets.language_identifier_tokens(&embedded_langid_path);
 
     let namespace_strings = assets.namespace_tokens();
+    let embedded_manager_core_path = quote! { ::es_fluent_manager_embedded::__manager_core };
+    let module_data_static = module_data_static_tokens(
+        &embedded_manager_core_path,
+        &module_data_name,
+        &crate_name,
+        &language_identifiers,
+        &namespace_strings,
+    );
 
     let i18n_root_str = i18n_root_path.to_string_lossy();
 
@@ -287,17 +316,7 @@ pub fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
             }
         }
 
-        static #module_data_name: ::es_fluent_manager_embedded::__manager_core::ModuleData =
-            ::es_fluent_manager_embedded::__manager_core::ModuleData {
-                name: #crate_name,
-                domain: #crate_name,
-                supported_languages: &[
-                    #(#language_identifiers),*
-                ],
-                namespaces: &[
-                    #(#namespace_strings),*
-                ],
-            };
+        #module_data_static
 
         static #module_instance_name:
             ::es_fluent_manager_embedded::__manager_core::EmbeddedI18nModule<#assets_struct_name> =
@@ -592,18 +611,17 @@ pub fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
 
     let namespace_strings = assets.namespace_tokens();
     let manifest_match_arms = assets.bevy_resource_plan_match_arms();
+    let bevy_manager_core_path = quote! { ::es_fluent_manager_bevy::__manager_core };
+    let module_data_static = module_data_static_tokens(
+        &bevy_manager_core_path,
+        &static_data_name,
+        &crate_name,
+        &language_identifiers,
+        &namespace_strings,
+    );
 
     let expanded = quote! {
-        static #static_data_name: ::es_fluent_manager_bevy::__manager_core::ModuleData = ::es_fluent_manager_bevy::__manager_core::ModuleData {
-            name: #crate_name,
-            domain: #crate_name,
-            supported_languages: &[
-                #(#language_identifiers),*
-            ],
-            namespaces: &[
-                #(#namespace_strings),*
-            ],
-        };
+        #module_data_static
 
         struct #registration_struct_name;
 
