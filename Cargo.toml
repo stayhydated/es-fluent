@@ -65,6 +65,12 @@ fluent-syntax = "0.12"
 getset = "0.1"
 gpui = { git = "https://github.com/zed-industries/zed" }
 gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+gpui_platform = { features = [
+  "font-kit",
+  "x11",
+  "wayland",
+  "runtime_shaders",
+], git = "https://github.com/zed-industries/zed" }
 heck = "0.5"
 icu = "2.1.1"
 icu_collections = "2.1.1"
