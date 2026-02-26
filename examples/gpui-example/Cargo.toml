@@ -12,7 +12,6 @@ es-fluent-manager-embedded = { workspace = true }
 example-shared-lib = { features = [ "gpui" ], path = "../example-shared-lib" }
 gpui = { workspace = true }
 gpui-component = { workspace = true }
-gpui_platform = { workspace = true }
 unic-langid = { workspace = true }
 
 [build-dependencies]

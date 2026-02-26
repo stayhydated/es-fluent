@@ -1,8 +1,8 @@
 use es_fluent::ToFluentString as _;
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui::{
-    App, Bounds, Context, FocusHandle, Focusable, KeyBinding, Window, WindowBounds, WindowOptions,
-    actions, div, prelude::*, px, size,
+    App, Application, Bounds, Context, FocusHandle, Focusable, KeyBinding, Window, WindowBounds,
+    WindowOptions, actions, div, prelude::*, px, size,
 };
 use gpui_component::{button::Button, label::Label};
 use gpui_example::{GpuiScreenMessages, i18n};
@@ -10,8 +10,7 @@ use gpui_example::{GpuiScreenMessages, i18n};
 actions!(gpui_example, [CycleLocale]);
 
 fn main() {
-    let app = gpui_platform::application();
-    app.run(|cx: &mut App| {
+    Application::new().run(|cx: &mut App| {
         let default_language = Languages::default();
         cx.set_global(CurrentLanguage(default_language));
         cx.bind_keys([KeyBinding::new("t", CycleLocale, Some("GpuiExample"))]);
