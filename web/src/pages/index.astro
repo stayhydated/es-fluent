@@ -1,27 +1,67 @@
 ---
 import Layout from "@/layouts/Layout.astro";
+import Readme from "../../../README.md";
+import { displayNameFromBaseUrl } from "@/util";
 
-const baseUrl = import.meta.env.BASE_URL;
+const displayName = displayNameFromBaseUrl();
 ---
 
-<Layout title="es-fluent Examples">
-  <div class="max-w-3xl mx-auto">
-    <h1 class="text-4xl font-bold text-primary mb-8 glow-primary">Examples</h1>
-    <ul class="space-y-4">
-      <li>
-        <a
-          href={`${baseUrl}/bevy-example/`}
-          class="block p-6 bg-bg-card border border-primary/30 rounded-lg no-underline text-text transition-all duration-300 hover:border-primary hover:translate-x-1 border-glow-primary"
-        >
-          <div class="text-xl font-semibold mb-2 text-secondary glow-secondary">
-            Bevy Example
-          </div>
-          <div class="text-sm text-text-muted">
-            Interactive UI demo showcasing es-fluent i18n integration with Bevy
-            0.18.
-          </div>
-        </a>
-      </li>
-    </ul>
+<Layout title={displayName}>
+  <div class="mx-auto px-8 py-12 prose prose-invert prose-cyan max-w-none">
+    <Readme />
   </div>
 </Layout>
+
+<style is:global>
+  .prose {
+    color: #e0e0e0;
+  }
+  .prose h1 {
+    color: #00f0ff;
+    text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+  }
+  .prose h2 {
+    color: #a0ff00;
+    text-shadow: 0 0 10px rgba(160, 255, 0, 0.5);
+  }
+  .prose h3 {
+    color: #ff00a0;
+    text-shadow: 0 0 10px rgba(255, 0, 160, 0.5);
+  }
+  .prose code {
+    background: #0a0a0a;
+    border: 1px solid rgba(160, 255, 0, 0.3);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    color: #00f0ff;
+  }
+  .prose pre {
+    background: #000000;
+    border: 1px solid rgba(160, 255, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+  }
+  .prose pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: #e0e0e0;
+  }
+  .prose a {
+    color: #00f0ff;
+  }
+  .prose strong {
+    color: #ffffff;
+  }
+  .prose ul {
+    list-style-type: disc;
+    padding-left: 1.5em;
+  }
+  .prose li {
+    margin-bottom: 0.5em;
+  }
+  .prose img {
+    border-radius: 8px;
+  }
+</style>

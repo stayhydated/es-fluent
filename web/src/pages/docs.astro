@@ -1,0 +1,17 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { displayNameFromBaseUrl } from "@/util";
+
+const baseUrl = import.meta.env.BASE_URL;
+const displayName = displayNameFromBaseUrl();
+---
+
+<Layout title={`Docs - ${displayName}`}>
+  <div class="h-[calc(100vh-80px)] w-full">
+    <iframe
+      src={`${baseUrl}/book/index.html`}
+      class="w-full h-full border-0"
+      title={`${displayName} Documentation`}
+    />
+  </div>
+</Layout>

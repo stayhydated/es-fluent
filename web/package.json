@@ -9,10 +9,12 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/mdx": "^5.0.2",
     "@astrojs/sitemap": "3.7.1",
     "astro": "6.0.8"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.2.2",
     "tailwindcss": "^4.2.2"
   }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   /* OLED Background - Pure Black */
@@ -106,4 +107,60 @@
   text-shadow:
     0 0 5px var(--color-secondary),
     0 0 10px var(--color-secondary);
+}
+
+/* Demo cards in markdown - blockquotes */
+.prose blockquote {
+  border-left: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+  background: var(--color-bg-card);
+  border: 1px solid rgba(160, 255, 0, 0.3);
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.prose blockquote:hover {
+  border-color: var(--color-accent);
+  transform: translateX(4px);
+  box-shadow:
+    0 0 5px var(--color-accent-glow),
+    inset 0 0 5px var(--color-accent-glow);
+}
+
+.prose blockquote a {
+  display: block;
+  padding: 1.5rem;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.prose blockquote a strong {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-bottom: 0.5rem;
+  text-shadow: 0 0 10px var(--color-accent-glow);
+}
+
+.prose blockquote p {
+  margin: 0;
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.prose blockquote p a {
+  display: inline;
+  padding: 0;
+  color: var(--color-secondary);
+}
+
+.prose pre {
+  background-color: #000000 !important;
+}
+
+.prose code {
+  background-color: #0a0a0a;
 }

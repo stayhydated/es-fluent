@@ -1,0 +1,19 @@
+[book]
+authors = [ "stayhydated" ]
+language = "en"
+src = "src"
+title = "es-fluent Documentation"
+
+[rust]
+edition = "2024"
+
+[build]
+
+[preprocessor.admonish]
+optional = true
+
+[output.html]
+additional-css = [ "theme/oled-neon.css" ]
+
+[output.html.playground]
+runnable = false

@@ -45,7 +45,7 @@ flowchart TD
 
 By default, the crate embeds the single `es-fluent-lang.ftl` autonym file (language names in their native scripts, e.g., "English", "Français", "日本語"). When the `localized-langs` feature is enabled, it uses per-locale translation files under `i18n/<locale>/es-fluent-lang.ftl`, allowing language names to be localized to the current UI language (e.g., displaying "English", "Spanish", "Japanese" when viewing in English).
 
-These resources are regenerated from ICU4X data with `cargo run -p xtask -- generate-lang-names`.
+These resources are regenerated from ICU4X data with `cargo xtask generate-lang-names`.
 
 The localizer resolves fallback locales (e.g., `zh-CN` -> `zh`) so regioned languages still receive language-name translations when only a base locale is present.
 

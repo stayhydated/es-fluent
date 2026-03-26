@@ -13,5 +13,5 @@ Regenerates the bundled locale data used by:
 Command:
 
 ```bash
-cargo run -p xtask -- generate-lang-names
+cargo xtask generate-lang-names
 ```
