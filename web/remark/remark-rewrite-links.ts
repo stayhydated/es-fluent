@@ -2,7 +2,7 @@ import { visit } from "unist-util-visit";
 import type { Root } from "mdast";
 import { GITHUB_BASE } from "./consts";
 
-export function remarkRewriteLinks() : (tree: Root) => void {
+export function remarkRewriteLinks(): (tree: Root) => void {
   return (tree: Root) => {
     visit(tree, "link", (node) => {
       const url = node.url;
