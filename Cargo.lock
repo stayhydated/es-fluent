@@ -8373,6 +8373,10 @@ name = "readme"
 version = "0.14.0"
 dependencies = [
  "es-fluent",
+ "es-fluent-manager-embedded",
+ "example-shared-lib",
+ "strum 0.27.2",
+ "unic-langid",
 ]
 
 [[package]]
