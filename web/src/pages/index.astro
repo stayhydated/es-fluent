@@ -48,6 +48,10 @@ const displayName = displayNameFromBaseUrl();
     padding: 0;
     color: #e0e0e0;
   }
+  .prose :not(pre) > code {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
   .prose a {
     color: #00f0ff;
   }
