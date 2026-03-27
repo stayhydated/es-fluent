@@ -1,31 +1,27 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::bail;
+use mdbook::MDBook;
 
 use crate::util::workspace_root;
 
 pub fn run() -> anyhow::Result<()> {
+    run_from_workspace_root(&workspace_root()?)
+}
+
+fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
     run_with_paths(
-        &workspace_root()?.join("book"),
-        &workspace_root()?.join("web").join("public").join("book"),
+        &workspace_root.join("book"),
+        &workspace_root.join("web").join("public").join("book"),
     )
 }
 
 pub fn run_with_paths(book_dir: &Path, output_dir: &Path) -> anyhow::Result<()> {
     println!("Building mdBook to {}", output_dir.display());
 
-    let mut cmd = std::process::Command::new("mdbook");
-    cmd.arg("build")
-        .current_dir(book_dir)
-        .arg("--dest-dir")
-        .arg(output_dir);
-
-    let status = cmd.status()?;
-
-    if !status.success() {
-        bail!("mdbook build failed with status {}", status);
-    }
+    let mut book = MDBook::load(book_dir)?;
+    book.config.build.build_dir = output_dir.to_path_buf();
+    book.build()?;
 
     let gitignore_path = output_dir.join(".gitignore");
     fs::write(&gitignore_path, "*")?;
@@ -42,7 +38,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use super::run_with_paths;
+    use super::{run_from_workspace_root, run_with_paths};
 
     #[derive(Debug)]
     struct TempDir {
@@ -102,16 +98,6 @@ authors = ["Test"]
 
         create_minimal_book(&book_dir);
 
-        // Skip test if mdbook is not installed
-        if std::process::Command::new("mdbook")
-            .arg("--version")
-            .output()
-            .is_err()
-        {
-            eprintln!("Skipping test: mdbook not installed");
-            return;
-        }
-
         run_with_paths(&book_dir, &output_dir).expect("build should succeed");
 
         let gitignore_path = output_dir.join(".gitignore");
@@ -129,15 +115,6 @@ authors = ["Test"]
 
         create_minimal_book(&book_dir);
 
-        if std::process::Command::new("mdbook")
-            .arg("--version")
-            .output()
-            .is_err()
-        {
-            eprintln!("Skipping test: mdbook not installed");
-            return;
-        }
-
         run_with_paths(&book_dir, &output_dir).expect("build should succeed");
 
         assert!(
@@ -147,24 +124,37 @@ authors = ["Test"]
     }
 
     #[test]
-    fn build_book_fails_for_invalid_book_dir() {
+    fn build_book_fails_when_book_is_invalid() {
         let tmp = TempDir::new("build_book_invalid");
-        let book_dir = tmp.path().join("nonexistent");
+        let book_dir = tmp.path().join("book");
         let output_dir = tmp.path().join("output");
 
-        if std::process::Command::new("mdbook")
-            .arg("--version")
-            .output()
-            .is_err()
-        {
-            eprintln!("Skipping test: mdbook not installed");
-            return;
-        }
+        // Missing SUMMARY.md should fail during load/build.
+        write_file(
+            &book_dir.join("book.toml"),
+            r#"[book]
+title = "Test Book"
+authors = ["Test"]
+"#,
+        );
 
         let result = run_with_paths(&book_dir, &output_dir);
+        assert!(result.is_err(), "should fail when the book is invalid");
+    }
+
+    #[test]
+    fn run_from_workspace_root_uses_expected_default_paths() {
+        let tmp = TempDir::new("build_book_workspace_root");
+        let workspace_root = tmp.path().join("workspace");
+        let book_dir = workspace_root.join("book");
+        let web_book_output = workspace_root.join("web").join("public").join("book");
+
+        create_minimal_book(&book_dir);
+        run_from_workspace_root(&workspace_root).expect("run from workspace root should succeed");
+
         assert!(
-            result.is_err(),
-            "should fail for nonexistent book directory"
+            web_book_output.join(".gitignore").exists(),
+            "run() path resolution should write to web/public/book"
         );
     }
 }

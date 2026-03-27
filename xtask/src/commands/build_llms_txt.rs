@@ -6,7 +6,10 @@ use anyhow::Context;
 use crate::util::workspace_root;
 
 pub fn run() -> anyhow::Result<()> {
-    let workspace_root = workspace_root()?;
+    run_from_workspace_root(&workspace_root()?)
+}
+
+fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
     run_with_paths(
         &workspace_root.join("book").join("src"),
         &workspace_root.join("web").join("public").join("llms.txt"),
@@ -75,7 +78,7 @@ mod tests {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use super::{extract_markdown_path, run_with_paths};
+    use super::{extract_markdown_path, run_from_workspace_root, run_with_paths};
 
     #[derive(Debug)]
     struct TempDir {
@@ -150,6 +153,7 @@ mod tests {
     fn extract_markdown_path_ignores_malformed_links() {
         assert_eq!(extract_markdown_path("- [No link]"), None);
         assert_eq!(extract_markdown_path("- Missing parens"), None);
+        assert_eq!(extract_markdown_path("- [Broken])("), None);
     }
 
     #[test]
@@ -242,5 +246,46 @@ mod tests {
         run_with_paths(&book_src, &output_path).expect("run_with_paths should succeed");
 
         assert!(output_path.exists(), "output file should be created");
+    }
+
+    #[test]
+    fn run_from_workspace_root_uses_default_workspace_paths() {
+        let tmp = TempDir::new("build_llms_txt_workspace_root");
+        let workspace_root = tmp.path().join("workspace");
+        let book_src = workspace_root.join("book").join("src");
+        let output_path = workspace_root.join("web").join("public").join("llms.txt");
+
+        let summary = "# Summary\n\n- [Test](test.md)\n";
+        write_file(&book_src.join("SUMMARY.md"), summary);
+        write_file(&book_src.join("test.md"), "# Test\n\nWorkspace root mode.");
+
+        run_from_workspace_root(&workspace_root).expect("run should succeed");
+
+        let result = fs::read_to_string(&output_path).expect("failed to read output");
+        assert!(
+            result.contains("Workspace root mode."),
+            "output should be built under web/public/llms.txt"
+        );
+    }
+
+    #[test]
+    fn run_with_paths_skips_parent_creation_when_output_has_no_parent() {
+        let tmp = TempDir::new("build_llms_txt_no_parent");
+        let book_src = tmp.path().join("book").join("src");
+        let output_path = Path::new("");
+
+        let summary = "# Summary\n\n- [Test](test.md)\n";
+        write_file(&book_src.join("SUMMARY.md"), summary);
+        write_file(&book_src.join("test.md"), "# Test\n\nContent.");
+
+        let result = run_with_paths(&book_src, output_path);
+        assert!(result.is_err(), "empty output path should fail to write");
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to write llms.txt"),
+            "error should come from write context"
+        );
     }
 }
