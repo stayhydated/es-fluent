@@ -168,7 +168,6 @@ es-fluent-toml = {{ path = "{}" }}
         let status = Command::new("cargo")
             .arg("check")
             .arg("--quiet")
-            .arg("--offline")
             .current_dir(crate_dir)
             .env("CARGO_TARGET_DIR", target_dir)
             .env("TRACE_FILE", trace_file)
