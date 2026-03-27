@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+mdbook = { workspace = true }
 anyhow = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 icu_collections = { workspace = true }

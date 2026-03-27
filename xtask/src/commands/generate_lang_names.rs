@@ -384,6 +384,112 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn output_paths_from_args_uses_defaults() -> Result<()> {
+        let paths = OutputPaths::from_args(GenerateLangNamesArgs {
+            ftl_output: None,
+            rs_output: None,
+            i18n_dir: None,
+        })?;
+
+        assert!(paths
+            .ftl_output
+            .ends_with("crates/es-fluent-lang/es-fluent-lang.ftl"));
+        assert!(paths
+            .rs_output
+            .ends_with("crates/es-fluent-lang-macro/src/supported_locales.rs"));
+        assert!(paths.i18n_dir.ends_with("crates/es-fluent-lang/i18n"));
+        Ok(())
+    }
+
+    #[test]
+    fn output_paths_from_args_uses_overrides() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let ftl_output = temp_dir.path().join("custom/es-fluent-lang.ftl");
+        let rs_output = temp_dir.path().join("custom/supported_locales.rs");
+        let i18n_dir = temp_dir.path().join("custom/i18n");
+
+        let paths = OutputPaths::from_args(GenerateLangNamesArgs {
+            ftl_output: Some(ftl_output.clone()),
+            rs_output: Some(rs_output.clone()),
+            i18n_dir: Some(i18n_dir.clone()),
+        })?;
+
+        assert_eq!(paths.ftl_output, ftl_output);
+        assert_eq!(paths.rs_output, rs_output);
+        assert_eq!(paths.i18n_dir, i18n_dir);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_target_locales_parses_valid_values() -> Result<()> {
+        let parsed = parse_target_locales(&["en".to_owned(), "ja-JP".to_owned()])?;
+
+        assert_eq!(parsed[0].0, "en");
+        assert_eq!(parsed[0].1.to_string(), "en");
+        assert_eq!(parsed[1].0, "ja-JP");
+        assert_eq!(parsed[1].1.to_string(), "ja-JP");
+        Ok(())
+    }
+
+    #[test]
+    fn parse_target_locales_reports_invalid_values() {
+        let err = parse_target_locales(&["@@@".to_owned()]).expect_err("invalid locale must fail");
+        let message = err.to_string();
+
+        assert!(message.contains("failed to parse locale tag '@@@'"));
+    }
+
+    #[test]
+    fn canonicalize_locale_tag_returns_canonical_form() -> Result<()> {
+        let canonical = canonicalize_locale_tag("en-us")?;
+
+        assert_eq!(canonical, "en-US");
+        Ok(())
+    }
+
+    #[test]
+    fn canonicalize_locale_tag_rejects_invalid_values() {
+        let err = canonicalize_locale_tag("@@@").expect_err("invalid locale must fail");
+        let message = err.to_string();
+
+        assert!(message.contains("failed to parse locale tag '@@@'"));
+    }
+
+    #[test]
+    fn discover_locales_from_icu4x_returns_non_empty_sorted_list() -> Result<()> {
+        let locales = discover_locales_from_icu4x()?;
+
+        assert!(!locales.is_empty());
+        assert!(locales.windows(2).all(|window| window[0] <= window[1]));
+        Ok(())
+    }
+
+    #[test]
+    fn load_shared_marker_locales_returns_intersection() -> Result<()> {
+        let provider = DisplayNamesProvider;
+
+        let shared = load_shared_marker_locales(&provider)?;
+        let language = marker_locales::<LanguageDisplayNamesV1>(&provider, "language")?;
+
+        assert!(!shared.is_empty());
+        assert!(shared.iter().all(|locale| language.contains(locale)));
+        Ok(())
+    }
+
+    #[test]
+    fn marker_locales_returns_non_empty_sorted_results() -> Result<()> {
+        let provider = DisplayNamesProvider;
+
+        let locales = marker_locales::<LanguageDisplayNamesV1>(&provider, "language")?;
+        let ordered = locales.iter().collect::<Vec<_>>();
+
+        assert!(!locales.is_empty());
+        assert!(locales.iter().all(|locale| !locale.is_empty()));
+        assert!(ordered.windows(2).all(|window| window[0] <= window[1]));
+        Ok(())
+    }
+
+    #[test]
     fn choose_display_locale_prefers_exact_match() {
         let display_locale_set = BTreeSet::from(["en", "pt-BR"]);
 
@@ -411,12 +517,30 @@ mod tests {
     }
 
     #[test]
+    fn choose_display_locale_falls_back_to_en_001_when_available() {
+        let display_locale_set = BTreeSet::from(["en-001", "fr"]);
+
+        let chosen = choose_display_locale_for_autonym("x-private", &display_locale_set);
+
+        assert_eq!(chosen, "en-001");
+    }
+
+    #[test]
     fn choose_display_locale_falls_back_to_first_sorted_locale() {
         let display_locale_set = BTreeSet::from(["fr", "ja"]);
 
         let chosen = choose_display_locale_for_autonym("x-private", &display_locale_set);
 
         assert_eq!(chosen, "fr");
+    }
+
+    #[test]
+    fn choose_display_locale_falls_back_to_en_for_empty_set() {
+        let display_locale_set = BTreeSet::new();
+
+        let chosen = choose_display_locale_for_autonym("x-private", &display_locale_set);
+
+        assert_eq!(chosen, "en");
     }
 
     #[test]
@@ -439,6 +563,24 @@ mod tests {
     }
 
     #[test]
+    fn load_display_locales_ignores_non_directory_entries() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let i18n_dir = temp_dir.path();
+        fs::create_dir_all(i18n_dir.join("en"))?;
+        fs::write(i18n_dir.join("README.txt"), "ignore me")?;
+
+        let supported_locales = vec!["en".to_owned()];
+        let formatter_locale_set: BTreeSet<&str> =
+            supported_locales.iter().map(String::as_str).collect();
+
+        let display_locales =
+            load_display_locales(i18n_dir, &supported_locales, &formatter_locale_set)?;
+
+        assert_eq!(display_locales, vec!["en"]);
+        Ok(())
+    }
+
+    #[test]
     fn load_display_locales_falls_back_to_supported_locales() -> Result<()> {
         let temp_dir = tempdir()?;
         let supported_locales = vec!["en".to_owned(), "ja".to_owned()];
@@ -453,10 +595,110 @@ mod tests {
     }
 
     #[test]
+    fn load_display_locales_errors_when_no_usable_candidates_exist() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let supported_locales = vec!["fr".to_owned()];
+        let formatter_locale_set: BTreeSet<&str> = BTreeSet::from(["ja"]);
+
+        let err = load_display_locales(temp_dir.path(), &supported_locales, &formatter_locale_set)
+            .expect_err("should reject locales without formatter support");
+        assert!(err
+            .to_string()
+            .contains("no usable output display locales were found"));
+        Ok(())
+    }
+
+    #[test]
+    fn format_locale_name_formats_and_reuses_cache() -> Result<()> {
+        let mut formatter_cache = HashMap::new();
+        let target_locale: Locale = "fr".parse()?;
+
+        let first = format_locale_name(&mut formatter_cache, "en", &target_locale)?;
+        let second = format_locale_name(&mut formatter_cache, "en", &target_locale)?;
+
+        assert_eq!(first, second);
+        assert_eq!(formatter_cache.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn format_locale_name_rejects_invalid_display_locale() -> Result<()> {
+        let mut formatter_cache = HashMap::new();
+        let target_locale: Locale = "fr".parse()?;
+
+        let err = format_locale_name(&mut formatter_cache, "@@@", &target_locale)
+            .expect_err("invalid locale must fail");
+        assert!(err
+            .to_string()
+            .contains("failed to parse display locale '@@@'"));
+        Ok(())
+    }
+
+    #[test]
+    fn write_ftl_writes_entries_with_escaped_values() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let path = temp_dir.path().join("nested/es-fluent-lang.ftl");
+        let entries = vec![
+            ("en".to_owned(), "English".to_owned()),
+            ("templ".to_owned(), "Name {value}".to_owned()),
+        ];
+
+        write_ftl(&path, &entries)?;
+        let content = fs::read_to_string(path)?;
+
+        assert_eq!(
+            content,
+            "es-fluent-lang-en = English\nes-fluent-lang-templ = Name {{value}}\n"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn write_supported_locales_writes_generated_file() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let path = temp_dir.path().join("generated/supported_locales.rs");
+        let locales = vec!["en".to_owned(), "ja".to_owned()];
+
+        write_supported_locales(&path, &locales)?;
+        let content = fs::read_to_string(path)?;
+
+        assert!(content.starts_with(GENERATED_HEADER));
+        assert!(content.contains("\"en\""));
+        assert!(content.contains("\"ja\""));
+        assert!(content.ends_with("];\n"));
+        Ok(())
+    }
+
+    #[test]
     fn escape_fluent_value_escapes_braces() {
         assert_eq!(
             escape_fluent_value("a {value} and {other}"),
             "a {{value}} and {{other}}"
         );
+    }
+
+    #[test]
+    fn run_generates_requested_outputs() -> Result<()> {
+        let temp_dir = tempdir()?;
+        let ftl_output = temp_dir.path().join("out/es-fluent-lang.ftl");
+        let rs_output = temp_dir.path().join("out/supported_locales.rs");
+        let i18n_dir = temp_dir.path().join("i18n");
+        fs::create_dir_all(i18n_dir.join("en"))?;
+
+        run(GenerateLangNamesArgs {
+            ftl_output: Some(ftl_output.clone()),
+            rs_output: Some(rs_output.clone()),
+            i18n_dir: Some(i18n_dir.clone()),
+        })?;
+
+        let ftl_content = fs::read_to_string(&ftl_output)?;
+        let rs_content = fs::read_to_string(&rs_output)?;
+        let localized_path = i18n_dir.join("en").join(I18N_RESOURCE_NAME);
+        let localized_content = fs::read_to_string(localized_path)?;
+
+        assert!(ftl_content.contains("es-fluent-lang-en ="));
+        assert!(rs_content.contains("pub const SUPPORTED_LANGUAGE_KEYS"));
+        assert!(localized_content.contains("es-fluent-lang-en ="));
+        Ok(())
     }
 }

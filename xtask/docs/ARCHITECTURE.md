@@ -51,7 +51,7 @@ flowchart TD
 
 ### build-book
 
-- `xtask/src/commands/build_book.rs`: invokes `mdbook build` with output to `web/public/book`, adds `.gitignore` to exclude built files from version control.
+- `xtask/src/commands/build_book.rs`: builds mdBook via the `mdbook` crate API with output to `web/public/book`, adds `.gitignore` to exclude built files from version control.
 
 ### build-llms-txt
 
