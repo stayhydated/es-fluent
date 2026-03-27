@@ -12,6 +12,10 @@ gender_choice-Female = Female
 gender_choice-Male = Male
 gender_choice-Other = Other
 
+## Greeting
+
+greeting = Greeting { $name } { $gender }
+
 ## LoginError
 
 login_error-InvalidPassword = Invalid Password
@@ -40,10 +44,6 @@ login_form_variants_description_variants-username = Username
 login_form_variants_label_variants-password = Password
 login_form_variants_label_variants-username = Username
 
-## UserProfileChoice
+## WelcomeMessage
 
-user_profile_choice = User Profile Choice { $name } { $gender }
-
-## UserProfileDerive
-
-user_profile_derive = User Profile Derive { $name } { $gender }
+welcome_message = Welcome Message { $name } { $count }

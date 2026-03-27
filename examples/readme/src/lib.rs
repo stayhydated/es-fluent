@@ -1,8 +1,6 @@
 //! Examples from the README
 
-// ============================================================================
-// Namespaces Section Examples
-// ============================================================================
+pub mod i18n;
 
 pub mod namespaces;
 pub use namespaces::{
@@ -10,23 +8,20 @@ pub use namespaces::{
     StatusVariants, UserProfile,
 };
 
-// ============================================================================
-// Derives Section Examples
-// ============================================================================
-
 // #[derive(EsFluent)] - Enums and Structs
 use es_fluent::EsFluent;
+
 #[derive(EsFluent)]
 pub enum LoginError {
     InvalidPassword,                   // no params
     UserNotFound { username: String }, // exposed as $username in the ftl file
-    Something(String, String, String), // exposed as $f1, $f2, $f3 in the ftl file
+    Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
 }
 
 #[derive(EsFluent)]
-pub struct UserProfileDerive<'a> {
-    pub name: &'a str,   // exposed as $name in the ftl file
-    pub gender: &'a str, // exposed as $gender in the ftl file
+pub struct WelcomeMessage<'a> {
+    pub name: &'a str, // exposed as $name in the ftl file
+    pub count: i32,    // exposed as $count in the ftl file
 }
 
 // #[derive(EsFluentChoice)]
@@ -41,7 +36,7 @@ pub enum GenderChoice {
 }
 
 #[derive(EsFluent)]
-pub struct UserProfileChoice<'a> {
+pub struct Greeting<'a> {
     pub name: &'a str,
     #[fluent(choice)] // Matches $gender -> [male]...
     pub gender: &'a GenderChoice,

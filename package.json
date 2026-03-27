@@ -6,6 +6,8 @@
   ],
   "scripts": {
     "build": "turbo build",
+    "build:book": "cargo run -p xtask -- build-book",
+    "build:llms-txt": "cargo run -p xtask -- build-llms-txt",
     "build:wasm": "bun run build:wasm:bevy",
     "build:wasm:bevy": "cd examples/bevy-example && wasm-pack build --release --target web --out-dir ../../web/public/bevy-example --out-name bevy-example --no-default-features && cp -r ../assets ../../web/public/bevy-example/",
     "build:web": "turbo run build --filter=web",

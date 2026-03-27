@@ -1,18 +1,18 @@
-# xtask Architecture
+# Architecture: xtask
 
-This document describes the `xtask` crate used for repository maintenance
-automation.
+## Purpose
 
-## Overview
+`xtask` provides workspace maintenance tasks for this project.
 
-`xtask` centralizes generation of bundled language-name data from ICU4X compiled
-display-name resources.
+## CLI commands
 
-Current command:
+- `generate-lang-names`: Generates language-name resources and `supported_locales.rs` from ICU4X data
+- `build-book`: builds mdBook documentation to `web/public/book`.
+- `build-llms-txt`: concatenates mdBook sources into `web/public/llms.txt` for LLM consumption.
 
-- `generate-lang-names`
+### generate-lang-names
 
-## Responsibilities
+#### Responsibilities
 
 `generate-lang-names` performs three coordinated outputs:
 
@@ -22,7 +22,7 @@ Current command:
 1. Generates compile-time locale keys into
    `crates/es-fluent-lang-macro/src/supported_locales.rs`.
 
-## Data Flow
+#### Data Flow
 
 ```mermaid
 flowchart TD
@@ -43,8 +43,16 @@ flowchart TD
     SUP --> MACRO
 ```
 
-## Notes
+#### Notes
 
 - Locale discovery is based on ICU4X markers shared across language/locale/region/script/variant display-name datasets.
 - Output locales are filtered to locales with usable formatter data.
 - Locale-name fallback favors exact match, then parent locale, then English, then first available locale.
+
+### build-book
+
+- `xtask/src/commands/build_book.rs`: invokes `mdbook build` with output to `web/public/book`, adds `.gitignore` to exclude built files from version control.
+
+### build-llms-txt
+
+- `xtask/src/commands/build_llms_txt.rs`: reads `SUMMARY.md`, extracts referenced markdown files, concatenates their content with separators.

@@ -1,0 +1,880 @@
+# Introduction
+
+`es-fluent` is a localization (i18n) ecosystem for Rust built on top of [Project Fluent](https://projectfluent.org/). It provides type-safe, ergonomic derive macros to link your Rust types directly to Fluent `.ftl` translation files.
+
+The core philosophy:
+
+- **Type Safety**: Your code and translation files stay in sync — mismatches are caught at compile time.
+- **Ergonomics**: A single `#[derive(EsFluent)]` on a struct or enum is all you need.
+- **Developer Experience**: A CLI generates FTL file skeletons, validates keys, and keeps everything consistent.
+
+## What This Book Covers
+
+1. [**Getting Started**](getting_started.md) — Installation, configuration, and a working end-to-end example.
+2. [**Deriving Messages**](deriving_messages.md) — Mapping structs and enums to FTL message keys using `EsFluent`, `EsFluentChoice`, `EsFluentVariants`, and `EsFluentThis`.
+3. [**Namespaces & File Splitting**](namespaces.md) — Organizing translations into multiple FTL files.
+4. [**Language Enum**](language_enum.md) — Auto-generating a type-safe `Languages` enum from your locale folders.
+5. [**Runtime Managers**](managers.md) — Loading and resolving translations at runtime with the embedded or Bevy manager.
+6. [**CLI Tooling**](cli.md) — Generating, validating, syncing, and cleaning FTL files from the command line.
+7. [**Incremental Builds**](incremental_builds.md) — Ensuring Cargo rebuilds when locale files change.
+
+
+---
+
+# Getting Started
+
+## Dependencies
+
+Add `es-fluent` with `derive` support and a runtime manager:
+
+```toml
+[dependencies]
+es-fluent = { version = "*", features = ["derive"] }
+unic-langid = "*"
+
+# For simple apps and CLIs:
+es-fluent-manager-embedded = "*"
+```
+
+## Project Configuration
+
+Create an `i18n.toml` next to your workspace's root `Cargo.toml`:
+
+```toml
+# Default fallback language (required)
+fallback_language = "en-US"
+
+# Path to FTL assets relative to the config file (required)
+assets_dir = "assets/locales"
+
+# Features to enable if the crate's es-fluent derives are gated behind a feature (optional)
+fluent_feature = ["my-feature"]
+
+# Optional allowlist of namespace values for FTL file splitting
+namespaces = ["ui", "errors", "messages"]
+```
+
+The CLI and build tools use this file as the single source of truth for locating `.ftl` files and validating keys.
+
+## End-to-End Example
+
+Here's a minimal project that defines a localizable enum, generates the FTL skeleton, and prints a translated message.
+
+### 1. Define a type
+
+```rust
+// src/lib.rs
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+pub enum LoginError {
+    InvalidPassword,
+    UserNotFound { username: String },
+}
+```
+
+### 2. Generate the FTL file
+
+```sh
+cargo es-fluent generate
+```
+
+This creates `assets/locales/en-US/{your_crate}.ftl` with a skeleton:
+
+```ftl
+## LoginError
+
+login_error-InvalidPassword = Invalid Password
+login_error-UserNotFound = User Not Found { $username }
+```
+
+Edit the values to your liking — the CLI will preserve your changes on subsequent runs.
+
+### 3. Initialize and localize
+
+```rust
+// src/main.rs
+use es_fluent::ToFluentString;
+use unic_langid::langid;
+
+// Register the embedded assets
+es_fluent_manager_embedded::define_i18n_module!();
+
+fn main() {
+    es_fluent_manager_embedded::init();
+    es_fluent_manager_embedded::select_language(&langid!("en-US"));
+
+    let err = my_crate::LoginError::UserNotFound {
+        username: "alice".to_string(),
+    };
+    println!("{}", err.to_fluent_string());
+    // → "User Not Found alice"
+}
+```
+
+## Workflow Summary
+
+A typical `es-fluent` workflow:
+
+1. **Configure** — Create `i18n.toml` with your fallback language and asset path.
+2. **Derive** — Annotate structs and enums with `#[derive(EsFluent)]`.
+3. **Generate** — Run `cargo es-fluent generate` to create FTL file skeletons.
+4. **Translate** — Edit the generated `.ftl` files with real translations.
+5. **Use** — Call `to_fluent_string()` at runtime through a manager.
+
+The following chapters break down each of these steps in detail.
+
+
+---
+
+# Deriving Messages
+
+The `EsFluent` derive macro turns a struct or enum into a localizable message. Each type maps to one or more keys in your `.ftl` files, and fields become Fluent arguments.
+
+- **Enums**: Each variant becomes a message ID (e.g., `MyEnum::Variant` → `my_enum-Variant`).
+- **Structs**: The struct itself becomes the message ID (e.g., `MyStruct` → `my_struct`).
+- **Fields**: Fields are automatically exposed as arguments to the Fluent message.
+
+```rust
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+pub enum LoginError {
+    InvalidPassword,                   // no params
+    UserNotFound { username: String }, // exposed as $username in the ftl file
+    Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+}
+
+#[derive(EsFluent)]
+pub struct WelcomeMessage<'a> {
+    pub name: &'a str, // exposed as $name in the ftl file
+    pub count: i32,    // exposed as $count in the ftl file
+}
+```
+
+The CLI generates the following FTL entries for these types:
+
+```ftl
+## LoginError
+
+login_error-InvalidPassword = Invalid Password
+login_error-Something = Something { $f0 } { $f1 } { $f2 }
+login_error-UserNotFound = User Not Found { $username }
+
+## WelcomeMessage
+
+welcome_message = Welcome Message { $name } { $count }
+```
+
+At runtime, call `to_fluent_string()` to resolve the translations:
+
+```rust
+use es_fluent::ToFluentString;
+
+let _ = LoginError::InvalidPassword.to_fluent_string();
+let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
+
+let welcome = WelcomeMessage { name: "John", count: 5 };
+let _ = welcome.to_fluent_string();
+```
+
+## Using Choices
+
+Choices allow an enum to be used _inside_ another message as a Fluent selector (e.g., for gender or category). Derive `EsFluentChoice` alongside `EsFluent` on the selector enum.
+
+```rust
+use es_fluent::{EsFluent, EsFluentChoice};
+
+#[derive(EsFluent, EsFluentChoice)]
+#[fluent_choice(serialize_all = "snake_case")]
+pub enum GenderChoice {
+    Male,
+    Female,
+    Other,
+}
+
+#[derive(EsFluent)]
+pub struct Greeting<'a> {
+    pub name: &'a str,
+    #[fluent(choice)] // Matches $gender -> [male]...
+    pub gender: &'a GenderChoice,
+}
+```
+
+In the FTL file, the choice field can drive a selector:
+
+```ftl
+greeting = { $gender ->
+    [male] Welcome Mr. { $name }
+    [female] Welcome Ms. { $name }
+   *[other] Welcome { $name }
+}
+```
+
+```rust
+use es_fluent::ToFluentString;
+let greeting = Greeting { name: "John", gender: &GenderChoice::Male };
+let _ = greeting.to_fluent_string();
+```
+
+## Generating Variants
+
+`EsFluentVariants` generates key-value pair enums for struct fields. This is useful for generating UI labels, placeholders, or descriptions for a form object — one enum per key.
+
+```rust
+use es_fluent::EsFluentVariants;
+
+#[derive(EsFluentVariants)]
+#[fluent_variants(keys = ["label", "description"])]
+pub struct LoginFormVariants {
+    pub username: String,
+    pub password: String,
+}
+```
+
+This generates two enums with corresponding FTL entries:
+
+```ftl
+## LoginFormVariantsLabelVariants
+
+login_form_variants_label_variants-password = Password
+login_form_variants_label_variants-username = Username
+
+## LoginFormVariantsDescriptionVariants
+
+login_form_variants_description_variants-password = Password
+login_form_variants_description_variants-username = Username
+```
+
+```rust
+use es_fluent::ToFluentString;
+let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+```
+
+## Type-level Keys (This)
+
+`EsFluentThis` generates a `ThisFtl` implementation that registers the type's _name_ as a key. Where `EsFluentVariants` registers individual fields, `EsFluentThis` registers the parent type itself.
+
+### Origin Only
+
+`#[fluent_this(origin)]` creates a single key for the type:
+
+```rust
+use es_fluent::EsFluentThis;
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin)]
+pub enum GenderThisOnly {
+    Male,
+    Female,
+    Other,
+}
+```
+
+```ftl
+gender_this_only_this = Gender This Only
+```
+
+```rust
+use es_fluent::ThisFtl;
+let _ = GenderThisOnly::this_ftl();
+```
+
+### Combined with Variants
+
+`#[fluent_this(variants)]` can be combined with `EsFluentVariants` to generate `this_ftl()` keys for each generated variant enum:
+
+```rust
+use es_fluent::{EsFluentThis, EsFluentVariants};
+
+#[derive(EsFluentThis, EsFluentVariants)]
+#[fluent_this(origin, variants)]
+#[fluent_variants(keys = ["label", "description"])]
+pub struct LoginFormCombined {
+    pub username: String,
+    pub password: String,
+}
+```
+
+```ftl
+login_form_combined_label_variants_this = Login Form Combined Label Variants
+login_form_combined_description_variants_this = Login Form Combined Description Variants
+```
+
+```rust
+use es_fluent::ThisFtl;
+let _ = LoginFormCombinedDescriptionVariants::this_ftl();
+```
+
+
+---
+
+# Namespaces & File Splitting
+
+By default, all your FTL keys land in a single `{crate}.ftl` file per locale. As a project grows, this gets unwieldy. Namespaces let you route specific types into separate `.ftl` files. Every derive macro (`EsFluent`, `EsFluentThis`, `EsFluentVariants`) supports the same namespace attribute.
+
+## Output Layout
+
+| Declaration    | File path                                     |
+| -------------- | --------------------------------------------- |
+| No namespace   | `assets_dir/{locale}/{crate}.ftl`             |
+| With namespace | `assets_dir/{locale}/{crate}/{namespace}.ftl` |
+
+## Namespace Modes
+
+### Explicit String
+
+`namespace = "name"` sets an explicit string namespace.
+
+```rust
+use es_fluent::EsFluent;
+
+#[derive(EsFluent)]
+#[fluent(namespace = "ui")]
+pub struct Button<'a>(pub &'a str);
+```
+
+This writes the key to `assets_dir/{locale}/{crate}/ui.ftl`.
+
+### File Stem
+
+`namespace = file` uses the source file's stem as the namespace.
+
+```rust
+use es_fluent::EsFluent;
+
+// In src/components/dialog.rs
+#[derive(EsFluent)]
+#[fluent(namespace = file)]
+pub struct Dialog {
+    pub title: String,
+}
+```
+
+A type in `src/components/dialog.rs` maps to namespace `dialog`.
+
+### File Relative
+
+`namespace(file(relative))` uses the file path relative to the crate root, strips `src/`, and removes the extension.
+
+```rust
+use es_fluent::EsFluent;
+
+// In src/ui/button.rs
+#[derive(EsFluent)]
+#[fluent(namespace(file(relative)))]
+pub enum Gender {
+    Male,
+    Female,
+    Other(String),
+}
+```
+
+A type in `src/ui/button.rs` maps to namespace `ui/button`.
+
+### Folder
+
+`namespace = folder` uses the source file's parent folder.
+
+```rust
+use es_fluent::EsFluentThis;
+
+// In src/user/profile.rs
+#[derive(EsFluentThis)]
+#[fluent_this(origin)]
+#[fluent(namespace = folder)]
+pub enum FolderStatus {
+    Active,
+    Inactive,
+}
+```
+
+A type in `src/user/profile.rs` maps to namespace `user`.
+
+### Folder Relative
+
+`namespace(folder(relative))` uses the parent folder path relative to the crate root, stripping `src/` when nested and keeping `src` for root module files.
+
+```rust
+use es_fluent::EsFluentThis;
+
+// In src/user/profile.rs
+#[derive(EsFluentThis)]
+#[fluent_this(origin)]
+#[fluent(namespace(folder(relative)))]
+pub struct FolderUserProfile;
+```
+
+A type in `src/user/profile.rs` maps to namespace `user`.
+
+## Quick Reference
+
+| Syntax                        | Example source file | Resulting namespace |
+| ----------------------------- | ------------------- | ------------------- |
+| `namespace = "name"`          | any                 | `name`              |
+| `namespace = file`            | `src/ui/button.rs`  | `button`            |
+| `namespace(file(relative))`   | `src/ui/button.rs`  | `ui/button`         |
+| `namespace = folder`          | `src/ui/button.rs`  | `ui`                |
+| `namespace(folder(relative))` | `src/ui/button.rs`  | `ui`                |
+
+## Validation
+
+If `namespaces = [...]` is set in your `i18n.toml`, both the compiler (at compile-time) and the CLI will validate that explicit string-based namespaces used by your code match the provided allowlist. File-based and folder-based namespaces bypass validation since they're derived automatically from the source tree.
+
+
+---
+
+# Language Enum
+
+Most apps need to know which languages are available — for a settings screen, a language picker, or to select the right locale at startup. The `#[es_fluent_language]` macro generates a strongly-typed enum from the folders in your `assets_dir`, so you never hardcode locale strings.
+
+## Setup
+
+Add the `es-fluent-lang` crate:
+
+```toml
+[dependencies]
+es-fluent-lang = "*"
+```
+
+## Usage
+
+Define an empty enum and annotate it with `#[es_fluent_language]`:
+
+```rust
+use es_fluent_lang::es_fluent_language;
+use es_fluent::EsFluent;
+use strum::EnumIter;
+
+#[es_fluent_language]
+#[derive(Debug, Clone, Copy, PartialEq, EsFluent, EnumIter)]
+pub enum Languages {}
+```
+
+If your `assets_dir` contains `en`, `fr`, and `de` folders, the macro expands this into:
+
+```rust
+pub enum Languages {
+    De,
+    En,
+    Fr,
+}
+```
+
+The macro also generates these trait implementations:
+
+| Trait                          | Description                                                       |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `Default`                      | Returns the variant matching `fallback_language` from `i18n.toml` |
+| `FromStr`                      | Parses `"en-US"` or `"fr"` into the matching variant              |
+| `TryFrom<&LanguageIdentifier>` | Converts from a `unic-langid` identifier                          |
+| `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                       |
+
+## Using with Managers
+
+The `Languages` enum plugs directly into manager initialization:
+
+```rust
+use es_fluent_manager_embedded as manager;
+
+manager::init();
+manager::select_language(Languages::En);
+```
+
+Since it implements `Into<LanguageIdentifier>`, you can pass variants anywhere a `LanguageIdentifier` is expected.
+
+## Language Name Labels
+
+By deriving `EsFluent` alongside `#[es_fluent_language]`, you get `to_fluent_string()` on each variant. The crate ships with a bundled `es-fluent-lang.ftl` file containing autonyms (language names in their own script: "English", "Français", "Deutsch"), so a language picker works out of the box:
+
+```rust
+use es_fluent::ToFluentString;
+
+// Prints the language name in its native script
+println!("{}", Languages::Fr.to_fluent_string()); // → "Français"
+```
+
+## Custom Mode
+
+By default, the macro links to the bundled autonym translations and skips inventory registration. If you want to provide your own translations for language names (e.g., localized names like "French" in English or "Francés" in Spanish), use **custom mode**:
+
+```rust
+#[es_fluent_language(custom)]
+#[derive(Debug, Clone, Copy, EsFluent, EnumIter)]
+pub enum Languages {}
+```
+
+In custom mode:
+
+- The enum **is** registered with inventory, so `cargo es-fluent generate` will create keys for it in your FTL files.
+- You provide your own translations instead of using the bundled autonyms.
+
+
+---
+
+# Runtime Managers
+
+`es-fluent` is agnostic about how you load translations at runtime. The ecosystem provides two ready-made manager crates so you don't have to build your own asset pipeline.
+
+| Manager                      | Best for                 | How it works                             |
+| ---------------------------- | ------------------------ | ---------------------------------------- |
+| `es-fluent-manager-embedded` | CLIs, TUIs, desktop apps | Compiles FTL files into the binary       |
+| `es-fluent-manager-bevy`     | Bevy games and apps      | Loads FTL files via Bevy's `AssetServer` |
+
+---
+
+## Embedded Manager (`es-fluent-manager-embedded`)
+
+Bundles your translations directly into the binary and exposes a global singleton. No external files needed at runtime.
+
+### Features
+
+- **Embedded Assets**: Compiles your FTL files into the binary (using `rust-embed` under the hood).
+- **Global Access**: Once initialized, you can call `to_fluent_string()` anywhere in your code without passing context around.
+- **Thread Safe**: Uses `OnceLock` and atomic swaps for safe concurrent access.
+
+### Quick Start
+
+#### 1. Define the Module
+
+In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+
+```rust
+// a i18n.toml file must exist in the root of the crate
+es_fluent_manager_embedded::define_i18n_module!();
+```
+
+#### 2. Initialize & Use
+
+In your application entry point:
+
+```rust
+use es_fluent::ToFluentString;
+use unic_langid::langid;
+
+fn main() {
+    // 1. Initialize the global manager
+    es_fluent_manager_embedded::init();
+
+    // 2. Set the language (e.g., from system locale or user config)
+    es_fluent_manager_embedded::select_language(&langid!("en-US"));
+
+    // 3. Localize things!
+    let msg = MyMessage::Hello { name: "World" };
+    println!("{}", msg.to_fluent_string());
+}
+```
+
+If you have a [Language Enum](language_enum.md), you can pass it directly since it implements `Into<LanguageIdentifier>`:
+
+```rust
+es_fluent_manager_embedded::select_language(Languages::En);
+```
+
+---
+
+## Bevy Manager (`es-fluent-manager-bevy`)
+
+Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugin connects type-safe localization with Bevy's ECS and Asset system, allowing `#[derive(EsFluent)]` types to serve as components that automatically update when the language changes.
+
+### Features
+
+- **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
+- **Hot Reloading**: Supports hot-reloading of translations during development.
+- **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
+- **Global Hook**: Integrates with `es-fluent`'s global state.
+
+### Quick Start
+
+#### 1. Define the Module
+
+In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+
+```rust
+// a i18n.toml file must exist in the root of the crate
+es_fluent_manager_bevy::define_i18n_module!();
+```
+
+#### 2. Initialize & Use
+
+Add the plugin to your `App`:
+
+```rust
+use bevy::prelude::*;
+use es_fluent_manager_bevy::I18nPlugin;
+use unic_langid::langid;
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        // Initialize with default language
+        .add_plugins(I18nPlugin::with_language(langid!("en-US")))
+        .run();
+}
+```
+
+#### 3. Define Localizable Components (Recommended)
+
+Prefer the `BevyFluentText` derive macro. It auto-registers your type with `I18nPlugin` via inventory, so you don't have to call any registration functions manually.
+
+If a field depends on the active locale (like the `Languages` enum from [Language Enum](language_enum.md)), mark it with `#[locale]`. The macro will generate `RefreshForLocale` and register the locale-aware systems for you.
+
+```rust
+use bevy::prelude::Component;
+use es_fluent::EsFluent;
+use es_fluent_manager_bevy::BevyFluentText;
+
+#[derive(BevyFluentText, Clone, Component, EsFluent)]
+pub enum UiMessage {
+    StartGame,
+    Settings,
+    LanguageHint {
+        #[locale]
+        current_language: Languages,
+    },
+}
+```
+
+#### 4. Using in UI
+
+Use the `FluentText` component wrapper for any type that implements `ToFluentString` (which `#[derive(EsFluent)]` provides).
+
+```rust
+use es_fluent_manager_bevy::FluentText;
+
+fn spawn_menu(mut commands: Commands) {
+    commands.spawn((
+        // This text will automatically update if language changes
+        FluentText::new(UiMessage::StartGame),
+        Text::new(""),
+    ));
+}
+```
+
+#### Manual Registration (Fallback)
+
+If you cannot derive `BevyFluentText` (e.g., external types), you can still register manually:
+
+```rust
+app.register_fluent_text::<UiMessage>();
+```
+
+If the type needs locale refresh, implement `RefreshForLocale` and use the locale-aware registration function:
+
+```rust
+use es_fluent_manager_bevy::RefreshForLocale;
+
+#[derive(EsFluent, Clone, Component)]
+pub enum UiMessage {
+    LanguageHint { current_language: Languages },
+}
+
+impl RefreshForLocale for UiMessage {
+    fn refresh_for_locale(&mut self, lang: &unic_langid::LanguageIdentifier) {
+        match self {
+            UiMessage::LanguageHint { current_language } => {
+                if let Ok(value) = Languages::try_from(lang) {
+                    *current_language = value;
+                }
+            }
+        }
+    }
+}
+
+app.register_fluent_text_from_locale::<UiMessage>();
+```
+
+#### Do Nested Types Need `BevyFluentText`?
+
+Only the **component type** wrapped by `FluentText<T>` needs registration. If a nested field (like `KbKeys`) is only used inside a registered component, it does **not** need `BevyFluentText`. When the parent component re-renders, its `EsFluent` implementation formats all fields using the current locale.
+
+You only need `BevyFluentText` for a nested type if you plan to use it directly as `FluentText<ThatType>` or otherwise register it as its own component.
+
+
+---
+
+# CLI Tooling
+
+The `es-fluent-cli` is the command-line companion for `es-fluent`. It analyzes your Rust source code, finds types annotated with derive macros (see [Deriving Messages](deriving_messages.md)), and manages the corresponding FTL translation files for you.
+
+## Installation
+
+```sh
+cargo install es-fluent-cli --locked
+```
+
+## Configuration
+
+The CLI reads your `i18n.toml` (see [Getting Started](getting_started.md)) to locate FTL assets. Make sure it exists in your crate root:
+
+```toml
+# Default fallback language (required)
+fallback_language = "en-US"
+
+# Path to FTL assets relative to the config file (required)
+assets_dir = "assets/locales"
+
+# Features to enable if the crate's es-fluent derives are gated behind a feature (optional)
+fluent_feature = ["my-feature"]
+
+# Optional allowlist of namespace values for FTL file splitting
+namespaces = ["ui", "errors", "messages"]
+```
+
+## Commands
+
+### Generate
+
+When you add new `#[derive(EsFluent)]`, `#[derive(EsFluentVariants)]`, or `#[derive(EsFluentThis)]` types to your code, run:
+
+```sh
+cargo es-fluent generate
+```
+
+This will:
+
+1. Scan your `src/` directory for types with `es-fluent` derives.
+1. Update `assets_dir/en-US/{your_crate}.ftl` (and `assets_dir/en-US/{your_crate}/{namespace}.ftl` for [namespaced](namespaces.md) types).
+   - **New items**: Added as new messages.
+   - **Changed items**: Variables updated (e.g. if you added a field).
+   - **Existing translations**: Preserved untouched.
+
+Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and force a rebuild.
+
+If you configure `namespaces = [...]` in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler (at compile-time) and the CLI (during `generate` and `watch`).
+
+### Watch
+
+Same as `generate`, but runs in watch mode — updating FTL files as you type:
+
+```sh
+cargo es-fluent watch
+```
+
+### Check
+
+Verify that all your translations are valid and no keys are missing:
+
+```sh
+cargo es-fluent check
+```
+
+Use `--all` to check all locales (not just the fallback language), `--ignore <CRATE>` to skip specific crates, `--force-run` to bypass the staleness cache.
+
+### Clean
+
+Remove orphan keys and groups that are no longer present in your source code:
+
+```sh
+cargo es-fluent clean
+```
+
+Use `--dry-run` to preview changes without writing them. Use `--all` to clean all locales. Use `--force-run` to bypass the staleness cache.
+
+#### Clean Orphaned Files
+
+Remove FTL files that are no longer tied to any registered types (e.g., when all items are now namespaced or the crate was deleted):
+
+```sh
+cargo es-fluent clean --orphaned --all
+```
+
+This compares files in non-fallback locales against the fallback locale (`en-US` by default). Files that exist in non-fallback locales but have no corresponding file in the fallback locale are considered orphaned and will be removed. The fallback locale itself is never modified.
+
+Use `--dry-run` to preview which files would be removed without actually deleting them.
+
+### Format
+
+Standardize the formatting of your FTL files using `fluent-syntax` rules:
+
+```sh
+cargo es-fluent format
+```
+
+Use `--dry-run` to preview changes without writing them. Use `--all` to format all locales.
+
+### Sync
+
+Propagate keys from your fallback language to other languages (e.g., from `en-US` to `fr` and `de`), creating placeholders for missing translations:
+
+```sh
+cargo es-fluent sync
+```
+
+Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.
+
+The `sync` command properly handles [namespaced](namespaces.md) FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+name: es-fluent
+on: [pull_request]
+
+jobs:
+  es-fluent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check FTL files
+        uses: stayhydated/es-fluent/crates/es-fluent-cli@master
+        with:
+          path: .
+          all: true
+```
+
+Inputs:
+
+- `version`: Version of `es-fluent-cli` to install from crates.io. Default: `latest`.
+- `path`: Path to the crate or workspace root (passed as `--path`). Default: `.`.
+- `package`: Package name filter for workspaces (passed as `--package`). Default: empty.
+- `all`: Check all locales, not just the fallback language. Default: `false`.
+- `ignore`: Crates to skip during validation (comma-separated). Default: empty.
+- `force_run`: Force rebuild of the runner, ignoring the staleness cache. Default: `false`.
+- `toolchain`: Rust toolchain to install for the action. Default: `stable`.
+
+This action always runs `cargo es-fluent check`. Pin the `uses` ref to a release tag or commit SHA for reproducible builds. Use the `version` input to install a matching `es-fluent-cli` crate version.
+
+## Limitations
+
+The CLI runner links workspace crates as **library targets only**. If you define `#[derive(EsFluent*)]` types exclusively in a binary target, they won't be registered in the inventory, and commands like `generate` or `clean` may miss or remove their keys.
+
+Workarounds:
+
+- Add a `lib.rs` target and move derived types into it.
+- Move shared localization types into a small library crate and depend on it from your binary.
+
+
+---
+
+# Incremental Builds
+
+The manager macros discover locales at compile time by scanning your `assets_dir`. By default, Cargo doesn't know about these files, so changes like renaming a locale folder (e.g., `fr` → `fr-FR`) won't trigger a rebuild.
+
+The `build` feature adds a `build.rs` helper that emits `cargo:rerun-if-changed` directives for your locale assets, ensuring Cargo rebuilds when translations change.
+
+## Setup
+
+Add `es-fluent` to your **build dependencies**:
+
+```toml
+[build-dependencies]
+es-fluent = { version = "*", features = ["build"] }
+```
+
+Call the tracking helper from `build.rs`:
+
+```rust
+// build.rs
+fn main() {
+    es_fluent::build::track_i18n_assets();
+}
+```
+
+This guarantees your project recompiles whenever locale files or folders are added, removed, or renamed.
+
+
+---
+

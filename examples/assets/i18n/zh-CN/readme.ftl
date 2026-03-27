@@ -12,6 +12,10 @@ gender_choice-Female = 女
 gender_choice-Male = 男
 gender_choice-Other = 其他
 
+## Greeting
+
+greeting = 问候 { $name } { $gender }
+
 ## LoginError
 
 login_error-InvalidPassword = 密码错误
@@ -40,10 +44,6 @@ login_form_variants_description_variants-username = 用户名
 login_form_variants_label_variants-password = 密码
 login_form_variants_label_variants-username = 用户名
 
-## UserProfileChoice
+## WelcomeMessage
 
-user_profile_choice = 用户资料选择 { $name } { $gender }
-
-## UserProfileDerive
-
-user_profile_derive = 用户资料派生 { $name } { $gender }
+welcome_message = 欢迎 { $name } { $count }

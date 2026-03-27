@@ -1,10 +1,12 @@
 ---
 import WasmExampleLayout from "@/layouts/WasmExampleLayout.astro";
 import WasmLoader from "@/components/WasmLoader.astro";
+import { displayNameFromBaseUrl } from "@/util";
 
 const baseUrl = import.meta.env.BASE_URL;
+const displayName = displayNameFromBaseUrl();
 ---
 
-<WasmExampleLayout title="Bevy Example - es-fluent">
+<WasmExampleLayout title={`Bevy Example - ${displayName}`}>
   <WasmLoader moduleUrl={`${baseUrl}/bevy-example/bevy-example.js`} />
 </WasmExampleLayout>

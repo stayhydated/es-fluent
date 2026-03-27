@@ -1,25 +1,17 @@
-mod generate_lang_names;
+mod cli;
+mod commands;
+mod util;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
-#[derive(Parser)]
-#[command(name = "xtask")]
-#[command(about = "Development tasks for es-fluent", long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    /// Generate language-name resources and supported_locales.rs from ICU4X data
-    GenerateLangNames(generate_lang_names::GenerateLangNamesArgs),
-}
+use cli::{Cli, Command};
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::GenerateLangNames(args) => generate_lang_names::run(args),
+        Command::GenerateLangNames(args) => commands::generate_lang_names::run(args),
+        Command::BuildBook => commands::build_book::run(),
+        Command::BuildLlmsTxt => commands::build_llms_txt::run(),
     }
 }

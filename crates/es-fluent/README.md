@@ -1,9 +1,10 @@
+# es-fluent
+
 [![Build Status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg?token=EFA5XVDNLK)](https://codecov.io/github/stayhydated/es-fluent)
+[![llms.txt](https://img.shields.io/badge/docs-llms--full.txt-blue)](https://stayhydated.github.io/es-fluent/llms.txt)
 [![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
-
-# es-fluent
 
 Derive macros and utilities for authoring strongly-typed messages with [Project Fluent](https://projectfluent.org/).
 
@@ -162,6 +163,9 @@ pub enum StatusVariants { Active, Inactive }
 - Default: `assets_dir/{locale}/{crate}.ftl`
 - Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
+When namespaces are used, namespace files are treated as the canonical split
+for that locale. `{crate}.ftl` remains optional for backwards compatibility.
+
 ### Namespace Values
 
 - `namespace = "name"` - explicit namespace string
@@ -192,10 +196,10 @@ pub enum LoginError {
     Something(String, String, String), // exposed as $f1, $f2, $f3 in the ftl file
 }
 
-// Usage:
-// LoginError::InvalidPassword.to_fluent_string()
-// LoginError::UserNotFound { username: "john" }.to_fluent_string()
-// LoginError::Something("a", "b", "c").to_fluent_string()
+use es_fluent::ToFluentString;
+let _ = LoginError::InvalidPassword.to_fluent_string();
+let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
+let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
 
 #[derive(EsFluent)]
 pub struct UserProfile<'a> {
@@ -203,7 +207,9 @@ pub struct UserProfile<'a> {
     pub gender: &'a str, // exposed as $gender in the ftl file
 }
 
-// usage: UserProfile { name: "John", gender: "male" }.to_fluent_string()
+use es_fluent::ToFluentString;
+let profile = UserProfile { name: "John", gender: "male" };
+let _ = profile.to_fluent_string();
 ```
 
 ### `#[derive(EsFluentChoice)]`
@@ -228,7 +234,9 @@ pub struct UserProfile<'a> {
     pub gender: &'a Gender,
 }
 
-// usage: UserProfile { name: "John", gender: &Gender::Male }.to_fluent_string()
+use es_fluent::ToFluentString;
+let profile = UserProfile { name: "John", gender: &Gender::Male };
+let _ = profile.to_fluent_string();
 ```
 
 ### `#[derive(EsFluentVariants)]`
@@ -249,7 +257,8 @@ pub struct LoginForm {
 // LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
 // LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
 
-// usage: LoginFormLabelVariants::Username.to_fluent_string()
+use es_fluent::ToFluentString;
+let _ = LoginFormLabelVariants::Username.to_fluent_string();
 ```
 
 ### `#[derive(EsFluentThis)]`
@@ -272,7 +281,8 @@ pub enum Gender {
 // Generates key:
 // (gender_this)
 
-// usage: Gender::this_ftl()
+use es_fluent::ThisFtl;
+let _ = Gender::this_ftl();
 ```
 
 - `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
@@ -290,5 +300,6 @@ pub struct LoginForm {
 // (login_form_label_variants_this)
 // (login_form_description_variants_this)
 
-// usage: LoginFormDescriptionVariants::this_ftl()
+use es_fluent::ThisFtl;
+let _ = LoginFormDescriptionVariants::this_ftl();
 ```

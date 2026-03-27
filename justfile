@@ -27,3 +27,10 @@ test-docs:
 
 ci: fmt check clippy test cov
     cargo machete
+
+book:
+    mdbook serve book
+
+web:
+    bun run build
+    bun run dev

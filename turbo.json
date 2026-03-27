@@ -2,7 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "//#build:wasm"],
+      "dependsOn": ["^build", "//#build:wasm", "//#build:book", "//#build:llms-txt"],
       "outputs": ["dist/**", ".astro/**"]
     },
     "//#build:wasm": {
@@ -16,6 +16,16 @@
         "examples/assets/i18n/**/bevy-example/**"
       ],
       "outputs": ["web/public/bevy-example/**"]
+    },
+    "//#build:book": {
+      "cache": true,
+      "inputs": ["book/**"],
+      "outputs": ["web/public/book/**"]
+    },
+    "//#build:llms-txt": {
+      "cache": true,
+      "inputs": ["book/src/**"],
+      "outputs": ["web/public/llms.txt"]
     },
     "dev": {
       "cache": false,
