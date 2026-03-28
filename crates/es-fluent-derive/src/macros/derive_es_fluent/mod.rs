@@ -234,4 +234,16 @@ mod tests {
         assert!(tokens.contains("\"f1\""));
         assert!(tokens.contains("\"f2\""));
     }
+
+    #[test]
+    fn expand_es_fluent_handles_tuple_variant_with_all_fields_skipped() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                Something(#[fluent(skip)] String, #[fluent(skip)] u32),
+            }
+        };
+
+        let tokens = expand_es_fluent(enum_input).to_string();
+        assert!(!tokens.contains("__es_fluent_arg_keys"));
+    }
 }

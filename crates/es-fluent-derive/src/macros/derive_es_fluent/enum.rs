@@ -51,7 +51,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
 
         match variant_opt.style() {
             darling::ast::Style::Unit => {
-                let ftl_key = namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix).to_string();
+                let ftl_key = namer::FluentKey::from(base_key.as_str())
+                    .join(&variant_key_suffix)
+                    .to_string();
                 quote! {
                     Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
                 }
@@ -71,44 +73,31 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     })
                     .collect();
 
-                let ftl_key = namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix).to_string();
+                let ftl_key = namer::FluentKey::from(base_key.as_str())
+                    .join(&variant_key_suffix)
+                    .to_string();
 
                 let exposed_fields: Vec<_> = all_fields
                     .iter()
                     .enumerate()
                     .filter(|(_, field)| !field.is_skipped())
                     .collect();
-                let arg_key_initializers: Vec<_> = exposed_fields
+                let args: Vec<_> = exposed_fields
                     .iter()
                     .map(|(tuple_index, field)| {
                         let tuple_index = *tuple_index;
-                        let arg_key_expr = tuple_arg_key_tokens(field, tuple_index);
-
-                        quote! {
-                            {
-                                let __es_fluent_arg_key = #arg_key_expr;
-                                ::std::convert::AsRef::<str>::as_ref(&__es_fluent_arg_key).to_string()
-                            }
-                        }
-                    })
-                    .collect();
-                let args: Vec<_> = exposed_fields
-                    .iter()
-                    .enumerate()
-                    .map(|(exposed_index, (tuple_index, field))| {
-                        let tuple_index = *tuple_index;
                         let arg_name = namer::UnnamedItem::from(tuple_index).to_ident();
+                        let arg_key_expr = tuple_arg_key_tokens(field, tuple_index);
                         let value_expr = generate_value_expr(field, &arg_name);
 
                         quote! {
-                            args.insert(__es_fluent_arg_keys[#exposed_index].as_str(), ::std::convert::Into::into(#value_expr));
+                            args.insert(#arg_key_expr, ::std::convert::Into::into(#value_expr));
                         }
                     })
                     .collect();
 
                 quote! {
                     Self::#variant_ident(#(#field_pats),*) => {
-                        let __es_fluent_arg_keys = [#(#arg_key_initializers),*];
                         let mut args = ::std::collections::HashMap::new();
                         #(#args)*
                         write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
@@ -120,18 +109,18 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                 let field_pats: Vec<_> =
                     fields.iter().map(|f| f.ident().as_ref().unwrap()).collect();
 
-                        let ftl_key = namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix).to_string();
+                let ftl_key = namer::FluentKey::from(base_key.as_str())
+                    .join(&variant_key_suffix)
+                    .to_string();
 
                 let args: Vec<_> = fields
                     .iter()
                     .map(|field_opt| {
                         let arg_name = field_opt.ident().as_ref().unwrap();
-                        let arg_key = field_opt
-                            .arg_name()
-                            .unwrap_or_else(|| arg_name.to_string());
+                        let arg_key = field_opt.arg_name().unwrap_or_else(|| arg_name.to_string());
                         let value_expr = generate_value_expr(field_opt, arg_name);
 
-                        quote!{ args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
+                        quote! { args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
                     })
                     .collect();
 
