@@ -2,114 +2,120 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::Context;
+use mdbook_driver::book::BookItem;
+use mdbook_driver::MDBook;
 
 use crate::util::workspace_root;
+
+const BASE_URL: &str = "https://stayhydated.github.io/es-fluent";
+const LLMS_HEADER: &str = include_str!("../../templates/llms-header.md");
 
 pub fn run() -> anyhow::Result<()> {
     run_from_workspace_root(&workspace_root()?)
 }
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
+    let output_dir = workspace_root.join("web").join("public");
     run_with_paths(
-        &workspace_root.join("book").join("src"),
-        &workspace_root.join("web").join("public").join("llms.txt"),
+        &workspace_root.join("book"),
+        &output_dir.join("llms.txt"),
+        &output_dir.join("llms-full.txt"),
     )
 }
 
-pub fn run_with_paths(book_src_dir: &Path, output_path: &Path) -> anyhow::Result<()> {
-    println!("Building llms.txt to {}", output_path.display());
+/// Chapter metadata extracted from the mdBook.
+struct ChapterInfo {
+    name: String,
+    path: String,
+    content: String,
+}
 
-    let summary_path = book_src_dir.join("SUMMARY.md");
-    let summary_content = fs::read_to_string(&summary_path)
-        .with_context(|| format!("Failed to read SUMMARY.md from {}", summary_path.display()))?;
+pub fn run_with_paths(
+    book_root: &Path,
+    llms_path: &Path,
+    llms_full_path: &Path,
+) -> anyhow::Result<()> {
+    println!("Building llms.txt to {}", llms_path.display());
+    println!("Building llms-full.txt to {}", llms_full_path.display());
 
-    let mut output = String::new();
+    let mdbook = MDBook::load(book_root)
+        .with_context(|| format!("Failed to load book from {}", book_root.display()))?;
 
-    for line in summary_content.lines() {
-        if let Some(md_file) = extract_markdown_path(line) {
-            let file_path = book_src_dir.join(&md_file);
-
-            if file_path.exists() {
-                let content = fs::read_to_string(&file_path)
-                    .with_context(|| format!("Failed to read {}", file_path.display()))?;
-
-                output.push_str(&content);
-                output.push_str("\n\n---\n\n");
+    let chapters: Vec<ChapterInfo> = mdbook
+        .iter()
+        .filter_map(|item| {
+            if let BookItem::Chapter(chapter) = item {
+                if chapter.is_draft_chapter() {
+                    return None;
+                }
+                let path = chapter.path.as_ref()?;
+                Some(ChapterInfo {
+                    name: chapter.name.clone(),
+                    path: path.with_extension("html").display().to_string(),
+                    content: chapter.content.clone(),
+                })
             } else {
-                eprintln!("Warning: File not found: {}", file_path.display());
+                None
             }
-        }
-    }
+        })
+        .collect();
 
-    if let Some(parent) = output_path.parent() {
+    // Build llms.txt (structured index with links)
+    let llms_txt = build_llms_txt(&chapters);
+
+    // Build llms-full.txt (expanded content)
+    let llms_full_txt = build_llms_full_txt(&chapters);
+
+    if let Some(parent) = llms_path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("Failed to create output directory {}", parent.display()))?;
     }
 
-    fs::write(output_path, output)
-        .with_context(|| format!("Failed to write llms.txt to {}", output_path.display()))?;
+    fs::write(llms_path, llms_txt)
+        .with_context(|| format!("Failed to write llms.txt to {}", llms_path.display()))?;
 
-    println!("llms.txt built successfully");
+    fs::write(llms_full_path, llms_full_txt).with_context(|| {
+        format!(
+            "Failed to write llms-full.txt to {}",
+            llms_full_path.display()
+        )
+    })?;
+
+    println!("llms.txt and llms-full.txt built successfully");
     Ok(())
 }
 
-fn extract_markdown_path(line: &str) -> Option<String> {
-    // Parse lines like "- [Title](file.md)" or "  - [Title](file.md)"
-    let trimmed = line.trim();
-    if !trimmed.starts_with('-') {
-        return None;
+fn build_llms_txt(chapters: &[ChapterInfo]) -> String {
+    let mut output = String::new();
+    output.push_str(LLMS_HEADER);
+    output.push_str("\n## Docs\n\n");
+
+    for chapter in chapters {
+        let url = format!("{}/book/{}", BASE_URL, chapter.path);
+        output.push_str(&format!("- [{}]({})\n", chapter.name, url));
     }
 
-    let start = trimmed.find('(')?;
-    let end = trimmed.find(')')?;
+    output
+}
 
-    if start >= end {
-        return None;
+fn build_llms_full_txt(chapters: &[ChapterInfo]) -> String {
+    let mut output = String::new();
+    output.push_str(LLMS_HEADER);
+    output.push_str("\n## Docs\n\n");
+
+    for chapter in chapters {
+        output.push_str(&chapter.content);
+        output.push_str("\n\n---\n\n");
     }
 
-    Some(trimmed[start + 1..end].to_string())
+    output
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::{fs, path::Path};
 
-    use super::{extract_markdown_path, run_from_workspace_root, run_with_paths};
-
-    #[derive(Debug)]
-    struct TempDir {
-        path: PathBuf,
-    }
-
-    impl TempDir {
-        fn new(prefix: &str) -> Self {
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("system time should be after unix epoch")
-                .as_nanos();
-            let path = std::env::temp_dir().join(format!(
-                "koruma_xtask_{prefix}_{}_{}",
-                std::process::id(),
-                nanos
-            ));
-            fs::create_dir_all(&path).expect("failed to create temp directory");
-            Self { path }
-        }
-
-        fn path(&self) -> &Path {
-            &self.path
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
-        }
-    }
+    use super::{run_from_workspace_root, run_with_paths};
 
     fn write_file(path: &Path, content: &str) {
         if let Some(parent) = path.parent() {
@@ -118,55 +124,22 @@ mod tests {
         fs::write(path, content).expect("failed to write file");
     }
 
-    #[test]
-    fn extract_markdown_path_parses_simple_link() {
-        let line = "- [Introduction](intro.md)";
-        assert_eq!(extract_markdown_path(line), Some("intro.md".to_string()));
+    fn create_book_toml(book_root: &Path) {
+        let toml = r#"[book]
+title = "Test Book"
+"#;
+        write_file(&book_root.join("book.toml"), toml);
     }
 
     #[test]
-    fn extract_markdown_path_parses_indented_link() {
-        let line = "  - [Getting Started](getting_started.md)";
-        assert_eq!(
-            extract_markdown_path(line),
-            Some("getting_started.md".to_string())
-        );
-    }
+    fn llms_txt_contains_structured_index() {
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
+        let book_root = tmp.path().join("book");
+        let book_src = book_root.join("src");
+        let llms_path = tmp.path().join("web").join("public").join("llms.txt");
+        let llms_full_path = tmp.path().join("web").join("public").join("llms-full.txt");
 
-    #[test]
-    fn extract_markdown_path_parses_nested_path() {
-        let line = "    - [Deep Topic](subdir/topic.md)";
-        assert_eq!(
-            extract_markdown_path(line),
-            Some("subdir/topic.md".to_string())
-        );
-    }
-
-    #[test]
-    fn extract_markdown_path_ignores_non_list_lines() {
-        assert_eq!(extract_markdown_path("# Summary"), None);
-        assert_eq!(extract_markdown_path(""), None);
-        assert_eq!(extract_markdown_path("Some text"), None);
-    }
-
-    #[test]
-    fn extract_markdown_path_ignores_malformed_links() {
-        assert_eq!(extract_markdown_path("- [No link]"), None);
-        assert_eq!(extract_markdown_path("- Missing parens"), None);
-        assert_eq!(extract_markdown_path("- [Broken])("), None);
-    }
-
-    #[test]
-    fn extract_markdown_path_returns_empty_for_empty_parens() {
-        // Empty parens produce empty string (handled by file-not-found logic in run)
-        assert_eq!(extract_markdown_path("- [Title]()"), Some("".to_string()));
-    }
-
-    #[test]
-    fn run_with_paths_concatenates_files_with_separators() {
-        let tmp = TempDir::new("build_llms_txt");
-        let book_src = tmp.path().join("book").join("src");
-        let output_path = tmp.path().join("web").join("public").join("llms.txt");
+        create_book_toml(&book_root);
 
         let summary = r#"# Summary
 
@@ -178,9 +151,65 @@ mod tests {
         write_file(&book_src.join("intro.md"), "# Introduction\n\nWelcome!");
         write_file(&book_src.join("guide.md"), "# Guide\n\nStep by step.");
 
-        run_with_paths(&book_src, &output_path).expect("run_with_paths should succeed");
+        run_with_paths(&book_root, &llms_path, &llms_full_path)
+            .expect("run_with_paths should succeed");
 
-        let result = fs::read_to_string(&output_path).expect("failed to read output");
+        let result = fs::read_to_string(&llms_path).expect("failed to read llms.txt");
+
+        // Should have header content from LLMS_HEADER template
+        assert!(!result.is_empty(), "llms.txt should not be empty");
+        assert!(
+            result.starts_with('#'),
+            "should start with markdown heading"
+        );
+
+        // Should have Docs section with links
+        assert!(result.contains("## Docs"));
+        assert!(result.contains("[Intro]("));
+        assert!(result.contains("intro.html)"));
+        assert!(result.contains("[Guide]("));
+        assert!(result.contains("guide.html)"));
+
+        // Should NOT contain full content inline
+        assert!(
+            !result.contains("Welcome!"),
+            "llms.txt should not contain chapter content"
+        );
+    }
+
+    #[test]
+    fn llms_full_txt_contains_expanded_content() {
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
+        let book_root = tmp.path().join("book");
+        let book_src = book_root.join("src");
+        let llms_path = tmp.path().join("web").join("public").join("llms.txt");
+        let llms_full_path = tmp.path().join("web").join("public").join("llms-full.txt");
+
+        create_book_toml(&book_root);
+
+        let summary = r#"# Summary
+
+- [Intro](intro.md)
+- [Guide](guide.md)
+"#;
+
+        write_file(&book_src.join("SUMMARY.md"), summary);
+        write_file(&book_src.join("intro.md"), "# Introduction\n\nWelcome!");
+        write_file(&book_src.join("guide.md"), "# Guide\n\nStep by step.");
+
+        run_with_paths(&book_root, &llms_path, &llms_full_path)
+            .expect("run_with_paths should succeed");
+
+        let result = fs::read_to_string(&llms_full_path).expect("failed to read llms-full.txt");
+
+        // Should have header content from LLMS_HEADER template
+        assert!(!result.is_empty(), "llms-full.txt should not be empty");
+        assert!(
+            result.starts_with('#'),
+            "should start with markdown heading"
+        );
+
+        // Should contain full chapter content
         assert!(result.contains("# Introduction"));
         assert!(result.contains("Welcome!"));
         assert!(result.contains("# Guide"));
@@ -188,31 +217,43 @@ mod tests {
         assert!(result.contains("\n\n---\n\n"));
 
         let separator_count = result.matches("---").count();
-        assert_eq!(separator_count, 2, "expected 2 separators for 2 files");
+        assert_eq!(separator_count, 2, "expected 2 separators for 2 chapters");
     }
 
     #[test]
-    fn run_with_paths_skips_missing_files() {
-        let tmp = TempDir::new("build_llms_txt_missing");
-        let book_src = tmp.path().join("book").join("src");
-        let output_path = tmp.path().join("output").join("llms.txt");
+    fn run_with_paths_skips_draft_chapters() {
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
+        let book_root = tmp.path().join("book");
+        let book_src = book_root.join("src");
+        let llms_path = tmp.path().join("output").join("llms.txt");
+        let llms_full_path = tmp.path().join("output").join("llms-full.txt");
+
+        create_book_toml(&book_root);
 
         let summary = r#"# Summary
 
 - [Exists](exists.md)
-- [Missing](missing.md)
+- [Draft]()
 "#;
 
         write_file(&book_src.join("SUMMARY.md"), summary);
         write_file(&book_src.join("exists.md"), "# Exists\n\nContent here.");
 
-        run_with_paths(&book_src, &output_path).expect("run_with_paths should succeed");
+        run_with_paths(&book_root, &llms_path, &llms_full_path)
+            .expect("run_with_paths should succeed");
 
-        let result = fs::read_to_string(&output_path).expect("failed to read output");
-        assert!(result.contains("# Exists"));
-        assert!(!result.contains("Missing"));
+        // Check llms.txt
+        let llms_result = fs::read_to_string(&llms_path).expect("failed to read llms.txt");
+        assert!(llms_result.contains("[Exists]"));
+        assert!(!llms_result.contains("[Draft]"));
 
-        let separator_count = result.matches("---").count();
+        // Check llms-full.txt
+        let llms_full_result =
+            fs::read_to_string(&llms_full_path).expect("failed to read llms-full.txt");
+        assert!(llms_full_result.contains("# Exists"));
+        assert!(!llms_full_result.contains("Draft"));
+
+        let separator_count = llms_full_result.matches("---").count();
         assert_eq!(
             separator_count, 1,
             "expected 1 separator for 1 existing file"
@@ -220,40 +261,52 @@ mod tests {
     }
 
     #[test]
-    fn run_with_paths_fails_for_missing_summary() {
-        let tmp = TempDir::new("build_llms_txt_no_summary");
-        let book_src = tmp.path().join("book").join("src");
-        let output_path = tmp.path().join("output").join("llms.txt");
+    fn run_with_paths_fails_for_missing_book() {
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
+        let book_root = tmp.path().join("book");
+        let llms_path = tmp.path().join("output").join("llms.txt");
+        let llms_full_path = tmp.path().join("output").join("llms-full.txt");
 
-        // Don't create SUMMARY.md
-        fs::create_dir_all(&book_src).expect("failed to create book src directory");
+        fs::create_dir_all(&book_root).expect("failed to create book directory");
 
-        let result = run_with_paths(&book_src, &output_path);
-        assert!(result.is_err(), "should fail when SUMMARY.md is missing");
-        assert!(result.unwrap_err().to_string().contains("SUMMARY.md"));
+        let result = run_with_paths(&book_root, &llms_path, &llms_full_path);
+        assert!(result.is_err(), "should fail when book.toml is missing");
     }
 
     #[test]
     fn run_with_paths_creates_output_directory() {
-        let tmp = TempDir::new("build_llms_txt_create_dir");
-        let book_src = tmp.path().join("book").join("src");
-        let output_path = tmp.path().join("nested").join("deep").join("llms.txt");
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
+        let book_root = tmp.path().join("book");
+        let book_src = book_root.join("src");
+        let llms_path = tmp.path().join("nested").join("deep").join("llms.txt");
+        let llms_full_path = tmp.path().join("nested").join("deep").join("llms-full.txt");
+
+        create_book_toml(&book_root);
 
         let summary = "# Summary\n\n- [Test](test.md)\n";
         write_file(&book_src.join("SUMMARY.md"), summary);
         write_file(&book_src.join("test.md"), "# Test\n\nContent.");
 
-        run_with_paths(&book_src, &output_path).expect("run_with_paths should succeed");
+        run_with_paths(&book_root, &llms_path, &llms_full_path)
+            .expect("run_with_paths should succeed");
 
-        assert!(output_path.exists(), "output file should be created");
+        assert!(llms_path.exists(), "llms.txt should be created");
+        assert!(llms_full_path.exists(), "llms-full.txt should be created");
     }
 
     #[test]
     fn run_from_workspace_root_uses_default_workspace_paths() {
-        let tmp = TempDir::new("build_llms_txt_workspace_root");
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let workspace_root = tmp.path().join("workspace");
-        let book_src = workspace_root.join("book").join("src");
-        let output_path = workspace_root.join("web").join("public").join("llms.txt");
+        let book_root = workspace_root.join("book");
+        let book_src = book_root.join("src");
+        let llms_path = workspace_root.join("web").join("public").join("llms.txt");
+        let llms_full_path = workspace_root
+            .join("web")
+            .join("public")
+            .join("llms-full.txt");
+
+        create_book_toml(&book_root);
 
         let summary = "# Summary\n\n- [Test](test.md)\n";
         write_file(&book_src.join("SUMMARY.md"), summary);
@@ -261,31 +314,19 @@ mod tests {
 
         run_from_workspace_root(&workspace_root).expect("run should succeed");
 
-        let result = fs::read_to_string(&output_path).expect("failed to read output");
+        // Check llms.txt has link
+        let llms_result = fs::read_to_string(&llms_path).expect("failed to read llms.txt");
         assert!(
-            result.contains("Workspace root mode."),
-            "output should be built under web/public/llms.txt"
+            llms_result.contains("[Test]"),
+            "llms.txt should contain link to chapter"
         );
-    }
 
-    #[test]
-    fn run_with_paths_skips_parent_creation_when_output_has_no_parent() {
-        let tmp = TempDir::new("build_llms_txt_no_parent");
-        let book_src = tmp.path().join("book").join("src");
-        let output_path = Path::new("");
-
-        let summary = "# Summary\n\n- [Test](test.md)\n";
-        write_file(&book_src.join("SUMMARY.md"), summary);
-        write_file(&book_src.join("test.md"), "# Test\n\nContent.");
-
-        let result = run_with_paths(&book_src, output_path);
-        assert!(result.is_err(), "empty output path should fail to write");
+        // Check llms-full.txt has content
+        let llms_full_result =
+            fs::read_to_string(&llms_full_path).expect("failed to read llms-full.txt");
         assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Failed to write llms.txt"),
-            "error should come from write context"
+            llms_full_result.contains("Workspace root mode."),
+            "llms-full.txt should contain chapter content"
         );
     }
 }
