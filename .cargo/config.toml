@@ -5,6 +5,7 @@
 
 [alias]
 xtask = "run -p xtask --"
+es-fluent-local = "run -p es-fluent-cli -- es-fluent"
 
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
