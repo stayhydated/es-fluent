@@ -2,4 +2,5 @@
 * text=auto
 examples/** linguist-vendored
 crates/es-fluent-lang/i18n/** linguist-vendored
+crates/es-fluent-lang/es-fluent-lang.ftl linguist-vendored
 crates/es-fluent-lang-macro/src/supported_locales.rs linguist-vendored
