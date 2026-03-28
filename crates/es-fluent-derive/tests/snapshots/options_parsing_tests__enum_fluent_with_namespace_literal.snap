@@ -28,6 +28,7 @@ EnumOpts {
                 },
                 skip: None,
                 key: None,
+                arg_name: None,
             },
             VariantOpts {
                 ident: Ident {
@@ -43,6 +44,7 @@ EnumOpts {
                 },
                 skip: None,
                 key: None,
+                arg_name: None,
             },
         ],
     ),

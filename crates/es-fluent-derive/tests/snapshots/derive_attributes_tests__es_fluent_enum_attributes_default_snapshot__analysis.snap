@@ -28,6 +28,7 @@ EnumOpts {
                 },
                 skip: None,
                 key: None,
+                arg_name: None,
             },
             VariantOpts {
                 ident: Ident {
@@ -43,6 +44,7 @@ EnumOpts {
                 },
                 skip: None,
                 key: None,
+                arg_name: None,
             },
             VariantOpts {
                 ident: Ident {
@@ -74,6 +76,7 @@ EnumOpts {
                             skip: None,
                             choice: None,
                             value: None,
+                            arg_name: None,
                         },
                         EnumFieldOpts {
                             ident: Some(
@@ -100,6 +103,7 @@ EnumOpts {
                             ),
                             choice: None,
                             value: None,
+                            arg_name: None,
                         },
                     ],
                     span: Some(
@@ -109,6 +113,7 @@ EnumOpts {
                 },
                 skip: None,
                 key: None,
+                arg_name: None,
             },
             VariantOpts {
                 ident: Ident {
@@ -136,6 +141,7 @@ EnumOpts {
                             skip: None,
                             choice: None,
                             value: None,
+                            arg_name: None,
                         },
                         EnumFieldOpts {
                             ident: None,
@@ -158,6 +164,7 @@ EnumOpts {
                             ),
                             choice: None,
                             value: None,
+                            arg_name: None,
                         },
                     ],
                     span: Some(
@@ -167,6 +174,7 @@ EnumOpts {
                 },
                 skip: None,
                 key: None,
+                arg_name: None,
             },
         ],
     ),

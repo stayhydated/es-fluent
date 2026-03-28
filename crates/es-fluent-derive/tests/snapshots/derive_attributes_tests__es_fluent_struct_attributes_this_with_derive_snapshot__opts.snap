@@ -40,6 +40,7 @@ StructOpts {
                     default: None,
                     choice: None,
                     value: None,
+                    arg_name: None,
                 },
                 StructFieldOpts {
                     ident: Some(
@@ -67,6 +68,7 @@ StructOpts {
                     default: None,
                     choice: None,
                     value: None,
+                    arg_name: None,
                 },
                 StructFieldOpts {
                     ident: Some(
@@ -94,6 +96,7 @@ StructOpts {
                         true,
                     ),
                     value: None,
+                    arg_name: None,
                 },
             ],
             span: Some(
