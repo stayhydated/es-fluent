@@ -21,6 +21,10 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
                 Err(err) => return err.write_errors(),
             };
 
+            if let Err(err) = validation::validate_enum(&opts) {
+                err.abort();
+            }
+
             // Validate namespace if provided
             if let Some(ns) = opts.attr_args().namespace()
                 && let Err(err) = validation::validate_namespace(ns, Some(opts.ident().span()))
@@ -204,5 +208,31 @@ mod tests {
             }));
             assert!(struct_panic.is_err());
         });
+    }
+
+    #[test]
+    fn expand_es_fluent_emits_variant_level_tuple_arg_name() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(arg_name = "value")]
+                Something(String),
+            }
+        };
+
+        let tokens = expand_es_fluent(enum_input).to_string();
+        assert!(tokens.contains("\"value\""));
+    }
+
+    #[test]
+    fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                Something(String, #[fluent(arg_name = "f1")] String, String),
+            }
+        };
+
+        let tokens = expand_es_fluent(enum_input).to_string();
+        assert!(tokens.contains("\"f1\""));
+        assert!(tokens.contains("\"f2\""));
     }
 }

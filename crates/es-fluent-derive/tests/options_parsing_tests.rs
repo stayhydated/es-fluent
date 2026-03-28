@@ -73,6 +73,72 @@ fn enum_variants_and_fields_skipping_and_choice() {
 }
 
 #[test]
+fn enum_tuple_variant_arg_name_parsing() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        enum MyEnum {
+            #[fluent(arg_name = "value")]
+            Tuple(String),
+        }
+    };
+
+    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+    let variants = opts.variants();
+    let tuple = variants
+        .iter()
+        .find(|v| v.ident().to_string() == "Tuple")
+        .expect("Tuple variant present");
+
+    let arg_name = tuple.arg_name().expect("arg_name should parse");
+    assert_eq!(arg_name, "value".to_string());
+}
+
+#[test]
+fn enum_tuple_field_arg_name_parsing() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        enum MyEnum {
+            Tuple(#[fluent(arg_name = "value")] String),
+        }
+    };
+
+    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+    let variants = opts.variants();
+    let tuple = variants
+        .iter()
+        .find(|v| v.ident().to_string() == "Tuple")
+        .expect("Tuple variant present");
+
+    let fields = tuple.all_fields();
+    let field_arg_name = fields[0].arg_name().expect("field arg_name should parse");
+    assert_eq!(field_arg_name, "value".to_string());
+}
+
+#[test]
+fn enum_named_field_arg_name_parsing() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        enum MyEnum {
+            Named {
+                #[fluent(arg_name = "display_value")]
+                value: String,
+            },
+        }
+    };
+
+    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+    let variants = opts.variants();
+    let named = variants
+        .iter()
+        .find(|v| v.ident().to_string() == "Named")
+        .expect("Named variant present");
+
+    let fields = named.all_fields();
+    let field_arg_name = fields[0].arg_name().expect("field arg_name should parse");
+    assert_eq!(field_arg_name, "display_value".to_string());
+}
+
+#[test]
 fn struct_variants_keys_parsing_and_field_skipping() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentVariants)]
@@ -177,6 +243,29 @@ fn struct_tuple_fields_parsing() {
     assert_eq!(*second_index, 2);
     assert_eq!(second_field.fluent_arg_name(*second_index), "f2");
     assert!(second_field.is_choice());
+}
+
+#[test]
+fn struct_named_field_arg_name_parsing() {
+    let input: DeriveInput = parse_quote! {
+        #[derive(EsFluent)]
+        struct MyStruct {
+            #[fluent(arg_name = "display_name")]
+            name: String,
+            value: String,
+        }
+    };
+
+    let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+    let indexed_fields = opts.indexed_fields();
+    assert_eq!(
+        indexed_fields[0].1.fluent_arg_name(indexed_fields[0].0),
+        "display_name"
+    );
+    assert_eq!(
+        indexed_fields[1].1.fluent_arg_name(indexed_fields[1].0),
+        "value"
+    );
 }
 
 #[test]

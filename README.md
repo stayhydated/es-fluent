@@ -194,12 +194,18 @@ pub enum LoginError {
     InvalidPassword, // no params
     UserNotFound { username: String }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+    SomethingArgNamed(
+        #[fluent(arg_name = "input")] String,
+        #[fluent(arg_name = "expected")] String,
+        #[fluent(arg_name = "details")] String,
+    ), // exposed as $input, $expected, $details
 }
 
 use es_fluent::ToFluentString;
 let _ = LoginError::InvalidPassword.to_fluent_string();
 let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
 let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
+let _ = LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
 
 #[derive(EsFluent)]
 pub struct WelcomeMessage<'a> {
@@ -211,6 +217,10 @@ use es_fluent::ToFluentString;
 let welcome = WelcomeMessage { name: "John", count: 5 };
 let _ = welcome.to_fluent_string();
 ```
+
+Argument naming attributes:
+- `arg_name = "..."` can be set on any exposed message field (struct fields, enum named fields, or enum tuple fields).
+- On tuple enum variants, variant-level `arg_name = "..."` is the single-field shorthand.
 
 ### `#[derive(EsFluentChoice)]`
 

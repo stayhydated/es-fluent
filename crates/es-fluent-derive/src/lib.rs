@@ -19,7 +19,12 @@ mod macros;
 /// pub enum LoginError {
 ///     InvalidPassword, // no params
 ///     UserNotFound { username: String }, // exposed as $username in the ftl file
-///     Something(String, String, String), // exposed as $f1, $f2, $f3 in the ftl file
+///     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+///     SomethingArgNamed(
+///         #[fluent(arg_name = "input")] String,
+///         #[fluent(arg_name = "expected")] String,
+///         #[fluent(arg_name = "details")] String,
+///     ), // exposed as $input, $expected, $details
 /// }
 ///
 /// #[derive(EsFluent)]
@@ -32,6 +37,7 @@ mod macros;
 /// # Field Attributes
 ///
 /// - `#[fluent(choice)]`: Marks a field as a selector for Fluent's select expression.
+/// - `#[fluent(arg_name = "value")]`: Overrides a field argument name on any exposed message field (struct fields, enum named fields, or enum tuple fields). On tuple variants, this can also be used at variant level as a single-field shorthand.
 #[proc_macro_derive(EsFluent, attributes(fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

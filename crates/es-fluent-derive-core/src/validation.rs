@@ -1,6 +1,7 @@
 //! This module provides functions for validating `es-fluent` attributes.
 
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::options::r#enum::EnumOpts;
 use crate::options::namespace::NamespaceValue;
 use crate::options::r#struct::StructOpts;
 use es_fluent_toml::I18nConfig;
@@ -13,6 +14,24 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
         if field.is_skipped() && field.is_default() {
             return Err(EsFluentCoreError::FieldError {
                 message: "Cannot be both #[fluent(skip)] and #[fluent(default)]".to_string(),
+                field_name: field.ident().as_ref().map(|i| i.to_string()),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
+
+        if field.is_skipped() && field.arg_name().is_some() {
+            return Err(EsFluentCoreError::FieldError {
+                message: "Cannot use #[fluent(arg_name = \"...\")] on a skipped field".to_string(),
+                field_name: field.ident().as_ref().map(|i| i.to_string()),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
+
+        if let Some(arg_name) = field.arg_name()
+            && arg_name.is_empty()
+        {
+            return Err(EsFluentCoreError::FieldError {
+                message: "`#[fluent(arg_name = \"...\")]` cannot be empty".to_string(),
                 field_name: field.ident().as_ref().map(|i| i.to_string()),
                 span: field.ident().as_ref().map(|ident| ident.span()),
             });
@@ -43,6 +62,144 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
             first_field_name
         )));
     }
+
+    // Ensure exposed argument names remain unique after arg_name overrides.
+    let mut seen = std::collections::HashSet::new();
+    for (index, field) in opts.indexed_fields() {
+        let arg_name = field.fluent_arg_name(index);
+        if !seen.insert(arg_name.clone()) {
+            return Err(EsFluentCoreError::FieldError {
+                message: format!(
+                    "duplicate argument name '{}' after applying #[fluent(arg_name = \"...\")]",
+                    arg_name
+                ),
+                field_name: Some(arg_name),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Validates enum-specific attributes.
+pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
+    for variant in opts.variants() {
+        let is_tuple = matches!(variant.style(), darling::ast::Style::Tuple);
+        let variant_name = variant.ident().to_string();
+        let variant_span = Some(variant.ident().span());
+        let all_fields = variant.all_fields();
+        let field_arg_name_overrides: Vec<_> = all_fields
+            .iter()
+            .filter_map(|field| field.arg_name().map(|name| (field, name)))
+            .collect();
+
+        if !field_arg_name_overrides.is_empty() && variant.arg_name().is_some() {
+            return Err(EsFluentCoreError::VariantError {
+                message: "use either variant-level `arg_name` or field-level `arg_name`, not both"
+                    .to_string(),
+                variant_name,
+                span: variant_span,
+            });
+        }
+
+        if variant.arg_name().is_some() && !is_tuple {
+            return Err(EsFluentCoreError::VariantError {
+                message: "`#[fluent(arg_name = \"...\")]` is only supported on tuple variants"
+                    .to_string(),
+                variant_name,
+                span: variant_span,
+            });
+        }
+
+        if let Some(arg_name) = variant.arg_name() {
+            let exposed_tuple_field_count = variant
+                .all_fields()
+                .iter()
+                .filter(|f| !f.is_skipped())
+                .count();
+            if exposed_tuple_field_count != 1 {
+                return Err(EsFluentCoreError::VariantError {
+                    message: format!(
+                        "`#[fluent(arg_name = \"...\")]` requires exactly 1 exposed tuple field; found {}",
+                        exposed_tuple_field_count
+                    ),
+                    variant_name,
+                    span: variant_span,
+                });
+            }
+
+            if arg_name.is_empty() {
+                return Err(EsFluentCoreError::VariantError {
+                    message: "`#[fluent(arg_name = \"...\")]` cannot be empty".to_string(),
+                    variant_name,
+                    span: variant_span,
+                });
+            }
+        }
+
+        if !field_arg_name_overrides.is_empty() {
+            let mut explicit_seen = std::collections::HashSet::new();
+            for (field, name) in &field_arg_name_overrides {
+                if field.is_skipped() {
+                    return Err(EsFluentCoreError::VariantError {
+                        message: format!(
+                            "`#[fluent(arg_name = \"{}\")]` cannot be used on a skipped field",
+                            name
+                        ),
+                        variant_name: variant_name.clone(),
+                        span: variant_span,
+                    });
+                }
+                if name.is_empty() {
+                    return Err(EsFluentCoreError::VariantError {
+                        message: "`#[fluent(arg_name = \"...\")]` on fields cannot be empty"
+                            .to_string(),
+                        variant_name: variant_name.clone(),
+                        span: variant_span,
+                    });
+                }
+                if !explicit_seen.insert(name.clone()) {
+                    return Err(EsFluentCoreError::VariantError {
+                        message: format!("duplicate field arg_name '{}' in variant fields", name),
+                        variant_name: variant_name.clone(),
+                        span: variant_span,
+                    });
+                }
+            }
+
+            let mut final_seen = std::collections::HashSet::new();
+
+            for (tuple_index, field) in all_fields.iter().enumerate() {
+                if field.is_skipped() {
+                    continue;
+                }
+
+                let resolved_name = if let Some(name) = field.arg_name() {
+                    name
+                } else if is_tuple {
+                    format!("f{}", tuple_index)
+                } else {
+                    field
+                        .ident()
+                        .as_ref()
+                        .map(|id| id.to_string())
+                        .unwrap_or_else(|| format!("f{}", tuple_index))
+                };
+
+                if !final_seen.insert(resolved_name.clone()) {
+                    return Err(EsFluentCoreError::VariantError {
+                        message: format!(
+                            "duplicate resolved argument name '{}' after applying #[fluent(arg_name = \"...\")]",
+                            resolved_name
+                        ),
+                        variant_name: variant_name.clone(),
+                        span: variant_span,
+                    });
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 

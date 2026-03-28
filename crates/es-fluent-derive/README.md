@@ -26,7 +26,12 @@ use es_fluent::EsFluent;
 pub enum LoginError {
     InvalidPassword, // no params
     UserNotFound { username: String }, // exposed as $username in the ftl file
-    Something(String, String, String), // exposed as $f1, $f2, $f3 in the ftl file
+    Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+    SomethingArgNamed(
+        #[fluent(arg_name = "input")] String,
+        #[fluent(arg_name = "expected")] String,
+        #[fluent(arg_name = "details")] String,
+    ), // exposed as $input, $expected, $details
 }
 
 // Usage:
@@ -42,6 +47,10 @@ pub struct UserProfile<'a> {
 
 // usage: UserProfile { name: "John", gender: "male" }.to_fluent_string()
 ```
+
+Argument naming attributes:
+- `arg_name = "..."` can be set on any exposed message field (struct fields, enum named fields, or enum tuple fields).
+- On tuple enum variants, variant-level `arg_name = "..."` is the single-field shorthand.
 
 #### Namespaces (optional)
 

@@ -25,6 +25,9 @@ pub struct EnumFieldOpts {
     /// A value transformation expression.
     #[darling(default)]
     value: Option<super::ValueAttr>,
+    /// Optional argument name override for a variant field.
+    #[darling(default)]
+    arg_name: Option<syn::LitStr>,
 }
 
 impl EnumFieldOpts {
@@ -39,6 +42,11 @@ impl EnumFieldOpts {
     /// Returns the value expression if present.
     pub fn value(&self) -> Option<&syn::Expr> {
         self.value.as_ref().map(|v| &v.0)
+    }
+
+    /// Returns explicit field argument name if provided.
+    pub fn arg_name(&self) -> Option<String> {
+        self.arg_name.as_ref().map(syn::LitStr::value)
     }
 }
 
@@ -56,6 +64,9 @@ pub struct VariantOpts {
     /// Overrides the localization key suffix for this variant.
     #[darling(default)]
     key: Option<String>,
+    /// Explicit tuple argument name for single exposed tuple-field variants.
+    #[darling(default)]
+    arg_name: Option<syn::LitStr>,
 }
 
 impl VariantOpts {
@@ -81,6 +92,11 @@ impl VariantOpts {
     /// Returns the explicit localization key for the variant, if provided.
     pub fn key(&self) -> Option<&str> {
         self.key.as_deref()
+    }
+
+    /// Returns explicit tuple argument name if provided.
+    pub fn arg_name(&self) -> Option<String> {
+        self.arg_name.as_ref().map(syn::LitStr::value)
     }
 }
 
@@ -535,5 +551,47 @@ mod tests {
             let _ = variants_opts.variants();
         }));
         assert!(filtered_result.is_err());
+    }
+
+    #[test]
+    fn enum_variant_arg_name_parse_for_single_tuple_variant() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            enum TupleNames {
+                #[fluent(arg_name = "value")]
+                Something(String),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        let variants = opts.variants();
+        let variant = variants
+            .iter()
+            .find(|v| v.ident().to_string() == "Something")
+            .expect("Something variant should exist");
+
+        let arg_name = variant.arg_name().expect("arg_name should parse");
+        assert_eq!(arg_name, "value".to_string());
+    }
+
+    #[test]
+    fn enum_field_arg_name_parse_for_single_tuple_variant() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            enum TupleNames {
+                Something(#[fluent(arg_name = "value")] String),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        let variants = opts.variants();
+        let variant = variants
+            .iter()
+            .find(|v| v.ident().to_string() == "Something")
+            .expect("Something variant should exist");
+
+        let fields = variant.all_fields();
+        let field_arg_name = fields[0].arg_name().expect("field arg_name should parse");
+        assert_eq!(field_arg_name, "value".to_string());
     }
 }

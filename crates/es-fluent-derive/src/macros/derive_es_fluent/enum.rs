@@ -1,5 +1,5 @@
 use es_fluent_derive_core::namer;
-use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
+use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts, VariantOpts};
 
 use crate::macros::utils::namespace_rule_tokens;
 use heck::ToSnakeCase as _;
@@ -20,6 +20,26 @@ fn generate_value_expr(field: &EnumFieldOpts, arg_name: &syn::Ident) -> TokenStr
         quote! { #arg_name.clone() }
     }
 }
+
+fn tuple_field_static_arg_name(field_opt: &EnumFieldOpts) -> Option<String> {
+    field_opt.arg_name()
+}
+
+fn tuple_arg_key_tokens(
+    variant_opt: &VariantOpts,
+    field_opt: &EnumFieldOpts,
+    tuple_index: usize,
+) -> TokenStream {
+    if let Some(field_name) = tuple_field_static_arg_name(field_opt) {
+        quote! { #field_name }
+    } else if let Some(variant_name) = variant_opt.arg_name() {
+        quote! { #variant_name }
+    } else {
+        let key = namer::UnnamedItem::from(tuple_index).to_string();
+        quote! { #key }
+    }
+}
+
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
     let base_key = opts.base_key();
@@ -59,24 +79,42 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
 
                 let ftl_key = namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix).to_string();
 
-                let args: Vec<_> = all_fields
+                let exposed_fields: Vec<_> = all_fields
                     .iter()
                     .enumerate()
-                    .filter_map(|(index, field)| {
-                        if field.is_skipped() {
-                            return None;
-                        }
+                    .filter(|(_, field)| !field.is_skipped())
+                    .collect();
+                let arg_key_initializers: Vec<_> = exposed_fields
+                    .iter()
+                    .map(|(tuple_index, field)| {
+                        let tuple_index = *tuple_index;
+                        let arg_key_expr = tuple_arg_key_tokens(variant_opt, field, tuple_index);
 
-                        let arg_name = namer::UnnamedItem::from(index).to_ident();
-                        let arg_key = arg_name.to_string();
+                        quote! {
+                            {
+                                let __es_fluent_arg_key = #arg_key_expr;
+                                ::std::convert::AsRef::<str>::as_ref(&__es_fluent_arg_key).to_string()
+                            }
+                        }
+                    })
+                    .collect();
+                let args: Vec<_> = exposed_fields
+                    .iter()
+                    .enumerate()
+                    .map(|(exposed_index, (tuple_index, field))| {
+                        let tuple_index = *tuple_index;
+                        let arg_name = namer::UnnamedItem::from(tuple_index).to_ident();
                         let value_expr = generate_value_expr(field, &arg_name);
 
-                        Some(quote!{ args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); })
+                        quote! {
+                            args.insert(__es_fluent_arg_keys[#exposed_index].as_str(), ::std::convert::Into::into(#value_expr));
+                        }
                     })
                     .collect();
 
                 quote! {
                     Self::#variant_ident(#(#field_pats),*) => {
+                        let __es_fluent_arg_keys = [#(#arg_key_initializers),*];
                         let mut args = ::std::collections::HashMap::new();
                         #(#args)*
                         write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
@@ -94,7 +132,9 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .iter()
                     .map(|field_opt| {
                         let arg_name = field_opt.ident().as_ref().unwrap();
-                        let arg_key = arg_name.to_string();
+                        let arg_key = field_opt
+                            .arg_name()
+                            .unwrap_or_else(|| arg_name.to_string());
                         let value_expr = generate_value_expr(field_opt, arg_name);
 
                         quote!{ args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
@@ -122,7 +162,6 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     });
 
     let is_empty = variants.is_empty();
-
     let display_impl = {
         let trait_impl = quote! { ::es_fluent::FluentDisplay };
         let trait_fmt_fn_ident = quote! { fluent_fmt };
@@ -176,28 +215,33 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .to_string();
 
                 // Get args based on variant style
-                let args: Vec<String> = match variant_opt.style() {
+                let args_tokens: Vec<_> = match variant_opt.style() {
                     darling::ast::Style::Unit => vec![],
-                    darling::ast::Style::Tuple => variant_opt
-                        .all_fields()
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(idx, f)| {
-                            if f.is_skipped() {
-                                None
-                            } else {
-                                Some(namer::UnnamedItem::from(idx).to_string())
-                            }
-                        })
-                        .collect(),
+                    darling::ast::Style::Tuple => {
+                        let all_tuple_fields = variant_opt.all_fields();
+                        let exposed_tuple_fields: Vec<_> = all_tuple_fields
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, field)| !field.is_skipped())
+                            .collect();
+                        exposed_tuple_fields
+                            .iter()
+                            .map(|(tuple_index, field)| {
+                                tuple_arg_key_tokens(variant_opt, field, *tuple_index)
+                            })
+                            .collect()
+                    },
                     darling::ast::Style::Struct => variant_opt
                         .fields()
                         .iter()
-                        .filter_map(|f| f.ident().as_ref().map(|id| id.to_string()))
+                        .filter_map(|field| {
+                            let arg_name = field
+                                .arg_name()
+                                .or_else(|| field.ident().as_ref().map(|ident| ident.to_string()));
+                            arg_name.map(|arg| quote! { #arg })
+                        })
                         .collect(),
                 };
-
-                let args_tokens: Vec<_> = args.iter().map(|a| quote! { #a }).collect();
 
                 quote! {
                     ::es_fluent::registry::FtlVariant {
