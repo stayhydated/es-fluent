@@ -1,10 +1,10 @@
-## Dialog
-
-dialog = Dialog { $title }
-
 ## Status
 
 status_this = Status
+
+## Dialog
+
+dialog = Dialog { $title }
 
 ## StatusVariantsVariants
 

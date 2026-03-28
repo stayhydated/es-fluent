@@ -1,10 +1,11 @@
 //! Tests for validation functions.
 
 use darling::FromDeriveInput;
+use es_fluent_derive_core::options::r#enum::EnumOpts;
 use es_fluent_derive_core::options::namespace::NamespaceValue;
 use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_derive_core::validation::{
-    validate_namespace, validate_namespace_against_allowed, validate_struct,
+    validate_enum, validate_namespace, validate_namespace_against_allowed, validate_struct,
 };
 use syn::{DeriveInput, parse_quote};
 
@@ -117,6 +118,146 @@ mod validate_struct_tests {
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         validate_struct(&opts).expect("Validation should succeed");
+    }
+
+    #[test]
+    fn arg_name_on_named_struct_field_succeeds() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub struct TestStruct {
+                #[fluent(arg_name = "display_name")]
+                name: String,
+                value: String,
+            }
+        };
+
+        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+        validate_struct(&opts).expect("Validation should succeed");
+    }
+
+    #[test]
+    fn duplicate_struct_arg_name_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub struct TestStruct {
+                #[fluent(arg_name = "value")]
+                first: String,
+                value: String,
+            }
+        };
+
+        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+        let err = validate_struct(&opts).expect_err("Expected validation error");
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("duplicate argument name"));
+        assert!(err_msg.contains("value"));
+    }
+
+    #[test]
+    fn arg_name_on_skipped_field_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub struct TestStruct {
+                #[fluent(skip, arg_name = "hidden")]
+                hidden: String,
+            }
+        };
+
+        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+        let err = validate_struct(&opts).expect_err("Expected validation error");
+        let err_msg = err.to_string();
+        assert!(err_msg.contains("arg_name"));
+        assert!(err_msg.contains("skipped"));
+    }
+}
+
+mod validate_enum_tests {
+    use super::*;
+
+    #[test]
+    fn field_arg_name_on_single_tuple_variant_succeeds() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Something(#[fluent(arg_name = "value")] String),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        validate_enum(&opts).expect("Single tuple field with field-level arg_name should pass");
+    }
+
+    #[test]
+    fn field_arg_name_on_named_variant_succeeds() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Named {
+                    #[fluent(arg_name = "display_value")]
+                    value: String,
+                },
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        validate_enum(&opts).expect("Named field with field-level arg_name should pass");
+    }
+
+    #[test]
+    fn variant_level_arg_name_is_rejected() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                #[fluent(arg_name = "value")]
+                Something(String),
+            }
+        };
+
+        let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
+        let err_msg = err.to_string();
+
+        assert!(err_msg.contains("arg_name"));
+    }
+
+    #[test]
+    fn field_arg_name_duplicate_with_named_field_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Named {
+                    #[fluent(arg_name = "value")]
+                    left: String,
+                    value: String,
+                },
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        let err = validate_enum(&opts).expect_err("Expected validation error");
+        let err_msg = err.to_string();
+
+        assert!(err_msg.contains("duplicate resolved argument name"));
+        assert!(err_msg.contains("value"));
+    }
+
+    #[test]
+    fn duplicate_field_arg_name_overrides_fail() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Something(
+                    #[fluent(arg_name = "same")] String,
+                    #[fluent(arg_name = "same")] String,
+                ),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        let err = validate_enum(&opts).expect_err("Expected validation error");
+        let err_msg = err.to_string();
+
+        assert!(err_msg.contains("duplicate"));
+        assert!(err_msg.contains("same"));
     }
 }
 

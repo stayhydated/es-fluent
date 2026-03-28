@@ -71,11 +71,11 @@ fn generate(opts: &StructOpts) -> TokenStream {
     // and doesn't depend on generic type parameters
     let inventory_submit = {
         // Build static variant with args from struct fields
-        let arg_names: Vec<String> = indexed_fields
+        let arg_keys: Vec<String> = indexed_fields
             .iter()
             .map(|(index, field_opt)| field_opt.fluent_arg_name(*index))
             .collect();
-        let args_tokens: Vec<_> = arg_names.iter().map(|a| quote! { #a }).collect();
+        let args_tokens: Vec<_> = arg_keys.iter().map(|a| quote! { #a }).collect();
 
         let type_name = original_ident.to_string();
         let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());

@@ -19,7 +19,8 @@ greeting = Salutations { $name } { $gender }
 ## LoginError
 
 login_error-InvalidPassword = Mot de passe incorrect
-login_error-Something = Une erreur { $f0 } { $f1 } { $f2 }
+login_error-Something = Something { $f0 } { $f1 } { $f2 }
+login_error-SomethingArgNamed = Something Arg Named { $input } { $expected } { $details }
 login_error-UserNotFound = Utilisateur introuvable { $username }
 
 ## LoginFormCombinedDescriptionVariants

@@ -143,6 +143,11 @@ pub enum LoginError {
     InvalidPassword,                   // no params
     UserNotFound { username: String }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+    SomethingArgNamed(
+        #[fluent(arg_name = "input")] String,
+        #[fluent(arg_name = "expected")] String,
+        #[fluent(arg_name = "details")] String,
+    ), // exposed as $input, $expected, $details
 }
 
 #[derive(EsFluent)]
@@ -159,6 +164,7 @@ The CLI generates the following FTL entries for these types:
 
 login_error-InvalidPassword = Invalid Password
 login_error-Something = Something { $f0 } { $f1 } { $f2 }
+login_error-SomethingArgNamed = Something Arg Named { $input } { $expected } { $details }
 login_error-UserNotFound = User Not Found { $username }
 
 ## WelcomeMessage
@@ -173,10 +179,16 @@ use es_fluent::ToFluentString;
 
 let _ = LoginError::InvalidPassword.to_fluent_string();
 let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
+let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
+let _ = LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
 
 let welcome = WelcomeMessage { name: "John", count: 5 };
 let _ = welcome.to_fluent_string();
 ```
+
+Argument naming attributes:
+
+- `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 
 ## Using Choices
 

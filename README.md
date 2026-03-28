@@ -1,8 +1,9 @@
 # es-fluent
 
 [![Build Status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg?token=EFA5XVDNLK)](https://codecov.io/github/stayhydated/es-fluent)
-[![llms.txt](https://img.shields.io/badge/docs-llms--full.txt-blue)](https://stayhydated.github.io/es-fluent/llms.txt)
+[![Codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg?token=EFA5XVDNLK)](https://codecov.io/github/stayhydated/es-fluent)
+[![mdBook](https://img.shields.io/badge/docs-mdBook-black)](https://stayhydated.github.io/es-fluent/docs/)
+[![llms.txt](https://img.shields.io/badge/docs-llms.txt-blue)](https://stayhydated.github.io/es-fluent/llms.txt)
 [![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
 
@@ -194,12 +195,18 @@ pub enum LoginError {
     InvalidPassword, // no params
     UserNotFound { username: String }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+    SomethingArgNamed(
+        #[fluent(arg_name = "input")] String,
+        #[fluent(arg_name = "expected")] String,
+        #[fluent(arg_name = "details")] String,
+    ), // exposed as $input, $expected, $details
 }
 
 use es_fluent::ToFluentString;
 let _ = LoginError::InvalidPassword.to_fluent_string();
 let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
 let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
+let _ = LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
 
 #[derive(EsFluent)]
 pub struct WelcomeMessage<'a> {
@@ -211,6 +218,10 @@ use es_fluent::ToFluentString;
 let welcome = WelcomeMessage { name: "John", count: 5 };
 let _ = welcome.to_fluent_string();
 ```
+
+Argument naming attributes:
+
+- `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 
 ### `#[derive(EsFluentChoice)]`
 

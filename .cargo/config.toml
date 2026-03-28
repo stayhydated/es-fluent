@@ -4,6 +4,7 @@
 # codegen-backend = "cranelift"
 
 [alias]
+es-fluent-local = "run -p es-fluent-cli -- es-fluent"
 xtask = "run -p xtask --"
 
 [target.x86_64-unknown-linux-gnu]

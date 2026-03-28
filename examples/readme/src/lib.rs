@@ -13,9 +13,16 @@ use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 pub enum LoginError {
-    InvalidPassword,                   // no params
-    UserNotFound { username: String }, // exposed as $username in the ftl file
+    InvalidPassword, // no params
+    UserNotFound {
+        username: String,
+    }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+    SomethingArgNamed(
+        #[fluent(arg_name = "input")] String,
+        #[fluent(arg_name = "expected")] String,
+        #[fluent(arg_name = "details")] String,
+    ), // exposed as $input, $expected, $details
 }
 
 #[derive(EsFluent)]
