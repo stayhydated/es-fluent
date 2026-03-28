@@ -29,7 +29,7 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Run local es-fluent-cli check
-        run: cargo run -p es-fluent-cli -- es-fluent check --path . --all
+        run: cargo es-fluent-local check --path . --all
 
   test:
     runs-on: ubuntu-latest
