@@ -167,8 +167,8 @@ title = "Test Book"
 
         // Should have Docs section with links
         assert!(result.contains("## Docs"));
-        assert!(result.contains("[Intro](https://stayhydated.github.io/koruma/docs/intro.html)"));
-        assert!(result.contains("[Guide](https://stayhydated.github.io/koruma/docs/guide.html)"));
+        assert!(result.contains("[Intro](https://stayhydated.github.io/koruma/book/intro.html)"));
+        assert!(result.contains("[Guide](https://stayhydated.github.io/koruma/book/guide.html)"));
 
         // Should NOT contain full content inline
         assert!(
