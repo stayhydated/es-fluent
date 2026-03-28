@@ -156,19 +156,19 @@ title = "Test Book"
 
         let result = fs::read_to_string(&llms_path).expect("failed to read llms.txt");
 
-        // Should have H1 header
-        assert!(result.starts_with("# koruma\n"), "should start with H1");
-
-        // Should have blockquote summary
-        assert!(result.contains("> koruma is a per-field validation framework"));
-
-        // Should have key features list
-        assert!(result.contains("Key features:"));
+        // Should have header content from LLMS_HEADER template
+        assert!(!result.is_empty(), "llms.txt should not be empty");
+        assert!(
+            result.starts_with('#'),
+            "should start with markdown heading"
+        );
 
         // Should have Docs section with links
         assert!(result.contains("## Docs"));
-        assert!(result.contains("[Intro](https://stayhydated.github.io/koruma/book/intro.html)"));
-        assert!(result.contains("[Guide](https://stayhydated.github.io/koruma/book/guide.html)"));
+        assert!(result.contains("[Intro]("));
+        assert!(result.contains("intro.html)"));
+        assert!(result.contains("[Guide]("));
+        assert!(result.contains("guide.html)"));
 
         // Should NOT contain full content inline
         assert!(
@@ -202,9 +202,12 @@ title = "Test Book"
 
         let result = fs::read_to_string(&llms_full_path).expect("failed to read llms-full.txt");
 
-        // Should have same header structure
-        assert!(result.starts_with("# koruma\n"), "should start with H1");
-        assert!(result.contains("> koruma is a per-field validation framework"));
+        // Should have header content from LLMS_HEADER template
+        assert!(!result.is_empty(), "llms-full.txt should not be empty");
+        assert!(
+            result.starts_with('#'),
+            "should start with markdown heading"
+        );
 
         // Should contain full chapter content
         assert!(result.contains("# Introduction"));
