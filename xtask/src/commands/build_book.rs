@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use mdbook::MDBook;
+use mdbook_driver::MDBook;
 
 use crate::util::workspace_root;
 
@@ -32,44 +32,9 @@ pub fn run_with_paths(book_dir: &Path, output_dir: &Path) -> anyhow::Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::{fs, path::Path};
 
     use super::{run_from_workspace_root, run_with_paths};
-
-    #[derive(Debug)]
-    struct TempDir {
-        path: PathBuf,
-    }
-
-    impl TempDir {
-        fn new(prefix: &str) -> Self {
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("system time should be after unix epoch")
-                .as_nanos();
-            let path = std::env::temp_dir().join(format!(
-                "koruma_xtask_{prefix}_{}_{}",
-                std::process::id(),
-                nanos
-            ));
-            fs::create_dir_all(&path).expect("failed to create temp directory");
-            Self { path }
-        }
-
-        fn path(&self) -> &Path {
-            &self.path
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.path);
-        }
-    }
 
     fn write_file(path: &Path, content: &str) {
         if let Some(parent) = path.parent() {
@@ -92,7 +57,7 @@ authors = ["Test"]
 
     #[test]
     fn build_book_creates_gitignore_in_output() {
-        let tmp = TempDir::new("build_book");
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let book_dir = tmp.path().join("book");
         let output_dir = tmp.path().join("output");
 
@@ -109,7 +74,7 @@ authors = ["Test"]
 
     #[test]
     fn build_book_generates_html_output() {
-        let tmp = TempDir::new("build_book_html");
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let book_dir = tmp.path().join("book");
         let output_dir = tmp.path().join("output");
 
@@ -125,7 +90,7 @@ authors = ["Test"]
 
     #[test]
     fn build_book_fails_when_book_is_invalid() {
-        let tmp = TempDir::new("build_book_invalid");
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let book_dir = tmp.path().join("book");
         let output_dir = tmp.path().join("output");
 
@@ -144,7 +109,7 @@ authors = ["Test"]
 
     #[test]
     fn run_from_workspace_root_uses_expected_default_paths() {
-        let tmp = TempDir::new("build_book_workspace_root");
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
         let workspace_root = tmp.path().join("workspace");
         let book_dir = workspace_root.join("book");
         let web_book_output = workspace_root.join("web").join("public").join("book");

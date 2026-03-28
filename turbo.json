@@ -2,7 +2,12 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "//#build:wasm", "//#build:book", "//#build:llms-txt"],
+      "dependsOn": [
+        "^build",
+        "//#build:wasm",
+        "//#build:book",
+        "//#build:llms-txt"
+      ],
       "outputs": ["dist/**", ".astro/**"]
     },
     "//#build:wasm": {
@@ -25,8 +30,8 @@
     },
     "//#build:llms-txt": {
       "cache": true,
-      "inputs": ["book/**"],
-      "outputs": ["web/public/llms.txt"]
+      "inputs": ["book/src/**", "xtask/templates/llms-header.md"],
+      "outputs": ["web/public/llms.txt", "web/public/llms-full.txt"]
     },
     "dev": {
       "cache": false,

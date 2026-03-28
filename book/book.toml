@@ -9,9 +9,6 @@ edition = "2024"
 
 [build]
 
-[preprocessor.admonish]
-optional = true
-
 [output.html]
 additional-css = [ "theme/oled-neon.css" ]
 
