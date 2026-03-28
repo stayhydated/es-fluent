@@ -58,6 +58,7 @@ let _ = welcome.to_fluent_string();
 ```
 
 Argument naming attributes:
+
 - `arg_name = "..."` can be set on any exposed message field (struct fields, enum named fields, or enum tuple fields).
 - On tuple enum variants, variant-level `arg_name = "..."` is the single-field shorthand.
 
