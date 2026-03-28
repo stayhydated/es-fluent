@@ -105,21 +105,17 @@ fn validate_struct_skip_and_default_conflict_produces_error() {
 }
 
 #[test]
-fn validate_enum_arg_name_on_non_tuple_variant_produces_error() {
+fn parse_rejects_variant_level_arg_name() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         pub enum TestEnum {
             #[fluent(arg_name = "value")]
-            Named { field: String },
+            Something(String),
         }
     };
 
-    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    let err = validate_enum(&opts).expect_err("Expected validation error");
-    let msg = err.to_string();
-
-    assert!(msg.contains("arg_name"));
-    assert!(msg.contains("tuple variants"));
+    let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
+    assert!(err.to_string().contains("arg_name"));
 }
 
 #[test]

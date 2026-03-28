@@ -93,50 +93,6 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
             .filter_map(|field| field.arg_name().map(|name| (field, name)))
             .collect();
 
-        if !field_arg_name_overrides.is_empty() && variant.arg_name().is_some() {
-            return Err(EsFluentCoreError::VariantError {
-                message: "use either variant-level `arg_name` or field-level `arg_name`, not both"
-                    .to_string(),
-                variant_name,
-                span: variant_span,
-            });
-        }
-
-        if variant.arg_name().is_some() && !is_tuple {
-            return Err(EsFluentCoreError::VariantError {
-                message: "`#[fluent(arg_name = \"...\")]` is only supported on tuple variants"
-                    .to_string(),
-                variant_name,
-                span: variant_span,
-            });
-        }
-
-        if let Some(arg_name) = variant.arg_name() {
-            let exposed_tuple_field_count = variant
-                .all_fields()
-                .iter()
-                .filter(|f| !f.is_skipped())
-                .count();
-            if exposed_tuple_field_count != 1 {
-                return Err(EsFluentCoreError::VariantError {
-                    message: format!(
-                        "`#[fluent(arg_name = \"...\")]` requires exactly 1 exposed tuple field; found {}",
-                        exposed_tuple_field_count
-                    ),
-                    variant_name,
-                    span: variant_span,
-                });
-            }
-
-            if arg_name.is_empty() {
-                return Err(EsFluentCoreError::VariantError {
-                    message: "`#[fluent(arg_name = \"...\")]` cannot be empty".to_string(),
-                    variant_name,
-                    span: variant_span,
-                });
-            }
-        }
-
         if !field_arg_name_overrides.is_empty() {
             let mut explicit_seen = std::collections::HashSet::new();
             for (field, name) in &field_arg_name_overrides {

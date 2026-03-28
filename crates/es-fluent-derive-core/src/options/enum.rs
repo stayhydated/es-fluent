@@ -64,9 +64,6 @@ pub struct VariantOpts {
     /// Overrides the localization key suffix for this variant.
     #[darling(default)]
     key: Option<String>,
-    /// Explicit tuple argument name for single exposed tuple-field variants.
-    #[darling(default)]
-    arg_name: Option<syn::LitStr>,
 }
 
 impl VariantOpts {
@@ -92,11 +89,6 @@ impl VariantOpts {
     /// Returns the explicit localization key for the variant, if provided.
     pub fn key(&self) -> Option<&str> {
         self.key.as_deref()
-    }
-
-    /// Returns explicit tuple argument name if provided.
-    pub fn arg_name(&self) -> Option<String> {
-        self.arg_name.as_ref().map(syn::LitStr::value)
     }
 }
 
@@ -554,27 +546,6 @@ mod tests {
     }
 
     #[test]
-    fn enum_variant_arg_name_parse_for_single_tuple_variant() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            enum TupleNames {
-                #[fluent(arg_name = "value")]
-                Something(String),
-            }
-        };
-
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let variants = opts.variants();
-        let variant = variants
-            .iter()
-            .find(|v| v.ident().to_string() == "Something")
-            .expect("Something variant should exist");
-
-        let arg_name = variant.arg_name().expect("arg_name should parse");
-        assert_eq!(arg_name, "value".to_string());
-    }
-
-    #[test]
     fn enum_field_arg_name_parse_for_single_tuple_variant() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -593,5 +564,20 @@ mod tests {
         let fields = variant.all_fields();
         let field_arg_name = fields[0].arg_name().expect("field arg_name should parse");
         assert_eq!(field_arg_name, "value".to_string());
+    }
+
+    #[test]
+    fn enum_variant_arg_name_is_rejected() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            enum TupleNames {
+                #[fluent(arg_name = "value")]
+                Something(String),
+            }
+        };
+
+        let err =
+            EnumOpts::from_derive_input(&input).expect_err("variant-level arg_name is removed");
+        assert!(err.to_string().contains("arg_name"));
     }
 }

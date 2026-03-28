@@ -1,8 +1,9 @@
 # es-fluent
 
 [![Build Status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg?token=EFA5XVDNLK)](https://codecov.io/github/stayhydated/es-fluent)
-[![llms.txt](https://img.shields.io/badge/docs-llms--full.txt-blue)](https://stayhydated.github.io/es-fluent/llms.txt)
+[![Codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg?token=EFA5XVDNLK)](https://codecov.io/github/stayhydated/es-fluent)
+[![mdBook](https://img.shields.io/badge/docs-mdBook-black)](https://stayhydated.github.io/es-fluent/docs/)
+[![llms.txt](https://img.shields.io/badge/docs-llms.txt-blue)](https://stayhydated.github.io/es-fluent/llms.txt)
 [![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
 
@@ -220,8 +221,7 @@ let _ = welcome.to_fluent_string();
 
 Argument naming attributes:
 
-- `arg_name = "..."` can be set on any exposed message field (struct fields, enum named fields, or enum tuple fields).
-- On tuple enum variants, variant-level `arg_name = "..."` is the single-field shorthand.
+- `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 
 ### `#[derive(EsFluentChoice)]`
 

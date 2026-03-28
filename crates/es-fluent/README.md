@@ -1,8 +1,9 @@
 # es-fluent
 
 [![Build Status](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/es-fluent/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg?token=EFA5XVDNLK)](https://codecov.io/github/stayhydated/es-fluent)
-[![llms.txt](https://img.shields.io/badge/docs-llms--full.txt-blue)](https://stayhydated.github.io/es-fluent/llms.txt)
+[![Codecov](https://codecov.io/github/stayhydated/es-fluent/graph/badge.svg?token=EFA5XVDNLK)](https://codecov.io/github/stayhydated/es-fluent)
+[![mdBook](https://img.shields.io/badge/docs-mdBook-black)](https://stayhydated.github.io/es-fluent/docs/)
+[![llms.txt](https://img.shields.io/badge/docs-llms.txt-blue)](https://stayhydated.github.io/es-fluent/llms.txt)
 [![Docs](https://docs.rs/es-fluent/badge.svg)](https://docs.rs/es-fluent/)
 [![Crates.io](https://img.shields.io/crates/v/es-fluent.svg)](https://crates.io/crates/es-fluent)
 
@@ -91,7 +92,7 @@ use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 #[fluent(namespace = "ui")]
-pub struct Button<'a>(&'a str);
+pub struct Button<'a>(pub &'a str);
 
 #[derive(EsFluent)]
 #[fluent(namespace = file)]
@@ -105,7 +106,7 @@ pub enum Gender {
     Male,
     Female,
     Other(String),
-    Helicopter { type: String },
+    Helicopter { type_: String },
 }
 ```
 
@@ -117,7 +118,7 @@ use es_fluent::EsFluentThis;
 #[derive(EsFluentThis)]
 #[fluent_this(origin)]
 #[fluent(namespace = "forms")]
-pub enum Gender { Male, Female, Other }
+pub enum GenderThis { Male, Female, Other }
 
 #[derive(EsFluentThis)]
 #[fluent_this(origin)]
@@ -193,24 +194,34 @@ use es_fluent::{EsFluent};
 pub enum LoginError {
     InvalidPassword, // no params
     UserNotFound { username: String }, // exposed as $username in the ftl file
-    Something(String, String, String), // exposed as $f1, $f2, $f3 in the ftl file
+    Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
+    SomethingArgNamed(
+        #[fluent(arg_name = "input")] String,
+        #[fluent(arg_name = "expected")] String,
+        #[fluent(arg_name = "details")] String,
+    ), // exposed as $input, $expected, $details
 }
 
 use es_fluent::ToFluentString;
 let _ = LoginError::InvalidPassword.to_fluent_string();
 let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
 let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
+let _ = LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
 
 #[derive(EsFluent)]
-pub struct UserProfile<'a> {
+pub struct WelcomeMessage<'a> {
     pub name: &'a str, // exposed as $name in the ftl file
-    pub gender: &'a str, // exposed as $gender in the ftl file
+    pub count: i32,    // exposed as $count in the ftl file
 }
 
 use es_fluent::ToFluentString;
-let profile = UserProfile { name: "John", gender: "male" };
-let _ = profile.to_fluent_string();
+let welcome = WelcomeMessage { name: "John", count: 5 };
+let _ = welcome.to_fluent_string();
 ```
+
+Argument naming attributes:
+
+- `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 
 ### `#[derive(EsFluentChoice)]`
 
@@ -221,22 +232,22 @@ use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
 #[fluent_choice(serialize_all = "snake_case")]
-pub enum Gender {
+pub enum GenderChoice {
     Male,
     Female,
     Other,
 }
 
 #[derive(EsFluent)]
-pub struct UserProfile<'a> {
+pub struct Greeting<'a> {
     pub name: &'a str,
     #[fluent(choice)] // Matches $gender -> [male]...
-    pub gender: &'a Gender,
+    pub gender: &'a GenderChoice,
 }
 
 use es_fluent::ToFluentString;
-let profile = UserProfile { name: "John", gender: &Gender::Male };
-let _ = profile.to_fluent_string();
+let greeting = Greeting { name: "John", gender: &GenderChoice::Male };
+let _ = greeting.to_fluent_string();
 ```
 
 ### `#[derive(EsFluentVariants)]`
@@ -248,17 +259,17 @@ use es_fluent::EsFluentVariants;
 
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys = ["label", "description"])]
-pub struct LoginForm {
+pub struct LoginFormVariants {
     pub username: String,
     pub password: String,
 }
 
 // Generates enums -> keys:
-// LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
-// LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
+// LoginFormVariantsLabelVariants::{Variants} -> (login_form_variants_label_variants-{variant})
+// LoginFormVariantsDescriptionVariants::{Variants} -> (login_form_variants_description_variants-{variant})
 
 use es_fluent::ToFluentString;
-let _ = LoginFormLabelVariants::Username.to_fluent_string();
+let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
 ```
 
 ### `#[derive(EsFluentThis)]`
@@ -272,17 +283,17 @@ use es_fluent::EsFluentThis;
 
 #[derive(EsFluentThis)]
 #[fluent_this(origin)]
-pub enum Gender {
+pub enum GenderThisOnly {
     Male,
     Female,
     Other,
 }
 
 // Generates key:
-// (gender_this)
+// (gender_this_only_this)
 
 use es_fluent::ThisFtl;
-let _ = Gender::this_ftl();
+let _ = GenderThisOnly::this_ftl();
 ```
 
 - `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
@@ -291,15 +302,15 @@ let _ = Gender::this_ftl();
 #[derive(EsFluentVariants, EsFluentThis)]
 #[fluent_this(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
-pub struct LoginForm {
+pub struct LoginFormCombined {
     pub username: String,
     pub password: String,
 }
 
 // Generates keys:
-// (login_form_label_variants_this)
-// (login_form_description_variants_this)
+// (login_form_combined_label_variants_this)
+// (login_form_combined_description_variants_this)
 
 use es_fluent::ThisFtl;
-let _ = LoginFormDescriptionVariants::this_ftl();
+let _ = LoginFormCombinedDescriptionVariants::this_ftl();
 ```

@@ -73,7 +73,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
 }
 
 #[test]
-fn enum_tuple_variant_arg_name_parsing() {
+fn enum_variant_level_arg_name_is_rejected() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         enum MyEnum {
@@ -82,15 +82,8 @@ fn enum_tuple_variant_arg_name_parsing() {
         }
     };
 
-    let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    let variants = opts.variants();
-    let tuple = variants
-        .iter()
-        .find(|v| v.ident().to_string() == "Tuple")
-        .expect("Tuple variant present");
-
-    let arg_name = tuple.arg_name().expect("arg_name should parse");
-    assert_eq!(arg_name, "value".to_string());
+    let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
+    assert!(err.to_string().contains("arg_name"));
 }
 
 #[test]

@@ -1,5 +1,5 @@
 use es_fluent_derive_core::namer;
-use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts, VariantOpts};
+use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
 
 use crate::macros::utils::namespace_rule_tokens;
 use heck::ToSnakeCase as _;
@@ -25,15 +25,9 @@ fn tuple_field_static_arg_name(field_opt: &EnumFieldOpts) -> Option<String> {
     field_opt.arg_name()
 }
 
-fn tuple_arg_key_tokens(
-    variant_opt: &VariantOpts,
-    field_opt: &EnumFieldOpts,
-    tuple_index: usize,
-) -> TokenStream {
+fn tuple_arg_key_tokens(field_opt: &EnumFieldOpts, tuple_index: usize) -> TokenStream {
     if let Some(field_name) = tuple_field_static_arg_name(field_opt) {
         quote! { #field_name }
-    } else if let Some(variant_name) = variant_opt.arg_name() {
-        quote! { #variant_name }
     } else {
         let key = namer::UnnamedItem::from(tuple_index).to_string();
         quote! { #key }
@@ -88,7 +82,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .iter()
                     .map(|(tuple_index, field)| {
                         let tuple_index = *tuple_index;
-                        let arg_key_expr = tuple_arg_key_tokens(variant_opt, field, tuple_index);
+                        let arg_key_expr = tuple_arg_key_tokens(field, tuple_index);
 
                         quote! {
                             {
@@ -226,9 +220,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                             .collect();
                         exposed_tuple_fields
                             .iter()
-                            .map(|(tuple_index, field)| {
-                                tuple_arg_key_tokens(variant_opt, field, *tuple_index)
-                            })
+                            .map(|(tuple_index, field)| tuple_arg_key_tokens(field, *tuple_index))
                             .collect()
                     },
                     darling::ast::Style::Struct => variant_opt

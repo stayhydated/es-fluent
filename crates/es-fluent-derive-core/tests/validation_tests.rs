@@ -175,20 +175,6 @@ mod validate_enum_tests {
     use super::*;
 
     #[test]
-    fn arg_name_on_single_tuple_variant_succeeds() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            pub enum TestEnum {
-                #[fluent(arg_name = "value")]
-                Something(String),
-            }
-        };
-
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        validate_enum(&opts).expect("Single tuple variant with arg_name should pass");
-    }
-
-    #[test]
     fn field_arg_name_on_single_tuple_variant_succeeds() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -218,21 +204,19 @@ mod validate_enum_tests {
     }
 
     #[test]
-    fn arg_name_on_non_tuple_variant_fails() {
+    fn variant_level_arg_name_is_rejected() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
                 #[fluent(arg_name = "value")]
-                Named { value: String },
+                Something(String),
             }
         };
 
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = validate_enum(&opts).expect_err("Expected validation error");
+        let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
         let err_msg = err.to_string();
 
         assert!(err_msg.contains("arg_name"));
-        assert!(err_msg.contains("tuple variants"));
     }
 
     #[test]
@@ -254,42 +238,6 @@ mod validate_enum_tests {
 
         assert!(err_msg.contains("duplicate resolved argument name"));
         assert!(err_msg.contains("value"));
-    }
-
-    #[test]
-    fn arg_name_requires_exactly_one_exposed_tuple_field() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            pub enum TestEnum {
-                #[fluent(arg_name = "value")]
-                Something(String, String),
-            }
-        };
-
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = validate_enum(&opts).expect_err("Expected validation error");
-        let err_msg = err.to_string();
-
-        assert!(err_msg.contains("requires exactly 1 exposed tuple field"));
-    }
-
-    #[test]
-    fn field_arg_name_and_variant_arg_name_together_fail() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            pub enum TestEnum {
-                Something(#[fluent(arg_name = "value")] String),
-                #[fluent(arg_name = "value")]
-                Other(#[fluent(arg_name = "other")] String),
-            }
-        };
-
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = validate_enum(&opts).expect_err("Expected validation error");
-        let err_msg = err.to_string();
-
-        assert!(err_msg.contains("field-level"));
-        assert!(err_msg.contains("not both"));
     }
 
     #[test]

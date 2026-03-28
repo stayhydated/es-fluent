@@ -211,11 +211,10 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_emits_variant_level_tuple_arg_name() {
+    fn expand_es_fluent_emits_field_level_tuple_arg_name() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
-                #[fluent(arg_name = "value")]
-                Something(String),
+                Something(#[fluent(arg_name = "value")] String),
             }
         };
 

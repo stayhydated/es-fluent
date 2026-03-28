@@ -37,7 +37,7 @@ mod macros;
 /// # Field Attributes
 ///
 /// - `#[fluent(choice)]`: Marks a field as a selector for Fluent's select expression.
-/// - `#[fluent(arg_name = "value")]`: Overrides a field argument name on any exposed message field (struct fields, enum named fields, or enum tuple fields). On tuple variants, this can also be used at variant level as a single-field shorthand.
+/// - `#[fluent(arg_name = "value")]`: On a field, renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 #[proc_macro_derive(EsFluent, attributes(fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
