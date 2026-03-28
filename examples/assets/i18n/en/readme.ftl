@@ -20,6 +20,7 @@ greeting = Greeting { $name } { $gender }
 
 login_error-InvalidPassword = Invalid Password
 login_error-Something = Something { $f0 } { $f1 } { $f2 }
+login_error-SomethingArgNamed = Something Arg Named { $input } { $expected } { $details }
 login_error-UserNotFound = User Not Found { $username }
 
 ## LoginFormCombinedDescriptionVariants
