@@ -146,7 +146,7 @@ jobs:
           path: target
 
       - name: Codecov publish
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: target/cobertura.xml
           disable_search: true
