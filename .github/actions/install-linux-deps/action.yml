@@ -1,5 +1,5 @@
 name: Install Linux dependencies
-description: Installs the dependencies necessary to build es-fluent on Linux.
+description: Installs necessary dependencies to build on Linux.
 inputs:
   alsa:
     description: Install alsa (libasound2-dev)
@@ -21,6 +21,10 @@ inputs:
     description: Install xkb-x11 (libxkbcommon-x11-dev)
     required: false
     default: "true"
+  fontconfig:
+    description: Install fontconfig (libfontconfig1-dev)
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -37,3 +41,4 @@ runs:
         ${{ fromJSON(inputs.wayland) && 'libwayland-dev' || '' }}
         ${{ fromJSON(inputs.xkb) && 'libxkbcommon-dev' || '' }}
         ${{ fromJSON(inputs.xkb_x11) && 'libxkbcommon-x11-dev' || '' }}
+        ${{ fromJSON(inputs.fontconfig) && 'libfontconfig1-dev' || '' }}

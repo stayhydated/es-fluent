@@ -42,6 +42,7 @@ similar = { workspace = true }
 terminal-link = { workspace = true }
 thiserror = { workspace = true }
 throbber-widgets-tui = { workspace = true }
+toml = { workspace = true }
 treelog = { workspace = true }
 walkdir = { workspace = true }
 
