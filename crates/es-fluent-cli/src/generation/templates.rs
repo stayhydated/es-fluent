@@ -31,6 +31,7 @@ pub struct MonolithicCargoTomlTemplate<'a> {
     pub crates: Vec<MonolithicCrateDep<'a>>,
     pub es_fluent_dep: &'a str,
     pub es_fluent_cli_helpers_dep: &'a str,
+    pub manifest_overrides: &'a str,
 }
 
 /// Template for the monolithic main.rs

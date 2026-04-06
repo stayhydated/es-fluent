@@ -26,6 +26,7 @@ pub struct TempCrateConfig {
     pub es_fluent_dep: String,
     pub es_fluent_cli_helpers_dep: String,
     pub target_dir: String,
+    pub manifest_overrides: String,
 }
 
 impl TempCrateConfig {
@@ -35,6 +36,7 @@ impl TempCrateConfig {
 
         // Check CARGO_TARGET_DIR env first (doesn't need metadata)
         let target_dir_from_env = std::env::var("CARGO_TARGET_DIR").ok();
+        let manifest_overrides = Self::extract_manifest_overrides(manifest_path);
 
         // Determine workspace root and temp directory for caching
         let workspace_root = manifest_path.parent().unwrap_or(Path::new("."));
@@ -48,6 +50,7 @@ impl TempCrateConfig {
                 es_fluent_dep: cache.es_fluent_dep,
                 es_fluent_cli_helpers_dep: cache.es_fluent_cli_helpers_dep,
                 target_dir: target_dir_from_env.unwrap_or(cache.target_dir),
+                manifest_overrides,
             };
         }
 
@@ -108,6 +111,7 @@ impl TempCrateConfig {
             es_fluent_dep,
             es_fluent_cli_helpers_dep,
             target_dir,
+            manifest_overrides,
         }
     }
 
@@ -148,6 +152,51 @@ impl TempCrateConfig {
             ))
         } else {
             None
+        }
+    }
+
+    /// Extract top-level `[patch]` and `[replace]` tables from a workspace manifest.
+    ///
+    /// The runner crate is an isolated workspace root, so it doesn't inherit dependency
+    /// overrides from the project's manifest unless we mirror them into the generated
+    /// `.es-fluent/Cargo.toml`.
+    fn extract_manifest_overrides(manifest_path: &Path) -> String {
+        let content = match std::fs::read_to_string(manifest_path) {
+            Ok(content) => content,
+            Err(_) => return String::new(),
+        };
+
+        let parsed: toml::Value = match toml::from_str(&content) {
+            Ok(parsed) => parsed,
+            Err(_) => return String::new(),
+        };
+
+        let Some(table) = parsed.as_table() else {
+            return String::new();
+        };
+
+        let mut rendered_sections = Vec::new();
+
+        if let Some(patch) = table.get("patch") {
+            let mut patch_table = toml::map::Map::new();
+            patch_table.insert("patch".to_string(), patch.clone());
+            if let Ok(rendered) = toml::to_string(&toml::Value::Table(patch_table)) {
+                rendered_sections.push(rendered.trim_end().to_string());
+            }
+        }
+
+        if let Some(replace) = table.get("replace") {
+            let mut replace_table = toml::map::Map::new();
+            replace_table.insert("replace".to_string(), replace.clone());
+            if let Ok(rendered) = toml::to_string(&toml::Value::Table(replace_table)) {
+                rendered_sections.push(rendered.trim_end().to_string());
+            }
+        }
+
+        if rendered_sections.is_empty() {
+            String::new()
+        } else {
+            format!("{}\n", rendered_sections.join("\n\n"))
         }
     }
 }
@@ -382,6 +431,7 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
         crates: crate_deps.clone(),
         es_fluent_dep: &config.es_fluent_dep,
         es_fluent_cli_helpers_dep: &config.es_fluent_cli_helpers_dep,
+        manifest_overrides: &config.manifest_overrides,
     };
     runner_crate.write_cargo_toml(&cargo_toml.render().unwrap())?;
 
@@ -592,6 +642,32 @@ es-fluent = { version = "*" }
         let config = TempCrateConfig::from_manifest(&manifest_path);
         // With fallback, should find local es-fluent from CLI workspace
         assert!(config.es_fluent_dep.contains("es-fluent"));
+    }
+
+    #[test]
+    fn temp_crate_config_extracts_manifest_overrides() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("Cargo.toml");
+
+        let cargo_toml = r#"
+[package]
+name = "override-test"
+version = "0.1.0"
+edition = "2024"
+
+[replace]
+"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "15d8660748b508b3525d3403e5d172f1a557bfa5" }
+"#;
+        let mut file = fs::File::create(&manifest_path).unwrap();
+        file.write_all(cargo_toml.as_bytes()).unwrap();
+
+        let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path);
+        assert!(
+            overrides.contains("[replace.\"https://github.com/zed-industries/zed#gpui@0.2.2\"]"),
+            "overrides: {overrides:?}"
+        );
+        assert!(overrides.contains("gpui@0.2.2"));
+        assert!(overrides.contains("15d8660748b508b3525d3403e5d172f1a557bfa5"));
     }
 
     #[test]
@@ -950,6 +1026,37 @@ edition = "2024"
 
         let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
         assert!(runner_dir.join("Cargo.lock").exists());
+    }
+
+    #[test]
+    fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
+        let (_temp, workspace) = create_workspace_fixture("manifest-overrides", true);
+        std::fs::write(
+            workspace.root_dir.join("Cargo.toml"),
+            r#"[package]
+name = "manifest-overrides"
+version = "0.1.0"
+edition = "2024"
+
+[replace]
+"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "15d8660748b508b3525d3403e5d172f1a557bfa5" }
+"#,
+        )
+        .expect("write manifest with overrides");
+
+        let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
+        let runner_manifest =
+            std::fs::read_to_string(runner_dir.join("Cargo.toml")).expect("read runner Cargo.toml");
+
+        assert!(
+            runner_manifest
+                .contains("[replace.\"https://github.com/zed-industries/zed#gpui@0.2.2\"]"),
+            "runner manifest should include [replace] overrides"
+        );
+        assert!(
+            runner_manifest.contains("gpui@0.2.2"),
+            "runner manifest should include the replacement key"
+        );
     }
 
     #[cfg(unix)]
