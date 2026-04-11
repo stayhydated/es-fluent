@@ -174,7 +174,7 @@ pub fn validate_namespace(
 ) -> EsFluentCoreResult<()> {
     // Only validate literal namespaces at compile time
     let literal_value = match namespace {
-        NamespaceValue::Literal(s) => s,
+        NamespaceValue::Literal(s) => s.as_ref(),
         // File-based namespaces need runtime/CLI validation
         NamespaceValue::File
         | NamespaceValue::FileRelative

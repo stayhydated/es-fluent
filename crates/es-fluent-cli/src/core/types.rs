@@ -1,3 +1,4 @@
+use es_fluent_toml::ResolvedI18nLayout;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -18,6 +19,15 @@ pub struct CrateInfo {
     pub has_lib_rs: bool,
     /// Feature flags that enable es-fluent derives in the crate.
     pub fluent_features: Vec<String>,
+}
+
+impl CrateInfo {
+    /// Resolve the crate's i18n layout from its `i18n.toml`.
+    pub fn resolved_i18n_layout(
+        &self,
+    ) -> Result<ResolvedI18nLayout, es_fluent_toml::I18nConfigError> {
+        ResolvedI18nLayout::from_config_path(&self.i18n_config_path)
+    }
 }
 
 /// Information about a workspace containing es-fluent crates.

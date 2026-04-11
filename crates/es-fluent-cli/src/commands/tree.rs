@@ -5,8 +5,8 @@
 
 use crate::commands::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::CliError;
-use crate::ftl::{LocaleContext, parse_ftl_file};
-use crate::utils::{discover_ftl_files, ui};
+use crate::ftl::{CrateFtlLayout, LocaleContext, parse_ftl_file};
+use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
 use colored::Colorize as _;
@@ -174,7 +174,8 @@ fn print_crate_tree(
             continue;
         }
 
-        let ftl_files = discover_ftl_files(&ctx.assets_dir, locale, &ctx.crate_name)?;
+        let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
+            .discover_files()?;
 
         if ftl_files.is_empty() {
             continue;

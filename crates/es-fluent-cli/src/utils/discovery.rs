@@ -1,6 +1,8 @@
 use crate::core::{CrateInfo, WorkspaceInfo};
+use crate::ftl::{discover_crate_ftl_files_in_locale_dir, parse_ftl_file};
 use anyhow::{Context as _, Result};
 use cargo_metadata::MetadataCommand;
+use es_fluent_toml::ResolvedI18nLayout;
 use std::path::{Path, PathBuf};
 
 /// Discovers workspace information including root, target dir, and all crates with i18n.toml.
@@ -29,12 +31,10 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
             continue;
         }
 
-        let i18n_config = es_fluent_toml::I18nConfig::read_from_path(&i18n_config_path)
+        let layout = ResolvedI18nLayout::from_config_path(&i18n_config_path)
             .with_context(|| format!("Failed to read {}", i18n_config_path.display()))?;
-
-        let ftl_output_dir = manifest_dir
-            .join(&i18n_config.assets_dir)
-            .join(&i18n_config.fallback_language);
+        let ftl_output_dir = layout.output_dir.clone();
+        let fluent_features = layout.fluent_features();
 
         let src_dir = manifest_dir.join("src");
         let has_lib_rs = src_dir.join("lib.rs").exists();
@@ -46,11 +46,7 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
             i18n_config_path,
             ftl_output_dir,
             has_lib_rs,
-            fluent_features: i18n_config
-                .fluent_feature
-                .as_ref()
-                .map(|f| f.as_vec())
-                .unwrap_or_default(),
+            fluent_features,
         });
     }
 
@@ -72,29 +68,26 @@ pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
 
 /// Counts the number of FTL resources (message keys) for a specific crate.
 pub fn count_ftl_resources(ftl_output_dir: &Path, crate_name: &str) -> usize {
-    let ftl_file = ftl_output_dir.join(format!("{}.ftl", crate_name));
-
-    if !ftl_file.exists() {
-        return 0;
-    }
-
-    let Ok(content) = std::fs::read_to_string(&ftl_file) else {
+    let Ok(files) = discover_crate_ftl_files_in_locale_dir(ftl_output_dir, crate_name) else {
         return 0;
     };
 
-    // Count lines that start with a message identifier
-    // (not comments, not blank, not starting with whitespace)
-    content
-        .lines()
-        .filter(|line| {
-            let trimmed = line.trim();
-            !trimmed.is_empty()
-                && !trimmed.starts_with('#')
-                && !line.starts_with(' ')
-                && !line.starts_with('\t')
-                && trimmed.contains('=')
+    files
+        .into_iter()
+        .filter_map(|file| parse_ftl_file(&file.abs_path).ok())
+        .map(|resource| {
+            resource
+                .body
+                .iter()
+                .filter(|entry| {
+                    matches!(
+                        entry,
+                        fluent_syntax::ast::Entry::Message(_) | fluent_syntax::ast::Entry::Term(_)
+                    )
+                })
+                .count()
         })
-        .count()
+        .sum()
 }
 
 #[cfg(test)]

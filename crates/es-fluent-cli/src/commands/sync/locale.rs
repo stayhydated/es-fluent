@@ -1,8 +1,7 @@
 use super::merge::merge_missing_keys;
 use crate::commands::DryRunDiff;
 use crate::core::CrateInfo;
-use crate::ftl::{LocaleContext, extract_message_keys};
-use crate::utils::discover_and_load_ftl_files;
+use crate::ftl::{CrateFtlLayout, LocaleContext, extract_message_keys};
 use anyhow::Result;
 use fluent_syntax::{ast, parser, serializer};
 use std::collections::HashSet;
@@ -37,7 +36,8 @@ pub(super) fn sync_crate(
 
     // Discover all FTL files in the fallback locale (including namespaced ones)
     let fallback_files =
-        discover_and_load_ftl_files(&ctx.assets_dir, &ctx.fallback, &ctx.crate_name)?;
+        CrateFtlLayout::from_assets_dir(&ctx.assets_dir, &ctx.fallback, &ctx.crate_name)
+            .discover_and_load_files()?;
 
     if fallback_files.is_empty() {
         return Ok(Vec::new());

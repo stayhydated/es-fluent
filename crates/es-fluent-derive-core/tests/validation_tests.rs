@@ -300,7 +300,7 @@ mod validate_namespace_tests {
         // validation should pass for any literal namespace.
         // This test runs without setting up a config file, so it relies on
         // the graceful fallback behavior.
-        let ns = NamespaceValue::Literal("any_namespace".to_string());
+        let ns = NamespaceValue::Literal("any_namespace".into());
         // This will pass because there's no i18n.toml in the test environment
         // or the config doesn't have namespaces configured
         validate_namespace(&ns, None).expect("Should pass when no config exists");

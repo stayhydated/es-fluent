@@ -1,6 +1,7 @@
 //! This module provides types for parsing `es-fluent` attributes.
 
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::namer;
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 
 pub mod choice;
@@ -31,6 +32,27 @@ pub fn validate_snake_case_key(key: &syn::LitStr) -> EsFluentCoreResult<String> 
     }
 
     Ok(key_str.to_pascal_case())
+}
+
+/// Shared behavior for fields that expose Fluent arguments.
+pub trait FluentField {
+    /// Returns the source field identifier when present.
+    fn ident(&self) -> Option<&syn::Ident>;
+    /// Returns `true` if the field should be skipped.
+    fn is_skipped(&self) -> bool;
+    /// Returns `true` if the field is a choice.
+    fn is_choice(&self) -> bool;
+    /// Returns the value expression if present.
+    fn value(&self) -> Option<&syn::Expr>;
+    /// Returns explicit field argument name if provided.
+    fn arg_name(&self) -> Option<String>;
+
+    /// Resolves the Fluent argument name for this field.
+    fn resolved_arg_name(&self, index: usize) -> String {
+        self.arg_name()
+            .or_else(|| self.ident().map(|ident| ident.to_string()))
+            .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
+    }
 }
 
 #[derive(Clone, Debug)]

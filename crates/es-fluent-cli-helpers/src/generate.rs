@@ -1,6 +1,7 @@
 //! FTL file generation functionality.
 
 use es_fluent::registry::FtlTypeInfo;
+use es_fluent_toml::ResolvedI18nLayout;
 use std::path::{Path, PathBuf};
 
 pub use es_fluent_generate::FluentParseMode;
@@ -124,10 +125,7 @@ impl EsFluentGenerator {
         if let Some(path) = &self.output_path {
             return Ok(path.clone());
         }
-        let manifest_dir = self.resolve_manifest_dir()?;
-        Ok(es_fluent_toml::I18nConfig::output_dir_from_manifest_dir(
-            &manifest_dir,
-        )?)
+        Ok(self.resolve_layout()?.output_dir)
     }
 
     /// Resolve the assets directory.
@@ -135,10 +133,7 @@ impl EsFluentGenerator {
         if let Some(path) = &self.assets_dir {
             return Ok(path.clone());
         }
-        let manifest_dir = self.resolve_manifest_dir()?;
-        Ok(es_fluent_toml::I18nConfig::assets_dir_from_manifest_dir(
-            &manifest_dir,
-        )?)
+        Ok(self.resolve_layout()?.assets_dir)
     }
 
     /// Resolve the manifest directory for namespace resolution.
@@ -152,25 +147,37 @@ impl EsFluentGenerator {
         Ok(PathBuf::from(manifest_dir))
     }
 
+    /// Resolve the full i18n layout when generator paths are config-driven.
+    fn resolve_layout(&self) -> Result<ResolvedI18nLayout, GeneratorError> {
+        let manifest_dir = self.resolve_manifest_dir()?;
+        Ok(ResolvedI18nLayout::from_manifest_dir(&manifest_dir)?)
+    }
+
     /// Resolve the paths to clean based on configuration.
     fn resolve_clean_paths(&self, all_locales: bool) -> Result<Vec<PathBuf>, GeneratorError> {
         if !all_locales {
             return Ok(vec![self.resolve_output_path()?]);
         }
 
-        let assets_dir = self.resolve_assets_dir()?;
-        let mut paths: Vec<PathBuf> = std::fs::read_dir(&assets_dir)
-            .ok()
-            .map(|entries| {
-                entries
-                    .filter_map(|e| e.ok())
-                    .filter(|e| e.path().is_dir())
-                    .map(|e| e.path())
-                    .collect()
-            })
-            .unwrap_or_else(|| self.output_path.clone().into_iter().collect());
+        let mut paths = if let Ok(layout) = self.resolve_layout() {
+            layout
+                .available_locale_names()?
+                .into_iter()
+                .map(|locale| layout.locale_dir(&locale))
+                .collect::<Vec<_>>()
+        } else if let Ok(assets_dir) = self.resolve_assets_dir() {
+            es_fluent_derive_core::get_all_locales(&assets_dir)?
+                .into_iter()
+                .map(|locale| assets_dir.join(locale))
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
 
-        // Sort paths to ensure deterministic ordering across filesystems
+        if paths.is_empty() {
+            return Ok(vec![self.resolve_output_path()?]);
+        }
+
         paths.sort();
 
         Ok(paths)
@@ -210,8 +217,10 @@ impl EsFluentGenerator {
         type_infos: &[&'static FtlTypeInfo],
         manifest_dir: &Path,
     ) -> Result<(), GeneratorError> {
-        let config = es_fluent_toml::I18nConfig::from_manifest_dir(manifest_dir).ok();
-        let allowed = config.as_ref().and_then(|c| c.namespaces.as_ref());
+        let layout = ResolvedI18nLayout::from_manifest_dir(manifest_dir).ok();
+        let allowed = layout
+            .as_ref()
+            .and_then(ResolvedI18nLayout::allowed_namespaces);
 
         if let Some(allowed_namespaces) = allowed {
             for info in type_infos {
@@ -221,7 +230,7 @@ impl EsFluentGenerator {
                     return Err(GeneratorError::InvalidNamespace {
                         namespace: ns,
                         type_name: info.type_name.to_string(),
-                        allowed: allowed_namespaces.clone(),
+                        allowed: allowed_namespaces.to_vec(),
                     });
                 }
             }
@@ -309,7 +318,7 @@ mod tests {
         variants: EMPTY_VARIANTS,
         file_path: "src/lib.rs",
         module_path: "test_crate",
-        namespace: Some(NamespaceRule::Literal("ui")),
+        namespace: Some(NamespaceRule::Literal(std::borrow::Cow::Borrowed("ui"))),
     };
     static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
         type_kind: TypeKind::Struct,
@@ -317,7 +326,7 @@ mod tests {
         variants: EMPTY_VARIANTS,
         file_path: "src/lib.rs",
         module_path: "test_crate",
-        namespace: Some(NamespaceRule::Literal("errors")),
+        namespace: Some(NamespaceRule::Literal(std::borrow::Cow::Borrowed("errors"))),
     };
     static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant {
         name: "Key1",

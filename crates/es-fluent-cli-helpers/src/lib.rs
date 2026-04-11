@@ -4,7 +4,8 @@ mod cli;
 mod generate;
 
 use es_fluent_derive_core::{EsFluentError, write_metadata_result};
-use es_fluent_toml::I18nConfig;
+use es_fluent_toml::ResolvedI18nLayout;
+#[cfg(test)]
 use std::path::Path;
 
 #[cfg(test)]
@@ -17,6 +18,84 @@ pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs};
 /// Type alias for compatibility
 pub type GeneratorError = EsFluentError;
 
+#[derive(Clone, Debug)]
+struct RunnerContext {
+    crate_name: String,
+    layout: ResolvedI18nLayout,
+}
+
+#[derive(Clone, Debug)]
+enum RunnerCommand {
+    Generate {
+        mode: FluentParseMode,
+        dry_run: bool,
+    },
+    Clean {
+        all_locales: bool,
+        dry_run: bool,
+    },
+    Check,
+}
+
+impl RunnerContext {
+    fn from_i18n_path(i18n_toml_path: &str, crate_name: &str) -> Self {
+        Self {
+            crate_name: crate_name.to_string(),
+            layout: ResolvedI18nLayout::from_config_path(i18n_toml_path)
+                .expect("Failed to read i18n.toml"),
+        }
+    }
+
+    fn write_changed_result(&self, changed: bool) {
+        let result = serde_json::json!({ "changed": changed });
+        write_metadata_result(&self.crate_name, &result).expect("Failed to write metadata result");
+    }
+}
+
+fn build_generator(
+    ctx: &RunnerContext,
+    mode: FluentParseMode,
+    dry_run: bool,
+) -> generate::EsFluentGenerator {
+    EsFluentGenerator::builder()
+        .output_path(ctx.layout.output_dir.clone())
+        .assets_dir(ctx.layout.assets_dir.clone())
+        .manifest_dir(ctx.layout.manifest_dir.clone())
+        .crate_name(&ctx.crate_name)
+        .mode(mode)
+        .dry_run(dry_run)
+        .build()
+}
+
+fn run_runner_command(command: RunnerCommand, i18n_toml_path: Option<&str>, crate_name: &str) {
+    match command {
+        RunnerCommand::Generate { mode, dry_run } => {
+            let ctx = RunnerContext::from_i18n_path(
+                i18n_toml_path.expect("Missing i18n.toml path"),
+                crate_name,
+            );
+            let changed = build_generator(&ctx, mode, dry_run)
+                .generate()
+                .expect("Failed to run generator");
+            ctx.write_changed_result(changed);
+        },
+        RunnerCommand::Clean {
+            all_locales,
+            dry_run,
+        } => {
+            let ctx = RunnerContext::from_i18n_path(
+                i18n_toml_path.expect("Missing i18n.toml path"),
+                crate_name,
+            );
+            let changed = build_generator(&ctx, FluentParseMode::default(), dry_run)
+                .clean(all_locales, dry_run)
+                .expect("Failed to run clean");
+            ctx.write_changed_result(changed);
+        },
+        RunnerCommand::Check => run_check(crate_name),
+    }
+}
+
 /// Run the FTL generation process for a crate.
 ///
 /// This function:
@@ -27,31 +106,11 @@ pub type GeneratorError = EsFluentError;
 ///
 /// Returns `true` if any FTL files were modified, `false` otherwise.
 pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
-    // Read config from parent crate's i18n.toml
-    let i18n_toml_path = Path::new(i18n_toml_path);
-    let i18n_dir = i18n_toml_path
-        .parent()
-        .expect("Failed to get i18n directory");
-    let config =
-        es_fluent_toml::I18nConfig::from_manifest_dir(i18n_dir).expect("Failed to read i18n.toml");
-    let output_path = I18nConfig::output_dir_from_manifest_dir(i18n_dir)
-        .expect("Failed to resolve output directory");
-    let assets_dir = config
-        .assets_dir_from_base(Some(i18n_dir))
-        .expect("Failed to resolve assets directory");
-
-    let changed = EsFluentGenerator::builder()
-        .output_path(output_path)
-        .assets_dir(assets_dir)
-        .manifest_dir(i18n_dir)
-        .crate_name(crate_name)
-        .build()
+    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
+    let changed = build_generator(&ctx, FluentParseMode::default(), false)
         .run_cli()
         .expect("Failed to run generator");
-
-    // Write result to JSON file for CLI to read
-    let result = serde_json::json!({ "changed": changed });
-    write_metadata_result(crate_name, &result).expect("Failed to write metadata result");
+    ctx.write_changed_result(changed);
     changed
 }
 
@@ -64,31 +123,11 @@ pub fn run_generate_with_options(
     mode: FluentParseMode,
     dry_run: bool,
 ) -> bool {
-    let i18n_toml_path = Path::new(i18n_toml_path);
-    let i18n_dir = i18n_toml_path
-        .parent()
-        .expect("Failed to get i18n directory");
-    let _config =
-        es_fluent_toml::I18nConfig::from_manifest_dir(i18n_dir).expect("Failed to read i18n.toml");
-    let output_path = I18nConfig::output_dir_from_manifest_dir(i18n_dir)
-        .expect("Failed to resolve output directory");
-
-    let changed = EsFluentGenerator::builder()
-        .output_path(output_path)
-        .assets_dir(
-            I18nConfig::assets_dir_from_manifest_dir(i18n_dir)
-                .expect("Failed to resolve assets directory"),
-        )
-        .manifest_dir(i18n_dir)
-        .crate_name(crate_name)
-        .mode(mode)
-        .dry_run(dry_run)
-        .build()
+    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
+    let changed = build_generator(&ctx, mode, dry_run)
         .generate()
         .expect("Failed to run generator");
-
-    let result = serde_json::json!({ "changed": changed });
-    write_metadata_result(crate_name, &result).expect("Failed to write metadata result");
+    ctx.write_changed_result(changed);
     changed
 }
 
@@ -108,30 +147,11 @@ pub fn run_clean_with_options(
     all_locales: bool,
     dry_run: bool,
 ) -> bool {
-    let i18n_toml_path = Path::new(i18n_toml_path);
-    let i18n_dir = i18n_toml_path
-        .parent()
-        .expect("Failed to get i18n directory");
-    let config =
-        es_fluent_toml::I18nConfig::from_manifest_dir(i18n_dir).expect("Failed to read i18n.toml");
-    let output_path = I18nConfig::output_dir_from_manifest_dir(i18n_dir)
-        .expect("Failed to resolve output directory");
-    let assets_dir = config
-        .assets_dir_from_base(Some(i18n_dir))
-        .expect("Failed to resolve assets directory");
-
-    let changed = EsFluentGenerator::builder()
-        .output_path(output_path)
-        .assets_dir(assets_dir)
-        .manifest_dir(i18n_dir)
-        .crate_name(crate_name)
-        .dry_run(dry_run)
-        .build()
+    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
+    let changed = build_generator(&ctx, FluentParseMode::default(), dry_run)
         .clean(all_locales, dry_run)
         .expect("Failed to run clean");
-
-    let result = serde_json::json!({ "changed": changed });
-    write_metadata_result(crate_name, &result).expect("Failed to write metadata result");
+    ctx.write_changed_result(changed);
     changed
 }
 
@@ -160,31 +180,27 @@ pub fn run() {
 
     let dry_run = args.iter().any(|s| s == "--dry-run");
     let all_locales = args.iter().any(|s| s == "--all");
-
-    match command {
-        "generate" => {
-            let path = i18n_path.expect("Missing i18n.toml path");
-            let name = target_crate.expect("Missing --crate argument");
-            let mode = match mode_str {
+    let parsed_command = match command {
+        "generate" => RunnerCommand::Generate {
+            mode: match mode_str {
                 "aggressive" => FluentParseMode::Aggressive,
                 _ => FluentParseMode::Conservative,
-            };
-            run_generate_with_options(path, name, mode, dry_run);
+            },
+            dry_run,
         },
-        "clean" => {
-            let path = i18n_path.expect("Missing i18n.toml path");
-            let name = target_crate.expect("Missing --crate argument");
-            run_clean_with_options(path, name, all_locales, dry_run);
+        "clean" => RunnerCommand::Clean {
+            all_locales,
+            dry_run,
         },
-        "check" => {
-            let name = target_crate.expect("Missing --crate argument");
-            run_check(name);
-        },
+        "check" => RunnerCommand::Check,
         _ => {
             eprintln!("Unknown command: {}", command);
             std::process::exit(1);
         },
-    }
+    };
+
+    let crate_name = target_crate.expect("Missing --crate argument");
+    run_runner_command(parsed_command, i18n_path, crate_name);
 }
 
 #[cfg(test)]

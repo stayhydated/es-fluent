@@ -81,7 +81,10 @@ fn test_derive_this_namespace_from_fluent() {
         1,
         "Expected one registration for TestThisNamespace"
     );
-    assert_eq!(infos[0].namespace, Some(NamespaceRule::Literal("this_ns")));
+    assert_eq!(
+        infos[0].namespace,
+        Some(NamespaceRule::Literal("this_ns".into()))
+    );
 }
 
 #[test]
@@ -97,7 +100,7 @@ fn test_derive_variants_namespace_from_fluent() {
     );
     assert_eq!(
         infos[0].namespace,
-        Some(NamespaceRule::Literal("variants_ns"))
+        Some(NamespaceRule::Literal("variants_ns".into()))
     );
 }
 
@@ -118,6 +121,6 @@ fn test_derive_this_and_variants_share_fluent_namespace() {
     assert!(
         infos
             .iter()
-            .all(|info| info.namespace == Some(NamespaceRule::Literal("shared_ns")))
+            .all(|info| info.namespace == Some(NamespaceRule::Literal("shared_ns".into())))
     );
 }

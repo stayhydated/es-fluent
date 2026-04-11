@@ -1,41 +1,9 @@
 //! This module provides types for representing FTL variants and type information.
 
 use crate::meta::TypeKind;
-use crate::namespace_resolver::{
-    file_relative_namespace, file_stem_namespace, folder_namespace, folder_relative_namespace,
-};
+pub use crate::namespace::NamespaceRule;
 use std::convert::AsRef;
 use std::path::Path;
-
-/// Namespace selection rules for FTL file output.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum NamespaceRule {
-    /// A literal namespace string.
-    Literal(&'static str),
-    /// Use the source file name (stem only) as the namespace.
-    File,
-    /// Use the file path relative to the crate root as the namespace.
-    FileRelative,
-    /// Use the source file parent folder name as the namespace.
-    Folder,
-    /// Use the source file parent folder path relative to the crate root as the namespace.
-    FolderRelative,
-}
-
-impl NamespaceRule {
-    /// Resolve the namespace string at runtime using the given file path.
-    pub fn resolve(self, file_path: &str, manifest_dir: &Path) -> String {
-        match self {
-            NamespaceRule::Literal(value) => value.to_string(),
-            NamespaceRule::File => file_stem_namespace(file_path),
-            NamespaceRule::FileRelative => file_relative_namespace(file_path, Some(manifest_dir)),
-            NamespaceRule::Folder => folder_namespace(file_path),
-            NamespaceRule::FolderRelative => {
-                folder_relative_namespace(file_path, Some(manifest_dir))
-            },
-        }
-    }
-}
 
 /// A variant representing a single FTL key entry.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -74,7 +42,8 @@ impl FtlTypeInfo {
     /// Resolve the namespace for this type, if configured.
     pub fn resolved_namespace(&self, manifest_dir: &Path) -> Option<String> {
         self.namespace
-            .map(|rule| rule.resolve(self.file_path, manifest_dir))
+            .as_ref()
+            .map(|rule| rule.resolve(self.file_path, Some(manifest_dir)))
     }
 }
 
@@ -95,7 +64,8 @@ mod tests {
     fn file_namespace_uses_stem() {
         let manifest_dir = test_manifest_dir();
         let file_path = manifest_dir.join("src").join("lib.rs");
-        let namespace = NamespaceRule::File.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        let namespace =
+            NamespaceRule::File.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
         assert_eq!(namespace, "lib");
     }
 
@@ -104,7 +74,7 @@ mod tests {
         let manifest_dir = test_manifest_dir();
         let file_path = manifest_dir.join("src").join("ui").join("button.rs");
         let namespace =
-            NamespaceRule::FileRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+            NamespaceRule::FileRelative.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
         assert_eq!(namespace, "ui/button");
     }
 
@@ -117,7 +87,7 @@ mod tests {
             PathBuf::from("/other/src/lib.rs")
         };
         let namespace =
-            NamespaceRule::FileRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+            NamespaceRule::FileRelative.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
         assert_eq!(namespace, "lib");
     }
 
@@ -129,7 +99,8 @@ mod tests {
             .join("ui")
             .join("forms")
             .join("button.rs");
-        let namespace = NamespaceRule::Folder.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        let namespace =
+            NamespaceRule::Folder.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
         assert_eq!(namespace, "forms");
     }
 
@@ -141,8 +112,8 @@ mod tests {
             .join("ui")
             .join("forms")
             .join("button.rs");
-        let namespace =
-            NamespaceRule::FolderRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        let namespace = NamespaceRule::FolderRelative
+            .resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
         assert_eq!(namespace, "ui/forms");
     }
 
@@ -150,8 +121,8 @@ mod tests {
     fn folder_relative_keeps_src_for_root_module() {
         let manifest_dir = test_manifest_dir();
         let file_path = manifest_dir.join("src").join("lib.rs");
-        let namespace =
-            NamespaceRule::FolderRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        let namespace = NamespaceRule::FolderRelative
+            .resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
         assert_eq!(namespace, "src");
     }
 
@@ -163,8 +134,8 @@ mod tests {
         } else {
             PathBuf::from("/other/src/lib.rs")
         };
-        let namespace =
-            NamespaceRule::FolderRelative.resolve(&file_path.to_string_lossy(), &manifest_dir);
+        let namespace = NamespaceRule::FolderRelative
+            .resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
         assert_eq!(namespace, "src");
     }
 }

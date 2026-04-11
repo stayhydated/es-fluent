@@ -5,8 +5,8 @@
 
 use crate::commands::{DryRunDiff, DryRunSummary, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
-use crate::ftl::LocaleContext;
-use crate::utils::{discover_ftl_files, ui};
+use crate::ftl::{CrateFtlLayout, LocaleContext};
+use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
 use fluent_syntax::parser;
@@ -159,7 +159,8 @@ fn format_crate(
         }
 
         // Format main + namespaced files for this crate.
-        let ftl_files = discover_ftl_files(&ctx.assets_dir, locale, &ctx.crate_name)?;
+        let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
+            .discover_files()?;
         for file_info in ftl_files {
             let ftl_file = fs::canonicalize(&file_info.abs_path).unwrap_or(file_info.abs_path);
             let result = format_ftl_file(&ftl_file, check_only);

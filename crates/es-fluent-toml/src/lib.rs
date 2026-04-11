@@ -125,6 +125,84 @@ pub struct I18nConfig {
     pub namespaces: Option<Vec<String>>,
 }
 
+/// Fully resolved project i18n layout derived from `i18n.toml`.
+#[derive(Clone, Debug)]
+pub struct ResolvedI18nLayout {
+    /// Manifest directory that owns the configuration.
+    pub manifest_dir: PathBuf,
+    /// Absolute path to `i18n.toml`.
+    pub config_path: PathBuf,
+    /// Parsed configuration.
+    pub config: I18nConfig,
+    /// Absolute path to the assets directory.
+    pub assets_dir: PathBuf,
+    /// Absolute path to the fallback locale output directory.
+    pub output_dir: PathBuf,
+}
+
+impl ResolvedI18nLayout {
+    /// Resolve layout from a manifest directory containing `i18n.toml`.
+    pub fn from_manifest_dir(manifest_dir: &Path) -> Result<Self, I18nConfigError> {
+        Self::from_config_path(manifest_dir.join("i18n.toml"))
+    }
+
+    /// Resolve layout from a concrete config path.
+    pub fn from_config_path<P: AsRef<Path>>(config_path: P) -> Result<Self, I18nConfigError> {
+        let config_path = config_path.as_ref();
+        let manifest_dir = config_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        let config = I18nConfig::read_from_path(config_path)?;
+        let assets_dir = config.assets_dir_from_base(Some(&manifest_dir))?;
+        let output_dir = assets_dir.join(&config.fallback_language);
+
+        Ok(Self {
+            manifest_dir,
+            config_path: config_path.to_path_buf(),
+            config,
+            assets_dir,
+            output_dir,
+        })
+    }
+
+    /// Returns the configured fallback locale string.
+    pub fn fallback_language(&self) -> &str {
+        &self.config.fallback_language
+    }
+
+    /// Returns the locale directory for `locale`.
+    pub fn locale_dir(&self, locale: &str) -> PathBuf {
+        self.assets_dir.join(locale)
+    }
+
+    /// Returns feature flags that enable derives for this crate.
+    pub fn fluent_features(&self) -> Vec<String> {
+        self.config
+            .fluent_feature
+            .as_ref()
+            .map(FluentFeature::as_vec)
+            .unwrap_or_default()
+    }
+
+    /// Returns available languages discovered from the assets directory.
+    pub fn available_languages(&self) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
+        self.config
+            .available_languages_from_base(Some(&self.manifest_dir))
+    }
+
+    /// Returns available locale names discovered from the assets directory.
+    pub fn available_locale_names(&self) -> Result<Vec<String>, I18nConfigError> {
+        self.available_languages()
+            .map(|langs| langs.into_iter().map(|lang| lang.to_string()).collect())
+    }
+
+    /// Returns the configured namespace allowlist when present.
+    pub fn allowed_namespaces(&self) -> Option<&[String]> {
+        self.config.namespaces.as_deref()
+    }
+}
+
 impl I18nConfig {
     /// Reads the configuration from a path.
     pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self, I18nConfigError> {

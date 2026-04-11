@@ -4,9 +4,8 @@
 //! over locale directories with `--all` flag support.
 
 use crate::core::CrateInfo;
-use crate::utils::get_all_locales;
 use anyhow::{Context as _, Result};
-use es_fluent_toml::I18nConfig;
+use es_fluent_toml::ResolvedI18nLayout;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -32,20 +31,19 @@ impl LocaleContext {
     /// If `all` is true, includes all locale directories.
     /// Otherwise, includes only the fallback language.
     pub fn from_crate(krate: &CrateInfo, all: bool) -> Result<Self> {
-        let config = I18nConfig::read_from_path(&krate.i18n_config_path)
+        let layout = ResolvedI18nLayout::from_config_path(&krate.i18n_config_path)
             .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
-
-        let assets_dir = krate.manifest_dir.join(&config.assets_dir);
+        let fallback = layout.fallback_language().to_string();
 
         let locales = if all {
-            get_all_locales(&assets_dir)?
+            layout.available_locale_names()?
         } else {
-            vec![config.fallback_language.clone()]
+            vec![fallback.clone()]
         };
 
         Ok(Self {
-            assets_dir,
-            fallback: config.fallback_language,
+            assets_dir: layout.assets_dir.clone(),
+            fallback,
             locales,
             crate_name: krate.name.clone(),
         })

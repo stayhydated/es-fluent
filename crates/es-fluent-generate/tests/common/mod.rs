@@ -88,6 +88,6 @@ pub fn enum_type_with_namespace(
         variants: leak_slice(variants),
         file_path: "",
         module_path: "test",
-        namespace: Some(NamespaceRule::Literal(namespace)),
+        namespace: Some(NamespaceRule::Literal(namespace.into())),
     }
 }

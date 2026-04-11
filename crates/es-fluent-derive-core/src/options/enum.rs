@@ -5,6 +5,7 @@ use heck::ToSnakeCase as _;
 use quote::format_ident;
 
 use crate::error::EsFluentCoreResult;
+use crate::options::FluentField;
 
 /// Options for an enum field.
 #[derive(Clone, Debug, FromField, Getters)]
@@ -33,19 +34,41 @@ pub struct EnumFieldOpts {
 impl EnumFieldOpts {
     /// Returns `true` if the field should be skipped.
     pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+        FluentField::is_skipped(self)
     }
     /// Returns `true` if the field is a choice.
     pub fn is_choice(&self) -> bool {
-        self.choice.unwrap_or(false)
+        FluentField::is_choice(self)
     }
     /// Returns the value expression if present.
     pub fn value(&self) -> Option<&syn::Expr> {
-        self.value.as_ref().map(|v| &v.0)
+        FluentField::value(self)
     }
 
     /// Returns explicit field argument name if provided.
     pub fn arg_name(&self) -> Option<String> {
+        FluentField::arg_name(self)
+    }
+}
+
+impl FluentField for EnumFieldOpts {
+    fn ident(&self) -> Option<&syn::Ident> {
+        self.ident.as_ref()
+    }
+
+    fn is_skipped(&self) -> bool {
+        self.skip.unwrap_or(false)
+    }
+
+    fn is_choice(&self) -> bool {
+        self.choice.unwrap_or(false)
+    }
+
+    fn value(&self) -> Option<&syn::Expr> {
+        self.value.as_ref().map(|value| &value.0)
+    }
+
+    fn arg_name(&self) -> Option<String> {
         self.arg_name.as_ref().map(syn::LitStr::value)
     }
 }

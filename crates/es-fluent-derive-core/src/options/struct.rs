@@ -4,7 +4,7 @@ use getset::Getters;
 use quote::format_ident;
 
 use crate::error::EsFluentCoreResult;
-use crate::namer;
+use crate::options::FluentField;
 
 /// Options for a struct field.
 #[derive(Clone, Debug, FromField, Getters)]
@@ -36,7 +36,7 @@ pub struct StructFieldOpts {
 impl StructFieldOpts {
     /// Returns `true` if the field should be skipped.
     pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+        FluentField::is_skipped(self)
     }
 
     /// Returns `true` if the field is a default.
@@ -46,28 +46,43 @@ impl StructFieldOpts {
 
     /// Returns `true` if the field is a choice.
     pub fn is_choice(&self) -> bool {
-        self.choice.unwrap_or(false)
+        FluentField::is_choice(self)
     }
 
     /// Returns the Fluent argument name for this field.
     pub fn fluent_arg_name(&self, index: usize) -> String {
-        if let Some(arg_name) = self.arg_name() {
-            arg_name
-        } else {
-            self.ident
-                .as_ref()
-                .map(|ident| ident.to_string())
-                .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
-        }
+        FluentField::resolved_arg_name(self, index)
     }
 
     /// Returns the value expression if present.
     pub fn value(&self) -> Option<&syn::Expr> {
-        self.value.as_ref().map(|v| &v.0)
+        FluentField::value(self)
     }
 
     /// Returns explicit field argument name if provided.
     pub fn arg_name(&self) -> Option<String> {
+        FluentField::arg_name(self)
+    }
+}
+
+impl FluentField for StructFieldOpts {
+    fn ident(&self) -> Option<&syn::Ident> {
+        self.ident.as_ref()
+    }
+
+    fn is_skipped(&self) -> bool {
+        self.skip.unwrap_or(false)
+    }
+
+    fn is_choice(&self) -> bool {
+        self.choice.unwrap_or(false)
+    }
+
+    fn value(&self) -> Option<&syn::Expr> {
+        self.value.as_ref().map(|value| &value.0)
+    }
+
+    fn arg_name(&self) -> Option<String> {
         self.arg_name.as_ref().map(syn::LitStr::value)
     }
 }
