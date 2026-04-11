@@ -1,24 +1,15 @@
 use es_fluent_derive_core::namer;
 use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
 
-use crate::macros::utils::namespace_rule_tokens;
-use heck::ToSnakeCase as _;
+use crate::macros::utils::{
+    InventoryModuleInput, generate_field_value_expr, generate_from_impls,
+    generate_inventory_module, namespace_rule_tokens,
+};
 use proc_macro2::TokenStream;
 use quote::quote;
 
 pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
     generate(opts, data)
-}
-
-/// Generate a value expression for a field, handling value transforms, choice, and default.
-fn generate_value_expr(field: &EnumFieldOpts, arg_name: &syn::Ident) -> TokenStream {
-    if let Some(expr) = field.value() {
-        quote! { (#expr)(#arg_name) }
-    } else if field.is_choice() {
-        quote! { { use ::es_fluent::EsFluentChoice as _; #arg_name.as_fluent_choice() } }
-    } else {
-        quote! { #arg_name.clone() }
-    }
 }
 
 fn tuple_field_static_arg_name(field_opt: &EnumFieldOpts) -> Option<String> {
@@ -88,7 +79,13 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         let tuple_index = *tuple_index;
                         let arg_name = namer::UnnamedItem::from(tuple_index).to_ident();
                         let arg_key_expr = tuple_arg_key_tokens(field, tuple_index);
-                        let value_expr = generate_value_expr(field, &arg_name);
+                        let access_expr = quote! { #arg_name };
+                        let value_expr = generate_field_value_expr(
+                            access_expr.clone(),
+                            access_expr,
+                            field.value(),
+                            field.is_choice(),
+                        );
 
                         quote! {
                             args.insert(#arg_key_expr, ::std::convert::Into::into(#value_expr));
@@ -118,7 +115,13 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .map(|field_opt| {
                         let arg_name = field_opt.ident().as_ref().unwrap();
                         let arg_key = field_opt.arg_name().unwrap_or_else(|| arg_name.to_string());
-                        let value_expr = generate_value_expr(field_opt, arg_name);
+                        let access_expr = quote! { #arg_name };
+                        let value_expr = generate_field_value_expr(
+                            access_expr.clone(),
+                            access_expr,
+                            field_opt.value(),
+                            field_opt.is_choice(),
+                        );
 
                         quote! { args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
                     })
@@ -169,11 +172,6 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                 }
             }
         }
-    };
-
-    let fluent_value_inner_fn = quote! {
-      use ::es_fluent::ToFluentString as _;
-      value.to_fluent_string().into()
     };
 
     // Generate inventory submission for all non-empty types unless skip_inventory is set
@@ -236,53 +234,24 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             })
             .collect();
 
-        let type_name = original_ident.to_string();
-        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
-
-        // Generate namespace expression based on attribute
-        let namespace_expr = namespace_rule_tokens(opts.attr_args().namespace());
-
-        quote! {
-            #[doc(hidden)]
-            mod #mod_name {
-                use super::*;
-
-                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-                    #(#static_variants),*
-                ];
-
-                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
-                    ::es_fluent::registry::FtlTypeInfo {
-                        type_kind: ::es_fluent::meta::TypeKind::Enum,
-                        type_name: #type_name,
-                        variants: VARIANTS,
-                        file_path: file!(),
-                        module_path: module_path!(),
-                        namespace: #namespace_expr,
-                    };
-
-                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
-            }
-        }
+        generate_inventory_module(InventoryModuleInput {
+            ident: original_ident,
+            module_name_prefix: "inventory",
+            type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
+            variants: static_variants,
+            namespace_expr: namespace_rule_tokens(opts.attr_args().namespace()),
+        })
     } else {
         quote! {}
     };
+
+    let from_impls = generate_from_impls(original_ident, opts.generics());
 
     quote! {
       #display_impl
 
       #inventory_submit
 
-      impl #impl_generics From<&#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: &#original_ident #ty_generics) -> Self {
-              #fluent_value_inner_fn
-            }
-      }
-
-      impl #impl_generics From<#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: #original_ident #ty_generics) -> Self {
-                (&value).into()
-            }
-      }
+      #from_impls
     }
 }

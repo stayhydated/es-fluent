@@ -3,6 +3,7 @@ mod r#struct;
 
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::{
+    options::namespace::NamespaceValue,
     options::{r#enum::EnumOpts, r#struct::StructOpts},
     validation,
 };
@@ -11,6 +12,14 @@ use syn::{Data, DeriveInput, parse_macro_input};
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     expand_es_fluent(input).into()
+}
+
+fn validate_namespace(namespace: Option<&NamespaceValue>, span: proc_macro2::Span) {
+    if let Some(ns) = namespace
+        && let Err(err) = validation::validate_namespace(ns, Some(span))
+    {
+        err.abort();
+    }
 }
 
 fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
@@ -25,12 +34,7 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
                 err.abort();
             }
 
-            // Validate namespace if provided
-            if let Some(ns) = opts.attr_args().namespace()
-                && let Err(err) = validation::validate_namespace(ns, Some(opts.ident().span()))
-            {
-                err.abort();
-            }
+            validate_namespace(opts.attr_args().namespace(), opts.ident().span());
 
             r#enum::process_enum(&opts, data)
         },
@@ -44,12 +48,7 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
                 err.abort();
             }
 
-            // Validate namespace if provided
-            if let Some(ns) = opts.attr_args().namespace()
-                && let Err(err) = validation::validate_namespace(ns, Some(opts.ident().span()))
-            {
-                err.abort();
-            }
+            validate_namespace(opts.attr_args().namespace(), opts.ident().span());
 
             r#struct::process_struct(&opts, data)
         },

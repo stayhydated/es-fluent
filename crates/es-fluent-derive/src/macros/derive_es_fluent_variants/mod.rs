@@ -5,39 +5,35 @@ use es_fluent_derive_core::options::namespace::NamespaceValue;
 use es_fluent_derive_core::options::r#struct::{StructOpts, StructVariantsOpts};
 use es_fluent_derive_core::options::this::ThisOpts;
 
-use heck::{ToPascalCase as _, ToSnakeCase as _};
+use heck::ToPascalCase as _;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
-use crate::macros::utils::namespace_rule_tokens;
+use crate::macros::utils::{
+    InventoryModuleInput, generate_from_impls, generate_inventory_module, generate_this_ftl_impl,
+    namespace_rule_tokens,
+};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let this_opts = ThisOpts::from_derive_input(&input).ok();
-    let fluent_namespace = match &input.data {
-        Data::Struct(_) => match StructOpts::from_derive_input(&input) {
-            Ok(opts) => opts.attr_args().namespace().cloned(),
-            Err(err) => return err.write_errors().into(),
-        },
-        Data::Enum(_) => match EnumOpts::from_derive_input(&input) {
-            Ok(opts) => opts.attr_args().namespace().cloned(),
-            Err(err) => return err.write_errors().into(),
-        },
-        Data::Union(_) => panic!("EsFluentVariants cannot be used on unions"),
+    let fluent_namespace = match fluent_namespace(&input) {
+        Ok(namespace) => namespace,
+        Err(err) => return err.write_errors().into(),
     };
 
     let tokens = match &input.data {
-        Data::Struct(data) => {
+        Data::Struct(_) => {
             let opts = match StructVariantsOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors().into(),
             };
 
-            process_struct(&opts, data, this_opts.as_ref(), fluent_namespace.as_ref())
+            process_struct(&opts, this_opts.as_ref(), fluent_namespace.as_ref())
         },
-        Data::Enum(_data) => {
+        Data::Enum(_) => {
             let opts = match EnumVariantsOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors().into(),
@@ -51,9 +47,40 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     tokens.into()
 }
 
+fn fluent_namespace(input: &DeriveInput) -> Result<Option<NamespaceValue>, darling::Error> {
+    match &input.data {
+        Data::Struct(_) => {
+            StructOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
+        },
+        Data::Enum(_) => {
+            EnumOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
+        },
+        Data::Union(_) => panic!("EsFluentVariants cannot be used on unions"),
+    }
+}
+
+fn emit_generated_enums(
+    default_ident: &syn::Ident,
+    keys: &[syn::Ident],
+    key_strings: &[String],
+    mut emit: impl FnMut(&syn::Ident, Option<&String>) -> TokenStream,
+) -> TokenStream {
+    if keys.is_empty() {
+        return emit(default_ident, None);
+    }
+
+    let enums = keys
+        .iter()
+        .zip(key_strings.iter())
+        .map(|(key, key_str)| emit(key, Some(key_str)));
+
+    quote! {
+        #(#enums)*
+    }
+}
+
 pub fn process_struct(
     opts: &StructVariantsOpts,
-    data: &syn::DataStruct,
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceValue>,
 ) -> TokenStream {
@@ -63,34 +90,14 @@ pub fn process_struct(
     };
     let key_strings = opts.attr_args().key_strings().unwrap_or_default();
 
-    // For empty structs, don't generate any enums
-    let is_empty = opts.fields().is_empty();
-    if is_empty {
+    if opts.fields().is_empty() {
         return quote! {};
     }
 
-    if keys.is_empty() {
-        let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum = generate_unit_enum(
-            opts,
-            data,
-            &ftl_enum_ident,
-            None,
-            this_opts,
-            fluent_namespace,
-        );
-        quote! {
-            #ftl_enum
-        }
-    } else {
-        let enums = keys.iter().zip(key_strings.iter()).map(|(key, key_str)| {
-            generate_unit_enum(opts, data, key, Some(key_str), this_opts, fluent_namespace)
-        });
-
-        quote! {
-            #(#enums)*
-        }
-    }
+    let ftl_enum_ident = opts.ftl_enum_ident();
+    emit_generated_enums(&ftl_enum_ident, &keys, &key_strings, |ident, key_name| {
+        generate_struct_unit_enum(opts, ident, key_name, this_opts, fluent_namespace)
+    })
 }
 
 #[derive(Clone)]
@@ -108,8 +115,14 @@ fn resolve_variants_namespace(
     namespace_rule_tokens(
         fluent_namespace
             .or(attr_namespace)
-            .or_else(|| this_opts.and_then(|o| o.attr_args().namespace())),
+            .or_else(|| this_opts.and_then(|opts| opts.attr_args().namespace())),
     )
+}
+
+fn variants_this_key(this_opts: Option<&ThisOpts>, base_key: &namer::FluentKey) -> Option<String> {
+    this_opts
+        .filter(|opts| opts.attr_args().is_variants())
+        .map(|_| format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX))
 }
 
 struct EmitGeneratedEnumInput<'a> {
@@ -119,8 +132,7 @@ struct EmitGeneratedEnumInput<'a> {
     derives: &'a [syn::Path],
     variant_entries: &'a [GeneratedVariant],
     namespace_expr: TokenStream,
-    variants_this: bool,
-    base_key: &'a namer::FluentKey,
+    this_key: Option<String>,
 }
 
 impl EmitGeneratedEnumInput<'_> {
@@ -132,8 +144,7 @@ impl EmitGeneratedEnumInput<'_> {
             derives,
             variant_entries,
             namespace_expr,
-            variants_this,
-            base_key,
+            this_key,
         } = self;
 
         let match_arms = variant_entries.iter().map(|entry| {
@@ -167,11 +178,11 @@ impl EmitGeneratedEnumInput<'_> {
             .collect();
 
         let new_enum = quote! {
-          #[doc = #enum_doc]
-          #derive_attr
-          pub enum #ident {
-              #(#[doc = #variant_docs] #cleaned_variants),*
-          }
+            #[doc = #enum_doc]
+            #derive_attr
+            pub enum #ident {
+                #(#[doc = #variant_docs] #cleaned_variants),*
+            }
         };
 
         let display_impl = {
@@ -206,121 +217,59 @@ impl EmitGeneratedEnumInput<'_> {
             })
             .collect();
 
-        let type_name = ident.to_string();
-        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
-        let namespace_expr_for_inventory = namespace_expr.clone();
-        let inventory_submit = quote! {
-            #[doc(hidden)]
-            mod #mod_name {
-                use super::*;
+        let inventory_submit = generate_inventory_module(InventoryModuleInput {
+            ident,
+            module_name_prefix: "inventory",
+            type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
+            variants: static_variants,
+            namespace_expr: namespace_expr.clone(),
+        });
 
-                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-                    #(#static_variants),*
-                ];
-
-                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
-                    ::es_fluent::registry::FtlTypeInfo {
-                        type_kind: ::es_fluent::meta::TypeKind::Enum,
-                        type_name: #type_name,
-                        variants: VARIANTS,
-                        file_path: file!(),
-                        module_path: module_path!(),
-                        namespace: #namespace_expr_for_inventory,
-                    };
-
-                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
-            }
-        };
-
-        let this_impl = if variants_this {
-            let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
-            quote! {
-                impl ::es_fluent::ThisFtl for #ident {
-                    fn this_ftl() -> String {
-                        ::es_fluent::localize(#this_key, None)
-                    }
+        let empty_generics = syn::Generics::default();
+        let this_impl = generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref());
+        let this_inventory = if let Some(this_key) = this_key {
+            let this_variant = quote! {
+                ::es_fluent::registry::FtlVariant {
+                    name: stringify!(#ident),
+                    ftl_key: #this_key,
+                    args: &[],
+                    module_path: module_path!(),
+                    line: line!(),
                 }
-            }
+            };
+
+            generate_inventory_module(InventoryModuleInput {
+                ident,
+                module_name_prefix: "this_inventory",
+                type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
+                variants: vec![this_variant],
+                namespace_expr: namespace_expr.clone(),
+            })
         } else {
             quote! {}
         };
-
-        let this_inventory = if variants_this {
-            let this_key = format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX);
-            let this_mod_name =
-                quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
-            let namespace_expr_for_this = namespace_expr.clone();
-            quote! {
-                #[doc(hidden)]
-                mod #this_mod_name {
-                    use super::*;
-
-                    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-                        ::es_fluent::registry::FtlVariant {
-                            name: #type_name,
-                            ftl_key: #this_key,
-                            args: &[],
-                            module_path: module_path!(),
-                            line: line!(),
-                        }
-                    ];
-
-                    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
-                        ::es_fluent::registry::FtlTypeInfo {
-                            type_kind: ::es_fluent::meta::TypeKind::Enum,
-                            type_name: #type_name,
-                            variants: VARIANTS,
-                            file_path: file!(),
-                            module_path: module_path!(),
-                            namespace: #namespace_expr_for_this,
-                        };
-
-                    ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
-                }
-            }
-        } else {
-            quote! {}
-        };
+        let from_impls = generate_from_impls(ident, &empty_generics);
 
         quote! {
-          #new_enum
+            #new_enum
 
-          #display_impl
+            #display_impl
 
-          #inventory_submit
+            #inventory_submit
 
-          #this_impl
-          #this_inventory
+            #this_impl
+            #this_inventory
 
-          impl From<& #ident> for ::es_fluent::FluentValue<'_> {
-                fn from(value: & #ident) -> Self {
-                  use ::es_fluent::ToFluentString as _;
-                  value.to_fluent_string().into()
-                }
-          }
-
-          impl From<#ident> for ::es_fluent::FluentValue<'_> {
-                fn from(value: #ident) -> Self {
-                    (&value).into()
-                }
-          }
+            #from_impls
         }
     }
 }
 
-fn generate_unit_enum(
+fn build_struct_variant_entries(
     opts: &StructVariantsOpts,
-    _data: &syn::DataStruct,
-    ident: &syn::Ident,
-    key_name: Option<&String>,
-    this_opts: Option<&ThisOpts>,
-    fluent_namespace: Option<&NamespaceValue>,
-) -> TokenStream {
-    let field_opts = opts.fields();
-    let origin_ident = opts.ident();
-    let base_key = namer::FluentKey::from(ident);
-
-    let variant_entries: Vec<GeneratedVariant> = field_opts
+    base_key: &namer::FluentKey,
+) -> Vec<GeneratedVariant> {
+    opts.fields()
         .iter()
         .map(|field_opt| {
             let field_ident = field_opt.ident().as_ref().unwrap();
@@ -334,9 +283,20 @@ fn generate_unit_enum(
                 ftl_key,
             }
         })
-        .collect();
+        .collect()
+}
+
+fn generate_struct_unit_enum(
+    opts: &StructVariantsOpts,
+    ident: &syn::Ident,
+    key_name: Option<&String>,
+    this_opts: Option<&ThisOpts>,
+    fluent_namespace: Option<&NamespaceValue>,
+) -> TokenStream {
+    let origin_ident = opts.ident();
+    let base_key = namer::FluentKey::from(ident);
+    let variant_entries = build_struct_variant_entries(opts, &base_key);
     let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
-    let variants_this = this_opts.is_some_and(|opts| opts.attr_args().is_variants());
     let namespace_expr =
         resolve_variants_namespace(opts.attr_args().namespace(), this_opts, fluent_namespace);
 
@@ -347,8 +307,7 @@ fn generate_unit_enum(
         derives: &derives,
         variant_entries: &variant_entries,
         namespace_expr,
-        variants_this,
-        base_key: &base_key,
+        this_key: variants_this_key(this_opts, &base_key),
     }
     .emit()
 }
@@ -364,41 +323,21 @@ pub fn process_enum(
     };
     let key_strings = opts.attr_args().key_strings().unwrap_or_default();
 
-    // For empty enums, don't generate any new enums
-    let is_empty = opts.variants().is_empty();
-    if is_empty {
+    if opts.variants().is_empty() {
         return quote! {};
     }
 
-    if keys.is_empty() {
-        let ftl_enum_ident = opts.ftl_enum_ident();
-        let ftl_enum =
-            generate_enum_unit_enum(opts, &ftl_enum_ident, None, this_opts, fluent_namespace);
-        quote! {
-            #ftl_enum
-        }
-    } else {
-        let enums = keys.iter().zip(key_strings.iter()).map(|(key, key_str)| {
-            generate_enum_unit_enum(opts, key, Some(key_str), this_opts, fluent_namespace)
-        });
-
-        quote! {
-            #(#enums)*
-        }
-    }
+    let ftl_enum_ident = opts.ftl_enum_ident();
+    emit_generated_enums(&ftl_enum_ident, &keys, &key_strings, |ident, key_name| {
+        generate_enum_unit_enum(opts, ident, key_name, this_opts, fluent_namespace)
+    })
 }
 
-fn generate_enum_unit_enum(
+fn build_enum_variant_entries(
     opts: &EnumVariantsOpts,
-    ident: &syn::Ident,
-    key_name: Option<&String>,
-    this_opts: Option<&ThisOpts>,
-    fluent_namespace: Option<&NamespaceValue>,
-) -> TokenStream {
-    let variant_opts = opts.variants();
-    let origin_ident = opts.ident();
-    let base_key = namer::FluentKey::from(ident);
-    let variant_entries: Vec<GeneratedVariant> = variant_opts
+    base_key: &namer::FluentKey,
+) -> Vec<GeneratedVariant> {
+    opts.variants()
         .iter()
         .map(|variant_opt| {
             let variant_ident = variant_opt.ident();
@@ -410,9 +349,20 @@ fn generate_enum_unit_enum(
                 ftl_key,
             }
         })
-        .collect();
+        .collect()
+}
+
+fn generate_enum_unit_enum(
+    opts: &EnumVariantsOpts,
+    ident: &syn::Ident,
+    key_name: Option<&String>,
+    this_opts: Option<&ThisOpts>,
+    fluent_namespace: Option<&NamespaceValue>,
+) -> TokenStream {
+    let origin_ident = opts.ident();
+    let base_key = namer::FluentKey::from(ident);
+    let variant_entries = build_enum_variant_entries(opts, &base_key);
     let derives: Vec<syn::Path> = (*opts.attr_args().derive()).to_vec();
-    let variants_this = this_opts.is_some_and(|opts| opts.attr_args().is_variants());
     let namespace_expr =
         resolve_variants_namespace(opts.attr_args().namespace(), this_opts, fluent_namespace);
 
@@ -423,8 +373,65 @@ fn generate_enum_unit_enum(
         derives: &derives,
         variant_entries: &variant_entries,
         namespace_expr,
-        variants_this,
-        base_key: &base_key,
+        this_key: variants_this_key(this_opts, &base_key),
     }
     .emit()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{fluent_namespace, process_enum, process_struct};
+    use darling::FromDeriveInput as _;
+    use es_fluent_derive_core::options::{
+        r#enum::EnumVariantsOpts, r#struct::StructVariantsOpts, this::ThisOpts,
+    };
+    use syn::parse_quote;
+
+    #[test]
+    fn process_struct_emits_keyed_generated_enums() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(namespace = "ui")]
+            #[fluent_variants(keys = ["label", "placeholder"], derive(Debug))]
+            struct LoginForm {
+                username: String,
+                password: String,
+            }
+        };
+
+        let opts = StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts");
+        let this_opts = ThisOpts::from_derive_input(&input).ok();
+        let fluent_namespace = fluent_namespace(&input).expect("parent namespace");
+
+        let tokens =
+            process_struct(&opts, this_opts.as_ref(), fluent_namespace.as_ref()).to_string();
+        assert!(tokens.contains("pub enum LoginFormLabelVariants"));
+        assert!(tokens.contains("pub enum LoginFormPlaceholderVariants"));
+        assert!(tokens.contains("__es_fluent_inventory_login_form_label_variants"));
+        assert!(
+            tokens
+                .contains("impl From < & LoginFormLabelVariants > for :: es_fluent :: FluentValue")
+        );
+    }
+
+    #[test]
+    fn process_enum_emits_variants_this_registration() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(namespace = "ui")]
+            #[fluent_this(variants)]
+            enum Status {
+                Ready,
+                Failed,
+            }
+        };
+
+        let opts = EnumVariantsOpts::from_derive_input(&input).expect("EnumVariantsOpts");
+        let this_opts = ThisOpts::from_derive_input(&input).ok();
+        let fluent_namespace = fluent_namespace(&input).expect("parent namespace");
+
+        let tokens = process_enum(&opts, this_opts.as_ref(), fluent_namespace.as_ref()).to_string();
+        assert!(tokens.contains("pub enum StatusVariants"));
+        assert!(tokens.contains("impl :: es_fluent :: ThisFtl for StatusVariants"));
+        assert!(tokens.contains("status_variants_this"));
+        assert!(tokens.contains("__es_fluent_this_inventory_status_variants"));
+    }
 }
