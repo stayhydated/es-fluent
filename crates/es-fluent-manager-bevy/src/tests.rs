@@ -188,6 +188,60 @@ fn update_values_on_locale_change_updates_registered_fluent_text_values() {
 }
 
 #[test]
+fn locale_aware_registration_refreshes_text_when_bundle_becomes_ready() {
+    let lang = langid!("en-US");
+    let mut app = App::new();
+    let mut i18n_assets = I18nAssets::new();
+    i18n_assets.add_asset(lang.clone(), "app".to_string(), Handle::default());
+
+    app.add_message::<LocaleChangedEvent>();
+    app.insert_resource(i18n_assets);
+    app.insert_resource(I18nBundle::default());
+    app.insert_resource(I18nResource::new(lang.clone()));
+    app.insert_resource(CurrentLanguageId(lang.clone()));
+    app.register_fluent_text_from_locale::<RefreshableMessage>();
+
+    let entity = app
+        .world_mut()
+        .spawn((
+            FluentText::new(RefreshableMessage("initial".to_string())),
+            Text::new("old"),
+        ))
+        .id();
+
+    app.update();
+    assert_eq!(
+        &app.world().get::<Text>(entity).expect("text").0,
+        "old",
+        "text should stay untouched until the language is ready"
+    );
+
+    let resource = Arc::new(
+        FluentResource::try_new("hello = hi".to_string()).expect("valid ftl"),
+    );
+    app.world_mut()
+        .resource_mut::<I18nAssets>()
+        .loaded_resources
+        .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
+
+    let mut bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
+    bundle.add_resource(resource).expect("add resource");
+    app.world_mut()
+        .resource_mut::<I18nBundle>()
+        .0
+        .insert(lang, Arc::new(bundle));
+
+    app.update();
+
+    assert_eq!(
+        &app.world().get::<Text>(entity).expect("text").0,
+        "initial",
+        "locale-aware registrations should refresh once the bundle becomes ready"
+    );
+}
+
+#[test]
 fn bevy_plugins_and_registration_helpers_build_without_panics() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);

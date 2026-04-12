@@ -78,6 +78,7 @@ impl FluentTextRegistration for App {
             PostUpdate,
             (
                 crate::update_values_on_locale_change::<T>,
+                crate::systems::update_all_fluent_text_on_locale_change::<T>,
                 crate::systems::update_fluent_text_system::<T>,
             )
                 .chain(),
