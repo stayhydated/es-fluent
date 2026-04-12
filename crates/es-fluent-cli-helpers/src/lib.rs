@@ -147,7 +147,13 @@ pub fn run_generate_with_options(
     mode: FluentParseMode,
     dry_run: bool,
 ) -> bool {
-    run_generator_command(i18n_toml_path, crate_name, mode, dry_run, GeneratorRun::Generate)
+    run_generator_command(
+        i18n_toml_path,
+        crate_name,
+        mode,
+        dry_run,
+        GeneratorRun::Generate,
+    )
 }
 
 /// Run the inventory check process for a crate.

@@ -3,8 +3,8 @@ use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
 
 use crate::macros::ir::{FluentArgument, InventoryVariantSpec, LocalizeCallSpec};
 use crate::macros::utils::{
-    InventoryModuleInput, generate_field_value_expr, generate_from_impls, generate_inventory_module,
-    namespace_rule_tokens,
+    InventoryModuleInput, generate_field_value_expr, generate_from_impls,
+    generate_inventory_module, namespace_rule_tokens,
 };
 use proc_macro2::TokenStream;
 use quote::quote;

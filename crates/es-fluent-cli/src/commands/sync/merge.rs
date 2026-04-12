@@ -1,6 +1,6 @@
+use es_fluent_generate::ftl::{entry_key, group_comment_name, is_section_comment};
 use fluent_syntax::ast;
 use std::collections::{BTreeMap, HashSet};
-use es_fluent_generate::ftl::{entry_key, group_comment_name, is_section_comment};
 
 /// Classification of an FTL entry for merge operations.
 enum EntryKind<'a> {

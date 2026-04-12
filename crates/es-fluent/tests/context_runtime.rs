@@ -82,8 +82,7 @@ fn context_localization_prefers_custom_then_context_then_id() {
     });
     assert!(second_set_context.is_err());
 
-    let second_custom = std::panic::catch_unwind(|| {
-        set_custom_localizer(|_, _| Some("again".to_string()));
-    });
-    assert!(second_custom.is_err());
+    set_custom_localizer(|_, _| Some("again".to_string()));
+    assert_eq!(localize("custom-key", None), "again");
+    assert_eq!(localize("ctx-key", None), "again");
 }

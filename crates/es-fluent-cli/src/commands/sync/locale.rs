@@ -1,5 +1,5 @@
-use super::merge::merge_missing_keys;
 use super::super::dry_run::DryRunDiff;
+use super::merge::merge_missing_keys;
 use crate::core::CrateInfo;
 use crate::ftl::{CrateFtlLayout, LocaleContext, extract_message_keys};
 use anyhow::Result;

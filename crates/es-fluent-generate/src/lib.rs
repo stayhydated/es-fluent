@@ -22,9 +22,9 @@ use pipeline::{OutputOperation, apply_output_operation, plan_outputs};
 #[cfg(test)]
 pub(crate) use ast_build::{create_group_comment_entry, create_message_entry};
 #[cfg(test)]
-pub(crate) use io::{read_existing_resource, write_updated_resource};
-#[cfg(test)]
 pub(crate) use io::{print_diff, write_or_preview};
+#[cfg(test)]
+pub(crate) use io::{read_existing_resource, write_updated_resource};
 #[cfg(test)]
 pub(crate) use merge::{
     MergeBehavior, collect_existing_keys, group_comment_name, insert_late_relocated,

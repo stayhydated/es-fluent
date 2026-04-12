@@ -173,7 +173,12 @@ pub fn run_generation_command(
         return Ok(());
     }
 
-    let results = parallel_generate(&workspace.workspace_info, &workspace.valid, &action, force_run);
+    let results = parallel_generate(
+        &workspace.workspace_info,
+        &workspace.valid,
+        &action,
+        force_run,
+    );
     let has_errors = render_generation_results_with_dry_run(&results, dry_run, verb);
 
     if has_errors {
@@ -269,7 +274,9 @@ pub fn render_generation_results_with_dry_run(
 mod tests {
     use super::*;
     use crate::core::{CrateInfo, FluentParseMode, GenerationAction, WorkspaceInfo};
-    use crate::test_fixtures::{create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache};
+    use crate::test_fixtures::{
+        create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache,
+    };
     use std::cell::Cell;
     use std::fs;
     use std::path::PathBuf;
