@@ -1,113 +1,228 @@
-# Project Overview
+# AGENTS.md
 
-`es-fluent` is a comprehensive localization (i18n) ecosystem written in **Rust**, built on top of [Project Fluent](https://projectfluent.org/). It focuses on:
+This file is the working guide for contributors and coding agents in the `es-fluent` workspace.
 
-1. **Type Safety**: Ensuring at compile-time that your code and translation files are in sync.
-1. **Ergonomics**: Providing simple macros (like `#[derive(EsFluent)]`) to make struct/enum fields localizable with minimal boilerplate.
-1. **Developer Experience**: A robust CLI (`es-fluent-cli`) that auto-generates FTL files, manages keys, and ensures consistency.
+Use it to answer three questions quickly:
 
-## Architecture Documentation Index
+1. Where does this documentation belong?
+2. Which crates are public entry points versus integration points versus internals?
+3. What other surfaces must be updated in the same change?
 
-| Folder                              | Link to Architecture Doc                                               | Purpose                                                                                        |
-| ----------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Core**                            |                                                                        |                                                                                                |
-| `crates/es-fluent`                  | [Architecture](crates/es-fluent/docs/ARCHITECTURE.md)                  | Ecosystem facade, entry point, and registry types.                                             |
-| `crates/es-fluent-shared`           | [Architecture](crates/es-fluent-shared/docs/ARCHITECTURE.md)           | Runtime-safe shared types and helpers reused across the facade, generators, managers, and CLI. |
-| `crates/es-fluent-derive-core`      | [Architecture](crates/es-fluent-derive-core/docs/ARCHITECTURE.md)      | Build-time logic (options, validation, namer) for derive macros.                               |
-| `crates/es-fluent-derive`           | [Architecture](crates/es-fluent-derive/docs/ARCHITECTURE.md)           | Proc-macros for registration and trait implementation.                                         |
-| `crates/es-fluent-toml`             | [Architecture](crates/es-fluent-toml/docs/ARCHITECTURE.md)             | Configuration (`i18n.toml`) parsing and path resolution.                                       |
-| **Language Support**                |                                                                        |                                                                                                |
-| `crates/es-fluent-lang`             | [Architecture](crates/es-fluent-lang/docs/ARCHITECTURE.md)             | Runtime language identification and embedded translations.                                     |
-| `crates/es-fluent-lang-macro`       | [Architecture](crates/es-fluent-lang-macro/docs/ARCHITECTURE.md)       | Generates type-safe language selection enums from asset folders.                               |
-| **Managers**                        |                                                                        |                                                                                                |
-| `crates/es-fluent-manager-core`     | [Architecture](crates/es-fluent-manager-core/docs/ARCHITECTURE.md)     | Abstract traits for localization backends.                                                     |
-| `crates/es-fluent-manager-embedded` | [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md) | Zero-setup backend for embedding FTL files in binary.                                          |
-| `crates/es-fluent-manager-bevy`     | [Architecture](crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md)     | Backend integration for Bevy engine ECS and assets.                                            |
-| `crates/es-fluent-manager-macros`   | [Architecture](crates/es-fluent-manager-macros/docs/ARCHITECTURE.md)   | Macros for asset discovery and module registration.                                            |
-| **CLI Tool**                        |                                                                        |                                                                                                |
-| `crates/es-fluent-cli`              | [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md)              | Primary developer-facing CLI (`cargo es-fluent`) for validating and generating FTL files.      |
-| **Tooling Internals**               |                                                                        |                                                                                                |
-| `crates/es-fluent-cli-helpers`      | [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md)      | Runtime logic for checking/generating FTL files (runner crate).                                |
-| `crates/es-fluent-generate`         | [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md)         | FTL AST manipulation, diffing, and formatting logic.                                           |
-| **Automation**                      |                                                                        |                                                                                                |
-| `xtask`                             | [Architecture](xtask/docs/ARCHITECTURE.md)                             | Rust task runner                                                                               |
-| **Examples**                        |                                                                        |                                                                                                |
-| `examples/first-example`            |                                                                        | Minimal getting-started example using the embedded manager.                                    |
-| `examples/thiserror-example`        |                                                                        | Demonstrates `thiserror` integration with localizable error types.                             |
-| `examples/example-shared-lib`       |                                                                        | Shared example library used by the examples.                                                   |
-| `examples/feature-gated-example`    |                                                                        | Shows feature-gated `es-fluent` derives and configuration.                                     |
-| `examples/bevy-example`             |                                                                        | Bevy integration example using `es-fluent-manager-bevy`.                                       |
-| `examples/gpui-example`             |                                                                        | GPUI integration example using `es-fluent-manager-embedded`.                                   |
-| `examples/readme`                   |                                                                        | Canonical executable docs examples. Keep in sync with root `README.md` and `book`              |
-| **Web**                             |                                                                        |                                                                                                |
-| `web`                               |                                                                        | Astro-based site for GitHub Pages. Hosts WASM-compiled examples as live demos and the mdBook   |
-| `book`                              |                                                                        | mdBook that shows usage of the user-facing crates                                              |
+## Project summary
 
-## Crate Descriptions
+`es-fluent` is a Rust localization ecosystem built on top of [Project Fluent](https://projectfluent.org/).
 
-### Core Layers
+Its priorities are:
 
-- **`es-fluent`**: The user-facing library. Re-exports everything needed for general usage. Provides registry types (`FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`) for inventory collection. Connects the global `OnceLock` context to specific backend managers.
-- **`es-fluent-shared`**: Runtime-safe shared metadata, registry types, naming helpers, namespace rules, path utilities, and common errors used by the facade, generator, managers, and CLI tooling.
-- **`es-fluent-derive-core`**: The shared logic library for derive macros. Contains `darling` attribute parsing, validation rules, and macro-only diagnostics on top of `es-fluent-shared`.
-- **`es-fluent-derive`**: Provides the `#[derive(EsFluent)]` macro. transforming Rust types into inventory registrations and `FluentDisplay` implementations.
-- **`es-fluent-toml`**: Centralizes configuration logic. Ensures that the CLI and proc-macros agree on where assets are located and what languages are available.
+1. **Type safety**: keep Rust code and translation files aligned at compile time.
+2. **Ergonomics**: make common localization workflows require minimal boilerplate.
+3. **Developer experience**: provide tooling that generates, validates, and keeps FTL files in sync.
 
-### Language & Locale
+For most application code, start with `crates/es-fluent`.
 
-- **`es-fluent-lang`**: Provides the `I18nModule` for language names themselves (e.g. `lang-en = English`). Useful for UI language pickers.
-- **`es-fluent-lang-macro`**: Scans your `assets/` directory to find available languages (e.g., `en/`, `fr/`) and generates an enum (e.g. `enum Languages { En, Fr }`) so you never hardcode language strings.
+## Audience labels
 
-### Runtime Managers
+These labels describe the crate or surface itself, not the documentation file you are editing:
 
-- **`es-fluent-manager-core`**: Defines the `I18nModule` and `Localizer` traits. It allows the system to be agnostic about _how_ translations are loaded (disk vs embedded).
-- **`es-fluent-manager-embedded`**: A "singleton" manager. Initializes a global manager with embedded assets. ideal for CLI tools or simple apps.
-- **`es-fluent-manager-bevy`**: A "resource" manager. Hooks into Bevy's `AssetServer` for hot-reloading and ECS reactivity.
+- **User-facing**: Normal entry points for application developers.
+- **Public integration**: Public crates meant for extensions, integrations, or deeper customization. These are not usually the default starting point.
+- **Internal**: Workspace plumbing, implementation details, and maintenance tooling.
 
-### CLI Tool
+## Documentation rules
 
-- **`es-fluent-cli`**: The primary developer-facing command-line tool, installed as `cargo es-fluent`. It provides commands like `check` and `generate` to validate FTL files against your Rust types and auto-generate missing translation keys. Under the hood, it compiles a temporary "runner crate" that links against your project to inspect registered types via inventory.
+### User-facing documentation
 
-### Tooling Internals
+These surfaces are always user-facing:
 
-- **`es-fluent-cli-helpers`**: The library code that runs _inside_ the temporary runner crate. It collects the inventory from the user's code and calls the generator.
-- **`es-fluent-generate`**: A specialized FTL writer. It intelligently merges new keys into existing files without destroying manual comments or custom formatting.
+- every `README.md` in the workspace,
+- the mdBook under `book/`.
 
-### Automation
+Even for internal crates, `README.md` should explain:
 
-- **`xtask`**: A Rust task runner that generates `es-fluent-lang.ftl` (language autonyms like "English", "Français", "日本語"), localized per-locale `es-fluent-lang.ftl` files under `i18n/`, and `supported_locales.rs` (the list of valid language keys for compile-time validation in `es-fluent-lang-macro`) using ICU4X data. Run `cargo run -p xtask -- generate-lang-names` to regenerate these artifacts.
+- who the crate is for,
+- what it does,
+- what most users should use instead.
 
-### Examples
+### Internal documentation
 
-- **`examples/first-example`**: Minimal getting-started example using the embedded manager.
-- **`examples/thiserror-example`**: Demonstrates `thiserror` integration with localizable error types.
-- **`examples/example-shared-lib`**: Shared library used by the Bevy, GPUI, and embedded examples.
-- **`examples/feature-gated-example`**: Demonstrates enabling `es-fluent` derives behind a Cargo feature.
-- **`examples/bevy-example`**: Bevy integration example using `es-fluent-manager-bevy`.
-- **`examples/gpui-example`**: GPUI integration example using `es-fluent-manager-embedded`.
-- **`examples/readme`**: Examples. To keep in sync with the root README.md.
+Only `docs/ARCHITECTURE.md` files are internal documentation.
 
-### Web
+Use them for:
 
-- **`web`**: An Astro-based static site for GitHub Pages. Hosts WASM-compiled examples (e.g., the Bevy example) with live interactive demos. The site is built via the `gh-pages.yml` workflow which compiles Rust examples to WASM and deploys them.
+- implementation details,
+- subsystem boundaries,
+- data flow,
+- design rationale,
+- internal relationships.
 
-## Development
+Do not put internal implementation detail into READMEs or the book.
 
-**Docs**
+## Synchronization rules
 
-- User-facing feature documentation must be example-first. Do not add prose-only guidance for behavior changes when a Rust snippet can demonstrate it.
+When changing a public workflow, public feature, or user-visible API shape:
+
+1. Update the executable example in `examples/readme` when relevant.
+2. Update the affected user-facing `README.md` files.
+3. Update the matching `book/src/*.md` pages.
+4. Keep these surfaces aligned in the same change unless there is a documented reason not to.
+
+Additional rules:
+
+- User-facing documentation should be example-first.
+- Prefer a Rust snippet over prose-only explanations when showing behavior changes.
 - `examples/readme` is the canonical source of truth for usage examples.
-- Keep example behavior and API shape synchronized across `examples/readme` (executable examples), root `README.md` (copied/adapted snippets), and `book/src/*.md` (mdBook narrative + snippets).
-- When updating one of those three surfaces, update the other relevant surfaces in the same change set unless there is a documented reason not to.
 
-**Rust**
+## Workspace map
 
-- Use `cargo` for building, testing, and running Rust code. In this workspace, keep dependency versions in the workspace root `Cargo.toml` and use `workspace = true` in member crates. Each crate is responsible for selecting the correct dependency `features` in its own `Cargo.toml`.
-- Reserve `path` dependencies for the root `Cargo.toml` and for examples (e.g., example-to-example helpers). Non-example crates should reference other workspace crates using `workspace = true` rather than explicit paths.
-- Use [insta](https://insta.rs/) for snapshot tests where appropriate, rather than complex assertion-based unit tests.
-- Prefer raw multiline strings (or `quote! { ... }` in macro contexts) over escaped single-line literals when embedding Rust code in tests.
+### Main user-facing entry points
 
-**JavaScript**
+- `crates/es-fluent`
+  Audience: **User-facing**
+  Docs: [Architecture](crates/es-fluent/docs/ARCHITECTURE.md)
+  Role: ecosystem facade, default entry point, and home of the registry types (`FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`).
+
+- `crates/es-fluent-cli`
+  Audience: **User-facing**
+  Docs: [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md)
+  Role: primary CLI (`cargo es-fluent`) for validating and generating FTL files.
+
+- `crates/es-fluent-manager-embedded`
+  Audience: **User-facing**
+  Docs: [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md)
+  Role: zero-setup backend for embedding FTL files in the binary.
+
+- `crates/es-fluent-manager-bevy`
+  Audience: **User-facing**
+  Docs: [Architecture](crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md)
+  Role: Bevy integration for ECS and assets.
+
+- `crates/es-fluent-lang`
+  Audience: **User-facing**
+  Docs: [Architecture](crates/es-fluent-lang/docs/ARCHITECTURE.md)
+  Role: runtime language identification and localized language names for UI language pickers.
+
+### Public integration crates
+
+- `crates/es-fluent-derive`
+  Audience: **Public integration**
+  Docs: [Architecture](crates/es-fluent-derive/docs/ARCHITECTURE.md)
+  Role: proc-macro crate for `#[derive(EsFluent)]`. Most users should depend on `es-fluent` instead of this crate directly.
+
+- `crates/es-fluent-lang-macro`
+  Audience: **Public integration**
+  Docs: [Architecture](crates/es-fluent-lang-macro/docs/ARCHITECTURE.md)
+  Role: generates type-safe language enums from asset folders. Most users should access this through `es-fluent-lang`.
+
+- `crates/es-fluent-manager-core`
+  Audience: **Public integration**
+  Docs: [Architecture](crates/es-fluent-manager-core/docs/ARCHITECTURE.md)
+  Role: abstract traits for localization backends (`I18nModule`, `Localizer`).
+
+- `crates/es-fluent-manager-macros`
+  Audience: **Public integration**
+  Docs: [Architecture](crates/es-fluent-manager-macros/docs/ARCHITECTURE.md)
+  Role: macros for asset discovery and module registration. Most users consume this indirectly through manager crates.
+
+### Internal crates
+
+- `crates/es-fluent-shared`
+  Audience: **Internal**
+  Docs: [Architecture](crates/es-fluent-shared/docs/ARCHITECTURE.md)
+  Role: shared runtime-safe types, naming helpers, namespace rules, path utilities, and common errors.
+
+- `crates/es-fluent-derive-core`
+  Audience: **Internal**
+  Docs: [Architecture](crates/es-fluent-derive-core/docs/ARCHITECTURE.md)
+  Role: shared build-time derive logic, including option parsing and validation.
+
+- `crates/es-fluent-toml`
+  Audience: **Internal**
+  Docs: [Architecture](crates/es-fluent-toml/docs/ARCHITECTURE.md)
+  Role: `i18n.toml` parsing and path resolution shared by macros and CLI tooling.
+
+- `crates/es-fluent-cli-helpers`
+  Audience: **Internal**
+  Docs: [Architecture](crates/es-fluent-cli-helpers/docs/ARCHITECTURE.md)
+  Role: runtime logic executed inside the temporary runner crate.
+
+- `crates/es-fluent-runner`
+  Audience: **Internal**
+  Docs: [Architecture](crates/es-fluent-runner/docs/ARCHITECTURE.md)
+  Role: runner protocol types and `.es-fluent/metadata` path helpers.
+
+- `crates/es-fluent-generate`
+  Audience: **Internal**
+  Docs: [Architecture](crates/es-fluent-generate/docs/ARCHITECTURE.md)
+  Role: FTL AST manipulation, diffing, formatting, and merge behavior.
+
+- `xtask`
+  Audience: **Internal**
+  Docs: [Architecture](xtask/docs/ARCHITECTURE.md)
+  Role: maintenance task runner.
+
+  Regeneration command:
+  `cargo run -p xtask -- generate-lang-names`
+
+  This regenerates:
+  - `es-fluent-lang.ftl`,
+  - per-locale `es-fluent-lang.ftl` files under `i18n/`,
+  - `supported_locales.rs` used by `es-fluent-lang-macro`.
+
+### Examples and web surfaces
+
+- `examples/first-example`
+  Minimal getting-started example using the embedded manager.
+
+- `examples/thiserror-example`
+  Demonstrates `thiserror` integration with localizable error types.
+
+- `examples/example-shared-lib`
+  Shared example library used by multiple examples.
+
+- `examples/feature-gated-example`
+  Demonstrates feature-gated `es-fluent` derives and configuration.
+
+- `examples/bevy-example`
+  Bevy integration example using `es-fluent-manager-bevy`.
+
+- `examples/gpui-example`
+  GPUI integration example using `es-fluent-manager-embedded`.
+
+- `examples/readme`
+  Canonical executable documentation examples. Keep this in sync with the root `README.md` and `book`.
+
+- `web`
+  Audience: **User-facing**
+  Role: Astro-based GitHub Pages site hosting WASM demos and the mdBook.
+
+- `book`
+  Audience: **User-facing**
+  Role: mdBook for public workflows and public crate usage.
+
+## Working rules by change type
+
+### When editing docs
+
+- Keep READMEs and the book user-facing.
+- Move implementation detail into `docs/ARCHITECTURE.md`.
+- Prefer examples over prose-only explanations.
+- Sync `examples/readme`, relevant READMEs, and book pages in the same change.
+
+### When editing Rust crates
+
+- Use `cargo` for build, test, and run tasks.
+- Keep dependency versions in the workspace root `Cargo.toml`.
+- Use `workspace = true` in member crates.
+- Let each crate choose its own dependency features in its own `Cargo.toml`.
+- Use `path` dependencies only in the root `Cargo.toml` and in examples.
+- Non-example crates should reference workspace crates with `workspace = true`, not explicit paths.
+
+### When writing tests
+
+- Prefer [insta](https://insta.rs/) for snapshot tests when it fits better than assertion-heavy unit tests.
+- Prefer raw multiline strings, or `quote! { ... }` in macro contexts, over escaped single-line literals for embedded Rust code.
+
+### When editing JavaScript or web tooling
 
 - Use [bun](https://bun.com/) for dependency management.
-- [turborepo](https://turborepo.org/) is used as the build system.
+- Use [turborepo](https://turborepo.org/) as the build system.

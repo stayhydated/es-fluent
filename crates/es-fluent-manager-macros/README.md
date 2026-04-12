@@ -3,9 +3,9 @@
 
 # es-fluent-manager-macros
 
-The `es-fluent-manager-macros` crate provides the procedural macros that help automate the setup of translation modules for `es-fluent-manager`.
+The `es-fluent-manager-macros` crate provides the compile-time macros used by `es-fluent-manager-embedded` and `es-fluent-manager-bevy`.
 
-These macros read your `i18n.toml` configuration and scan your translation directories at compile time to generate the necessary module metadata and Bevy resource manifests.
+These macros read your `i18n.toml` configuration, scan your translation directories at compile time, generate module metadata, and expose the `BevyFluentText` derive used by the Bevy integration.
 
 ## Usage
 

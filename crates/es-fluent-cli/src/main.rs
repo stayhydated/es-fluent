@@ -39,6 +39,7 @@ enum Commands {
     Clean(CleanArgs),
 
     /// Format FTL files (sort keys A-Z)
+    #[command(name = "format", visible_alias = "fmt")]
     Fmt(FormatArgs),
 
     /// Check FTL files for missing keys and variables
@@ -131,6 +132,16 @@ mod tests {
         let CargoCommand::EsFluent { command, e2e } = cli.command;
         assert!(e2e);
         assert!(matches!(command, Commands::Generate(_)));
+    }
+
+    #[test]
+    fn cli_parses_format_command_and_fmt_alias() {
+        for command_name in ["format", "fmt"] {
+            let cli = Cli::try_parse_from(["cargo", "es-fluent", command_name]).expect("parse");
+            let CargoCommand::EsFluent { command, e2e } = cli.command;
+            assert!(!e2e);
+            assert!(matches!(command, Commands::Fmt(_)));
+        }
     }
 
     #[test]
