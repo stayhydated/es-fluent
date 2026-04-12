@@ -52,6 +52,7 @@ pub(crate) fn format_duration(duration: Duration) -> String {
     }
 }
 
+#[cfg(test)]
 pub fn create_spinner(msg: &str) -> ProgressBar {
     if is_e2e() {
         return ProgressBar::hidden();
@@ -113,6 +114,7 @@ pub fn print_missing_lib_rs(crate_name: &str) {
 
 // Action-specific printers
 
+#[cfg(test)]
 pub fn print_generating(crate_name: &str) {
     println!("{} {}", "Generating FTL for".dimmed(), crate_name.green());
 }
@@ -126,6 +128,7 @@ pub fn print_generated(crate_name: &str, duration: Duration, resource_count: usi
     );
 }
 
+#[cfg(test)]
 pub fn print_cleaning(crate_name: &str) {
     println!("{} {}", "Cleaning FTL for".dimmed(), crate_name.green());
 }
@@ -160,6 +163,7 @@ pub fn print_check_header() {
     println!("{}", "Fluent FTL Checker".dimmed());
 }
 
+#[cfg(test)]
 pub fn print_checking(crate_name: &str) {
     println!("{} {}", "Checking".dimmed(), crate_name.green());
 }
@@ -214,6 +218,7 @@ pub fn print_sync_header() {
     println!("{}", "Fluent FTL Sync".dimmed());
 }
 
+#[cfg(test)]
 pub fn print_syncing(crate_name: &str) {
     println!("{} {}", "Syncing".dimmed(), crate_name.green());
 }

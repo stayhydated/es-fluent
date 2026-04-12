@@ -37,6 +37,12 @@ enum RunnerCommand {
     Check,
 }
 
+enum GeneratorRun {
+    Cli,
+    Generate,
+    Clean { all_locales: bool },
+}
+
 impl RunnerContext {
     fn from_i18n_path(i18n_toml_path: &str, crate_name: &str) -> Self {
         Self {
@@ -67,30 +73,47 @@ fn build_generator(
         .build()
 }
 
+fn run_generator_command(
+    i18n_toml_path: &str,
+    crate_name: &str,
+    mode: FluentParseMode,
+    dry_run: bool,
+    run: GeneratorRun,
+) -> bool {
+    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
+    let generator = build_generator(&ctx, mode, dry_run);
+    let changed = match run {
+        GeneratorRun::Cli => generator.run_cli(),
+        GeneratorRun::Generate => generator.generate(),
+        GeneratorRun::Clean { all_locales } => generator.clean(all_locales, dry_run),
+    }
+    .expect("Failed to run generator");
+    ctx.write_changed_result(changed);
+    changed
+}
+
 fn run_runner_command(command: RunnerCommand, i18n_toml_path: Option<&str>, crate_name: &str) {
     match command {
         RunnerCommand::Generate { mode, dry_run } => {
-            let ctx = RunnerContext::from_i18n_path(
+            run_generator_command(
                 i18n_toml_path.expect("Missing i18n.toml path"),
                 crate_name,
+                mode,
+                dry_run,
+                GeneratorRun::Generate,
             );
-            let changed = build_generator(&ctx, mode, dry_run)
-                .generate()
-                .expect("Failed to run generator");
-            ctx.write_changed_result(changed);
         },
         RunnerCommand::Clean {
             all_locales,
             dry_run,
         } => {
-            let ctx = RunnerContext::from_i18n_path(
+            run_generator_command(
                 i18n_toml_path.expect("Missing i18n.toml path"),
                 crate_name,
+                FluentParseMode::default(),
+                dry_run,
+                GeneratorRun::Clean { all_locales },
             );
-            let changed = build_generator(&ctx, FluentParseMode::default(), dry_run)
-                .clean(all_locales, dry_run)
-                .expect("Failed to run clean");
-            ctx.write_changed_result(changed);
         },
         RunnerCommand::Check => run_check(crate_name),
     }
@@ -106,12 +129,13 @@ fn run_runner_command(command: RunnerCommand, i18n_toml_path: Option<&str>, crat
 ///
 /// Returns `true` if any FTL files were modified, `false` otherwise.
 pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
-    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
-    let changed = build_generator(&ctx, FluentParseMode::default(), false)
-        .run_cli()
-        .expect("Failed to run generator");
-    ctx.write_changed_result(changed);
-    changed
+    run_generator_command(
+        i18n_toml_path,
+        crate_name,
+        FluentParseMode::default(),
+        false,
+        GeneratorRun::Cli,
+    )
 }
 
 /// Run the FTL generation process with explicit options (no CLI parsing).
@@ -123,12 +147,7 @@ pub fn run_generate_with_options(
     mode: FluentParseMode,
     dry_run: bool,
 ) -> bool {
-    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
-    let changed = build_generator(&ctx, mode, dry_run)
-        .generate()
-        .expect("Failed to run generator");
-    ctx.write_changed_result(changed);
-    changed
+    run_generator_command(i18n_toml_path, crate_name, mode, dry_run, GeneratorRun::Generate)
 }
 
 /// Run the inventory check process for a crate.
@@ -147,12 +166,13 @@ pub fn run_clean_with_options(
     all_locales: bool,
     dry_run: bool,
 ) -> bool {
-    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
-    let changed = build_generator(&ctx, FluentParseMode::default(), dry_run)
-        .clean(all_locales, dry_run)
-        .expect("Failed to run clean");
-    ctx.write_changed_result(changed);
-    changed
+    run_generator_command(
+        i18n_toml_path,
+        crate_name,
+        FluentParseMode::default(),
+        dry_run,
+        GeneratorRun::Clean { all_locales },
+    )
 }
 
 /// Main entry point for the monolithic binary.

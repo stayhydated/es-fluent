@@ -112,8 +112,9 @@ impl<'a> TuiApp<'a> {
                 }
                 true
             },
-            Message::WatchError { error: _ } => {
+            Message::WatchError { error } => {
                 // Errors are already visible in the crate state
+                drop(error);
                 false
             },
         }

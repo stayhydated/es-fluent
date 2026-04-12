@@ -1,6 +1,8 @@
 use anyhow::{Context as _, Result, bail};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Command;
+#[cfg(test)]
+use std::process::Output;
 use std::{env, fs};
 
 pub(super) struct RunnerCrate<'a> {
@@ -60,6 +62,7 @@ impl RunnerCrate<'_> {
     }
 
     /// Run `cargo run` on the runner crate and capture output.
+    #[cfg(test)]
     pub(super) fn run_cargo_with_output(
         &self,
         bin_name: Option<&str>,
@@ -90,11 +93,13 @@ impl RunnerCrate<'_> {
 }
 
 /// Run `cargo run` on the runner crate.
+#[cfg(test)]
 pub fn run_cargo(temp_dir: &Path, bin_name: Option<&str>, args: &[String]) -> Result<String> {
     RunnerCrate::new(temp_dir).run_cargo(bin_name, args)
 }
 
 /// Run `cargo run` on the runner crate and capture output.
+#[cfg(test)]
 pub fn run_cargo_with_output(
     temp_dir: &Path,
     bin_name: Option<&str>,

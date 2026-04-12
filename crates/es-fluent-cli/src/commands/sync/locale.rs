@@ -1,9 +1,10 @@
 use super::merge::merge_missing_keys;
-use crate::commands::DryRunDiff;
+use super::super::dry_run::DryRunDiff;
 use crate::core::CrateInfo;
 use crate::ftl::{CrateFtlLayout, LocaleContext, extract_message_keys};
 use anyhow::Result;
-use fluent_syntax::{ast, parser, serializer};
+use es_fluent_generate::ftl::parse_ftl_content;
+use fluent_syntax::{ast, serializer};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -103,9 +104,7 @@ fn sync_locale_file(
         String::new()
     };
 
-    let existing_resource = parser::parse(existing_content.clone())
-        .map_err(|(res, _)| res)
-        .unwrap_or_else(|res| res);
+    let (existing_resource, _) = parse_ftl_content(existing_content.clone());
 
     let existing_keys = extract_message_keys(&existing_resource);
 

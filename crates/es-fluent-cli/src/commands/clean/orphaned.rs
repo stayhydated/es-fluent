@@ -1,7 +1,5 @@
-use crate::commands::WorkspaceCrates;
+use super::super::common::WorkspaceCrates;
 use crate::core::CliError;
-#[cfg(test)]
-use crate::ftl::discover_nested_ftl_files;
 use crate::ftl::{CrateFtlLayout, LocaleContext, discover_locale_ftl_files};
 use crate::utils::ui;
 use colored::Colorize as _;
@@ -49,7 +47,7 @@ impl<'a> OrphanedCleaner<'a> {
 
     #[cfg(test)]
     fn find_all_ftl_files(&self, dir: &std::path::Path) -> Result<Vec<PathBuf>, CliError> {
-        Ok(discover_nested_ftl_files(dir, dir)?
+        Ok(discover_locale_ftl_files(dir)?
             .into_iter()
             .map(|info| info.abs_path)
             .collect())
@@ -281,7 +279,6 @@ mod tests {
         };
 
         WorkspaceCrates {
-            path: manifest_dir.clone(),
             workspace_info: WorkspaceInfo {
                 root_dir: manifest_dir.clone(),
                 target_dir: manifest_dir.join("target"),

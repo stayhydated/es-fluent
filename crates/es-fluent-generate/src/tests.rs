@@ -2,6 +2,7 @@ use super::*;
 use es_fluent_derive_core::meta::TypeKind;
 use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
 use fluent_syntax::{ast, parser};
+use indexmap::IndexMap;
 use std::path::PathBuf;
 use tempfile::tempdir;
 

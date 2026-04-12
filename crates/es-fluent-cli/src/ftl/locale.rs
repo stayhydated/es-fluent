@@ -64,6 +64,7 @@ impl LocaleContext {
     /// Iterate over locales, yielding (locale, ftl_path) pairs.
     ///
     /// Only yields locales where the directory exists.
+    #[cfg(test)]
     pub fn iter(&self) -> impl Iterator<Item = (&str, PathBuf)> {
         self.locales.iter().filter_map(|locale| {
             let locale_dir = self.locale_dir(locale);
@@ -93,6 +94,7 @@ impl LocaleContext {
     }
 
     /// Check if a locale is the fallback language.
+    #[cfg(test)]
     pub fn is_fallback(&self, locale: &str) -> bool {
         locale == self.fallback
     }

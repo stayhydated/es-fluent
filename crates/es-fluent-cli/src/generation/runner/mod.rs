@@ -9,6 +9,7 @@ mod monolithic;
 
 const CLI_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[cfg(test)]
 pub use exec::{run_cargo, run_cargo_with_output};
 pub use monolithic::{prepare_monolithic_runner_crate, run_monolithic};
 

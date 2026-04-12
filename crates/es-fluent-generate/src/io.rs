@@ -1,5 +1,5 @@
 use es_fluent_derive_core::EsFluentResult;
-use fluent_syntax::{ast, parser};
+use fluent_syntax::ast;
 use std::{fs, path::Path};
 
 /// Print a colored line-by-line diff between old and new content.
@@ -33,26 +33,15 @@ pub(crate) fn print_diff(old: &str, new: &str) {
 
 /// Read and parse an existing FTL resource file.
 pub(crate) fn read_existing_resource(file_path: &Path) -> EsFluentResult<ast::Resource<String>> {
-    if !file_path.exists() {
-        return Ok(ast::Resource { body: Vec::new() });
+    let (resource, errors) = crate::ftl::parse_ftl_file_with_errors(file_path)?;
+    if !errors.is_empty() {
+        tracing::warn!(
+            "Warning: Encountered parsing errors in {}: {:?}",
+            file_path.display(),
+            errors
+        );
     }
-
-    let content = fs::read_to_string(file_path)?;
-    if content.trim().is_empty() {
-        return Ok(ast::Resource { body: Vec::new() });
-    }
-
-    match parser::parse(content) {
-        Ok(res) => Ok(res),
-        Err((res, errors)) => {
-            tracing::warn!(
-                "Warning: Encountered parsing errors in {}: {:?}",
-                file_path.display(),
-                errors
-            );
-            Ok(res)
-        },
-    }
+    Ok(resource)
 }
 
 /// Write an updated resource to disk, handling change detection and dry-run mode.

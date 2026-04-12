@@ -205,37 +205,16 @@ impl StructVariantsOpts {
 
     /// Returns the identifiers of the keyed FTL enums.
     pub fn keyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
-        self.attr_args.clone().keys.map_or_else(
-            || Ok(Vec::new()),
-            |keys| {
-                keys.into_iter()
-                    .map(|key| {
-                        let pascal_key = super::validate_snake_case_key(&key)?;
-                        Ok(format_ident!(
-                            "{}{}{}",
-                            &self.ident,
-                            pascal_key,
-                            Self::FTL_ENUM_IDENT
-                        ))
-                    })
-                    .collect()
-            },
+        super::keyed_variant_idents(
+            &self.ident,
+            self.attr_args.clone().keys,
+            Self::FTL_ENUM_IDENT,
         )
     }
 
     /// Returns the identifiers used to build base FTL keys (without suffixes).
     pub fn keyed_base_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
-        self.attr_args.clone().keys.map_or_else(
-            || Ok(Vec::new()),
-            |keys| {
-                keys.into_iter()
-                    .map(|key| {
-                        let pascal_key = super::validate_snake_case_key(&key)?;
-                        Ok(format_ident!("{}{}", &self.ident, pascal_key))
-                    })
-                    .collect()
-            },
-        )
+        super::keyed_base_idents(&self.ident, self.attr_args.clone().keys)
     }
 
     /// Returns the fields of the struct that are not skipped.

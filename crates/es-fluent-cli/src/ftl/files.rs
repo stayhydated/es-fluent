@@ -38,16 +38,6 @@ impl CrateFtlLayout {
         }
     }
 
-    /// Returns the locale directory for this layout.
-    pub fn locale_dir(&self) -> &Path {
-        &self.locale_dir
-    }
-
-    /// Returns the crate name for this layout.
-    pub fn crate_name(&self) -> &str {
-        &self.crate_name
-    }
-
     /// Returns the main file for this crate in the locale.
     pub fn main_file(&self) -> PathBuf {
         self.locale_dir.join(format!("{}.ftl", self.crate_name))
@@ -130,6 +120,7 @@ pub fn discover_locale_ftl_files(locale_dir: &Path) -> Result<Vec<FtlFileInfo>> 
 }
 
 /// Discover all FTL files for a given locale and crate, including main and namespaced files.
+#[cfg(test)]
 pub fn discover_ftl_files(
     assets_dir: &Path,
     locale: &str,
@@ -216,35 +207,6 @@ pub fn discover_and_load_ftl_files(
     crate_name: &str,
 ) -> Result<Vec<LoadedFtlFile>> {
     CrateFtlLayout::from_assets_dir(assets_dir, locale, crate_name).discover_and_load_files()
-}
-
-/// Parse an FTL file and return both the resource and any parse errors.
-pub fn parse_ftl_file_with_errors(
-    ftl_path: &Path,
-) -> Result<(
-    fluent_syntax::ast::Resource<String>,
-    Vec<fluent_syntax::parser::ParserError>,
-)> {
-    if !ftl_path.exists() {
-        return Ok((
-            fluent_syntax::ast::Resource { body: Vec::new() },
-            Vec::new(),
-        ));
-    }
-
-    let content = fs::read_to_string(ftl_path)?;
-
-    if content.trim().is_empty() {
-        return Ok((
-            fluent_syntax::ast::Resource { body: Vec::new() },
-            Vec::new(),
-        ));
-    }
-
-    match fluent_syntax::parser::parse(content) {
-        Ok(res) => Ok((res, Vec::new())),
-        Err((res, errors)) => Ok((res, errors)),
-    }
 }
 
 #[cfg(test)]

@@ -2,9 +2,10 @@ use super::inventory::KeyInfo;
 use crate::core::{
     CrateInfo, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
 };
-use crate::ftl::LocaleContext;
-use crate::ftl::extract_variables_from_message;
-use crate::utils::{LoadedFtlFile, discover_and_load_ftl_files, ftl::main_ftl_path};
+use crate::ftl::{
+    LoadedFtlFile, LocaleContext, discover_and_load_ftl_files, extract_variables_from_message,
+    main_ftl_path,
+};
 use anyhow::Result;
 use fluent_syntax::ast;
 use indexmap::IndexMap;
@@ -255,7 +256,7 @@ fn validate_ftl_files(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::LoadedFtlFile;
+    use crate::ftl::LoadedFtlFile;
     use indexmap::IndexMap;
     use std::fs;
     use std::path::PathBuf;

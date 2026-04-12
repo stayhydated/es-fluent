@@ -3,6 +3,7 @@
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::namer;
 use heck::{ToPascalCase as _, ToSnakeCase as _};
+use quote::format_ident;
 
 pub mod choice;
 pub mod r#enum;
@@ -32,6 +33,41 @@ pub fn validate_snake_case_key(key: &syn::LitStr) -> EsFluentCoreResult<String> 
     }
 
     Ok(key_str.to_pascal_case())
+}
+
+pub fn keyed_variant_idents(
+    ident: &syn::Ident,
+    keys: Option<Vec<syn::LitStr>>,
+    suffix: &str,
+) -> EsFluentCoreResult<Vec<syn::Ident>> {
+    keys.map_or_else(
+        || Ok(Vec::new()),
+        |keys| {
+            keys.into_iter()
+                .map(|key| {
+                    let pascal_key = validate_snake_case_key(&key)?;
+                    Ok(format_ident!("{}{}{}", ident, pascal_key, suffix))
+                })
+                .collect()
+        },
+    )
+}
+
+pub fn keyed_base_idents(
+    ident: &syn::Ident,
+    keys: Option<Vec<syn::LitStr>>,
+) -> EsFluentCoreResult<Vec<syn::Ident>> {
+    keys.map_or_else(
+        || Ok(Vec::new()),
+        |keys| {
+            keys.into_iter()
+                .map(|key| {
+                    let pascal_key = validate_snake_case_key(&key)?;
+                    Ok(format_ident!("{}{}", ident, pascal_key))
+                })
+                .collect()
+        },
+    )
 }
 
 /// Shared behavior for fields that expose Fluent arguments.

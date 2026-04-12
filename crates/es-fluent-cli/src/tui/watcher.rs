@@ -254,6 +254,9 @@ fn run_watch_loop_with_poll<B: Backend>(
                         let new_hash = compute_src_hash(&krate.src_dir, &krate.i18n_config_path);
                         let old_hash = src_hashes.get(&crate_name);
                         if old_hash != Some(&new_hash) {
+                            app.update(Message::FileChanged {
+                                crate_name: krate.name.clone(),
+                            });
                             app.update(Message::GenerationStarted {
                                 crate_name: krate.name.clone(),
                             });

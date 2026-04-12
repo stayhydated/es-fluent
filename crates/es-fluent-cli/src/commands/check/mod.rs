@@ -10,7 +10,7 @@
 mod inventory;
 mod validation;
 
-use crate::commands::{WorkspaceArgs, WorkspaceCrates};
+use super::common::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, ValidationIssue, ValidationReport};
 use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
 use crate::utils::ui;
@@ -173,67 +173,15 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::generation::cache::{RunnerCache, compute_content_hash};
     use std::fs;
-    use std::time::SystemTime;
-    use tempfile::tempdir;
 
     use crate::test_fixtures::{
-        CARGO_TOML, HELLO_FTL, I18N_TOML, INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY, LIB_RS,
-        RUNNER_FAILING_SCRIPT, RUNNER_SCRIPT,
+        INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY, RUNNER_FAILING_SCRIPT, RUNNER_SCRIPT,
+        create_test_crate_workspace, setup_fake_runner_and_cache as setup_runner_cache,
     };
 
-    fn create_test_crate_workspace() -> tempfile::TempDir {
-        let temp = tempdir().unwrap();
-
-        fs::create_dir_all(temp.path().join("src")).unwrap();
-        fs::create_dir_all(temp.path().join("i18n/en")).unwrap();
-        fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).unwrap();
-        fs::write(temp.path().join("src/lib.rs"), LIB_RS).unwrap();
-        fs::write(temp.path().join("i18n.toml"), I18N_TOML).unwrap();
-        fs::write(temp.path().join("i18n/en/test-app.ftl"), HELLO_FTL).unwrap();
-
-        temp
-    }
-
-    #[cfg(unix)]
-    fn set_executable(path: &std::path::Path) {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(path).expect("metadata").permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(path, perms).expect("set permissions");
-    }
-
-    #[cfg(not(unix))]
-    fn set_executable(_path: &std::path::Path) {}
-
     fn setup_fake_runner_and_cache_with_script(temp: &tempfile::TempDir, script: &str) {
-        let binary_path = temp.path().join("target/debug/es-fluent-runner");
-        fs::create_dir_all(binary_path.parent().unwrap()).expect("create target/debug");
-        fs::write(&binary_path, script).expect("write runner");
-        set_executable(&binary_path);
-
-        let src_dir = temp.path().join("src");
-        let i18n_toml = temp.path().join("i18n.toml");
-        let hash = compute_content_hash(&src_dir, Some(&i18n_toml));
-        let mtime = fs::metadata(&binary_path)
-            .and_then(|m| m.modified())
-            .expect("runner mtime")
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("mtime duration")
-            .as_secs();
-
-        let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(temp.path());
-        fs::create_dir_all(&temp_dir).expect("create temp dir");
-        let mut crate_hashes = indexmap::IndexMap::new();
-        crate_hashes.insert("test-app".to_string(), hash);
-        RunnerCache {
-            crate_hashes,
-            runner_mtime: mtime,
-            cli_version: env!("CARGO_PKG_VERSION").to_string(),
-        }
-        .save(&temp_dir)
-        .expect("save runner cache");
+        setup_runner_cache(temp, script);
     }
 
     fn setup_fake_runner_and_cache(temp: &tempfile::TempDir) {

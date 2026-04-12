@@ -1,11 +1,12 @@
 ---
 source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
+assertion_line: 143
 expression: "&opts"
 ---
 StructVariantsOpts {
-    ident: Ident {
-        sym: Profile,
-    },
+    ident: Ident(
+        Profile,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +19,9 @@ StructVariantsOpts {
             fields: [
                 StructVariantsFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: id,
-                        },
+                        Ident(
+                            id,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,9 +29,9 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: u64,
-                                    },
+                                    ident: Ident(
+                                        u64,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -40,9 +41,9 @@ StructVariantsOpts {
                 },
                 StructVariantsFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: username,
-                        },
+                        Ident(
+                            username,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -50,9 +51,9 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -62,9 +63,9 @@ StructVariantsOpts {
                 },
                 StructVariantsFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: secret_token,
-                        },
+                        Ident(
+                            secret_token,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -72,9 +73,9 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -86,9 +87,9 @@ StructVariantsOpts {
                 },
                 StructVariantsFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: active,
-                        },
+                        Ident(
+                            active,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -96,9 +97,9 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: bool,
-                                    },
+                                    ident: Ident(
+                                        bool,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
@@ -108,7 +109,7 @@ StructVariantsOpts {
                 },
             ],
             span: Some(
-                bytes(0..0),
+                Span,
             ),
             __nonexhaustive: (),
         },
@@ -130,9 +131,9 @@ StructVariantsOpts {
                     leading_colon: None,
                     segments: [
                         PathSegment {
-                            ident: Ident {
-                                sym: Debug,
-                            },
+                            ident: Ident(
+                                Debug,
+                            ),
                             arguments: PathArguments::None,
                         },
                     ],
@@ -141,9 +142,9 @@ StructVariantsOpts {
                     leading_colon: None,
                     segments: [
                         PathSegment {
-                            ident: Ident {
-                                sym: PartialEq,
-                            },
+                            ident: Ident(
+                                PartialEq,
+                            ),
                             arguments: PathArguments::None,
                         },
                     ],

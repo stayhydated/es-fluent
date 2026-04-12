@@ -62,6 +62,7 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
 
 /// Discovers all crates in a workspace (or single crate) that have i18n.toml.
 /// This is a convenience wrapper around discover_workspace that returns just the crates.
+#[cfg(test)]
 pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
     discover_workspace(root_dir).map(|ws| ws.crates)
 }
