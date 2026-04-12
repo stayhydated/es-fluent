@@ -1,0 +1,21 @@
+[package]
+name = "es-fluent-runner"
+description = "Shared protocol and filesystem helpers for es-fluent runner crates"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+serde = { features = [ "derive" ], workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

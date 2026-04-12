@@ -1,8 +1,11 @@
+mod snapshot_support;
+
 use darling::FromDeriveInput;
 use es_fluent_derive_core::options::{
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
+use snapshot_support::normalized_debug_snapshot;
 use syn::{DeriveInput, parse_quote};
 
 /// EsFluent on enums: no `this`, no enum-level `choice`
@@ -24,9 +27,9 @@ fn es_fluent_enum_attributes_default_snapshot() {
     };
 
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_enum_attributes_default_snapshot__analysis",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }
 
@@ -50,9 +53,9 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
     };
 
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_enum_attributes_this_choice_snapshot__analysis",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }
 
@@ -72,9 +75,9 @@ fn es_fluent_struct_attributes_this_with_derive_snapshot() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_struct_attributes_this_with_derive_snapshot__opts",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }
 
@@ -95,9 +98,9 @@ fn es_fluent_struct_attributes_default_and_choice_snapshot() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_struct_attributes_default_and_choice_snapshot__opts",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }
 
@@ -117,9 +120,9 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
 
     let opts =
         StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_variants_attributes_no_keys_snapshot__analysis",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }
 
@@ -140,9 +143,9 @@ fn es_fluent_variants_attributes_keys_this_derive_default_snapshot() {
 
     let opts =
         StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_variants_attributes_keys_this_derive_default_snapshot__analysis",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }
 
@@ -160,7 +163,10 @@ fn es_fluent_choice_attributes_none_snapshot() {
     };
 
     let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
-    insta::assert_debug_snapshot!("es_fluent_choice_attributes_none_snapshot__opts", &opts);
+    insta::assert_snapshot!(
+        "es_fluent_choice_attributes_none_snapshot__opts",
+        normalized_debug_snapshot(&opts)
+    );
 }
 
 /// EsFluentChoice on enums: serialize_all = "snake_case"
@@ -179,9 +185,9 @@ fn es_fluent_choice_attributes_snake_case_snapshot() {
     };
 
     let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_choice_attributes_snake_case_snapshot__opts",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }
 
@@ -200,8 +206,8 @@ fn es_fluent_choice_attributes_screaming_snake_snapshot() {
     };
 
     let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
-    insta::assert_debug_snapshot!(
+    insta::assert_snapshot!(
         "es_fluent_choice_attributes_screaming_snake_snapshot__opts",
-        &opts
+        normalized_debug_snapshot(&opts)
     );
 }

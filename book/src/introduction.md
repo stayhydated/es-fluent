@@ -2,6 +2,8 @@
 
 `es-fluent` is a localization (i18n) ecosystem for Rust built on top of [Project Fluent](https://projectfluent.org/). It provides type-safe, ergonomic derive macros to link your Rust types directly to Fluent `.ftl` translation files.
 
+Internally, the public `es-fluent` facade sits on top of `es-fluent-shared` for runtime-safe shared metadata and `es-fluent-derive-core` for build-time attribute parsing and validation. The proc-macro crate, `es-fluent-derive`, keeps shared namespace resolution and token emission in common helpers so the derive entrypoints stay focused on message-shape specifics.
+
 The core philosophy:
 
 - **Type Safety**: Your code and translation files stay in sync — mismatches are caught at compile time.

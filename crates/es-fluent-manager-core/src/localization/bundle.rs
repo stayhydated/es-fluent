@@ -1,4 +1,4 @@
-use es_fluent_derive_core::EsFluentError;
+use es_fluent_shared::EsFluentError;
 use fluent_bundle::{
     FluentArgs, FluentError, FluentResource, FluentValue, bundle::FluentBundle,
     memoizer::MemoizerKind,

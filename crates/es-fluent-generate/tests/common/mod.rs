@@ -2,9 +2,9 @@
 
 //! Shared test utilities for es-fluent-generate integration tests.
 
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
+use es_fluent_shared::meta::TypeKind;
+use es_fluent_shared::namer::FluentKey;
+use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use proc_macro2::Span;
 use syn::Ident;
 

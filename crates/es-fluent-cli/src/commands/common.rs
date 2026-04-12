@@ -1,9 +1,9 @@
 use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
-use crate::utils::{count_ftl_resources, filter_crates_by_package, partition_by_lib_rs, ui};
+use crate::generation::{execute_generation_action_monolithic, prepare_monolithic_runner_crate};
+use crate::utils::{filter_crates_by_package, partition_by_lib_rs, ui};
 use clap::Args;
 use colored::Colorize as _;
 use std::path::PathBuf;
-use std::time::Instant;
 
 #[derive(Args, Clone, Debug)]
 pub struct WorkspaceArgs {
@@ -69,25 +69,6 @@ impl WorkspaceCrates {
     }
 }
 
-/// Read the changed status from the runner crate's result.json file.
-///
-/// Returns `true` if the file indicates changes were made, `false` otherwise.
-fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
-    let result_json_path = es_fluent_derive_core::get_metadata_result_path(temp_dir, crate_name);
-
-    if !result_json_path.exists() {
-        return false;
-    }
-
-    match std::fs::read_to_string(&result_json_path) {
-        Ok(json_str) => match serde_json::from_str::<serde_json::Value>(&json_str) {
-            Ok(json) => json["changed"].as_bool().unwrap_or(false),
-            Err(_) => false,
-        },
-        Err(_) => false,
-    }
-}
-
 /// Run generation-like work using the monolithic temp crate approach.
 ///
 /// This prepares a single temp crate at workspace root that links all workspace crates,
@@ -100,8 +81,6 @@ pub fn parallel_generate(
     action: &GenerationAction,
     force_run: bool,
 ) -> Vec<GenerateResult> {
-    use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_runner_crate};
-
     // Prepare the monolithic temp crate once upfront
     if let Err(e) = prepare_monolithic_runner_crate(workspace) {
         // If preparation fails, return error results for all crates
@@ -120,41 +99,9 @@ pub fn parallel_generate(
     crates
         .iter()
         .map(|krate| {
-            let start = Instant::now();
-            let result = generate_for_crate_monolithic(krate, workspace, action, force_run);
-            let duration = start.elapsed();
-
+            let result = execute_generation_action_monolithic(krate, workspace, action, force_run);
             pb.inc(1);
-
-            let resource_count = result
-                .as_ref()
-                .ok()
-                .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
-                .unwrap_or(0);
-
-            match result {
-                Ok(output) => {
-                    // For monolithic, result.json is at workspace root
-                    let temp_dir =
-                        es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
-                    let changed = read_changed_status(&temp_dir, &krate.name);
-
-                    let output_opt = if output.is_empty() {
-                        None
-                    } else {
-                        Some(output.to_string())
-                    };
-
-                    GenerateResult::success(
-                        krate.name.clone(),
-                        duration,
-                        resource_count,
-                        output_opt,
-                        changed,
-                    )
-                },
-                Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
-            }
+            result
         })
         .collect()
 }
@@ -274,6 +221,7 @@ pub fn render_generation_results_with_dry_run(
 mod tests {
     use super::*;
     use crate::core::{CrateInfo, FluentParseMode, GenerationAction, WorkspaceInfo};
+    use crate::generation::read_changed_status;
     use crate::test_fixtures::{
         create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache,
     };
@@ -308,7 +256,7 @@ mod tests {
     fn read_changed_status_handles_missing_invalid_and_valid_json() {
         let temp = tempdir().unwrap();
         let crate_name = "demo";
-        let result_path = es_fluent_derive_core::get_metadata_result_path(temp.path(), crate_name);
+        let result_path = es_fluent_runner::result_path(temp.path(), crate_name);
         fs::create_dir_all(result_path.parent().unwrap()).unwrap();
 
         assert!(!read_changed_status(temp.path(), crate_name));
@@ -385,10 +333,10 @@ mod tests {
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
+        let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.root_dir);
         setup_fake_runner_and_cache(&temp, "#!/bin/sh\necho generated-from-fake-runner\n");
 
-        let result_json = es_fluent_derive_core::get_metadata_result_path(&temp_dir, &krate.name);
+        let result_json = es_fluent_runner::result_path(&temp_dir, &krate.name);
         fs::create_dir_all(result_json.parent().unwrap()).expect("create metadata dir");
         fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
 

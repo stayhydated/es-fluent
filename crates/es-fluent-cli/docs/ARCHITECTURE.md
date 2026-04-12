@@ -145,6 +145,27 @@ The CLI uses `IndexMap` instead of `HashMap` throughout to ensure deterministic 
 
 This ensures reproducible CI/CD pipelines and cleaner version control diffs.
 
+## Watch Mode Internals
+
+The `watch` command's TUI layer is split into smaller watcher modules:
+
+- `tui/watcher/mod.rs`: terminal lifecycle, debouncer setup, and the main event loop
+- `tui/watcher/runtime.rs`: mutable watch state (valid crate set, hash tracking, result draining)
+- `tui/watcher/events.rs`: file-event filtering and crate path indexing
+- `tui/watcher/generation.rs`: background generation spawning and source hash calculation
+
+This keeps the event loop focused on orchestration instead of directly owning file filtering, hash bookkeeping, and thread dispatch.
+
+## Check Validation Internals
+
+The `check` command's validation pass is split into focused modules under `commands/check/validation/`:
+
+- `mod.rs`: crate-level orchestration, locale iteration, and discovery error handling
+- `context.rs`: path normalization, terminal-link formatting, and issue construction helpers
+- `loaded.rs`: comparison of loaded FTL resources against expected inventory keys and variables
+
+This keeps the top-level validation flow small while isolating path/diagnostic formatting from the actual loaded-FTL comparison logic.
+
 ## Limitations
 
 The runner crate links workspace crates as **dependencies**, which means it only builds and links

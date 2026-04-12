@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
-assertion_line: 98
 expression: "&opts"
 ---
 StructOpts {
@@ -37,13 +36,15 @@ StructOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: None,
+                        choice: None,
+                        value: None,
+                        arg_name: None,
+                    },
                     default: Some(
                         true,
                     ),
-                    choice: None,
-                    value: None,
-                    arg_name: None,
                 },
                 StructFieldOpts {
                     ident: Some(
@@ -65,13 +66,15 @@ StructOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: None,
+                        choice: Some(
+                            true,
+                        ),
+                        value: None,
+                        arg_name: None,
+                    },
                     default: None,
-                    choice: Some(
-                        true,
-                    ),
-                    value: None,
-                    arg_name: None,
                 },
                 StructFieldOpts {
                     ident: Some(
@@ -93,13 +96,15 @@ StructOpts {
                             ],
                         },
                     },
-                    skip: Some(
-                        true,
-                    ),
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: Some(
+                            true,
+                        ),
+                        choice: None,
+                        value: None,
+                        arg_name: None,
+                    },
                     default: None,
-                    choice: None,
-                    value: None,
-                    arg_name: None,
                 },
             ],
             span: Some(
@@ -108,10 +113,12 @@ StructOpts {
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructFluentAttributeArgs {
+    attr_args: DerivedNamespacedAttributeArgs {
         derive: PathList(
             [],
         ),
-        namespace: None,
+        namespace_args: NamespacedAttributeArgs {
+            namespace: None,
+        },
     },
 }

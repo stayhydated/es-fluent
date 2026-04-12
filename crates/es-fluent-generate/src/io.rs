@@ -1,4 +1,4 @@
-use es_fluent_derive_core::EsFluentResult;
+use es_fluent_shared::EsFluentResult;
 use fluent_syntax::ast;
 use std::{fs, path::Path};
 

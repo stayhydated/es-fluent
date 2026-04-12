@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/tests/options_parsing_tests.rs
-assertion_line: 367
 expression: "&opts"
 ---
 EnumOpts {
@@ -27,8 +26,12 @@ EnumOpts {
                     ),
                     __nonexhaustive: (),
                 },
-                skip: None,
-                key: None,
+                attr_args: KeyedVariantAttributeArgs {
+                    skipped_args: SkippedVariantAttributeArgs {
+                        skip: None,
+                    },
+                    key: None,
+                },
             },
             VariantOpts {
                 ident: Ident(
@@ -42,18 +45,24 @@ EnumOpts {
                     ),
                     __nonexhaustive: (),
                 },
-                skip: None,
-                key: None,
+                attr_args: KeyedVariantAttributeArgs {
+                    skipped_args: SkippedVariantAttributeArgs {
+                        skip: None,
+                    },
+                    key: None,
+                },
             },
         ],
     ),
-    attr_args: EnumFluentAttributeArgs {
+    attr_args: FluentEnumAttributeArgs {
         resource: None,
         skip_inventory: None,
-        namespace: Some(
-            Literal(
-                "errors",
+        namespace_args: NamespacedAttributeArgs {
+            namespace: Some(
+                Literal(
+                    "errors",
+                ),
             ),
-        ),
+        },
     },
 }

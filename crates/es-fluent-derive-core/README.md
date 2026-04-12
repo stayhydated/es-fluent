@@ -6,3 +6,5 @@
 **Internal Crate**: Build-time logic for `es-fluent`.
 
 This crate contains the logic required by `es-fluent-derive` to parse attributes (including namespace options), validate structures, and generate naming conventions. It is separated from the proc-macro crate to keep compile times minimal.
+
+Runtime-safe shared metadata, registry helpers, and naming primitives now live in `es-fluent-shared`. `es-fluent-derive-core` is intentionally limited to build-time option parsing, validation, and proc-macro-facing utilities.

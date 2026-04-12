@@ -1,7 +1,7 @@
 use crate::ast_build::{create_group_comment_entry, create_message_entry};
 use crate::model::{compare_type_infos, merge_ftl_type_infos};
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::FtlTypeInfo;
+use es_fluent_shared::namer::FluentKey;
+use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use std::collections::HashSet;

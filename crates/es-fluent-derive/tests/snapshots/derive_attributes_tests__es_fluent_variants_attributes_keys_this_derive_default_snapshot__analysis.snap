@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
-assertion_line: 143
 expression: "&opts"
 ---
 StructVariantsOpts {
@@ -17,7 +16,7 @@ StructVariantsOpts {
         Fields {
             style: Struct,
             fields: [
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
                         Ident(
                             id,
@@ -37,9 +36,11 @@ StructVariantsOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
                         Ident(
                             username,
@@ -59,9 +60,11 @@ StructVariantsOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
                         Ident(
                             secret_token,
@@ -81,11 +84,13 @@ StructVariantsOpts {
                             ],
                         },
                     },
-                    skip: Some(
-                        true,
-                    ),
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: Some(
+                            true,
+                        ),
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
                         Ident(
                             active,
@@ -105,7 +110,9 @@ StructVariantsOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
             ],
             span: Some(
@@ -114,7 +121,7 @@ StructVariantsOpts {
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructVariantsFluentAttributeArgs {
+    attr_args: VariantsFluentAttributeArgs {
         keys: Some(
             [
                 LitStr {
@@ -125,32 +132,36 @@ StructVariantsOpts {
                 },
             ],
         ),
-        derive: PathList(
-            [
-                Path {
-                    leading_colon: None,
-                    segments: [
-                        PathSegment {
-                            ident: Ident(
-                                Debug,
-                            ),
-                            arguments: PathArguments::None,
-                        },
-                    ],
-                },
-                Path {
-                    leading_colon: None,
-                    segments: [
-                        PathSegment {
-                            ident: Ident(
-                                PartialEq,
-                            ),
-                            arguments: PathArguments::None,
-                        },
-                    ],
-                },
-            ],
-        ),
-        namespace: None,
+        derived_args: DerivedNamespacedAttributeArgs {
+            derive: PathList(
+                [
+                    Path {
+                        leading_colon: None,
+                        segments: [
+                            PathSegment {
+                                ident: Ident(
+                                    Debug,
+                                ),
+                                arguments: PathArguments::None,
+                            },
+                        ],
+                    },
+                    Path {
+                        leading_colon: None,
+                        segments: [
+                            PathSegment {
+                                ident: Ident(
+                                    PartialEq,
+                                ),
+                                arguments: PathArguments::None,
+                            },
+                        ],
+                    },
+                ],
+            ),
+            namespace_args: NamespacedAttributeArgs {
+                namespace: None,
+            },
+        },
     },
 }

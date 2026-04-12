@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/tests/options_parsing_tests.rs
-assertion_line: 304
 expression: "&opts"
 ---
 StructOpts {
@@ -37,11 +36,13 @@ StructOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: None,
+                        choice: None,
+                        value: None,
+                        arg_name: None,
+                    },
                     default: None,
-                    choice: None,
-                    value: None,
-                    arg_name: None,
                 },
             ],
             span: Some(
@@ -50,12 +51,14 @@ StructOpts {
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructFluentAttributeArgs {
+    attr_args: DerivedNamespacedAttributeArgs {
         derive: PathList(
             [],
         ),
-        namespace: Some(
-            File,
-        ),
+        namespace_args: NamespacedAttributeArgs {
+            namespace: Some(
+                File,
+            ),
+        },
     },
 }

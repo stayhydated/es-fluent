@@ -1,9 +1,13 @@
+mod snapshot_support;
+
 use darling::FromDeriveInput;
 use es_fluent_derive_core::options::{
+    EnumDataOptions, FluentField, GeneratedVariantsOptions, StructDataOptions, VariantFields,
     r#enum::{EnumChoiceOpts, EnumOpts},
     namespace::NamespaceValue,
     r#struct::{StructOpts, StructVariantsOpts},
 };
+use snapshot_support::normalized_debug_snapshot;
 
 use syn::{DeriveInput, parse_quote};
 
@@ -43,7 +47,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
     let data_fields = data.fields();
     assert_eq!(data_fields.len(), 1, "Only non-skipped field remains");
     assert_eq!(
-        data_fields[0].ident().as_ref().unwrap().to_string(),
+        data_fields[0].ident().expect("named field").to_string(),
         "a",
         "Expected remaining field to be 'a'"
     );
@@ -168,7 +172,7 @@ fn struct_variants_keys_parsing_and_field_skipping() {
     // fields() filters out skipped fields
     let fields = opts.fields();
     assert_eq!(fields.len(), 1);
-    assert_eq!(fields[0].ident().as_ref().unwrap().to_string(), "a");
+    assert_eq!(fields[0].ident().expect("named field").to_string(), "a");
 }
 
 #[test]
@@ -208,7 +212,7 @@ fn struct_fluent_parsing() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_debug_snapshot!(&opts);
+    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
 }
 
 #[test]
@@ -273,7 +277,7 @@ fn enum_choice_parsing() {
     };
 
     let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
-    insta::assert_debug_snapshot!(&opts);
+    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
 }
 
 #[test]
@@ -287,7 +291,7 @@ fn struct_fluent_with_namespace_literal() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_debug_snapshot!(&opts);
+    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
 }
 
 #[test]
@@ -301,7 +305,7 @@ fn struct_fluent_with_namespace_file() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_debug_snapshot!(&opts);
+    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
 }
 
 #[test]
@@ -315,7 +319,7 @@ fn struct_fluent_with_namespace_file_relative() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_debug_snapshot!(&opts);
+    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
 }
 
 #[test]
@@ -364,5 +368,5 @@ fn enum_fluent_with_namespace_literal() {
     };
 
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    insta::assert_debug_snapshot!(&opts);
+    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
 }

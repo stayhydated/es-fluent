@@ -1,8 +1,8 @@
 #![doc = include_str!("../README.md")]
 
 use clap::ValueEnum;
-use es_fluent_derive_core::EsFluentResult;
-use es_fluent_derive_core::registry::FtlTypeInfo;
+use es_fluent_shared::EsFluentResult;
+use es_fluent_shared::registry::FtlTypeInfo;
 use std::path::Path;
 
 mod ast_build;

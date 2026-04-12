@@ -1,5 +1,5 @@
 use super::CLI_VERSION;
-use es_fluent_derive_core::get_es_fluent_temp_dir;
+use es_fluent_runner::get_es_fluent_temp_dir;
 use std::{env, path::Path};
 
 /// Configuration derived from cargo metadata for temp crate generation.

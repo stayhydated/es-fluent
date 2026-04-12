@@ -1,5 +1,6 @@
 use crate::*;
 use arc_swap::ArcSwap;
+use bevy::prelude::*;
 use es_fluent_manager_core::{FluentManager, localize_with_bundle};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;

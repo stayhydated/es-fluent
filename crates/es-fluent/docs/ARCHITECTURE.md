@@ -12,6 +12,8 @@ This document details the architecture of the `es-fluent` crate, which serves as
 1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
 1. **Traits**: Standard definitions for how types invoke the localization system.
 
+The registry/meta surface re-exported here is implemented in `es-fluent-shared`. `es-fluent` remains the public façade and inventory owner.
+
 ## Architecture
 
 ```mermaid

@@ -26,7 +26,11 @@ flowchart TD
 
         subgraph MODULES["Internal Modules"]
             CLI["cli.rs<br/>Inventory collection"]
-            GENMOD["generate.rs<br/>FTL generation"]
+            GENMOD["generate/<br/>FTL generation pipeline"]
+            GENARGS["args.rs<br/>CLI subcommands"]
+            GENRESOLVE["resolve.rs<br/>config/env/path resolution"]
+            GENINV["inventory.rs<br/>type filtering + namespace validation"]
+            GENERR["error.rs<br/>generator errors"]
         end
     end
 
@@ -36,6 +40,7 @@ flowchart TD
     GEN --> GENMOD
     CHK --> CLI
     CLN --> GENMOD
+    GENMOD --> GENARGS & GENRESOLVE & GENINV & GENERR
 ```
 
 ## Module Structure
@@ -63,8 +68,26 @@ classDiagram
         +GeneratorError
     }
 
+    class generate_args {
+        +GeneratorArgs
+    }
+
+    class generate_resolve {
+        +resolve_crate_name()
+        +resolve_output_path()
+        +resolve_clean_paths()
+    }
+
+    class generate_inventory {
+        +collect_type_infos()
+        +validate_namespaces()
+    }
+
     lib --> cli : uses
     lib --> generate : uses
+    generate --> generate_args : parses
+    generate --> generate_resolve : resolves config
+    generate --> generate_inventory : filters inventory
 ```
 
 ## Command Flow

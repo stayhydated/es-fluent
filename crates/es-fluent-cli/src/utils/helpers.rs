@@ -5,7 +5,7 @@ use crate::utils::ui;
 #[cfg(test)]
 use anyhow::{Context as _, Result};
 #[cfg(test)]
-use es_fluent_derive_core::get_all_locales as get_all_locales_core;
+use es_fluent_runner::get_all_locales as get_all_locales_core;
 #[cfg(test)]
 use std::path::Path;
 

@@ -111,7 +111,7 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, script: &str) {
         .expect("mtime duration")
         .as_secs();
 
-    let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(temp.path());
+    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(temp.path());
     fs::create_dir_all(&temp_dir).expect("create temp dir");
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert("test-app".to_string(), hash);

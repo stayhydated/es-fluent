@@ -1,6 +1,6 @@
 use super::*;
-use es_fluent_derive_core::meta::TypeKind;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_shared::meta::TypeKind;
+use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant};
 use fluent_syntax::{ast, parser};
 use indexmap::IndexMap;
 use std::path::PathBuf;
@@ -321,7 +321,7 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
     let i18n_root = temp.path().join("i18n");
 
     let mut namespaced = test_type("NamespacedType", vec![test_variant("A1", "ns-a1", &[])]);
-    namespaced.namespace = Some(es_fluent_derive_core::registry::NamespaceRule::Literal(
+    namespaced.namespace = Some(es_fluent_shared::registry::NamespaceRule::Literal(
         "ui".into(),
     ));
     let items = vec![&namespaced];

@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::Ident;
 
 pub(crate) struct FluentArgument {
     pub(crate) key: String,
@@ -66,5 +67,30 @@ impl InventoryVariantSpec {
                 line: line!(),
             }
         }
+    }
+}
+
+pub(crate) struct GeneratedUnitEnumVariant {
+    pub(crate) ident: Ident,
+    pub(crate) doc_name: String,
+    pub(crate) ftl_key: String,
+}
+
+impl GeneratedUnitEnumVariant {
+    pub(crate) fn display_match_arm(&self) -> TokenStream {
+        let variant_ident = &self.ident;
+        let ftl_key = &self.ftl_key;
+        quote! {
+            Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
+        }
+    }
+
+    pub(crate) fn inventory_variant_tokens(&self) -> TokenStream {
+        InventoryVariantSpec {
+            name: self.ident.to_string(),
+            ftl_key: self.ftl_key.clone(),
+            arg_names: Vec::new(),
+        }
+        .tokens()
     }
 }

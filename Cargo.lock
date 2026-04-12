@@ -3845,9 +3845,9 @@ version = "0.14.2"
 dependencies = [
  "arc-swap",
  "es-fluent-derive",
- "es-fluent-derive-core",
  "es-fluent-generate",
  "es-fluent-manager-core",
+ "es-fluent-shared",
  "es-fluent-toml",
  "fluent-bundle",
  "inventory",
@@ -3870,8 +3870,8 @@ dependencies = [
  "clap",
  "colored",
  "crossterm",
- "es-fluent-derive-core",
  "es-fluent-generate",
+ "es-fluent-runner",
  "es-fluent-toml",
  "fluent-syntax",
  "indexmap",
@@ -3901,8 +3901,9 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "es-fluent",
- "es-fluent-derive-core",
  "es-fluent-generate",
+ "es-fluent-runner",
+ "es-fluent-shared",
  "es-fluent-toml",
  "serde",
  "serde_json",
@@ -3917,6 +3918,7 @@ version = "0.14.2"
 dependencies = [
  "darling 0.23.0",
  "es-fluent-derive-core",
+ "es-fluent-shared",
  "heck 0.5.0",
  "insta",
  "proc-macro-error2",
@@ -3930,26 +3932,20 @@ dependencies = [
 name = "es-fluent-derive-core"
 version = "0.14.2"
 dependencies = [
- "anyhow",
  "bon",
  "darling 0.23.0",
- "derive_more",
+ "es-fluent-shared",
  "es-fluent-toml",
- "fluent-syntax",
  "getset",
  "heck 0.5.0",
  "insta",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
- "serde",
- "serde_json",
  "strum",
  "syn 2.0.117",
  "tempfile",
  "thiserror 2.0.18",
- "toml 1.1.2+spec-1.1.0",
- "unic-langid",
 ]
 
 [[package]]
@@ -3958,7 +3954,7 @@ version = "0.14.2"
 dependencies = [
  "clap",
  "colored",
- "es-fluent-derive-core",
+ "es-fluent-shared",
  "fluent-syntax",
  "heck 0.5.0",
  "indexmap",
@@ -4018,7 +4014,7 @@ dependencies = [
 name = "es-fluent-manager-core"
 version = "0.14.2"
 dependencies = [
- "es-fluent-derive-core",
+ "es-fluent-shared",
  "fluent-bundle",
  "fluent-fallback",
  "intl-memoizer",
@@ -4050,6 +4046,36 @@ dependencies = [
  "quote",
  "syn 2.0.117",
  "tempfile",
+]
+
+[[package]]
+name = "es-fluent-runner"
+version = "0.14.2"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "es-fluent-shared"
+version = "0.14.2"
+dependencies = [
+ "anyhow",
+ "darling 0.23.0",
+ "derive_more",
+ "fluent-syntax",
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "strum",
+ "syn 2.0.117",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 1.1.2+spec-1.1.0",
+ "unic-langid",
 ]
 
 [[package]]

@@ -4,9 +4,13 @@
 //! crate that links all workspace crates via Rust's inventory mechanism.
 
 pub mod cache;
-mod generator;
+mod execution;
 mod runner;
 mod templates;
 
-pub use generator::generate_for_crate_monolithic;
-pub use runner::{prepare_monolithic_runner_crate, run_monolithic};
+#[cfg(test)]
+pub(crate) use execution::read_changed_status;
+pub use execution::{
+    build_check_request, execute_generation_action_monolithic, execute_request_monolithic,
+};
+pub use runner::prepare_monolithic_runner_crate;

@@ -1,6 +1,6 @@
 use crate::formatting;
-use es_fluent_derive_core::namer::FluentKey;
-use es_fluent_derive_core::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_shared::namer::FluentKey;
+use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant};
 
 /// Internal owned variant model used during merge and generation.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]

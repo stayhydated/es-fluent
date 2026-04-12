@@ -1,183 +1,21 @@
-use super::*;
-use bevy::{MinimalPlugins, asset::AssetPlugin, window::RequestRedraw};
-use es_fluent::{localize, set_custom_localizer};
-use es_fluent_manager_core::{
-    I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
+use super::super::runtime::handle_locale_changes;
+use super::super::{
+    BevyI18nState, bevy_custom_localizer, update_global_bundle, update_global_language,
 };
+use super::build_test_plugin_app;
+use super::fixtures::REGISTER_CALLS;
+use crate::{
+    CurrentLanguageId, FtlAsset, I18nAssets, I18nBundle, I18nResource, LocaleChangeEvent,
+    LocaleChangedEvent,
+};
+use bevy::asset::{AssetEvent, Assets};
+use bevy::prelude::*;
+use es_fluent_manager_core::ResourceKey;
 use fluent_bundle::{FluentResource, FluentValue};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 use unic_langid::langid;
-
-static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
-static TEST_ASSET_DATA: ModuleData = ModuleData {
-    name: "test-module",
-    domain: "test-domain",
-    supported_languages: SUPPORTED_LANGUAGES,
-    namespaces: &[],
-};
-static TEST_ASSET_MODULE: StaticModuleDescriptor = StaticModuleDescriptor::new(&TEST_ASSET_DATA);
-
-inventory::submit! {
-    &TEST_ASSET_MODULE as &dyn I18nModuleRegistration
-}
-
-static TEST_NAMESPACED_ASSET_DATA: ModuleData = ModuleData {
-    name: "test-namespaced-module",
-    domain: "namespaced-domain",
-    supported_languages: SUPPORTED_LANGUAGES,
-    namespaces: &["menu", "hud"],
-};
-static TEST_NAMESPACED_ASSET_MODULE: StaticModuleDescriptor =
-    StaticModuleDescriptor::new(&TEST_NAMESPACED_ASSET_DATA);
-
-inventory::submit! {
-    &TEST_NAMESPACED_ASSET_MODULE as &dyn I18nModuleRegistration
-}
-
-static TEST_MANIFEST_DATA: ModuleData = ModuleData {
-    name: "test-manifest-module",
-    domain: "manifest-domain",
-    supported_languages: SUPPORTED_LANGUAGES,
-    namespaces: &[],
-};
-
-struct TestManifestModule;
-
-impl I18nModuleDescriptor for TestManifestModule {
-    fn data(&self) -> &'static ModuleData {
-        &TEST_MANIFEST_DATA
-    }
-}
-
-impl I18nModuleRegistration for TestManifestModule {
-    fn resource_plan_for_language(
-        &self,
-        lang: &LanguageIdentifier,
-    ) -> Option<Vec<ModuleResourceSpec>> {
-        if lang != &langid!("en") {
-            return None;
-        }
-
-        Some(vec![ModuleResourceSpec {
-            key: ResourceKey::new("manifest-domain"),
-            locale_relative_path: "manifest-domain.ftl".to_string(),
-            required: false,
-        }])
-    }
-}
-
-static TEST_MANIFEST_MODULE: TestManifestModule = TestManifestModule;
-
-inventory::submit! {
-    &TEST_MANIFEST_MODULE as &dyn I18nModuleRegistration
-}
-
-static TEST_FALLBACK_DATA: ModuleData = ModuleData {
-    name: "test-fallback-module",
-    domain: "fallback-domain",
-    supported_languages: &[],
-    namespaces: &[],
-};
-
-struct TestFallbackModule;
-
-impl I18nModuleDescriptor for TestFallbackModule {
-    fn data(&self) -> &'static ModuleData {
-        &TEST_FALLBACK_DATA
-    }
-}
-
-impl I18nModule for TestFallbackModule {
-    fn create_localizer(&self) -> Box<dyn Localizer> {
-        Box::new(TestFallbackLocalizer)
-    }
-}
-
-struct TestFallbackLocalizer;
-
-impl Localizer for TestFallbackLocalizer {
-    fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        Ok(())
-    }
-
-    fn localize<'a>(
-        &self,
-        id: &str,
-        _args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        match id {
-            "from-fallback" => Some("fallback".to_string()),
-            "hello" => Some("fallback-hello".to_string()),
-            _ => None,
-        }
-    }
-}
-
-static TEST_FALLBACK_MODULE: TestFallbackModule = TestFallbackModule;
-
-inventory::submit! {
-    &TEST_FALLBACK_MODULE as &dyn I18nModuleRegistration
-}
-
-static REGISTER_CALLS: AtomicUsize = AtomicUsize::new(0);
-
-struct TestFluentTextRegistration;
-
-impl BevyFluentTextRegistration for TestFluentTextRegistration {
-    fn register(&self, _app: &mut App) {
-        REGISTER_CALLS.fetch_add(1, Ordering::SeqCst);
-    }
-}
-
-static TEST_FLUENT_TEXT_REGISTRATION: TestFluentTextRegistration = TestFluentTextRegistration;
-
-inventory::submit! {
-    &TEST_FLUENT_TEXT_REGISTRATION as &dyn BevyFluentTextRegistration
-}
-
-#[test]
-fn plugin_constructors_keep_configuration() {
-    let default_config = I18nPluginConfig::default();
-    assert_eq!(default_config.initial_language, langid!("en-US"));
-    assert_eq!(default_config.asset_path, "i18n");
-
-    let plugin = I18nPlugin::new(I18nPluginConfig {
-        initial_language: langid!("fr"),
-        asset_path: "custom-assets".to_string(),
-    });
-    let _ = plugin;
-
-    let _ = I18nPlugin::with_language(langid!("es"));
-    let _ = I18nPlugin::with_config(I18nPluginConfig::default());
-}
-
-fn build_test_plugin_app() -> App {
-    let mut app = App::new();
-    app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-    app.add_message::<RequestRedraw>();
-    app.add_plugins(I18nPlugin::with_config(I18nPluginConfig {
-        initial_language: langid!("en-US"),
-        asset_path: "i18n".to_string(),
-    }));
-    app
-}
-
-#[test]
-fn plugin_replaces_existing_custom_localizer_and_can_be_installed_twice() {
-    set_custom_localizer(|_, _| Some("stale".to_string()));
-
-    let _first_app = build_test_plugin_app();
-    assert_eq!(localize("from-fallback", None), "fallback");
-
-    let second_install = std::panic::catch_unwind(|| {
-        let _second_app = build_test_plugin_app();
-    });
-    assert!(second_install.is_ok());
-    assert_eq!(localize("from-fallback", None), "fallback");
-}
 
 #[test]
 fn plugin_pipeline_loads_assets_and_updates_global_state() {
@@ -237,7 +75,6 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         "manifest-driven optional resources should be loaded without runtime probing"
     );
 
-    // Trigger missing-asset path in handle_asset_loading.
     app.world_mut()
         .write_message(AssetEvent::<FtlAsset>::Added {
             id: base_handle.id(),
@@ -274,7 +111,6 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     app.update();
 
     let lang = langid!("en");
-    // One namespaced asset is still missing, so bundle cache should be removed.
     assert!(!app.world().resource::<I18nBundle>().0.contains_key(&lang));
 
     {
@@ -336,7 +172,6 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         Some("fallback-hello".to_string())
     );
 
-    // Trigger parse error branch in asset loading.
     {
         let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
         let _ = assets.insert(
@@ -352,7 +187,6 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         });
     app.update();
 
-    // Exercise locale-change handling and fallback resolution.
     app.world_mut()
         .write_message(LocaleChangeEvent(langid!("en-US")));
     app.update();
@@ -377,7 +211,6 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
     app.insert_resource(CurrentLanguageId(langid!("en")));
     app.add_systems(Update, handle_locale_changes);
 
-    // No available language candidates triggers fallback to requested locale.
     app.world_mut()
         .write_message(LocaleChangeEvent(langid!("zz")));
     app.update();

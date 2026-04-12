@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
-assertion_line: 120
 expression: "&opts"
 ---
 StructVariantsOpts {
@@ -17,7 +16,7 @@ StructVariantsOpts {
         Fields {
             style: Struct,
             fields: [
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
                         Ident(
                             host,
@@ -37,9 +36,11 @@ StructVariantsOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
                         Ident(
                             port,
@@ -59,9 +60,11 @@ StructVariantsOpts {
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
                         Ident(
                             deprecated,
@@ -81,9 +84,11 @@ StructVariantsOpts {
                             ],
                         },
                     },
-                    skip: Some(
-                        true,
-                    ),
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: Some(
+                            true,
+                        ),
+                    },
                 },
             ],
             span: Some(
@@ -92,11 +97,15 @@ StructVariantsOpts {
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructVariantsFluentAttributeArgs {
+    attr_args: VariantsFluentAttributeArgs {
         keys: None,
-        derive: PathList(
-            [],
-        ),
-        namespace: None,
+        derived_args: DerivedNamespacedAttributeArgs {
+            derive: PathList(
+                [],
+            ),
+            namespace_args: NamespacedAttributeArgs {
+                namespace: None,
+            },
+        },
     },
 }

@@ -1,5 +1,5 @@
-use es_fluent_derive_core::EsFluentResult;
-use es_fluent_derive_core::registry::FtlTypeInfo;
+use es_fluent_shared::EsFluentResult;
+use es_fluent_shared::registry::FtlTypeInfo;
 use std::path::Path;
 
 /// Cleans a Fluent translation file by removing unused orphan keys while preserving existing translations.

@@ -12,7 +12,9 @@ mod validation;
 
 use super::common::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, ValidationIssue, ValidationReport};
-use crate::generation::{prepare_monolithic_runner_crate, run_monolithic};
+use crate::generation::{
+    build_check_request, execute_request_monolithic, prepare_monolithic_runner_crate,
+};
 use crate::utils::ui;
 use clap::Parser;
 use std::collections::HashSet;
@@ -92,21 +94,15 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         .map_err(|e| CliError::Other(e.to_string()))?;
 
     // First pass: collect all expected keys from crates
-    let temp_dir =
-        es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.workspace_info.root_dir);
+    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.workspace_info.root_dir);
 
     let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
 
     for krate in &crates_to_check {
         pb.set_message(format!("Scanning {}", krate.name));
-        run_monolithic(
-            &workspace.workspace_info,
-            "check",
-            &krate.name,
-            &[],
-            force_run,
-        )
-        .map_err(|e| CliError::Other(e.to_string()))?;
+        let request = build_check_request(krate);
+        execute_request_monolithic(&workspace.workspace_info, &request, force_run)
+            .map_err(|e| CliError::Other(e.to_string()))?;
         pb.inc(1);
     }
 
@@ -229,10 +225,8 @@ mod tests {
         let temp = create_test_crate_workspace();
         setup_fake_runner_and_cache(&temp);
 
-        let inventory_path = es_fluent_derive_core::get_metadata_inventory_path(
-            &temp.path().join(".es-fluent"),
-            "test-app",
-        );
+        let inventory_path =
+            es_fluent_runner::inventory_path(&temp.path().join(".es-fluent"), "test-app");
         fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
         fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
 
@@ -254,10 +248,8 @@ mod tests {
         let temp = create_test_crate_workspace();
         setup_fake_runner_and_cache(&temp);
 
-        let inventory_path = es_fluent_derive_core::get_metadata_inventory_path(
-            &temp.path().join(".es-fluent"),
-            "test-app",
-        );
+        let inventory_path =
+            es_fluent_runner::inventory_path(&temp.path().join(".es-fluent"), "test-app");
         fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
         fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
 

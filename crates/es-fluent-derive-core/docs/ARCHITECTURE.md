@@ -10,6 +10,8 @@ By separating this logic from the `proc-macro` crate (`es-fluent-derive`) and th
 1. **Modularity**: Parsing and validation logic is isolated from code generation.
 1. **Performance**: Reduces code bloat in the main runtime crate.
 
+`es-fluent-derive-core` no longer serves as the shared dependency root for runtime-safe metadata. That surface now lives in `es-fluent-shared`, while this crate focuses on macro parsing, validation, and proc-macro diagnostics.
+
 ## Architecture Pipeline
 
 The crate implements a transformation pipeline for attribute-driven macro expansion. The flow for a derive macro (like `#[derive(EsFluent)]`) is as follows:
@@ -24,7 +26,7 @@ flowchart TD
 
 1. **Parsing (`src/options/`)**: The raw `syn` AST is parsed into structured options using `darling`. This step handles attribute extraction (`#[fluent(...)]`) and type conversion.
 1. **Validation (`src/validation.rs`)**: The parsed options are checked for semantic correctness (e.g., conflicting flags).
-1. **Naming (`src/namer.rs`)**: FTL keys and documentation strings are generated based on the validated options.
+1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`; this crate no longer mirrors them through top-level compatibility modules.
 
 ## Modules
 
@@ -32,7 +34,7 @@ flowchart TD
 
 This module uses `darling` to define the schema for `#[fluent(...)]` attributes. It transforms `syn` types into strictly typed structs.
 
-- **`mod.rs`**: Shared utilities (snake_case validation) and types (`ValueAttr`).
+- **`mod.rs`**: Shared parsing helpers and traits. This now holds the common field/variant/container helper surface (`FluentField`, `VariantFields`, `StructDataOptions`, `EnumDataOptions`, `FilteredEnumDataOptions`, `GeneratedVariantsOptions`, `KeyedVariant`, `Skippable`) plus reusable attribute payload types.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
 - **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`).
 - **`choice.rs`**: Options for `#[fluent(choice)]` (nested enums).
@@ -43,19 +45,13 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 
 - `darling::FromDeriveInput`: Implemented by top-level option structs.
 - `darling::FromField` / `darling::FromVariant`: Implemented by child option structs.
+- `FluentField`: Shared default behavior for field-level `#[fluent(...)]` parsing.
+- `VariantFields`: Shared default behavior for enum-variant field traversal and style checks.
+- `StructDataOptions` / `EnumDataOptions` / `FilteredEnumDataOptions`: Shared container traits for struct and enum traversal.
+- `GeneratedVariantsOptions`: Shared naming/key helpers for `#[fluent_variants]` containers.
+- `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
 
-### 2. Namer (`src/namer.rs`)
-
-Encapsulates string manipulation logic for FTL keys. It ensures consistent naming conventions across the ecosystem.
-
-- **`FluentKey`**: A type-safe wrapper around `String` for generating key segments.
-  - **Kebab-case**: By default, Rust identifiers (`MyStruct`) are converted to kebab-case FTL keys (`my-struct`).
-  - **Joining**: Supports joining keys with a delimiter (`-`), e.g., `Enum-Variant`.
-  - **"This" Suffix**: Handles `_this` suffix logic for disambiguation.
-- **`FluentDoc`**: Generates standardization documentation strings (e.g., `Key = ...`).
-- **`UnnamedItem`**: Generates names for tuple fields (`f0`, `f1`).
-
-### 3. Validation (`src/validation.rs`)
+### 2. Validation (`src/validation.rs`)
 
 Enforces semantic rules that `darling` cannot capture easily. These functions usually take a populated `*Opts` struct and return `syn::Result<()>`.
 
@@ -64,10 +60,10 @@ Enforces semantic rules that `darling` cannot capture easily. These functions us
 - **Default Field**: Checks that a struct has at most one field marked `#[fluent(default)]`.
 - **Conflict Check**: Ensures a field is not marked both `#[fluent(skip)]` and `#[fluent(default)]`.
 
-### 4. Error (`src/error.rs`)
+### 3. Error (`src/error.rs`)
 
 Centralized error handling types for macro compilation diagnostics.
 
-- **`EsFluentCoreError`**: A custom error enum for derive-macro-specific failures (legacy name from before the crate split).
+- **`EsFluentCoreError`**: A custom error enum for derive-macro-specific failures.
 - **`ErrorExt`**: A trait to attach context (spans, help messages) to errors.
-- **Conversion**: Logic to convert internal errors into `syn::Error` for proper compiler diagnostics.
+- **Shared Runtime Errors**: `EsFluentError` / `EsFluentResult` are re-exported from `es-fluent-shared`.

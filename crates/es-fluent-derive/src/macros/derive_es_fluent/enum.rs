@@ -1,10 +1,14 @@
-use es_fluent_derive_core::namer;
-use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
+use es_fluent_derive_core::options::r#enum::EnumOpts;
+use es_fluent_derive_core::options::{
+    EnumDataOptions as _, FluentField, FluentFieldOpts, KeyedVariant as _, Skippable as _, VariantFields as _,
+};
+use es_fluent_shared::namer;
 
-use crate::macros::ir::{FluentArgument, InventoryVariantSpec, LocalizeCallSpec};
+use crate::macros::ir::LocalizeCallSpec;
 use crate::macros::utils::{
-    InventoryModuleInput, generate_field_value_expr, generate_from_impls,
-    generate_inventory_module, namespace_rule_tokens,
+    InventoryModuleInput, emit_display_inventory_and_from_impls, generate_field_argument,
+    generate_inventory_module, inventory_arg_name, inventory_variant_tokens, namespace_rule_tokens,
+    variant_ftl_key,
 };
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -13,35 +17,18 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
     generate(opts, data)
 }
 
-fn tuple_field_static_arg_name(field_opt: &EnumFieldOpts) -> Option<String> {
-    field_opt.arg_name()
-}
-
-fn tuple_arg_key(field_opt: &EnumFieldOpts, tuple_index: usize) -> String {
-    tuple_field_static_arg_name(field_opt)
-        .unwrap_or_else(|| namer::UnnamedItem::from(tuple_index).to_string())
-}
-
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
     let base_key = opts.base_key();
-
-    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
     let variants = opts.variants();
 
     let match_arms = variants.iter().map(|variant_opt| {
         let variant_ident = variant_opt.ident();
-        let variant_key_suffix = variant_opt
-            .key()
-            .map(|key| key.to_string())
-            .unwrap_or_else(|| variant_ident.to_string());
+        let ftl_key = variant_ftl_key(base_key.as_str(), variant_ident, variant_opt.key());
 
         match variant_opt.style() {
             darling::ast::Style::Unit => {
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
                 let body = LocalizeCallSpec {
                     ftl_key,
                     arguments: Vec::new(),
@@ -57,7 +44,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .iter()
                     .enumerate()
                     .map(|(index, field)| {
-                        if field.is_skipped() {
+                        if <FluentFieldOpts as FluentField>::is_skipped(*field) {
                             quote! { _ }
                         } else {
                             let name = namer::UnnamedItem::from(index).to_ident();
@@ -66,32 +53,18 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     })
                     .collect();
 
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
-
-                let exposed_fields: Vec<_> = all_fields
-                    .iter()
+                let arguments: Vec<_> = all_fields
+                    .into_iter()
                     .enumerate()
-                    .filter(|(_, field)| !field.is_skipped())
-                    .collect();
-                let arguments: Vec<_> = exposed_fields
-                    .iter()
+                    .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
                     .map(|(tuple_index, field)| {
-                        let tuple_index = *tuple_index;
                         let binding_ident = namer::UnnamedItem::from(tuple_index).to_ident();
-                        let access_expr = quote! { #binding_ident };
-                        let value_expr = generate_field_value_expr(
-                            access_expr.clone(),
-                            access_expr,
-                            field.value(),
-                            field.is_choice(),
-                        );
-
-                        FluentArgument {
-                            key: tuple_arg_key(field, tuple_index),
-                            value_expr,
-                        }
+                        generate_field_argument(
+                            field,
+                            tuple_index,
+                            quote! { #binding_ident },
+                            quote! { #binding_ident },
+                        )
                     })
                     .collect();
                 let body = LocalizeCallSpec { ftl_key, arguments }.write_expr();
@@ -104,30 +77,22 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             },
             darling::ast::Style::Struct => {
                 let fields = variant_opt.fields();
-                let field_pats: Vec<_> =
-                    fields.iter().map(|f| f.ident().as_ref().unwrap()).collect();
-
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
+                let field_pats: Vec<_> = fields
+                    .iter()
+                    .map(|f| f.ident().expect("named field"))
+                    .collect();
 
                 let arguments: Vec<_> = fields
                     .iter()
-                    .map(|field_opt| {
-                        let arg_name = field_opt.ident().as_ref().unwrap();
-                        let arg_key = field_opt.arg_name().unwrap_or_else(|| arg_name.to_string());
-                        let access_expr = quote! { #arg_name };
-                        let value_expr = generate_field_value_expr(
-                            access_expr.clone(),
-                            access_expr,
-                            field_opt.value(),
-                            field_opt.is_choice(),
-                        );
-
-                        FluentArgument {
-                            key: arg_key,
-                            value_expr,
-                        }
+                    .enumerate()
+                    .map(|(index, field_opt)| {
+                        let arg_name = field_opt.ident().expect("named field");
+                        generate_field_argument(
+                            *field_opt,
+                            index,
+                            quote! { #arg_name },
+                            quote! { #arg_name },
+                        )
                     })
                     .collect();
                 let body = LocalizeCallSpec { ftl_key, arguments }.write_expr();
@@ -151,28 +116,15 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     });
 
     let is_empty = variants.is_empty();
-    let display_impl = {
-        let trait_impl = quote! { ::es_fluent::FluentDisplay };
-        let trait_fmt_fn_ident = quote! { fluent_fmt };
-
-        // For empty enums, we need to use `match *self {}` because:
-        // - `&EmptyEnum` is always inhabited (references can't be null)
-        // - `EmptyEnum` (dereferenced) is uninhabited, so `match *self {}` is valid
-        let match_body = if is_empty {
-            quote! { match *self {} }
-        } else {
-            quote! {
-                match self {
-                    #(#match_arms),*
-                }
-            }
-        };
-
+    // For empty enums, we need to use `match *self {}` because:
+    // - `&EmptyEnum` is always inhabited (references can't be null)
+    // - `EmptyEnum` (dereferenced) is uninhabited, so `match *self {}` is valid
+    let display_body = if is_empty {
+        quote! { match *self {} }
+    } else {
         quote! {
-            impl #impl_generics #trait_impl for #original_ident #ty_generics #where_clause {
-                fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                    #match_body
-                }
+            match self {
+                #(#match_arms),*
             }
         }
     };
@@ -189,47 +141,27 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             .filter(|v| !v.is_skipped())
             .map(|variant_opt| {
                 let variant_ident = variant_opt.ident();
-                let variant_name = variant_ident.to_string();
-                let variant_key_suffix = variant_opt
-                    .key()
-                    .map(|key| key.to_string())
-                    .unwrap_or_else(|| variant_ident.to_string());
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
+                let ftl_key = variant_ftl_key(base_key.as_str(), variant_ident, variant_opt.key());
 
                 // Get args based on variant style
                 let arg_names: Vec<String> = match variant_opt.style() {
                     darling::ast::Style::Unit => vec![],
-                    darling::ast::Style::Tuple => {
-                        let all_tuple_fields = variant_opt.all_fields();
-                        let exposed_tuple_fields: Vec<_> = all_tuple_fields
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, field)| !field.is_skipped())
-                            .collect();
-                        exposed_tuple_fields
-                            .iter()
-                            .map(|(tuple_index, field)| tuple_arg_key(field, *tuple_index))
-                            .collect()
-                    },
+                    darling::ast::Style::Tuple => variant_opt
+                        .all_fields()
+                        .into_iter()
+                        .enumerate()
+                        .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
+                        .map(|(tuple_index, field)| inventory_arg_name(field, tuple_index))
+                        .collect(),
                     darling::ast::Style::Struct => variant_opt
                         .fields()
                         .iter()
-                        .filter_map(|field| {
-                            field
-                                .arg_name()
-                                .or_else(|| field.ident().as_ref().map(|ident| ident.to_string()))
-                        })
+                        .enumerate()
+                        .map(|(index, field)| inventory_arg_name(*field, index))
                         .collect(),
                 };
 
-                InventoryVariantSpec {
-                    name: variant_name,
-                    ftl_key,
-                    arg_names,
-                }
-                .tokens()
+                inventory_variant_tokens(variant_ident.to_string(), ftl_key, arg_names)
             })
             .collect();
 
@@ -244,13 +176,10 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         quote! {}
     };
 
-    let from_impls = generate_from_impls(original_ident, opts.generics());
-
-    quote! {
-      #display_impl
-
-      #inventory_submit
-
-      #from_impls
-    }
+    emit_display_inventory_and_from_impls(
+        original_ident,
+        opts.generics(),
+        display_body,
+        inventory_submit,
+    )
 }

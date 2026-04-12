@@ -21,10 +21,7 @@ pub use registry::filter_module_registry;
 
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
-    fn select_language(
-        &self,
-        lang: &LanguageIdentifier,
-    ) -> es_fluent_derive_core::EsFluentResult<()>;
+    fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
     /// Localizes a message by its ID.
     fn localize<'a>(
         &self,

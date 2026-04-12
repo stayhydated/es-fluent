@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
-assertion_line: 53
 expression: "&opts"
 ---
 EnumOpts {
@@ -27,8 +26,12 @@ EnumOpts {
                     ),
                     __nonexhaustive: (),
                 },
-                skip: None,
-                key: None,
+                attr_args: KeyedVariantAttributeArgs {
+                    skipped_args: SkippedVariantAttributeArgs {
+                        skip: None,
+                    },
+                    key: None,
+                },
             },
             VariantOpts {
                 ident: Ident(
@@ -37,7 +40,7 @@ EnumOpts {
                 fields: Fields {
                     style: Tuple,
                     fields: [
-                        EnumFieldOpts {
+                        FluentFieldOpts {
                             ident: None,
                             ty: Type::Path {
                                 qself: None,
@@ -53,14 +56,16 @@ EnumOpts {
                                     ],
                                 },
                             },
-                            skip: None,
-                            choice: Some(
-                                true,
-                            ),
-                            value: None,
-                            arg_name: None,
+                            attr_args: FluentFieldAttributeArgs {
+                                skip: None,
+                                choice: Some(
+                                    true,
+                                ),
+                                value: None,
+                                arg_name: None,
+                            },
                         },
-                        EnumFieldOpts {
+                        FluentFieldOpts {
                             ident: None,
                             ty: Type::Path {
                                 qself: None,
@@ -76,12 +81,14 @@ EnumOpts {
                                     ],
                                 },
                             },
-                            skip: Some(
-                                true,
-                            ),
-                            choice: None,
-                            value: None,
-                            arg_name: None,
+                            attr_args: FluentFieldAttributeArgs {
+                                skip: Some(
+                                    true,
+                                ),
+                                choice: None,
+                                value: None,
+                                arg_name: None,
+                            },
                         },
                     ],
                     span: Some(
@@ -89,8 +96,12 @@ EnumOpts {
                     ),
                     __nonexhaustive: (),
                 },
-                skip: None,
-                key: None,
+                attr_args: KeyedVariantAttributeArgs {
+                    skipped_args: SkippedVariantAttributeArgs {
+                        skip: None,
+                    },
+                    key: None,
+                },
             },
             VariantOpts {
                 ident: Ident(
@@ -99,7 +110,7 @@ EnumOpts {
                 fields: Fields {
                     style: Struct,
                     fields: [
-                        EnumFieldOpts {
+                        FluentFieldOpts {
                             ident: Some(
                                 Ident(
                                     level,
@@ -119,14 +130,16 @@ EnumOpts {
                                     ],
                                 },
                             },
-                            skip: None,
-                            choice: Some(
-                                true,
-                            ),
-                            value: None,
-                            arg_name: None,
+                            attr_args: FluentFieldAttributeArgs {
+                                skip: None,
+                                choice: Some(
+                                    true,
+                                ),
+                                value: None,
+                                arg_name: None,
+                            },
                         },
-                        EnumFieldOpts {
+                        FluentFieldOpts {
                             ident: Some(
                                 Ident(
                                     message,
@@ -146,10 +159,12 @@ EnumOpts {
                                     ],
                                 },
                             },
-                            skip: None,
-                            choice: None,
-                            value: None,
-                            arg_name: None,
+                            attr_args: FluentFieldAttributeArgs {
+                                skip: None,
+                                choice: None,
+                                value: None,
+                                arg_name: None,
+                            },
                         },
                     ],
                     span: Some(
@@ -157,14 +172,20 @@ EnumOpts {
                     ),
                     __nonexhaustive: (),
                 },
-                skip: None,
-                key: None,
+                attr_args: KeyedVariantAttributeArgs {
+                    skipped_args: SkippedVariantAttributeArgs {
+                        skip: None,
+                    },
+                    key: None,
+                },
             },
         ],
     ),
-    attr_args: EnumFluentAttributeArgs {
+    attr_args: FluentEnumAttributeArgs {
         resource: None,
         skip_inventory: None,
-        namespace: None,
+        namespace_args: NamespacedAttributeArgs {
+            namespace: None,
+        },
     },
 }

@@ -1,6 +1,6 @@
 use crate::model::{OwnedVariant, compare_type_infos, merge_ftl_type_infos};
 use crate::value::ValueFormatter;
-use es_fluent_derive_core::registry::FtlTypeInfo;
+use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::ast;
 
 /// Create a group comment entry for a type section.

@@ -8,7 +8,8 @@ use crate::generation::templates::{
 };
 use anyhow::{Context as _, Result, bail};
 use askama::Template as _;
-use es_fluent_derive_core::get_es_fluent_temp_dir;
+use es_fluent_runner::RunnerRequest;
+use es_fluent_runner::get_es_fluent_temp_dir;
 use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
@@ -147,20 +148,15 @@ pub fn get_monolithic_binary_path(workspace: &WorkspaceInfo) -> PathBuf {
 /// Run the monolithic binary directly (fast path) or build+run (slow path).
 pub fn run_monolithic(
     workspace: &WorkspaceInfo,
-    command: &str,
-    crate_name: &str,
-    extra_args: &[String],
+    request: &RunnerRequest,
     force_run: bool,
 ) -> Result<String> {
     let runner = MonolithicRunner::new(workspace);
+    let encoded_request = request.encode()?;
 
     if !force_run && runner.binary_path.exists() && !runner.is_stale() {
         let mut cmd = Command::new(&runner.binary_path);
-        cmd.arg(command)
-            .args(extra_args)
-            .arg("--crate")
-            .arg(crate_name)
-            .current_dir(&runner.temp_dir);
+        cmd.arg(&encoded_request).current_dir(&runner.temp_dir);
 
         if env::var("NO_COLOR").is_err() {
             cmd.env("CLICOLOR_FORCE", "1");
@@ -176,10 +172,7 @@ pub fn run_monolithic(
         return Ok(String::from_utf8_lossy(&output.stdout).to_string());
     }
 
-    let mut args = vec![command.to_string()];
-    args.extend(extra_args.iter().cloned());
-    args.push("--crate".to_string());
-    args.push(crate_name.to_string());
+    let args = vec![encoded_request];
     let result = RunnerCrate::new(&runner.temp_dir).run_cargo(Some("es-fluent-runner"), &args)?;
 
     write_runner_cache(&runner);

@@ -1,7 +1,7 @@
 //! This module provides types for managing embedded translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, LocaleLoadReport, ModuleData, ResourceLoadError,
+    I18nModuleDescriptor, ModuleData, ResourceLoadStatus, load_locale_resources,
     parse_fluent_resource_bytes,
 };
 use crate::fallback::fallback_locales;
@@ -42,31 +42,25 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         lang: &LanguageIdentifier,
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
         let resource_plan = self.data.resource_plan();
-        let mut report = LocaleLoadReport::from_plan(&resource_plan);
-        let mut resources = Vec::new();
-
-        for spec in &resource_plan {
+        let (resources, report) = load_locale_resources(&resource_plan, |spec| {
             let file_path = spec.locale_path(lang);
 
             match T::get(&file_path) {
                 Some(file_data) => match parse_fluent_resource_bytes(spec, file_data.data.as_ref())
                 {
-                    Ok(resource) => {
-                        resources.push(resource);
-                        report.mark_loaded(spec.key.clone());
-                    },
+                    Ok(resource) => ResourceLoadStatus::Loaded(resource),
                     Err(err) => {
                         tracing::debug!("{}", err);
-                        report.record_error(err);
+                        ResourceLoadStatus::Error(err)
                     },
                 },
                 None => {
-                    let err = ResourceLoadError::missing(spec);
+                    let err = crate::asset_localization::ResourceLoadError::missing(spec);
                     tracing::debug!("{}", err);
-                    report.record_error(err);
+                    ResourceLoadStatus::Missing
                 },
             }
-        }
+        });
 
         if !report.is_ready() {
             let mut missing_required = report

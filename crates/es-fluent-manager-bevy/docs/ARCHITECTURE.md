@@ -56,6 +56,22 @@ flowchart TD
 
 ## Key Components
 
+### Internal Module Layout
+
+The crate root is now a thin re-export surface. The implementation is split into focused modules:
+
+- `assets.rs`: `FtlAsset`, `FtlAssetLoader`, `I18nAssets`, `I18nBundle`, and `I18nResource`
+- `locale.rs`: locale resources/events plus `FromLocale`, `RefreshForLocale`, and the locale-refresh system
+- `registration.rs`: `EsFluentBevyPlugin`, inventory registration traits, and `App` extension helpers
+- `plugin/setup.rs`: module discovery, initial locale resolution, optional asset probing, and app wiring
+- `plugin/runtime/assets.rs`: asset-event decoding plus parse/error bookkeeping for loaded FTL resources
+- `plugin/runtime/bundles.rs`: dirty-language detection and bundle cache rebuilds
+- `plugin/runtime/locale.rs`: locale-change resolution and event emission
+- `plugin/runtime/sync.rs`: global bundle mirroring and redraw requests
+- `plugin/state.rs`: global mirrored state for the custom localizer
+
+This keeps the crate root declarative and makes the Bevy-facing public API easier to navigate without mixing it with runtime implementation details.
+
 ### `I18nPlugin`
 
 The entry point. It registers the `FtlAssetLoader`, resources, and—crucially—installs a **custom localizer** (`es_fluent::set_custom_localizer`). This custom localizer redirects all global `localize!` calls (used by `derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust objects to stringify correctly even inside Bevy systems.

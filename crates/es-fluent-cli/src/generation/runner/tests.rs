@@ -4,6 +4,7 @@ use super::monolithic::MonolithicRunner;
 use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
 use crate::generation::cache::{MetadataCache, RunnerCache, compute_content_hash};
+use es_fluent_runner::{RunnerParseMode, RunnerRequest};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -145,7 +146,7 @@ edition = "2024"
     .expect("write Cargo.toml");
     std::fs::write(temp.path().join("Cargo.lock"), "lock").expect("write Cargo.lock");
 
-    let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(temp.path());
+    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(temp.path());
     std::fs::create_dir_all(&temp_dir).expect("create .es-fluent");
     MetadataCache {
         cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
@@ -182,7 +183,7 @@ edition = "2024"
     std::fs::write(temp.path().join("Cargo.lock"), "lock-content").expect("write lock");
 
     let _ = TempCrateConfig::from_manifest(&manifest_path);
-    let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(temp.path());
+    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(temp.path());
     let cache = MetadataCache::load(&temp_dir);
     assert!(cache.is_some(), "metadata cache should be written");
 }
@@ -284,17 +285,18 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
     .save(&runner.temp_dir)
     .expect("save cache");
 
-    let output = run_monolithic(
-        &workspace,
-        "generate",
-        &krate.name,
-        &["--dry-run".to_string()],
-        false,
-    )
-    .expect("run monolithic");
+    let request = RunnerRequest::Generate {
+        crate_name: krate.name.clone(),
+        i18n_toml_path: krate.i18n_config_path.display().to_string(),
+        mode: RunnerParseMode::Conservative,
+        dry_run: true,
+    };
+    let output = run_monolithic(&workspace, &request, false).expect("run monolithic");
 
     assert!(
-        output.contains("generate --dry-run --crate fast-path"),
+        output.contains(r#""command":"generate""#)
+            && output.contains(r#""crate_name":"fast-path""#)
+            && output.contains(r#""dry_run":true"#),
         "unexpected fast-path output: {output}"
     );
 }
@@ -330,7 +332,13 @@ fn run_monolithic_fast_path_reports_binary_failure() {
     .save(&runner.temp_dir)
     .expect("save cache");
 
-    let err = run_monolithic(&workspace, "generate", &krate.name, &[], false)
+    let request = RunnerRequest::Generate {
+        crate_name: krate.name.clone(),
+        i18n_toml_path: krate.i18n_config_path.display().to_string(),
+        mode: RunnerParseMode::Conservative,
+        dry_run: false,
+    };
+    let err = run_monolithic(&workspace, &request, false)
         .err()
         .expect("expected fast-path failure");
     let msg = err.to_string();
@@ -546,7 +554,13 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
     .save(&runner.temp_dir)
     .expect("save cache");
 
-    let err = run_monolithic(&workspace, "generate", &krate.name, &[], false)
+    let request = RunnerRequest::Generate {
+        crate_name: krate.name.clone(),
+        i18n_toml_path: krate.i18n_config_path.display().to_string(),
+        mode: RunnerParseMode::Conservative,
+        dry_run: false,
+    };
+    let err = run_monolithic(&workspace, &request, false)
         .err()
         .expect("expected execution failure");
     assert!(err.to_string().contains("Failed to run monolithic binary"));
@@ -555,7 +569,7 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
 #[test]
 fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     let (_temp, workspace) = create_workspace_fixture("slow-path", true);
-    let runner_dir = es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
+    let runner_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.root_dir);
     std::fs::create_dir_all(runner_dir.join("src")).expect("create runner src");
     std::fs::write(
         runner_dir.join("Cargo.toml"),
@@ -585,16 +599,17 @@ path = "src/main.rs"
     std::fs::write(&binary_path, "#!/bin/sh\necho cache-metadata\n").expect("write binary");
     set_executable(&binary_path);
 
-    let output = run_monolithic(
-        &workspace,
-        "generate",
-        &workspace.crates[0].name,
-        &["--dry-run".to_string()],
-        true,
-    )
-    .expect("slow path run should succeed");
+    let request = RunnerRequest::Generate {
+        crate_name: workspace.crates[0].name.clone(),
+        i18n_toml_path: workspace.crates[0].i18n_config_path.display().to_string(),
+        mode: RunnerParseMode::Conservative,
+        dry_run: true,
+    };
+    let output = run_monolithic(&workspace, &request, true).expect("slow path run should succeed");
     assert!(
-        output.contains("generate --dry-run --crate slow-path"),
+        output.contains(r#""command":"generate""#)
+            && output.contains(r#""crate_name":"slow-path""#)
+            && output.contains(r#""dry_run":true"#),
         "unexpected slow-path output: {output}"
     );
 

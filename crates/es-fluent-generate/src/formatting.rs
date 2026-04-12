@@ -1,4 +1,4 @@
-use es_fluent_derive_core::namer::FluentKey;
+use es_fluent_shared::namer::FluentKey;
 use fluent_syntax::{ast, serializer};
 use heck::ToSnakeCase as _;
 

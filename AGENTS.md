@@ -12,6 +12,7 @@
 | ----------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | **Core**                            |                                                                        |                                                                                              |
 | `crates/es-fluent`                  | [Architecture](crates/es-fluent/docs/ARCHITECTURE.md)                  | Ecosystem facade, entry point, and registry types.                                           |
+| `crates/es-fluent-shared`           | [Architecture](crates/es-fluent-shared/docs/ARCHITECTURE.md)           | Runtime-safe shared types and helpers reused across the facade, generators, managers, and CLI. |
 | `crates/es-fluent-derive-core`      | [Architecture](crates/es-fluent-derive-core/docs/ARCHITECTURE.md)      | Build-time logic (options, validation, namer) for derive macros.                             |
 | `crates/es-fluent-derive`           | [Architecture](crates/es-fluent-derive/docs/ARCHITECTURE.md)           | Proc-macros for registration and trait implementation.                                       |
 | `crates/es-fluent-toml`             | [Architecture](crates/es-fluent-toml/docs/ARCHITECTURE.md)             | Configuration (`i18n.toml`) parsing and path resolution.                                     |
@@ -47,7 +48,8 @@
 ### Core Layers
 
 - **`es-fluent`**: The user-facing library. Re-exports everything needed for general usage. Provides registry types (`FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`) for inventory collection. Connects the global `OnceLock` context to specific backend managers.
-- **`es-fluent-derive-core`**: The shared logic library for derive macros. Contains `darling` attribute parsing, validation rules, and FTL key naming algorithms.
+- **`es-fluent-shared`**: Runtime-safe shared metadata, registry types, naming helpers, namespace rules, path utilities, and common errors used by the facade, generator, managers, and CLI tooling.
+- **`es-fluent-derive-core`**: The shared logic library for derive macros. Contains `darling` attribute parsing, validation rules, and macro-only diagnostics on top of `es-fluent-shared`.
 - **`es-fluent-derive`**: Provides the `#[derive(EsFluent)]` macro. transforming Rust types into inventory registrations and `FluentDisplay` implementations.
 - **`es-fluent-toml`**: Centralizes configuration logic. Ensures that the CLI and proc-macros agree on where assets are located and what languages are available.
 
