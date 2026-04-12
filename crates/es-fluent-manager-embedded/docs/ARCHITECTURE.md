@@ -17,7 +17,7 @@ flowchart TD
     subgraph INIT["Initialization"]
         MACRO["define_i18n_module!"]
         MAIN["main()"]
-        INIT_FN["init()"]
+        INIT_FN["init() / init_with_language()"]
     end
 
     subgraph GLOBAL["Global State"]
@@ -49,10 +49,11 @@ static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
 Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access to the manager during localization calls, which is ideal for the read-heavy, write-rare pattern of i18n lookups.
 
-Calls to `init()`:
+Calls to `init()` or `init_with_language()`:
 
 1. Discover all registered modules (using `inventory`).
 1. Initialize the manager.
+1. Optionally select the initial language.
 1. Register it as the global context provider for `es-fluent`.
 
 For namespaced modules, namespace files are the canonical per-locale resources.
@@ -68,12 +69,12 @@ This macro requires the `macros` feature, which is enabled by default.
 
 ## Initialization Behavior
 
-The `init()` function is idempotent:
+The `init()` and `init_with_language()` functions are idempotent:
 
 - First call: Initializes the manager and sets the global context.
 - Subsequent calls: Logs a warning via `tracing` and has no effect.
 
-If `select_language()` is called before `init()`, a warning is logged and the call has no effect.
+If `select_language()` is called before initialization, an error is logged and the call has no effect.
 
 ## Usage
 
@@ -83,9 +84,10 @@ es_fluent_manager_embedded::define_i18n_module!();
 
 // In main.rs
 fn main() {
-    es_fluent_manager_embedded::init();
-    es_fluent_manager_embedded::select_language("en-US");
+    es_fluent_manager_embedded::init_with_language("en-US");
 
     println!("{}", MyMessage { ... }); // Automatically localized
 }
 ```
+
+If the language is not known at startup, call `init()` first and `select_language(...)` later.

@@ -16,8 +16,7 @@ fn main() {
         cx.set_global(CurrentLanguage(default_language));
         cx.bind_keys([KeyBinding::new("t", CycleLocale, Some("GpuiExample"))]);
         gpui_component::init(cx);
-        i18n::init();
-        i18n::change_locale(default_language).unwrap();
+        i18n::init_with_language(default_language);
 
         let bounds = Bounds::centered(None, size(px(640.), px(480.)), cx);
         cx.open_window(

@@ -5,7 +5,7 @@ use first_example::i18n;
 use strum::IntoEnumIterator as _;
 
 fn main() {
-    i18n::init();
+    i18n::init_with_language(Languages::default());
     Languages::iter().for_each(run);
 }
 

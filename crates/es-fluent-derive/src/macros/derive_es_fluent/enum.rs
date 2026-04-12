@@ -1,6 +1,7 @@
 use es_fluent_derive_core::options::r#enum::EnumOpts;
 use es_fluent_derive_core::options::{
-    EnumDataOptions as _, FluentField, FluentFieldOpts, KeyedVariant as _, Skippable as _, VariantFields as _,
+    EnumDataOptions as _, FluentField, FluentFieldOpts, KeyedVariant as _, Skippable as _,
+    VariantFields as _,
 };
 use es_fluent_shared::namer;
 

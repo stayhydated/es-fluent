@@ -33,6 +33,25 @@ pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_mod
 #[doc(hidden)]
 static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
+fn build_manager(initial_language: Option<&LanguageIdentifier>) -> Arc<FluentManager> {
+    let manager = FluentManager::new_with_discovered_modules();
+    if let Some(initial_language) = initial_language {
+        manager.select_language(initial_language);
+    }
+    Arc::new(manager)
+}
+
+fn initialize_manager(manager: Arc<FluentManager>) {
+    if GENERIC_MANAGER
+        .set(ArcSwap::new(Arc::clone(&manager)))
+        .is_ok()
+    {
+        set_shared_context(manager);
+    } else {
+        tracing::warn!("Generic fluent manager already initialized.");
+    }
+}
+
 /// Initializes the embedded singleton `FluentManager`.
 ///
 /// This function discovers all embedded i18n modules linked into the binary,
@@ -48,16 +67,21 @@ static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 /// This function will not panic if called more than once, but it will log a
 /// warning and have no effect after the first successful call.
 pub fn init() {
-    let manager = FluentManager::new_with_discovered_modules();
-    let manager_arc = Arc::new(manager);
-    if GENERIC_MANAGER
-        .set(ArcSwap::new(Arc::clone(&manager_arc)))
-        .is_ok()
-    {
-        set_shared_context(manager_arc);
-    } else {
-        tracing::warn!("Generic fluent manager already initialized.");
-    }
+    initialize_manager(build_manager(None));
+}
+
+/// Initializes the embedded singleton `FluentManager` and selects the active language.
+///
+/// This is equivalent to calling [`init()`] followed by [`select_language()`], except the
+/// language is selected before the manager is published as the global singleton.
+///
+/// # Panics
+///
+/// This function will not panic if called more than once, but it will log a
+/// warning and have no effect after the first successful call.
+pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
+    let lang = lang.into();
+    initialize_manager(build_manager(Some(&lang)));
 }
 
 /// Selects the active language for the embedded singleton `FluentManager`.
@@ -135,6 +159,19 @@ mod tests {
 
     crate::__inventory::submit! {
         &TEST_MODULE as &dyn I18nModuleRegistration
+    }
+
+    #[test]
+    fn build_manager_selects_initial_language_when_requested() {
+        SELECT_CALLS.store(0, Ordering::Relaxed);
+
+        let manager = build_manager(Some(&langid!("en-US")));
+
+        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
+        assert_eq!(
+            manager.localize("embedded-key", None),
+            Some("embedded-value".to_string())
+        );
     }
 
     #[test]

@@ -33,14 +33,14 @@ use es_fluent::ToFluentString;
 use unic_langid::langid;
 
 fn main() {
-    // 1. Initialize the global manager
-    es_fluent_manager_embedded::init();
+    // 1. Initialize the global manager with the active language
+    es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 
-    // 2. Set the language (e.g., from system locale or user config)
-    es_fluent_manager_embedded::select_language(&langid!("en-US"));
-
-    // 3. Localize things!
+    // 2. Localize things!
     let msg = MyMessage::Hello { name: "World" };
     println!("{}", msg.to_fluent_string());
 }
 ```
+
+If you prefer to initialize first and decide the locale later, `init()` and `select_language(...)`
+remain available.

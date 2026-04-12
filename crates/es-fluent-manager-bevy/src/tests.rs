@@ -216,16 +216,13 @@ fn locale_aware_registration_refreshes_text_when_bundle_becomes_ready() {
         "text should stay untouched until the language is ready"
     );
 
-    let resource = Arc::new(
-        FluentResource::try_new("hello = hi".to_string()).expect("valid ftl"),
-    );
+    let resource = Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("valid ftl"));
     app.world_mut()
         .resource_mut::<I18nAssets>()
         .loaded_resources
         .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
 
-    let mut bundle =
-        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
+    let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
     bundle.add_resource(resource).expect("add resource");
     app.world_mut()
         .resource_mut::<I18nBundle>()

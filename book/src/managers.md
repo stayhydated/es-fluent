@@ -39,13 +39,10 @@ use es_fluent::ToFluentString;
 use unic_langid::langid;
 
 fn main() {
-    // 1. Initialize the global manager
-    es_fluent_manager_embedded::init();
+    // 1. Initialize the global manager with the active language
+    es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 
-    // 2. Set the language (e.g., from system locale or user config)
-    es_fluent_manager_embedded::select_language(&langid!("en-US"));
-
-    // 3. Localize things!
+    // 2. Localize things!
     let msg = MyMessage::Hello { name: "World" };
     println!("{}", msg.to_fluent_string());
 }
@@ -54,8 +51,10 @@ fn main() {
 If you have a [Language Enum](language_enum.md), you can pass it directly since it implements `Into<LanguageIdentifier>`:
 
 ```rust
-es_fluent_manager_embedded::select_language(Languages::En);
+es_fluent_manager_embedded::init_with_language(Languages::En);
 ```
+
+If the language is not known during startup, call `init()` and switch later with `select_language(...)`.
 
 ---
 
