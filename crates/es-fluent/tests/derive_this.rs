@@ -1,5 +1,6 @@
 use es_fluent::registry::NamespaceRule;
 use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants, ThisFtl};
+use std::borrow::Cow;
 
 #[derive(EsFluent, EsFluentThis)]
 #[fluent_this(origin)]
@@ -81,7 +82,10 @@ fn test_derive_this_namespace_from_fluent() {
         1,
         "Expected one registration for TestThisNamespace"
     );
-    assert_eq!(infos[0].namespace, Some(NamespaceRule::Literal("this_ns")));
+    assert_eq!(
+        infos[0].namespace,
+        Some(NamespaceRule::Literal(Cow::Borrowed("this_ns")))
+    );
 }
 
 #[test]
@@ -97,7 +101,7 @@ fn test_derive_variants_namespace_from_fluent() {
     );
     assert_eq!(
         infos[0].namespace,
-        Some(NamespaceRule::Literal("variants_ns"))
+        Some(NamespaceRule::Literal(Cow::Borrowed("variants_ns")))
     );
 }
 
@@ -118,6 +122,6 @@ fn test_derive_this_and_variants_share_fluent_namespace() {
     assert!(
         infos
             .iter()
-            .all(|info| info.namespace == Some(NamespaceRule::Literal("shared_ns")))
+            .all(|info| info.namespace == Some(NamespaceRule::Literal(Cow::Borrowed("shared_ns"))))
     );
 }

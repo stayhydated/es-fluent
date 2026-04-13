@@ -4,13 +4,13 @@ use crate::namespace_resolver::{
     file_relative_namespace, file_stem_namespace, folder_namespace, folder_relative_namespace,
 };
 use darling::FromMeta;
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
 /// Namespace selection rules for FTL file output.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum NamespaceRule {
     /// A literal namespace string.
-    Literal(&'static str),
+    Literal(Cow<'static, str>),
     /// Use the source file name (stem only) as the namespace.
     File,
     /// Use the file path relative to the crate root as the namespace.
@@ -43,7 +43,7 @@ impl FromMeta for NamespaceRule {
                     ..
                 }) = &nv.value
                 {
-                    Ok(Self::Literal(leak_namespace_literal(s.value())))
+                    Ok(Self::Literal(Cow::Owned(s.value())))
                 } else if let syn::Expr::Path(path) = &nv.value {
                     if path.path.is_ident("file") {
                         Ok(Self::File)
@@ -85,7 +85,7 @@ impl FromMeta for NamespaceRule {
                     syn::Expr::Lit(syn::ExprLit {
                         lit: syn::Lit::Str(lit),
                         ..
-                    }) => Ok(Self::Literal(leak_namespace_literal(lit.value()))),
+                    }) => Ok(Self::Literal(Cow::Owned(lit.value()))),
                     _ => Err(darling::Error::custom(
                         "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
                     )),
@@ -130,10 +130,6 @@ fn parse_single_ident_call(call: &syn::ExprCall) -> Option<(String, String)> {
     Some((target, arg))
 }
 
-fn leak_namespace_literal(value: String) -> &'static str {
-    Box::leak(value.into_boxed_str())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,13 +139,13 @@ mod tests {
     fn literal_namespace_parses_and_resolves() {
         let meta: syn::Meta = parse_quote!(namespace = "my_namespace");
         let ns = NamespaceRule::from_meta(&meta).unwrap();
-        assert!(matches!(ns, NamespaceRule::Literal(ref s) if *s == "my_namespace"));
+        assert!(matches!(ns, NamespaceRule::Literal(ref s) if s == "my_namespace"));
         assert_eq!(ns.resolve("/some/path/lib.rs", None), "my_namespace");
     }
 
     #[test]
     fn literal_namespace_constructor_accepts_static_str() {
-        let ns = NamespaceRule::Literal("ui");
+        let ns = NamespaceRule::Literal(Cow::Borrowed("ui"));
         assert_eq!(ns.resolve("/some/path/lib.rs", None), "ui");
     }
 

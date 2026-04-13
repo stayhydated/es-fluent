@@ -322,7 +322,7 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
 
     let mut namespaced = test_type("NamespacedType", vec![test_variant("A1", "ns-a1", &[])]);
     namespaced.namespace = Some(es_fluent_shared::registry::NamespaceRule::Literal(
-        "ui".into(),
+        std::borrow::Cow::Borrowed("ui"),
     ));
     let items = vec![&namespaced];
 

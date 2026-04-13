@@ -123,7 +123,7 @@ mod tests {
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if *value == "forms"
+            Some(NamespaceValue::Literal(value)) if value == "forms"
         ));
 
         let fields = opts.fields();
@@ -237,7 +237,7 @@ mod tests {
         );
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if *value == "ui"
+            Some(NamespaceValue::Literal(value)) if value == "ui"
         ));
 
         let fields = opts.fields();

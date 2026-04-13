@@ -352,7 +352,7 @@ pub fn namespace_rule_tokens(namespace: Option<&NamespaceValue>) -> TokenStream 
     match namespace {
         Some(NamespaceValue::Literal(s)) => {
             quote! {
-                Some(::es_fluent::registry::NamespaceRule::Literal(#s))
+                Some(::es_fluent::registry::NamespaceRule::Literal(::std::borrow::Cow::Borrowed(#s)))
             }
         },
         Some(NamespaceValue::File) => {

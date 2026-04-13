@@ -1,6 +1,6 @@
 use super::{EsFluentGenerator, GeneratorError};
 use es_fluent_toml::ResolvedI18nLayout;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(super) fn resolve_crate_name(generator: &EsFluentGenerator) -> Result<String, GeneratorError> {
     generator
@@ -54,20 +54,10 @@ pub(super) fn resolve_clean_paths(
         return Ok(vec![resolve_output_path(generator)?]);
     }
 
-    let mut paths = if let Ok(layout) = resolve_layout(generator) {
-        layout
-            .available_locale_names()?
-            .into_iter()
-            .map(|locale| layout.locale_dir(&locale))
-            .collect::<Vec<_>>()
-    } else if let Ok(assets_dir) = resolve_assets_dir(generator) {
-        es_fluent_runner::get_all_locales(&assets_dir)?
-            .into_iter()
-            .map(|locale| assets_dir.join(locale))
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
+    let mut paths = resolve_assets_dir(generator)
+        .ok()
+        .map(|assets_dir| resolve_clean_locale_dirs(&assets_dir))
+        .unwrap_or_default();
 
     if paths.is_empty() {
         return Ok(vec![resolve_output_path(generator)?]);
@@ -75,6 +65,18 @@ pub(super) fn resolve_clean_paths(
 
     paths.sort();
     Ok(paths)
+}
+
+fn resolve_clean_locale_dirs(assets_dir: &Path) -> Vec<PathBuf> {
+    std::fs::read_dir(assets_dir)
+        .ok()
+        .into_iter()
+        .flat_map(|entries| entries.filter_map(Result::ok))
+        .filter_map(|entry| match entry.file_type() {
+            Ok(file_type) if file_type.is_dir() => Some(entry.path()),
+            _ => None,
+        })
+        .collect()
 }
 
 pub(super) fn detect_crate_name() -> Result<String, GeneratorError> {

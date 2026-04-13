@@ -3,6 +3,7 @@ use super::resolve::{detect_crate_name, resolve_assets_dir};
 use super::*;
 use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use es_fluent_shared::meta::TypeKind;
+use std::borrow::Cow;
 use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 use tempfile::tempdir;
@@ -14,7 +15,7 @@ static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
     variants: EMPTY_VARIANTS,
     file_path: "src/lib.rs",
     module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal("ui")),
+    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
 };
 static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
     type_kind: TypeKind::Struct,
@@ -22,7 +23,7 @@ static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
     variants: EMPTY_VARIANTS,
     file_path: "src/lib.rs",
     module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal("errors")),
+    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("errors"))),
 };
 static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant {
     name: "Key1",
@@ -259,6 +260,60 @@ fn resolve_clean_paths_preserves_raw_locale_directory_names() {
     assert_eq!(
         all,
         vec![temp.path().join("i18n/en-us"), temp.path().join("i18n/fr")]
+    );
+}
+
+#[test]
+fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
+    let temp = tempdir().expect("tempdir");
+    write_basic_i18n_config(temp.path());
+
+    let override_assets = temp.path().join("custom-assets");
+    std::fs::create_dir_all(override_assets.join("es-MX")).expect("mkdir es-MX");
+    std::fs::create_dir_all(override_assets.join("ja")).expect("mkdir ja");
+
+    let generator = EsFluentGenerator::builder()
+        .crate_name("missing-crate")
+        .manifest_dir(temp.path())
+        .assets_dir(&override_assets)
+        .build();
+
+    let all = generator
+        .resolve_clean_paths(true)
+        .expect("all clean paths");
+    assert_eq!(
+        all,
+        vec![override_assets.join("es-MX"), override_assets.join("ja")]
+    );
+}
+
+#[test]
+fn resolve_clean_paths_tolerates_invalid_locale_directory_names() {
+    let temp = tempdir().expect("tempdir");
+    std::fs::create_dir_all(temp.path().join("i18n/en-US")).expect("mkdir en-US");
+    std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
+    std::fs::create_dir_all(temp.path().join("i18n/not_a_locale")).expect("mkdir invalid");
+    std::fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write i18n.toml");
+
+    let generator = EsFluentGenerator::builder()
+        .crate_name("missing-crate")
+        .manifest_dir(temp.path())
+        .build();
+
+    let all = generator
+        .resolve_clean_paths(true)
+        .expect("all clean paths");
+    assert_eq!(
+        all,
+        vec![
+            temp.path().join("i18n/en-US"),
+            temp.path().join("i18n/fr"),
+            temp.path().join("i18n/not_a_locale"),
+        ]
     );
 }
 

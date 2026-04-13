@@ -76,6 +76,7 @@ mod tests {
     use super::*;
     use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType};
     use es_fluent_shared::meta::TypeKind;
+    use std::borrow::Cow;
     use tempfile::tempdir;
 
     static VARIANTS: &[FtlVariant] = &[
@@ -101,7 +102,7 @@ mod tests {
         variants: VARIANTS,
         file_path: "src/lib.rs",
         module_path: "test_crate",
-        namespace: Some(NamespaceRule::Literal("ui")),
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
     };
 
     es_fluent::__inventory::submit! {

@@ -220,7 +220,7 @@ mod tests {
         assert!(opts.attr_args().skip_inventory());
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if *value == "errors"
+            Some(NamespaceValue::Literal(value)) if value == "errors"
         ));
 
         let variants = opts.variants();
@@ -314,7 +314,7 @@ mod tests {
         );
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if *value == "ui"
+            Some(NamespaceValue::Literal(value)) if value == "ui"
         ));
 
         let variants = opts.variants();
