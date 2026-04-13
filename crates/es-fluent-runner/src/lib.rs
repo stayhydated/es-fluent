@@ -69,6 +69,83 @@ impl RunnerRequest {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RunnerMetadataStore {
+    base_dir: PathBuf,
+}
+
+impl RunnerMetadataStore {
+    pub fn new<T: AsRef<Path>>(base_dir: T) -> Self {
+        Self {
+            base_dir: base_dir.as_ref().to_path_buf(),
+        }
+    }
+
+    pub fn temp_for_workspace<T: AsRef<Path>>(workspace_root: T) -> Self {
+        Self::new(workspace_root.as_ref().join(".es-fluent"))
+    }
+
+    pub fn base_dir(&self) -> &Path {
+        &self.base_dir
+    }
+
+    pub fn metadata_dir_path(&self, crate_name: &str) -> PathBuf {
+        self.base_dir.join("metadata").join(crate_name)
+    }
+
+    pub fn ensure_metadata_dir(&self, crate_name: &str) -> Result<PathBuf, RunnerIoError> {
+        let metadata_dir = self.metadata_dir_path(crate_name);
+        std::fs::create_dir_all(&metadata_dir)?;
+        Ok(metadata_dir)
+    }
+
+    pub fn result_path(&self, crate_name: &str) -> PathBuf {
+        self.metadata_dir_path(crate_name).join("result.json")
+    }
+
+    pub fn inventory_path(&self, crate_name: &str) -> PathBuf {
+        self.metadata_dir_path(crate_name).join("inventory.json")
+    }
+
+    pub fn write_result(
+        &self,
+        crate_name: &str,
+        result: &RunnerResult,
+    ) -> Result<(), RunnerIoError> {
+        self.ensure_metadata_dir(crate_name)?;
+        let json = serde_json::to_string(result)?;
+        std::fs::write(self.result_path(crate_name), json)?;
+        Ok(())
+    }
+
+    pub fn read_result(&self, crate_name: &str) -> Result<RunnerResult, RunnerIoError> {
+        let content = std::fs::read_to_string(self.result_path(crate_name))?;
+        Ok(serde_json::from_str(&content)?)
+    }
+
+    pub fn result_changed(&self, crate_name: &str) -> bool {
+        self.read_result(crate_name)
+            .map(|result| result.changed)
+            .unwrap_or(false)
+    }
+
+    pub fn write_inventory(
+        &self,
+        crate_name: &str,
+        inventory: &InventoryData,
+    ) -> Result<(), RunnerIoError> {
+        self.ensure_metadata_dir(crate_name)?;
+        let json = serde_json::to_string(inventory)?;
+        std::fs::write(self.inventory_path(crate_name), json)?;
+        Ok(())
+    }
+
+    pub fn read_inventory(&self, crate_name: &str) -> Result<InventoryData, RunnerIoError> {
+        let content = std::fs::read_to_string(self.inventory_path(crate_name))?;
+        Ok(serde_json::from_str(&content)?)
+    }
+}
+
 /// Returns a sorted list of locale directory names from an assets directory.
 pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>, RunnerIoError> {
     let mut locales = Vec::new();
@@ -90,90 +167,27 @@ pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>, RunnerIoError> 
     Ok(locales)
 }
 
-pub fn metadata_dir_path<T: AsRef<Path>>(base_dir: T, crate_name: &str) -> PathBuf {
-    base_dir.as_ref().join("metadata").join(crate_name)
-}
-
-pub fn ensure_metadata_dir<T: AsRef<Path>>(
-    base_dir: T,
-    crate_name: &str,
-) -> Result<PathBuf, RunnerIoError> {
-    let metadata_dir = metadata_dir_path(base_dir, crate_name);
-    std::fs::create_dir_all(&metadata_dir)?;
-    Ok(metadata_dir)
-}
-
-pub fn result_path<T: AsRef<Path>>(base_dir: T, crate_name: &str) -> PathBuf {
-    metadata_dir_path(base_dir, crate_name).join("result.json")
-}
-
-pub fn inventory_path<T: AsRef<Path>>(base_dir: T, crate_name: &str) -> PathBuf {
-    metadata_dir_path(base_dir, crate_name).join("inventory.json")
-}
-
-pub fn get_es_fluent_temp_dir<T: AsRef<Path>>(workspace_root: T) -> PathBuf {
-    workspace_root.as_ref().join(".es-fluent")
-}
-
-pub fn write_result<T: AsRef<Path>>(
-    base_dir: T,
-    crate_name: &str,
-    result: &RunnerResult,
-) -> Result<(), RunnerIoError> {
-    ensure_metadata_dir(&base_dir, crate_name)?;
-    let json = serde_json::to_string(result)?;
-    std::fs::write(result_path(base_dir, crate_name), json)?;
-    Ok(())
-}
-
-pub fn read_result<T: AsRef<Path>>(
-    base_dir: T,
-    crate_name: &str,
-) -> Result<RunnerResult, RunnerIoError> {
-    let content = std::fs::read_to_string(result_path(base_dir, crate_name))?;
-    Ok(serde_json::from_str(&content)?)
-}
-
-pub fn write_inventory<T: AsRef<Path>>(
-    base_dir: T,
-    crate_name: &str,
-    inventory: &InventoryData,
-) -> Result<(), RunnerIoError> {
-    ensure_metadata_dir(&base_dir, crate_name)?;
-    let json = serde_json::to_string(inventory)?;
-    std::fs::write(inventory_path(base_dir, crate_name), json)?;
-    Ok(())
-}
-
-pub fn read_inventory<T: AsRef<Path>>(
-    base_dir: T,
-    crate_name: &str,
-) -> Result<InventoryData, RunnerIoError> {
-    let content = std::fs::read_to_string(inventory_path(base_dir, crate_name))?;
-    Ok(serde_json::from_str(&content)?)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn path_helpers_build_expected_locations() {
-        let base = Path::new("/tmp/example");
+    fn metadata_store_builds_expected_locations() {
+        let store = RunnerMetadataStore::new("/tmp/example");
         assert_eq!(
-            metadata_dir_path(base, "crate-x"),
+            store.metadata_dir_path("crate-x"),
             Path::new("/tmp/example/metadata/crate-x")
         );
         assert_eq!(
-            result_path(base, "crate-x"),
+            store.result_path("crate-x"),
             Path::new("/tmp/example/metadata/crate-x/result.json")
         );
         assert_eq!(
-            inventory_path(base, "crate-x"),
+            store.inventory_path("crate-x"),
             Path::new("/tmp/example/metadata/crate-x/inventory.json")
         );
         assert_eq!(
-            get_es_fluent_temp_dir(base),
+            RunnerMetadataStore::temp_for_workspace("/tmp/example").base_dir(),
             Path::new("/tmp/example/.es-fluent")
         );
     }
@@ -198,16 +212,21 @@ mod tests {
     fn write_and_read_result_round_trip() {
         let temp = tempfile::tempdir().expect("tempdir");
         let result = RunnerResult { changed: true };
+        let store = RunnerMetadataStore::new(temp.path());
 
-        write_result(temp.path(), "crate-x", &result).expect("write result");
-        let decoded = read_result(temp.path(), "crate-x").expect("read result");
+        store
+            .write_result("crate-x", &result)
+            .expect("write result");
+        let decoded = store.read_result("crate-x").expect("read result");
 
         assert_eq!(decoded, result);
+        assert!(store.result_changed("crate-x"));
     }
 
     #[test]
     fn write_and_read_inventory_round_trip() {
         let temp = tempfile::tempdir().expect("tempdir");
+        let store = RunnerMetadataStore::new(temp.path());
         let inventory = InventoryData {
             expected_keys: vec![ExpectedKey {
                 key: "hello".to_string(),
@@ -217,8 +236,10 @@ mod tests {
             }],
         };
 
-        write_inventory(temp.path(), "crate-x", &inventory).expect("write inventory");
-        let decoded = read_inventory(temp.path(), "crate-x").expect("read inventory");
+        store
+            .write_inventory("crate-x", &inventory)
+            .expect("write inventory");
+        let decoded = store.read_inventory("crate-x").expect("read inventory");
 
         assert_eq!(decoded, inventory);
     }

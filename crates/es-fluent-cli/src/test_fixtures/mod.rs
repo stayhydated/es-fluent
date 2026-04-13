@@ -111,8 +111,8 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, script: &str) {
         .expect("mtime duration")
         .as_secs();
 
-    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(temp.path());
-    fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
+    fs::create_dir_all(temp_store.base_dir()).expect("create temp dir");
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert("test-app".to_string(), hash);
     RunnerCache {
@@ -120,6 +120,6 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, script: &str) {
         runner_mtime: mtime,
         cli_version: env!("CARGO_PKG_VERSION").to_string(),
     }
-    .save(&temp_dir)
+    .save(temp_store.base_dir())
     .expect("save runner cache");
 }

@@ -2,8 +2,7 @@ use super::runner::run_monolithic;
 use crate::core::{CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
 use crate::utils::count_ftl_resources;
 use anyhow::{Result, bail};
-use es_fluent_runner::{RunnerParseMode, RunnerRequest};
-use std::path::Path;
+use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
 use std::time::Instant;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -12,100 +11,112 @@ pub struct RunnerExecution {
     pub changed: bool,
 }
 
-pub fn build_action_request(krate: &CrateInfo, action: &GenerationAction) -> RunnerRequest {
-    match action {
-        GenerationAction::Generate { mode, dry_run } => RunnerRequest::Generate {
-            crate_name: krate.name.clone(),
-            i18n_toml_path: krate.i18n_config_path.display().to_string(),
-            mode: match mode {
-                crate::core::FluentParseMode::Conservative => RunnerParseMode::Conservative,
-                crate::core::FluentParseMode::Aggressive => RunnerParseMode::Aggressive,
+impl GenerationAction {
+    pub(crate) fn to_runner_request(&self, krate: &CrateInfo) -> RunnerRequest {
+        match self {
+            GenerationAction::Generate { mode, dry_run } => RunnerRequest::Generate {
+                crate_name: krate.name.clone(),
+                i18n_toml_path: krate.i18n_config_path.display().to_string(),
+                mode: match mode {
+                    crate::core::FluentParseMode::Conservative => RunnerParseMode::Conservative,
+                    crate::core::FluentParseMode::Aggressive => RunnerParseMode::Aggressive,
+                },
+                dry_run: *dry_run,
             },
-            dry_run: *dry_run,
-        },
-        GenerationAction::Clean {
-            all_locales,
-            dry_run,
-        } => RunnerRequest::Clean {
-            crate_name: krate.name.clone(),
-            i18n_toml_path: krate.i18n_config_path.display().to_string(),
-            all_locales: *all_locales,
-            dry_run: *dry_run,
-        },
+            GenerationAction::Clean {
+                all_locales,
+                dry_run,
+            } => RunnerRequest::Clean {
+                crate_name: krate.name.clone(),
+                i18n_toml_path: krate.i18n_config_path.display().to_string(),
+                all_locales: *all_locales,
+                dry_run: *dry_run,
+            },
+        }
     }
 }
 
-pub fn build_check_request(krate: &CrateInfo) -> RunnerRequest {
-    RunnerRequest::Check {
-        crate_name: krate.name.clone(),
+impl CrateInfo {
+    pub(crate) fn check_request(&self) -> RunnerRequest {
+        RunnerRequest::Check {
+            crate_name: self.name.clone(),
+        }
+    }
+
+    fn ensure_inventory_library_target(&self) -> Result<()> {
+        if !self.has_lib_rs {
+            bail!(
+                "Crate '{}' has no lib.rs - inventory requires a library target for linking",
+                self.name
+            );
+        }
+
+        Ok(())
     }
 }
 
-pub fn read_changed_status(temp_dir: &Path, crate_name: &str) -> bool {
-    es_fluent_runner::read_result(temp_dir, crate_name)
-        .map(|result| result.changed)
-        .unwrap_or(false)
+pub struct MonolithicExecutor<'a> {
+    workspace: &'a WorkspaceInfo,
+    metadata_store: RunnerMetadataStore,
 }
 
-pub fn execute_request_monolithic(
-    workspace: &WorkspaceInfo,
-    request: &RunnerRequest,
-    force_run: bool,
-) -> Result<RunnerExecution> {
-    let output = run_monolithic(workspace, request, force_run)?;
-    let changed = match request {
-        RunnerRequest::Generate { crate_name, .. } | RunnerRequest::Clean { crate_name, .. } => {
-            let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.root_dir);
-            read_changed_status(&temp_dir, crate_name)
-        },
-        RunnerRequest::Check { .. } => false,
-    };
-
-    Ok(RunnerExecution { output, changed })
-}
-
-pub fn execute_generation_action_monolithic(
-    krate: &CrateInfo,
-    workspace: &WorkspaceInfo,
-    action: &GenerationAction,
-    force_run: bool,
-) -> GenerateResult {
-    let start = Instant::now();
-    let execution = try_execute_generation_action_monolithic(krate, workspace, action, force_run);
-    let duration = start.elapsed();
-
-    match execution {
-        Ok(execution) => GenerateResult::success(
-            krate.name.clone(),
-            duration,
-            count_ftl_resources(&krate.ftl_output_dir, &krate.name),
-            normalize_output(execution.output),
-            execution.changed,
-        ),
-        Err(error) => GenerateResult::failure(krate.name.clone(), duration, error.to_string()),
-    }
-}
-
-fn try_execute_generation_action_monolithic(
-    krate: &CrateInfo,
-    workspace: &WorkspaceInfo,
-    action: &GenerationAction,
-    force_run: bool,
-) -> Result<RunnerExecution> {
-    ensure_inventory_library_target(krate)?;
-    let request = build_action_request(krate, action);
-    execute_request_monolithic(workspace, &request, force_run)
-}
-
-fn ensure_inventory_library_target(krate: &CrateInfo) -> Result<()> {
-    if !krate.has_lib_rs {
-        bail!(
-            "Crate '{}' has no lib.rs - inventory requires a library target for linking",
-            krate.name
-        );
+impl<'a> MonolithicExecutor<'a> {
+    pub(crate) fn new(workspace: &'a WorkspaceInfo) -> Self {
+        Self {
+            workspace,
+            metadata_store: RunnerMetadataStore::temp_for_workspace(&workspace.root_dir),
+        }
     }
 
-    Ok(())
+    pub(crate) fn execute_request(
+        &self,
+        request: &RunnerRequest,
+        force_run: bool,
+    ) -> Result<RunnerExecution> {
+        let output = run_monolithic(self.workspace, request, force_run)?;
+        let changed = match request {
+            RunnerRequest::Generate { crate_name, .. }
+            | RunnerRequest::Clean { crate_name, .. } => {
+                self.metadata_store.result_changed(crate_name)
+            },
+            RunnerRequest::Check { .. } => false,
+        };
+
+        Ok(RunnerExecution { output, changed })
+    }
+
+    pub(crate) fn execute_generation_action(
+        &self,
+        krate: &CrateInfo,
+        action: &GenerationAction,
+        force_run: bool,
+    ) -> GenerateResult {
+        let start = Instant::now();
+        let execution = self.try_execute_generation_action(krate, action, force_run);
+        let duration = start.elapsed();
+
+        match execution {
+            Ok(execution) => GenerateResult::success(
+                krate.name.clone(),
+                duration,
+                count_ftl_resources(&krate.ftl_output_dir, &krate.name),
+                normalize_output(execution.output),
+                execution.changed,
+            ),
+            Err(error) => GenerateResult::failure(krate.name.clone(), duration, error.to_string()),
+        }
+    }
+
+    fn try_execute_generation_action(
+        &self,
+        krate: &CrateInfo,
+        action: &GenerationAction,
+        force_run: bool,
+    ) -> Result<RunnerExecution> {
+        krate.ensure_inventory_library_target()?;
+        let request = action.to_runner_request(krate);
+        self.execute_request(&request, force_run)
+    }
 }
 
 fn normalize_output(output: String) -> Option<String> {
@@ -145,14 +156,14 @@ mod tests {
     }
 
     #[test]
-    fn build_action_request_builds_generate_request() {
+    fn generation_action_builds_generate_request() {
         let krate = test_crate_info(true);
         let action = GenerationAction::Generate {
             mode: FluentParseMode::Conservative,
             dry_run: true,
         };
 
-        let request = build_action_request(&krate, &action);
+        let request = action.to_runner_request(&krate);
         assert_eq!(
             request,
             RunnerRequest::Generate {
@@ -165,14 +176,14 @@ mod tests {
     }
 
     #[test]
-    fn build_action_request_builds_clean_request() {
+    fn generation_action_builds_clean_request() {
         let krate = test_crate_info(true);
         let action = GenerationAction::Clean {
             all_locales: true,
             dry_run: true,
         };
 
-        let request = build_action_request(&krate, &action);
+        let request = action.to_runner_request(&krate);
         assert_eq!(
             request,
             RunnerRequest::Clean {
@@ -185,10 +196,10 @@ mod tests {
     }
 
     #[test]
-    fn build_check_request_uses_crate_name() {
+    fn crate_info_builds_check_request() {
         let krate = test_crate_info(true);
         assert_eq!(
-            build_check_request(&krate),
+            krate.check_request(),
             RunnerRequest::Check {
                 crate_name: "test-crate".to_string(),
             }
@@ -196,31 +207,33 @@ mod tests {
     }
 
     #[test]
-    fn read_changed_status_handles_missing_invalid_and_valid_json() {
+    fn metadata_store_handles_missing_invalid_and_valid_changed_status() {
         let temp = tempdir().expect("tempdir");
         let crate_name = "demo";
-        let result_path = es_fluent_runner::result_path(temp.path(), crate_name);
+        let store = RunnerMetadataStore::new(temp.path());
+        let result_path = store.result_path(crate_name);
         fs::create_dir_all(result_path.parent().expect("result parent")).expect("create dir");
 
-        assert!(!read_changed_status(temp.path(), crate_name));
+        assert!(!store.result_changed(crate_name));
 
         fs::write(&result_path, "{not-json").expect("write invalid json");
-        assert!(!read_changed_status(temp.path(), crate_name));
+        assert!(!store.result_changed(crate_name));
 
         fs::write(&result_path, r#"{"changed":true}"#).expect("write valid json");
-        assert!(read_changed_status(temp.path(), crate_name));
+        assert!(store.result_changed(crate_name));
     }
 
     #[test]
-    fn execute_generation_action_monolithic_fails_without_lib_rs() {
+    fn execute_generation_action_fails_without_lib_rs() {
         let krate = test_crate_info(false);
         let workspace = test_workspace_info();
         let action = GenerationAction::Generate {
             mode: FluentParseMode::default(),
             dry_run: false,
         };
+        let executor = MonolithicExecutor::new(&workspace);
 
-        let result = execute_generation_action_monolithic(&krate, &workspace, &action, false);
+        let result = executor.execute_generation_action(&krate, &action, false);
         assert_eq!(result.name, "test-crate");
         assert!(result.error.is_some());
         assert!(

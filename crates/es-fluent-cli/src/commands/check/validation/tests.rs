@@ -102,7 +102,8 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
     )
     .unwrap();
 
-    let inventory_path = es_fluent_runner::inventory_path(temp.path(), "test-crate");
+    let inventory_path =
+        es_fluent_runner::RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
     fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
     fs::write(
         &inventory_path,

@@ -21,7 +21,7 @@ pub struct WatchArgs {
 pub fn run_watch(args: WatchArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    if !workspace.print_discovery(ui::print_header) {
+    if !workspace.print_discovery(ui::Ui::print_header) {
         return Ok(());
     }
 

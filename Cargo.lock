@@ -3905,7 +3905,6 @@ dependencies = [
  "es-fluent-runner",
  "es-fluent-shared",
  "es-fluent-toml",
- "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",

@@ -1,5 +1,4 @@
 use super::inventory::collect_type_infos;
-use super::resolve::{detect_crate_name, resolve_assets_dir};
 use super::*;
 use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use es_fluent_shared::meta::TypeKind;
@@ -148,7 +147,7 @@ fn resolve_helpers_use_overrides_and_config_defaults() {
         output_override
     );
     assert_eq!(
-        resolve_assets_dir(&generator).expect("assets"),
+        generator.resolve_assets_dir().expect("assets"),
         assets_override
     );
     assert_eq!(
@@ -171,7 +170,7 @@ fn resolve_helpers_can_load_defaults_from_manifest_environment() {
             temp.path().join("i18n/en-US")
         );
         assert_eq!(
-            resolve_assets_dir(&generator).expect("assets path"),
+            generator.resolve_assets_dir().expect("assets path"),
             temp.path().join("i18n")
         );
         assert_eq!(
@@ -210,7 +209,9 @@ fn resolve_helpers_report_config_errors_when_manifest_lacks_i18n_toml() {
         .expect_err("missing config should fail");
     assert!(matches!(output_err, GeneratorError::Config(_)));
 
-    let assets_err = resolve_assets_dir(&generator).expect_err("missing config should fail");
+    let assets_err = generator
+        .resolve_assets_dir()
+        .expect_err("missing config should fail");
     assert!(matches!(assets_err, GeneratorError::Config(_)));
 }
 
@@ -402,7 +403,7 @@ fn detect_crate_name_works_in_test_environment() {
             ("CARGO_PKG_NAME", Some(env!("CARGO_PKG_NAME"))),
         ],
         || {
-            let crate_name = detect_crate_name().expect("crate name");
+            let crate_name = EsFluentGenerator::detect_crate_name().expect("crate name");
             assert_eq!(crate_name, env!("CARGO_PKG_NAME"));
         },
     );
@@ -418,7 +419,7 @@ fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
             ("CARGO_PKG_NAME", Some("env-fallback-crate")),
         ],
         || {
-            let crate_name = detect_crate_name().expect("crate name");
+            let crate_name = EsFluentGenerator::detect_crate_name().expect("crate name");
             assert_eq!(crate_name, "env-fallback-crate");
         },
     );
@@ -429,7 +430,7 @@ fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
             ("CARGO_PKG_NAME", None),
         ],
         || {
-            let err = detect_crate_name().expect_err("should fail");
+            let err = EsFluentGenerator::detect_crate_name().expect_err("should fail");
             assert!(
                 matches!(err, GeneratorError::CrateName(message) if message.contains("Could not determine crate name"))
             );
@@ -437,7 +438,7 @@ fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
     );
 
     with_env_var("CARGO_MANIFEST_DIR", None, || {
-        let err = detect_crate_name().expect_err("missing env should fail");
+        let err = EsFluentGenerator::detect_crate_name().expect_err("missing env should fail");
         assert!(
             matches!(err, GeneratorError::CrateName(message) if message.contains("CARGO_MANIFEST_DIR not set"))
         );

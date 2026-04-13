@@ -170,14 +170,14 @@ fn create_valid_workspace_with_fake_runner_script(
     let hash = compute_content_hash(&src_dir, Some(&i18n_toml));
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
-    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(temp.path());
-    std::fs::create_dir_all(&temp_dir).expect("create .es-fluent");
+    let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
+    std::fs::create_dir_all(temp_store.base_dir()).expect("create .es-fluent");
     RunnerCache {
         crate_hashes,
         runner_mtime: mtime,
         cli_version: env!("CARGO_PKG_VERSION").to_string(),
     }
-    .save(&temp_dir)
+    .save(temp_store.base_dir())
     .expect("save runner cache");
 
     (temp, workspace, krate)
@@ -233,8 +233,8 @@ fn run_watch_loop_with_poll_processes_initial_generation_for_valid_crate() {
 #[test]
 fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
     let (_temp, workspace, krate) = create_valid_workspace_with_fake_runner();
-    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.root_dir);
-    let result_json = es_fluent_runner::result_path(&temp_dir, &krate.name);
+    let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
+    let result_json = temp_store.result_path(&krate.name);
     std::fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
     std::fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
 
@@ -258,8 +258,8 @@ fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
 fn spawn_generation_handles_invalid_json_and_empty_output() {
     let (_temp, workspace, krate) =
         create_valid_workspace_with_fake_runner_script("#!/bin/sh\n:\n");
-    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.root_dir);
-    let result_json = es_fluent_runner::result_path(&temp_dir, &krate.name);
+    let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
+    let result_json = temp_store.result_path(&krate.name);
     std::fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
     std::fs::write(&result_json, "{not-json").expect("write invalid json");
 

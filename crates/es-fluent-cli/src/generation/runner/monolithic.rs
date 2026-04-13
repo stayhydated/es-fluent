@@ -8,15 +8,14 @@ use crate::generation::templates::{
 };
 use anyhow::{Context as _, Result, bail};
 use askama::Template as _;
-use es_fluent_runner::RunnerRequest;
-use es_fluent_runner::get_es_fluent_temp_dir;
+use es_fluent_runner::{RunnerMetadataStore, RunnerRequest};
 use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
 
 pub(super) struct MonolithicRunner<'a> {
     pub(super) workspace: &'a WorkspaceInfo,
-    pub(super) temp_dir: PathBuf,
+    pub(super) temp_store: RunnerMetadataStore,
     pub(super) binary_path: PathBuf,
 }
 
@@ -24,7 +23,7 @@ impl<'a> MonolithicRunner<'a> {
     pub(super) fn new(workspace: &'a WorkspaceInfo) -> Self {
         Self {
             workspace,
-            temp_dir: get_es_fluent_temp_dir(&workspace.root_dir),
+            temp_store: RunnerMetadataStore::temp_for_workspace(&workspace.root_dir),
             binary_path: get_monolithic_binary_path(workspace),
         }
     }
@@ -50,7 +49,7 @@ impl<'a> MonolithicRunner<'a> {
             }
         }
 
-        if let Some(cache) = RunnerCache::load(&self.temp_dir) {
+        if let Some(cache) = RunnerCache::load(self.temp_store.base_dir()) {
             if cache.cli_version != CLI_VERSION {
                 return true;
             }
@@ -75,7 +74,7 @@ impl<'a> MonolithicRunner<'a> {
                 runner_mtime: runner_mtime_secs,
                 cli_version: CLI_VERSION.to_string(),
             };
-            let _ = new_cache.save(&self.temp_dir);
+            let _ = new_cache.save(self.temp_store.base_dir());
             return false;
         }
 
@@ -85,14 +84,14 @@ impl<'a> MonolithicRunner<'a> {
 
 /// Prepare the monolithic runner crate at workspace root that links all workspace crates.
 pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<PathBuf> {
-    let temp_dir = get_es_fluent_temp_dir(&workspace.root_dir);
-    let src_dir = temp_dir.join("src");
-    let runner_crate = RunnerCrate::new(&temp_dir);
+    let temp_store = RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
+    let src_dir = temp_store.base_dir().join("src");
+    let runner_crate = RunnerCrate::new(temp_store.base_dir());
 
     fs::create_dir_all(&src_dir).context("Failed to create .es-fluent directory")?;
 
     fs::write(
-        temp_dir.join(".gitignore"),
+        temp_store.base_dir().join(".gitignore"),
         GitignoreTemplate.render().unwrap(),
     )
     .context("Failed to write .es-fluent/.gitignore")?;
@@ -131,13 +130,13 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
         .context("Failed to write .es-fluent/src/main.rs")?;
 
     let workspace_lock = workspace.root_dir.join("Cargo.lock");
-    let runner_lock = temp_dir.join("Cargo.lock");
+    let runner_lock = temp_store.base_dir().join("Cargo.lock");
     if workspace_lock.exists() {
         fs::copy(&workspace_lock, &runner_lock)
             .context("Failed to copy Cargo.lock to .es-fluent/")?;
     }
 
-    Ok(temp_dir)
+    Ok(temp_store.base_dir().to_path_buf())
 }
 
 /// Get the path to the monolithic binary if it exists.
@@ -156,7 +155,8 @@ pub fn run_monolithic(
 
     if !force_run && runner.binary_path.exists() && !runner.is_stale() {
         let mut cmd = Command::new(&runner.binary_path);
-        cmd.arg(&encoded_request).current_dir(&runner.temp_dir);
+        cmd.arg(&encoded_request)
+            .current_dir(runner.temp_store.base_dir());
 
         if env::var("NO_COLOR").is_err() {
             cmd.env("CLICOLOR_FORCE", "1");
@@ -173,7 +173,8 @@ pub fn run_monolithic(
     }
 
     let args = vec![encoded_request];
-    let result = RunnerCrate::new(&runner.temp_dir).run_cargo(Some("es-fluent-runner"), &args)?;
+    let result = RunnerCrate::new(runner.temp_store.base_dir())
+        .run_cargo(Some("es-fluent-runner"), &args)?;
 
     write_runner_cache(&runner);
 
@@ -204,6 +205,6 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
             runner_mtime: runner_mtime_secs,
             cli_version: CLI_VERSION.to_string(),
         };
-        let _ = cache.save(&runner.temp_dir);
+        let _ = cache.save(runner.temp_store.base_dir());
     }
 }

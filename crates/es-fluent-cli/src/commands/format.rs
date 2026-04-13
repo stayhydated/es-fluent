@@ -78,8 +78,8 @@ impl FormatResult {
 pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    if !workspace.print_discovery(ui::print_format_header) {
-        ui::print_no_crates_found();
+    if !workspace.print_discovery(ui::Ui::print_format_header) {
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
@@ -87,7 +87,7 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let mut total_unchanged = 0;
     let mut errors: Vec<FormatError> = Vec::new();
 
-    let pb = ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...");
+    let pb = ui::Ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...");
 
     for krate in &workspace.crates {
         pb.set_message(format!("Formatting {}", krate.name));
@@ -108,12 +108,12 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
                         .unwrap_or(&result.path);
 
                     if args.dry_run {
-                        ui::print_would_format(display_path);
+                        ui::Ui::print_would_format(display_path);
                         if let Some(diff) = &result.diff_info {
                             diff.print();
                         }
                     } else {
-                        ui::print_formatted(display_path);
+                        ui::Ui::print_formatted(display_path);
                     }
                 });
             } else {
@@ -131,7 +131,7 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
             }
             .print();
         } else {
-            ui::print_format_summary(total_formatted, total_unchanged);
+            ui::Ui::print_format_summary(total_formatted, total_unchanged);
         }
         Ok(())
     } else {

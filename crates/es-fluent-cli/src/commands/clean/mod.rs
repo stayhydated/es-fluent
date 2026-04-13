@@ -38,7 +38,7 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
     // Handle orphaned file removal first if requested
     if args.orphaned {
         let workspace = WorkspaceCrates::discover(args.workspace)?;
-        if !workspace.print_discovery(crate::utils::ui::print_header) {
+        if !workspace.print_discovery(crate::utils::ui::Ui::print_header) {
             return Ok(());
         }
         return clean_orphaned_files(&workspace, args.all, args.dry_run);

@@ -20,7 +20,6 @@ es-fluent-generate = { workspace = true }
 es-fluent-runner = { workspace = true }
 es-fluent-shared = { workspace = true }
 es-fluent-toml = { workspace = true }
-serde = { features = [ "derive" ], workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

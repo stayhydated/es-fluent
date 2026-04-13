@@ -228,7 +228,9 @@ mod tests {
 
         let mut other_bundle =
             fluent_bundle::bundle::FluentBundle::new_concurrent(vec![other_lang.clone()]);
-        other_bundle.add_resource(other_resource).expect("add resource");
+        other_bundle
+            .add_resource(other_resource)
+            .expect("add resource");
         app.world_mut()
             .resource_mut::<I18nBundle>()
             .0

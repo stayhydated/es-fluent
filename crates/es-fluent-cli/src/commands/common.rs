@@ -1,5 +1,5 @@
 use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
-use crate::generation::{execute_generation_action_monolithic, prepare_monolithic_runner_crate};
+use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
 use crate::utils::{filter_crates_by_package, partition_by_lib_rs, ui};
 use clap::Args;
 use colored::Colorize as _;
@@ -55,14 +55,14 @@ impl WorkspaceCrates {
         header();
 
         if self.crates.is_empty() {
-            ui::print_discovered(&[]);
+            ui::Ui::print_discovered(&[]);
             return false;
         }
 
-        ui::print_discovered(&self.crates);
+        ui::Ui::print_discovered(&self.crates);
 
         for krate in &self.skipped {
-            ui::print_missing_lib_rs(&krate.name);
+            ui::Ui::print_missing_lib_rs(&krate.name);
         }
 
         true
@@ -92,14 +92,15 @@ pub fn parallel_generate(
             .collect();
     }
 
-    let pb = ui::create_progress_bar(crates.len() as u64, "Processing crates...");
+    let executor = MonolithicExecutor::new(workspace);
+    let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Processing crates...");
 
     // Process sequentially since they share the same binary
     // (parallel could cause contention on first build)
     crates
         .iter()
         .map(|krate| {
-            let result = execute_generation_action_monolithic(krate, workspace, action, force_run);
+            let result = executor.execute_generation_action(krate, action, force_run);
             pb.inc(1);
             result
         })
@@ -116,7 +117,7 @@ pub fn run_generation_command(
 ) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(workspace_args)?;
 
-    if !workspace.print_discovery(ui::print_header) {
+    if !workspace.print_discovery(ui::Ui::print_header) {
         return Ok(());
     }
 
@@ -174,10 +175,10 @@ impl GenerationVerb {
     fn print_changed(self, result: &GenerateResult) {
         match self {
             GenerationVerb::Generate => {
-                ui::print_generated(&result.name, result.duration, result.resource_count);
+                ui::Ui::print_generated(&result.name, result.duration, result.resource_count);
             },
             GenerationVerb::Clean => {
-                ui::print_cleaned(&result.name, result.duration, result.resource_count);
+                ui::Ui::print_cleaned(&result.name, result.duration, result.resource_count);
             },
         }
     }
@@ -201,7 +202,7 @@ pub fn render_generation_results_with_dry_run(
                     println!(
                         "{} {} ({} resources)",
                         format!("{} {}", result.name, verb.dry_run_label()).yellow(),
-                        ui::format_duration(result.duration).green(),
+                        ui::Ui::format_duration(result.duration).green(),
                         result.resource_count.to_string().cyan()
                     );
                 } else {
@@ -213,7 +214,7 @@ pub fn render_generation_results_with_dry_run(
                 println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
             }
         },
-        |result| ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
+        |result| ui::Ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
     )
 }
 
@@ -221,7 +222,6 @@ pub fn render_generation_results_with_dry_run(
 mod tests {
     use super::*;
     use crate::core::{CrateInfo, FluentParseMode, GenerationAction, WorkspaceInfo};
-    use crate::generation::read_changed_status;
     use crate::test_fixtures::{
         create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache,
     };
@@ -256,16 +256,17 @@ mod tests {
     fn read_changed_status_handles_missing_invalid_and_valid_json() {
         let temp = tempdir().unwrap();
         let crate_name = "demo";
-        let result_path = es_fluent_runner::result_path(temp.path(), crate_name);
+        let store = es_fluent_runner::RunnerMetadataStore::new(temp.path());
+        let result_path = store.result_path(crate_name);
         fs::create_dir_all(result_path.parent().unwrap()).unwrap();
 
-        assert!(!read_changed_status(temp.path(), crate_name));
+        assert!(!store.result_changed(crate_name));
 
         fs::write(&result_path, "{not-json").unwrap();
-        assert!(!read_changed_status(temp.path(), crate_name));
+        assert!(!store.result_changed(crate_name));
 
         fs::write(&result_path, r#"{"changed":true}"#).unwrap();
-        assert!(read_changed_status(temp.path(), crate_name));
+        assert!(store.result_changed(crate_name));
     }
 
     #[test]
@@ -333,10 +334,11 @@ mod tests {
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.root_dir);
         setup_fake_runner_and_cache(&temp, "#!/bin/sh\necho generated-from-fake-runner\n");
 
-        let result_json = es_fluent_runner::result_path(&temp_dir, &krate.name);
+        let temp_dir =
+            es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
+        let result_json = temp_dir.result_path(&krate.name);
         fs::create_dir_all(result_json.parent().unwrap()).expect("create metadata dir");
         fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
 

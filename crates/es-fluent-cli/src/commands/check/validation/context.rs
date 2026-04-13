@@ -14,7 +14,7 @@ pub(super) struct ValidationContext<'a> {
 
 impl ValidationContext<'_> {
     pub(super) fn format_terminal_link(&self, label: &str, url: &str) -> String {
-        if crate::utils::ui::terminal_links_enabled() {
+        if crate::utils::ui::Ui::terminal_links_enabled() {
             Link::new(label, url).to_string()
         } else {
             label.to_string()

@@ -12,9 +12,7 @@ mod validation;
 
 use super::common::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, ValidationIssue, ValidationReport};
-use crate::generation::{
-    build_check_request, execute_request_monolithic, prepare_monolithic_runner_crate,
-};
+use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
 use crate::utils::ui;
 use clap::Parser;
 use std::collections::HashSet;
@@ -43,8 +41,8 @@ pub struct CheckArgs {
 pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    if !workspace.print_discovery(ui::print_check_header) {
-        ui::print_no_crates_found();
+    if !workspace.print_discovery(ui::Ui::print_check_header) {
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
@@ -85,7 +83,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 
     if crates_to_check.is_empty() {
-        ui::print_no_crates_found();
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
@@ -94,14 +92,18 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         .map_err(|e| CliError::Other(e.to_string()))?;
 
     // First pass: collect all expected keys from crates
-    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.workspace_info.root_dir);
+    let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(
+        &workspace.workspace_info.root_dir,
+    );
+    let executor = MonolithicExecutor::new(&workspace.workspace_info);
 
-    let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
+    let pb = ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
 
     for krate in &crates_to_check {
         pb.set_message(format!("Scanning {}", krate.name));
-        let request = build_check_request(krate);
-        execute_request_monolithic(&workspace.workspace_info, &request, force_run)
+        let request = krate.check_request();
+        executor
+            .execute_request(&request, force_run)
             .map_err(|e| CliError::Other(e.to_string()))?;
         pb.inc(1);
     }
@@ -111,7 +113,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     // Second pass: validate FTL files
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
-    let pb = ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...");
+    let pb = ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...");
 
     for krate in &crates_to_check {
         pb.set_message(format!("Checking {}", krate.name));
@@ -119,7 +121,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         match validation::validate_crate(
             krate,
             &workspace.workspace_info.root_dir,
-            &temp_dir,
+            temp_store.base_dir(),
             args.all,
         ) {
             Ok(issues) => {
@@ -128,7 +130,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
             Err(e) => {
                 // If error, print above progress bar
                 pb.suspend(|| {
-                    ui::print_check_error(&krate.name, &e.to_string());
+                    ui::Ui::print_check_error(&krate.name, &e.to_string());
                 });
             },
         }
@@ -155,7 +157,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         .count();
 
     if all_issues.is_empty() {
-        ui::print_check_success();
+        ui::Ui::print_check_success();
         Ok(())
     } else {
         Err(CliError::Validation(ValidationReport {
@@ -226,7 +228,8 @@ mod tests {
         setup_fake_runner_and_cache(&temp);
 
         let inventory_path =
-            es_fluent_runner::inventory_path(&temp.path().join(".es-fluent"), "test-app");
+            es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
+                .inventory_path("test-app");
         fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
         fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
 
@@ -249,7 +252,8 @@ mod tests {
         setup_fake_runner_and_cache(&temp);
 
         let inventory_path =
-            es_fluent_runner::inventory_path(&temp.path().join(".es-fluent"), "test-app");
+            es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
+                .inventory_path("test-app");
         fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
         fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
 

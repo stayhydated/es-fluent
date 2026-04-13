@@ -3,21 +3,18 @@
 mod args;
 mod error;
 mod inventory;
-mod resolve;
 
 #[cfg(test)]
 mod tests;
 
 use self::args::Action;
 use self::inventory::{collect_type_infos, validate_namespaces};
-use self::resolve::{
-    resolve_clean_paths, resolve_crate_name, resolve_manifest_dir, resolve_output_path,
-};
 
 pub use self::args::GeneratorArgs;
 pub use self::error::GeneratorError;
 pub use es_fluent_generate::FluentParseMode;
-use std::path::PathBuf;
+use es_fluent_toml::ResolvedI18nLayout;
+use std::path::{Path, PathBuf};
 
 /// Builder for generating FTL files from registered types.
 ///
@@ -69,19 +66,59 @@ impl EsFluentGenerator {
     }
 
     fn resolve_crate_name(&self) -> Result<String, GeneratorError> {
-        resolve_crate_name(self)
+        self.crate_name
+            .clone()
+            .map_or_else(Self::detect_crate_name, Ok)
     }
 
     fn resolve_output_path(&self) -> Result<PathBuf, GeneratorError> {
-        resolve_output_path(self)
+        if let Some(path) = &self.output_path {
+            return Ok(path.clone());
+        }
+
+        Ok(self.resolve_layout()?.output_dir)
+    }
+
+    fn resolve_assets_dir(&self) -> Result<PathBuf, GeneratorError> {
+        if let Some(path) = &self.assets_dir {
+            return Ok(path.clone());
+        }
+
+        Ok(self.resolve_layout()?.assets_dir)
     }
 
     fn resolve_manifest_dir(&self) -> Result<PathBuf, GeneratorError> {
-        resolve_manifest_dir(self)
+        if let Some(path) = &self.manifest_dir {
+            return Ok(path.clone());
+        }
+
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .map_err(|_| GeneratorError::CrateName("CARGO_MANIFEST_DIR not set".to_string()))?;
+        Ok(PathBuf::from(manifest_dir))
+    }
+
+    fn resolve_layout(&self) -> Result<ResolvedI18nLayout, GeneratorError> {
+        let manifest_dir = self.resolve_manifest_dir()?;
+        Ok(ResolvedI18nLayout::from_manifest_dir(&manifest_dir)?)
     }
 
     fn resolve_clean_paths(&self, all_locales: bool) -> Result<Vec<PathBuf>, GeneratorError> {
-        resolve_clean_paths(self, all_locales)
+        if !all_locales {
+            return Ok(vec![self.resolve_output_path()?]);
+        }
+
+        let mut paths = self
+            .resolve_assets_dir()
+            .ok()
+            .map(|assets_dir| Self::resolve_clean_locale_dirs(&assets_dir))
+            .unwrap_or_default();
+
+        if paths.is_empty() {
+            return Ok(vec![self.resolve_output_path()?]);
+        }
+
+        paths.sort();
+        Ok(paths)
     }
 
     /// Generates FTL files from all registered types.
@@ -141,5 +178,34 @@ impl EsFluentGenerator {
         }
 
         Ok(any_changed)
+    }
+
+    fn resolve_clean_locale_dirs(assets_dir: &Path) -> Vec<PathBuf> {
+        std::fs::read_dir(assets_dir)
+            .ok()
+            .into_iter()
+            .flat_map(|entries| entries.filter_map(Result::ok))
+            .map(|entry| entry.path())
+            .filter(|path| path.is_dir())
+            .collect()
+    }
+
+    fn detect_crate_name() -> Result<String, GeneratorError> {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .map_err(|_| GeneratorError::CrateName("CARGO_MANIFEST_DIR not set".to_string()))?;
+        let manifest_path = PathBuf::from(&manifest_dir).join("Cargo.toml");
+
+        cargo_metadata::MetadataCommand::new()
+            .exec()
+            .ok()
+            .and_then(|metadata| {
+                metadata
+                    .packages
+                    .iter()
+                    .find(|pkg| pkg.manifest_path == manifest_path)
+                    .map(|pkg| pkg.name.to_string())
+            })
+            .or_else(|| std::env::var("CARGO_PKG_NAME").ok())
+            .ok_or_else(|| GeneratorError::CrateName("Could not determine crate name".to_string()))
     }
 }

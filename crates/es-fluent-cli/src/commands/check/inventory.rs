@@ -1,5 +1,5 @@
 use anyhow::Result;
-use es_fluent_runner::{RunnerIoError, read_inventory};
+use es_fluent_runner::{RunnerIoError, RunnerMetadataStore};
 use indexmap::IndexMap;
 use std::collections::HashSet;
 
@@ -16,15 +16,18 @@ pub(crate) fn read_inventory_file(
     temp_dir: &std::path::Path,
     crate_name: &str,
 ) -> Result<IndexMap<String, KeyInfo>> {
-    let inventory_path = es_fluent_runner::inventory_path(temp_dir, crate_name);
-    let data = read_inventory(temp_dir, crate_name).map_err(|error| match error {
-        RunnerIoError::Io(_) => anyhow::Error::new(error)
-            .context(format!("Failed to read {}", inventory_path.display())),
-        RunnerIoError::Json(_) => {
-            anyhow::Error::new(error).context("Failed to parse inventory JSON")
-        },
-        RunnerIoError::Message(_) => anyhow::Error::new(error),
-    })?;
+    let store = RunnerMetadataStore::new(temp_dir);
+    let inventory_path = store.inventory_path(crate_name);
+    let data = store
+        .read_inventory(crate_name)
+        .map_err(|error| match error {
+            RunnerIoError::Io(_) => anyhow::Error::new(error)
+                .context(format!("Failed to read {}", inventory_path.display())),
+            RunnerIoError::Json(_) => {
+                anyhow::Error::new(error).context("Failed to parse inventory JSON")
+            },
+            RunnerIoError::Message(_) => anyhow::Error::new(error),
+        })?;
 
     // Convert to IndexMap with KeyInfo for richer metadata
     let mut expected_keys = IndexMap::new();
@@ -51,7 +54,7 @@ mod tests {
     #[test]
     fn read_inventory_file_parses_expected_key_metadata() {
         let temp = tempdir().unwrap();
-        let inventory_path = es_fluent_runner::inventory_path(temp.path(), "test-crate");
+        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(
             &inventory_path,
@@ -92,7 +95,7 @@ mod tests {
     #[test]
     fn read_inventory_file_returns_error_for_invalid_json() {
         let temp = tempdir().unwrap();
-        let inventory_path = es_fluent_runner::inventory_path(temp.path(), "test-crate");
+        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(&inventory_path, "{invalid-json").unwrap();
 

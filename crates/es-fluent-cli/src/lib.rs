@@ -13,7 +13,19 @@ pub use commands::{
     run_watch,
 };
 pub use core::{CliError, FluentParseMode};
-pub use utils::ui::{is_e2e, set_e2e_mode, terminal_links_enabled};
+pub use utils::ui::Ui;
+
+pub fn set_e2e_mode(enabled: bool) {
+    Ui::set_e2e_mode(enabled);
+}
+
+pub fn is_e2e() -> bool {
+    Ui::is_e2e()
+}
+
+pub fn terminal_links_enabled() -> bool {
+    Ui::terminal_links_enabled()
+}
 
 #[cfg(test)]
 pub(crate) mod test_fixtures;

@@ -21,7 +21,7 @@ pub fn filter_crates_by_package(
         Some(pkg) => {
             let filtered: Vec<_> = crates.into_iter().filter(|c| &c.name == pkg).collect();
             if filtered.is_empty() {
-                ui::print_package_not_found(pkg);
+                ui::Ui::print_package_not_found(pkg);
             }
             filtered
         },

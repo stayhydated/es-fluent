@@ -1,5 +1,5 @@
 use super::CLI_VERSION;
-use es_fluent_runner::get_es_fluent_temp_dir;
+use es_fluent_runner::RunnerMetadataStore;
 use std::{env, path::Path};
 
 /// Configuration derived from cargo metadata for temp crate generation.
@@ -19,9 +19,9 @@ impl TempCrateConfig {
         let manifest_overrides = Self::extract_manifest_overrides(manifest_path);
 
         let workspace_root = manifest_path.parent().unwrap_or(Path::new("."));
-        let temp_dir = get_es_fluent_temp_dir(workspace_root);
+        let temp_dir = RunnerMetadataStore::temp_for_workspace(workspace_root);
 
-        if let Some(cache) = MetadataCache::load(&temp_dir)
+        if let Some(cache) = MetadataCache::load(temp_dir.base_dir())
             && cache.is_valid(workspace_root)
         {
             return Self {
@@ -72,14 +72,14 @@ impl TempCrateConfig {
         };
 
         if let Some(cargo_lock_hash) = MetadataCache::hash_cargo_lock(workspace_root) {
-            let _ = std::fs::create_dir_all(&temp_dir);
+            let _ = std::fs::create_dir_all(temp_dir.base_dir());
             let cache = MetadataCache {
                 cargo_lock_hash,
                 es_fluent_dep: es_fluent_dep.clone(),
                 es_fluent_cli_helpers_dep: es_fluent_cli_helpers_dep.clone(),
                 target_dir: target_dir.clone(),
             };
-            let _ = cache.save(&temp_dir);
+            let _ = cache.save(temp_dir.base_dir());
         }
 
         Self {

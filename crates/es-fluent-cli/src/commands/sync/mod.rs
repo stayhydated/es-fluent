@@ -37,19 +37,19 @@ pub struct SyncArgs {
 pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    ui::print_sync_header();
+    ui::Ui::print_sync_header();
 
     let crates = workspace.crates;
 
     if crates.is_empty() {
-        ui::print_no_crates_found();
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
     let target_locales: Option<HashSet<String>> = if args.all {
         None // Will sync to all locales
     } else if args.locale.is_empty() {
-        ui::print_no_locales_specified();
+        ui::Ui::print_no_locales_specified();
         return Ok(());
     } else {
         Some(args.locale.iter().cloned().collect())
@@ -63,7 +63,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
             if !all_available_locales.contains(locale) {
                 let mut available: Vec<String> = all_available_locales.into_iter().collect();
                 available.sort();
-                ui::print_locale_not_found(locale, &available);
+                ui::Ui::print_locale_not_found(locale, &available);
                 return Err(CliError::LocaleNotFound(LocaleNotFoundError {
                     locale: locale.clone(),
                     available: available.join(", "),
@@ -76,7 +76,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let mut total_locales_affected = 0;
     let mut all_synced_keys: Vec<SyncMissingKey> = Vec::new();
 
-    let pb = ui::create_progress_bar(crates.len() as u64, "Syncing crates...");
+    let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Syncing crates...");
 
     for krate in &crates {
         pb.set_message(format!("Syncing {}", krate.name));
@@ -90,14 +90,18 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 
                 pb.suspend(|| {
                     if args.dry_run {
-                        ui::print_would_add_keys(result.keys_added, &result.locale, &krate.name);
+                        ui::Ui::print_would_add_keys(
+                            result.keys_added,
+                            &result.locale,
+                            &krate.name,
+                        );
                         if let Some(diff) = &result.diff_info {
                             diff.print();
                         }
                     } else {
-                        ui::print_added_keys(result.keys_added, &result.locale);
+                        ui::Ui::print_added_keys(result.keys_added, &result.locale);
                         for key in &result.added_keys {
-                            ui::print_synced_key(key);
+                            ui::Ui::print_synced_key(key);
                             all_synced_keys.push(SyncMissingKey {
                                 key: key.clone(),
                                 target_locale: result.locale.clone(),
@@ -113,7 +117,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     pb.finish_and_clear();
 
     if total_keys_added == 0 {
-        ui::print_all_in_sync();
+        ui::Ui::print_all_in_sync();
         Ok(())
     } else if args.dry_run {
         DryRunSummary::Sync {
@@ -123,7 +127,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
         .print();
         Ok(())
     } else {
-        ui::print_sync_summary(total_keys_added, total_locales_affected);
+        ui::Ui::print_sync_summary(total_keys_added, total_locales_affected);
         Ok(())
     }
 }

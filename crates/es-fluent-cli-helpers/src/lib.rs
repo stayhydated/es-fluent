@@ -3,7 +3,7 @@
 mod cli;
 mod generate;
 
-use es_fluent_runner::{RunnerParseMode, RunnerRequest, RunnerResult, write_result};
+use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest, RunnerResult};
 use es_fluent_toml::ResolvedI18nLayout;
 #[cfg(test)]
 use std::path::Path;
@@ -39,7 +39,9 @@ impl RunnerContext {
 
     fn write_changed_result(&self, changed: bool) {
         let result = RunnerResult { changed };
-        write_result(".", &self.crate_name, &result).expect("Failed to write metadata result");
+        RunnerMetadataStore::new(".")
+            .write_result(&self.crate_name, &result)
+            .expect("Failed to write metadata result");
     }
 }
 
@@ -222,7 +224,8 @@ mod tests {
     }
 
     fn read_changed_result(base: &Path, crate_name: &str) -> bool {
-        es_fluent_runner::read_result(base, crate_name)
+        RunnerMetadataStore::new(base)
+            .read_result(crate_name)
             .expect("read result json")
             .changed
     }
@@ -256,8 +259,9 @@ mod tests {
         with_temp_cwd(|cwd| {
             run_check("unknown-crate");
 
-            let value =
-                es_fluent_runner::read_inventory(cwd, "unknown-crate").expect("read inventory");
+            let value = RunnerMetadataStore::new(cwd)
+                .read_inventory("unknown-crate")
+                .expect("read inventory");
             assert_eq!(value.expected_keys.len(), 0);
         });
     }

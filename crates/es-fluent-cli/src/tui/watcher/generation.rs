@@ -1,5 +1,5 @@
 use crate::core::{CrateInfo, FluentParseMode, GenerateResult, GenerationAction, WorkspaceInfo};
-use crate::generation::execute_generation_action_monolithic;
+use crate::generation::MonolithicExecutor;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
@@ -18,9 +18,9 @@ pub(super) fn spawn_generation(
     result_tx: Sender<GenerateResult>,
 ) {
     thread::spawn(move || {
-        let result = execute_generation_action_monolithic(
+        let executor = MonolithicExecutor::new(&workspace);
+        let result = executor.execute_generation_action(
             &krate,
-            &workspace,
             &GenerationAction::Generate {
                 mode,
                 dry_run: false,

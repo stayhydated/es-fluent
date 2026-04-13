@@ -146,8 +146,8 @@ edition = "2024"
     .expect("write Cargo.toml");
     std::fs::write(temp.path().join("Cargo.lock"), "lock").expect("write Cargo.lock");
 
-    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(temp.path());
-    std::fs::create_dir_all(&temp_dir).expect("create .es-fluent");
+    let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
+    std::fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
     MetadataCache {
         cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
         es_fluent_dep: "es-fluent = { path = \"/tmp/es\" }".to_string(),
@@ -155,7 +155,7 @@ edition = "2024"
             .to_string(),
         target_dir: "/tmp/target".to_string(),
     }
-    .save(&temp_dir)
+    .save(temp_dir.base_dir())
     .expect("save metadata cache");
 
     let config = TempCrateConfig::from_manifest(&manifest_path);
@@ -183,8 +183,8 @@ edition = "2024"
     std::fs::write(temp.path().join("Cargo.lock"), "lock-content").expect("write lock");
 
     let _ = TempCrateConfig::from_manifest(&manifest_path);
-    let temp_dir = es_fluent_runner::get_es_fluent_temp_dir(temp.path());
-    let cache = MetadataCache::load(&temp_dir);
+    let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
+    let cache = MetadataCache::load(temp_dir.base_dir());
     assert!(cache.is_some(), "metadata cache should be written");
 }
 
@@ -224,7 +224,7 @@ fn monolithic_runner_staleness_detects_hash_changes() {
     let runner = MonolithicRunner::new(&workspace);
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
-    std::fs::create_dir_all(&runner.temp_dir).expect("create temp dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
 
     std::fs::write(&runner.binary_path, "#!/bin/sh\necho monolithic-runner\n")
         .expect("write fake runner");
@@ -246,7 +246,7 @@ fn monolithic_runner_staleness_detects_hash_changes() {
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
     }
-    .save(&runner.temp_dir)
+    .save(runner.temp_store.base_dir())
     .expect("save cache");
 
     assert!(!runner.is_stale(), "cache should mark runner as fresh");
@@ -261,7 +261,7 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
     let runner = MonolithicRunner::new(&workspace);
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
-    std::fs::create_dir_all(&runner.temp_dir).expect("create temp dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
 
     std::fs::write(&runner.binary_path, "#!/bin/sh\necho \"$@\"\n").expect("write fake runner");
     set_executable(&runner.binary_path);
@@ -282,7 +282,7 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
     }
-    .save(&runner.temp_dir)
+    .save(runner.temp_store.base_dir())
     .expect("save cache");
 
     let request = RunnerRequest::Generate {
@@ -307,7 +307,7 @@ fn run_monolithic_fast_path_reports_binary_failure() {
     let runner = MonolithicRunner::new(&workspace);
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
-    std::fs::create_dir_all(&runner.temp_dir).expect("create temp dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
 
     std::fs::write(&runner.binary_path, "#!/bin/sh\necho boom 1>&2\nexit 1\n")
         .expect("write failing runner");
@@ -329,7 +329,7 @@ fn run_monolithic_fast_path_reports_binary_failure() {
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
     }
-    .save(&runner.temp_dir)
+    .save(runner.temp_store.base_dir())
     .expect("save cache");
 
     let request = RunnerRequest::Generate {
@@ -414,7 +414,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
 
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
-    std::fs::create_dir_all(&runner.temp_dir).expect("create temp dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
     std::fs::write(&runner.binary_path, "#!/bin/sh\necho ok\n").expect("write fake runner");
     set_executable(&runner.binary_path);
 
@@ -434,7 +434,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
         runner_mtime: mtime,
         cli_version: "0.0.0".to_string(),
     }
-    .save(&runner.temp_dir)
+    .save(runner.temp_store.base_dir())
     .expect("save old-version cache");
     assert!(runner.is_stale(), "version mismatch should be stale");
 
@@ -444,7 +444,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
     }
-    .save(&runner.temp_dir)
+    .save(runner.temp_store.base_dir())
     .expect("save removed-crate cache");
     assert!(runner.is_stale(), "removed crate should be stale");
 }
@@ -455,7 +455,7 @@ fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
     let runner = MonolithicRunner::new(&workspace);
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
-    std::fs::create_dir_all(&runner.temp_dir).expect("create temp dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
     std::fs::write(&runner.binary_path, "#!/bin/sh\necho ok\n").expect("write fake runner");
     set_executable(&runner.binary_path);
 
@@ -474,14 +474,14 @@ fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
         runner_mtime: current_mtime.saturating_sub(1),
         cli_version: CLI_VERSION.to_string(),
     }
-    .save(&runner.temp_dir)
+    .save(runner.temp_store.base_dir())
     .expect("save stale-mtime cache");
 
     assert!(
         !runner.is_stale(),
         "mtime mismatch should refresh cache and stay fresh"
     );
-    let updated = RunnerCache::load(&runner.temp_dir).expect("load updated cache");
+    let updated = RunnerCache::load(runner.temp_store.base_dir()).expect("load updated cache");
     assert_eq!(updated.runner_mtime, current_mtime);
 }
 
@@ -532,7 +532,7 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
     let runner = MonolithicRunner::new(&workspace);
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
-    std::fs::create_dir_all(&runner.temp_dir).expect("create temp dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
 
     std::fs::write(&runner.binary_path, "not executable").expect("write non-executable file");
 
@@ -551,7 +551,7 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
     }
-    .save(&runner.temp_dir)
+    .save(runner.temp_store.base_dir())
     .expect("save cache");
 
     let request = RunnerRequest::Generate {
@@ -569,10 +569,10 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
 #[test]
 fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     let (_temp, workspace) = create_workspace_fixture("slow-path", true);
-    let runner_dir = es_fluent_runner::get_es_fluent_temp_dir(&workspace.root_dir);
-    std::fs::create_dir_all(runner_dir.join("src")).expect("create runner src");
+    let runner_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
+    std::fs::create_dir_all(runner_dir.base_dir().join("src")).expect("create runner src");
     std::fs::write(
-        runner_dir.join("Cargo.toml"),
+        runner_dir.base_dir().join("Cargo.toml"),
         r#"[package]
 name = "dummy-runner"
 version = "0.1.0"
@@ -585,7 +585,7 @@ path = "src/main.rs"
     )
     .expect("write runner Cargo.toml");
     std::fs::write(
-        runner_dir.join("src/main.rs"),
+        runner_dir.base_dir().join("src/main.rs"),
         r#"fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     println!("{}", args.join(" "));
@@ -613,6 +613,6 @@ path = "src/main.rs"
         "unexpected slow-path output: {output}"
     );
 
-    let cache = RunnerCache::load(&runner_dir).expect("runner cache should be written");
+    let cache = RunnerCache::load(runner_dir.base_dir()).expect("runner cache should be written");
     assert!(cache.crate_hashes.contains_key("slow-path"));
 }

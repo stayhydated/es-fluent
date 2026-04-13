@@ -1,6 +1,6 @@
 //! Inventory collection functionality for CLI commands.
 
-use es_fluent_runner::{ExpectedKey, InventoryData, write_inventory};
+use es_fluent_runner::{ExpectedKey, InventoryData, RunnerMetadataStore};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -68,7 +68,9 @@ pub fn write_inventory_for_crate(crate_name: &str) {
 
     let data = InventoryData { expected_keys };
 
-    write_inventory(Path::new("."), crate_name, &data).expect("Failed to write inventory file");
+    RunnerMetadataStore::new(Path::new("."))
+        .write_inventory(crate_name, &data)
+        .expect("Failed to write inventory file");
 }
 
 #[cfg(test)]

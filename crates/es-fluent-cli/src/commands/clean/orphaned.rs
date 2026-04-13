@@ -60,7 +60,7 @@ pub(super) fn clean_orphaned_files(
     all_locales: bool,
     dry_run: bool,
 ) -> Result<(), CliError> {
-    ui::print_header();
+    ui::Ui::print_header();
     println!("{} Looking for orphaned FTL files...", "→".cyan());
 
     let mut total_removed = 0;

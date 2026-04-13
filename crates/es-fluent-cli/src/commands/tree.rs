@@ -140,10 +140,10 @@ pub struct TreeArgs {
 pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    ui::print_tree_header();
+    ui::Ui::print_tree_header();
 
     if workspace.crates.is_empty() {
-        ui::print_no_crates_found();
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
