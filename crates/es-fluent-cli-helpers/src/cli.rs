@@ -101,7 +101,7 @@ mod tests {
         variants: VARIANTS,
         file_path: "src/lib.rs",
         module_path: "test_crate",
-        namespace: Some(NamespaceRule::Literal(std::borrow::Cow::Borrowed("ui"))),
+        namespace: Some(NamespaceRule::Literal("ui")),
     };
 
     es_fluent::__inventory::submit! {

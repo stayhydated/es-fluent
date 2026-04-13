@@ -14,7 +14,7 @@ static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
     variants: EMPTY_VARIANTS,
     file_path: "src/lib.rs",
     module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal(std::borrow::Cow::Borrowed("ui"))),
+    namespace: Some(NamespaceRule::Literal("ui")),
 };
 static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
     type_kind: TypeKind::Struct,
@@ -22,7 +22,7 @@ static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
     variants: EMPTY_VARIANTS,
     file_path: "src/lib.rs",
     module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal(std::borrow::Cow::Borrowed("errors"))),
+    namespace: Some(NamespaceRule::Literal("errors")),
 };
 static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant {
     name: "Key1",

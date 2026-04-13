@@ -188,7 +188,7 @@ fn update_values_on_locale_change_updates_registered_fluent_text_values() {
 }
 
 #[test]
-fn locale_aware_registration_refreshes_text_when_bundle_becomes_ready() {
+fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
     let lang = langid!("en-US");
     let mut app = App::new();
     let mut i18n_assets = I18nAssets::new();
@@ -234,7 +234,7 @@ fn locale_aware_registration_refreshes_text_when_bundle_becomes_ready() {
     assert_eq!(
         &app.world().get::<Text>(entity).expect("text").0,
         "initial",
-        "locale-aware registrations should refresh once the bundle becomes ready"
+        "without a LocaleChangedEvent, locale-aware values should remain unchanged"
     );
 }
 
