@@ -157,6 +157,36 @@ fn test_available_languages_allows_language_only() {
 }
 
 #[test]
+fn test_available_locale_names_preserve_raw_directory_names() {
+    let temp_dir = TempDir::new().unwrap();
+    let manifest_dir = temp_dir.path();
+    let assets = manifest_dir.join("i18n");
+    fs::create_dir(&assets).unwrap();
+    fs::create_dir(assets.join("en-us")).unwrap();
+    fs::create_dir(assets.join("fr")).unwrap();
+
+    let config = I18nConfig {
+        fallback_language: "en-us".to_string(),
+        assets_dir: PathBuf::from("i18n"),
+        fluent_feature: None,
+        namespaces: None,
+    };
+
+    let locales = config
+        .available_locale_names_from_base(Some(manifest_dir))
+        .unwrap();
+    assert_eq!(locales, vec!["en-us", "fr"]);
+
+    let canonical_languages = config
+        .available_languages_from_base(Some(manifest_dir))
+        .unwrap()
+        .into_iter()
+        .map(|lang| lang.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(canonical_languages, vec!["en-US", "fr"]);
+}
+
+#[test]
 fn test_fluent_feature_single_string() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("i18n.toml");

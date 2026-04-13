@@ -196,8 +196,8 @@ impl ResolvedI18nLayout {
 
     /// Returns available locale names discovered from the assets directory.
     pub fn available_locale_names(&self) -> Result<Vec<String>, I18nConfigError> {
-        self.available_languages()
-            .map(|langs| langs.into_iter().map(|lang| lang.to_string()).collect())
+        self.config
+            .available_locale_names_from_base(Some(&self.manifest_dir))
     }
 
     /// Returns the configured namespace allowlist when present.
@@ -280,6 +280,11 @@ impl I18nConfig {
         self.available_languages_from_base(None)
     }
 
+    /// Returns the raw locale directory names under the assets directory.
+    pub fn available_locale_names(&self) -> Result<Vec<String>, I18nConfigError> {
+        self.available_locale_names_from_base(None)
+    }
+
     /// Returns the languages available under the assets directory from a base directory.
     /// If `base_dir` is `None`, uses `CARGO_MANIFEST_DIR` environment variable.
     pub fn available_languages_from_base(
@@ -294,13 +299,37 @@ impl I18nConfig {
             .filter_map(|entry| parse_language_entry(entry).transpose())
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
-            .map(|lang| (lang.to_string(), lang))
+            .map(|entry| {
+                let canonical = entry.language.to_string();
+                (canonical, entry.language)
+            })
             .collect();
 
         languages.sort_by(|a, b| a.0.cmp(&b.0));
         languages.dedup_by(|a, b| a.0 == b.0);
 
         Ok(languages.into_iter().map(|(_, lang)| lang).collect())
+    }
+
+    /// Returns the raw locale directory names under the assets directory from a base directory.
+    /// If `base_dir` is `None`, uses `CARGO_MANIFEST_DIR` environment variable.
+    pub fn available_locale_names_from_base(
+        &self,
+        base_dir: Option<&Path>,
+    ) -> Result<Vec<String>, I18nConfigError> {
+        let assets_path = self.assets_dir_from_base(base_dir)?;
+        let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
+
+        let mut locales = entries
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| parse_language_entry(entry).transpose())
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(|entry| entry.raw_name)
+            .collect::<Vec<_>>();
+
+        locales.sort();
+        Ok(locales)
     }
 
     /// Validates the assets directory.

@@ -238,6 +238,31 @@ fn resolve_clean_paths_supports_single_or_all_locales() {
 }
 
 #[test]
+fn resolve_clean_paths_preserves_raw_locale_directory_names() {
+    let temp = tempdir().expect("tempdir");
+    std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
+    std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
+    std::fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en-us\"\nassets_dir = \"i18n\"\n",
+    )
+    .expect("write i18n.toml");
+
+    let generator = EsFluentGenerator::builder()
+        .crate_name("missing-crate")
+        .manifest_dir(temp.path())
+        .build();
+
+    let all = generator
+        .resolve_clean_paths(true)
+        .expect("all clean paths");
+    assert_eq!(
+        all,
+        vec![temp.path().join("i18n/en-us"), temp.path().join("i18n/fr")]
+    );
+}
+
+#[test]
 fn resolve_clean_paths_falls_back_to_output_override_when_assets_dir_missing() {
     let temp = tempdir().expect("tempdir");
     let fallback_output = temp.path().join("fallback-output");

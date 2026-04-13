@@ -69,10 +69,12 @@ This macro requires the `macros` feature, which is enabled by default.
 
 ## Initialization Behavior
 
-The `init()` and `init_with_language()` functions are idempotent:
+The initialization entry points are idempotent for manager setup:
 
-- First call: Initializes the manager and sets the global context.
-- Subsequent calls: Logs a warning via `tracing` and has no effect.
+- `init()`
+  Repeated calls log a warning via `tracing` and leave the existing manager unchanged.
+- `init_with_language()`
+  Repeated calls log a warning and apply the requested language to the existing manager, matching `init(); select_language(...)`.
 
 If `select_language()` is called before initialization, an error is logged and the call has no effect.
 

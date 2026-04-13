@@ -2,12 +2,17 @@ use crate::I18nConfigError;
 use std::{fs, io};
 use unic_langid::LanguageIdentifier;
 
+pub(crate) struct ParsedLanguageEntry {
+    pub(crate) raw_name: String,
+    pub(crate) language: LanguageIdentifier,
+}
+
 /// Parse a directory entry as a language identifier.
 ///
 /// Returns `Ok(None)` if the entry is not a directory.
 pub(crate) fn parse_language_entry(
     entry: fs::DirEntry,
-) -> Result<Option<LanguageIdentifier>, I18nConfigError> {
+) -> Result<Option<ParsedLanguageEntry>, I18nConfigError> {
     if !entry
         .file_type()
         .map_err(I18nConfigError::ReadError)?
@@ -32,7 +37,10 @@ pub(crate) fn parse_language_entry(
     })?;
 
     ensure_supported_language_identifier(&lang, &name)?;
-    Ok(Some(lang))
+    Ok(Some(ParsedLanguageEntry {
+        raw_name: name,
+        language: lang,
+    }))
 }
 
 pub(crate) fn ensure_supported_language_identifier(
