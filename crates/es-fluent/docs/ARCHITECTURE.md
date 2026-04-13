@@ -73,9 +73,12 @@ Using `ArcSwap` instead of `Arc<RwLock<...>>` eliminates lock contention on the 
 A custom localizer can be registered to intercept translation requests. This is useful for testing, special environments, or implementing fallbacks.
 
 ```rs
-static CUSTOM_LOCALIZER: OnceLock<Box<dyn Fn(...) -> Option<String> ...>> = OnceLock::new();
+static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<dyn Fn(...) -> Option<String> ...>>>> =
+    OnceLock::new();
 ```
 
+- **Registration**: `set_custom_localizer` is fail-fast and panics on a second registration.
+- **Explicit override**: `replace_custom_localizer` exists for integrations that intentionally own the process-global hook.
 - **Priority**: The `localize` function first checks the custom localizer. If it returns `Some(string)`, that result is used.
 - **Fallback**: If the custom localizer returns `None` (or isn't set), the system falls back to the Global Context.
 

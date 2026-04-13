@@ -59,7 +59,7 @@ impl I18nPlugin {
 
 impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
-        es_fluent::set_custom_localizer(bevy_custom_localizer);
+        es_fluent::replace_custom_localizer(bevy_custom_localizer);
 
         app.init_asset::<FtlAsset>()
             .init_asset_loader::<FtlAssetLoader>()

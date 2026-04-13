@@ -1,6 +1,6 @@
 use super::super::{I18nPlugin, I18nPluginConfig, setup as plugin_setup};
 use super::build_test_plugin_app;
-use es_fluent::{localize, set_custom_localizer};
+use es_fluent::{localize, replace_custom_localizer};
 use unic_langid::langid;
 
 #[test]
@@ -39,7 +39,7 @@ fn setup_helpers_discover_modules_and_resolve_initial_language() {
 
 #[test]
 fn plugin_replaces_existing_custom_localizer_and_can_be_installed_twice() {
-    set_custom_localizer(|_, _| Some("stale".to_string()));
+    replace_custom_localizer(|_, _| Some("stale".to_string()));
 
     let _first_app = build_test_plugin_app();
     assert_eq!(localize("from-fallback", None), "fallback");

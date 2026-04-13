@@ -89,9 +89,36 @@ pub fn set_shared_context(manager: Arc<FluentManager>) {
 /// method. If the custom localizer returns `Some(message)`, the message will be
 /// returned. Otherwise, the global context will be used.
 ///
-/// Replaces any previously installed custom localizer.
+/// # Panics
+///
+/// This function will panic if the custom localizer has already been set.
 #[doc(hidden)]
 pub fn set_custom_localizer<F>(localizer: F)
+where
+    F: for<'a> Fn(
+            &str,
+            Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String>
+        + Send
+        + Sync
+        + 'static,
+{
+    let mut slot = custom_localizer_slot()
+        .write()
+        .expect("custom localizer lock poisoned");
+    if slot.is_some() {
+        drop(slot);
+        panic!("Custom localizer already set");
+    }
+    *slot = Some(Arc::new(localizer));
+}
+
+/// Replaces the custom localizer function.
+///
+/// This is intended for integrations that deliberately own the process-global
+/// localization hook and need to refresh or reinstall it.
+#[doc(hidden)]
+pub fn replace_custom_localizer<F>(localizer: F)
 where
     F: for<'a> Fn(
             &str,

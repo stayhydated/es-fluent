@@ -2,7 +2,10 @@ use es_fluent::__manager_core::{
     FluentManager, I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError,
     Localizer, ModuleData,
 };
-use es_fluent::{FluentValue, localize, select_language, set_context, set_custom_localizer};
+use es_fluent::{
+    FluentValue, localize, replace_custom_localizer, select_language, set_context,
+    set_custom_localizer,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use unic_langid::langid;
@@ -82,7 +85,12 @@ fn context_localization_prefers_custom_then_context_then_id() {
     });
     assert!(second_set_context.is_err());
 
-    set_custom_localizer(|_, _| Some("again".to_string()));
+    let second_custom = std::panic::catch_unwind(|| {
+        set_custom_localizer(|_, _| Some("again".to_string()));
+    });
+    assert!(second_custom.is_err());
+
+    replace_custom_localizer(|_, _| Some("again".to_string()));
     assert_eq!(localize("custom-key", None), "again");
     assert_eq!(localize("ctx-key", None), "again");
 }

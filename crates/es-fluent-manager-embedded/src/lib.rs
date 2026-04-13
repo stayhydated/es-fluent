@@ -41,14 +41,16 @@ fn build_manager(initial_language: Option<&LanguageIdentifier>) -> Arc<FluentMan
     Arc::new(manager)
 }
 
-fn initialize_manager(manager: Arc<FluentManager>) {
+fn initialize_manager(manager: Arc<FluentManager>) -> bool {
     if GENERIC_MANAGER
         .set(ArcSwap::new(Arc::clone(&manager)))
         .is_ok()
     {
         set_shared_context(manager);
+        true
     } else {
         tracing::warn!("Generic fluent manager already initialized.");
+        false
     }
 }
 
@@ -67,13 +69,15 @@ fn initialize_manager(manager: Arc<FluentManager>) {
 /// This function will not panic if called more than once, but it will log a
 /// warning and have no effect after the first successful call.
 pub fn init() {
-    initialize_manager(build_manager(None));
+    let _ = initialize_manager(build_manager(None));
 }
 
 /// Initializes the embedded singleton `FluentManager` and selects the active language.
 ///
 /// This is equivalent to calling [`init()`] followed by [`select_language()`], except the
 /// language is selected before the manager is published as the global singleton.
+/// If another thread initializes the singleton concurrently, `lang` is applied
+/// to the live manager after the race is resolved.
 ///
 /// # Panics
 ///
@@ -88,7 +92,15 @@ pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
         return;
     }
 
-    initialize_manager(build_manager(Some(&lang)));
+    if !initialize_manager(build_manager(Some(&lang))) {
+        if let Some(manager) = GENERIC_MANAGER.get() {
+            manager.load().select_language(&lang);
+        } else {
+            tracing::error!(
+                "Generic fluent manager initialization lost a race and no live manager was found."
+            );
+        }
+    }
 }
 
 /// Selects the active language for the embedded singleton `FluentManager`.

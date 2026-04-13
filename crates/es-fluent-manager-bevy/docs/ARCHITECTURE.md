@@ -74,7 +74,7 @@ This keeps the crate root declarative and makes the Bevy-facing public API easie
 
 ### `I18nPlugin`
 
-The entry point. It registers the `FtlAssetLoader`, resources, and—crucially—installs a **custom localizer** (`es_fluent::set_custom_localizer`). This custom localizer redirects all global `localize!` calls (used by `derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust objects to stringify correctly even inside Bevy systems.
+The entry point. It registers the `FtlAssetLoader`, resources, and—crucially—installs a **custom localizer** via `es_fluent::replace_custom_localizer`. This custom localizer redirects all global `localize!` calls (used by `derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust objects to stringify correctly even inside Bevy systems.
 
 ### `BevyFluentText` (derive macro)
 
@@ -131,7 +131,7 @@ runtime file probing and wasm-specific blocking issues.
 
 ## Flow
 
-1. **Startup**: `I18nPlugin` initializes resources, registers the global custom localizer, and auto-registers any `BevyFluentText` types discovered via inventory.
+1. **Startup**: `I18nPlugin` initializes resources, explicitly replaces the global custom localizer, and auto-registers any `BevyFluentText` types discovered via inventory.
 1. **Loading**: Bevy loads all `.ftl` assets defined by registered modules.
 1. **Compilation**: `I18nBundle` creates `FluentBundle`s from loaded assets.
 1. **Localization**:
