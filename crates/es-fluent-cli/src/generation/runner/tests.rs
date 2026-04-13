@@ -4,22 +4,12 @@ use super::monolithic::MonolithicRunner;
 use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
 use crate::generation::cache::{MetadataCache, RunnerCache, compute_content_hash};
+use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use es_fluent_runner::{RunnerParseMode, RunnerRequest};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::time::SystemTime;
-
-#[cfg(unix)]
-fn set_executable(path: &Path) {
-    use std::os::unix::fs::PermissionsExt;
-    let mut perms = std::fs::metadata(path).expect("metadata").permissions();
-    perms.set_mode(0o755);
-    std::fs::set_permissions(path, perms).expect("set executable");
-}
-
-#[cfg(not(unix))]
-fn set_executable(_path: &Path) {}
 
 fn create_workspace_fixture(
     crate_name: &str,
@@ -226,9 +216,10 @@ fn monolithic_runner_staleness_detects_hash_changes() {
         .expect("create binary dir");
     std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
 
-    std::fs::write(&runner.binary_path, "#!/bin/sh\necho monolithic-runner\n")
-        .expect("write fake runner");
-    set_executable(&runner.binary_path);
+    install_fake_runner(
+        &runner.binary_path,
+        &FakeRunnerBehavior::stdout("monolithic-runner\n"),
+    );
 
     let mtime = std::fs::metadata(&runner.binary_path)
         .and_then(|m| m.modified())
@@ -263,8 +254,7 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
         .expect("create binary dir");
     std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
 
-    std::fs::write(&runner.binary_path, "#!/bin/sh\necho \"$@\"\n").expect("write fake runner");
-    set_executable(&runner.binary_path);
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::echo_args());
 
     let mtime = std::fs::metadata(&runner.binary_path)
         .and_then(|m| m.modified())
@@ -309,9 +299,7 @@ fn run_monolithic_fast_path_reports_binary_failure() {
         .expect("create binary dir");
     std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
 
-    std::fs::write(&runner.binary_path, "#!/bin/sh\necho boom 1>&2\nexit 1\n")
-        .expect("write failing runner");
-    set_executable(&runner.binary_path);
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::failing("boom\n"));
 
     let mtime = std::fs::metadata(&runner.binary_path)
         .and_then(|m| m.modified())
@@ -415,8 +403,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
     std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    std::fs::write(&runner.binary_path, "#!/bin/sh\necho ok\n").expect("write fake runner");
-    set_executable(&runner.binary_path);
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
 
     let mtime = std::fs::metadata(&runner.binary_path)
         .and_then(|m| m.modified())
@@ -456,8 +443,7 @@ fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");
     std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    std::fs::write(&runner.binary_path, "#!/bin/sh\necho ok\n").expect("write fake runner");
-    set_executable(&runner.binary_path);
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
 
     let current_mtime = std::fs::metadata(&runner.binary_path)
         .and_then(|m| m.modified())
@@ -525,7 +511,6 @@ edition = "2024"
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn run_monolithic_fast_path_surfaces_execution_errors() {
     let (_temp, workspace) = create_workspace_fixture("fast-exec-error", true);
@@ -594,10 +579,11 @@ path = "src/main.rs"
     )
     .expect("write runner main.rs");
 
-    let binary_path = workspace.target_dir.join("debug/es-fluent-runner");
-    std::fs::create_dir_all(binary_path.parent().unwrap()).expect("create target/debug");
-    std::fs::write(&binary_path, "#!/bin/sh\necho cache-metadata\n").expect("write binary");
-    set_executable(&binary_path);
+    let binary_path = fake_runner_binary_path(&workspace.target_dir);
+    install_fake_runner(
+        &binary_path,
+        &FakeRunnerBehavior::stdout("cache-metadata\n"),
+    );
 
     let request = RunnerRequest::Generate {
         crate_name: workspace.crates[0].name.clone(),

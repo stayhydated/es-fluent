@@ -103,7 +103,9 @@ impl<'a> MonolithicExecutor<'a> {
                 normalize_output(execution.output),
                 execution.changed,
             ),
-            Err(error) => GenerateResult::failure(krate.name.clone(), duration, error.to_string()),
+            Err(error) => {
+                GenerateResult::failure(krate.name.clone(), duration, format!("{error:#}"))
+            },
         }
     }
 

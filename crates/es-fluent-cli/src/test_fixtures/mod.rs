@@ -9,7 +9,11 @@ use crate::generation::cache::{RunnerCache, compute_content_hash};
 #[cfg(test)]
 use std::fs;
 #[cfg(test)]
-use std::path::Path;
+use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::process::Command;
+#[cfg(test)]
+use std::sync::OnceLock;
 #[cfg(test)]
 use std::time::SystemTime;
 
@@ -37,6 +41,44 @@ pub const UI_UNSORTED_FTL: &str = include_str!("../../tests/fixtures/format/ui_u
 
 // Utils specific fixtures
 pub const WORKSPACE_CARGO_TOML: &str = include_str!("../../tests/fixtures/workspace/Cargo.toml");
+
+#[cfg(test)]
+#[derive(Clone, Debug, Default)]
+pub struct FakeRunnerBehavior {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: i32,
+    pub echo_args: bool,
+}
+
+#[cfg(test)]
+impl FakeRunnerBehavior {
+    pub fn silent_success() -> Self {
+        Self::default()
+    }
+
+    pub fn stdout(stdout: impl Into<String>) -> Self {
+        Self {
+            stdout: stdout.into(),
+            ..Self::default()
+        }
+    }
+
+    pub fn failing(stderr: impl Into<String>) -> Self {
+        Self {
+            stderr: stderr.into(),
+            exit_code: 1,
+            ..Self::default()
+        }
+    }
+
+    pub fn echo_args() -> Self {
+        Self {
+            echo_args: true,
+            ..Self::default()
+        }
+    }
+}
 
 #[cfg(test)]
 pub fn create_test_crate_workspace() -> tempfile::TempDir {
@@ -82,24 +124,126 @@ pub fn create_workspace_with_locales(locales: &[(&str, &str)]) -> tempfile::Temp
 }
 
 #[cfg(test)]
-#[cfg(unix)]
-pub fn set_executable(path: &Path) {
-    use std::os::unix::fs::PermissionsExt;
-    let mut perms = fs::metadata(path).expect("metadata").permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(path, perms).expect("set permissions");
+pub fn fake_runner_binary_name() -> String {
+    format!("es-fluent-runner{}", std::env::consts::EXE_SUFFIX)
 }
 
 #[cfg(test)]
-#[cfg(not(unix))]
-pub fn set_executable(_path: &Path) {}
+pub fn fake_runner_binary_path(target_dir: &Path) -> PathBuf {
+    target_dir.join("debug").join(fake_runner_binary_name())
+}
 
 #[cfg(test)]
-pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, script: &str) {
-    let binary_path = temp.path().join("target/debug/es-fluent-runner");
-    fs::create_dir_all(binary_path.parent().expect("parent")).expect("create target/debug");
-    fs::write(&binary_path, script).expect("write runner");
-    set_executable(&binary_path);
+fn compiled_fake_runner_binary() -> &'static PathBuf {
+    static BINARY: OnceLock<PathBuf> = OnceLock::new();
+
+    BINARY.get_or_init(|| {
+        let cache_dir =
+            std::env::temp_dir().join(format!("es-fluent-cli-test-runner-{}", std::process::id()));
+        fs::create_dir_all(&cache_dir).expect("create fake runner cache dir");
+
+        let source_path = cache_dir.join("fake_runner.rs");
+        let binary_path = cache_dir.join(fake_runner_binary_name());
+
+        fs::write(
+            &source_path,
+            r#"use std::{env, fs, process};
+
+fn read_sidecar(exe: &std::path::Path, ext: &str) -> Option<String> {
+    fs::read_to_string(exe.with_extension(ext)).ok()
+}
+
+fn main() {
+    let exe = env::current_exe().expect("current_exe");
+    let args: Vec<String> = env::args().skip(1).collect();
+    let mode = read_sidecar(&exe, "mode").unwrap_or_default();
+
+    if mode.trim() == "echo_args" {
+        print!("{}", args.join(" "));
+    }
+
+    if let Some(stdout) = read_sidecar(&exe, "stdout") {
+        print!("{stdout}");
+    }
+
+    if let Some(stderr) = read_sidecar(&exe, "stderr") {
+        eprint!("{stderr}");
+    }
+
+    let exit_code = read_sidecar(&exe, "exitcode")
+        .and_then(|raw| raw.trim().parse::<i32>().ok())
+        .unwrap_or(0);
+    process::exit(exit_code);
+}
+"#,
+        )
+        .expect("write fake runner source");
+
+        let rustc = std::env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
+        let output = Command::new(rustc)
+            .arg("--edition=2021")
+            .arg(&source_path)
+            .arg("-o")
+            .arg(&binary_path)
+            .output()
+            .expect("spawn rustc for fake runner");
+
+        assert!(
+            output.status.success(),
+            "failed to compile fake runner: stdout={}; stderr={}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        binary_path
+    })
+}
+
+#[cfg(test)]
+pub fn install_fake_runner(binary_path: &Path, behavior: &FakeRunnerBehavior) {
+    fs::create_dir_all(binary_path.parent().expect("binary parent")).expect("create target/debug");
+    let _ = fs::remove_file(binary_path);
+    if fs::hard_link(compiled_fake_runner_binary(), binary_path).is_err() {
+        let staged_binary_path = binary_path.with_extension("installing");
+        let _ = fs::remove_file(&staged_binary_path);
+        fs::copy(compiled_fake_runner_binary(), &staged_binary_path)
+            .expect("copy fake runner binary");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mut perms = fs::metadata(&staged_binary_path)
+                .expect("fake runner metadata")
+                .permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&staged_binary_path, perms).expect("set fake runner executable");
+        }
+        fs::rename(&staged_binary_path, binary_path).expect("install fake runner binary");
+    }
+    fs::write(
+        binary_path.with_extension("mode"),
+        if behavior.echo_args {
+            "echo_args"
+        } else {
+            "static"
+        },
+    )
+    .expect("write fake runner mode");
+    fs::write(binary_path.with_extension("stdout"), &behavior.stdout)
+        .expect("write fake runner stdout");
+    fs::write(binary_path.with_extension("stderr"), &behavior.stderr)
+        .expect("write fake runner stderr");
+    fs::write(
+        binary_path.with_extension("exitcode"),
+        behavior.exit_code.to_string(),
+    )
+    .expect("write fake runner exit code");
+}
+
+#[cfg(test)]
+pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunnerBehavior) {
+    let binary_path = fake_runner_binary_path(&temp.path().join("target"));
+    install_fake_runner(&binary_path, &behavior);
 
     let src_dir = temp.path().join("src");
     let i18n_toml = temp.path().join("i18n.toml");

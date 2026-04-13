@@ -40,7 +40,9 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::{create_test_crate_workspace, setup_fake_runner_and_cache};
+    use crate::test_fixtures::{
+        FakeRunnerBehavior, create_test_crate_workspace, setup_fake_runner_and_cache,
+    };
 
     #[test]
     fn run_generate_returns_ok_when_package_filter_matches_nothing() {
@@ -61,7 +63,7 @@ mod tests {
     #[test]
     fn run_generate_executes_with_fake_runner() {
         let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp, "#!/bin/sh\necho generated\n");
+        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::stdout("generated\n"));
 
         let result = run_generate(GenerateArgs {
             workspace: WorkspaceArgs {

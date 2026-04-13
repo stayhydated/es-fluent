@@ -377,23 +377,20 @@ mod tests {
         assert!(partial.diff_info.is_some());
     }
 
-    #[cfg(unix)]
     #[test]
     fn format_ftl_file_returns_write_error_for_read_only_file() {
-        use std::os::unix::fs::PermissionsExt;
-
         let temp = tempdir().expect("tempdir");
         let ftl = temp.path().join("read-only.ftl");
         std::fs::write(&ftl, "zeta = Z\nalpha = A\n").expect("write ftl");
 
         let mut perms = std::fs::metadata(&ftl).unwrap().permissions();
-        perms.set_mode(0o444);
+        perms.set_readonly(true);
         std::fs::set_permissions(&ftl, perms).unwrap();
 
         let result = format_ftl_file(&ftl, false);
 
         let mut restore = std::fs::metadata(&ftl).unwrap().permissions();
-        restore.set_mode(0o644);
+        restore.set_readonly(false);
         std::fs::set_permissions(&ftl, restore).unwrap();
 
         assert!(

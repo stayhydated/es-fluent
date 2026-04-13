@@ -223,7 +223,7 @@ mod tests {
     use super::*;
     use crate::core::{CrateInfo, FluentParseMode, GenerationAction, WorkspaceInfo};
     use crate::test_fixtures::{
-        create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache,
+        FakeRunnerBehavior, create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache,
     };
     use std::cell::Cell;
     use std::fs;
@@ -334,7 +334,10 @@ mod tests {
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        setup_fake_runner_and_cache(&temp, "#!/bin/sh\necho generated-from-fake-runner\n");
+        setup_fake_runner_and_cache(
+            &temp,
+            FakeRunnerBehavior::stdout("generated-from-fake-runner\n"),
+        );
 
         let temp_dir =
             es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
@@ -437,7 +440,7 @@ mod tests {
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        setup_fake_runner_and_cache(&temp, "#!/bin/sh\n:\n");
+        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::silent_success());
 
         let results = parallel_generate(
             &workspace,

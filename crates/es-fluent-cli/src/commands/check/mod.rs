@@ -174,16 +174,19 @@ mod tests {
     use std::fs;
 
     use crate::test_fixtures::{
-        INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY, RUNNER_FAILING_SCRIPT, RUNNER_SCRIPT,
+        FakeRunnerBehavior, INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY,
         create_test_crate_workspace, setup_fake_runner_and_cache as setup_runner_cache,
     };
 
-    fn setup_fake_runner_and_cache_with_script(temp: &tempfile::TempDir, script: &str) {
-        setup_runner_cache(temp, script);
+    fn setup_fake_runner_and_cache_with_behavior(
+        temp: &tempfile::TempDir,
+        behavior: FakeRunnerBehavior,
+    ) {
+        setup_runner_cache(temp, behavior);
     }
 
     fn setup_fake_runner_and_cache(temp: &tempfile::TempDir) {
-        setup_fake_runner_and_cache_with_script(temp, RUNNER_SCRIPT);
+        setup_fake_runner_and_cache_with_behavior(temp, FakeRunnerBehavior::silent_success());
     }
 
     #[test]
@@ -289,7 +292,7 @@ mod tests {
     #[test]
     fn run_check_returns_other_error_when_runner_execution_fails() {
         let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache_with_script(&temp, RUNNER_FAILING_SCRIPT);
+        setup_fake_runner_and_cache_with_behavior(&temp, FakeRunnerBehavior::failing("boom\n"));
 
         let result = run_check(CheckArgs {
             workspace: WorkspaceArgs {

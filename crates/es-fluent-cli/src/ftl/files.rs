@@ -1,7 +1,7 @@
 //! FTL file layout and discovery utilities.
 
 use crate::ftl::{extract_message_keys, parse_ftl_file};
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use fluent_syntax::ast;
 use std::collections::HashSet;
 use std::fs;
@@ -146,7 +146,14 @@ pub fn discover_crate_ftl_files_in_locale_dir(
     }
 
     let crate_subdir = layout.crate_dir();
-    if crate_subdir.exists() && crate_subdir.is_dir() {
+    if crate_subdir.exists() {
+        if !crate_subdir.is_dir() {
+            return Err(anyhow!(
+                "Expected crate namespace path to be a directory: {}",
+                crate_subdir.display()
+            ));
+        }
+
         files.extend(discover_nested_ftl_files(&crate_subdir, locale_dir)?);
     }
 
@@ -265,6 +272,22 @@ mod tests {
             files
                 .iter()
                 .any(|info| info.relative_path == PathBuf::from("test-crate/ui.ftl"))
+        );
+    }
+
+    #[test]
+    fn test_discover_ftl_files_errors_when_namespace_path_is_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let locale_dir = temp_dir.path().join("en");
+        fs::create_dir_all(&locale_dir).unwrap();
+        fs::write(locale_dir.join("test-crate"), "not a directory").unwrap();
+
+        let err = discover_ftl_files(temp_dir.path(), "en", "test-crate")
+            .expect_err("namespace path file should fail");
+        assert!(
+            err.to_string()
+                .contains("Expected crate namespace path to be a directory"),
+            "unexpected error: {err}"
         );
     }
 

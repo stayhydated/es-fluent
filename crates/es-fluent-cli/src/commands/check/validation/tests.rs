@@ -228,11 +228,8 @@ fn validate_loaded_ftl_files_falls_back_to_unknown_when_no_actual_files() {
     ));
 }
 
-#[cfg(unix)]
 #[test]
 fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
-    use std::os::unix::fs::PermissionsExt;
-
     let temp = tempdir().unwrap();
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).unwrap();
@@ -244,10 +241,8 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
     .unwrap();
 
     let broken_dir = temp.path().join("i18n/en/test-crate");
-    fs::create_dir_all(&broken_dir).unwrap();
-    let mut perms = fs::metadata(&broken_dir).unwrap().permissions();
-    perms.set_mode(0o000);
-    fs::set_permissions(&broken_dir, perms).unwrap();
+    fs::create_dir_all(broken_dir.parent().unwrap()).unwrap();
+    fs::write(&broken_dir, "not a directory").unwrap();
 
     let krate = CrateInfo {
         name: "test-crate".to_string(),
@@ -261,34 +256,28 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
 
     let issues = validate_ftl_files(&krate, temp.path(), &IndexMap::new(), false).unwrap();
 
-    let mut restore = fs::metadata(&broken_dir).unwrap().permissions();
-    restore.set_mode(0o755);
-    fs::set_permissions(&broken_dir, restore).unwrap();
-
     assert!(issues.iter().any(|issue| {
         matches!(issue, ValidationIssue::SyntaxError(err) if err.help.contains("Failed to discover FTL files"))
     }));
 }
 
-#[cfg(unix)]
 #[test]
 fn to_relative_path_uses_non_canonical_strip_fallback() {
-    use std::os::unix::fs::symlink;
-
     let temp = tempdir().unwrap();
     let real_root = temp.path().join("workspace-real");
     fs::create_dir_all(&real_root).unwrap();
-    let symlink_root = temp.path().join("workspace-link");
-    symlink(&real_root, &symlink_root).unwrap();
+    let alias_parent = temp.path().join("alias-parent");
+    fs::create_dir_all(&alias_parent).unwrap();
+    let alias_root = alias_parent.join("..").join("workspace-real");
 
     let expected_keys = IndexMap::new();
     let ctx = ValidationContext {
         expected_keys: &expected_keys,
-        workspace_root: &symlink_root,
-        manifest_dir: &symlink_root,
+        workspace_root: &alias_root,
+        manifest_dir: &alias_root,
     };
 
-    let virtual_path = symlink_root.join("i18n/en/missing.ftl");
+    let virtual_path = alias_root.join("i18n/en/missing.ftl");
     let rel = ctx.to_relative_path(&virtual_path);
     assert_eq!(rel, "i18n/en/missing.ftl");
 

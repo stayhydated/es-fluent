@@ -141,7 +141,10 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
 
 /// Get the path to the monolithic binary if it exists.
 pub fn get_monolithic_binary_path(workspace: &WorkspaceInfo) -> PathBuf {
-    workspace.target_dir.join("debug").join("es-fluent-runner")
+    workspace
+        .target_dir
+        .join("debug")
+        .join(format!("es-fluent-runner{}", std::env::consts::EXE_SUFFIX))
 }
 
 /// Run the monolithic binary directly (fast path) or build+run (slow path).

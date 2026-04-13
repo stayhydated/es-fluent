@@ -3,6 +3,7 @@ use super::generation::{compute_src_hash, spawn_generation};
 use super::{run_watch_loop_with_poll, watch_all};
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
 use crate::generation::cache::{RunnerCache, compute_content_hash};
+use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use notify::{
     Event,
     event::{EventKind, ModifyKind},
@@ -111,23 +112,12 @@ fn always_quit(_timeout: Duration) -> std::io::Result<bool> {
     Ok(true)
 }
 
-#[cfg(unix)]
-fn set_executable(path: &Path) {
-    use std::os::unix::fs::PermissionsExt;
-    let mut perms = std::fs::metadata(path).expect("metadata").permissions();
-    perms.set_mode(0o755);
-    std::fs::set_permissions(path, perms).expect("set permissions");
-}
-
-#[cfg(not(unix))]
-fn set_executable(_path: &Path) {}
-
 fn create_valid_workspace_with_fake_runner() -> (tempfile::TempDir, WorkspaceInfo, CrateInfo) {
-    create_valid_workspace_with_fake_runner_script("#!/bin/sh\necho watcher-run\n")
+    create_valid_workspace_with_fake_runner_behavior(FakeRunnerBehavior::stdout("watcher-run\n"))
 }
 
-fn create_valid_workspace_with_fake_runner_script(
-    runner_script: &str,
+fn create_valid_workspace_with_fake_runner_behavior(
+    behavior: FakeRunnerBehavior,
 ) -> (tempfile::TempDir, WorkspaceInfo, CrateInfo) {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
@@ -156,10 +146,8 @@ fn create_valid_workspace_with_fake_runner_script(
         crates: vec![krate.clone()],
     };
 
-    let binary_path = workspace.target_dir.join("debug/es-fluent-runner");
-    std::fs::create_dir_all(binary_path.parent().unwrap()).expect("create target/debug");
-    std::fs::write(&binary_path, runner_script).expect("write fake runner");
-    set_executable(&binary_path);
+    let binary_path = fake_runner_binary_path(&workspace.target_dir);
+    install_fake_runner(&binary_path, &behavior);
 
     let mtime = std::fs::metadata(&binary_path)
         .and_then(|m| m.modified())
@@ -244,7 +232,11 @@ fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
         .recv_timeout(Duration::from_secs(2))
         .expect("generation result");
 
-    assert!(result.error.is_none());
+    assert!(
+        result.error.is_none(),
+        "unexpected error: {:?}",
+        result.error
+    );
     assert!(result.changed);
     assert!(
         result
@@ -257,7 +249,7 @@ fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
 #[test]
 fn spawn_generation_handles_invalid_json_and_empty_output() {
     let (_temp, workspace, krate) =
-        create_valid_workspace_with_fake_runner_script("#!/bin/sh\n:\n");
+        create_valid_workspace_with_fake_runner_behavior(FakeRunnerBehavior::silent_success());
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
     let result_json = temp_store.result_path(&krate.name);
     std::fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
@@ -269,7 +261,11 @@ fn spawn_generation_handles_invalid_json_and_empty_output() {
         .recv_timeout(Duration::from_secs(2))
         .expect("generation result");
 
-    assert!(result.error.is_none());
+    assert!(
+        result.error.is_none(),
+        "unexpected error: {:?}",
+        result.error
+    );
     assert!(!result.changed);
     assert!(result.output.is_none(), "empty output should map to None");
 }

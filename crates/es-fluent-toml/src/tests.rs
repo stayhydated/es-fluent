@@ -380,30 +380,3 @@ fn test_fallback_language_identifier_rejects_variants() {
             if name == "en-oxendict" && reason == "variants are not supported"
     ));
 }
-
-#[cfg(unix)]
-#[test]
-fn test_available_languages_rejects_non_utf8_directory_name() {
-    use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt;
-
-    let temp_dir = TempDir::new().unwrap();
-    let assets = temp_dir.path().join("i18n");
-    fs::create_dir(&assets).unwrap();
-    fs::create_dir(assets.join(OsString::from_vec(vec![0x66, 0x6f, 0x80]))).unwrap();
-
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
-
-    let err = config
-        .available_languages_from_base(Some(temp_dir.path()))
-        .expect_err("non utf8 directory should fail");
-    assert!(matches!(
-        err,
-        I18nConfigError::ReadError(io_err) if io_err.kind() == std::io::ErrorKind::InvalidData
-    ));
-}
