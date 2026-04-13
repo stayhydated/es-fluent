@@ -72,10 +72,8 @@ fn resolve_clean_locale_dirs(assets_dir: &Path) -> Vec<PathBuf> {
         .ok()
         .into_iter()
         .flat_map(|entries| entries.filter_map(Result::ok))
-        .filter_map(|entry| match entry.file_type() {
-            Ok(file_type) if file_type.is_dir() => Some(entry.path()),
-            _ => None,
-        })
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
         .collect()
 }
 
