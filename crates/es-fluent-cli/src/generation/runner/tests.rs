@@ -5,7 +5,7 @@ use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
 use crate::generation::cache::{MetadataCache, RunnerCache, compute_content_hash};
 use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
-use es_fluent_runner::{RunnerParseMode, RunnerRequest};
+use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -231,6 +231,76 @@ fn prepare_monolithic_runner_crate_writes_expected_files() {
     assert!(runner_dir.join("src/main.rs").exists());
     assert!(runner_dir.join(".cargo/config.toml").exists());
     assert!(runner_dir.join(".gitignore").exists());
+}
+
+#[test]
+fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
+    let (temp, workspace) = create_workspace_fixture("windows-paths", true);
+    std::fs::write(temp.path().join("Cargo.lock"), "lock").expect("write Cargo.lock");
+
+    let temp_dir = RunnerMetadataStore::temp_for_workspace(temp.path());
+    std::fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
+    MetadataCache {
+        cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
+        es_fluent_dep: cargo_manifest::Dependency::Detailed(cargo_manifest::DependencyDetail {
+            path: Some(r"C:\work\es-fluent".to_string()),
+            ..Default::default()
+        }),
+        es_fluent_cli_helpers_dep: cargo_manifest::Dependency::Detailed(
+            cargo_manifest::DependencyDetail {
+                path: Some(r"C:\work\es-fluent-cli-helpers".to_string()),
+                ..Default::default()
+            },
+        ),
+        target_dir: r"C:\work\target".to_string(),
+    }
+    .save(temp_dir.base_dir())
+    .expect("save metadata cache");
+
+    let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
+
+    let manifest =
+        std::fs::read_to_string(runner_dir.join("Cargo.toml")).expect("read runner Cargo.toml");
+    assert!(
+        manifest.contains(r#"path = 'C:\work\es-fluent'"#),
+        "runner manifest did not preserve a TOML-safe es-fluent path: {manifest}"
+    );
+    assert!(
+        manifest.contains(r#"path = 'C:\work\es-fluent-cli-helpers'"#),
+        "runner manifest did not preserve a TOML-safe helpers path: {manifest}"
+    );
+    let parsed_manifest: toml::Value = toml::from_str(&manifest).expect("parse runner Cargo.toml");
+    assert_eq!(
+        parsed_manifest
+            .get("dependencies")
+            .and_then(|deps| deps.get("es-fluent"))
+            .and_then(|dep| dep.get("path"))
+            .and_then(toml::Value::as_str),
+        Some(r"C:\work\es-fluent")
+    );
+    assert_eq!(
+        parsed_manifest
+            .get("dependencies")
+            .and_then(|deps| deps.get("es-fluent-cli-helpers"))
+            .and_then(|dep| dep.get("path"))
+            .and_then(toml::Value::as_str),
+        Some(r"C:\work\es-fluent-cli-helpers")
+    );
+
+    let cargo_config = std::fs::read_to_string(runner_dir.join(".cargo/config.toml"))
+        .expect("read runner config.toml");
+    assert!(
+        cargo_config.contains(r#"target-dir = 'C:\work\target'"#),
+        "runner config did not preserve a TOML-safe target dir: {cargo_config}"
+    );
+    let parsed_config: toml::Value = toml::from_str(&cargo_config).expect("parse config.toml");
+    assert_eq!(
+        parsed_config
+            .get("build")
+            .and_then(|build| build.get("target-dir"))
+            .and_then(toml::Value::as_str),
+        Some(r"C:\work\target")
+    );
 }
 
 #[test]

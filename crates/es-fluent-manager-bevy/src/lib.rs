@@ -38,5 +38,8 @@ pub use systems::*;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 #[doc(hidden)]
 pub use unic_langid::langid as __langid;

@@ -1,5 +1,6 @@
-use super::super::{I18nPlugin, I18nPluginConfig, setup as plugin_setup};
-use super::build_test_plugin_app;
+use super::super::{GlobalLocalizerMode, I18nPlugin, I18nPluginConfig, setup as plugin_setup};
+use super::{build_test_plugin_app, build_test_plugin_app_with_mode};
+use crate::test_support::lock_bevy_global_state;
 use es_fluent::{localize, replace_custom_localizer};
 use unic_langid::langid;
 
@@ -16,6 +17,8 @@ fn plugin_constructors_keep_configuration() {
     let _ = plugin;
 
     let _ = I18nPlugin::with_language(langid!("es"));
+    let _ = I18nPlugin::with_language(langid!("de"))
+        .with_global_localizer_mode(GlobalLocalizerMode::ErrorIfAlreadySet);
     let _ = I18nPlugin::with_config(I18nPluginConfig::default());
 }
 
@@ -39,6 +42,7 @@ fn setup_helpers_discover_modules_and_resolve_initial_language() {
 
 #[test]
 fn plugin_replaces_existing_custom_localizer_and_can_be_installed_twice() {
+    let _guard = lock_bevy_global_state();
     replace_custom_localizer(|_, _| Some("stale".to_string()));
 
     let _first_app = build_test_plugin_app();
@@ -49,4 +53,16 @@ fn plugin_replaces_existing_custom_localizer_and_can_be_installed_twice() {
     });
     assert!(second_install.is_ok());
     assert_eq!(localize("from-fallback", None), "fallback");
+}
+
+#[test]
+fn plugin_can_fail_fast_when_global_localizer_must_not_be_replaced() {
+    let _guard = lock_bevy_global_state();
+    replace_custom_localizer(|_, _| Some("stale".to_string()));
+
+    let strict_install = std::panic::catch_unwind(|| {
+        let _app = build_test_plugin_app_with_mode(GlobalLocalizerMode::ErrorIfAlreadySet);
+    });
+
+    assert!(strict_install.is_err());
 }

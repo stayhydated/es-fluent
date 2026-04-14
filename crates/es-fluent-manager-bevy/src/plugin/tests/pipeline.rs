@@ -4,6 +4,7 @@ use super::super::{
 };
 use super::build_test_plugin_app;
 use super::fixtures::REGISTER_CALLS;
+use crate::test_support::lock_bevy_global_state;
 use crate::{
     CurrentLanguageId, FtlAsset, I18nAssets, I18nBundle, I18nResource, LocaleChangeEvent,
     LocaleChangedEvent,
@@ -19,6 +20,7 @@ use unic_langid::langid;
 
 #[test]
 fn plugin_pipeline_loads_assets_and_updates_global_state() {
+    let _guard = lock_bevy_global_state();
     REGISTER_CALLS.store(0, Ordering::SeqCst);
 
     let mut app = build_test_plugin_app();
@@ -202,6 +204,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
 
 #[test]
 fn helper_paths_cover_args_and_missing_bundle_cases() {
+    let _guard = lock_bevy_global_state();
     let mut app = App::new();
     app.add_message::<LocaleChangeEvent>();
     app.add_message::<LocaleChangedEvent>();

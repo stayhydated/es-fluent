@@ -20,7 +20,7 @@ This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and As
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook**: Integrates with `es-fluent`'s global state.
+- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localizer hook or fail fast when another integration already installed one.
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ Add the plugin to your `App` and define your I18n module:
 
 ```rs
 use bevy::prelude::*;
-use es_fluent_manager_bevy::I18nPlugin;
+use es_fluent_manager_bevy::{GlobalLocalizerMode, I18nPlugin};
 use unic_langid::langid;
 
 // a i18n.toml file must exist in the root of the crate
@@ -48,10 +48,25 @@ es_fluent_manager_bevy::define_i18n_module!();
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // Initialize with default language
-        .add_plugins(I18nPlugin::with_language(langid!("en-US")))
+        // Bevy owns the process-global `es_fluent::localize` hook in this app.
+        .add_plugins(
+            I18nPlugin::with_language(langid!("en-US"))
+                .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
+        )
         .run();
 }
+```
+
+`GlobalLocalizerMode::ReplaceExisting` is the default and tells Bevy to
+replace any previously installed custom localizer. Use
+`GlobalLocalizerMode::ErrorIfAlreadySet` when you want integration conflicts to
+panic instead of being overridden:
+
+```rs
+App::new().add_plugins(
+    I18nPlugin::with_language(langid!("en-US"))
+        .with_global_localizer_mode(GlobalLocalizerMode::ErrorIfAlreadySet),
+);
 ```
 
 ### 3. Define Localizable Components (Recommended)

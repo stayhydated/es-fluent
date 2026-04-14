@@ -55,6 +55,7 @@ pub(crate) fn sync_global_state(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::lock_bevy_global_state;
     use crate::{FluentText, FluentTextRegistration, RefreshForLocale, ToFluentString};
     use bevy::ecs::message::Messages;
     use es_fluent_manager_core::ResourceKey;
@@ -79,6 +80,7 @@ mod tests {
 
     #[test]
     fn sync_global_state_re_emits_locale_changed_when_current_bundle_becomes_ready() {
+        let _guard = lock_bevy_global_state();
         let lang = langid!("en");
         let mut app = App::new();
         let mut i18n_assets = I18nAssets::new();
@@ -156,6 +158,7 @@ mod tests {
 
     #[test]
     fn sync_global_state_ignores_unrelated_bundle_changes() {
+        let _guard = lock_bevy_global_state();
         let current_lang = langid!("en");
         let other_lang = langid!("fr");
         let mut app = App::new();
