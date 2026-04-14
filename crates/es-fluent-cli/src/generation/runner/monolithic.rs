@@ -2,14 +2,20 @@ use super::CLI_VERSION;
 use super::config::TempCrateConfig;
 use super::exec::RunnerCrate;
 use crate::core::WorkspaceInfo;
-use crate::generation::templates::{GitignoreTemplate, MonolithicCrateDep, MonolithicMainRsTemplate};
+use crate::generation::templates::{
+    GitignoreTemplate, MonolithicCrateDep, MonolithicMainRsTemplate,
+};
 use anyhow::{Context as _, Result, bail};
 use askama::Template as _;
+use cargo_manifest::{
+    Dependency, DependencyDetail, Edition, Manifest, MaybeInherited, Package, Product, Publish,
+    Workspace,
+};
 use es_fluent_runner::{RunnerMetadataStore, RunnerRequest};
 use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
-use toml::{map::Map, Value};
+use toml::{Value, map::Map as TomlMap};
 
 pub(super) struct MonolithicRunner<'a> {
     pub(super) workspace: &'a WorkspaceInfo,
@@ -140,73 +146,78 @@ fn render_monolithic_cargo_toml(
     crate_deps: &[MonolithicCrateDep<'_>],
     config: &TempCrateConfig,
 ) -> Result<String> {
-    let mut package = Map::new();
-    package.insert("name".to_string(), Value::String("es-fluent-temp".to_string()));
-    package.insert("version".to_string(), Value::String("0.0.0".to_string()));
-    package.insert("edition".to_string(), Value::String("2024".to_string()));
-    package.insert("publish".to_string(), Value::Boolean(false));
-
-    let mut dependencies = Map::new();
+    let mut dependencies = cargo_manifest::DepsSet::new();
     for dep in crate_deps {
         dependencies.insert(dep.name.to_string(), monolithic_dep_value(dep));
     }
-    dependencies.insert(
-        "es-fluent".to_string(),
-        Value::Table(config.es_fluent_dep.clone()),
-    );
+    dependencies.insert("es-fluent".to_string(), config.es_fluent_dep.clone());
     dependencies.insert(
         "es-fluent-cli-helpers".to_string(),
-        Value::Table(config.es_fluent_cli_helpers_dep.clone()),
+        config.es_fluent_cli_helpers_dep.clone(),
     );
 
-    let mut bin = Map::new();
-    bin.insert(
-        "name".to_string(),
-        Value::String("es-fluent-runner".to_string()),
-    );
-    bin.insert("path".to_string(), Value::String("src/main.rs".to_string()));
+    let mut package: Package = Package::new("es-fluent-temp".to_string(), "0.0.0".to_string());
+    package.edition = Some(MaybeInherited::Local(Edition::E2024));
+    package.publish = Some(MaybeInherited::Local(Publish::Flag(false)));
 
-    let mut manifest = Map::new();
-    manifest.insert("package".to_string(), Value::Table(package));
-    manifest.insert("workspace".to_string(), Value::Table(Map::new()));
-    manifest.insert("dependencies".to_string(), Value::Table(dependencies));
-    manifest.insert("bin".to_string(), Value::Array(vec![Value::Table(bin)]));
+    let mut manifest: Manifest = Manifest::default();
+    manifest.package = Some(package);
+    manifest.workspace = Some(Workspace {
+        members: Vec::new(),
+        default_members: None,
+        exclude: None,
+        resolver: None,
+        dependencies: None,
+        package: None,
+        metadata: None,
+        lints: None,
+    });
+    manifest.dependencies = Some(dependencies);
+    manifest.bin = vec![Product {
+        name: Some("es-fluent-runner".to_string()),
+        path: Some("src/main.rs".to_string()),
+        edition: None,
+        ..Default::default()
+    }];
+
+    let rendered = toml::to_string(&manifest).context("Failed to serialize runner Cargo.toml")?;
+    let mut manifest = toml::from_str::<Value>(&rendered)
+        .context("Failed to reparse generated runner Cargo.toml")?;
+    let Value::Table(table) = &mut manifest else {
+        bail!("Generated runner Cargo.toml did not serialize to a TOML table");
+    };
+
+    table.insert("workspace".to_string(), Value::Table(TomlMap::new()));
     for (key, value) in &config.manifest_overrides {
-        manifest.insert(key.clone(), value.clone());
+        table.insert(key.clone(), value.clone());
     }
 
-    toml::to_string(&Value::Table(manifest)).context("Failed to serialize runner Cargo.toml")
+    toml::to_string(&manifest).context("Failed to serialize runner Cargo.toml")
 }
 
 fn render_cargo_config_toml(target_dir: &str) -> Result<String> {
-    let mut build = Map::new();
+    let mut build = TomlMap::new();
     build.insert(
         "target-dir".to_string(),
         Value::String(target_dir.to_string()),
     );
 
-    let mut config = Map::new();
+    let mut config = TomlMap::new();
     config.insert("build".to_string(), Value::Table(build));
 
     toml::to_string(&Value::Table(config)).context("Failed to serialize runner config.toml")
 }
 
-fn monolithic_dep_value(dep: &MonolithicCrateDep<'_>) -> Value {
-    let mut table = Map::new();
-    table.insert("path".to_string(), Value::String(dep.path.clone()));
-    if dep.has_features {
-        table.insert(
-            "features".to_string(),
-            Value::Array(
-                dep.features
-                    .iter()
-                    .cloned()
-                    .map(Value::String)
-                    .collect(),
-            ),
-        );
-    }
-    Value::Table(table)
+fn monolithic_dep_value(dep: &MonolithicCrateDep<'_>) -> Dependency {
+    Dependency::Detailed(DependencyDetail {
+        path: Some(dep.path.clone()),
+        features: if dep.has_features {
+            Some(dep.features.to_vec())
+        } else {
+            None
+        },
+        ..Default::default()
+    })
 }
 
 /// Run the monolithic binary directly (fast path) or build+run (slow path).

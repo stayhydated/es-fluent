@@ -1,15 +1,16 @@
 use super::CLI_VERSION;
+use cargo_manifest::{Dependency, DependencyDetail};
 use es_fluent_runner::RunnerMetadataStore;
 use std::{env, path::Path};
 
-type TomlTable = toml::map::Map<String, toml::Value>;
+type ManifestOverrides = toml::map::Map<String, toml::Value>;
 
 /// Configuration derived from cargo metadata for temp crate generation.
 pub(super) struct TempCrateConfig {
-    pub(super) es_fluent_dep: TomlTable,
-    pub(super) es_fluent_cli_helpers_dep: TomlTable,
+    pub(super) es_fluent_dep: Dependency,
+    pub(super) es_fluent_cli_helpers_dep: Dependency,
     pub(super) target_dir: String,
-    pub(super) manifest_overrides: TomlTable,
+    pub(super) manifest_overrides: ManifestOverrides,
 }
 
 impl TempCrateConfig {
@@ -81,7 +82,7 @@ impl TempCrateConfig {
         }
     }
 
-    fn find_local_dep(meta: &cargo_metadata::Metadata, crate_name: &str) -> Option<TomlTable> {
+    fn find_local_dep(meta: &cargo_metadata::Metadata, crate_name: &str) -> Option<Dependency> {
         meta.packages
             .iter()
             .find(|p| p.name.as_str() == crate_name && p.source.is_none())
@@ -91,7 +92,7 @@ impl TempCrateConfig {
             })
     }
 
-    fn find_cli_workspace_dep_es_fluent() -> Option<TomlTable> {
+    fn find_cli_workspace_dep_es_fluent() -> Option<Dependency> {
         let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
         let cli_path = Path::new(cli_manifest_dir);
         let es_fluent_path = cli_path.parent()?.join("es-fluent");
@@ -102,7 +103,7 @@ impl TempCrateConfig {
         }
     }
 
-    fn find_cli_workspace_dep_helpers() -> Option<TomlTable> {
+    fn find_cli_workspace_dep_helpers() -> Option<Dependency> {
         let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
         let cli_path = Path::new(cli_manifest_dir);
         let helpers_path = cli_path.parent()?.join("es-fluent-cli-helpers");
@@ -118,22 +119,22 @@ impl TempCrateConfig {
     /// The runner crate is an isolated workspace root, so it doesn't inherit dependency
     /// overrides from the project's manifest unless we mirror them into the generated
     /// `.es-fluent/Cargo.toml`.
-    pub(super) fn extract_manifest_overrides(manifest_path: &Path) -> TomlTable {
+    pub(super) fn extract_manifest_overrides(manifest_path: &Path) -> ManifestOverrides {
         let content = match std::fs::read_to_string(manifest_path) {
             Ok(content) => content,
-            Err(_) => return TomlTable::new(),
+            Err(_) => return ManifestOverrides::new(),
         };
 
         let parsed: toml::Value = match toml::from_str(&content) {
             Ok(parsed) => parsed,
-            Err(_) => return TomlTable::new(),
+            Err(_) => return ManifestOverrides::new(),
         };
 
         let Some(table) = parsed.as_table() else {
-            return TomlTable::new();
+            return ManifestOverrides::new();
         };
 
-        let mut overrides = TomlTable::new();
+        let mut overrides = ManifestOverrides::new();
 
         if let Some(patch) = table.get("patch") {
             overrides.insert("patch".to_string(), patch.clone());
@@ -146,17 +147,14 @@ impl TempCrateConfig {
         overrides
     }
 
-    fn path_dep(path: &Path) -> TomlTable {
-        TomlTable::from_iter([(
-            "path".to_string(),
-            toml::Value::String(path.to_string_lossy().into_owned()),
-        )])
+    fn path_dep(path: &Path) -> Dependency {
+        Dependency::Detailed(DependencyDetail {
+            path: Some(path.to_string_lossy().into_owned()),
+            ..Default::default()
+        })
     }
 
-    fn version_dep(version: &str) -> TomlTable {
-        TomlTable::from_iter([(
-            "version".to_string(),
-            toml::Value::String(version.to_string()),
-        )])
+    fn version_dep(version: &str) -> Dependency {
+        Dependency::Simple(version.to_string())
     }
 }

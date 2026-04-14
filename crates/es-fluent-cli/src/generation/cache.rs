@@ -17,9 +17,9 @@ pub struct MetadataCache {
     /// Hash of Cargo.lock when cache was created
     pub cargo_lock_hash: String,
     /// Extracted es-fluent dependency spec
-    pub es_fluent_dep: toml::map::Map<String, toml::Value>,
+    pub es_fluent_dep: cargo_manifest::Dependency,
     /// Extracted es-fluent-cli-helpers dependency spec
-    pub es_fluent_cli_helpers_dep: toml::map::Map<String, toml::Value>,
+    pub es_fluent_cli_helpers_dep: cargo_manifest::Dependency,
     /// Target directory
     pub target_dir: String,
 }
@@ -280,14 +280,16 @@ mod tests {
 
         let cache = MetadataCache {
             cargo_lock_hash: MetadataCache::hash_cargo_lock(temp_dir.path()).unwrap(),
-            es_fluent_dep: toml::map::Map::from_iter([(
-                "path".to_string(),
-                toml::Value::String("../es-fluent".to_string()),
-            )]),
-            es_fluent_cli_helpers_dep: toml::map::Map::from_iter([(
-                "path".to_string(),
-                toml::Value::String("../helpers".to_string()),
-            )]),
+            es_fluent_dep: cargo_manifest::Dependency::Detailed(cargo_manifest::DependencyDetail {
+                path: Some("../es-fluent".to_string()),
+                ..Default::default()
+            }),
+            es_fluent_cli_helpers_dep: cargo_manifest::Dependency::Detailed(
+                cargo_manifest::DependencyDetail {
+                    path: Some("../helpers".to_string()),
+                    ..Default::default()
+                },
+            ),
             target_dir: "target".to_string(),
         };
         cache.save(temp_dir.path()).unwrap();

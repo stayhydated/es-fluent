@@ -66,9 +66,12 @@ fn test_temp_crate_config_nonexistent_manifest() {
     let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"));
     // With fallback, should find local es-fluent from CLI workspace
     // If running in CI or different environment, may still be crates.io
-    assert!(
-        config.es_fluent_dep.contains_key("path") || config.es_fluent_dep.contains_key("version")
-    );
+    assert!(matches!(
+        config.es_fluent_dep,
+        cargo_manifest::Dependency::Simple(_)
+            | cargo_manifest::Dependency::Detailed(_)
+            | cargo_manifest::Dependency::Inherited(_)
+    ));
 }
 
 #[test]
@@ -94,9 +97,12 @@ es-fluent = { version = "*" }
 
     let config = TempCrateConfig::from_manifest(&manifest_path);
     // With fallback, should find local es-fluent from CLI workspace
-    assert!(
-        config.es_fluent_dep.contains_key("path") || config.es_fluent_dep.contains_key("version")
-    );
+    assert!(matches!(
+        config.es_fluent_dep,
+        cargo_manifest::Dependency::Simple(_)
+            | cargo_manifest::Dependency::Detailed(_)
+            | cargo_manifest::Dependency::Inherited(_)
+    ));
 }
 
 #[test]
@@ -145,28 +151,34 @@ edition = "2024"
     std::fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
     MetadataCache {
         cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
-        es_fluent_dep: toml::map::Map::from_iter([(
-            "path".to_string(),
-            toml::Value::String("/tmp/es".to_string()),
-        )]),
-        es_fluent_cli_helpers_dep: toml::map::Map::from_iter([(
-            "path".to_string(),
-            toml::Value::String("/tmp/helpers".to_string()),
-        )]),
+        es_fluent_dep: cargo_manifest::Dependency::Detailed(cargo_manifest::DependencyDetail {
+            path: Some("/tmp/es".to_string()),
+            ..Default::default()
+        }),
+        es_fluent_cli_helpers_dep: cargo_manifest::Dependency::Detailed(
+            cargo_manifest::DependencyDetail {
+                path: Some("/tmp/helpers".to_string()),
+                ..Default::default()
+            },
+        ),
         target_dir: "/tmp/target".to_string(),
     }
     .save(temp_dir.base_dir())
     .expect("save metadata cache");
 
     let config = TempCrateConfig::from_manifest(&manifest_path);
-    assert_eq!(
-        config.es_fluent_dep.get("path"),
-        Some(&toml::Value::String("/tmp/es".to_string()))
-    );
-    assert_eq!(
-        config.es_fluent_cli_helpers_dep.get("path"),
-        Some(&toml::Value::String("/tmp/helpers".to_string()))
-    );
+    match &config.es_fluent_dep {
+        cargo_manifest::Dependency::Detailed(detail) => {
+            assert_eq!(detail.path.as_deref(), Some("/tmp/es"));
+        },
+        dep => panic!("expected detailed dependency, got {dep:?}"),
+    }
+    match &config.es_fluent_cli_helpers_dep {
+        cargo_manifest::Dependency::Detailed(detail) => {
+            assert_eq!(detail.path.as_deref(), Some("/tmp/helpers"));
+        },
+        dep => panic!("expected detailed dependency, got {dep:?}"),
+    }
     assert_eq!(config.target_dir, "/tmp/target");
 }
 
