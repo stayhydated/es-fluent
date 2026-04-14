@@ -12,14 +12,14 @@ use std::path::Path;
 ///
 /// Stores extracted dependency info keyed by Cargo.lock hash to avoid
 /// running cargo_metadata on every invocation.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct MetadataCache {
     /// Hash of Cargo.lock when cache was created
     pub cargo_lock_hash: String,
-    /// Extracted es-fluent dependency string
-    pub es_fluent_dep: String,
-    /// Extracted es-fluent-cli-helpers dependency string
-    pub es_fluent_cli_helpers_dep: String,
+    /// Extracted es-fluent dependency spec
+    pub es_fluent_dep: toml::map::Map<String, toml::Value>,
+    /// Extracted es-fluent-cli-helpers dependency spec
+    pub es_fluent_cli_helpers_dep: toml::map::Map<String, toml::Value>,
     /// Target directory
     pub target_dir: String,
 }
@@ -85,7 +85,9 @@ pub fn compute_content_hash(src_dir: &Path, i18n_toml_path: Option<&Path>) -> St
     // Hash path + content for each file
     for path in files {
         if let Ok(content) = std::fs::read(&path) {
-            hasher.update(path.to_string_lossy().as_bytes());
+            let relative_path = path.strip_prefix(src_dir).unwrap_or(&path);
+            let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
+            hasher.update(normalized_path.as_bytes());
             hasher.update(&content);
         }
     }
@@ -95,7 +97,7 @@ pub fn compute_content_hash(src_dir: &Path, i18n_toml_path: Option<&Path>) -> St
         && toml_path.is_file()
         && let Ok(content) = std::fs::read(toml_path)
     {
-        hasher.update(toml_path.to_string_lossy().as_bytes());
+        hasher.update(b"i18n.toml");
         hasher.update(&content);
     }
 
@@ -236,6 +238,25 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_content_hash_ignores_path_aliases() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
+
+        let i18n_path = temp_dir.path().join("i18n.toml");
+        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+
+        let aliased_src_dir = temp_dir.path().join("src").join(".");
+        let aliased_i18n_path = temp_dir.path().join(".").join("i18n.toml");
+
+        let direct_hash = compute_content_hash(&src_dir, Some(&i18n_path));
+        let aliased_hash = compute_content_hash(&aliased_src_dir, Some(&aliased_i18n_path));
+
+        assert_eq!(direct_hash, aliased_hash);
+    }
+
+    #[test]
     fn test_compute_content_hash_only_rs_files() {
         let temp_dir = tempfile::tempdir().unwrap();
         let src_dir = temp_dir.path().join("src");
@@ -259,9 +280,14 @@ mod tests {
 
         let cache = MetadataCache {
             cargo_lock_hash: MetadataCache::hash_cargo_lock(temp_dir.path()).unwrap(),
-            es_fluent_dep: "es-fluent = { path = \"../es-fluent\" }".to_string(),
-            es_fluent_cli_helpers_dep: "es-fluent-cli-helpers = { path = \"../helpers\" }"
-                .to_string(),
+            es_fluent_dep: toml::map::Map::from_iter([(
+                "path".to_string(),
+                toml::Value::String("../es-fluent".to_string()),
+            )]),
+            es_fluent_cli_helpers_dep: toml::map::Map::from_iter([(
+                "path".to_string(),
+                toml::Value::String("../helpers".to_string()),
+            )]),
             target_dir: "target".to_string(),
         };
         cache.save(temp_dir.path()).unwrap();

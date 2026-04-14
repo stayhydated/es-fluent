@@ -66,7 +66,9 @@ fn test_temp_crate_config_nonexistent_manifest() {
     let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"));
     // With fallback, should find local es-fluent from CLI workspace
     // If running in CI or different environment, may still be crates.io
-    assert!(config.es_fluent_dep.contains("es-fluent"));
+    assert!(
+        config.es_fluent_dep.contains_key("path") || config.es_fluent_dep.contains_key("version")
+    );
 }
 
 #[test]
@@ -92,7 +94,9 @@ es-fluent = { version = "*" }
 
     let config = TempCrateConfig::from_manifest(&manifest_path);
     // With fallback, should find local es-fluent from CLI workspace
-    assert!(config.es_fluent_dep.contains("es-fluent"));
+    assert!(
+        config.es_fluent_dep.contains_key("path") || config.es_fluent_dep.contains_key("version")
+    );
 }
 
 #[test]
@@ -113,12 +117,13 @@ edition = "2024"
     file.write_all(cargo_toml.as_bytes()).unwrap();
 
     let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path);
+    let rendered = toml::to_string(&toml::Value::Table(overrides)).expect("serialize overrides");
     assert!(
-        overrides.contains("[replace.\"https://github.com/zed-industries/zed#gpui@0.2.2\"]"),
-        "overrides: {overrides:?}"
+        rendered.contains("[replace.\"https://github.com/zed-industries/zed#gpui@0.2.2\"]"),
+        "overrides: {rendered:?}"
     );
-    assert!(overrides.contains("gpui@0.2.2"));
-    assert!(overrides.contains("15d8660748b508b3525d3403e5d172f1a557bfa5"));
+    assert!(rendered.contains("gpui@0.2.2"));
+    assert!(rendered.contains("15d8660748b508b3525d3403e5d172f1a557bfa5"));
 }
 
 #[test]
@@ -140,19 +145,27 @@ edition = "2024"
     std::fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
     MetadataCache {
         cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
-        es_fluent_dep: "es-fluent = { path = \"/tmp/es\" }".to_string(),
-        es_fluent_cli_helpers_dep: "es-fluent-cli-helpers = { path = \"/tmp/helpers\" }"
-            .to_string(),
+        es_fluent_dep: toml::map::Map::from_iter([(
+            "path".to_string(),
+            toml::Value::String("/tmp/es".to_string()),
+        )]),
+        es_fluent_cli_helpers_dep: toml::map::Map::from_iter([(
+            "path".to_string(),
+            toml::Value::String("/tmp/helpers".to_string()),
+        )]),
         target_dir: "/tmp/target".to_string(),
     }
     .save(temp_dir.base_dir())
     .expect("save metadata cache");
 
     let config = TempCrateConfig::from_manifest(&manifest_path);
-    assert_eq!(config.es_fluent_dep, "es-fluent = { path = \"/tmp/es\" }");
     assert_eq!(
-        config.es_fluent_cli_helpers_dep,
-        "es-fluent-cli-helpers = { path = \"/tmp/helpers\" }"
+        config.es_fluent_dep.get("path"),
+        Some(&toml::Value::String("/tmp/es".to_string()))
+    );
+    assert_eq!(
+        config.es_fluent_cli_helpers_dep.get("path"),
+        Some(&toml::Value::String("/tmp/helpers".to_string()))
     );
     assert_eq!(config.target_dir, "/tmp/target");
 }

@@ -1,12 +1,5 @@
 use askama::Template;
 
-/// Template for the .cargo/config.toml (target-dir setting)
-#[derive(Template)]
-#[template(path = "config.toml.jinja", escape = "none")]
-pub struct ConfigTomlTemplate<'a> {
-    pub target_dir: &'a str,
-}
-
 /// Template for the generated .gitignore
 #[derive(Template)]
 #[template(path = ".gitignore.jinja", escape = "none")]
@@ -22,16 +15,6 @@ pub struct MonolithicCrateDep<'a> {
     pub ident: String,
     pub has_features: bool,
     pub features: &'a [String],
-}
-
-/// Template for the monolithic Cargo.toml (depends on ALL workspace crates)
-#[derive(Template)]
-#[template(path = "MonolithicCargo.toml.jinja", escape = "none")]
-pub struct MonolithicCargoTomlTemplate<'a> {
-    pub crates: Vec<MonolithicCrateDep<'a>>,
-    pub es_fluent_dep: &'a str,
-    pub es_fluent_cli_helpers_dep: &'a str,
-    pub manifest_overrides: &'a str,
 }
 
 /// Template for the monolithic main.rs

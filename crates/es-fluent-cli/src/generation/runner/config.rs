@@ -2,12 +2,14 @@ use super::CLI_VERSION;
 use es_fluent_runner::RunnerMetadataStore;
 use std::{env, path::Path};
 
+type TomlTable = toml::map::Map<String, toml::Value>;
+
 /// Configuration derived from cargo metadata for temp crate generation.
 pub(super) struct TempCrateConfig {
-    pub(super) es_fluent_dep: String,
-    pub(super) es_fluent_cli_helpers_dep: String,
+    pub(super) es_fluent_dep: TomlTable,
+    pub(super) es_fluent_cli_helpers_dep: TomlTable,
     pub(super) target_dir: String,
-    pub(super) manifest_overrides: String,
+    pub(super) manifest_overrides: TomlTable,
 }
 
 impl TempCrateConfig {
@@ -42,15 +44,10 @@ impl TempCrateConfig {
             Some(ref meta) => {
                 let es_fluent = Self::find_local_dep(meta, "es-fluent")
                     .or_else(Self::find_cli_workspace_dep_es_fluent)
-                    .unwrap_or_else(|| format!(r#"es-fluent = {{ version = "{}" }}"#, CLI_VERSION));
+                    .unwrap_or_else(|| Self::version_dep(CLI_VERSION));
                 let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")
                     .or_else(Self::find_cli_workspace_dep_helpers)
-                    .unwrap_or_else(|| {
-                        format!(
-                            r#"es-fluent-cli-helpers = {{ version = "{}" }}"#,
-                            CLI_VERSION
-                        )
-                    });
+                    .unwrap_or_else(|| Self::version_dep(CLI_VERSION));
                 let target = target_dir_from_env
                     .clone()
                     .unwrap_or_else(|| meta.target_directory.to_string());
@@ -58,16 +55,10 @@ impl TempCrateConfig {
             },
             None => (
                 Self::find_cli_workspace_dep_es_fluent()
-                    .unwrap_or_else(|| format!(r#"es-fluent = {{ version = "{}" }}"#, CLI_VERSION)),
-                Self::find_cli_workspace_dep_helpers().unwrap_or_else(|| {
-                    format!(
-                        r#"es-fluent-cli-helpers = {{ version = "{}" }}"#,
-                        CLI_VERSION
-                    )
-                }),
-                target_dir_from_env
-                    .clone()
-                    .unwrap_or_else(|| "../target".to_string()),
+                    .unwrap_or_else(|| Self::version_dep(CLI_VERSION)),
+                Self::find_cli_workspace_dep_helpers()
+                    .unwrap_or_else(|| Self::version_dep(CLI_VERSION)),
+                target_dir_from_env.unwrap_or_else(|| "../target".to_string()),
             ),
         };
 
@@ -90,39 +81,33 @@ impl TempCrateConfig {
         }
     }
 
-    fn find_local_dep(meta: &cargo_metadata::Metadata, crate_name: &str) -> Option<String> {
+    fn find_local_dep(meta: &cargo_metadata::Metadata, crate_name: &str) -> Option<TomlTable> {
         meta.packages
             .iter()
             .find(|p| p.name.as_str() == crate_name && p.source.is_none())
             .map(|pkg| {
                 let path = pkg.manifest_path.parent().unwrap();
-                format!(r#"{} = {{ path = "{}" }}"#, crate_name, path)
+                Self::path_dep(path.as_std_path())
             })
     }
 
-    fn find_cli_workspace_dep_es_fluent() -> Option<String> {
+    fn find_cli_workspace_dep_es_fluent() -> Option<TomlTable> {
         let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
         let cli_path = Path::new(cli_manifest_dir);
         let es_fluent_path = cli_path.parent()?.join("es-fluent");
         if es_fluent_path.join("Cargo.toml").exists() {
-            Some(format!(
-                r#"es-fluent = {{ path = "{}" }}"#,
-                es_fluent_path.display()
-            ))
+            Some(Self::path_dep(&es_fluent_path))
         } else {
             None
         }
     }
 
-    fn find_cli_workspace_dep_helpers() -> Option<String> {
+    fn find_cli_workspace_dep_helpers() -> Option<TomlTable> {
         let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
         let cli_path = Path::new(cli_manifest_dir);
         let helpers_path = cli_path.parent()?.join("es-fluent-cli-helpers");
         if helpers_path.join("Cargo.toml").exists() {
-            Some(format!(
-                r#"es-fluent-cli-helpers = {{ path = "{}" }}"#,
-                helpers_path.display()
-            ))
+            Some(Self::path_dep(&helpers_path))
         } else {
             None
         }
@@ -133,43 +118,45 @@ impl TempCrateConfig {
     /// The runner crate is an isolated workspace root, so it doesn't inherit dependency
     /// overrides from the project's manifest unless we mirror them into the generated
     /// `.es-fluent/Cargo.toml`.
-    pub(super) fn extract_manifest_overrides(manifest_path: &Path) -> String {
+    pub(super) fn extract_manifest_overrides(manifest_path: &Path) -> TomlTable {
         let content = match std::fs::read_to_string(manifest_path) {
             Ok(content) => content,
-            Err(_) => return String::new(),
+            Err(_) => return TomlTable::new(),
         };
 
         let parsed: toml::Value = match toml::from_str(&content) {
             Ok(parsed) => parsed,
-            Err(_) => return String::new(),
+            Err(_) => return TomlTable::new(),
         };
 
         let Some(table) = parsed.as_table() else {
-            return String::new();
+            return TomlTable::new();
         };
 
-        let mut rendered_sections = Vec::new();
+        let mut overrides = TomlTable::new();
 
         if let Some(patch) = table.get("patch") {
-            let mut patch_table = toml::map::Map::new();
-            patch_table.insert("patch".to_string(), patch.clone());
-            if let Ok(rendered) = toml::to_string(&toml::Value::Table(patch_table)) {
-                rendered_sections.push(rendered.trim_end().to_string());
-            }
+            overrides.insert("patch".to_string(), patch.clone());
         }
 
         if let Some(replace) = table.get("replace") {
-            let mut replace_table = toml::map::Map::new();
-            replace_table.insert("replace".to_string(), replace.clone());
-            if let Ok(rendered) = toml::to_string(&toml::Value::Table(replace_table)) {
-                rendered_sections.push(rendered.trim_end().to_string());
-            }
+            overrides.insert("replace".to_string(), replace.clone());
         }
 
-        if rendered_sections.is_empty() {
-            String::new()
-        } else {
-            format!("{}\n", rendered_sections.join("\n\n"))
-        }
+        overrides
+    }
+
+    fn path_dep(path: &Path) -> TomlTable {
+        TomlTable::from_iter([(
+            "path".to_string(),
+            toml::Value::String(path.to_string_lossy().into_owned()),
+        )])
+    }
+
+    fn version_dep(version: &str) -> TomlTable {
+        TomlTable::from_iter([(
+            "version".to_string(),
+            toml::Value::String(version.to_string()),
+        )])
     }
 }
