@@ -6,14 +6,10 @@ use crate::{
     BevyFluentTextRegistration, CurrentLanguageId, FtlAsset, I18nAssets, I18nResource,
     LocaleChangeEvent, LocaleChangedEvent,
 };
-#[cfg(not(target_arch = "wasm32"))]
-use bevy::asset::io::{AssetReaderError, AssetSourceId};
 use bevy::prelude::*;
 use es_fluent_manager_core::{
     FluentManager, I18nModuleRegistration, filter_module_registry, resolve_ready_locale,
 };
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
 use std::{collections::HashSet, sync::Arc};
 use unic_langid::LanguageIdentifier;
 
@@ -102,21 +98,17 @@ pub(super) fn build_i18n_assets(
 
             for spec in &resource_plan {
                 let path = format!("{}/{}/{}", asset_path, lang, spec.locale_relative_path);
-                if !spec.required
-                    && !has_manifest_plan
-                    && !should_load_optional_asset(asset_server, &path)
-                {
-                    debug!("Skipping missing optional i18n asset: {}", path);
-                    continue;
-                }
-
                 let handle: Handle<FtlAsset> = asset_server.load(&path);
                 if spec.required {
                     i18n_assets.add_asset_spec(lang.clone(), spec.clone(), handle);
                     debug!("Loading required i18n asset: {}", path);
                 } else {
+                    if has_manifest_plan {
+                        debug!("Loading manifest-listed optional i18n asset: {}", path);
+                    } else {
+                        debug!("Loading optional i18n asset: {}", path);
+                    }
                     i18n_assets.add_optional_asset_spec(lang.clone(), spec.clone(), handle);
-                    debug!("Loading optional i18n asset: {}", path);
                 }
             }
         }
@@ -155,41 +147,4 @@ pub(super) fn configure_app(
             )
                 .chain(),
         );
-}
-
-fn should_load_optional_asset(asset_server: &AssetServer, relative_path: &str) -> bool {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = asset_server;
-        let _ = relative_path;
-        // wasm32 without threads does not support blocking waits used by
-        // `bevy::tasks::block_on`, so we keep optional loads optimistic.
-        return true;
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let source = match asset_server.get_source(AssetSourceId::Default) {
-            Ok(source) => source,
-            Err(err) => {
-                debug!(
-                    "Could not query default asset source while probing optional i18n asset '{}': {}",
-                    relative_path, err
-                );
-                return true;
-            },
-        };
-
-        match bevy::tasks::block_on(source.reader().read(Path::new(relative_path))) {
-            Ok(_) => true,
-            Err(AssetReaderError::NotFound(_)) => false,
-            Err(err) => {
-                debug!(
-                    "Failed to probe optional i18n asset '{}' (loading anyway): {}",
-                    relative_path, err
-                );
-                true
-            },
-        }
-    }
 }

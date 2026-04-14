@@ -7,6 +7,8 @@ use bevy::{MinimalPlugins, asset::AssetPlugin, prelude::App, window::RequestRedr
 use unic_langid::langid;
 
 fn build_test_plugin_app() -> App {
+    // The process-global custom localizer cannot currently be cleared between
+    // tests, so most runtime tests exercise the explicit replacement path.
     build_test_plugin_app_with_mode(GlobalLocalizerMode::ReplaceExisting)
 }
 

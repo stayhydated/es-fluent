@@ -64,17 +64,18 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         (base, menu, hud)
     };
     assert!(
-        !app.world()
+        app.world()
             .resource::<I18nAssets>()
             .assets
-            .contains_key(&(langid!("en"), ResourceKey::new("namespaced-domain")))
+            .contains_key(&(langid!("en"), ResourceKey::new("namespaced-domain"))),
+        "optional compatibility resources should be queued through AssetServer like other assets"
     );
     assert!(
         app.world()
             .resource::<I18nAssets>()
             .assets
             .contains_key(&(langid!("en"), ResourceKey::new("manifest-domain"))),
-        "manifest-driven optional resources should be loaded without runtime probing"
+        "manifest-driven optional resources should be loaded without speculative probing"
     );
 
     app.world_mut()

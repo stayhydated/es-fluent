@@ -26,7 +26,7 @@ Used by `es-fluent-manager-bevy`.
 1. **Generates**:
    - Static `ModuleData` listing supported languages.
    - `inventory::submit!` block to register an `I18nModuleRegistration`.
-   - A per-language Bevy resource plan manifest (`resource_plan_for_language`) so optional files are loaded only when known to exist.
+   - A per-language Bevy resource plan manifest (`resource_plan_for_language`) so optional files are only queued when known to exist.
    - _Note_: Does not embed files; Bevy still loads assets at runtime.
 
 ## Rationale

@@ -1,8 +1,7 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    BevyFluentText, CurrentLanguageId, FluentText, GlobalLocalizerMode, I18nPlugin,
-    LocaleChangeEvent,
+    BevyFluentText, CurrentLanguageId, FluentText, I18nPlugin, LocaleChangeEvent,
 };
 use example_shared_lib::{ButtonState, Languages};
 
@@ -52,10 +51,7 @@ pub fn run() {
     }));
 
     app.insert_resource(WinitSettings::desktop_app())
-        .add_plugins(
-            I18nPlugin::with_language(Languages::default().into())
-                .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
-        )
+        .add_plugins(I18nPlugin::with_language(Languages::default().into()))
         .init_resource::<InputFocus>()
         .add_systems(Startup, setup)
         .add_systems(

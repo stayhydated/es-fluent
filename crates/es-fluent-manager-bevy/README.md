@@ -39,7 +39,7 @@ Add the plugin to your `App` and define your I18n module:
 
 ```rs
 use bevy::prelude::*;
-use es_fluent_manager_bevy::{GlobalLocalizerMode, I18nPlugin};
+use es_fluent_manager_bevy::I18nPlugin;
 use unic_langid::langid;
 
 // a i18n.toml file must exist in the root of the crate
@@ -48,24 +48,26 @@ es_fluent_manager_bevy::define_i18n_module!();
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // Bevy owns the process-global `es_fluent::localize` hook in this app.
-        .add_plugins(
-            I18nPlugin::with_language(langid!("en-US"))
-                .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
-        )
+        .add_plugins(I18nPlugin::with_language(langid!("en-US")))
         .run();
 }
 ```
 
-`GlobalLocalizerMode::ReplaceExisting` is the default and tells Bevy to
-replace any previously installed custom localizer. Use
-`GlobalLocalizerMode::ErrorIfAlreadySet` when you want integration conflicts to
-panic instead of being overridden:
+`I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
+inside Bevy, but it now defaults to
+`GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
+another integration already owns the process-global `es_fluent::localize`
+hook.
+
+If your Bevy app intentionally owns that hook and should override any previous
+registration, opt in explicitly:
 
 ```rs
+use es_fluent_manager_bevy::{GlobalLocalizerMode, I18nPlugin};
+
 App::new().add_plugins(
     I18nPlugin::with_language(langid!("en-US"))
-        .with_global_localizer_mode(GlobalLocalizerMode::ErrorIfAlreadySet),
+        .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
 );
 ```
 

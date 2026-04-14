@@ -19,11 +19,11 @@ use unic_langid::LanguageIdentifier;
 /// custom localizer hook.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum GlobalLocalizerMode {
-    /// Replace any existing custom localizer so Bevy owns the global hook.
-    #[default]
-    ReplaceExisting,
     /// Fail fast if another integration already owns the global hook.
+    #[default]
     ErrorIfAlreadySet,
+    /// Replace any existing custom localizer so Bevy owns the global hook.
+    ReplaceExisting,
 }
 
 #[doc(hidden)]
@@ -55,21 +55,22 @@ impl I18nPlugin {
     pub fn new(config: I18nPluginConfig) -> Self {
         Self {
             config,
-            global_localizer_mode: GlobalLocalizerMode::ReplaceExisting,
+            global_localizer_mode: GlobalLocalizerMode::ErrorIfAlreadySet,
         }
     }
 
     /// Create a plugin with a specific initial language.
     ///
-    /// This defaults to [`GlobalLocalizerMode::ReplaceExisting`], meaning the
-    /// plugin takes ownership of `es-fluent`'s process-global custom localizer.
+    /// This defaults to [`GlobalLocalizerMode::ErrorIfAlreadySet`], meaning the
+    /// plugin installs the `es-fluent` process-global custom localizer unless
+    /// another integration already owns it.
     pub fn with_language(initial_language: LanguageIdentifier) -> Self {
         Self {
             config: I18nPluginConfig {
                 initial_language,
                 ..Default::default()
             },
-            global_localizer_mode: GlobalLocalizerMode::ReplaceExisting,
+            global_localizer_mode: GlobalLocalizerMode::ErrorIfAlreadySet,
         }
     }
 

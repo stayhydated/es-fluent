@@ -14,12 +14,29 @@ fn plugin_constructors_keep_configuration() {
         initial_language: langid!("fr"),
         asset_path: "custom-assets".to_string(),
     });
-    let _ = plugin;
+    assert_eq!(
+        plugin.global_localizer_mode,
+        GlobalLocalizerMode::ErrorIfAlreadySet
+    );
 
-    let _ = I18nPlugin::with_language(langid!("es"));
-    let _ = I18nPlugin::with_language(langid!("de"))
-        .with_global_localizer_mode(GlobalLocalizerMode::ErrorIfAlreadySet);
-    let _ = I18nPlugin::with_config(I18nPluginConfig::default());
+    let default_language_plugin = I18nPlugin::with_language(langid!("es"));
+    assert_eq!(
+        default_language_plugin.global_localizer_mode,
+        GlobalLocalizerMode::ErrorIfAlreadySet
+    );
+
+    let replacing_plugin = I18nPlugin::with_language(langid!("de"))
+        .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting);
+    assert_eq!(
+        replacing_plugin.global_localizer_mode,
+        GlobalLocalizerMode::ReplaceExisting
+    );
+
+    let configured_plugin = I18nPlugin::with_config(I18nPluginConfig::default());
+    assert_eq!(
+        configured_plugin.global_localizer_mode,
+        GlobalLocalizerMode::ErrorIfAlreadySet
+    );
 }
 
 #[test]
