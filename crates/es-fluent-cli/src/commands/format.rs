@@ -3,10 +3,11 @@
 //! This module provides functionality to format FTL files by sorting
 //! message keys alphabetically while preserving group comments.
 
-use crate::commands::{DryRunDiff, DryRunSummary, WorkspaceArgs, WorkspaceCrates};
+use super::common::{WorkspaceArgs, WorkspaceCrates};
+use super::dry_run::{DryRunDiff, DryRunSummary};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
-use crate::ftl::LocaleContext;
-use crate::utils::{discover_ftl_files, ui};
+use crate::ftl::{CrateFtlLayout, LocaleContext};
+use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
 use fluent_syntax::parser;
@@ -77,8 +78,8 @@ impl FormatResult {
 pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    if !workspace.print_discovery(ui::print_format_header) {
-        ui::print_no_crates_found();
+    if !workspace.print_discovery(ui::Ui::print_format_header) {
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
@@ -86,7 +87,7 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let mut total_unchanged = 0;
     let mut errors: Vec<FormatError> = Vec::new();
 
-    let pb = ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...");
+    let pb = ui::Ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...");
 
     for krate in &workspace.crates {
         pb.set_message(format!("Formatting {}", krate.name));
@@ -107,12 +108,12 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
                         .unwrap_or(&result.path);
 
                     if args.dry_run {
-                        ui::print_would_format(display_path);
+                        ui::Ui::print_would_format(display_path);
                         if let Some(diff) = &result.diff_info {
                             diff.print();
                         }
                     } else {
-                        ui::print_formatted(display_path);
+                        ui::Ui::print_formatted(display_path);
                     }
                 });
             } else {
@@ -130,7 +131,7 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
             }
             .print();
         } else {
-            ui::print_format_summary(total_formatted, total_unchanged);
+            ui::Ui::print_format_summary(total_formatted, total_unchanged);
         }
         Ok(())
     } else {
@@ -159,7 +160,8 @@ fn format_crate(
         }
 
         // Format main + namespaced files for this crate.
-        let ftl_files = discover_ftl_files(&ctx.assets_dir, locale, &ctx.crate_name)?;
+        let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
+            .discover_files()?;
         for file_info in ftl_files {
             let ftl_file = fs::canonicalize(&file_info.abs_path).unwrap_or(file_info.abs_path);
             let result = format_ftl_file(&ftl_file, check_only);
@@ -375,23 +377,20 @@ mod tests {
         assert!(partial.diff_info.is_some());
     }
 
-    #[cfg(unix)]
     #[test]
     fn format_ftl_file_returns_write_error_for_read_only_file() {
-        use std::os::unix::fs::PermissionsExt;
-
         let temp = tempdir().expect("tempdir");
         let ftl = temp.path().join("read-only.ftl");
         std::fs::write(&ftl, "zeta = Z\nalpha = A\n").expect("write ftl");
 
         let mut perms = std::fs::metadata(&ftl).unwrap().permissions();
-        perms.set_mode(0o444);
+        perms.set_readonly(true);
         std::fs::set_permissions(&ftl, perms).unwrap();
 
         let result = format_ftl_file(&ftl, false);
 
         let mut restore = std::fs::metadata(&ftl).unwrap().permissions();
-        restore.set_mode(0o644);
+        restore.set_readonly(false);
         std::fs::set_permissions(&ftl, restore).unwrap();
 
         assert!(

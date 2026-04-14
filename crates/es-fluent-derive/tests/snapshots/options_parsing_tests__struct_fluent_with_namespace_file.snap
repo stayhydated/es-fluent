@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 StructOpts {
-    ident: Ident {
-        sym: Dialog,
-    },
+    ident: Ident(
+        Dialog,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +18,9 @@ StructOpts {
             fields: [
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: title,
-                        },
+                        Ident(
+                            title,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,33 +28,37 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: None,
+                        choice: None,
+                        value: None,
+                        arg_name: None,
+                    },
                     default: None,
-                    choice: None,
-                    value: None,
-                    arg_name: None,
                 },
             ],
             span: Some(
-                bytes(0..0),
+                Span,
             ),
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructFluentAttributeArgs {
+    attr_args: DerivedNamespacedAttributeArgs {
         derive: PathList(
             [],
         ),
-        namespace: Some(
-            File,
-        ),
+        namespace_args: NamespacedAttributeArgs {
+            namespace: Some(
+                File,
+            ),
+        },
     },
 }

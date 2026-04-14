@@ -33,6 +33,27 @@ pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_mod
 #[doc(hidden)]
 static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
+fn build_manager(initial_language: Option<&LanguageIdentifier>) -> Arc<FluentManager> {
+    let manager = FluentManager::new_with_discovered_modules();
+    if let Some(initial_language) = initial_language {
+        manager.select_language(initial_language);
+    }
+    Arc::new(manager)
+}
+
+fn initialize_manager(manager: Arc<FluentManager>) -> bool {
+    if GENERIC_MANAGER
+        .set(ArcSwap::new(Arc::clone(&manager)))
+        .is_ok()
+    {
+        set_shared_context(manager);
+        true
+    } else {
+        tracing::warn!("Generic fluent manager already initialized.");
+        false
+    }
+}
+
 /// Initializes the embedded singleton `FluentManager`.
 ///
 /// This function discovers all embedded i18n modules linked into the binary,
@@ -48,15 +69,37 @@ static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 /// This function will not panic if called more than once, but it will log a
 /// warning and have no effect after the first successful call.
 pub fn init() {
-    let manager = FluentManager::new_with_discovered_modules();
-    let manager_arc = Arc::new(manager);
-    if GENERIC_MANAGER
-        .set(ArcSwap::new(Arc::clone(&manager_arc)))
-        .is_ok()
-    {
-        set_shared_context(manager_arc);
-    } else {
+    let _ = initialize_manager(build_manager(None));
+}
+
+/// Initializes the embedded singleton `FluentManager` and selects the active language.
+///
+/// This is equivalent to calling [`init()`] followed by [`select_language()`], except the
+/// language is selected before the manager is published as the global singleton.
+/// If another thread initializes the singleton concurrently, `lang` is applied
+/// to the live manager after the race is resolved.
+///
+/// # Panics
+///
+/// This function will not panic if called more than once. If the singleton is
+/// already initialized, it logs a warning and applies `lang` to the existing
+/// manager.
+pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
+    let lang = lang.into();
+    if let Some(manager) = GENERIC_MANAGER.get() {
         tracing::warn!("Generic fluent manager already initialized.");
+        manager.load().select_language(&lang);
+        return;
+    }
+
+    if !initialize_manager(build_manager(Some(&lang))) {
+        if let Some(manager) = GENERIC_MANAGER.get() {
+            manager.load().select_language(&lang);
+        } else {
+            tracing::error!(
+                "Generic fluent manager initialization lost a race and no live manager was found."
+            );
+        }
     }
 }
 
@@ -86,10 +129,14 @@ mod tests {
         ModuleData,
     };
     use std::collections::HashMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{
+        LazyLock, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
     use unic_langid::langid;
 
     static SELECT_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
     static EMBEDDED_TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "embedded-test-module",
         domain: "embedded-test-module",
@@ -138,7 +185,24 @@ mod tests {
     }
 
     #[test]
+    fn build_manager_selects_initial_language_when_requested() {
+        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        SELECT_CALLS.store(0, Ordering::Relaxed);
+
+        let manager = build_manager(Some(&langid!("en-US")));
+
+        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
+        assert_eq!(
+            manager.localize("embedded-key", None),
+            Some("embedded-value".to_string())
+        );
+    }
+
+    #[test]
     fn init_and_select_language_cover_singleton_paths() {
+        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        SELECT_CALLS.store(0, Ordering::Relaxed);
+
         // Exercise the pre-init error path.
         select_language(langid!("en-US"));
         assert!(GENERIC_MANAGER.get().is_none());
@@ -147,10 +211,20 @@ mod tests {
         assert!(GENERIC_MANAGER.get().is_some());
 
         select_language(langid!("en-US"));
-        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
+        let after_explicit_select = SELECT_CALLS.load(Ordering::Relaxed);
+        assert!(after_explicit_select >= 1);
 
-        // Second init should hit the already-initialized branch.
+        // Re-initialization with a language should still apply the requested selection.
+        init_with_language(langid!("fr"));
+        assert!(SELECT_CALLS.load(Ordering::Relaxed) > after_explicit_select);
+
+        // Plain init should still hit the already-initialized branch without changing language.
+        let after_reinit_with_language = SELECT_CALLS.load(Ordering::Relaxed);
         init();
+        assert_eq!(
+            SELECT_CALLS.load(Ordering::Relaxed),
+            after_reinit_with_language
+        );
 
         assert_eq!(es_fluent::localize("embedded-key", None), "embedded-value");
     }

@@ -7,9 +7,13 @@ pub mod localization;
 
 pub use asset_localization::{
     I18nModuleDescriptor, LocaleLoadReport, ModuleData, ModuleRegistryError, ModuleResourceSpec,
-    ResourceKey, ResourceLoadError, StaticModuleDescriptor, locale_is_ready,
-    optional_resource_keys_from_plan, parse_fluent_resource_bytes, parse_fluent_resource_content,
-    required_resource_keys_from_plan, resource_plan_for, validate_module_registry,
+    ResourceKey, ResourceLoadError, ResourceLoadStatus, StaticModuleDescriptor,
+    build_locale_load_report, clear_locale_resource, collect_available_languages,
+    collect_locale_resources, load_locale_resources, locale_is_ready,
+    optional_resource_keys_from_plan, parse_and_store_locale_resource_content,
+    parse_fluent_resource_bytes, parse_fluent_resource_content, record_failed_locale_resource,
+    record_locale_resource_error, record_missing_locale_resource, required_resource_keys_from_plan,
+    resource_plan_for, store_locale_resource, validate_module_registry,
 };
 pub use embedded_localization::{EmbeddedAssets, EmbeddedI18nModule};
 pub use fallback::{

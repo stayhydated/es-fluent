@@ -1,171 +1,176 @@
 # es-fluent-cli Architecture
 
-This document explains the architecture of `es-fluent-cli` and its relationship with `es-fluent-cli-helpers`.
+This document explains the architecture of `es-fluent-cli` and how it uses the
+support crates around it.
 
 ## Overview
 
-The CLI uses a **runner crate approach** to collect inventory registrations from user code at runtime. The CLI generates a persistent runner crate in `.es-fluent/` that links all workspace crates, then runs a binary that calls into `es-fluent-cli-helpers`.
+`es-fluent-cli` has two execution paths:
 
-## Architecture
+1. **Runner-backed commands**: `generate`, `clean`, `check`, and the generation
+   loop inside `watch`
+1. **Direct FTL commands**: `format`, `sync`, and `tree`
+
+Runner-backed commands need access to inventory registrations emitted by user
+crates, so the CLI prepares a monolithic `.es-fluent/` runner workspace and
+executes a generated binary that calls into `es-fluent-cli-helpers`. Direct FTL
+commands operate only on the discovered `.ftl` files and never invoke the
+runner.
+
+## High-Level Architecture
 
 ```mermaid
 flowchart TD
-    subgraph USER["User Workspace"]
-        UC["User Crates<br/>(EsFluent derives + i18n.toml)"]
+    subgraph USER["User workspace"]
+        CODE["Rust crates + i18n.toml"]
+        FTL["existing .ftl files"]
     end
 
     subgraph CLI["es-fluent-cli"]
-        CMD[Commands]
-        JINJA[Jinja Templates]
-        CACHE[Caching Layer]
+        DISCOVER["workspace discovery"]
+        RUNNERCMDS["generate / clean / check / watch"]
+        DIRECT["format / sync / tree"]
+        CACHE["runner + metadata caches"]
     end
 
-    subgraph RUNNER[".es-fluent/ Runner Crate"]
-        CARGO[Cargo.toml]
-        MAIN[src/main.rs]
-        BIN[es-fluent-runner binary]
+    subgraph RUNNER[".es-fluent/"]
+        TEMP["generated Cargo.toml + main.rs"]
+        BIN["es-fluent-runner binary"]
+        META["metadata/<crate>/*.json"]
     end
 
-    subgraph HELPERS_BOX["es-fluent-cli-helpers"]
-        HELPERS["run()"]
+    subgraph HELPERS["Support crates"]
+        CLIH["es-fluent-cli-helpers"]
+        RUNNERPROTO["es-fluent-runner"]
+        GENERATE["es-fluent-generate"]
     end
 
-    subgraph OUTPUT["JSON Outputs"]
-        INV[metadata/*/inventory.json]
-        RES[metadata/*/result.json]
-    end
-
-    CMD --> JINJA
-    JINJA -->|generates| CARGO
-    JINJA -->|generates| MAIN
-    MAIN -->|calls| HELPERS
-    UC -->|extern crate| BIN
-    BIN --> HELPERS
-    HELPERS --> INV & RES
-    CLI -->|reads| OUTPUT
+    CODE --> DISCOVER
+    FTL --> DIRECT
+    DISCOVER --> RUNNERCMDS
+    RUNNERCMDS --> TEMP
+    TEMP --> BIN
+    BIN --> CLIH
+    CLIH --> RUNNERPROTO
+    CLIH --> GENERATE
+    CLIH --> META
+    RUNNERCMDS --> META
+    DIRECT --> GENERATE
+    CACHE --> RUNNERCMDS
 ```
 
-## Commands
+## Command Paths
 
-The CLI provides several subcommands, each delegating to `es-fluent-cli-helpers` via the runner crate.
+| Command    | Inventory needed? | Execution path      | Notes                                                                                         |
+| ---------- | ----------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `generate` | Yes               | Runner-backed       | Generates or updates fallback-locale FTL files and reads `result.json` for the changed flag   |
+| `clean`    | Yes               | Runner-backed       | Uses the same runner workspace and reads `result.json`                                        |
+| `check`    | Yes               | Mixed               | Runner collects inventory into `inventory.json`; the CLI then validates `.ftl` files directly |
+| `watch`    | Yes               | Runner-backed + TUI | Reuses `generate` requests behind a debounced file watcher                                    |
+| `format`   | No                | Direct              | Parses existing `.ftl` files and rewrites them with shared formatting logic                   |
+| `sync`     | No                | Direct              | Copies missing keys from the fallback locale into target locales                              |
+| `tree`     | No                | Direct              | Parses `.ftl` files and renders a structural tree view                                        |
 
-| Command            | Goal                      | Mechanism                                                                                                                                                                                           | Flags                                                       |
-| :----------------- | :------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------- |
-| `generate`         | **Create/Update FTL**     | Collects inventory. Merges new keys into existing `.ftl` files using `fluent-syntax`. Preserves comments & formatting.                                                                              | `--dry-run`, `--force-run`                                  |
-| `check`            | **Validate Integrity**    | Collects inventory. Verifies all keys exist in `.ftl` files. Errors if keys are missing or variables mismatch.                                                                                      | `--all`, `--ignore <CRATE>`, `--force-run` (rebuild runner) |
-| `clean`            | **Remove Obsolete**       | Collects inventory. Removes keys from `.ftl` files that are no longer present in the Rust code.                                                                                                     | `--dry-run`, `--all`, `--force-run`                         |
-| `clean --orphaned` | **Remove Orphaned Files** | Removes FTL files in non-fallback locales that don't exist in the fallback locale (e.g., when a crate only uses namespaces). Never modifies the fallback locale.                                    | `--dry-run`, `--all`                                        |
-| `format`           | **Standardize Style**     | Parses and re-serializes all `.ftl` files using standard `fluent-syntax` rules to ensure consistent formatting.                                                                                     | `--dry-run`, `--all` (format all locales)                   |
-| `sync`             | **Propagate Keys**        | Propagates keys from the `fallback_language` (e.g. `en-US`) to other languages, creating empty placeholders for missing translations. Handles namespaced files by creating matching subdirectories. | `--locale <LANG>`, `--all`, `--dry-run`                     |
-| `watch`            | **Dev Loop**              | Watches `.rs` files for changes. Re-runs `generate` automatically on save.                                                                                                                          | —                                                           |
-
-## FTL Output Layout
-
-By default, generated messages go to:
-
-- `assets_dir/{locale}/{crate}.ftl`
-
-If a type is registered with a namespace (e.g., `#[fluent(namespace = "ui")]`), output is split into:
-
-- `assets_dir/{locale}/{crate}/{namespace}.ftl`
-
-When `namespaces = [...]` is set in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler (at compile-time) and the CLI (during `generate` and `watch`).
-
-## Jinja Templates
-
-| Template                     | Output                          | Purpose                                            |
-| ---------------------------- | ------------------------------- | -------------------------------------------------- |
-| `MonolithicCargo.toml.jinja` | `.es-fluent/Cargo.toml`         | Dependencies linking all workspace crates          |
-| `monolithic_main.rs.jinja`   | `.es-fluent/src/main.rs`        | Entry point calling `es_fluent_cli_helpers::run()` |
-| `config.toml.jinja`          | `.es-fluent/.cargo/config.toml` | Cargo configuration for runner crate               |
-
-## Data Flow
+## Runner-Backed Flow
 
 ```mermaid
 sequenceDiagram
     participant User
     participant CLI as es-fluent-cli
-    participant Runner as es-fluent-runner
+    participant Runner as generated binary
     participant Helpers as es-fluent-cli-helpers
+    participant Meta as .es-fluent/metadata/<crate>
 
-    User->>CLI: es-fluent generate
-    CLI->>CLI: Check staleness (content hash + CLI version)
-    alt Runner is stale
-        CLI->>Runner: cargo run
-    else Runner is fresh
-        CLI->>Runner: Direct binary execution
+    User->>CLI: cargo es-fluent generate|clean|check
+    CLI->>CLI: discover workspace + prepare .es-fluent/
+    CLI->>CLI: evaluate staleness cache
+    alt runner binary is fresh
+        CLI->>Runner: execute binary directly with encoded RunnerRequest
+    else runner binary is stale
+        CLI->>Runner: cargo run in .es-fluent/
     end
-    Runner->>Helpers: run()
-    Helpers->>Helpers: Collect inventory
-    Helpers->>Helpers: Generate FTL
-    Helpers-->>CLI: Write result.json
-    CLI->>CLI: Read result.json
-    CLI->>User: Display results
+    Runner->>Helpers: dispatch RunnerRequest
+    Helpers->>Meta: write result.json or inventory.json
+    CLI->>Meta: read metadata back
 ```
 
-## Version Compatibility
+For `check`, the runner phase only collects the expected keys and variables.
+Actual FTL parsing and validation stay in `commands/check/validation/` so the CLI
+can produce rich diagnostics without running that logic inside the generated
+binary.
 
-The CLI guarantees version sync at dependency generation time:
+## Direct FTL Flow
 
-- Generated `.es-fluent/Cargo.toml` pins `es-fluent` and `es-fluent-cli-helpers` to the CLI's version
-- Runner cache (`runner_cache.json`) stores CLI version for staleness detection
-- When CLI version changes, the runner is detected as stale and rebuilt
+The direct commands stay entirely inside `es-fluent-cli`:
 
-## Caching
+- `format` walks crate-local `.ftl` files and uses `es-fluent-generate::formatting`
+  to sort and normalize entries
+- `sync` reads fallback-locale files and fills missing keys in target locales
+- `tree` parses `.ftl` files and renders a terminal tree of messages, terms,
+  attributes, and variables
 
-```mermaid
-flowchart LR
-    subgraph STALENESS["Staleness Detection"]
-        SRC[Source .rs files]
-        HASH[blake3 content hash]
-        CACHE[runner_cache.json]
-    end
+These commands do not depend on inventory and therefore do not need the runner
+workspace.
 
-    subgraph METADATA["Metadata Caching"]
-        LOCK[Cargo.lock]
-        META[cargo metadata call]
-        MCACHE[metadata_cache.json]
-    end
+## Generated Runner Workspace
 
-    SRC -->|per-crate hash| HASH
-    HASH -->|compare| CACHE
-    CACHE -->|fresh/stale| DECISION[Skip rebuild?]
+`prepare_monolithic_runner_crate()` creates `.es-fluent/` at the workspace root
+with:
 
-    LOCK -->|blake3 hash| MCACHE
-    MCACHE -->|cache hit| SKIP[Skip cargo metadata]
+- a generated `Cargo.toml` that depends on each workspace library crate
+- a generated `src/main.rs` that forwards a serialized request to
+  `es-fluent-cli-helpers`
+- `.cargo/config.toml` pointing Cargo back at the main workspace `target` dir
+- copied `Cargo.lock` and cache files used for staleness detection
+
+The on-disk metadata layout is standardized by `es-fluent-runner`:
+
+```text
+.es-fluent/
+├── Cargo.toml
+├── src/main.rs
+├── runner_cache.json
+├── metadata_cache.json
+└── metadata/
+    └── {crate_name}/
+        ├── inventory.json
+        └── result.json
 ```
 
-## Deterministic Output
+## Caching and Determinism
 
-The CLI uses `IndexMap` instead of `HashMap` throughout to ensure deterministic behavior:
+The CLI keeps the runner fast and reproducible by:
 
-- **Cache files** (`runner_cache.json`): Crate hashes are serialized in insertion order, producing stable diffs in version control.
-- **Error reporting**: Validation issues are reported in a consistent order across runs.
-- **TUI state**: Crate states are maintained in insertion order for predictable display.
+- hashing crate source trees, per-crate `i18n.toml`, and workspace-level
+  `Cargo.toml`/`Cargo.lock` inputs for runner staleness
+- caching Cargo metadata derived from `Cargo.lock`
+- using deterministic iteration order (`IndexMap`) for caches and reports
 
-This ensures reproducible CI/CD pipelines and cleaner version control diffs.
+When the CLI version changes, the runner cache is invalidated and the generated
+binary is rebuilt.
+
+Watch mode also tracks the hash each generation started with. If another save
+lands while that crate is still generating, the runtime marks it dirty and
+immediately queues a follow-up run after the in-flight generation completes.
+
+## Internal Module Split
+
+A few implementation areas are intentionally split into smaller modules:
+
+- `generation/runner/`: runner creation, Cargo execution, and staleness logic
+- `commands/check/validation/`: loaded-FTL validation and diagnostic formatting
+- `tui/watcher/`: watch-mode event filtering, runtime state, and background
+  generation scheduling
+- `ftl/`: direct file-discovery and parsing utilities used by `format`, `sync`,
+  `tree`, and parts of `check`
 
 ## Limitations
 
-The runner crate links workspace crates as **dependencies**, which means it only builds and links
-their **library targets**. Types derived in **binary-only crates** are not seen by the runner, so
-they won't be present in the inventory and can be removed by `clean` or missed by `generate`.
+The runner links workspace crates as **library targets only**. If a crate stores
+`#[derive(EsFluent*)]` types exclusively in a binary target, those registrations
+will not be visible to runner-backed commands.
 
 Workarounds:
 
-- Add a `lib.rs` target and move `#[derive(EsFluent*)]` types into it.
-- Extract shared types into a small library crate and depend on it from your bin.
-
-## Per-Crate Output Structure
-
-```
-.es-fluent/
-├── Cargo.toml              # Generated from MonolithicCargo.toml.jinja
-├── src/main.rs             # Generated from monolithic_main.rs.jinja
-├── runner_cache.json       # Maps crate → content hash (for staleness detection)
-├── metadata_cache.json     # Cached cargo_metadata results
-└── metadata/
-    └── {crate_name}/
-        ├── inventory.json  # Expected keys + variables (from check)
-        └── result.json     # {"changed": bool} (from generate/clean)
-```
+- Add a `lib.rs` target and move the derived types there
+- Extract shared localization types into a small library crate

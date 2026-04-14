@@ -14,7 +14,7 @@ fn test_generate_empty_items() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    let empty: &[es_fluent_derive_core::registry::FtlTypeInfo] = &[];
+    let empty: &[es_fluent_shared::registry::FtlTypeInfo] = &[];
     let result = generate(
         "test_crate",
         &i18n_path,

@@ -4,9 +4,8 @@
 //! over locale directories with `--all` flag support.
 
 use crate::core::CrateInfo;
-use crate::utils::get_all_locales;
 use anyhow::{Context as _, Result};
-use es_fluent_toml::I18nConfig;
+use es_fluent_toml::ResolvedI18nLayout;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -32,20 +31,19 @@ impl LocaleContext {
     /// If `all` is true, includes all locale directories.
     /// Otherwise, includes only the fallback language.
     pub fn from_crate(krate: &CrateInfo, all: bool) -> Result<Self> {
-        let config = I18nConfig::read_from_path(&krate.i18n_config_path)
+        let layout = ResolvedI18nLayout::from_config_path(&krate.i18n_config_path)
             .with_context(|| format!("Failed to read {}", krate.i18n_config_path.display()))?;
-
-        let assets_dir = krate.manifest_dir.join(&config.assets_dir);
+        let fallback = layout.fallback_language().to_string();
 
         let locales = if all {
-            get_all_locales(&assets_dir)?
+            layout.available_locale_names()?
         } else {
-            vec![config.fallback_language.clone()]
+            vec![fallback.clone()]
         };
 
         Ok(Self {
-            assets_dir,
-            fallback: config.fallback_language,
+            assets_dir: layout.assets_dir.clone(),
+            fallback,
             locales,
             crate_name: krate.name.clone(),
         })
@@ -66,6 +64,7 @@ impl LocaleContext {
     /// Iterate over locales, yielding (locale, ftl_path) pairs.
     ///
     /// Only yields locales where the directory exists.
+    #[cfg(test)]
     pub fn iter(&self) -> impl Iterator<Item = (&str, PathBuf)> {
         self.locales.iter().filter_map(|locale| {
             let locale_dir = self.locale_dir(locale);
@@ -95,6 +94,7 @@ impl LocaleContext {
     }
 
     /// Check if a locale is the fallback language.
+    #[cfg(test)]
     pub fn is_fallback(&self, locale: &str) -> bool {
         locale == self.fallback
     }
@@ -239,5 +239,37 @@ mod tests {
         assert!(!ctx.is_fallback("de"));
         assert!(locales_from_iter.contains(&"en".to_string()));
         assert!(!locales_from_iter.contains(&"fr".to_string()));
+    }
+
+    #[test]
+    fn test_locale_context_preserves_raw_locale_directory_names() {
+        let temp_dir = tempdir().unwrap();
+        let assets = temp_dir.path().join("i18n");
+        fs::create_dir(&assets).unwrap();
+        fs::create_dir(assets.join("en-us")).unwrap();
+        fs::create_dir(assets.join("fr")).unwrap();
+
+        let config_path = temp_dir.path().join("i18n.toml");
+        fs::write(
+            &config_path,
+            "fallback_language = \"en-us\"\nassets_dir = \"i18n\"\n",
+        )
+        .unwrap();
+
+        let krate = CrateInfo {
+            name: "test-crate".to_string(),
+            manifest_dir: temp_dir.path().to_path_buf(),
+            src_dir: temp_dir.path().join("src"),
+            i18n_config_path: config_path,
+            ftl_output_dir: assets.join("en-us"),
+            has_lib_rs: true,
+            fluent_features: Vec::new(),
+        };
+
+        let ctx = LocaleContext::from_crate(&krate, true).unwrap();
+
+        assert!(ctx.locales.contains(&"en-us".to_string()));
+        assert!(!ctx.locales.contains(&"en-US".to_string()));
+        assert_eq!(ctx.ftl_path("en-us"), assets.join("en-us/test-crate.ftl"));
     }
 }

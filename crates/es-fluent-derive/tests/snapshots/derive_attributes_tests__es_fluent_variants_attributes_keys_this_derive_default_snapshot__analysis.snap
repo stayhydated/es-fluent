@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/derive_attributes_tests.rs
 expression: "&opts"
 ---
 StructVariantsOpts {
-    ident: Ident {
-        sym: Profile,
-    },
+    ident: Ident(
+        Profile,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -16,11 +16,11 @@ StructVariantsOpts {
         Fields {
             style: Struct,
             fields: [
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: id,
-                        },
+                        Ident(
+                            id,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,21 +28,23 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: u64,
-                                    },
+                                    ident: Ident(
+                                        u64,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: username,
-                        },
+                        Ident(
+                            username,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -50,21 +52,23 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: secret_token,
-                        },
+                        Ident(
+                            secret_token,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -72,23 +76,25 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: Some(
-                        true,
-                    ),
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: Some(
+                            true,
+                        ),
+                    },
                 },
-                StructVariantsFieldOpts {
+                SkippableFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: active,
-                        },
+                        Ident(
+                            active,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -96,24 +102,26 @@ StructVariantsOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: bool,
-                                    },
+                                    ident: Ident(
+                                        bool,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: SkippableFieldAttributeArgs {
+                        skip: None,
+                    },
                 },
             ],
             span: Some(
-                bytes(0..0),
+                Span,
             ),
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructVariantsFluentAttributeArgs {
+    attr_args: VariantsFluentAttributeArgs {
         keys: Some(
             [
                 LitStr {
@@ -124,32 +132,36 @@ StructVariantsOpts {
                 },
             ],
         ),
-        derive: PathList(
-            [
-                Path {
-                    leading_colon: None,
-                    segments: [
-                        PathSegment {
-                            ident: Ident {
-                                sym: Debug,
+        derived_args: DerivedNamespacedAttributeArgs {
+            derive: PathList(
+                [
+                    Path {
+                        leading_colon: None,
+                        segments: [
+                            PathSegment {
+                                ident: Ident(
+                                    Debug,
+                                ),
+                                arguments: PathArguments::None,
                             },
-                            arguments: PathArguments::None,
-                        },
-                    ],
-                },
-                Path {
-                    leading_colon: None,
-                    segments: [
-                        PathSegment {
-                            ident: Ident {
-                                sym: PartialEq,
+                        ],
+                    },
+                    Path {
+                        leading_colon: None,
+                        segments: [
+                            PathSegment {
+                                ident: Ident(
+                                    PartialEq,
+                                ),
+                                arguments: PathArguments::None,
                             },
-                            arguments: PathArguments::None,
-                        },
-                    ],
-                },
-            ],
-        ),
-        namespace: None,
+                        ],
+                    },
+                ],
+            ),
+            namespace_args: NamespacedAttributeArgs {
+                namespace: None,
+            },
+        },
     },
 }

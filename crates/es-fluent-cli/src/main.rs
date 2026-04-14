@@ -1,9 +1,8 @@
 use clap::{Parser, Subcommand};
-use es_fluent_cli::commands::{
-    CheckArgs, CleanArgs, FormatArgs, GenerateArgs, SyncArgs, TreeArgs, WatchArgs, run_check,
-    run_clean, run_format, run_generate, run_sync, run_tree, run_watch,
+use es_fluent_cli::{
+    CheckArgs, CleanArgs, CliError, FormatArgs, GenerateArgs, SyncArgs, TreeArgs, WatchArgs,
+    run_check, run_clean, run_format, run_generate, run_sync, run_tree, run_watch,
 };
-use es_fluent_cli::core::CliError;
 use miette::Result as MietteResult;
 
 #[derive(Parser)]
@@ -40,6 +39,7 @@ enum Commands {
     Clean(CleanArgs),
 
     /// Format FTL files (sort keys A-Z)
+    #[command(name = "format", visible_alias = "fmt")]
     Fmt(FormatArgs),
 
     /// Check FTL files for missing keys and variables
@@ -58,12 +58,12 @@ fn main() -> MietteResult<()> {
     let CargoCommand::EsFluent { command, e2e } = cli.command;
 
     if e2e {
-        es_fluent_cli::utils::ui::set_e2e_mode(true);
+        es_fluent_cli::set_e2e_mode(true);
     }
 
     let no_color = std::env::var("NO_COLOR").is_ok();
-    let use_color = !es_fluent_cli::utils::ui::is_e2e() && !no_color;
-    let use_links = es_fluent_cli::utils::ui::terminal_links_enabled();
+    let use_color = !es_fluent_cli::is_e2e() && !no_color;
+    let use_links = es_fluent_cli::terminal_links_enabled();
 
     miette::set_hook(Box::new(move |_| {
         Box::new(
@@ -98,7 +98,7 @@ fn dispatch(command: Commands) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use es_fluent_cli::commands::WorkspaceArgs;
+    use es_fluent_cli::WorkspaceArgs;
     use std::fs;
     use tempfile::tempdir;
 
@@ -135,6 +135,16 @@ mod tests {
     }
 
     #[test]
+    fn cli_parses_format_command_and_fmt_alias() {
+        for command_name in ["format", "fmt"] {
+            let cli = Cli::try_parse_from(["cargo", "es-fluent", command_name]).expect("parse");
+            let CargoCommand::EsFluent { command, e2e } = cli.command;
+            assert!(!e2e);
+            assert!(matches!(command, Commands::Fmt(_)));
+        }
+    }
+
+    #[test]
     fn dispatch_handles_all_commands_without_matching_packages() {
         let temp = create_workspace();
         let workspace = missing_package_workspace_args(temp.path());
@@ -142,7 +152,7 @@ mod tests {
         assert!(
             dispatch(Commands::Generate(GenerateArgs {
                 workspace: workspace.clone(),
-                mode: es_fluent_cli::core::FluentParseMode::default(),
+                mode: es_fluent_cli::FluentParseMode::default(),
                 dry_run: false,
                 force_run: false,
             }))
@@ -152,7 +162,7 @@ mod tests {
         assert!(
             dispatch(Commands::Watch(WatchArgs {
                 workspace: workspace.clone(),
-                mode: es_fluent_cli::core::FluentParseMode::default(),
+                mode: es_fluent_cli::FluentParseMode::default(),
             }))
             .is_ok()
         );
@@ -217,7 +227,7 @@ mod tests {
 
         let result = dispatch(Commands::Generate(GenerateArgs {
             workspace: invalid_workspace,
-            mode: es_fluent_cli::core::FluentParseMode::default(),
+            mode: es_fluent_cli::FluentParseMode::default(),
             dry_run: false,
             force_run: false,
         }));

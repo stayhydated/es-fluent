@@ -1,74 +1,45 @@
-use bon::Builder;
-use darling::{FromDeriveInput, FromField, FromMeta};
+use darling::{FromDeriveInput, FromField};
 use getset::Getters;
-use quote::format_ident;
 
-use crate::error::EsFluentCoreResult;
-use crate::namer;
+use crate::options::{FluentField, GeneratedVariantsOptions, StructDataOptions};
 
 /// Options for a struct field.
-#[derive(Clone, Debug, FromField, Getters)]
+#[derive(Clone, Debug, FromField)]
 #[darling(attributes(fluent))]
 pub struct StructFieldOpts {
     /// The identifier of the field.
-    #[getset(get = "pub")]
     ident: Option<syn::Ident>,
     /// The type of the field.
-    #[getset(get = "pub")]
     ty: syn::Type,
-    /// Whether to skip this field.
-    #[darling(default)]
-    skip: Option<bool>,
+    #[darling(flatten)]
+    attr_args: super::FluentFieldAttributeArgs,
     /// Whether this field is a default.
     #[darling(default)]
     default: Option<bool>,
-    /// Whether this field is a choice.
-    #[darling(default)]
-    choice: Option<bool>,
-    /// A value transformation expression.
-    #[darling(default)]
-    value: Option<super::ValueAttr>,
-    /// Optional argument name override.
-    #[darling(default)]
-    arg_name: Option<syn::LitStr>,
 }
 
 impl StructFieldOpts {
-    /// Returns `true` if the field should be skipped.
-    pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+    pub fn ident(&self) -> Option<&syn::Ident> {
+        self.ident.as_ref()
+    }
+
+    pub fn ty(&self) -> &syn::Type {
+        &self.ty
     }
 
     /// Returns `true` if the field is a default.
     pub fn is_default(&self) -> bool {
         self.default.unwrap_or(false)
     }
+}
 
-    /// Returns `true` if the field is a choice.
-    pub fn is_choice(&self) -> bool {
-        self.choice.unwrap_or(false)
+impl FluentField for StructFieldOpts {
+    fn ident(&self) -> Option<&syn::Ident> {
+        self.ident.as_ref()
     }
 
-    /// Returns the Fluent argument name for this field.
-    pub fn fluent_arg_name(&self, index: usize) -> String {
-        if let Some(arg_name) = self.arg_name() {
-            arg_name
-        } else {
-            self.ident
-                .as_ref()
-                .map(|ident| ident.to_string())
-                .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
-        }
-    }
-
-    /// Returns the value expression if present.
-    pub fn value(&self) -> Option<&syn::Expr> {
-        self.value.as_ref().map(|v| &v.0)
-    }
-
-    /// Returns explicit field argument name if provided.
-    pub fn arg_name(&self) -> Option<String> {
-        self.arg_name.as_ref().map(syn::LitStr::value)
+    fn field_attr_args(&self) -> &super::FluentFieldAttributeArgs {
+        &self.attr_args
     }
 }
 
@@ -83,86 +54,14 @@ pub struct StructOpts {
     generics: syn::Generics,
     data: darling::ast::Data<darling::util::Ignored, StructFieldOpts>,
     #[darling(flatten)]
-    attr_args: StructFluentAttributeArgs,
+    attr_args: super::DerivedNamespacedAttributeArgs,
 }
 
-impl StructOpts {
-    /// Returns the fields of the struct that are not skipped.
-    pub fn fields(&self) -> Vec<&StructFieldOpts> {
-        match &self.data {
-            darling::ast::Data::Struct(fields) => fields
-                .fields
-                .iter()
-                .filter(|field| !field.is_skipped())
-                .collect(),
-            _ => vec![],
-        }
-    }
+impl StructDataOptions for StructOpts {
+    type Field = StructFieldOpts;
 
-    /// Returns the fields of the struct paired with their declaration index.
-    pub fn indexed_fields(&self) -> Vec<(usize, &StructFieldOpts)> {
-        match &self.data {
-            darling::ast::Data::Struct(fields) => fields
-                .fields
-                .iter()
-                .enumerate()
-                .filter(|(_, field)| !field.is_skipped())
-                .collect(),
-            _ => vec![],
-        }
-    }
-
-    /// Returns all fields (including skipped) paired with their declaration index.
-    pub fn all_indexed_fields(&self) -> Vec<(usize, &StructFieldOpts)> {
-        match &self.data {
-            darling::ast::Data::Struct(fields) => fields.fields.iter().enumerate().collect(),
-            _ => vec![],
-        }
-    }
-}
-
-/// Attribute arguments for a struct.
-#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct StructFluentAttributeArgs {
-    /// The traits to derive on the FTL enum.
-    #[getset(get = "pub")]
-    #[darling(default)]
-    derive: darling::util::PathList,
-    /// Optional namespace for FTL file generation.
-    /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
-    /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
-    /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_file_path}.ftl`
-    /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
-    /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
-    #[darling(default)]
-    namespace: Option<super::namespace::NamespaceValue>,
-}
-impl StructFluentAttributeArgs {
-    /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
-        self.namespace.as_ref()
-    }
-}
-
-/// Options for a struct field.
-#[derive(Clone, Debug, FromField, Getters)]
-#[darling(attributes(fluent_variants))]
-pub struct StructVariantsFieldOpts {
-    /// The identifier of the field.
-    #[getset(get = "pub")]
-    ident: Option<syn::Ident>,
-    /// The type of the field.
-    #[getset(get = "pub")]
-    ty: syn::Type,
-    /// Whether to skip this field.
-    #[darling(default)]
-    skip: Option<bool>,
-}
-
-impl StructVariantsFieldOpts {
-    /// Returns `true` if the field should be skipped.
-    pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+    fn struct_data(&self) -> &darling::ast::Data<darling::util::Ignored, Self::Field> {
+        &self.data
     }
 }
 
@@ -175,97 +74,26 @@ pub struct StructVariantsOpts {
     ident: syn::Ident,
     /// The generics of the struct.
     generics: syn::Generics,
-    data: darling::ast::Data<darling::util::Ignored, StructVariantsFieldOpts>,
+    data: darling::ast::Data<darling::util::Ignored, super::SkippableFieldOpts>,
     #[darling(flatten)]
-    attr_args: StructVariantsFluentAttributeArgs,
+    attr_args: super::VariantsFluentAttributeArgs,
 }
 
-impl StructVariantsOpts {
-    const FTL_ENUM_IDENT: &str = "Variants";
+impl StructDataOptions for StructVariantsOpts {
+    type Field = super::SkippableFieldOpts;
 
-    /// Returns the identifier of the FTL enum.
-    pub fn ftl_enum_ident(&self) -> syn::Ident {
-        format_ident!("{}{}", &self.ident, Self::FTL_ENUM_IDENT)
-    }
-
-    /// Returns the identifiers of the keyed FTL enums.
-    pub fn keyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
-        self.attr_args.clone().keys.map_or_else(
-            || Ok(Vec::new()),
-            |keys| {
-                keys.into_iter()
-                    .map(|key| {
-                        let pascal_key = super::validate_snake_case_key(&key)?;
-                        Ok(format_ident!(
-                            "{}{}{}",
-                            &self.ident,
-                            pascal_key,
-                            Self::FTL_ENUM_IDENT
-                        ))
-                    })
-                    .collect()
-            },
-        )
-    }
-
-    /// Returns the identifiers used to build base FTL keys (without suffixes).
-    pub fn keyed_base_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
-        self.attr_args.clone().keys.map_or_else(
-            || Ok(Vec::new()),
-            |keys| {
-                keys.into_iter()
-                    .map(|key| {
-                        let pascal_key = super::validate_snake_case_key(&key)?;
-                        Ok(format_ident!("{}{}", &self.ident, pascal_key))
-                    })
-                    .collect()
-            },
-        )
-    }
-
-    /// Returns the fields of the struct that are not skipped.
-    pub fn fields(&self) -> Vec<&StructVariantsFieldOpts> {
-        match &self.data {
-            darling::ast::Data::Struct(fields) => fields
-                .fields
-                .iter()
-                .filter(|field| !field.is_skipped())
-                .collect(),
-            _ => vec![],
-        }
+    fn struct_data(&self) -> &darling::ast::Data<darling::util::Ignored, Self::Field> {
+        &self.data
     }
 }
 
-/// Attribute arguments for a struct.
-#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct StructVariantsFluentAttributeArgs {
-    #[darling(default)]
-    keys: Option<Vec<syn::LitStr>>,
-    /// The traits to derive on the FTL enum.
-    #[getset(get = "pub")]
-    #[darling(default)]
-    derive: darling::util::PathList,
-    /// Optional namespace for FTL file generation.
-    /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
-    /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
-    /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_path}.ftl`
-    /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
-    /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
-    #[darling(default)]
-    namespace: Option<super::namespace::NamespaceValue>,
-}
-
-impl StructVariantsFluentAttributeArgs {
-    /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
-        self.namespace.as_ref()
+impl GeneratedVariantsOptions for StructVariantsOpts {
+    fn variants_ident(&self) -> &syn::Ident {
+        &self.ident
     }
 
-    /// Returns the raw key strings if provided.
-    pub fn key_strings(&self) -> Option<Vec<String>> {
-        self.keys
-            .as_ref()
-            .map(|keys| keys.iter().map(|k| k.value()).collect())
+    fn variants_attr_args(&self) -> &super::VariantsFluentAttributeArgs {
+        &self.attr_args
     }
 }
 
@@ -273,6 +101,7 @@ impl StructVariantsFluentAttributeArgs {
 mod tests {
     use super::*;
     use crate::options::namespace::NamespaceValue;
+    use crate::options::{GeneratedVariantsOptions, StructDataOptions};
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 
@@ -413,10 +242,7 @@ mod tests {
 
         let fields = opts.fields();
         assert_eq!(fields.len(), 1);
-        assert_eq!(
-            fields[0].ident().as_ref().expect("named field").to_string(),
-            "user"
-        );
+        assert_eq!(fields[0].ident().expect("named field").to_string(), "user");
     }
 
     #[test]

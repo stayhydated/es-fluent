@@ -3,10 +3,12 @@
 //! This module provides functionality to display a tree view of FTL items
 //! for each FTL file associated with a crate.
 
-use crate::commands::{WorkspaceArgs, WorkspaceCrates};
+use super::common::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::CliError;
-use crate::ftl::{LocaleContext, parse_ftl_file};
-use crate::utils::{discover_ftl_files, ui};
+use crate::ftl::{
+    CrateFtlLayout, LocaleContext, extract_variables_from_value_and_attributes, parse_ftl_file,
+};
+use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
 use colored::Colorize as _;
@@ -95,17 +97,13 @@ impl TreeRenderer {
         }
 
         if self.show_variables {
-            let mut variables = Vec::new();
-            if let Some(pattern) = value {
-                extract_variables_from_pattern_into(pattern, &mut variables);
-            }
-            for attr in attributes {
-                extract_variables_from_pattern_into(&attr.value, &mut variables);
-            }
+            let mut variables: Vec<_> =
+                extract_variables_from_value_and_attributes(value, attributes)
+                    .into_iter()
+                    .collect();
 
             if !variables.is_empty() {
                 variables.sort();
-                variables.dedup();
                 let vars_str = variables
                     .iter()
                     .map(|v| format!("${}", v))
@@ -142,10 +140,10 @@ pub struct TreeArgs {
 pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    ui::print_tree_header();
+    ui::Ui::print_tree_header();
 
     if workspace.crates.is_empty() {
-        ui::print_no_crates_found();
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
@@ -174,7 +172,8 @@ fn print_crate_tree(
             continue;
         }
 
-        let ftl_files = discover_ftl_files(&ctx.assets_dir, locale, &ctx.crate_name)?;
+        let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
+            .discover_files()?;
 
         if ftl_files.is_empty() {
             continue;
@@ -197,60 +196,6 @@ fn print_crate_tree(
     println!("{}", tree.render_to_string());
 
     Ok(())
-}
-
-/// Extract variable names from a pattern into a vector.
-fn extract_variables_from_pattern_into(
-    pattern: &ast::Pattern<String>,
-    variables: &mut Vec<String>,
-) {
-    for element in &pattern.elements {
-        if let ast::PatternElement::Placeable { expression } = element {
-            extract_variables_from_expression(expression, variables);
-        }
-    }
-}
-
-/// Extract variable names from an expression.
-fn extract_variables_from_expression(
-    expression: &ast::Expression<String>,
-    variables: &mut Vec<String>,
-) {
-    match expression {
-        ast::Expression::Inline(inline) => {
-            extract_variables_from_inline(inline, variables);
-        },
-        ast::Expression::Select { selector, variants } => {
-            extract_variables_from_inline(selector, variables);
-            for variant in variants {
-                extract_variables_from_pattern_into(&variant.value, variables);
-            }
-        },
-    }
-}
-
-/// Extract variable names from an inline expression.
-fn extract_variables_from_inline(
-    inline: &ast::InlineExpression<String>,
-    variables: &mut Vec<String>,
-) {
-    match inline {
-        ast::InlineExpression::VariableReference { id } => {
-            variables.push(id.name.clone());
-        },
-        ast::InlineExpression::FunctionReference { arguments, .. } => {
-            for arg in &arguments.positional {
-                extract_variables_from_inline(arg, variables);
-            }
-            for arg in &arguments.named {
-                extract_variables_from_inline(&arg.value, variables);
-            }
-        },
-        ast::InlineExpression::Placeable { expression } => {
-            extract_variables_from_expression(expression, variables);
-        },
-        _ => {},
-    }
 }
 
 #[cfg(test)]
@@ -333,8 +278,11 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "hello").unwrap();
 
-        let mut variables = Vec::new();
-        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+        let mut variables: Vec<_> =
+            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
+                .into_iter()
+                .collect();
+        variables.sort();
 
         assert_eq!(variables, vec!["name"]);
     }
@@ -345,8 +293,10 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "greeting").unwrap();
 
-        let mut variables = Vec::new();
-        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+        let mut variables: Vec<_> =
+            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
+                .into_iter()
+                .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["count", "name"]);
@@ -361,10 +311,11 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "count").unwrap();
 
-        let mut variables = Vec::new();
-        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+        let mut variables: Vec<_> =
+            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
+                .into_iter()
+                .collect();
         variables.sort();
-        variables.dedup();
 
         assert_eq!(variables, vec!["num"]);
     }
@@ -375,8 +326,10 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "message").unwrap();
 
-        let mut variables = Vec::new();
-        extract_variables_from_pattern_into(msg.value.as_ref().unwrap(), &mut variables);
+        let mut variables: Vec<_> =
+            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
+                .into_iter()
+                .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["date", "user"]);

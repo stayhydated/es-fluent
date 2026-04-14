@@ -1,11 +1,31 @@
 #![doc = include_str!("../README.md")]
 
-pub mod commands;
-pub mod core;
-pub mod ftl;
-pub mod generation;
-pub mod tui;
-pub mod utils;
+mod commands;
+mod core;
+mod ftl;
+mod generation;
+mod tui;
+mod utils;
+
+pub use commands::{
+    CheckArgs, CleanArgs, DryRunDiff, DryRunSummary, FormatArgs, GenerateArgs, SyncArgs, TreeArgs,
+    WatchArgs, WorkspaceArgs, run_check, run_clean, run_format, run_generate, run_sync, run_tree,
+    run_watch,
+};
+pub use core::{CliError, FluentParseMode};
+pub use utils::ui::Ui;
+
+pub fn set_e2e_mode(enabled: bool) {
+    Ui::set_e2e_mode(enabled);
+}
+
+pub fn is_e2e() -> bool {
+    Ui::is_e2e()
+}
+
+pub fn terminal_links_enabled() -> bool {
+    Ui::terminal_links_enabled()
+}
 
 #[cfg(test)]
 pub(crate) mod test_fixtures;

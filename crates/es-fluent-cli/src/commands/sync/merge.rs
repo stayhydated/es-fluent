@@ -1,3 +1,4 @@
+use es_fluent_generate::ftl::{entry_key, group_comment_name, is_section_comment};
 use fluent_syntax::ast;
 use std::collections::{BTreeMap, HashSet};
 
@@ -17,14 +18,23 @@ enum EntryKind<'a> {
 
 /// Classify an FTL entry for merge operations.
 fn classify_entry(entry: &ast::Entry<String>) -> EntryKind<'_> {
-    use std::borrow::Cow;
-    match entry {
-        ast::Entry::GroupComment(_) | ast::Entry::ResourceComment(_) => EntryKind::SectionComment,
-        ast::Entry::Comment(_) => EntryKind::Comment,
-        ast::Entry::Message(msg) => EntryKind::Message(Cow::Borrowed(&msg.id.name)),
-        ast::Entry::Term(term) => EntryKind::Term(Cow::Owned(format!("-{}", term.id.name))),
-        _ => EntryKind::Other,
+    if is_section_comment(entry) {
+        return EntryKind::SectionComment;
     }
+
+    if matches!(entry, ast::Entry::Comment(_)) {
+        return EntryKind::Comment;
+    }
+
+    if let Some(key) = entry_key(entry) {
+        return match entry {
+            ast::Entry::Message(_) => EntryKind::Message(key),
+            ast::Entry::Term(_) => EntryKind::Term(key),
+            _ => EntryKind::Other,
+        };
+    }
+
+    EntryKind::Other
 }
 
 /// Merge missing keys from the fallback into the existing resource.
@@ -120,15 +130,6 @@ pub(super) fn merge_missing_keys(
     }
 
     ast::Resource { body }
-}
-
-fn group_comment_name(comment: &ast::Comment<String>) -> Option<String> {
-    comment
-        .content
-        .first()
-        .map(|line| line.trim())
-        .filter(|line| !line.is_empty())
-        .map(|line| line.to_string())
 }
 
 fn collect_group_comments(resource: &ast::Resource<String>) -> HashSet<String> {

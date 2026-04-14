@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 EnumOpts {
-    ident: Ident {
-        sym: ApiError,
-    },
+    ident: Ident(
+        ApiError,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -15,44 +15,54 @@ EnumOpts {
     data: Enum(
         [
             VariantOpts {
-                ident: Ident {
-                    sym: NotFound,
-                },
+                ident: Ident(
+                    NotFound,
+                ),
                 fields: Fields {
                     style: Unit,
                     fields: [],
                     span: Some(
-                        bytes(0..0),
+                        Span,
                     ),
                     __nonexhaustive: (),
                 },
-                skip: None,
-                key: None,
+                attr_args: KeyedVariantAttributeArgs {
+                    skipped_args: SkippedVariantAttributeArgs {
+                        skip: None,
+                    },
+                    key: None,
+                },
             },
             VariantOpts {
-                ident: Ident {
-                    sym: Unauthorized,
-                },
+                ident: Ident(
+                    Unauthorized,
+                ),
                 fields: Fields {
                     style: Unit,
                     fields: [],
                     span: Some(
-                        bytes(0..0),
+                        Span,
                     ),
                     __nonexhaustive: (),
                 },
-                skip: None,
-                key: None,
+                attr_args: KeyedVariantAttributeArgs {
+                    skipped_args: SkippedVariantAttributeArgs {
+                        skip: None,
+                    },
+                    key: None,
+                },
             },
         ],
     ),
-    attr_args: EnumFluentAttributeArgs {
+    attr_args: FluentEnumAttributeArgs {
         resource: None,
         skip_inventory: None,
-        namespace: Some(
-            Literal(
-                "errors",
+        namespace_args: NamespacedAttributeArgs {
+            namespace: Some(
+                Literal(
+                    "errors",
+                ),
             ),
-        ),
+        },
     },
 }

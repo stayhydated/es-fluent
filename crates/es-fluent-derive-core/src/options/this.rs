@@ -12,22 +12,21 @@ pub struct ThisOpts {
     /// The generics of the struct/enum.
     generics: syn::Generics,
     #[darling(flatten)]
-    attr_args: ThisAttributeArgs,
+    attr_args: ThisNamespacedAttributeArgs,
 }
 
 /// Attribute arguments for `EsFluentThis`.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct ThisAttributeArgs {
+pub struct ThisNamespacedAttributeArgs {
     #[darling(default)]
     origin: Option<bool>,
     #[darling(default)]
     variants: Option<bool>,
-    /// Optional namespace for FTL file generation.
-    #[darling(default)]
-    namespace: Option<super::namespace::NamespaceValue>,
+    #[darling(flatten)]
+    namespace_args: super::NamespacedAttributeArgs,
 }
 
-impl ThisAttributeArgs {
+impl ThisNamespacedAttributeArgs {
     /// Returns `true` if `origin` should be generated.
     pub fn is_origin(&self) -> bool {
         self.origin.unwrap_or(true)
@@ -40,6 +39,6 @@ impl ThisAttributeArgs {
 
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
-        self.namespace.as_ref()
+        self.namespace_args.namespace()
     }
 }

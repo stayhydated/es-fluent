@@ -3,6 +3,23 @@
 
 # es-fluent-generate
 
-**Internal Crate**: FTL generation logic.
+**Internal Crate**: Fluent file generation, merging, cleaning, and formatting logic.
 
-This crate handles the heavy lifting of parsing, merging, and formatting Fluent files. It is used by the `es-fluent` CLI tool, and can split output into namespaced `.ftl` files when requested.
+This crate turns `FtlTypeInfo` inventories into deterministic `.ftl` files. It
+powers the CLI's runner-backed `generate` and `clean` flows and also exposes the
+formatting helpers used by the CLI's direct `format` command.
+
+## What it does
+
+- Generates fallback-locale `.ftl` files from registered Rust types
+- Merges updates into existing files without discarding manual translations or
+  comments in conservative mode
+- Removes orphaned generated keys in aggressive and clean flows
+- Splits output into namespaced files when type metadata requests it
+- Sorts and normalizes Fluent AST output for reproducible diffs
+
+## Who should use it
+
+Most users should use [`es-fluent-cli`](../es-fluent-cli/README.md) instead.
+Depend on `es-fluent-generate` directly only if you are building custom tooling
+that needs the workspace's FTL merge and formatting behavior.

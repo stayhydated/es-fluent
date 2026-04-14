@@ -26,7 +26,7 @@ pub use unic_langid;
 
 use arc_swap::ArcSwap;
 use es_fluent_manager_core::FluentManager;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 #[cfg(feature = "build")]
 pub mod build {
@@ -40,13 +40,16 @@ pub use traits::{EsFluentChoice, FluentDisplay, ThisFtl, ToFluentString};
 static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
 #[doc(hidden)]
-static CUSTOM_LOCALIZER: OnceLock<
-    Box<
-        dyn Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> Option<String>
-            + Send
-            + Sync,
-    >,
-> = OnceLock::new();
+type CustomLocalizer = dyn for<'a> Fn(&str, Option<&std::collections::HashMap<&str, FluentValue<'a>>>) -> Option<String>
+    + Send
+    + Sync;
+
+#[doc(hidden)]
+static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<CustomLocalizer>>>> = OnceLock::new();
+
+fn custom_localizer_slot() -> &'static RwLock<Option<Arc<CustomLocalizer>>> {
+    CUSTOM_LOCALIZER.get_or_init(|| RwLock::new(None))
+}
 
 /// Sets the global `FluentManager` context.
 ///
@@ -92,15 +95,42 @@ pub fn set_shared_context(manager: Arc<FluentManager>) {
 #[doc(hidden)]
 pub fn set_custom_localizer<F>(localizer: F)
 where
-    F: Fn(&str, Option<&std::collections::HashMap<&str, FluentValue>>) -> Option<String>
+    F: for<'a> Fn(
+            &str,
+            Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String>
         + Send
         + Sync
         + 'static,
 {
-    CUSTOM_LOCALIZER
-        .set(Box::new(localizer))
-        .map_err(|_| "Custom localizer already set")
-        .expect("Failed to set custom localizer");
+    let mut slot = custom_localizer_slot()
+        .write()
+        .expect("custom localizer lock poisoned");
+    if slot.is_some() {
+        drop(slot);
+        panic!("Custom localizer already set");
+    }
+    *slot = Some(Arc::new(localizer));
+}
+
+/// Replaces the custom localizer function.
+///
+/// This is intended for integrations that deliberately own the process-global
+/// localization hook and need to refresh or reinstall it.
+#[doc(hidden)]
+pub fn replace_custom_localizer<F>(localizer: F)
+where
+    F: for<'a> Fn(
+            &str,
+            Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String>
+        + Send
+        + Sync
+        + 'static,
+{
+    *custom_localizer_slot()
+        .write()
+        .expect("custom localizer lock poisoned") = Some(Arc::new(localizer));
 }
 
 /// Selects a language for all localizers in the global context.
@@ -124,8 +154,12 @@ pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
-    if let Some(custom_localizer) = CUSTOM_LOCALIZER.get()
-        && let Some(message) = custom_localizer(id, args)
+    if let Some(custom_localizer) = CUSTOM_LOCALIZER.get().and_then(|custom_localizer| {
+        custom_localizer
+            .read()
+            .expect("custom localizer lock poisoned")
+            .clone()
+    }) && let Some(message) = custom_localizer(id, args)
     {
         return message;
     }

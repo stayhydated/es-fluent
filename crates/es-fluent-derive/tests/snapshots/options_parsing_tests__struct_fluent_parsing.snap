@@ -3,9 +3,9 @@ source: crates/es-fluent-derive/tests/options_parsing_tests.rs
 expression: "&opts"
 ---
 StructOpts {
-    ident: Ident {
-        sym: MyStruct,
-    },
+    ident: Ident(
+        MyStruct,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],
@@ -18,9 +18,9 @@ StructOpts {
             fields: [
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: a,
-                        },
+                        Ident(
+                            a,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -28,25 +28,27 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: i32,
-                                    },
+                                    ident: Ident(
+                                        i32,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: None,
+                        choice: None,
+                        value: None,
+                        arg_name: None,
+                    },
                     default: None,
-                    choice: None,
-                    value: None,
-                    arg_name: None,
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: b,
-                        },
+                        Ident(
+                            b,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -54,27 +56,29 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: String,
-                                    },
+                                    ident: Ident(
+                                        String,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: Some(
-                        true,
-                    ),
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: Some(
+                            true,
+                        ),
+                        choice: None,
+                        value: None,
+                        arg_name: None,
+                    },
                     default: None,
-                    choice: None,
-                    value: None,
-                    arg_name: None,
                 },
                 StructFieldOpts {
                     ident: Some(
-                        Ident {
-                            sym: c,
-                        },
+                        Ident(
+                            c,
+                        ),
                     ),
                     ty: Type::Path {
                         qself: None,
@@ -82,33 +86,37 @@ StructOpts {
                             leading_colon: None,
                             segments: [
                                 PathSegment {
-                                    ident: Ident {
-                                        sym: bool,
-                                    },
+                                    ident: Ident(
+                                        bool,
+                                    ),
                                     arguments: PathArguments::None,
                                 },
                             ],
                         },
                     },
-                    skip: None,
+                    attr_args: FluentFieldAttributeArgs {
+                        skip: None,
+                        choice: Some(
+                            true,
+                        ),
+                        value: None,
+                        arg_name: None,
+                    },
                     default: None,
-                    choice: Some(
-                        true,
-                    ),
-                    value: None,
-                    arg_name: None,
                 },
             ],
             span: Some(
-                bytes(0..0),
+                Span,
             ),
             __nonexhaustive: (),
         },
     ),
-    attr_args: StructFluentAttributeArgs {
+    attr_args: DerivedNamespacedAttributeArgs {
         derive: PathList(
             [],
         ),
-        namespace: None,
+        namespace_args: NamespacedAttributeArgs {
+            namespace: None,
+        },
     },
 }

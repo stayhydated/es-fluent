@@ -1,6 +1,6 @@
 //! Watch command implementation.
 
-use crate::commands::{WorkspaceArgs, WorkspaceCrates};
+use super::common::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, FluentParseMode};
 use crate::tui::watch_all;
 use crate::utils::ui;
@@ -21,7 +21,7 @@ pub struct WatchArgs {
 pub fn run_watch(args: WatchArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    if !workspace.print_discovery(ui::print_header) {
+    if !workspace.print_discovery(ui::Ui::print_header) {
         return Ok(());
     }
 
@@ -31,36 +31,11 @@ pub fn run_watch(args: WatchArgs) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::tempdir;
-
-    fn create_test_crate_workspace() -> tempfile::TempDir {
-        let temp = tempdir().unwrap();
-
-        fs::create_dir_all(temp.path().join("src")).unwrap();
-        fs::create_dir_all(temp.path().join("i18n/en")).unwrap();
-        fs::write(
-            temp.path().join("Cargo.toml"),
-            r#"[package]
-name = "test-app"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )
-        .unwrap();
-        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").unwrap();
-        fs::write(
-            temp.path().join("i18n.toml"),
-            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-        )
-        .unwrap();
-
-        temp
-    }
+    use crate::test_fixtures::create_test_crate_workspace_without_ftl;
 
     #[test]
     fn run_watch_returns_ok_when_package_filter_matches_nothing() {
-        let temp = create_test_crate_workspace();
+        let temp = create_test_crate_workspace_without_ftl();
 
         let result = run_watch(WatchArgs {
             workspace: WorkspaceArgs {

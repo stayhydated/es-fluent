@@ -1,3 +1,4 @@
+use es_fluent_runner::{RunnerParseMode, RunnerRequest};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::tempdir;
@@ -21,9 +22,12 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
 
     let run_bin = env!("CARGO_BIN_EXE_cli_helpers_run");
 
+    let check_request = RunnerRequest::Check {
+        crate_name: "unknown-crate".to_string(),
+    };
     let check_status = Command::new(run_bin)
         .current_dir(temp.path())
-        .args(["check", "unused", "--crate", "unknown-crate"])
+        .arg(check_request.encode().expect("encode check request"))
         .status()
         .expect("run check");
     assert!(check_status.success());
@@ -33,17 +37,15 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
             .exists()
     );
 
+    let generate_request = RunnerRequest::Generate {
+        crate_name: "unknown-crate".to_string(),
+        i18n_toml_path: i18n_toml.to_str().expect("path").to_string(),
+        mode: RunnerParseMode::Aggressive,
+        dry_run: true,
+    };
     let generate_status = Command::new(run_bin)
         .current_dir(temp.path())
-        .args([
-            "generate",
-            i18n_toml.to_str().expect("path"),
-            "--crate",
-            "unknown-crate",
-            "--mode",
-            "aggressive",
-            "--dry-run",
-        ])
+        .arg(generate_request.encode().expect("encode generate request"))
         .status()
         .expect("run generate");
     assert!(generate_status.success());
@@ -53,38 +55,30 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
             .exists()
     );
 
-    let generate_default_mode_status = Command::new(run_bin)
-        .current_dir(temp.path())
-        .args([
-            "generate",
-            i18n_toml.to_str().expect("path"),
-            "--crate",
-            "unknown-crate",
-            "--mode",
-            "not-a-real-mode",
-            "--dry-run",
-        ])
-        .status()
-        .expect("run generate with unknown mode");
-    assert!(generate_default_mode_status.success());
-
+    let clean_request = RunnerRequest::Clean {
+        crate_name: "unknown-crate".to_string(),
+        i18n_toml_path: i18n_toml.to_str().expect("path").to_string(),
+        all_locales: true,
+        dry_run: true,
+    };
     let clean_status = Command::new(run_bin)
         .current_dir(temp.path())
-        .args([
-            "clean",
-            i18n_toml.to_str().expect("path"),
-            "--crate",
-            "unknown-crate",
-            "--all",
-            "--dry-run",
-        ])
+        .arg(clean_request.encode().expect("encode clean request"))
         .status()
         .expect("run clean");
     assert!(clean_status.success());
 
+    let invalid_request = "{\"command\":\"generate\",\"mode\":\"not-a-real-mode\"}";
+    let invalid_status = Command::new(run_bin)
+        .current_dir(temp.path())
+        .arg(invalid_request)
+        .status()
+        .expect("run invalid request");
+    assert!(!invalid_status.success());
+
     let unknown_status = Command::new(run_bin)
         .current_dir(temp.path())
-        .args(["unknown-command"])
+        .arg("unknown-command")
         .status()
         .expect("run unknown command");
     assert!(!unknown_status.success());

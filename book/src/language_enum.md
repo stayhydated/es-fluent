@@ -51,8 +51,7 @@ The `Languages` enum plugs directly into manager initialization:
 ```rust
 use es_fluent_manager_embedded as manager;
 
-manager::init();
-manager::select_language(Languages::En);
+manager::init_with_language(Languages::En);
 ```
 
 Since it implements `Into<LanguageIdentifier>`, you can pass variants anywhere a `LanguageIdentifier` is expected.

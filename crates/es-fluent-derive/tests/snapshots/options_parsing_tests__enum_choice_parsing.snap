@@ -1,11 +1,12 @@
 ---
 source: crates/es-fluent-derive/tests/options_parsing_tests.rs
+assertion_line: 276
 expression: "&opts"
 ---
 EnumChoiceOpts {
-    ident: Ident {
-        sym: MyEnum,
-    },
+    ident: Ident(
+        MyEnum,
+    ),
     generics: Generics {
         lt_token: None,
         params: [],

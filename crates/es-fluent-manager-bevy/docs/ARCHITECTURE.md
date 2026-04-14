@@ -56,9 +56,35 @@ flowchart TD
 
 ## Key Components
 
+### Internal Module Layout
+
+The crate root is now a thin re-export surface. The implementation is split into focused modules:
+
+- `assets.rs`: `FtlAsset`, `FtlAssetLoader`, `I18nAssets`, `I18nBundle`, and `I18nResource`
+- `locale.rs`: locale resources/events plus `FromLocale`, `RefreshForLocale`, and the locale-refresh system
+- `registration.rs`: `EsFluentBevyPlugin`, inventory registration traits, and `App` extension helpers
+- `plugin/setup.rs`: module discovery, initial locale resolution, resource-plan expansion, and app wiring
+- `plugin/runtime/assets.rs`: asset-event decoding plus parse/error bookkeeping for loaded FTL resources
+- `plugin/runtime/bundles.rs`: dirty-language detection and bundle cache rebuilds
+- `plugin/runtime/locale.rs`: locale-change resolution and event emission
+- `plugin/runtime/sync.rs`: global bundle mirroring and redraw requests
+- `plugin/state.rs`: global mirrored state for the custom localizer
+
+This keeps the crate root declarative and makes the Bevy-facing public API easier to navigate without mixing it with runtime implementation details.
+
 ### `I18nPlugin`
 
-The entry point. It registers the `FtlAssetLoader`, resources, and—crucially—installs a **custom localizer** (`es_fluent::set_custom_localizer`). This custom localizer redirects all global `localize!` calls (used by `derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust objects to stringify correctly even inside Bevy systems.
+The entry point. It registers the `FtlAssetLoader`, resources, and installs a
+**custom localizer** for the process-global `es-fluent` hook. The default
+`GlobalLocalizerMode::ErrorIfAlreadySet` path uses
+`es_fluent::set_custom_localizer`, so integration conflicts fail fast instead
+of silently replacing an existing owner. `GlobalLocalizerMode::ReplaceExisting`
+switches to `es_fluent::replace_custom_localizer` for apps that intentionally
+want Bevy to take ownership of that hook.
+
+In both modes, the custom localizer redirects global `localize!` calls (used by
+`derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust
+objects to stringify correctly even inside Bevy systems.
 
 ### `BevyFluentText` (derive macro)
 
@@ -110,12 +136,14 @@ required for that locale. The base `{domain}.ftl` file is loaded as optional
 compatibility data.
 
 For macro-generated modules, Bevy uses a compile-time manifest-derived
-`resource_plan_for_language` to decide which optional files exist, avoiding
-runtime file probing and wasm-specific blocking issues.
+`resource_plan_for_language` to decide which optional files should be queued.
+When no manifest is available, Bevy still loads optional assets through the
+normal `AssetServer` path and treats missing optional files as non-blocking
+load failures once the asset pipeline reports them.
 
 ## Flow
 
-1. **Startup**: `I18nPlugin` initializes resources, registers the global custom localizer, and auto-registers any `BevyFluentText` types discovered via inventory.
+1. **Startup**: `I18nPlugin` initializes resources, installs the global custom localizer with fail-fast semantics by default, and auto-registers any `BevyFluentText` types discovered via inventory.
 1. **Loading**: Bevy loads all `.ftl` assets defined by registered modules.
 1. **Compilation**: `I18nBundle` creates `FluentBundle`s from loaded assets.
 1. **Localization**:

@@ -1,54 +1,12 @@
 use bon::Builder;
-use darling::{FromDeriveInput, FromField, FromMeta, FromVariant};
+use darling::{FromDeriveInput, FromMeta, FromVariant};
 use getset::Getters;
 use heck::ToSnakeCase as _;
-use quote::format_ident;
 
-use crate::error::EsFluentCoreResult;
-
-/// Options for an enum field.
-#[derive(Clone, Debug, FromField, Getters)]
-#[darling(attributes(fluent))]
-pub struct EnumFieldOpts {
-    /// The identifier of the field.
-    #[getset(get = "pub")]
-    ident: Option<syn::Ident>,
-    /// The type of the field.
-    #[getset(get = "pub")]
-    ty: syn::Type,
-    /// Whether to skip this field.
-    #[darling(default)]
-    skip: Option<bool>,
-    /// Whether this field is a choice.
-    #[darling(default)]
-    choice: Option<bool>,
-    /// A value transformation expression.
-    #[darling(default)]
-    value: Option<super::ValueAttr>,
-    /// Optional argument name override for a variant field.
-    #[darling(default)]
-    arg_name: Option<syn::LitStr>,
-}
-
-impl EnumFieldOpts {
-    /// Returns `true` if the field should be skipped.
-    pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
-    }
-    /// Returns `true` if the field is a choice.
-    pub fn is_choice(&self) -> bool {
-        self.choice.unwrap_or(false)
-    }
-    /// Returns the value expression if present.
-    pub fn value(&self) -> Option<&syn::Expr> {
-        self.value.as_ref().map(|v| &v.0)
-    }
-
-    /// Returns explicit field argument name if provided.
-    pub fn arg_name(&self) -> Option<String> {
-        self.arg_name.as_ref().map(syn::LitStr::value)
-    }
-}
+use crate::options::{
+    EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantsOptions, KeyedVariant, Skippable,
+    VariantFields,
+};
 
 /// Options for an enum variant.
 #[derive(Clone, Debug, FromVariant, Getters)]
@@ -57,38 +15,28 @@ pub struct VariantOpts {
     /// The identifier of the variant.
     #[getset(get = "pub")]
     ident: syn::Ident,
-    fields: darling::ast::Fields<EnumFieldOpts>,
-    /// Whether to skip this variant.
-    #[darling(default)]
-    skip: Option<bool>,
-    /// Overrides the localization key suffix for this variant.
-    #[darling(default)]
-    key: Option<String>,
+    fields: darling::ast::Fields<super::FluentFieldOpts>,
+    #[darling(flatten)]
+    attr_args: super::KeyedVariantAttributeArgs,
 }
 
-impl VariantOpts {
-    /// Returns `true` if the variant should be skipped.
-    pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+impl VariantFields for VariantOpts {
+    type Field = super::FluentFieldOpts;
+
+    fn variant_fields(&self) -> &darling::ast::Fields<Self::Field> {
+        &self.fields
     }
-    /// Returns the style of the variant's fields.
-    pub fn style(&self) -> darling::ast::Style {
-        self.fields.style
+}
+
+impl KeyedVariant for VariantOpts {
+    fn key(&self) -> Option<&str> {
+        self.attr_args.key()
     }
-    /// Returns the fields of the variant that are not skipped.
-    pub fn fields(&self) -> Vec<&EnumFieldOpts> {
-        self.fields
-            .iter()
-            .filter(|field| !field.is_skipped())
-            .collect()
-    }
-    /// Returns all fields of the variant.
-    pub fn all_fields(&self) -> Vec<&EnumFieldOpts> {
-        self.fields.iter().collect()
-    }
-    /// Returns the explicit localization key for the variant, if provided.
-    pub fn key(&self) -> Option<&str> {
-        self.key.as_deref()
+}
+
+impl Skippable for VariantOpts {
+    fn is_skipped(&self) -> bool {
+        self.attr_args.is_skipped()
     }
 }
 
@@ -103,18 +51,10 @@ pub struct EnumOpts {
     generics: syn::Generics,
     data: darling::ast::Data<VariantOpts, darling::util::Ignored>,
     #[darling(flatten)]
-    attr_args: EnumFluentAttributeArgs,
+    attr_args: FluentEnumAttributeArgs,
 }
 
 impl EnumOpts {
-    /// Returns the variants of the enum.
-    pub fn variants(&self) -> Vec<&VariantOpts> {
-        match &self.data {
-            darling::ast::Data::Enum(variants) => variants.iter().collect(),
-            _ => unreachable!("Unexpected data type for enum"),
-        }
-    }
-
     /// Returns the base localization key used for this enum.
     pub fn base_key(&self) -> String {
         if let Some(resource) = self.attr_args().resource() {
@@ -125,26 +65,28 @@ impl EnumOpts {
     }
 }
 
+impl EnumDataOptions for EnumOpts {
+    type Variant = VariantOpts;
+
+    fn enum_data(&self) -> &darling::ast::Data<Self::Variant, darling::util::Ignored> {
+        &self.data
+    }
+}
+
 /// Attribute arguments for an enum.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct EnumFluentAttributeArgs {
+pub struct FluentEnumAttributeArgs {
     #[darling(default)]
     resource: Option<String>,
     /// Whether to skip inventory registration for this enum.
     /// Used by `#[es_fluent_language]` to prevent language enums from being registered.
     #[darling(default)]
     skip_inventory: Option<bool>,
-    /// Optional namespace for FTL file generation.
-    /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
-    /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
-    /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_file_path}.ftl`
-    /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
-    /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
-    #[darling(default)]
-    namespace: Option<super::namespace::NamespaceValue>,
+    #[darling(flatten)]
+    namespace_args: super::NamespacedAttributeArgs,
 }
 
-impl EnumFluentAttributeArgs {
+impl FluentEnumAttributeArgs {
     /// Returns the explicit resource base key if provided.
     pub fn resource(&self) -> Option<&str> {
         self.resource.as_deref()
@@ -157,7 +99,7 @@ impl EnumFluentAttributeArgs {
 
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
-        self.namespace.as_ref()
+        self.namespace_args.namespace()
     }
 }
 
@@ -191,25 +133,21 @@ pub struct EnumVariantOpts {
     #[getset(get = "pub")]
     ident: syn::Ident,
     fields: darling::ast::Fields<darling::util::Ignored>,
-    /// Whether to skip this variant.
-    #[darling(default)]
-    skip: Option<bool>,
+    #[darling(flatten)]
+    attr_args: super::SkippedVariantAttributeArgs,
 }
 
-impl EnumVariantOpts {
-    /// Returns `true` if the variant should be skipped.
-    pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
-    }
+impl VariantFields for EnumVariantOpts {
+    type Field = darling::util::Ignored;
 
-    /// Returns the style of the variant's fields.
-    pub fn style(&self) -> darling::ast::Style {
-        self.fields.style
+    fn variant_fields(&self) -> &darling::ast::Fields<Self::Field> {
+        &self.fields
     }
+}
 
-    /// Returns true if this is a tuple variant with exactly one field.
-    pub fn is_single_tuple(&self) -> bool {
-        matches!(self.fields.style, darling::ast::Style::Tuple) && self.fields.len() == 1
+impl Skippable for EnumVariantOpts {
+    fn is_skipped(&self) -> bool {
+        self.attr_args.is_skipped()
     }
 }
 
@@ -227,93 +165,24 @@ pub struct EnumVariantsOpts {
     generics: syn::Generics,
     data: darling::ast::Data<EnumVariantOpts, darling::util::Ignored>,
     #[darling(flatten)]
-    attr_args: EnumVariantsFluentAttributeArgs,
+    attr_args: super::VariantsFluentAttributeArgs,
 }
 
-impl EnumVariantsOpts {
-    const FTL_ENUM_IDENT: &str = "Variants";
+impl FilteredEnumDataOptions for EnumVariantsOpts {
+    type Variant = EnumVariantOpts;
 
-    /// Returns the identifier of the FTL enum.
-    pub fn ftl_enum_ident(&self) -> syn::Ident {
-        format_ident!("{}{}", &self.ident, Self::FTL_ENUM_IDENT)
-    }
-
-    /// Returns the identifiers of the keyed FTL enums.
-    pub fn keyed_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
-        self.attr_args.clone().keys.map_or_else(
-            || Ok(Vec::new()),
-            |keys| {
-                keys.into_iter()
-                    .map(|key| {
-                        let pascal_key = super::validate_snake_case_key(&key)?;
-                        Ok(format_ident!(
-                            "{}{}{}",
-                            &self.ident,
-                            pascal_key,
-                            Self::FTL_ENUM_IDENT
-                        ))
-                    })
-                    .collect()
-            },
-        )
-    }
-
-    /// Returns the identifiers used to build base FTL keys (without suffixes).
-    pub fn keyed_base_idents(&self) -> EsFluentCoreResult<Vec<syn::Ident>> {
-        self.attr_args.clone().keys.map_or_else(
-            || Ok(Vec::new()),
-            |keys| {
-                keys.into_iter()
-                    .map(|key| {
-                        let pascal_key = super::validate_snake_case_key(&key)?;
-                        Ok(format_ident!("{}{}", &self.ident, pascal_key))
-                    })
-                    .collect()
-            },
-        )
-    }
-
-    /// Returns the variants of the enum that are not skipped.
-    pub fn variants(&self) -> Vec<&EnumVariantOpts> {
-        match &self.data {
-            darling::ast::Data::Enum(variants) => {
-                variants.iter().filter(|v| !v.is_skipped()).collect()
-            },
-            _ => unreachable!("Unexpected data type for enum"),
-        }
+    fn enum_data(&self) -> &darling::ast::Data<Self::Variant, darling::util::Ignored> {
+        &self.data
     }
 }
 
-/// Attribute arguments for an enum with EsFluentVariants.
-#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct EnumVariantsFluentAttributeArgs {
-    #[darling(default)]
-    keys: Option<Vec<syn::LitStr>>,
-    /// The traits to derive on the FTL enum.
-    #[getset(get = "pub")]
-    #[darling(default)]
-    derive: darling::util::PathList,
-    /// Optional namespace for FTL file generation.
-    /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
-    /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
-    /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_path}.ftl`
-    /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
-    /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
-    #[darling(default)]
-    namespace: Option<super::namespace::NamespaceValue>,
-}
-
-impl EnumVariantsFluentAttributeArgs {
-    /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
-        self.namespace.as_ref()
+impl GeneratedVariantsOptions for EnumVariantsOpts {
+    fn variants_ident(&self) -> &syn::Ident {
+        &self.ident
     }
 
-    /// Returns the raw key strings if provided.
-    pub fn key_strings(&self) -> Option<Vec<String>> {
-        self.keys
-            .as_ref()
-            .map(|keys| keys.iter().map(|k| k.value()).collect())
+    fn variants_attr_args(&self) -> &super::VariantsFluentAttributeArgs {
+        &self.attr_args
     }
 }
 
@@ -321,6 +190,10 @@ impl EnumVariantsFluentAttributeArgs {
 mod tests {
     use super::*;
     use crate::options::namespace::NamespaceValue;
+    use crate::options::{
+        EnumDataOptions, FilteredEnumDataOptions, FluentField, GeneratedVariantsOptions,
+        KeyedVariant, VariantFields,
+    };
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 

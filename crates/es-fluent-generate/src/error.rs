@@ -1,3 +1,3 @@
-use es_fluent_derive_core::EsFluentError;
+use es_fluent_shared::EsFluentError;
 
 pub type FluentGenerateError = EsFluentError;

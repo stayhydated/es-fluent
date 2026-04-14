@@ -1,10 +1,10 @@
+use super::super::dry_run::DryRunDiff;
 use super::merge::merge_missing_keys;
-use crate::commands::DryRunDiff;
 use crate::core::CrateInfo;
-use crate::ftl::{LocaleContext, extract_message_keys};
-use crate::utils::discover_and_load_ftl_files;
+use crate::ftl::{CrateFtlLayout, LocaleContext, extract_message_keys};
 use anyhow::Result;
-use fluent_syntax::{ast, parser, serializer};
+use es_fluent_generate::ftl::parse_ftl_content;
+use fluent_syntax::{ast, serializer};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -37,7 +37,8 @@ pub(super) fn sync_crate(
 
     // Discover all FTL files in the fallback locale (including namespaced ones)
     let fallback_files =
-        discover_and_load_ftl_files(&ctx.assets_dir, &ctx.fallback, &ctx.crate_name)?;
+        CrateFtlLayout::from_assets_dir(&ctx.assets_dir, &ctx.fallback, &ctx.crate_name)
+            .discover_and_load_files()?;
 
     if fallback_files.is_empty() {
         return Ok(Vec::new());
@@ -103,9 +104,7 @@ fn sync_locale_file(
         String::new()
     };
 
-    let existing_resource = parser::parse(existing_content.clone())
-        .map_err(|(res, _)| res)
-        .unwrap_or_else(|res| res);
+    let (existing_resource, _) = parse_ftl_content(existing_content.clone());
 
     let existing_keys = extract_message_keys(&existing_resource);
 

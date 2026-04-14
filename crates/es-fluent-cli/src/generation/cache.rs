@@ -12,14 +12,14 @@ use std::path::Path;
 ///
 /// Stores extracted dependency info keyed by Cargo.lock hash to avoid
 /// running cargo_metadata on every invocation.
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct MetadataCache {
     /// Hash of Cargo.lock when cache was created
     pub cargo_lock_hash: String,
-    /// Extracted es-fluent dependency string
-    pub es_fluent_dep: String,
-    /// Extracted es-fluent-cli-helpers dependency string
-    pub es_fluent_cli_helpers_dep: String,
+    /// Extracted es-fluent dependency spec
+    pub es_fluent_dep: cargo_manifest::Dependency,
+    /// Extracted es-fluent-cli-helpers dependency spec
+    pub es_fluent_cli_helpers_dep: cargo_manifest::Dependency,
     /// Target directory
     pub target_dir: String,
 }
@@ -85,7 +85,9 @@ pub fn compute_content_hash(src_dir: &Path, i18n_toml_path: Option<&Path>) -> St
     // Hash path + content for each file
     for path in files {
         if let Ok(content) = std::fs::read(&path) {
-            hasher.update(path.to_string_lossy().as_bytes());
+            let relative_path = path.strip_prefix(src_dir).unwrap_or(&path);
+            let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
+            hasher.update(normalized_path.as_bytes());
             hasher.update(&content);
         }
     }
@@ -95,8 +97,28 @@ pub fn compute_content_hash(src_dir: &Path, i18n_toml_path: Option<&Path>) -> St
         && toml_path.is_file()
         && let Ok(content) = std::fs::read(toml_path)
     {
-        hasher.update(toml_path.to_string_lossy().as_bytes());
+        hasher.update(b"i18n.toml");
         hasher.update(&content);
+    }
+
+    hasher.finalize().to_hex().to_string()
+}
+
+/// Compute blake3 hash of workspace-level inputs that affect the monolithic runner crate.
+///
+/// The generated runner mirrors the workspace root `Cargo.toml` overrides and copies
+/// `Cargo.lock`, so both files must invalidate the cached binary when their contents change.
+pub fn compute_workspace_inputs_hash(workspace_root: &Path) -> String {
+    use blake3::Hasher;
+
+    let mut hasher = Hasher::new();
+
+    for file_name in ["Cargo.toml", "Cargo.lock"] {
+        let path = workspace_root.join(file_name);
+        if let Ok(content) = std::fs::read(&path) {
+            hasher.update(file_name.as_bytes());
+            hasher.update(&content);
+        }
     }
 
     hasher.finalize().to_hex().to_string()
@@ -115,6 +137,9 @@ pub struct RunnerCache {
     /// Missing/mismatched version triggers rebuild to pick up helper changes
     #[serde(default)]
     pub cli_version: String,
+    /// Hash of workspace-level runner inputs like the root manifest and lockfile.
+    #[serde(default)]
+    pub workspace_inputs_hash: String,
 }
 
 impl RunnerCache {
@@ -153,6 +178,43 @@ mod tests {
         // Same content should produce same hash
         assert_eq!(hash1, hash2);
         assert!(!hash1.is_empty());
+    }
+
+    #[test]
+    fn test_compute_workspace_inputs_hash_changes_when_manifest_changes() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[workspace]\nmembers = []\n",
+        )
+        .unwrap();
+
+        let first = compute_workspace_inputs_hash(temp_dir.path());
+        fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[workspace]\nmembers = []\nresolver = \"3\"\n",
+        )
+        .unwrap();
+        let second = compute_workspace_inputs_hash(temp_dir.path());
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn test_compute_workspace_inputs_hash_changes_when_lockfile_changes() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[workspace]\nmembers = []\n",
+        )
+        .unwrap();
+        fs::write(temp_dir.path().join("Cargo.lock"), "version = 4\n").unwrap();
+
+        let first = compute_workspace_inputs_hash(temp_dir.path());
+        fs::write(temp_dir.path().join("Cargo.lock"), "version = 5\n").unwrap();
+        let second = compute_workspace_inputs_hash(temp_dir.path());
+
+        assert_ne!(first, second);
     }
 
     #[test]
@@ -236,6 +298,25 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_content_hash_ignores_path_aliases() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
+
+        let i18n_path = temp_dir.path().join("i18n.toml");
+        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+
+        let aliased_src_dir = temp_dir.path().join("src").join(".");
+        let aliased_i18n_path = temp_dir.path().join(".").join("i18n.toml");
+
+        let direct_hash = compute_content_hash(&src_dir, Some(&i18n_path));
+        let aliased_hash = compute_content_hash(&aliased_src_dir, Some(&aliased_i18n_path));
+
+        assert_eq!(direct_hash, aliased_hash);
+    }
+
+    #[test]
     fn test_compute_content_hash_only_rs_files() {
         let temp_dir = tempfile::tempdir().unwrap();
         let src_dir = temp_dir.path().join("src");
@@ -259,9 +340,16 @@ mod tests {
 
         let cache = MetadataCache {
             cargo_lock_hash: MetadataCache::hash_cargo_lock(temp_dir.path()).unwrap(),
-            es_fluent_dep: "es-fluent = { path = \"../es-fluent\" }".to_string(),
-            es_fluent_cli_helpers_dep: "es-fluent-cli-helpers = { path = \"../helpers\" }"
-                .to_string(),
+            es_fluent_dep: cargo_manifest::Dependency::Detailed(cargo_manifest::DependencyDetail {
+                path: Some("../es-fluent".to_string()),
+                ..Default::default()
+            }),
+            es_fluent_cli_helpers_dep: cargo_manifest::Dependency::Detailed(
+                cargo_manifest::DependencyDetail {
+                    path: Some("../helpers".to_string()),
+                    ..Default::default()
+                },
+            ),
             target_dir: "target".to_string(),
         };
         cache.save(temp_dir.path()).unwrap();
@@ -284,6 +372,7 @@ mod tests {
             crate_hashes: hashes.clone(),
             runner_mtime: 42,
             cli_version: "0.1.0".to_string(),
+            workspace_inputs_hash: "workspace-hash".to_string(),
         };
         cache.save(temp_dir.path()).unwrap();
 
@@ -291,5 +380,6 @@ mod tests {
         assert_eq!(loaded.runner_mtime, 42);
         assert_eq!(loaded.cli_version, "0.1.0");
         assert_eq!(loaded.crate_hashes, hashes);
+        assert_eq!(loaded.workspace_inputs_hash, "workspace-hash");
     }
 }

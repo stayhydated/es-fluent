@@ -1,19 +1,7 @@
-use anyhow::{Context as _, Result};
+use anyhow::Result;
+use es_fluent_runner::{RunnerIoError, RunnerMetadataStore};
 use indexmap::IndexMap;
-use serde::Deserialize;
 use std::collections::HashSet;
-use std::fs;
-
-/// Expected key information from inventory (deserialized from temp crate output).
-#[derive(Deserialize)]
-struct ExpectedKey {
-    key: String,
-    variables: Vec<String>,
-    /// The Rust source file where this key is defined.
-    source_file: Option<String>,
-    /// The line number in the Rust source file.
-    source_line: Option<u32>,
-}
 
 /// Runtime info about an expected key with its variables and source location.
 #[derive(Clone)]
@@ -23,23 +11,23 @@ pub(crate) struct KeyInfo {
     pub(crate) source_line: Option<u32>,
 }
 
-/// The inventory data output from the temp crate.
-#[derive(Deserialize)]
-struct InventoryData {
-    expected_keys: Vec<ExpectedKey>,
-}
-
 /// Read inventory data from the generated inventory.json file.
 pub(crate) fn read_inventory_file(
     temp_dir: &std::path::Path,
     crate_name: &str,
 ) -> Result<IndexMap<String, KeyInfo>> {
-    let inventory_path = es_fluent_derive_core::get_metadata_inventory_path(temp_dir, crate_name);
-    let json_str = fs::read_to_string(&inventory_path)
-        .with_context(|| format!("Failed to read {}", inventory_path.display()))?;
-
-    let data: InventoryData =
-        serde_json::from_str(&json_str).context("Failed to parse inventory JSON")?;
+    let store = RunnerMetadataStore::new(temp_dir);
+    let inventory_path = store.inventory_path(crate_name);
+    let data = store
+        .read_inventory(crate_name)
+        .map_err(|error| match error {
+            RunnerIoError::Io(_) => anyhow::Error::new(error)
+                .context(format!("Failed to read {}", inventory_path.display())),
+            RunnerIoError::Json(_) => {
+                anyhow::Error::new(error).context("Failed to parse inventory JSON")
+            },
+            RunnerIoError::Message(_) => anyhow::Error::new(error),
+        })?;
 
     // Convert to IndexMap with KeyInfo for richer metadata
     let mut expected_keys = IndexMap::new();
@@ -66,8 +54,7 @@ mod tests {
     #[test]
     fn read_inventory_file_parses_expected_key_metadata() {
         let temp = tempdir().unwrap();
-        let inventory_path =
-            es_fluent_derive_core::get_metadata_inventory_path(temp.path(), "test-crate");
+        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(
             &inventory_path,
@@ -108,8 +95,7 @@ mod tests {
     #[test]
     fn read_inventory_file_returns_error_for_invalid_json() {
         let temp = tempdir().unwrap();
-        let inventory_path =
-            es_fluent_derive_core::get_metadata_inventory_path(temp.path(), "test-crate");
+        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(&inventory_path, "{invalid-json").unwrap();
 

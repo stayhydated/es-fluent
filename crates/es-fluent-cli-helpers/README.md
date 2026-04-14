@@ -3,6 +3,21 @@
 
 # es-fluent-cli-helpers
 
-**Internal Crate**: Runtime library for the `es-fluent` runner crate.
+**Internal Crate**: Runtime companion for the generated `.es-fluent/` runner
+binary.
 
-The `es-fluent` CLI works by generating a temporary "runner crate" to inspect your project's types. This library is injected into that runner crate to perform the actual extraction and generation work, including namespace validation when configured in `i18n.toml`.
+The `es-fluent` CLI generates a temporary runner workspace that links a user's
+library crates so their inventory registrations become visible at runtime.
+`es-fluent-cli-helpers` is the library that binary calls into after decoding a
+serialized [`RunnerRequest`](../es-fluent-runner/README.md).
+
+## What it handles
+
+- `generate`: build an `EsFluentGenerator`, validate namespace policy, and write
+  `result.json`
+- `clean`: run the generator's clean flow and write `result.json`
+- `check`: collect expected keys from inventory and write `inventory.json`
+
+Commands that operate directly on existing `.ftl` files such as `format`,
+`sync`, and `tree` stay in [`es-fluent-cli`](../es-fluent-cli/README.md) and do
+not go through this crate.

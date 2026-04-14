@@ -831,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "bevy-example"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -2473,6 +2473,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo-manifest"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fae5b96898dec422317cc18037ff6ddd3f7d0766e74a230e9aeddfc21f878267"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+ "toml 1.1.2+spec-1.1.0",
+]
+
+[[package]]
 name = "cargo-platform"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3841,13 +3852,13 @@ dependencies = [
 
 [[package]]
 name = "es-fluent"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "arc-swap",
  "es-fluent-derive",
- "es-fluent-derive-core",
  "es-fluent-generate",
  "es-fluent-manager-core",
+ "es-fluent-shared",
  "es-fluent-toml",
  "fluent-bundle",
  "inventory",
@@ -3860,18 +3871,19 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "askama",
  "assert_fs",
  "blake3",
+ "cargo-manifest",
  "cargo_metadata",
  "clap",
  "colored",
  "crossterm",
- "es-fluent-derive-core",
  "es-fluent-generate",
+ "es-fluent-runner",
  "es-fluent-toml",
  "fluent-syntax",
  "indexmap",
@@ -3895,16 +3907,16 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-cli-helpers"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "bon",
  "cargo_metadata",
  "clap",
  "es-fluent",
- "es-fluent-derive-core",
  "es-fluent-generate",
+ "es-fluent-runner",
+ "es-fluent-shared",
  "es-fluent-toml",
- "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",
@@ -3913,10 +3925,11 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "darling 0.23.0",
  "es-fluent-derive-core",
+ "es-fluent-shared",
  "heck 0.5.0",
  "insta",
  "proc-macro-error2",
@@ -3928,37 +3941,31 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-derive-core"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
- "anyhow",
  "bon",
  "darling 0.23.0",
- "derive_more",
+ "es-fluent-shared",
  "es-fluent-toml",
- "fluent-syntax",
  "getset",
  "heck 0.5.0",
  "insta",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
- "serde",
- "serde_json",
  "strum",
  "syn 2.0.117",
  "tempfile",
  "thiserror 2.0.18",
- "toml 1.1.2+spec-1.1.0",
- "unic-langid",
 ]
 
 [[package]]
 name = "es-fluent-generate"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "clap",
  "colored",
- "es-fluent-derive-core",
+ "es-fluent-shared",
  "fluent-syntax",
  "heck 0.5.0",
  "indexmap",
@@ -3972,7 +3979,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "es-fluent-lang-macro",
  "es-fluent-manager-core",
@@ -3986,7 +3993,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-lang-macro"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "es-fluent-manager-core",
  "es-fluent-toml",
@@ -4000,7 +4007,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-bevy"
-version = "0.18.11"
+version = "0.18.12"
 dependencies = [
  "arc-swap",
  "bevy",
@@ -4016,9 +4023,9 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-core"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
- "es-fluent-derive-core",
+ "es-fluent-shared",
  "fluent-bundle",
  "fluent-fallback",
  "intl-memoizer",
@@ -4030,7 +4037,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-embedded"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "arc-swap",
  "es-fluent",
@@ -4042,7 +4049,7 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-manager-macros"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "es-fluent-toml",
  "heck 0.5.0",
@@ -4053,8 +4060,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "es-fluent-runner"
+version = "0.15.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "es-fluent-shared"
+version = "0.15.0"
+dependencies = [
+ "anyhow",
+ "darling 0.23.0",
+ "derive_more",
+ "fluent-syntax",
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "strum",
+ "syn 2.0.117",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 1.1.2+spec-1.1.0",
+ "unic-langid",
+]
+
+[[package]]
 name = "es-fluent-toml"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "serde",
  "tempfile",
@@ -4111,7 +4148,7 @@ dependencies = [
 
 [[package]]
 name = "example-shared-lib"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "bevy",
  "es-fluent",
@@ -4243,7 +4280,7 @@ checksum = "9844ddc3a6e533d62bba727eb6c28b5d360921d5175e9ff0f1e621a5c590a4d5"
 
 [[package]]
 name = "first-example"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
@@ -5117,7 +5154,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-example"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",
@@ -8926,7 +8963,7 @@ dependencies = [
 
 [[package]]
 name = "readme"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "es-fluent",
  "es-fluent-manager-embedded",

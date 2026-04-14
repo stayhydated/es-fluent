@@ -1,9 +1,9 @@
 use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
-use crate::utils::{count_ftl_resources, filter_crates_by_package, partition_by_lib_rs, ui};
+use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
+use crate::utils::{filter_crates_by_package, partition_by_lib_rs, ui};
 use clap::Args;
 use colored::Colorize as _;
 use std::path::PathBuf;
-use std::time::Instant;
 
 #[derive(Args, Clone, Debug)]
 pub struct WorkspaceArgs {
@@ -15,25 +15,9 @@ pub struct WorkspaceArgs {
     pub package: Option<String>,
 }
 
-/// Common arguments for locale-based processing commands.
-///
-/// Used by format, check, and sync commands.
-#[derive(Args, Clone, Debug)]
-pub struct LocaleProcessingArgs {
-    /// Process all locales, not just the fallback language.
-    #[arg(long)]
-    pub all: bool,
-
-    /// Dry run - show what would change without making changes.
-    #[arg(long)]
-    pub dry_run: bool,
-}
-
 /// Represents a resolved set of crates for a command to operate on.
 #[derive(Clone, Debug)]
 pub struct WorkspaceCrates {
-    /// The user-supplied (or default) root path.
-    pub path: PathBuf,
     /// Workspace information (root dir, target dir, all crates).
     pub workspace_info: WorkspaceInfo,
     /// All crates discovered (after optional package filtering).
@@ -57,7 +41,6 @@ impl WorkspaceCrates {
         let skipped = skipped_refs.into_iter().cloned().collect();
 
         Ok(Self {
-            path,
             workspace_info,
             crates,
             valid,
@@ -72,36 +55,17 @@ impl WorkspaceCrates {
         header();
 
         if self.crates.is_empty() {
-            ui::print_discovered(&[]);
+            ui::Ui::print_discovered(&[]);
             return false;
         }
 
-        ui::print_discovered(&self.crates);
+        ui::Ui::print_discovered(&self.crates);
 
         for krate in &self.skipped {
-            ui::print_missing_lib_rs(&krate.name);
+            ui::Ui::print_missing_lib_rs(&krate.name);
         }
 
         true
-    }
-}
-
-/// Read the changed status from the runner crate's result.json file.
-///
-/// Returns `true` if the file indicates changes were made, `false` otherwise.
-fn read_changed_status(temp_dir: &std::path::Path, crate_name: &str) -> bool {
-    let result_json_path = es_fluent_derive_core::get_metadata_result_path(temp_dir, crate_name);
-
-    if !result_json_path.exists() {
-        return false;
-    }
-
-    match std::fs::read_to_string(&result_json_path) {
-        Ok(json_str) => match serde_json::from_str::<serde_json::Value>(&json_str) {
-            Ok(json) => json["changed"].as_bool().unwrap_or(false),
-            Err(_) => false,
-        },
-        Err(_) => false,
     }
 }
 
@@ -117,8 +81,6 @@ pub fn parallel_generate(
     action: &GenerationAction,
     force_run: bool,
 ) -> Vec<GenerateResult> {
-    use crate::generation::{generate_for_crate_monolithic, prepare_monolithic_runner_crate};
-
     // Prepare the monolithic temp crate once upfront
     if let Err(e) = prepare_monolithic_runner_crate(workspace) {
         // If preparation fails, return error results for all crates
@@ -130,50 +92,48 @@ pub fn parallel_generate(
             .collect();
     }
 
-    let pb = ui::create_progress_bar(crates.len() as u64, "Processing crates...");
+    let executor = MonolithicExecutor::new(workspace);
+    let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Processing crates...");
 
     // Process sequentially since they share the same binary
     // (parallel could cause contention on first build)
     crates
         .iter()
         .map(|krate| {
-            let start = Instant::now();
-            let result = generate_for_crate_monolithic(krate, workspace, action, force_run);
-            let duration = start.elapsed();
-
+            let result = executor.execute_generation_action(krate, action, force_run);
             pb.inc(1);
-
-            let resource_count = result
-                .as_ref()
-                .ok()
-                .map(|_| count_ftl_resources(&krate.ftl_output_dir, &krate.name))
-                .unwrap_or(0);
-
-            match result {
-                Ok(output) => {
-                    // For monolithic, result.json is at workspace root
-                    let temp_dir =
-                        es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
-                    let changed = read_changed_status(&temp_dir, &krate.name);
-
-                    let output_opt = if output.is_empty() {
-                        None
-                    } else {
-                        Some(output.to_string())
-                    };
-
-                    GenerateResult::success(
-                        krate.name.clone(),
-                        duration,
-                        resource_count,
-                        output_opt,
-                        changed,
-                    )
-                },
-                Err(e) => GenerateResult::failure(krate.name.clone(), duration, e.to_string()),
-            }
+            result
         })
         .collect()
+}
+
+/// Execute a generation-like command that uses the monolithic runner.
+pub fn run_generation_command(
+    workspace_args: WorkspaceArgs,
+    action: GenerationAction,
+    force_run: bool,
+    dry_run: bool,
+    verb: GenerationVerb,
+) -> Result<(), CliError> {
+    let workspace = WorkspaceCrates::discover(workspace_args)?;
+
+    if !workspace.print_discovery(ui::Ui::print_header) {
+        return Ok(());
+    }
+
+    let results = parallel_generate(
+        &workspace.workspace_info,
+        &workspace.valid,
+        &action,
+        force_run,
+    );
+    let has_errors = render_generation_results_with_dry_run(&results, dry_run, verb);
+
+    if has_errors {
+        std::process::exit(1);
+    }
+
+    Ok(())
 }
 
 /// Render a list of `GenerateResult`s with custom success/error handlers.
@@ -215,10 +175,10 @@ impl GenerationVerb {
     fn print_changed(self, result: &GenerateResult) {
         match self {
             GenerationVerb::Generate => {
-                ui::print_generated(&result.name, result.duration, result.resource_count);
+                ui::Ui::print_generated(&result.name, result.duration, result.resource_count);
             },
             GenerationVerb::Clean => {
-                ui::print_cleaned(&result.name, result.duration, result.resource_count);
+                ui::Ui::print_cleaned(&result.name, result.duration, result.resource_count);
             },
         }
     }
@@ -242,7 +202,7 @@ pub fn render_generation_results_with_dry_run(
                     println!(
                         "{} {} ({} resources)",
                         format!("{} {}", result.name, verb.dry_run_label()).yellow(),
-                        ui::format_duration(result.duration).green(),
+                        ui::Ui::format_duration(result.duration).green(),
                         result.resource_count.to_string().cyan()
                     );
                 } else {
@@ -254,7 +214,7 @@ pub fn render_generation_results_with_dry_run(
                 println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
             }
         },
-        |result| ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
+        |result| ui::Ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
     )
 }
 
@@ -262,38 +222,14 @@ pub fn render_generation_results_with_dry_run(
 mod tests {
     use super::*;
     use crate::core::{CrateInfo, FluentParseMode, GenerationAction, WorkspaceInfo};
-    use crate::generation::cache::{RunnerCache, compute_content_hash};
+    use crate::test_fixtures::{
+        FakeRunnerBehavior, create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache,
+    };
     use std::cell::Cell;
     use std::fs;
     use std::path::PathBuf;
     use std::time::Duration;
     use tempfile::tempdir;
-
-    fn create_test_crate_workspace() -> tempfile::TempDir {
-        let temp = tempdir().unwrap();
-
-        fs::create_dir_all(temp.path().join("src")).unwrap();
-        fs::create_dir_all(temp.path().join("i18n/en")).unwrap();
-
-        fs::write(
-            temp.path().join("Cargo.toml"),
-            r#"[package]
-name = "test-app"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )
-        .unwrap();
-
-        fs::write(temp.path().join("src/lib.rs"), "pub struct Hello;\n").unwrap();
-        fs::write(
-            temp.path().join("i18n.toml"),
-            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-        )
-        .unwrap();
-
-        temp
-    }
 
     fn create_workspace_info(temp: &tempfile::TempDir) -> WorkspaceInfo {
         let manifest_dir = temp.path().to_path_buf();
@@ -316,31 +252,21 @@ edition = "2024"
         }
     }
 
-    #[cfg(unix)]
-    fn set_executable(path: &std::path::Path) {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(path).expect("metadata").permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(path, perms).expect("set permissions");
-    }
-
-    #[cfg(not(unix))]
-    fn set_executable(_path: &std::path::Path) {}
-
     #[test]
     fn read_changed_status_handles_missing_invalid_and_valid_json() {
         let temp = tempdir().unwrap();
         let crate_name = "demo";
-        let result_path = es_fluent_derive_core::get_metadata_result_path(temp.path(), crate_name);
+        let store = es_fluent_runner::RunnerMetadataStore::new(temp.path());
+        let result_path = store.result_path(crate_name);
         fs::create_dir_all(result_path.parent().unwrap()).unwrap();
 
-        assert!(!read_changed_status(temp.path(), crate_name));
+        assert!(!store.result_changed(crate_name));
 
         fs::write(&result_path, "{not-json").unwrap();
-        assert!(!read_changed_status(temp.path(), crate_name));
+        assert!(!store.result_changed(crate_name));
 
         fs::write(&result_path, r#"{"changed":true}"#).unwrap();
-        assert!(read_changed_status(temp.path(), crate_name));
+        assert!(store.result_changed(crate_name));
     }
 
     #[test]
@@ -383,7 +309,7 @@ edition = "2024"
 
     #[test]
     fn workspace_discover_supports_package_filtering() {
-        let temp = create_test_crate_workspace();
+        let temp = create_test_crate_workspace_without_ftl();
 
         let all = WorkspaceCrates::discover(WorkspaceArgs {
             path: Some(temp.path().to_path_buf()),
@@ -404,39 +330,18 @@ edition = "2024"
 
     #[test]
     fn parallel_generate_uses_cached_runner_and_reads_changed_status() {
-        let temp = create_test_crate_workspace();
+        let temp = create_test_crate_workspace_without_ftl();
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        let runner_binary = workspace.target_dir.join("debug/es-fluent-runner");
-        fs::create_dir_all(runner_binary.parent().unwrap()).expect("create target/debug");
-        fs::write(
-            &runner_binary,
-            "#!/bin/sh\necho generated-from-fake-runner\n",
-        )
-        .expect("write fake runner");
-        set_executable(&runner_binary);
+        setup_fake_runner_and_cache(
+            &temp,
+            FakeRunnerBehavior::stdout("generated-from-fake-runner\n"),
+        );
 
-        let mtime = fs::metadata(&runner_binary)
-            .and_then(|m| m.modified())
-            .expect("runner mtime")
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .expect("mtime duration")
-            .as_secs();
-        let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
-        let mut crate_hashes = indexmap::IndexMap::new();
-        crate_hashes.insert(krate.name.clone(), hash);
-        let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
-        fs::create_dir_all(&temp_dir).expect("create .es-fluent");
-        RunnerCache {
-            crate_hashes,
-            runner_mtime: mtime,
-            cli_version: env!("CARGO_PKG_VERSION").to_string(),
-        }
-        .save(&temp_dir)
-        .expect("save runner cache");
-
-        let result_json = es_fluent_derive_core::get_metadata_result_path(&temp_dir, &krate.name);
+        let temp_dir =
+            es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
+        let result_json = temp_dir.result_path(&krate.name);
         fs::create_dir_all(result_json.parent().unwrap()).expect("create metadata dir");
         fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
 
@@ -465,7 +370,6 @@ edition = "2024"
     #[test]
     fn workspace_print_discovery_handles_empty_and_skipped_crates() {
         let empty = WorkspaceCrates {
-            path: PathBuf::from("."),
             workspace_info: WorkspaceInfo {
                 root_dir: PathBuf::from("."),
                 target_dir: PathBuf::from("./target"),
@@ -487,7 +391,6 @@ edition = "2024"
             fluent_features: Vec::new(),
         };
         let non_empty = WorkspaceCrates {
-            path: PathBuf::from("."),
             workspace_info: WorkspaceInfo {
                 root_dir: PathBuf::from("."),
                 target_dir: PathBuf::from("./target"),
@@ -533,33 +436,11 @@ edition = "2024"
 
     #[test]
     fn parallel_generate_handles_empty_output_and_dry_run_render_paths() {
-        let temp = create_test_crate_workspace();
+        let temp = create_test_crate_workspace_without_ftl();
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        let runner_binary = workspace.target_dir.join("debug/es-fluent-runner");
-        fs::create_dir_all(runner_binary.parent().unwrap()).expect("create target/debug");
-        fs::write(&runner_binary, "#!/bin/sh\n:\n").expect("write fake runner");
-        set_executable(&runner_binary);
-
-        let mtime = fs::metadata(&runner_binary)
-            .and_then(|m| m.modified())
-            .expect("runner mtime")
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .expect("mtime duration")
-            .as_secs();
-        let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
-        let mut crate_hashes = indexmap::IndexMap::new();
-        crate_hashes.insert(krate.name.clone(), hash);
-        let temp_dir = es_fluent_derive_core::get_es_fluent_temp_dir(&workspace.root_dir);
-        fs::create_dir_all(&temp_dir).expect("create .es-fluent");
-        RunnerCache {
-            crate_hashes,
-            runner_mtime: mtime,
-            cli_version: env!("CARGO_PKG_VERSION").to_string(),
-        }
-        .save(&temp_dir)
-        .expect("save runner cache");
+        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::silent_success());
 
         let results = parallel_generate(
             &workspace,

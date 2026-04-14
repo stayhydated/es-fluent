@@ -4,6 +4,9 @@ use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::options::r#enum::EnumOpts;
 use crate::options::namespace::NamespaceValue;
 use crate::options::r#struct::StructOpts;
+use crate::options::{
+    EnumDataOptions as _, FluentField as _, StructDataOptions as _, VariantFields as _,
+};
 use es_fluent_toml::I18nConfig;
 
 /// Validates the `es-fluent` attributes on a struct.
@@ -174,7 +177,7 @@ pub fn validate_namespace(
 ) -> EsFluentCoreResult<()> {
     // Only validate literal namespaces at compile time
     let literal_value = match namespace {
-        NamespaceValue::Literal(s) => s,
+        NamespaceValue::Literal(s) => s.as_ref(),
         // File-based namespaces need runtime/CLI validation
         NamespaceValue::File
         | NamespaceValue::FileRelative

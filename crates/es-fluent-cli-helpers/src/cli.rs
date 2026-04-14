@@ -1,24 +1,8 @@
 //! Inventory collection functionality for CLI commands.
 
-use serde::Serialize;
+use es_fluent_runner::{ExpectedKey, InventoryData, RunnerMetadataStore};
 use std::collections::{HashMap, HashSet};
-
-/// Expected key information from inventory.
-#[derive(Serialize)]
-pub struct ExpectedKey {
-    pub key: String,
-    pub variables: Vec<String>,
-    /// The Rust source file where this key is defined.
-    pub source_file: Option<String>,
-    /// The line number in the Rust source file.
-    pub source_line: Option<u32>,
-}
-
-/// The inventory data output.
-#[derive(Serialize)]
-pub struct InventoryData {
-    pub expected_keys: Vec<ExpectedKey>,
-}
+use std::path::Path;
 
 /// Intermediate metadata for a key during collection.
 #[derive(Default)]
@@ -84,21 +68,17 @@ pub fn write_inventory_for_crate(crate_name: &str) {
 
     let data = InventoryData { expected_keys };
 
-    // Write inventory data to file
-    let json = serde_json::to_string(&data).expect("Failed to serialize inventory data");
-
-    let metadata_dir = es_fluent_derive_core::create_metadata_dir(crate_name)
-        .expect("Failed to create metadata directory");
-    let inventory_path = metadata_dir.join("inventory.json");
-
-    std::fs::write(&inventory_path, json).expect("Failed to write inventory file");
+    RunnerMetadataStore::new(Path::new("."))
+        .write_inventory(crate_name, &data)
+        .expect("Failed to write inventory file");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType};
-    use es_fluent_derive_core::meta::TypeKind;
+    use es_fluent_shared::meta::TypeKind;
+    use std::borrow::Cow;
     use tempfile::tempdir;
 
     static VARIANTS: &[FtlVariant] = &[
@@ -124,7 +104,7 @@ mod tests {
         variants: VARIANTS,
         file_path: "src/lib.rs",
         module_path: "test_crate",
-        namespace: Some(NamespaceRule::Literal("ui")),
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
     };
 
     es_fluent::__inventory::submit! {

@@ -6,7 +6,8 @@
 mod locale;
 mod merge;
 
-use crate::commands::{DryRunSummary, WorkspaceArgs, WorkspaceCrates};
+use super::common::{WorkspaceArgs, WorkspaceCrates};
+use super::dry_run::DryRunSummary;
 use crate::core::{CliError, LocaleNotFoundError, SyncMissingKey};
 use crate::ftl::collect_all_available_locales;
 use crate::utils::ui;
@@ -36,19 +37,19 @@ pub struct SyncArgs {
 pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
-    ui::print_sync_header();
+    ui::Ui::print_sync_header();
 
     let crates = workspace.crates;
 
     if crates.is_empty() {
-        ui::print_no_crates_found();
+        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
     let target_locales: Option<HashSet<String>> = if args.all {
         None // Will sync to all locales
     } else if args.locale.is_empty() {
-        ui::print_no_locales_specified();
+        ui::Ui::print_no_locales_specified();
         return Ok(());
     } else {
         Some(args.locale.iter().cloned().collect())
@@ -62,7 +63,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
             if !all_available_locales.contains(locale) {
                 let mut available: Vec<String> = all_available_locales.into_iter().collect();
                 available.sort();
-                ui::print_locale_not_found(locale, &available);
+                ui::Ui::print_locale_not_found(locale, &available);
                 return Err(CliError::LocaleNotFound(LocaleNotFoundError {
                     locale: locale.clone(),
                     available: available.join(", "),
@@ -75,7 +76,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let mut total_locales_affected = 0;
     let mut all_synced_keys: Vec<SyncMissingKey> = Vec::new();
 
-    let pb = ui::create_progress_bar(crates.len() as u64, "Syncing crates...");
+    let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Syncing crates...");
 
     for krate in &crates {
         pb.set_message(format!("Syncing {}", krate.name));
@@ -89,14 +90,18 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 
                 pb.suspend(|| {
                     if args.dry_run {
-                        ui::print_would_add_keys(result.keys_added, &result.locale, &krate.name);
+                        ui::Ui::print_would_add_keys(
+                            result.keys_added,
+                            &result.locale,
+                            &krate.name,
+                        );
                         if let Some(diff) = &result.diff_info {
                             diff.print();
                         }
                     } else {
-                        ui::print_added_keys(result.keys_added, &result.locale);
+                        ui::Ui::print_added_keys(result.keys_added, &result.locale);
                         for key in &result.added_keys {
-                            ui::print_synced_key(key);
+                            ui::Ui::print_synced_key(key);
                             all_synced_keys.push(SyncMissingKey {
                                 key: key.clone(),
                                 target_locale: result.locale.clone(),
@@ -112,7 +117,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     pb.finish_and_clear();
 
     if total_keys_added == 0 {
-        ui::print_all_in_sync();
+        ui::Ui::print_all_in_sync();
         Ok(())
     } else if args.dry_run {
         DryRunSummary::Sync {
@@ -122,7 +127,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
         .print();
         Ok(())
     } else {
-        ui::print_sync_summary(total_keys_added, total_locales_affected);
+        ui::Ui::print_sync_summary(total_keys_added, total_locales_affected);
         Ok(())
     }
 }
@@ -131,43 +136,9 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 mod tests {
     use super::*;
     use crate::ftl::extract_message_keys;
+    use crate::test_fixtures::create_workspace_with_locales;
     use fluent_syntax::parser;
     use std::fs;
-    use tempfile::tempdir;
-
-    fn create_workspace_with_i18n() -> tempfile::TempDir {
-        let temp = tempdir().expect("tempdir");
-
-        fs::create_dir_all(temp.path().join("src")).expect("create src");
-        fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n/en");
-        fs::create_dir_all(temp.path().join("i18n/es")).expect("create i18n/es");
-
-        fs::write(
-            temp.path().join("Cargo.toml"),
-            r#"[package]
-name = "test-app"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )
-        .expect("write Cargo.toml");
-        fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
-        fs::write(
-            temp.path().join("i18n.toml"),
-            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-        )
-        .expect("write i18n.toml");
-
-        fs::write(
-            temp.path().join("i18n/en/test-app.ftl"),
-            "hello = Hello\nworld = World\n",
-        )
-        .expect("write fallback ftl");
-        fs::write(temp.path().join("i18n/es/test-app.ftl"), "hello = Hola\n")
-            .expect("write es ftl");
-
-        temp
-    }
 
     #[test]
     fn test_extract_message_keys() {
@@ -183,7 +154,10 @@ world = World"#;
 
     #[test]
     fn run_sync_returns_ok_when_no_locales_specified() {
-        let temp = create_workspace_with_i18n();
+        let temp = create_workspace_with_locales(&[
+            ("en", "hello = Hello\nworld = World\n"),
+            ("es", "hello = Hola\n"),
+        ]);
 
         let result = run_sync(SyncArgs {
             workspace: WorkspaceArgs {
@@ -200,7 +174,10 @@ world = World"#;
 
     #[test]
     fn run_sync_returns_ok_when_no_crates_match_filter() {
-        let temp = create_workspace_with_i18n();
+        let temp = create_workspace_with_locales(&[
+            ("en", "hello = Hello\nworld = World\n"),
+            ("es", "hello = Hola\n"),
+        ]);
 
         let result = run_sync(SyncArgs {
             workspace: WorkspaceArgs {
@@ -217,7 +194,10 @@ world = World"#;
 
     #[test]
     fn run_sync_fails_for_unknown_locale() {
-        let temp = create_workspace_with_i18n();
+        let temp = create_workspace_with_locales(&[
+            ("en", "hello = Hello\nworld = World\n"),
+            ("es", "hello = Hola\n"),
+        ]);
 
         let result = run_sync(SyncArgs {
             workspace: WorkspaceArgs {
@@ -234,9 +214,12 @@ world = World"#;
 
     #[test]
     fn run_sync_dry_run_does_not_write_missing_keys() {
-        let temp = create_workspace_with_i18n();
+        let temp = create_workspace_with_locales(&[
+            ("en", "hello = Hello\nworld = World\n"),
+            ("es", "hello = Hola\n"),
+        ]);
         let es_path = temp.path().join("i18n/es/test-app.ftl");
-        let before = fs::read_to_string(&es_path).expect("read before");
+        let before = std::fs::read_to_string(&es_path).expect("read before");
 
         let result = run_sync(SyncArgs {
             workspace: WorkspaceArgs {
@@ -249,13 +232,16 @@ world = World"#;
         });
 
         assert!(result.is_ok());
-        let after = fs::read_to_string(&es_path).expect("read after");
+        let after = std::fs::read_to_string(&es_path).expect("read after");
         assert_eq!(before, after, "dry-run should not modify locale files");
     }
 
     #[test]
     fn run_sync_writes_missing_keys_for_target_locale() {
-        let temp = create_workspace_with_i18n();
+        let temp = create_workspace_with_locales(&[
+            ("en", "hello = Hello\nworld = World\n"),
+            ("es", "hello = Hola\n"),
+        ]);
         let es_path = temp.path().join("i18n/es/test-app.ftl");
 
         let result = run_sync(SyncArgs {
@@ -275,7 +261,10 @@ world = World"#;
 
     #[test]
     fn run_sync_all_processes_non_fallback_locales() {
-        let temp = create_workspace_with_i18n();
+        let temp = create_workspace_with_locales(&[
+            ("en", "hello = Hello\nworld = World\n"),
+            ("es", "hello = Hola\n"),
+        ]);
         fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr");
         fs::write(temp.path().join("i18n/fr/test-app.ftl"), "hello = Salut\n").expect("write fr");
 

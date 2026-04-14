@@ -2,8 +2,11 @@
 
 use crate::core::CrateInfo;
 use crate::utils::ui;
+#[cfg(test)]
 use anyhow::{Context as _, Result};
-use es_fluent_derive_core::get_all_locales as get_all_locales_core;
+#[cfg(test)]
+use es_fluent_runner::get_all_locales as get_all_locales_core;
+#[cfg(test)]
 use std::path::Path;
 
 /// Filter crates by package name if specified.
@@ -18,7 +21,7 @@ pub fn filter_crates_by_package(
         Some(pkg) => {
             let filtered: Vec<_> = crates.into_iter().filter(|c| &c.name == pkg).collect();
             if filtered.is_empty() {
-                ui::print_package_not_found(pkg);
+                ui::Ui::print_package_not_found(pkg);
             }
             filtered
         },
@@ -36,6 +39,7 @@ pub fn partition_by_lib_rs(crates: &[CrateInfo]) -> (Vec<&CrateInfo>, Vec<&Crate
 /// Get all locale directories from an assets directory.
 ///
 /// Returns a sorted list of locale directory names.
+#[cfg(test)]
 pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>> {
     let result =
         get_all_locales_core(assets_dir).context("Failed to get locales from assets directory")?;

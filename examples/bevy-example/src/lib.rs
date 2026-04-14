@@ -50,8 +50,13 @@ pub fn run() {
         ..default()
     }));
 
-    app.insert_resource(WinitSettings::desktop_app())
-        .add_plugins(I18nPlugin::with_language(Languages::default().into()))
+    #[cfg(not(target_arch = "wasm32"))]
+    app.insert_resource(WinitSettings::desktop_app());
+
+    #[cfg(target_arch = "wasm32")]
+    app.insert_resource(WinitSettings::game());
+
+    app.add_plugins(I18nPlugin::with_language(Languages::default().into()))
         .init_resource::<InputFocus>()
         .add_systems(Startup, setup)
         .add_systems(

@@ -1,8 +1,16 @@
-use es_fluent_derive_core::namer;
-use es_fluent_derive_core::options::r#enum::{EnumFieldOpts, EnumOpts};
+use es_fluent_derive_core::options::r#enum::EnumOpts;
+use es_fluent_derive_core::options::{
+    EnumDataOptions as _, FluentField, FluentFieldOpts, KeyedVariant as _, Skippable as _,
+    VariantFields as _,
+};
+use es_fluent_shared::namer;
 
-use crate::macros::utils::namespace_rule_tokens;
-use heck::ToSnakeCase as _;
+use crate::macros::ir::LocalizeCallSpec;
+use crate::macros::utils::{
+    InventoryModuleInput, emit_display_inventory_and_from_impls, generate_field_argument,
+    generate_inventory_module, inventory_arg_name, inventory_variant_tokens, namespace_rule_tokens,
+    variant_ftl_key,
+};
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -10,52 +18,25 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
     generate(opts, data)
 }
 
-/// Generate a value expression for a field, handling value transforms, choice, and default.
-fn generate_value_expr(field: &EnumFieldOpts, arg_name: &syn::Ident) -> TokenStream {
-    if let Some(expr) = field.value() {
-        quote! { (#expr)(#arg_name) }
-    } else if field.is_choice() {
-        quote! { { use ::es_fluent::EsFluentChoice as _; #arg_name.as_fluent_choice() } }
-    } else {
-        quote! { #arg_name.clone() }
-    }
-}
-
-fn tuple_field_static_arg_name(field_opt: &EnumFieldOpts) -> Option<String> {
-    field_opt.arg_name()
-}
-
-fn tuple_arg_key_tokens(field_opt: &EnumFieldOpts, tuple_index: usize) -> TokenStream {
-    if let Some(field_name) = tuple_field_static_arg_name(field_opt) {
-        quote! { #field_name }
-    } else {
-        let key = namer::UnnamedItem::from(tuple_index).to_string();
-        quote! { #key }
-    }
-}
-
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
     let base_key = opts.base_key();
-
-    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
     let variants = opts.variants();
 
     let match_arms = variants.iter().map(|variant_opt| {
         let variant_ident = variant_opt.ident();
-        let variant_key_suffix = variant_opt
-            .key()
-            .map(|key| key.to_string())
-            .unwrap_or_else(|| variant_ident.to_string());
+        let ftl_key = variant_ftl_key(base_key.as_str(), variant_ident, variant_opt.key());
 
         match variant_opt.style() {
             darling::ast::Style::Unit => {
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
+                let body = LocalizeCallSpec {
+                    ftl_key,
+                    arguments: Vec::new(),
+                }
+                .write_expr();
                 quote! {
-                    Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
+                    Self::#variant_ident => #body
                 }
             },
             darling::ast::Style::Tuple => {
@@ -64,7 +45,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .iter()
                     .enumerate()
                     .map(|(index, field)| {
-                        if field.is_skipped() {
+                        if <FluentFieldOpts as FluentField>::is_skipped(*field) {
                             quote! { _ }
                         } else {
                             let name = namer::UnnamedItem::from(index).to_ident();
@@ -73,56 +54,49 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     })
                     .collect();
 
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
-
-                let exposed_fields: Vec<_> = all_fields
-                    .iter()
+                let arguments: Vec<_> = all_fields
+                    .into_iter()
                     .enumerate()
-                    .filter(|(_, field)| !field.is_skipped())
-                    .collect();
-                let args: Vec<_> = exposed_fields
-                    .iter()
+                    .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
                     .map(|(tuple_index, field)| {
-                        let tuple_index = *tuple_index;
-                        let arg_name = namer::UnnamedItem::from(tuple_index).to_ident();
-                        let arg_key_expr = tuple_arg_key_tokens(field, tuple_index);
-                        let value_expr = generate_value_expr(field, &arg_name);
-
-                        quote! {
-                            args.insert(#arg_key_expr, ::std::convert::Into::into(#value_expr));
-                        }
+                        let binding_ident = namer::UnnamedItem::from(tuple_index).to_ident();
+                        generate_field_argument(
+                            field,
+                            tuple_index,
+                            quote! { #binding_ident },
+                            quote! { #binding_ident },
+                        )
                     })
                     .collect();
+                let body = LocalizeCallSpec { ftl_key, arguments }.write_expr();
 
                 quote! {
                     Self::#variant_ident(#(#field_pats),*) => {
-                        let mut args = ::std::collections::HashMap::new();
-                        #(#args)*
-                        write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
+                        #body
                     }
                 }
             },
             darling::ast::Style::Struct => {
                 let fields = variant_opt.fields();
-                let field_pats: Vec<_> =
-                    fields.iter().map(|f| f.ident().as_ref().unwrap()).collect();
-
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
-
-                let args: Vec<_> = fields
+                let field_pats: Vec<_> = fields
                     .iter()
-                    .map(|field_opt| {
-                        let arg_name = field_opt.ident().as_ref().unwrap();
-                        let arg_key = field_opt.arg_name().unwrap_or_else(|| arg_name.to_string());
-                        let value_expr = generate_value_expr(field_opt, arg_name);
+                    .map(|f| f.ident().expect("named field"))
+                    .collect();
 
-                        quote! { args.insert(#arg_key, ::std::convert::Into::into(#value_expr)); }
+                let arguments: Vec<_> = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(index, field_opt)| {
+                        let arg_name = field_opt.ident().expect("named field");
+                        generate_field_argument(
+                            *field_opt,
+                            index,
+                            quote! { #arg_name },
+                            quote! { #arg_name },
+                        )
                     })
                     .collect();
+                let body = LocalizeCallSpec { ftl_key, arguments }.write_expr();
 
                 let all_fields = variant_opt.all_fields();
                 let has_skipped_fields = all_fields.len() > fields.len();
@@ -135,9 +109,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
 
                 quote! {
                     #pattern => {
-                        let mut args = ::std::collections::HashMap::new();
-                        #(#args)*
-                        write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
+                        #body
                     }
                 }
             },
@@ -145,35 +117,17 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     });
 
     let is_empty = variants.is_empty();
-    let display_impl = {
-        let trait_impl = quote! { ::es_fluent::FluentDisplay };
-        let trait_fmt_fn_ident = quote! { fluent_fmt };
-
-        // For empty enums, we need to use `match *self {}` because:
-        // - `&EmptyEnum` is always inhabited (references can't be null)
-        // - `EmptyEnum` (dereferenced) is uninhabited, so `match *self {}` is valid
-        let match_body = if is_empty {
-            quote! { match *self {} }
-        } else {
-            quote! {
-                match self {
-                    #(#match_arms),*
-                }
-            }
-        };
-
+    // For empty enums, we need to use `match *self {}` because:
+    // - `&EmptyEnum` is always inhabited (references can't be null)
+    // - `EmptyEnum` (dereferenced) is uninhabited, so `match *self {}` is valid
+    let display_body = if is_empty {
+        quote! { match *self {} }
+    } else {
         quote! {
-            impl #impl_generics #trait_impl for #original_ident #ty_generics #where_clause {
-                fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                    #match_body
-                }
+            match self {
+                #(#match_arms),*
             }
         }
-    };
-
-    let fluent_value_inner_fn = quote! {
-      use ::es_fluent::ToFluentString as _;
-      value.to_fluent_string().into()
     };
 
     // Generate inventory submission for all non-empty types unless skip_inventory is set
@@ -188,101 +142,45 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             .filter(|v| !v.is_skipped())
             .map(|variant_opt| {
                 let variant_ident = variant_opt.ident();
-                let variant_name = variant_ident.to_string();
-                let variant_key_suffix = variant_opt
-                    .key()
-                    .map(|key| key.to_string())
-                    .unwrap_or_else(|| variant_ident.to_string());
-                let ftl_key = namer::FluentKey::from(base_key.as_str())
-                    .join(&variant_key_suffix)
-                    .to_string();
+                let ftl_key = variant_ftl_key(base_key.as_str(), variant_ident, variant_opt.key());
 
                 // Get args based on variant style
-                let args_tokens: Vec<_> = match variant_opt.style() {
+                let arg_names: Vec<String> = match variant_opt.style() {
                     darling::ast::Style::Unit => vec![],
-                    darling::ast::Style::Tuple => {
-                        let all_tuple_fields = variant_opt.all_fields();
-                        let exposed_tuple_fields: Vec<_> = all_tuple_fields
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, field)| !field.is_skipped())
-                            .collect();
-                        exposed_tuple_fields
-                            .iter()
-                            .map(|(tuple_index, field)| tuple_arg_key_tokens(field, *tuple_index))
-                            .collect()
-                    },
+                    darling::ast::Style::Tuple => variant_opt
+                        .all_fields()
+                        .into_iter()
+                        .enumerate()
+                        .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
+                        .map(|(tuple_index, field)| inventory_arg_name(field, tuple_index))
+                        .collect(),
                     darling::ast::Style::Struct => variant_opt
                         .fields()
                         .iter()
-                        .filter_map(|field| {
-                            let arg_name = field
-                                .arg_name()
-                                .or_else(|| field.ident().as_ref().map(|ident| ident.to_string()));
-                            arg_name.map(|arg| quote! { #arg })
-                        })
+                        .enumerate()
+                        .map(|(index, field)| inventory_arg_name(*field, index))
                         .collect(),
                 };
 
-                quote! {
-                    ::es_fluent::registry::FtlVariant {
-                        name: #variant_name,
-                        ftl_key: #ftl_key,
-                        args: &[#(#args_tokens),*],
-                        module_path: module_path!(),
-                        line: line!(),
-                    }
-                }
+                inventory_variant_tokens(variant_ident.to_string(), ftl_key, arg_names)
             })
             .collect();
 
-        let type_name = original_ident.to_string();
-        let mod_name = quote::format_ident!("__es_fluent_inventory_{}", type_name.to_snake_case());
-
-        // Generate namespace expression based on attribute
-        let namespace_expr = namespace_rule_tokens(opts.attr_args().namespace());
-
-        quote! {
-            #[doc(hidden)]
-            mod #mod_name {
-                use super::*;
-
-                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-                    #(#static_variants),*
-                ];
-
-                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
-                    ::es_fluent::registry::FtlTypeInfo {
-                        type_kind: ::es_fluent::meta::TypeKind::Enum,
-                        type_name: #type_name,
-                        variants: VARIANTS,
-                        file_path: file!(),
-                        module_path: module_path!(),
-                        namespace: #namespace_expr,
-                    };
-
-                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
-            }
-        }
+        generate_inventory_module(InventoryModuleInput {
+            ident: original_ident,
+            module_name_prefix: "inventory",
+            type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
+            variants: static_variants,
+            namespace_expr: namespace_rule_tokens(opts.attr_args().namespace()),
+        })
     } else {
         quote! {}
     };
 
-    quote! {
-      #display_impl
-
-      #inventory_submit
-
-      impl #impl_generics From<&#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: &#original_ident #ty_generics) -> Self {
-              #fluent_value_inner_fn
-            }
-      }
-
-      impl #impl_generics From<#original_ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: #original_ident #ty_generics) -> Self {
-                (&value).into()
-            }
-      }
-    }
+    emit_display_inventory_and_from_impls(
+        original_ident,
+        opts.generics(),
+        display_body,
+        inventory_submit,
+    )
 }

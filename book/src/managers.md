@@ -39,13 +39,10 @@ use es_fluent::ToFluentString;
 use unic_langid::langid;
 
 fn main() {
-    // 1. Initialize the global manager
-    es_fluent_manager_embedded::init();
+    // 1. Initialize the global manager with the active language
+    es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 
-    // 2. Set the language (e.g., from system locale or user config)
-    es_fluent_manager_embedded::select_language(&langid!("en-US"));
-
-    // 3. Localize things!
+    // 2. Localize things!
     let msg = MyMessage::Hello { name: "World" };
     println!("{}", msg.to_fluent_string());
 }
@@ -54,8 +51,10 @@ fn main() {
 If you have a [Language Enum](language_enum.md), you can pass it directly since it implements `Into<LanguageIdentifier>`:
 
 ```rust
-es_fluent_manager_embedded::select_language(Languages::En);
+es_fluent_manager_embedded::init_with_language(Languages::En);
 ```
+
+If the language is not known during startup, call `init()` and switch later with `select_language(...)`.
 
 ---
 
@@ -68,7 +67,7 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook**: Integrates with `es-fluent`'s global state.
+- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localizer hook or fail fast when another integration already installed one.
 
 ### Quick Start
 
@@ -93,10 +92,27 @@ use unic_langid::langid;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // Initialize with default language
         .add_plugins(I18nPlugin::with_language(langid!("en-US")))
         .run();
 }
+```
+
+`I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
+inside Bevy, but it now defaults to
+`GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
+another integration already owns the process-global `es_fluent::localize`
+hook.
+
+If your Bevy app intentionally owns that hook and should override any previous
+registration, opt in explicitly:
+
+```rust
+use es_fluent_manager_bevy::{GlobalLocalizerMode, I18nPlugin};
+
+App::new().add_plugins(
+    I18nPlugin::with_language(langid!("en-US"))
+        .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
+);
 ```
 
 #### 3. Define Localizable Components (Recommended)

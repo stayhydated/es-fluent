@@ -1,13 +1,13 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{
-    namer,
-    options::{r#enum::EnumOpts, r#struct::StructOpts, this::ThisOpts},
-};
-use heck::ToSnakeCase as _;
+use es_fluent_derive_core::options::this::ThisOpts;
+use es_fluent_shared::namer;
 use quote::quote;
-use syn::{Data, DeriveInput, parse_macro_input};
+use syn::{DeriveInput, parse_macro_input};
 
-use crate::macros::utils::namespace_rule_tokens;
+use crate::macros::utils::{
+    InventoryModuleInput, generate_inventory_module, generate_this_ftl_impl,
+    inherited_fluent_namespace, namespace_rule_tokens, preferred_namespace,
+};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -20,16 +20,9 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    let fluent_namespace = match &input.data {
-        Data::Struct(_) => match StructOpts::from_derive_input(&input) {
-            Ok(opts) => opts.attr_args().namespace().cloned(),
-            Err(err) => return err.write_errors(),
-        },
-        Data::Enum(_) => match EnumOpts::from_derive_input(&input) {
-            Ok(opts) => opts.attr_args().namespace().cloned(),
-            Err(err) => return err.write_errors(),
-        },
-        Data::Union(_) => panic!("EsFluentThis cannot be used on unions"),
+    let fluent_namespace = match inherited_fluent_namespace(&input) {
+        Ok(namespace) => namespace,
+        Err(err) => return err.write_errors(),
     };
 
     let original_ident = opts.ident();
@@ -40,50 +33,33 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
         None
     };
 
-    let this_ftl_impl =
-        crate::macros::utils::generate_this_ftl_impl(original_ident, generics, ftl_key.as_deref());
+    let this_ftl_impl = generate_this_ftl_impl(original_ident, generics, ftl_key.as_deref());
 
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
     let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
         let type_name = original_ident.to_string();
-        let mod_name =
-            quote::format_ident!("__es_fluent_this_inventory_{}", type_name.to_snake_case());
-
-        let namespace_expr = namespace_rule_tokens(
-            fluent_namespace
-                .as_ref()
-                .or_else(|| opts.attr_args().namespace()),
-        );
-
-        quote! {
-            #[doc(hidden)]
-            mod #mod_name {
-                use super::*;
-
-                static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-                    ::es_fluent::registry::FtlVariant {
-                        name: #type_name,
-                        ftl_key: #ftl_key_str,
-                        args: &[],
-                        module_path: module_path!(),
-                        line: line!(),
-                    }
-                ];
-
-                static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
-                    ::es_fluent::registry::FtlTypeInfo {
-                        type_kind: ::es_fluent::meta::TypeKind::Enum,
-                        type_name: #type_name,
-                        variants: VARIANTS,
-                        file_path: file!(),
-                        module_path: module_path!(),
-                        namespace: #namespace_expr,
-                    };
-
-                ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
+        let namespace_expr = namespace_rule_tokens(preferred_namespace([
+            fluent_namespace.as_ref(),
+            opts.attr_args().namespace(),
+        ]));
+        let this_variant = quote! {
+            ::es_fluent::registry::FtlVariant {
+                name: #type_name,
+                ftl_key: #ftl_key_str,
+                args: &[],
+                module_path: module_path!(),
+                line: line!(),
             }
-        }
+        };
+
+        generate_inventory_module(InventoryModuleInput {
+            ident: original_ident,
+            module_name_prefix: "this_inventory",
+            type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
+            variants: vec![this_variant],
+            namespace_expr,
+        })
     } else {
         quote! {}
     };
@@ -154,5 +130,18 @@ mod tests {
         };
         let enum_tokens = expand_es_fluent_this(enum_namespace_error).to_string();
         assert!(enum_tokens.contains("compile_error"));
+    }
+
+    #[test]
+    fn expand_es_fluent_this_prefers_parent_fluent_namespace_over_this_namespace() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(namespace = "parent")]
+            #[fluent_this(namespace = "child")]
+            struct NamespacedThis;
+        };
+
+        let tokens = expand_es_fluent_this(input).to_string();
+        assert!(tokens.contains("parent"));
+        assert!(!tokens.contains("child"));
     }
 }

@@ -1,99 +1,90 @@
 # es-fluent-cli-helpers Architecture
 
-This document explains the role of `es-fluent-cli-helpers` in the `es-fluent` toolchain.
+This document explains the role of `es-fluent-cli-helpers` in the `es-fluent`
+toolchain.
 
 ## Purpose
 
-`es-fluent-cli-helpers` is a **runtime helper library** that runs inside the generated runner crate. It minimizes the Rust code needed in Jinja templates by providing well-tested functions for all command handlers.
+`es-fluent-cli-helpers` runs inside the generated `.es-fluent/` runner binary.
+Its job is to keep the generated `main.rs` tiny while centralizing the runtime
+logic for the runner-backed commands:
+
+- `generate`
+- `clean`
+- `check`
+
+It does not implement the CLI's direct filesystem commands such as `format`,
+`sync`, or `tree`.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    subgraph GENERATED["Generated main.rs"]
-        EXTERN["extern crate user_crate_a;<br/>extern crate user_crate_b;"]
-        MAIN["fn main() {<br/>  es_fluent_cli_helpers::run();<br/>}"]
+    subgraph GENERATED["Generated runner binary"]
+        MAIN["main.rs"]
     end
 
     subgraph HELPERS["es-fluent-cli-helpers"]
-        RUN["run()<br/>Parses args, dispatches"]
-
-        subgraph COMMANDS["Command Handlers"]
-            GEN["run_generate_with_options()"]
-            CHK["run_check()"]
-            CLN["run_clean_with_options()"]
-        end
-
-        subgraph MODULES["Internal Modules"]
-            CLI["cli.rs<br/>Inventory collection"]
-            GENMOD["generate.rs<br/>FTL generation"]
-        end
+        RUN["run()<br/>decode RunnerRequest and dispatch"]
+        GEN["generate / clean"]
+        CHK["check inventory collection"]
     end
 
-    EXTERN --> MAIN
+    subgraph SUPPORT["Dependencies"]
+        RUNNER["es-fluent-runner"]
+        TOML["es-fluent-toml"]
+        GENERATE["es-fluent-generate"]
+        INVENTORY["inventory registrations from user crates"]
+    end
+
     MAIN --> RUN
-    RUN --> GEN & CHK & CLN
-    GEN --> GENMOD
-    CHK --> CLI
-    CLN --> GENMOD
+    RUN --> GEN
+    RUN --> CHK
+    GEN --> RUNNER
+    GEN --> TOML
+    GEN --> GENERATE
+    GEN --> INVENTORY
+    CHK --> RUNNER
+    CHK --> INVENTORY
 ```
 
-## Module Structure
+## Module Responsibilities
 
-```mermaid
-classDiagram
-    class lib {
-        +run()
-        +run_generate()
-        +run_generate_with_options()
-        +run_check()
-        +run_clean_with_options()
-    }
-
-    class cli {
-        +ExpectedKey
-        +InventoryData
-        +write_inventory_for_crate()
-    }
-
-    class generate {
-        +EsFluentGenerator
-        +FluentParseMode
-        +GeneratorArgs
-        +GeneratorError
-    }
-
-    lib --> cli : uses
-    lib --> generate : uses
-```
+- `lib.rs`: decodes `RunnerRequest`, builds a `RunnerContext`, dispatches the
+  requested operation, and writes `result.json`
+- `cli.rs`: collects registered message metadata and writes `inventory.json`
+- `generate/`: wraps `es-fluent-generate` behind a builder-style API and applies
+  namespace validation and config/path resolution
 
 ## Command Flow
 
 ```mermaid
 sequenceDiagram
-    participant Runner as es-fluent-runner
-    participant Helpers as run()
-    participant Inventory as es_fluent::registry
-    participant Generator as EsFluentGenerator
+    participant CLI as es-fluent-cli
+    participant Runner as generated runner binary
+    participant Helpers as es-fluent-cli-helpers
+    participant Meta as .es-fluent/metadata/<crate>
 
-    Runner->>Helpers: run()
-    Helpers->>Helpers: Parse args (command, --crate, --mode, etc.)
+    CLI->>Runner: encoded RunnerRequest
+    Runner->>Helpers: run(request)
 
-    alt check command
-        Helpers->>Inventory: get_all_ftl_type_infos()
-        Inventory-->>Helpers: FtlTypeInfo[]
-        Helpers->>Helpers: Filter by crate, build ExpectedKey[]
-        Helpers-->>Runner: Write inventory.json
-    else generate command
-        Helpers->>Generator: EsFluentGenerator::builder()...build()
-        Generator->>Generator: Collect inventory
-        Generator->>Generator: Validate namespaces against i18n.toml (if configured)
-        Generator->>Generator: Generate FTL
-        Generator-->>Helpers: changed: bool
-        Helpers-->>Runner: Write result.json
-    else clean command
-        Helpers->>Generator: generator.clean()
-        Generator-->>Helpers: changed: bool
-        Helpers-->>Runner: Write result.json
+    alt Generate or Clean
+        Helpers->>Helpers: resolve i18n.toml and build generator
+        Helpers->>Helpers: collect inventory and run generation/clean
+        Helpers->>Meta: write result.json
+    else Check
+        Helpers->>Helpers: collect expected keys from inventory
+        Helpers->>Meta: write inventory.json
     end
 ```
+
+## Boundary
+
+`es-fluent-cli-helpers` assumes the outer CLI already handled:
+
+- workspace discovery
+- runner crate creation
+- Cargo invocation and staleness checks
+- user-facing reporting and diagnostics formatting
+
+That orchestration remains in `es-fluent-cli`.

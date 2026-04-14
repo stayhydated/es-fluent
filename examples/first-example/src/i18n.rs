@@ -8,6 +8,10 @@ pub fn init() {
     i18n_manager::init();
 }
 
+pub fn init_with_language(language: Languages) {
+    i18n_manager::init_with_language(language);
+}
+
 pub fn change_locale(language: Languages) -> Result<(), unic_langid::LanguageIdentifierError> {
     i18n_manager::select_language(language);
     Ok(())
