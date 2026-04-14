@@ -37,6 +37,10 @@ mod tests {
     use std::process::Command;
     use tempfile::tempdir;
 
+    fn toml_path(path: &Path) -> String {
+        path.to_string_lossy().replace('\\', "/")
+    }
+
     #[test]
     fn track_i18n_assets_reads_config_and_assets_path() {
         let temp = tempdir().expect("tempdir");
@@ -129,7 +133,7 @@ edition = "2024"
 [build-dependencies]
 es-fluent-toml = {{ path = "{}" }}
 "#,
-                Path::new(env!("CARGO_MANIFEST_DIR")).display()
+                toml_path(Path::new(env!("CARGO_MANIFEST_DIR")))
             ),
         )
         .expect("write Cargo.toml");

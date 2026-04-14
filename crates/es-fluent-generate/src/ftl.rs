@@ -2,6 +2,7 @@ use fluent_syntax::{ast, parser};
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fs;
+use std::io::{Error, ErrorKind};
 use std::path::Path;
 
 fn empty_resource() -> ast::Resource<String> {
@@ -34,6 +35,16 @@ pub fn parse_ftl_file_with_errors(
 )> {
     if !ftl_path.exists() {
         return Ok((empty_resource(), Vec::new()));
+    }
+
+    if ftl_path.is_dir() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "Expected FTL file path, found directory: {}",
+                ftl_path.display()
+            ),
+        ));
     }
 
     let content = fs::read_to_string(ftl_path)?;

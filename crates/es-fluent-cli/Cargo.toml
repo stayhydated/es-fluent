@@ -21,6 +21,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 askama = { workspace = true }
 blake3 = { workspace = true }
+cargo-manifest = { workspace = true }
 cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }

@@ -325,7 +325,7 @@ mod tests {
 
         assert!(
             result.is_ok(),
-            "per-crate validation errors should be reported and command should complete"
+            "per-crate validation errors should be reported and command should complete, got {result:?}"
         );
     }
 }
