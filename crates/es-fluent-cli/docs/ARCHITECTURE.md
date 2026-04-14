@@ -141,12 +141,17 @@ The on-disk metadata layout is standardized by `es-fluent-runner`:
 
 The CLI keeps the runner fast and reproducible by:
 
-- hashing crate source trees and relevant `i18n.toml` files for runner staleness
+- hashing crate source trees, per-crate `i18n.toml`, and workspace-level
+  `Cargo.toml`/`Cargo.lock` inputs for runner staleness
 - caching Cargo metadata derived from `Cargo.lock`
 - using deterministic iteration order (`IndexMap`) for caches and reports
 
 When the CLI version changes, the runner cache is invalidated and the generated
 binary is rebuilt.
+
+Watch mode also tracks the hash each generation started with. If another save
+lands while that crate is still generating, the runtime marks it dirty and
+immediately queues a follow-up run after the in-flight generation completes.
 
 ## Internal Module Split
 

@@ -5,7 +5,7 @@
 #![allow(dead_code)]
 
 #[cfg(test)]
-use crate::generation::cache::{RunnerCache, compute_content_hash};
+use crate::generation::cache::{RunnerCache, compute_content_hash, compute_workspace_inputs_hash};
 #[cfg(test)]
 use std::fs;
 #[cfg(test)]
@@ -263,6 +263,7 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunne
         crate_hashes,
         runner_mtime: mtime,
         cli_version: env!("CARGO_PKG_VERSION").to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(temp.path()),
     }
     .save(temp_store.base_dir())
     .expect("save runner cache");

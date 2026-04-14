@@ -3,7 +3,9 @@ use super::exec::RunnerCrate;
 use super::monolithic::MonolithicRunner;
 use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
-use crate::generation::cache::{MetadataCache, RunnerCache, compute_content_hash};
+use crate::generation::cache::{
+    MetadataCache, RunnerCache, compute_content_hash, compute_workspace_inputs_hash,
+};
 use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
 use std::fs;
@@ -331,6 +333,7 @@ fn monolithic_runner_staleness_detects_hash_changes() {
         crate_hashes,
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
     }
     .save(runner.temp_store.base_dir())
     .expect("save cache");
@@ -366,6 +369,7 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
         crate_hashes,
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
     }
     .save(runner.temp_store.base_dir())
     .expect("save cache");
@@ -411,6 +415,7 @@ fn run_monolithic_fast_path_reports_binary_failure() {
         crate_hashes,
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
     }
     .save(runner.temp_store.base_dir())
     .expect("save cache");
@@ -515,6 +520,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
         crate_hashes: crate_hashes.clone(),
         runner_mtime: mtime,
         cli_version: "0.0.0".to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
     }
     .save(runner.temp_store.base_dir())
     .expect("save old-version cache");
@@ -525,10 +531,96 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
         crate_hashes,
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
     }
     .save(runner.temp_store.base_dir())
     .expect("save removed-crate cache");
     assert!(runner.is_stale(), "removed crate should be stale");
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_workspace_manifest_changes() {
+    let (_temp, workspace) = create_workspace_fixture("manifest-stale", true);
+    let runner = MonolithicRunner::new(&workspace);
+    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
+        .expect("create binary dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+
+    let mtime = std::fs::metadata(&runner.binary_path)
+        .and_then(|m| m.modified())
+        .expect("runner mtime")
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("mtime duration")
+        .as_secs();
+    let krate = &workspace.crates[0];
+    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let mut crate_hashes = indexmap::IndexMap::new();
+    crate_hashes.insert(krate.name.clone(), hash);
+    RunnerCache {
+        crate_hashes,
+        runner_mtime: mtime,
+        cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
+    }
+    .save(runner.temp_store.base_dir())
+    .expect("save cache");
+
+    std::fs::write(
+        workspace.root_dir.join("Cargo.toml"),
+        r#"[package]
+name = "manifest-stale"
+version = "0.1.0"
+edition = "2024"
+
+[patch.crates-io]
+serde = "1"
+"#,
+    )
+    .expect("rewrite Cargo.toml");
+
+    assert!(
+        runner.is_stale(),
+        "workspace manifest change should mark runner stale"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
+    let (_temp, workspace) = create_workspace_fixture("lockfile-stale", true);
+    std::fs::write(workspace.root_dir.join("Cargo.lock"), "version = 4\n").expect("write lock");
+
+    let runner = MonolithicRunner::new(&workspace);
+    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
+        .expect("create binary dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+
+    let mtime = std::fs::metadata(&runner.binary_path)
+        .and_then(|m| m.modified())
+        .expect("runner mtime")
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("mtime duration")
+        .as_secs();
+    let krate = &workspace.crates[0];
+    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let mut crate_hashes = indexmap::IndexMap::new();
+    crate_hashes.insert(krate.name.clone(), hash);
+    RunnerCache {
+        crate_hashes,
+        runner_mtime: mtime,
+        cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
+    }
+    .save(runner.temp_store.base_dir())
+    .expect("save cache");
+
+    std::fs::write(workspace.root_dir.join("Cargo.lock"), "version = 5\n").expect("rewrite lock");
+
+    assert!(
+        runner.is_stale(),
+        "workspace lockfile change should mark runner stale"
+    );
 }
 
 #[test]
@@ -554,6 +646,7 @@ fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
         crate_hashes,
         runner_mtime: current_mtime.saturating_sub(1),
         cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
     }
     .save(runner.temp_store.base_dir())
     .expect("save stale-mtime cache");
@@ -630,6 +723,7 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
         crate_hashes,
         runner_mtime: mtime,
         cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
     }
     .save(runner.temp_store.base_dir())
     .expect("save cache");

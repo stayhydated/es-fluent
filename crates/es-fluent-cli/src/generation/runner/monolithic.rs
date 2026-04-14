@@ -33,7 +33,9 @@ impl<'a> MonolithicRunner<'a> {
     }
 
     pub(super) fn is_stale(&self) -> bool {
-        use crate::generation::cache::{RunnerCache, compute_content_hash};
+        use crate::generation::cache::{
+            RunnerCache, compute_content_hash, compute_workspace_inputs_hash,
+        };
 
         let runner_mtime = match fs::metadata(&self.binary_path).and_then(|m| m.modified()) {
             Ok(t) => t,
@@ -44,6 +46,7 @@ impl<'a> MonolithicRunner<'a> {
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
+        let workspace_inputs_hash = compute_workspace_inputs_hash(&self.workspace.root_dir);
 
         let mut current_hashes = indexmap::IndexMap::new();
         for krate in &self.workspace.crates {
@@ -54,7 +57,9 @@ impl<'a> MonolithicRunner<'a> {
         }
 
         if let Some(cache) = RunnerCache::load(self.temp_store.base_dir()) {
-            if cache.cli_version != CLI_VERSION {
+            if cache.cli_version != CLI_VERSION
+                || cache.workspace_inputs_hash != workspace_inputs_hash
+            {
                 return true;
             }
 
@@ -77,6 +82,7 @@ impl<'a> MonolithicRunner<'a> {
                 crate_hashes: current_hashes,
                 runner_mtime: runner_mtime_secs,
                 cli_version: CLI_VERSION.to_string(),
+                workspace_inputs_hash,
             };
             let _ = new_cache.save(self.temp_store.base_dir());
             return false;
@@ -260,7 +266,9 @@ pub fn run_monolithic(
 }
 
 fn write_runner_cache(runner: &MonolithicRunner<'_>) {
-    use crate::generation::cache::{RunnerCache, compute_content_hash};
+    use crate::generation::cache::{
+        RunnerCache, compute_content_hash, compute_workspace_inputs_hash,
+    };
 
     if let Ok(meta) = fs::metadata(&runner.binary_path)
         && let Ok(mtime) = meta.modified()
@@ -282,6 +290,7 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
             crate_hashes,
             runner_mtime: runner_mtime_secs,
             cli_version: CLI_VERSION.to_string(),
+            workspace_inputs_hash: compute_workspace_inputs_hash(&runner.workspace.root_dir),
         };
         let _ = cache.save(runner.temp_store.base_dir());
     }

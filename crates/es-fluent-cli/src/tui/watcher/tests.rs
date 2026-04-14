@@ -2,7 +2,7 @@ use super::events::{build_path_to_crate, process_file_events};
 use super::generation::{compute_src_hash, spawn_generation};
 use super::{run_watch_loop_with_poll, watch_all};
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
-use crate::generation::cache::{RunnerCache, compute_content_hash};
+use crate::generation::cache::{RunnerCache, compute_content_hash, compute_workspace_inputs_hash};
 use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use notify::{
     Event,
@@ -68,13 +68,44 @@ fn process_file_events_filters_and_deduplicates_expected_paths() {
         event_with_path(&src_dir.join("notes.txt")),
         event_with_path(&src_dir.join("translation.ftl")),
         event_with_path(Path::new("/tmp/ws/crate-a/.es-fluent/temp.rs")),
-        event_with_path(Path::new("/tmp/ws/crate-a/i18n.toml")),
+        event_with_path(&valid_crate.i18n_config_path),
     ];
 
     let mut affected = process_file_events(&events, &path_to_crate);
     affected.sort();
 
     assert_eq!(affected, vec!["crate-a".to_string()]);
+}
+
+#[test]
+fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
+    let crate_a = CrateInfo {
+        name: "crate-a".to_string(),
+        manifest_dir: PathBuf::from("/tmp/ws/crate-a"),
+        src_dir: PathBuf::from("/tmp/ws/crate-a/src"),
+        i18n_config_path: PathBuf::from("/tmp/ws/crate-a/i18n.toml"),
+        ftl_output_dir: PathBuf::from("/tmp/ws/crate-a/i18n/en"),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let crate_b = CrateInfo {
+        name: "crate-b".to_string(),
+        manifest_dir: PathBuf::from("/tmp/ws/crate-b"),
+        src_dir: PathBuf::from("/tmp/ws/crate-b/src"),
+        i18n_config_path: PathBuf::from("/tmp/ws/crate-b/i18n.toml"),
+        ftl_output_dir: PathBuf::from("/tmp/ws/crate-b/i18n/en"),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let path_to_crate = build_path_to_crate(&[&crate_a, &crate_b]);
+
+    let mut affected = process_file_events(
+        &[event_with_path(&crate_b.i18n_config_path)],
+        &path_to_crate,
+    );
+    affected.sort();
+
+    assert_eq!(affected, vec!["crate-b".to_string()]);
 }
 
 #[test]
@@ -164,6 +195,7 @@ fn create_valid_workspace_with_fake_runner_behavior(
         crate_hashes,
         runner_mtime: mtime,
         cli_version: env!("CARGO_PKG_VERSION").to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(temp.path()),
     }
     .save(temp_store.base_dir())
     .expect("save runner cache");
