@@ -160,25 +160,27 @@ fn render_monolithic_cargo_toml(
     package.edition = Some(MaybeInherited::Local(Edition::E2024));
     package.publish = Some(MaybeInherited::Local(Publish::Flag(false)));
 
-    let mut manifest: Manifest = Manifest::default();
-    manifest.package = Some(package);
-    manifest.workspace = Some(Workspace {
-        members: Vec::new(),
-        default_members: None,
-        exclude: None,
-        resolver: None,
-        dependencies: None,
-        package: None,
-        metadata: None,
-        lints: None,
-    });
-    manifest.dependencies = Some(dependencies);
-    manifest.bin = vec![Product {
-        name: Some("es-fluent-runner".to_string()),
-        path: Some("src/main.rs".to_string()),
-        edition: None,
+    let manifest = Manifest {
+        package: Some(package),
+        workspace: Some(Workspace::<toml::Value> {
+            members: Vec::new(),
+            default_members: None,
+            exclude: None,
+            resolver: None,
+            dependencies: None,
+            package: None,
+            metadata: None,
+            lints: None,
+        }),
+        dependencies: Some(dependencies),
+        bin: vec![Product {
+            name: Some("es-fluent-runner".to_string()),
+            path: Some("src/main.rs".to_string()),
+            edition: None,
+            ..Default::default()
+        }],
         ..Default::default()
-    }];
+    };
 
     let rendered = toml::to_string(&manifest).context("Failed to serialize runner Cargo.toml")?;
     let mut manifest = toml::from_str::<Value>(&rendered)
