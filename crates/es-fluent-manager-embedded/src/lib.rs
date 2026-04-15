@@ -4,13 +4,13 @@
 use arc_swap::ArcSwap;
 
 #[doc(hidden)]
-use es_fluent::set_shared_context;
+use es_fluent::try_set_shared_context;
 
 #[doc(hidden)]
 use es_fluent_manager_core::FluentManager;
 
 #[doc(hidden)]
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock};
 
 #[doc(hidden)]
 use unic_langid::LanguageIdentifier;
@@ -65,12 +65,26 @@ pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_mod
 #[doc(hidden)]
 static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
-fn build_manager(initial_language: Option<&LanguageIdentifier>) -> Arc<FluentManager> {
+static INIT_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+fn init_lock() -> MutexGuard<'static, ()> {
+    match INIT_LOCK.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!("Embedded manager init lock poisoned; recovering");
+            poisoned.into_inner()
+        },
+    }
+}
+
+fn build_manager(
+    initial_language: Option<&LanguageIdentifier>,
+) -> Result<Arc<FluentManager>, EmbeddedInitError> {
     let manager = FluentManager::new_with_discovered_modules();
     if let Some(initial_language) = initial_language {
-        let _ = manager.select_language(initial_language);
+        select_initial_language(&manager, initial_language)?;
     }
-    Arc::new(manager)
+    Ok(Arc::new(manager))
 }
 
 fn select_initial_language(
@@ -93,16 +107,25 @@ fn try_build_manager(
     Ok(Arc::new(manager))
 }
 
-fn initialize_manager(manager: Arc<FluentManager>) -> bool {
-    if GENERIC_MANAGER
-        .set(ArcSwap::new(Arc::clone(&manager)))
-        .is_ok()
-    {
-        set_shared_context(manager);
-        true
-    } else {
+fn initialize_manager(manager: Arc<FluentManager>) -> Result<bool, EmbeddedInitError> {
+    let _guard = init_lock();
+
+    if GENERIC_MANAGER.get().is_some() {
         tracing::warn!("Generic fluent manager already initialized.");
-        false
+        return Ok(false);
+    }
+
+    try_set_shared_context(Arc::clone(&manager)).map_err(EmbeddedInitError::GlobalContext)?;
+
+    if GENERIC_MANAGER.set(ArcSwap::new(manager)).is_ok() {
+        Ok(true)
+    } else {
+        tracing::error!(
+            "Embedded manager initialization published the shared context but failed to install the embedded singleton"
+        );
+        Err(EmbeddedInitError::GlobalContext(
+            GlobalLocalizationError::ContextAlreadyInitialized,
+        ))
     }
 }
 
@@ -116,12 +139,10 @@ fn initialize_manager(manager: Arc<FluentManager>) -> bool {
 /// This function should be called once at the beginning of your application's
 /// lifecycle.
 ///
-/// # Panics
-///
-/// This function will not panic if called more than once, but it will log a
-/// warning and have no effect after the first successful call.
 pub fn init() {
-    let _ = initialize_manager(build_manager(None));
+    if let Err(error) = build_manager(None).and_then(initialize_manager) {
+        tracing::error!("Failed to initialize embedded fluent manager: {}", error);
+    }
 }
 
 /// Initializes the embedded singleton with strict registry discovery.
@@ -131,7 +152,7 @@ pub fn init() {
 /// skipped.
 pub fn try_init() -> Result<(), EmbeddedInitError> {
     if GENERIC_MANAGER.get().is_none() {
-        let _ = initialize_manager(try_build_manager(None)?);
+        let _ = initialize_manager(try_build_manager(None)?)?;
     }
     Ok(())
 }
@@ -143,27 +164,44 @@ pub fn try_init() -> Result<(), EmbeddedInitError> {
 /// If another thread initializes the singleton concurrently, `lang` is applied
 /// to the live manager after the race is resolved.
 ///
-/// # Panics
-///
-/// This function will not panic if called more than once. If the singleton is
-/// already initialized, it logs a warning and applies `lang` to the existing
-/// manager.
 pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
     let lang = lang.into();
     if let Some(manager) = GENERIC_MANAGER.get() {
         tracing::warn!("Generic fluent manager already initialized.");
-        let _ = manager.load().select_language(&lang);
+        if let Err(error) = manager.load().select_language(&lang) {
+            tracing::error!(
+                "Failed to apply language '{}' to the live embedded manager: {}",
+                lang,
+                error
+            );
+        }
         return;
     }
 
-    if !initialize_manager(build_manager(Some(&lang))) {
-        if let Some(manager) = GENERIC_MANAGER.get() {
-            let _ = manager.load().select_language(&lang);
-        } else {
+    match build_manager(Some(&lang)).and_then(initialize_manager) {
+        Ok(true) => {},
+        Ok(false) => {
+            if let Some(manager) = GENERIC_MANAGER.get() {
+                if let Err(error) = manager.load().select_language(&lang) {
+                    tracing::error!(
+                        "Failed to apply language '{}' after embedded init raced: {}",
+                        lang,
+                        error
+                    );
+                }
+            } else {
+                tracing::error!(
+                    "Generic fluent manager initialization lost a race and no live manager was found."
+                );
+            }
+        },
+        Err(error) => {
             tracing::error!(
-                "Generic fluent manager initialization lost a race and no live manager was found."
+                "Failed to initialize embedded fluent manager with language '{}': {}",
+                lang,
+                error
             );
-        }
+        },
     }
 }
 
@@ -184,7 +222,7 @@ pub fn try_init_with_language<L: Into<LanguageIdentifier>>(
     }
 
     let manager = try_build_manager(Some(&lang))?;
-    if initialize_manager(manager) {
+    if initialize_manager(manager)? {
         return Ok(());
     }
 
@@ -297,13 +335,31 @@ mod tests {
         let _guard = TEST_LOCK.lock().expect("lock poisoned");
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
-        let manager = build_manager(Some(&langid!("en-US")));
+        let manager = build_manager(Some(&langid!("en-US")))
+            .expect("lenient manager build should still apply the initial language");
 
         assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
         assert_eq!(
             manager.localize("embedded-key", None),
             Some("embedded-value".to_string())
         );
+    }
+
+    #[test]
+    fn build_manager_rejects_unselectable_initial_language() {
+        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        SELECT_CALLS.store(0, Ordering::Relaxed);
+
+        let err = match build_manager(Some(&langid!("zz"))) {
+            Ok(_) => panic!("initial language selection failure should abort publication"),
+            Err(err) => err,
+        };
+
+        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
+        assert!(matches!(
+            err,
+            EmbeddedInitError::GlobalContext(GlobalLocalizationError::LanguageSelectionFailed(_))
+        ));
     }
 
     #[test]

@@ -82,11 +82,13 @@ pub fn filter_module_registry(
     }
 
     let mut filtered: Vec<&'static dyn I18nModuleRegistration> = Vec::with_capacity(modules.len());
+    let mut filtered_kinds: Vec<ModuleRegistrationKind> = Vec::with_capacity(modules.len());
     let mut seen_module_names: HashMap<&'static str, usize> = HashMap::new();
     let mut seen_domains: HashMap<&'static str, usize> = HashMap::new();
 
     for module in modules {
         let data = module.data();
+        let module_kind = module.registration_kind();
         if data.name.trim().is_empty() || data.domain.trim().is_empty() {
             tracing::warn!(
                 "Skipping i18n module with invalid metadata: name='{}', domain='{}'",
@@ -96,8 +98,8 @@ pub fn filter_module_registry(
             continue;
         }
         if let Some(&existing_index) = seen_module_names.get(data.name) {
-            let existing = filtered[existing_index];
-            let existing_data = existing.data();
+            let existing_data = filtered[existing_index].data();
+            let existing_kind = filtered_kinds[existing_index];
             if existing_data.domain != data.domain {
                 tracing::warn!(
                     "Skipping duplicate i18n module name '{}' (domain '{}')",
@@ -107,12 +109,15 @@ pub fn filter_module_registry(
                 continue;
             }
 
-            if !existing.supports_runtime_localization() && module.supports_runtime_localization() {
+            if existing_kind == ModuleRegistrationKind::MetadataOnly
+                && module_kind == ModuleRegistrationKind::RuntimeLocalizer
+            {
                 tracing::warn!(
                     "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
                     data.name
                 );
                 filtered[existing_index] = module;
+                filtered_kinds[existing_index] = module_kind;
             } else {
                 tracing::warn!(
                     "Skipping duplicate i18n module name '{}' (domain '{}')",
@@ -124,17 +129,18 @@ pub fn filter_module_registry(
         }
 
         if let Some(&existing_index) = seen_domains.get(data.domain) {
-            let existing = filtered[existing_index];
-            let existing_data = existing.data();
+            let existing_data = filtered[existing_index].data();
+            let existing_kind = filtered_kinds[existing_index];
             if existing_data.name == data.name {
-                if !existing.supports_runtime_localization()
-                    && module.supports_runtime_localization()
+                if existing_kind == ModuleRegistrationKind::MetadataOnly
+                    && module_kind == ModuleRegistrationKind::RuntimeLocalizer
                 {
                     tracing::warn!(
                         "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
                         data.name
                     );
                     filtered[existing_index] = module;
+                    filtered_kinds[existing_index] = module_kind;
                 } else {
                     tracing::warn!(
                         "Skipping duplicate i18n module name '{}' (domain '{}')",
@@ -157,6 +163,7 @@ pub fn filter_module_registry(
         seen_module_names.insert(data.name, index);
         seen_domains.insert(data.domain, index);
         filtered.push(module);
+        filtered_kinds.push(module_kind);
     }
 
     filtered
@@ -233,10 +240,13 @@ fn inspect_module_registry(
         let counts = registration_counts
             .entry((data.name, data.domain))
             .or_default();
-        if module.supports_runtime_localization() {
-            counts.runtime_localizer += 1;
-        } else {
-            counts.metadata_only += 1;
+        match module.registration_kind() {
+            ModuleRegistrationKind::MetadataOnly => {
+                counts.metadata_only += 1;
+            },
+            ModuleRegistrationKind::RuntimeLocalizer => {
+                counts.runtime_localizer += 1;
+            },
         }
     }
 

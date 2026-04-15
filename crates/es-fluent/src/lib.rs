@@ -27,7 +27,7 @@ pub use unic_langid;
 use arc_swap::ArcSwap;
 use es_fluent_manager_core::FluentManager;
 use es_fluent_shared::EsFluentError;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 #[cfg(feature = "build")]
 pub mod build {
@@ -50,6 +50,26 @@ static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<CustomLocalizer>>>> = OnceLo
 
 fn custom_localizer_slot() -> &'static RwLock<Option<Arc<CustomLocalizer>>> {
     CUSTOM_LOCALIZER.get_or_init(|| RwLock::new(None))
+}
+
+fn read_custom_localizer_slot() -> RwLockReadGuard<'static, Option<Arc<CustomLocalizer>>> {
+    match custom_localizer_slot().read() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!("custom localizer lock poisoned while reading; recovering");
+            poisoned.into_inner()
+        },
+    }
+}
+
+fn write_custom_localizer_slot() -> RwLockWriteGuard<'static, Option<Arc<CustomLocalizer>>> {
+    match custom_localizer_slot().write() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!("custom localizer lock poisoned while writing; recovering");
+            poisoned.into_inner()
+        },
+    }
 }
 
 #[derive(Debug)]
@@ -168,9 +188,7 @@ where
         + Sync
         + 'static,
 {
-    let mut slot = custom_localizer_slot()
-        .write()
-        .expect("custom localizer lock poisoned");
+    let mut slot = write_custom_localizer_slot();
     if slot.is_some() {
         return Err(GlobalLocalizationError::CustomLocalizerAlreadyInitialized);
     }
@@ -193,9 +211,7 @@ where
         + Sync
         + 'static,
 {
-    *custom_localizer_slot()
-        .write()
-        .expect("custom localizer lock poisoned") = Some(Arc::new(localizer));
+    *write_custom_localizer_slot() = Some(Arc::new(localizer));
 }
 
 /// Selects a language for all localizers in the global context.
@@ -222,12 +238,10 @@ pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
-    if let Some(custom_localizer) = CUSTOM_LOCALIZER.get().and_then(|custom_localizer| {
-        custom_localizer
-            .read()
-            .expect("custom localizer lock poisoned")
-            .clone()
-    }) && let Some(message) = custom_localizer(id, args)
+    if let Some(custom_localizer) = CUSTOM_LOCALIZER
+        .get()
+        .and_then(|_| read_custom_localizer_slot().clone())
+        && let Some(message) = custom_localizer(id, args)
     {
         return message;
     }

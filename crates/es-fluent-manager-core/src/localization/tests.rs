@@ -2,10 +2,11 @@ use super::*;
 use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
 use fluent_bundle::FluentResource;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, RwLock};
 use unic_langid::langid;
 
+static EXPLICIT_RUNTIME_CREATE_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SELECT_OK_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SELECT_ERR_CALLS: AtomicUsize = AtomicUsize::new(0);
 static MODULE_OK_DATA: ModuleData = ModuleData {
@@ -17,6 +18,24 @@ static MODULE_OK_DATA: ModuleData = ModuleData {
 static MODULE_ERR_DATA: ModuleData = ModuleData {
     name: "module-err",
     domain: "module-err",
+    supported_languages: &[],
+    namespaces: &[],
+};
+static STATEFUL_SUCCESS_DATA: ModuleData = ModuleData {
+    name: "stateful-success",
+    domain: "stateful-success",
+    supported_languages: &[],
+    namespaces: &[],
+};
+static STATEFUL_FAIL_DATA: ModuleData = ModuleData {
+    name: "stateful-fail",
+    domain: "stateful-fail",
+    supported_languages: &[],
+    namespaces: &[],
+};
+static EXPLICIT_RUNTIME_DATA: ModuleData = ModuleData {
+    name: "explicit-runtime",
+    domain: "explicit-runtime",
     supported_languages: &[],
     namespaces: &[],
 };
@@ -56,12 +75,19 @@ static FILTER_EXACT_DUP_DESCRIPTOR_TWO: StaticModuleDescriptor =
 
 struct ModuleOk;
 struct ModuleErr;
+struct StatefulSuccessModule;
+struct StatefulFailModule;
 struct FilterRuntimeModule;
 struct FilterRuntimeModuleTwo;
+struct ExplicitRuntimeRegistration;
 
 struct LocalizerOk;
 struct LocalizerErr;
 struct FilterRuntimeLocalizer;
+struct StatefulSuccessLocalizer {
+    selected: RwLock<Option<String>>,
+}
+struct StatefulFailLocalizer;
 
 impl Localizer for LocalizerOk {
     fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -104,6 +130,45 @@ impl Localizer for LocalizerErr {
 impl Localizer for FilterRuntimeLocalizer {
     fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         Ok(())
+    }
+
+    fn localize<'a>(
+        &self,
+        _id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        None
+    }
+}
+
+impl StatefulSuccessLocalizer {
+    fn new(selected: Option<&str>) -> Self {
+        Self {
+            selected: RwLock::new(selected.map(ToOwned::to_owned)),
+        }
+    }
+}
+
+impl Localizer for StatefulSuccessLocalizer {
+    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        *self.selected.write().expect("lock poisoned") = Some(lang.to_string());
+        Ok(())
+    }
+
+    fn localize<'a>(
+        &self,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        (id == "selected-language")
+            .then(|| self.selected.read().expect("lock poisoned").clone())
+            .flatten()
+    }
+}
+
+impl Localizer for StatefulFailLocalizer {
+    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        Err(LocalizationError::LanguageNotSupported(lang.clone()))
     }
 
     fn localize<'a>(
@@ -163,10 +228,54 @@ impl I18nModule for FilterRuntimeModuleTwo {
     }
 }
 
+impl I18nModuleDescriptor for StatefulSuccessModule {
+    fn data(&self) -> &'static ModuleData {
+        &STATEFUL_SUCCESS_DATA
+    }
+}
+
+impl I18nModule for StatefulSuccessModule {
+    fn create_localizer(&self) -> Box<dyn Localizer> {
+        Box::new(StatefulSuccessLocalizer::new(None))
+    }
+}
+
+impl I18nModuleDescriptor for StatefulFailModule {
+    fn data(&self) -> &'static ModuleData {
+        &STATEFUL_FAIL_DATA
+    }
+}
+
+impl I18nModule for StatefulFailModule {
+    fn create_localizer(&self) -> Box<dyn Localizer> {
+        Box::new(StatefulFailLocalizer)
+    }
+}
+
+impl I18nModuleDescriptor for ExplicitRuntimeRegistration {
+    fn data(&self) -> &'static ModuleData {
+        &EXPLICIT_RUNTIME_DATA
+    }
+}
+
+impl I18nModuleRegistration for ExplicitRuntimeRegistration {
+    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+        EXPLICIT_RUNTIME_CREATE_CALLS.fetch_add(1, Ordering::Relaxed);
+        Some(Box::new(FilterRuntimeLocalizer))
+    }
+
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::RuntimeLocalizer
+    }
+}
+
 static MODULE_OK: ModuleOk = ModuleOk;
 static MODULE_ERR: ModuleErr = ModuleErr;
+static STATEFUL_SUCCESS_MODULE: StatefulSuccessModule = StatefulSuccessModule;
+static STATEFUL_FAIL_MODULE: StatefulFailModule = StatefulFailModule;
 static FILTER_RUNTIME_MODULE: FilterRuntimeModule = FilterRuntimeModule;
 static FILTER_RUNTIME_MODULE_TWO: FilterRuntimeModuleTwo = FilterRuntimeModuleTwo;
+static EXPLICIT_RUNTIME_REGISTRATION: ExplicitRuntimeRegistration = ExplicitRuntimeRegistration;
 
 inventory::submit! {
     &MODULE_OK as &dyn I18nModuleRegistration
@@ -177,31 +286,36 @@ inventory::submit! {
 }
 
 #[test]
-fn manager_select_language_calls_all_localizers() {
+fn manager_select_language_returns_error_when_any_module_fails() {
     let ok_before = SELECT_OK_CALLS.load(Ordering::Relaxed);
     let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
     let manager = FluentManager::new_with_discovered_modules();
-    assert!(manager.select_language(&langid!("en-US")).is_ok());
+    let err = manager
+        .select_language(&langid!("en-US"))
+        .expect_err("partial language selection should fail");
 
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
+    assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
+    assert_eq!(manager.localize("from-ok", None), None);
 }
 
 #[test]
 fn manager_try_new_with_discovered_modules_succeeds_for_clean_inventory() {
     let manager = FluentManager::try_new_with_discovered_modules()
         .expect("current test inventory should pass strict discovery");
-    assert!(!manager.localizers.is_empty());
+    assert!(!manager.modules.is_empty());
 }
 
 #[test]
 fn manager_localize_returns_first_matching_message() {
     let manager = FluentManager {
-        localizers: vec![
+        modules: Vec::new(),
+        localizers: RwLock::new(vec![
             (&MODULE_OK_DATA, Box::new(LocalizerOk)),
             (&MODULE_ERR_DATA, Box::new(LocalizerErr)),
-        ],
+        ]),
     };
     assert_eq!(
         manager.localize("from-ok", None),
@@ -227,7 +341,8 @@ fn manager_select_language_with_only_failing_localizers_returns_error() {
     let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
     let manager = FluentManager {
-        localizers: vec![(&MODULE_ERR_DATA, Box::new(LocalizerErr))],
+        modules: vec![&MODULE_ERR as &dyn I18nModuleRegistration],
+        localizers: RwLock::default(),
     };
     let err = manager
         .select_language(&langid!("en-US"))
@@ -235,6 +350,30 @@ fn manager_select_language_with_only_failing_localizers_returns_error() {
 
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
     assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
+}
+
+#[test]
+fn manager_keeps_previous_localizers_when_selection_fails() {
+    let manager = FluentManager {
+        modules: vec![
+            &STATEFUL_SUCCESS_MODULE as &dyn I18nModuleRegistration,
+            &STATEFUL_FAIL_MODULE as &dyn I18nModuleRegistration,
+        ],
+        localizers: RwLock::new(vec![(
+            &STATEFUL_SUCCESS_DATA,
+            Box::new(StatefulSuccessLocalizer::new(Some("en-US"))),
+        )]),
+    };
+
+    let err = manager
+        .select_language(&langid!("fr"))
+        .expect_err("failed selection should not replace the active localizers");
+
+    assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
+    assert_eq!(
+        manager.localize("selected-language", None),
+        Some("en-US".to_string())
+    );
 }
 
 #[test]
@@ -284,6 +423,17 @@ fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follow
 
     assert_eq!(filtered.len(), 1);
     assert!(filtered[0].create_localizer().is_some());
+}
+
+#[test]
+fn filter_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
+    EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
+
+    let filtered =
+        filter_module_registry([&EXPLICIT_RUNTIME_REGISTRATION as &dyn I18nModuleRegistration]);
+
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 0);
 }
 
 #[test]

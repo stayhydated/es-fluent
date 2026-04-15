@@ -2,6 +2,7 @@ use crate::I18nConfigError;
 use std::{fs, io};
 use unic_langid::LanguageIdentifier;
 
+#[derive(Debug)]
 pub(crate) struct ParsedLanguageEntry {
     pub(crate) raw_name: String,
     pub(crate) language: LanguageIdentifier,

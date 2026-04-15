@@ -3,10 +3,12 @@ use es_fluent::__manager_core::{
     Localizer, ModuleData,
 };
 use es_fluent::{
-    FluentValue, GlobalLocalizationError, localize, set_shared_context, try_set_shared_context,
+    FluentValue, GlobalLocalizationError, localize, select_language, set_shared_context,
+    try_set_shared_context,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
+use unic_langid::langid;
 
 struct SharedModule;
 struct SharedLocalizer;
@@ -61,6 +63,7 @@ es_fluent::__inventory::submit! {
 fn shared_context_localizes_and_rejects_second_set() {
     let manager = Arc::new(FluentManager::new_with_discovered_modules());
     set_shared_context(manager);
+    select_language(&langid!("en-US")).expect("shared context should allow language selection");
 
     assert_eq!(localize("shared-key", None), "from-shared-context");
 

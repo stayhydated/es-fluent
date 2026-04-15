@@ -45,12 +45,24 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
         None
     }
 
-    /// Returns whether this registration can provide a runtime localizer.
+    /// Returns the registration kind for duplicate-resolution and discovery.
     ///
-    /// Implementations can override this to avoid constructing a localizer just
-    /// for capability checks during duplicate-resolution.
+    /// Implementations that can answer this without constructing a localizer
+    /// should override the default to keep discovery metadata-only.
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        if self.create_localizer().is_some() {
+            ModuleRegistrationKind::RuntimeLocalizer
+        } else {
+            ModuleRegistrationKind::MetadataOnly
+        }
+    }
+
+    /// Returns whether this registration can provide a runtime localizer.
     fn supports_runtime_localization(&self) -> bool {
-        self.create_localizer().is_some()
+        matches!(
+            self.registration_kind(),
+            ModuleRegistrationKind::RuntimeLocalizer
+        )
     }
 
     /// Returns an optional manifest-derived resource plan for a specific language.
@@ -73,6 +85,10 @@ pub trait I18nModule: I18nModuleDescriptor {
 impl<T: I18nModule> I18nModuleRegistration for T {
     fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
         Some(I18nModule::create_localizer(self))
+    }
+
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::RuntimeLocalizer
     }
 
     fn supports_runtime_localization(&self) -> bool {

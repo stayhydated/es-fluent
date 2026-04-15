@@ -366,6 +366,20 @@ fn test_available_languages_accepts_variant_language_directory() {
 }
 
 #[test]
+fn test_collect_language_entries_propagates_directory_iteration_errors() {
+    let err = collect_language_entries([Err(std::io::Error::new(
+        std::io::ErrorKind::PermissionDenied,
+        "boom",
+    ))])
+    .expect_err("directory iteration errors should not be dropped");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::ReadError(inner) if inner.kind() == std::io::ErrorKind::PermissionDenied
+    ));
+}
+
+#[test]
 fn test_fallback_language_identifier_accepts_variants() {
     let config = I18nConfig {
         fallback_language: "en-oxendict".to_string(),
