@@ -5,12 +5,17 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 pub(super) struct PathToCrateMap {
+    manifest_dirs: Vec<(PathBuf, String)>,
     src_dirs: Vec<(PathBuf, String)>,
     i18n_configs: IndexMap<PathBuf, String>,
 }
 
 pub(super) fn build_path_to_crate(valid_crates: &[&CrateInfo]) -> PathToCrateMap {
     PathToCrateMap {
+        manifest_dirs: valid_crates
+            .iter()
+            .map(|krate| (krate.manifest_dir.clone(), krate.name.clone()))
+            .collect(),
         src_dirs: valid_crates
             .iter()
             .map(|krate| (krate.src_dir.clone(), krate.name.clone()))
@@ -39,6 +44,15 @@ pub(super) fn process_file_events(
                 continue;
             }
 
+            if path
+                .file_name()
+                .is_some_and(|name| name == "Cargo.toml" || name == "build.rs")
+                && let Some(crate_name) = path_to_crate.match_manifest_path(path)
+            {
+                affected.insert(crate_name.to_string(), ());
+                continue;
+            }
+
             if path.extension().is_some_and(|ext| ext == "rs") {
                 if let Some(crate_name) = path_to_crate.match_src_path(path) {
                     affected.insert(crate_name.to_string(), ());
@@ -58,6 +72,13 @@ pub(super) fn process_file_events(
 }
 
 impl PathToCrateMap {
+    fn match_manifest_path(&self, path: &Path) -> Option<&str> {
+        self.manifest_dirs
+            .iter()
+            .find(|(manifest_dir, _)| path.parent() == Some(manifest_dir.as_path()))
+            .map(|(_, crate_name)| crate_name.as_str())
+    }
+
     fn match_src_path(&self, path: &Path) -> Option<&str> {
         self.src_dirs
             .iter()

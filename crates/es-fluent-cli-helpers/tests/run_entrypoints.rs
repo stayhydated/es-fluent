@@ -115,3 +115,29 @@ fn run_generate_entrypoint_supports_generate_and_clean_subcommands() {
             .exists()
     );
 }
+
+#[test]
+fn run_entrypoint_reports_invalid_config_without_panicking() {
+    let temp = tempdir().expect("tempdir");
+    let i18n_toml = temp.path().join("i18n.toml");
+    std::fs::write(&i18n_toml, "{not-valid").expect("write invalid config");
+
+    let run_bin = env!("CARGO_BIN_EXE_cli_helpers_run");
+    let generate_request = RunnerRequest::Generate {
+        crate_name: "unknown-crate".to_string(),
+        i18n_toml_path: i18n_toml.to_str().expect("path").to_string(),
+        mode: RunnerParseMode::Aggressive,
+        dry_run: true,
+    };
+
+    let output = Command::new(run_bin)
+        .current_dir(temp.path())
+        .arg(generate_request.encode().expect("encode generate request"))
+        .output()
+        .expect("run generate");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Configuration error"));
+    assert!(!stderr.contains("panicked"));
+}

@@ -44,6 +44,11 @@ It also implements:
 For user-facing labels, derive `EsFluent` on the generated enum and call
 `to_fluent_string()` instead of relying on `Display`.
 
+If you want to provide your own language-name translations, use
+`#[es_fluent_language(custom)]`. Custom mode skips the bundled
+`es-fluent-lang.ftl`, registers the enum with inventory, and allows locale
+folders that are not present in the bundled supported-language table.
+
 ### Feature Flags
 
 - `macros` (default): Enables the `#[es_fluent_language]` macro.

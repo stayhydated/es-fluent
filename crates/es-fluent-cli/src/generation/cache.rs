@@ -8,6 +8,38 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path) {
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+
+    if src_dir.exists() {
+        let walker = walkdir::WalkDir::new(src_dir);
+        for entry in walker.into_iter().filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.is_file() && path.extension().is_some_and(|e| e == "rs") {
+                files.push(path.to_path_buf());
+            }
+        }
+    }
+
+    files.sort();
+
+    for path in files {
+        if let Ok(content) = std::fs::read(&path) {
+            let relative_path = path.strip_prefix(src_dir).unwrap_or(&path);
+            let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
+            hasher.update(normalized_path.as_bytes());
+            hasher.update(&content);
+        }
+    }
+}
+
+fn hash_optional_file(hasher: &mut blake3::Hasher, label: &str, path: &Path) {
+    if let Ok(content) = std::fs::read(path) {
+        hasher.update(label.as_bytes());
+        hasher.update(&content);
+    }
+}
+
 /// Cache of cargo metadata results.
 ///
 /// Stores extracted dependency info keyed by Cargo.lock hash to avoid
@@ -56,50 +88,31 @@ impl MetadataCache {
     }
 }
 
-/// Compute blake3 hash of all .rs files in a source directory, plus the i18n.toml file.
+/// Compute blake3 hash of crate-local inputs that affect the monolithic runner and watch mode.
 ///
-/// Used for staleness detection - saving a file without modifications
-/// won't change the hash, avoiding unnecessary rebuilds.
-///
-/// The `i18n_toml_path` parameter includes the i18n.toml configuration file
-/// in the hash, so changes to settings like `fluent_feature` trigger rebuilds.
-pub fn compute_content_hash(src_dir: &Path, i18n_toml_path: Option<&Path>) -> String {
+/// This includes:
+/// - `src/**/*.rs`
+/// - `i18n.toml` when present
+/// - crate-local `Cargo.toml`
+/// - crate-local `build.rs`
+pub fn compute_crate_inputs_hash(
+    manifest_dir: &Path,
+    src_dir: &Path,
+    i18n_toml_path: Option<&Path>,
+) -> String {
     use blake3::Hasher;
 
     let mut hasher = Hasher::new();
-    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    hash_rs_sources(&mut hasher, src_dir);
 
-    if src_dir.exists() {
-        let walker = walkdir::WalkDir::new(src_dir);
-        for entry in walker.into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if path.is_file() && path.extension().is_some_and(|e| e == "rs") {
-                files.push(path.to_path_buf());
-            }
-        }
-    }
-
-    // Sort for deterministic order
-    files.sort();
-
-    // Hash path + content for each file
-    for path in files {
-        if let Ok(content) = std::fs::read(&path) {
-            let relative_path = path.strip_prefix(src_dir).unwrap_or(&path);
-            let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
-            hasher.update(normalized_path.as_bytes());
-            hasher.update(&content);
-        }
-    }
-
-    // Include i18n.toml if provided and exists
     if let Some(toml_path) = i18n_toml_path
         && toml_path.is_file()
-        && let Ok(content) = std::fs::read(toml_path)
     {
-        hasher.update(b"i18n.toml");
-        hasher.update(&content);
+        hash_optional_file(&mut hasher, "i18n.toml", toml_path);
     }
+
+    hash_optional_file(&mut hasher, "Cargo.toml", &manifest_dir.join("Cargo.toml"));
+    hash_optional_file(&mut hasher, "build.rs", &manifest_dir.join("build.rs"));
 
     hasher.finalize().to_hex().to_string()
 }
@@ -164,6 +177,29 @@ impl RunnerCache {
 mod tests {
     use super::*;
     use std::fs;
+
+    /// Compute blake3 hash of all .rs files in a source directory, plus the i18n.toml file.
+    ///
+    /// Used for staleness detection - saving a file without modifications
+    /// won't change the hash, avoiding unnecessary rebuilds.
+    ///
+    /// The `i18n_toml_path` parameter includes the i18n.toml configuration file
+    /// in the hash, so changes to settings like `fluent_feature` trigger rebuilds.
+    pub fn compute_content_hash(src_dir: &Path, i18n_toml_path: Option<&Path>) -> String {
+        use blake3::Hasher;
+
+        let mut hasher = Hasher::new();
+        hash_rs_sources(&mut hasher, src_dir);
+
+        // Include i18n.toml if provided and exists
+        if let Some(toml_path) = i18n_toml_path
+            && toml_path.is_file()
+        {
+            hash_optional_file(&mut hasher, "i18n.toml", toml_path);
+        }
+
+        hasher.finalize().to_hex().to_string()
+    }
 
     #[test]
     fn test_compute_content_hash_without_i18n_toml() {
@@ -232,6 +268,43 @@ mod tests {
 
         // Hash should differ when i18n.toml is included
         assert_ne!(hash_with_toml, hash_without_toml);
+    }
+
+    #[test]
+    fn test_compute_crate_inputs_hash_changes_when_crate_manifest_changes() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
+        fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let first = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None);
+        fs::write(
+            temp_dir.path().join("Cargo.toml"),
+            "[package]\nname = \"demo\"\nversion = \"0.2.0\"\n",
+        )
+        .unwrap();
+        let second = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None);
+
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn test_compute_crate_inputs_hash_changes_when_build_script_changes() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
+
+        let first = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None);
+        fs::write(temp_dir.path().join("build.rs"), "fn main() {}\n").unwrap();
+        let second = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None);
+
+        assert_ne!(first, second);
     }
 
     #[test]

@@ -16,6 +16,14 @@ pub use cli::write_inventory_for_crate;
 pub use es_fluent_runner::{ExpectedKey, InventoryData};
 pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs, GeneratorError};
 
+#[derive(Debug, thiserror::Error)]
+pub enum CliHelpersError {
+    #[error(transparent)]
+    Generator(#[from] GeneratorError),
+    #[error(transparent)]
+    RunnerIo(#[from] es_fluent_runner::RunnerIoError),
+}
+
 #[derive(Clone, Debug)]
 struct RunnerContext {
     crate_name: String,
@@ -29,19 +37,16 @@ enum GeneratorRun {
 }
 
 impl RunnerContext {
-    fn from_i18n_path(i18n_toml_path: &str, crate_name: &str) -> Self {
-        Self {
+    fn from_i18n_path(i18n_toml_path: &str, crate_name: &str) -> Result<Self, GeneratorError> {
+        Ok(Self {
             crate_name: crate_name.to_string(),
-            layout: ResolvedI18nLayout::from_config_path(i18n_toml_path)
-                .expect("Failed to read i18n.toml"),
-        }
+            layout: ResolvedI18nLayout::from_config_path(i18n_toml_path)?,
+        })
     }
 
-    fn write_changed_result(&self, changed: bool) {
+    fn write_changed_result(&self, changed: bool) -> Result<(), es_fluent_runner::RunnerIoError> {
         let result = RunnerResult { changed };
-        RunnerMetadataStore::new(".")
-            .write_result(&self.crate_name, &result)
-            .expect("Failed to write metadata result");
+        RunnerMetadataStore::new(".").write_result(&self.crate_name, &result)
     }
 }
 
@@ -66,17 +71,16 @@ fn run_generator_command(
     mode: FluentParseMode,
     dry_run: bool,
     run: GeneratorRun,
-) -> bool {
-    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name);
+) -> Result<bool, CliHelpersError> {
+    let ctx = RunnerContext::from_i18n_path(i18n_toml_path, crate_name)?;
     let generator = build_generator(&ctx, mode, dry_run);
     let changed = match run {
         GeneratorRun::Cli => generator.run_cli(),
         GeneratorRun::Generate => generator.generate(),
         GeneratorRun::Clean { all_locales } => generator.clean(all_locales, dry_run),
-    }
-    .expect("Failed to run generator");
-    ctx.write_changed_result(changed);
-    changed
+    }?;
+    ctx.write_changed_result(changed)?;
+    Ok(changed)
 }
 
 fn parse_mode(mode: RunnerParseMode) -> FluentParseMode {
@@ -86,7 +90,7 @@ fn parse_mode(mode: RunnerParseMode) -> FluentParseMode {
     }
 }
 
-fn run_request(request: RunnerRequest) {
+fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
     match request {
         RunnerRequest::Generate {
             crate_name,
@@ -100,7 +104,7 @@ fn run_request(request: RunnerRequest) {
                 parse_mode(mode),
                 dry_run,
                 GeneratorRun::Generate,
-            );
+            )?;
         },
         RunnerRequest::Clean {
             crate_name,
@@ -114,10 +118,12 @@ fn run_request(request: RunnerRequest) {
                 FluentParseMode::default(),
                 dry_run,
                 GeneratorRun::Clean { all_locales },
-            );
+            )?;
         },
-        RunnerRequest::Check { crate_name } => run_check(&crate_name),
+        RunnerRequest::Check { crate_name } => run_check(&crate_name)?,
     }
+
+    Ok(())
 }
 
 /// Run the FTL generation process for a crate.
@@ -128,8 +134,8 @@ fn run_request(request: RunnerRequest) {
 /// - Runs the es-fluent generator
 /// - Writes the result status to result.json
 ///
-/// Returns `true` if any FTL files were modified, `false` otherwise.
-pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> bool {
+/// Returns `Ok(true)` if any FTL files were modified, `Ok(false)` otherwise.
+pub fn run_generate(i18n_toml_path: &str, crate_name: &str) -> Result<bool, CliHelpersError> {
     run_generator_command(
         i18n_toml_path,
         crate_name,
@@ -147,7 +153,7 @@ pub fn run_generate_with_options(
     crate_name: &str,
     mode: FluentParseMode,
     dry_run: bool,
-) -> bool {
+) -> Result<bool, CliHelpersError> {
     run_generator_command(
         i18n_toml_path,
         crate_name,
@@ -160,8 +166,9 @@ pub fn run_generate_with_options(
 /// Run the inventory check process for a crate.
 ///
 /// This writes the collected inventory data for the specified crate.
-pub fn run_check(crate_name: &str) {
-    write_inventory_for_crate(crate_name);
+pub fn run_check(crate_name: &str) -> Result<(), CliHelpersError> {
+    write_inventory_for_crate(crate_name)?;
+    Ok(())
 }
 
 /// Run the FTL clean process with explicit options (no CLI parsing).
@@ -172,7 +179,7 @@ pub fn run_clean_with_options(
     crate_name: &str,
     all_locales: bool,
     dry_run: bool,
-) -> bool {
+) -> Result<bool, CliHelpersError> {
     run_generator_command(
         i18n_toml_path,
         crate_name,
@@ -195,7 +202,10 @@ pub fn run() {
         eprintln!("Failed to decode runner request: {error}");
         std::process::exit(1);
     });
-    run_request(request);
+    if let Err(error) = run_request(request) {
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
 }
 
 #[cfg(test)]
@@ -241,7 +251,8 @@ mod tests {
                 "missing-crate",
                 FluentParseMode::Conservative,
                 false,
-            );
+            )
+            .expect("run generate");
             assert_eq!(changed, read_changed_result(cwd, "missing-crate"));
 
             let clean_changed = run_clean_with_options(
@@ -249,7 +260,8 @@ mod tests {
                 "missing-crate",
                 true,
                 true,
-            );
+            )
+            .expect("run clean");
             assert_eq!(clean_changed, read_changed_result(cwd, "missing-crate"));
         });
     }
@@ -257,12 +269,26 @@ mod tests {
     #[test]
     fn run_check_writes_inventory_json_for_requested_crate() {
         with_temp_cwd(|cwd| {
-            run_check("unknown-crate");
+            run_check("unknown-crate").expect("run check");
 
             let value = RunnerMetadataStore::new(cwd)
                 .read_inventory("unknown-crate")
                 .expect("read inventory");
             assert_eq!(value.expected_keys.len(), 0);
+        });
+    }
+
+    #[test]
+    fn run_generate_returns_structured_error_for_invalid_config() {
+        with_temp_cwd(|cwd| {
+            let i18n_path = cwd.join("i18n.toml");
+            std::fs::write(&i18n_path, "{not-valid").expect("write invalid i18n.toml");
+
+            let err = run_generate(i18n_path.to_str().expect("path"), "missing-crate")
+                .expect_err("invalid config should return an error");
+            let rendered = err.to_string();
+            assert!(rendered.contains("Configuration error"));
+            assert!(!rendered.contains("panicked"));
         });
     }
 }

@@ -81,3 +81,4 @@ In custom mode:
 
 - The enum **is** registered with inventory, so `cargo es-fluent generate` will create keys for it in your FTL files.
 - You provide your own translations instead of using the bundled autonyms.
+- Locale folders do **not** need to exist in the bundled `es-fluent-lang` locale table. Use this when your app ships custom language-name translations for project-specific or otherwise unsupported locale tags.

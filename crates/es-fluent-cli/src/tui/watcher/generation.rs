@@ -5,9 +5,17 @@ use std::sync::Arc;
 use std::sync::mpsc::Sender;
 use std::thread;
 
-/// Compute a hash of all .rs files in the src directory and the i18n.toml file using blake3.
-pub(super) fn compute_src_hash(src_dir: &Path, i18n_config_path: &Path) -> String {
-    crate::generation::cache::compute_content_hash(src_dir, Some(i18n_config_path))
+/// Compute a hash of the crate-local inputs that affect watch-mode generation.
+pub(super) fn compute_watch_inputs_hash(
+    manifest_dir: &Path,
+    src_dir: &Path,
+    i18n_config_path: &Path,
+) -> String {
+    crate::generation::cache::compute_crate_inputs_hash(
+        manifest_dir,
+        src_dir,
+        Some(i18n_config_path),
+    )
 }
 
 /// Spawn a thread to generate for a single crate using the monolithic approach.

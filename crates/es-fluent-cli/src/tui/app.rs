@@ -25,6 +25,8 @@ pub struct TuiApp<'a> {
     pub states: IndexMap<String, CrateState>,
     /// Whether the app should quit.
     pub should_quit: bool,
+    /// Last file-watcher error reported by the runtime.
+    watch_error: Option<String>,
     /// Throbber state for the "generating" animation.
     pub throbber_state: ThrobberState,
     /// How often to advance the animation.
@@ -49,6 +51,7 @@ impl<'a> TuiApp<'a> {
             crates,
             states,
             should_quit: false,
+            watch_error: None,
             throbber_state: ThrobberState::default(),
             tick_interval: DEFAULT_TICK_INTERVAL,
             last_tick: Instant::now(),
@@ -113,9 +116,8 @@ impl<'a> TuiApp<'a> {
                 true
             },
             Message::WatchError { error } => {
-                // Errors are already visible in the crate state
-                drop(error);
-                false
+                self.watch_error = Some(error);
+                true
             },
         }
     }
@@ -130,12 +132,21 @@ fn get_throbber_symbol(state: &ThrobberState) -> &'static str {
 
 /// Draws the TUI.
 pub fn draw(frame: &mut Frame, app: &TuiApp) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
+    let constraints = if app.watch_error.is_some() {
+        vec![
+            Constraint::Length(3), // Header
+            Constraint::Length(3), // Watcher error
+            Constraint::Min(0),    // Crate list
+        ]
+    } else {
+        vec![
             Constraint::Length(3), // Header
             Constraint::Min(0),    // Crate list
-        ])
+        ]
+    };
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
         .split(frame.area());
 
     // Header
@@ -147,6 +158,20 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         )
         .block(Block::default().borders(Borders::BOTTOM));
     frame.render_widget(header, chunks[0]);
+
+    let crate_list_chunk = if let Some(error) = &app.watch_error {
+        let watcher_error = Paragraph::new(error.as_str())
+            .style(Style::default().fg(Color::Red))
+            .block(
+                Block::default()
+                    .borders(Borders::BOTTOM)
+                    .title("Watcher Error"),
+            );
+        frame.render_widget(watcher_error, chunks[1]);
+        chunks[2]
+    } else {
+        chunks[1]
+    };
 
     // Crate list
     let throbber_symbol = get_throbber_symbol(&app.throbber_state);
@@ -220,7 +245,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         .collect();
 
     let crate_list = List::new(items).block(Block::default().borders(Borders::ALL).title("Crates"));
-    frame.render_widget(crate_list, chunks[1]);
+    frame.render_widget(crate_list, crate_list_chunk);
 }
 
 /// Polls for keyboard events with a timeout.
@@ -267,6 +292,7 @@ mod tests {
             Some(CrateState::MissingLibRs)
         ));
         assert!(!app.should_quit);
+        assert!(app.watch_error.is_none());
     }
 
     #[test]
@@ -317,9 +343,10 @@ mod tests {
             Some(CrateState::Error { message }) if message == "boom"
         ));
 
-        assert!(!app.update(Message::WatchError {
+        assert!(app.update(Message::WatchError {
             error: "watch failed".to_string(),
         }));
+        assert_eq!(app.watch_error.as_deref(), Some("watch failed"));
         assert!(!app.update(Message::Quit));
         assert!(app.should_quit);
     }
@@ -375,6 +402,19 @@ mod tests {
             },
         );
         app.states.shift_remove("pending");
+
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).expect("create terminal");
+        terminal.draw(|f| draw(f, &app)).expect("draw");
+    }
+
+    #[test]
+    fn draw_renders_watcher_error_banner_without_panicking() {
+        let crates = vec![test_crate("a", true)];
+        let mut app = TuiApp::new(&crates);
+        app.update(Message::WatchError {
+            error: "filesystem watcher disconnected".to_string(),
+        });
 
         let backend = TestBackend::new(80, 20);
         let mut terminal = Terminal::new(backend).expect("create terminal");
