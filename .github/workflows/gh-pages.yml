@@ -50,18 +50,6 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build WASM items
-        run: bun run build:wasm
-        env:
-          RUSTC_WRAPPER: ""
-
-      - name: Verify es-fluent-lang is linked in wasm
-        run: |
-          if ! grep -aq "es-fluent-lang-en = English" web/public/bevy-example/bevy-example_bg.wasm; then
-            echo "Missing es-fluent-lang autonym resource in wasm output"
-            exit 1
-          fi
-
       - name: Build Astro site
         run: bun run build:web
 

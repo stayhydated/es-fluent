@@ -1,0 +1,19 @@
+{
+  "$schema": "./wasm-examples.schema.json",
+  "examples": [
+    {
+      "id": "bevy-example",
+      "crate_dir": "examples/bevy-example",
+      "out_dir": "web/public/bevy-example",
+      "out_name": "bevy-example",
+      "wasm_pack_args": ["--release", "--target", "web", "--no-default-features"],
+      "copy": [
+        {
+          "source": "examples/assets",
+          "destination": "web/public/bevy-example/assets"
+        }
+      ],
+      "required_markers": ["es-fluent-lang-en = English"]
+    }
+  ]
+}
