@@ -176,6 +176,26 @@ pub struct EmbeddedI18nModule<T: EmbeddedAssets> {
     _phantom: std::marker::PhantomData<T>,
 }
 
+fn language_from_embedded_asset_path(file_path: &str, domain: &str) -> Option<LanguageIdentifier> {
+    let mut segments = file_path.split('/');
+    let language = segments.next()?;
+    let next = segments.next()?;
+
+    let matches_domain = if next == format!("{domain}.ftl") {
+        segments.next().is_none()
+    } else if next == domain {
+        file_path.rsplit('/').next()?.ends_with(".ftl")
+    } else {
+        false
+    };
+
+    if matches_domain {
+        language.parse::<LanguageIdentifier>().ok()
+    } else {
+        None
+    }
+}
+
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
     pub const fn new(data: &'static ModuleData) -> Self {
         Self {
@@ -186,30 +206,14 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
 
     pub fn discover_languages() -> Vec<LanguageIdentifier> {
         let domain = T::domain();
-        let file_name = format!("{}.ftl", domain);
         let mut languages = Vec::new();
         let mut seen = std::collections::HashSet::new();
 
         for file_path in T::iter() {
             let file_path_str = file_path.as_ref();
-
-            // Check for main domain file: {lang}/{domain}.ftl
-            if file_path_str.ends_with(&file_name) {
-                let suffix = format!("/{}", file_name);
-                if let Some(lang_part) = file_path_str.strip_suffix(&suffix)
-                    && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
-                    && seen.insert(lang_id.clone())
-                {
-                    languages.push(lang_id);
-                }
-            }
-
-            // Check for namespaced files: {lang}/{domain}/{namespace}.ftl
-            if let Some(parent) = std::path::Path::new(file_path_str).parent()
-                && let Some(parent_str) = parent.to_str()
-                && parent_str.ends_with(&format!("/{}", domain))
-                && let Some(lang_part) = parent_str.strip_suffix(&format!("/{}", domain))
-                && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
+            // Discover locales from either `{lang}/{domain}.ftl` or nested
+            // namespaced files like `{lang}/{domain}/ui/button.ftl`.
+            if let Some(lang_id) = language_from_embedded_asset_path(file_path_str, domain)
                 && seen.insert(lang_id.clone())
             {
                 languages.push(lang_id);
@@ -269,6 +273,16 @@ mod tests {
         }
     }
 
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_nested"]
+    struct NestedNamespaceAssets;
+
+    impl EmbeddedAssets for NestedNamespaceAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -297,6 +311,13 @@ mod tests {
         supported_languages: OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
+    static NESTED_NAMESPACE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static NESTED_NAMESPACE_MODULE_DATA: ModuleData = ModuleData {
+        name: "nested-namespace-module",
+        domain: "test-domain",
+        supported_languages: NESTED_NAMESPACE_SUPPORTED_LANGUAGES,
+        namespaces: &["ui/button"],
+    };
 
     #[test]
     fn discover_languages_collects_and_sorts_unique_languages() {
@@ -305,6 +326,12 @@ mod tests {
             languages,
             vec![langid!("en"), langid!("en-GB"), langid!("fr")]
         );
+    }
+
+    #[test]
+    fn discover_languages_includes_locales_with_only_nested_namespace_files() {
+        let languages = EmbeddedI18nModule::<NestedNamespaceAssets>::discover_languages();
+        assert_eq!(languages, vec![langid!("en")]);
     }
 
     #[test]
@@ -419,6 +446,20 @@ mod tests {
         assert_eq!(
             localizer.localize("hello", None),
             Some("Hello from optional-base fixture".to_string())
+        );
+    }
+
+    #[test]
+    fn embedded_localizer_loads_nested_namespace_files() {
+        let localizer =
+            EmbeddedLocalizer::<NestedNamespaceAssets>::new(&NESTED_NAMESPACE_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("nested namespace file should make the locale ready");
+        assert_eq!(
+            localizer.localize("nested-title", None),
+            Some("Nested UI Button".to_string())
         );
     }
 }

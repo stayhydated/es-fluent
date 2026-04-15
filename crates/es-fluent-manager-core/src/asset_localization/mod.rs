@@ -96,6 +96,26 @@ mod tests {
     }
 
     #[test]
+    fn resource_plan_with_nested_namespaces_preserves_relative_paths() {
+        let plan = resource_plan_for("app", &["ui/button"]);
+        assert_eq!(
+            plan,
+            vec![
+                ModuleResourceSpec {
+                    key: ResourceKey::new("app"),
+                    locale_relative_path: "app.ftl".to_string(),
+                    required: false
+                },
+                ModuleResourceSpec {
+                    key: ResourceKey::new("app/ui/button"),
+                    locale_relative_path: "app/ui/button.ftl".to_string(),
+                    required: true
+                }
+            ]
+        );
+    }
+
+    #[test]
     fn resource_plan_deduplicates_duplicate_namespaces() {
         let plan = resource_plan_for("app", &["ui", "ui"]);
         assert_eq!(plan.len(), 2);
@@ -142,7 +162,8 @@ mod tests {
     #[test]
     fn validate_module_registry_rejects_duplicates_and_invalid_namespaces() {
         static DUP_LANGUAGE: &[LanguageIdentifier] = &[langid!("en"), langid!("en")];
-        static INVALID_NAMESPACES: &[&str] = &["ui", "ui", "", "errors.ftl", "bad/path"];
+        static INVALID_NAMESPACES: &[&str] =
+            &["ui", "ui", "", "errors.ftl", "bad//path", r"bad\path"];
         static BAD_DATA: ModuleData = ModuleData {
             name: "test-module",
             domain: "test-domain",
@@ -174,6 +195,33 @@ mod tests {
             err,
             ModuleRegistryError::DuplicateNamespace { module, namespace } if module == "test-module" && namespace == "ui"
         )));
+        assert!(errs.iter().any(|err| matches!(
+            err,
+            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+                if module == "test-module"
+                    && namespace == "bad//path"
+                    && details == &"namespace path must not contain empty segments"
+        )));
+        assert!(errs.iter().any(|err| matches!(
+            err,
+            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+                if module == "test-module"
+                    && namespace == r"bad\path"
+                    && details == &"namespace must use '/' as path separator"
+        )));
+    }
+
+    #[test]
+    fn validate_module_registry_accepts_path_based_namespaces() {
+        static PATH_NAMESPACES: &[&str] = &["ui/button", "errors/forms"];
+        static PATH_DATA: ModuleData = ModuleData {
+            name: "path-module",
+            domain: "path-domain",
+            supported_languages: SUPPORTED,
+            namespaces: PATH_NAMESPACES,
+        };
+
+        validate_module_registry([&PATH_DATA]).expect("path-based namespaces should be valid");
     }
 
     #[test]

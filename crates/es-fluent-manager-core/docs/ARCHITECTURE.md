@@ -67,7 +67,8 @@ Common metadata contract for manager discovery.
 - Returns a shared `ModuleData` shape (`name`, `domain`, languages, namespaces).
 - Enables metadata-only registration for managers that don't create `Localizer`s (for example Bevy runtime asset loading).
 - Namespace semantics are shared across managers: when `namespaces` is non-empty,
-  the namespace list records the module's known split files, while managers can
+  the namespace list records the module's known split files using canonical
+  forward-slash paths like `ui` or `ui/button`, while managers can
   use a more precise per-language resource plan when one is available.
 
 ### `I18nModuleRegistration`

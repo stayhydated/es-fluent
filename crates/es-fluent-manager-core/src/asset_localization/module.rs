@@ -15,7 +15,7 @@ pub struct ModuleData {
     pub domain: &'static str,
     /// Languages that this module can provide.
     pub supported_languages: &'static [LanguageIdentifier],
-    /// Namespaces used by the module (e.g., "ui", "errors").
+    /// Namespaces used by the module (e.g., "ui", "ui/button").
     /// If empty, only the main `{domain}.ftl` file is used.
     /// If non-empty, namespace files are the canonical resources and managers
     /// treat `{domain}.ftl` as optional compatibility data.
@@ -99,7 +99,9 @@ impl std::error::Error for ModuleRegistryError {}
 /// - `name` and `domain` must be non-empty.
 /// - `name` and `domain` must be globally unique.
 /// - `supported_languages` and `namespaces` must not contain duplicates.
-/// - Namespaces must be bare namespace names (no slash and no `.ftl` suffix).
+/// - Namespaces use canonical forward-slash paths such as `ui` or `ui/button`.
+/// - Namespace paths must not be empty, contain empty segments, use backslashes,
+///   or include the `.ftl` suffix.
 pub fn validate_module_registry<'a>(
     modules: impl IntoIterator<Item = &'a ModuleData>,
 ) -> Result<(), Vec<ModuleRegistryError>> {
@@ -147,11 +149,18 @@ pub fn validate_module_registry<'a>(
                 });
                 continue;
             }
-            if trimmed.contains('/') {
+            if trimmed.contains('\\') {
                 errors.push(ModuleRegistryError::InvalidNamespace {
                     module: data.name.to_string(),
                     namespace: namespace.to_string(),
-                    details: "namespace must not contain '/'",
+                    details: "namespace must use '/' as path separator",
+                });
+            }
+            if trimmed.split('/').any(|segment| segment.is_empty()) {
+                errors.push(ModuleRegistryError::InvalidNamespace {
+                    module: data.name.to_string(),
+                    namespace: namespace.to_string(),
+                    details: "namespace path must not contain empty segments",
                 });
             }
             if trimmed.ends_with(".ftl") {

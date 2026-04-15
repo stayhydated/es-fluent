@@ -54,9 +54,9 @@ impl fmt::Display for ResourceKey {
 /// Canonical description of a single localized resource file.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ModuleResourceSpec {
-    /// Stable resource key used by managers (e.g., `my-crate`, `my-crate/ui`).
+    /// Stable resource key used by managers (e.g., `my-crate`, `my-crate/ui`, `my-crate/ui/button`).
     pub key: ResourceKey,
-    /// Path under a locale root (e.g., `my-crate.ftl`, `my-crate/ui.ftl`).
+    /// Path under a locale root (e.g., `my-crate.ftl`, `my-crate/ui.ftl`, `my-crate/ui/button.ftl`).
     pub locale_relative_path: String,
     /// Whether this resource is required for locale readiness.
     pub required: bool,
