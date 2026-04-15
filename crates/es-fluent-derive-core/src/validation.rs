@@ -7,7 +7,7 @@ use crate::options::r#struct::StructOpts;
 use crate::options::{
     EnumDataOptions as _, FluentField as _, StructDataOptions as _, VariantFields as _,
 };
-use es_fluent_toml::I18nConfig;
+use es_fluent_toml::{I18nConfig, I18nConfigError};
 
 /// Validates the `es-fluent` attributes on a struct.
 /// Currently only checks that at most one field is marked `#[fluent(default)]`.
@@ -188,7 +188,20 @@ pub fn validate_namespace(
     // Try to read the config; if it doesn't exist, skip validation
     let config = match I18nConfig::read_from_manifest_dir() {
         Ok(c) => c,
-        Err(_) => return Ok(()), // No config file, no validation
+        Err(I18nConfigError::NotFound) => return Ok(()),
+        Err(error) => {
+            return Err(EsFluentCoreError::AttributeError {
+                message: format!(
+                    "failed to read i18n.toml while validating namespace '{}': {}",
+                    literal_value, error
+                ),
+                span,
+            }
+            .with_help(
+                "fix the i18n.toml configuration or remove it to skip namespace allowlist validation"
+                    .to_string(),
+            ));
+        },
     };
 
     // If namespaces aren't configured, allow any value

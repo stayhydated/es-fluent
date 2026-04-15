@@ -63,6 +63,12 @@ static FILTER_EXACT_DUP_DATA: ModuleData = ModuleData {
     supported_languages: &[],
     namespaces: &[],
 };
+static FILTER_EXACT_DUP_RUNTIME_MISMATCH_DATA: ModuleData = ModuleData {
+    name: "filter-exact-module",
+    domain: "filter-exact-domain",
+    supported_languages: &[langid!("en")],
+    namespaces: &["ui"],
+};
 static FILTER_DESCRIPTOR: StaticModuleDescriptor = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
 static FILTER_DUP_NAME_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_DUP_NAME_DATA);
@@ -79,6 +85,7 @@ struct StatefulSuccessModule;
 struct StatefulFailModule;
 struct FilterRuntimeModule;
 struct FilterRuntimeModuleTwo;
+struct FilterRuntimeMismatchModule;
 struct ExplicitRuntimeRegistration;
 
 struct LocalizerOk;
@@ -228,6 +235,18 @@ impl I18nModule for FilterRuntimeModuleTwo {
     }
 }
 
+impl I18nModuleDescriptor for FilterRuntimeMismatchModule {
+    fn data(&self) -> &'static ModuleData {
+        &FILTER_EXACT_DUP_RUNTIME_MISMATCH_DATA
+    }
+}
+
+impl I18nModule for FilterRuntimeMismatchModule {
+    fn create_localizer(&self) -> Box<dyn Localizer> {
+        Box::new(FilterRuntimeLocalizer)
+    }
+}
+
 impl I18nModuleDescriptor for StatefulSuccessModule {
     fn data(&self) -> &'static ModuleData {
         &STATEFUL_SUCCESS_DATA
@@ -275,6 +294,7 @@ static STATEFUL_SUCCESS_MODULE: StatefulSuccessModule = StatefulSuccessModule;
 static STATEFUL_FAIL_MODULE: StatefulFailModule = StatefulFailModule;
 static FILTER_RUNTIME_MODULE: FilterRuntimeModule = FilterRuntimeModule;
 static FILTER_RUNTIME_MODULE_TWO: FilterRuntimeModuleTwo = FilterRuntimeModuleTwo;
+static FILTER_RUNTIME_MISMATCH_MODULE: FilterRuntimeMismatchModule = FilterRuntimeMismatchModule;
 static EXPLICIT_RUNTIME_REGISTRATION: ExplicitRuntimeRegistration = ExplicitRuntimeRegistration;
 
 inventory::submit! {
@@ -490,6 +510,25 @@ fn try_filter_module_registry_rejects_duplicate_runtime_registrations() {
                 kind: ModuleRegistrationKind::RuntimeLocalizer,
                 count: 2,
             } if name == "filter-exact-module" && domain == "filter-exact-domain"
+        )
+    }));
+}
+
+#[test]
+fn try_filter_module_registry_rejects_mismatched_metadata_runtime_pairing() {
+    let errors = match try_filter_module_registry([
+        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+        &FILTER_RUNTIME_MISMATCH_MODULE as &dyn I18nModuleRegistration,
+    ]) {
+        Ok(_) => panic!("strict discovery should reject mismatched paired metadata"),
+        Err(errors) => errors,
+    };
+
+    assert!(errors.iter().any(|error| {
+        matches!(
+            error,
+            ModuleDiscoveryError::InconsistentModuleMetadata { name, domain }
+                if name == "filter-exact-module" && domain == "filter-exact-domain"
         )
     }));
 }

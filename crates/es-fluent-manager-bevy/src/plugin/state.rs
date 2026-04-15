@@ -1,7 +1,7 @@
 use crate::*;
 use arc_swap::ArcSwap;
 use bevy::prelude::*;
-use es_fluent_manager_core::{FluentManager, localize_with_bundle};
+use es_fluent_manager_core::{FluentManager, LocalizationError, localize_with_bundle};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -93,14 +93,26 @@ pub fn update_global_bundle(bundle: I18nBundle) {
 }
 
 #[doc(hidden)]
-pub fn update_global_language(lang: LanguageIdentifier) {
+pub fn try_update_global_language(lang: LanguageIdentifier) -> Result<(), LocalizationError> {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
         if let Some(fallback_manager) = &old_state.fallback_manager {
-            let _ = fallback_manager.select_language(&lang);
+            fallback_manager.select_language(&lang)?;
         }
         let new_state = BevyI18nState::clone(&old_state).with_language(lang);
         state_swap.store(Arc::new(new_state));
+    }
+
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn update_global_language(lang: LanguageIdentifier) {
+    if let Err(error) = try_update_global_language(lang) {
+        warn!(
+            "Skipping global Bevy locale update because the fallback manager rejected the switch: {}",
+            error
+        );
     }
 }
 

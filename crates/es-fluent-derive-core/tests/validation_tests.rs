@@ -7,7 +7,42 @@ use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_derive_core::validation::{
     validate_enum, validate_namespace, validate_namespace_against_allowed, validate_struct,
 };
+use std::sync::{LazyLock, Mutex};
 use syn::{DeriveInput, parse_quote};
+use tempfile::tempdir;
+
+static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
+    let _guard = ENV_LOCK.lock().expect("lock poisoned");
+    let previous = std::env::var("CARGO_MANIFEST_DIR").ok();
+
+    match manifest_dir {
+        Some(path) => {
+            // SAFETY: tests serialize environment updates with a global lock.
+            unsafe { std::env::set_var("CARGO_MANIFEST_DIR", path) };
+        },
+        None => {
+            // SAFETY: tests serialize environment updates with a global lock.
+            unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
+        },
+    }
+
+    let result = f();
+
+    match previous {
+        Some(path) => {
+            // SAFETY: tests serialize environment updates with a global lock.
+            unsafe { std::env::set_var("CARGO_MANIFEST_DIR", path) };
+        },
+        None => {
+            // SAFETY: tests serialize environment updates with a global lock.
+            unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
+        },
+    }
+
+    result
+}
 
 mod validate_struct_tests {
     use super::*;
@@ -301,9 +336,25 @@ mod validate_namespace_tests {
         // This test runs without setting up a config file, so it relies on
         // the graceful fallback behavior.
         let ns = NamespaceValue::Literal("any_namespace".into());
-        // This will pass because there's no i18n.toml in the test environment
-        // or the config doesn't have namespaces configured
-        validate_namespace(&ns, None).expect("Should pass when no config exists");
+        with_manifest_dir(None, || {
+            validate_namespace(&ns, None).expect("Should pass when no config exists");
+        });
+    }
+
+    #[test]
+    fn literal_namespace_reports_parse_errors_from_config() {
+        let temp = tempdir().expect("tempdir");
+        std::fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write i18n.toml");
+        let ns = NamespaceValue::Literal("ui".into());
+
+        let err = with_manifest_dir(Some(temp.path()), || {
+            validate_namespace(&ns, None).expect_err("invalid config should be surfaced")
+        });
+
+        let rendered = err.to_string();
+        assert!(rendered.contains("failed to read i18n.toml"));
+        assert!(rendered.contains("ui"));
+        assert!(rendered.contains("fix the i18n.toml configuration"));
     }
 }
 

@@ -145,6 +145,8 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             }
         }
 
+        // Preserve the last ready bundle on failure so callers can keep using
+        // the previous locale until a new ready locale is selected.
         Err(LocalizationError::LanguageNotSupported(lang.clone()))
     }
 
@@ -482,6 +484,29 @@ mod tests {
             .select_language(&langid!("de"))
             .expect_err("unsupported language should fail");
         assert!(matches!(de_err, LocalizationError::LanguageNotSupported(_)));
+    }
+
+    #[test]
+    fn embedded_localizer_keeps_previous_bundle_when_selection_fails() {
+        let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("en should load successfully");
+        assert_eq!(
+            localizer.localize("ui-title", None),
+            Some("UI Title".to_string())
+        );
+
+        let err = localizer
+            .select_language(&langid!("fr"))
+            .expect_err("fr should fail because the embedded resource is invalid");
+        assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
+        assert_eq!(
+            localizer.localize("ui-title", None),
+            Some("UI Title".to_string()),
+            "failed switches should keep the last ready locale active"
+        );
     }
 
     #[test]

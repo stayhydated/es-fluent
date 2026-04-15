@@ -163,7 +163,7 @@ impl I18nAssets {
         })?;
 
         let mut namespaces = BTreeSet::new();
-        let mut languages = BTreeSet::new();
+        let mut discovered_languages = BTreeSet::new();
         let mut base_file_languages = BTreeSet::new();
         let mut namespaces_by_language: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
@@ -195,7 +195,7 @@ impl I18nAssets {
                 };
 
                 if has_main_file || !discovered_namespaces.is_empty() {
-                    languages.insert(lang_code.to_string());
+                    discovered_languages.insert(lang_code.to_string());
                 }
                 if has_main_file {
                     base_file_languages.insert(lang_code.to_string());
@@ -213,8 +213,19 @@ impl I18nAssets {
             }
         }
 
-        let languages: Vec<String> = languages.into_iter().collect();
         let namespaces: Vec<String> = namespaces.into_iter().collect();
+        let languages: Vec<String> = if namespaces.is_empty() {
+            discovered_languages.into_iter().collect()
+        } else {
+            discovered_languages
+                .into_iter()
+                .filter(|lang| {
+                    namespaces_by_language.get(lang).is_some_and(|found| {
+                        namespaces.iter().all(|namespace| found.contains(namespace))
+                    })
+                })
+                .collect()
+        };
         let mut resource_specs_by_language = Vec::with_capacity(languages.len());
 
         for lang in &languages {
@@ -394,22 +405,11 @@ mod tests {
 
             let mut languages = assets.languages.clone();
             languages.sort();
-            assert_eq!(languages, vec!["en".to_string(), "fr".to_string()]);
+            assert_eq!(languages, vec!["fr".to_string()]);
 
             let mut namespaces = assets.namespaces.clone();
             namespaces.sort();
             assert_eq!(namespaces, vec!["ui".to_string()]);
-
-            let en_specs = assets
-                .resource_specs_by_language
-                .iter()
-                .find(|(lang, _)| lang == "en")
-                .map(|(_, specs)| specs)
-                .expect("en specs");
-            assert_eq!(en_specs.len(), 1);
-            assert_eq!(en_specs[0].key, "my-crate");
-            assert_eq!(en_specs[0].locale_relative_path, "my-crate.ftl");
-            assert!(!en_specs[0].required);
 
             let fr_specs = assets
                 .resource_specs_by_language
@@ -417,16 +417,20 @@ mod tests {
                 .find(|(lang, _)| lang == "fr")
                 .map(|(_, specs)| specs)
                 .expect("fr specs");
-            assert_eq!(fr_specs.len(), 1);
-            assert_eq!(fr_specs[0].key, "my-crate/ui");
-            assert_eq!(fr_specs[0].locale_relative_path, "my-crate/ui.ftl");
-            assert!(fr_specs[0].required);
+            assert_eq!(
+                fr_specs,
+                &vec![ResourceSpec {
+                    key: "my-crate/ui".to_string(),
+                    locale_relative_path: "my-crate/ui.ftl".to_string(),
+                    required: true,
+                }]
+            );
 
             assert_eq!(
                 assets
                     .language_identifier_tokens(&quote!(::es_fluent_manager_bevy::__unic_langid))
                     .len(),
-                2
+                1
             );
             assert_eq!(assets.namespace_tokens().len(), 1);
         });
@@ -451,24 +455,9 @@ mod tests {
 
             let mut languages = assets.languages.clone();
             languages.sort();
-            assert_eq!(languages, vec!["en".to_string(), "fr".to_string()]);
+            assert_eq!(languages, vec!["fr".to_string()]);
 
             assert_eq!(assets.namespaces, vec!["ui/button".to_string()]);
-
-            let en_specs = assets
-                .resource_specs_by_language
-                .iter()
-                .find(|(lang, _)| lang == "en")
-                .map(|(_, specs)| specs)
-                .expect("en specs");
-            assert_eq!(
-                en_specs,
-                &vec![ResourceSpec {
-                    key: "my-crate".to_string(),
-                    locale_relative_path: "my-crate.ftl".to_string(),
-                    required: false,
-                }]
-            );
 
             let fr_specs = assets
                 .resource_specs_by_language

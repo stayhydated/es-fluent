@@ -7,7 +7,7 @@ use unic_langid::LanguageIdentifier;
 ///
 /// This single shape is shared by all managers (embedded, Bevy, and future
 /// third-party backends) so module discovery and routing can be standardized.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ModuleData {
     /// The unique module name (typically crate name).
     pub name: &'static str,
