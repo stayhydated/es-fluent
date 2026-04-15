@@ -15,7 +15,7 @@ pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     let mut any_changed = false;
 
     let operation = crate::pipeline::OutputOperation::Clean;
-    for output in crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items) {
+    for output in crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)? {
         if crate::pipeline::apply_output_operation(output, &operation, dry_run)? {
             any_changed = true;
         }

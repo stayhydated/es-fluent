@@ -72,7 +72,13 @@ fn path_to_namespace(path: &Path) -> String {
             Component::Normal(segment) => {
                 parts.push(segment.to_string_lossy().into_owned());
             },
-            Component::ParentDir => parts.push("..".to_string()),
+            Component::ParentDir => {
+                if parts.last().is_some_and(|last| last != "..") {
+                    parts.pop();
+                } else {
+                    parts.push("..".to_string());
+                }
+            },
             Component::CurDir => {},
             Component::RootDir | Component::Prefix(_) => {},
         }

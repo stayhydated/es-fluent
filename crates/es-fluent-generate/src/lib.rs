@@ -58,7 +58,7 @@ pub fn generate<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     let mut any_changed = false;
 
     let operation = OutputOperation::Generate(mode);
-    for output in plan_outputs(crate_name, i18n_path, manifest_dir, items) {
+    for output in plan_outputs(crate_name, i18n_path, manifest_dir, items)? {
         if apply_output_operation(output, &operation, dry_run)? {
             any_changed = true;
         }

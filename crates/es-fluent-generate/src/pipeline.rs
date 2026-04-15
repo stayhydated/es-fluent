@@ -4,10 +4,12 @@ use crate::formatting;
 use crate::io::{read_existing_resource, write_updated_resource};
 use crate::merge::{MergeBehavior, smart_merge};
 use es_fluent_shared::EsFluentResult;
+use es_fluent_shared::namespace::validate_namespace_path;
 use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::{ast, serializer};
 use indexmap::IndexMap;
 use std::fs;
+use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
 pub(crate) struct PlannedOutput<'a> {
@@ -49,16 +51,27 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
     i18n_path: &Path,
     manifest_dir: &Path,
     items: &'a [I],
-) -> Vec<PlannedOutput<'a>> {
+) -> EsFluentResult<Vec<PlannedOutput<'a>>> {
     let items_ref: Vec<&'a FtlTypeInfo> = items.iter().map(|item| item.as_ref()).collect();
 
     let mut namespaced: IndexMap<Option<String>, Vec<&'a FtlTypeInfo>> = IndexMap::new();
     for item in &items_ref {
         let namespace = item.resolved_namespace(manifest_dir);
+        if let Some(ref namespace) = namespace {
+            validate_namespace_path(namespace).map_err(|reason| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "Invalid namespace '{namespace}' for type '{}': {reason}",
+                        item.type_name
+                    ),
+                )
+            })?;
+        }
         namespaced.entry(namespace).or_default().push(item);
     }
 
-    namespaced
+    Ok(namespaced
         .into_iter()
         .map(|(namespace, items)| {
             let (dir_path, file_path) = match namespace {
@@ -79,7 +92,7 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
                 items,
             }
         })
-        .collect()
+        .collect())
 }
 
 pub(crate) fn apply_output_operation(

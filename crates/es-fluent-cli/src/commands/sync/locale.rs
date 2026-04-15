@@ -2,8 +2,8 @@ use super::super::dry_run::DryRunDiff;
 use super::merge::merge_missing_keys;
 use crate::core::CrateInfo;
 use crate::ftl::{CrateFtlLayout, LocaleContext, extract_message_keys};
-use anyhow::Result;
-use es_fluent_generate::ftl::parse_ftl_content;
+use anyhow::{Result, bail};
+use es_fluent_generate::ftl::{format_parse_errors, parse_ftl_content};
 use fluent_syntax::{ast, serializer};
 use std::collections::HashSet;
 use std::fs;
@@ -104,7 +104,14 @@ fn sync_locale_file(
         String::new()
     };
 
-    let (existing_resource, _) = parse_ftl_content(existing_content.clone());
+    let (existing_resource, errors) = parse_ftl_content(existing_content.clone());
+    if !errors.is_empty() {
+        bail!(
+            "Refusing to sync '{}' because it contains Fluent parse errors: {}",
+            ftl_file.display(),
+            format_parse_errors(&errors)
+        );
+    }
 
     let existing_keys = extract_message_keys(&existing_resource);
 
@@ -274,6 +281,30 @@ mod tests {
         );
         let content = std::fs::read_to_string(&ftl_path).expect("read synced file");
         assert!(content.contains("hello = Hello"));
+    }
+
+    #[test]
+    fn sync_locale_file_rejects_existing_parse_errors() {
+        let temp = tempdir().expect("tempdir");
+        let locale_dir = temp.path().join("es");
+        let relative_path = PathBuf::from("test-crate.ftl");
+        let ftl_path = locale_dir.join(&relative_path);
+        write_file(&ftl_path, "broken = {\n");
+
+        let fallback_resource = parse_resource("hello = Hello\n");
+        let fallback_keys = extract_message_keys(&fallback_resource);
+        let err = sync_locale_file(
+            &locale_dir,
+            &relative_path,
+            "es",
+            &fallback_resource,
+            &fallback_keys,
+            false,
+        )
+        .expect_err("invalid locale file should fail");
+
+        assert!(err.to_string().contains("Refusing to sync"));
+        assert!(err.to_string().contains("Fluent parse errors"));
     }
 
     #[test]
