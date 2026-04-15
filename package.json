@@ -8,12 +8,13 @@
     "build": "turbo build",
     "build:book": "cargo run -p xtask -- build-book",
     "build:llms-txt": "cargo run -p xtask -- build-llms-txt",
-    "build:wasm": "bun run build:wasm:bevy",
-    "build:wasm:bevy": "cd examples/bevy-example && wasm-pack build --release --target web --out-dir ../../web/public/bevy-example --out-name bevy-example --no-default-features && cp -r ../assets ../../web/public/bevy-example/",
+    "build:wasm": "env -u RUSTC_WRAPPER cargo xtask build-wasm-examples",
     "build:web": "turbo run build --filter=web",
     "dev": "turbo dev",
     "fmt": "oxfmt",
-    "lint": "oxlint"
+    "generate:wasm-examples-schema": "cargo xtask generate-wasm-examples-schema",
+    "lint": "oxlint",
+    "verify:wasm": "cargo xtask verify-wasm-examples"
   },
   "devDependencies": {
     "oxfmt": "^0.41.0",

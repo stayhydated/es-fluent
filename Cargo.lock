@@ -12978,7 +12978,11 @@ dependencies = [
  "icu_plurals",
  "icu_provider",
  "mdbook-driver",
+ "schemars",
+ "serde",
+ "serde_json",
  "tempfile",
+ "walkdir",
  "zerovec",
 ]
 

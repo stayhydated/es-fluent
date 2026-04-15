@@ -21,4 +21,10 @@ pub enum Command {
     BuildBook,
     /// Build llms.txt from mdBook sources to web/public/llms.txt
     BuildLlmsTxt,
+    /// Build declared wasm examples from the central manifest
+    BuildWasmExamples,
+    /// Generate the JSON schema for the wasm example manifest
+    GenerateWasmExamplesSchema,
+    /// Verify built wasm examples include es-fluent-lang resources
+    VerifyWasmExamples,
 }
