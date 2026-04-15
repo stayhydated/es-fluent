@@ -51,10 +51,13 @@ static FILTER_DUP_DOMAIN_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_DUP_DOMAIN_DATA);
 static FILTER_EXACT_DUP_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
+static FILTER_EXACT_DUP_DESCRIPTOR_TWO: StaticModuleDescriptor =
+    StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 
 struct ModuleOk;
 struct ModuleErr;
 struct FilterRuntimeModule;
+struct FilterRuntimeModuleTwo;
 
 struct LocalizerOk;
 struct LocalizerErr;
@@ -148,9 +151,22 @@ impl I18nModule for FilterRuntimeModule {
     }
 }
 
+impl I18nModuleDescriptor for FilterRuntimeModuleTwo {
+    fn data(&self) -> &'static ModuleData {
+        &FILTER_EXACT_DUP_DATA
+    }
+}
+
+impl I18nModule for FilterRuntimeModuleTwo {
+    fn create_localizer(&self) -> Box<dyn Localizer> {
+        Box::new(FilterRuntimeLocalizer)
+    }
+}
+
 static MODULE_OK: ModuleOk = ModuleOk;
 static MODULE_ERR: ModuleErr = ModuleErr;
 static FILTER_RUNTIME_MODULE: FilterRuntimeModule = FilterRuntimeModule;
+static FILTER_RUNTIME_MODULE_TWO: FilterRuntimeModuleTwo = FilterRuntimeModuleTwo;
 
 inventory::submit! {
     &MODULE_OK as &dyn I18nModuleRegistration
@@ -170,6 +186,13 @@ fn manager_select_language_calls_all_localizers() {
 
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
+}
+
+#[test]
+fn manager_try_new_with_discovered_modules_succeeds_for_clean_inventory() {
+    let manager = FluentManager::try_new_with_discovered_modules()
+        .expect("current test inventory should pass strict discovery");
+    assert!(!manager.localizers.is_empty());
 }
 
 #[test]
@@ -261,4 +284,62 @@ fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follow
 
     assert_eq!(filtered.len(), 1);
     assert!(filtered[0].create_localizer().is_some());
+}
+
+#[test]
+fn try_filter_module_registry_allows_exact_runtime_and_metadata_pairing() {
+    let filtered = try_filter_module_registry([
+        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+        &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
+    ])
+    .expect("metadata plus runtime for one exact identity should remain valid");
+
+    assert_eq!(filtered.len(), 1);
+    assert!(filtered[0].create_localizer().is_some());
+}
+
+#[test]
+fn try_filter_module_registry_rejects_duplicate_metadata_only_registrations() {
+    let errors = match try_filter_module_registry([
+        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+        &FILTER_EXACT_DUP_DESCRIPTOR_TWO as &dyn I18nModuleRegistration,
+    ]) {
+        Ok(_) => panic!("strict discovery should reject repeated metadata-only registrations"),
+        Err(errors) => errors,
+    };
+
+    assert!(errors.iter().any(|error| {
+        matches!(
+            error,
+            ModuleDiscoveryError::DuplicateModuleRegistration {
+                name,
+                domain,
+                kind: ModuleRegistrationKind::MetadataOnly,
+                count: 2,
+            } if name == "filter-exact-module" && domain == "filter-exact-domain"
+        )
+    }));
+}
+
+#[test]
+fn try_filter_module_registry_rejects_duplicate_runtime_registrations() {
+    let errors = match try_filter_module_registry([
+        &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
+        &FILTER_RUNTIME_MODULE_TWO as &dyn I18nModuleRegistration,
+    ]) {
+        Ok(_) => panic!("strict discovery should reject repeated runtime registrations"),
+        Err(errors) => errors,
+    };
+
+    assert!(errors.iter().any(|error| {
+        matches!(
+            error,
+            ModuleDiscoveryError::DuplicateModuleRegistration {
+                name,
+                domain,
+                kind: ModuleRegistrationKind::RuntimeLocalizer,
+                count: 2,
+            } if name == "filter-exact-module" && domain == "filter-exact-domain"
+        )
+    }));
 }

@@ -14,6 +14,9 @@ integrations.
   messages, with optional domain-scoped lookup via `localize_in_domain`
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts
   for localization modules
+- `try_filter_module_registry` and `FluentManager::try_new_with_discovered_modules`:
+  strict discovery helpers that fail fast on invalid metadata or repeated
+  registrations of the same kind
 - `Localizer`: runtime formatter interface used by managers
 - `EmbeddedAssets` and `EmbeddedI18nModule`: reusable support for embedded assets
 - `ModuleData`, `I18nModuleDescriptor`, and resource-plan helpers for asset-driven
@@ -32,3 +35,13 @@ integration or reusing the shared fallback and module-registration logic.
 `FluentManager::localize()` remains a first-match search across discovered
 localizers. If your application needs explicit routing, prefer
 `FluentManager::localize_in_domain()` and keep domains unique.
+
+If you want startup to fail on registry conflicts instead of logging and
+skipping them, construct the manager through the strict path:
+
+```rust
+use es_fluent_manager_core::FluentManager;
+
+let manager = FluentManager::try_new_with_discovered_modules()
+    .expect("registry conflicts must be fixed before startup");
+```

@@ -2,6 +2,64 @@ use super::I18nModuleRegistration;
 use crate::asset_localization::{ModuleData, validate_module_registry};
 use std::collections::HashMap;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ModuleRegistrationKind {
+    MetadataOnly,
+    RuntimeLocalizer,
+}
+
+impl std::fmt::Display for ModuleRegistrationKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MetadataOnly => f.write_str("metadata-only"),
+            Self::RuntimeLocalizer => f.write_str("runtime-localizer"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ModuleDiscoveryError {
+    InvalidMetadata(crate::asset_localization::ModuleRegistryError),
+    DuplicateModuleRegistration {
+        name: String,
+        domain: String,
+        kind: ModuleRegistrationKind,
+        count: usize,
+    },
+}
+
+impl std::fmt::Display for ModuleDiscoveryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidMetadata(error) => write!(f, "{error}"),
+            Self::DuplicateModuleRegistration {
+                name,
+                domain,
+                kind,
+                count,
+            } => write!(
+                f,
+                "module '{name}' (domain '{domain}') has {count} duplicate {kind} registrations",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ModuleDiscoveryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidMetadata(error) => Some(error),
+            Self::DuplicateModuleRegistration { .. } => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct RegistrationCounts {
+    metadata_only: usize,
+    runtime_localizer: usize,
+}
+
 /// Normalizes discovered module registrations into a consistent, deduplicated list.
 ///
 /// This applies shared validation and keeps only entries that satisfy:
@@ -15,19 +73,7 @@ pub fn filter_module_registry(
     modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
 ) -> Vec<&'static dyn I18nModuleRegistration> {
     let modules = modules.into_iter().collect::<Vec<_>>();
-    let mut discovered_data_by_identity: HashMap<
-        (&'static str, &'static str),
-        &'static ModuleData,
-    > = HashMap::new();
-    for module in &modules {
-        let data = module.data();
-        discovered_data_by_identity
-            .entry((data.name, data.domain))
-            .or_insert(data);
-    }
-    let discovered_data = discovered_data_by_identity
-        .into_values()
-        .collect::<Vec<_>>();
+    let (discovered_data, _) = inspect_module_registry(&modules);
 
     if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
         for error in errors {
@@ -114,4 +160,90 @@ pub fn filter_module_registry(
     }
 
     filtered
+}
+
+/// Validates discovered registrations strictly and returns either a normalized
+/// module list or the collected registry/discovery errors.
+///
+/// Strict validation still allows one metadata-only registration plus one
+/// runtime-localizer registration for the same exact (`name`, `domain`)
+/// identity, because that pairing is used intentionally by some integrations.
+/// It rejects repeated registrations of the same kind for one identity and all
+/// metadata validation failures reported by `validate_module_registry()`.
+pub fn try_filter_module_registry(
+    modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
+) -> Result<Vec<&'static dyn I18nModuleRegistration>, Vec<ModuleDiscoveryError>> {
+    let modules = modules.into_iter().collect::<Vec<_>>();
+    let (discovered_data, registration_counts) = inspect_module_registry(&modules);
+
+    let mut errors = Vec::new();
+    if let Err(validation_errors) = validate_module_registry(discovered_data.iter().copied()) {
+        errors.extend(
+            validation_errors
+                .into_iter()
+                .map(ModuleDiscoveryError::InvalidMetadata),
+        );
+    }
+
+    for ((name, domain), counts) in registration_counts {
+        if counts.metadata_only > 1 {
+            errors.push(ModuleDiscoveryError::DuplicateModuleRegistration {
+                name: name.to_string(),
+                domain: domain.to_string(),
+                kind: ModuleRegistrationKind::MetadataOnly,
+                count: counts.metadata_only,
+            });
+        }
+        if counts.runtime_localizer > 1 {
+            errors.push(ModuleDiscoveryError::DuplicateModuleRegistration {
+                name: name.to_string(),
+                domain: domain.to_string(),
+                kind: ModuleRegistrationKind::RuntimeLocalizer,
+                count: counts.runtime_localizer,
+            });
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(filter_module_registry(modules))
+    } else {
+        Err(errors)
+    }
+}
+
+fn inspect_module_registry(
+    modules: &[&'static dyn I18nModuleRegistration],
+) -> (
+    Vec<&'static ModuleData>,
+    HashMap<(&'static str, &'static str), RegistrationCounts>,
+) {
+    let mut discovered_data_by_identity: HashMap<
+        (&'static str, &'static str),
+        &'static ModuleData,
+    > = HashMap::new();
+    let mut registration_counts: HashMap<(&'static str, &'static str), RegistrationCounts> =
+        HashMap::new();
+
+    for module in modules {
+        let data = module.data();
+        discovered_data_by_identity
+            .entry((data.name, data.domain))
+            .or_insert(data);
+
+        let counts = registration_counts
+            .entry((data.name, data.domain))
+            .or_default();
+        if module.supports_runtime_localization() {
+            counts.runtime_localizer += 1;
+        } else {
+            counts.metadata_only += 1;
+        }
+    }
+
+    (
+        discovered_data_by_identity
+            .into_values()
+            .collect::<Vec<_>>(),
+        registration_counts,
+    )
 }

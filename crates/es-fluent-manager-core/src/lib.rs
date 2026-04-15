@@ -21,6 +21,7 @@ pub use fallback::{
 };
 pub use localization::{
     FluentManager, I18nModule, I18nModuleRegistration, LocalizationError, Localizer,
-    SyncFluentBundle, add_resources_to_bundle, build_fluent_args, build_sync_bundle,
-    filter_module_registry, localize_with_bundle,
+    ModuleDiscoveryError, ModuleRegistrationKind, SyncFluentBundle, add_resources_to_bundle,
+    build_fluent_args, build_sync_bundle, filter_module_registry, localize_with_bundle,
+    try_filter_module_registry,
 };

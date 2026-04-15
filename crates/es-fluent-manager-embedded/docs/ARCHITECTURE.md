@@ -73,8 +73,12 @@ The initialization entry points are idempotent for manager setup:
 
 - `init()`
   Repeated calls log a warning via `tracing` and leave the existing manager unchanged.
+- `try_init()`
+  Builds the singleton through `FluentManager::try_new_with_discovered_modules()`, so invalid or duplicate registrations fail before the manager is published globally.
 - `init_with_language()`
   Repeated calls log a warning and apply the requested language to the existing manager, matching `init(); select_language(...)`.
+- `try_init_with_language()`
+  Uses the same strict discovered-manager path, then selects the requested language through the fallible runtime API.
 
 `select_language()` returns an error if initialization was skipped or if no
 discovered module can serve the requested locale.

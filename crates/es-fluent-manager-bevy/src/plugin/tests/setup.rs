@@ -1,5 +1,9 @@
-use super::super::{GlobalLocalizerMode, I18nPlugin, I18nPluginConfig, setup as plugin_setup};
-use super::{build_test_plugin_app, build_test_plugin_app_with_mode};
+use super::super::{
+    GlobalLocalizerMode, I18nPlugin, I18nPluginConfig, ModuleRegistryMode, setup as plugin_setup,
+};
+use super::{
+    build_test_plugin_app, build_test_plugin_app_with_mode, build_test_plugin_app_with_modes,
+};
 use crate::test_support::lock_bevy_global_state;
 use es_fluent::{localize, replace_custom_localizer};
 use unic_langid::langid;
@@ -18,11 +22,16 @@ fn plugin_constructors_keep_configuration() {
         plugin.global_localizer_mode,
         GlobalLocalizerMode::ErrorIfAlreadySet
     );
+    assert_eq!(plugin.module_registry_mode, ModuleRegistryMode::Lenient);
 
     let default_language_plugin = I18nPlugin::with_language(langid!("es"));
     assert_eq!(
         default_language_plugin.global_localizer_mode,
         GlobalLocalizerMode::ErrorIfAlreadySet
+    );
+    assert_eq!(
+        default_language_plugin.module_registry_mode,
+        ModuleRegistryMode::Lenient
     );
 
     let replacing_plugin = I18nPlugin::with_language(langid!("de"))
@@ -31,17 +40,33 @@ fn plugin_constructors_keep_configuration() {
         replacing_plugin.global_localizer_mode,
         GlobalLocalizerMode::ReplaceExisting
     );
+    assert_eq!(
+        replacing_plugin.module_registry_mode,
+        ModuleRegistryMode::Lenient
+    );
+
+    let strict_registry_plugin = I18nPlugin::with_language(langid!("it"))
+        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted);
+    assert_eq!(
+        strict_registry_plugin.module_registry_mode,
+        ModuleRegistryMode::ErrorIfConflicted
+    );
 
     let configured_plugin = I18nPlugin::with_config(I18nPluginConfig::default());
     assert_eq!(
         configured_plugin.global_localizer_mode,
         GlobalLocalizerMode::ErrorIfAlreadySet
     );
+    assert_eq!(
+        configured_plugin.module_registry_mode,
+        ModuleRegistryMode::Lenient
+    );
 }
 
 #[test]
 fn setup_helpers_discover_modules_and_resolve_initial_language() {
-    let discovery = plugin_setup::discover_modules();
+    let discovery = plugin_setup::discover_modules(ModuleRegistryMode::Lenient)
+        .expect("lenient discovery should succeed");
 
     assert!(
         discovery
@@ -55,6 +80,10 @@ fn setup_helpers_discover_modules_and_resolve_initial_language() {
         plugin_setup::resolve_initial_language(&langid!("en-US"), &discovery.languages),
         langid!("en")
     );
+
+    let strict_discovery = plugin_setup::discover_modules(ModuleRegistryMode::ErrorIfConflicted)
+        .expect("strict discovery should succeed for clean test inventory");
+    assert_eq!(strict_discovery.modules.len(), discovery.modules.len());
 }
 
 #[test]
@@ -82,4 +111,18 @@ fn plugin_can_fail_fast_when_global_localizer_must_not_be_replaced() {
     });
 
     assert!(strict_install.is_err());
+}
+
+#[test]
+fn plugin_can_use_strict_module_registry_mode() {
+    let _guard = lock_bevy_global_state();
+
+    let strict_install = std::panic::catch_unwind(|| {
+        let _app = build_test_plugin_app_with_modes(
+            GlobalLocalizerMode::ReplaceExisting,
+            ModuleRegistryMode::ErrorIfConflicted,
+        );
+    });
+
+    assert!(strict_install.is_ok());
 }

@@ -17,7 +17,10 @@ pub use bundle::{
     build_sync_bundle, localize_with_bundle,
 };
 pub use manager::FluentManager;
-pub use registry::filter_module_registry;
+pub use registry::{
+    ModuleDiscoveryError, ModuleRegistrationKind, filter_module_registry,
+    try_filter_module_registry,
+};
 
 pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
 

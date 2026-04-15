@@ -53,3 +53,11 @@ es_fluent_manager_embedded::select_language(langid!("fr"))
 
 `select_language(...)` returns an error if initialization was skipped or if no
 discovered module can serve the requested locale.
+
+If you want startup to fail on duplicate or invalid module registrations, use
+the strict entry points:
+
+```rs
+es_fluent_manager_embedded::try_init_with_language(langid!("fr"))
+    .expect("registry conflicts must be fixed before startup");
+```

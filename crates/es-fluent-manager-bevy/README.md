@@ -71,6 +71,18 @@ App::new().add_plugins(
 );
 ```
 
+If you also want plugin startup to fail on duplicate or invalid module
+registrations, opt into strict registry validation:
+
+```rs
+use es_fluent_manager_bevy::{I18nPlugin, ModuleRegistryMode};
+
+App::new().add_plugins(
+    I18nPlugin::with_language(langid!("en-US"))
+        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted),
+);
+```
+
 ### 3. Define Localizable Components (Recommended)
 
 Prefer the `BevyFluentText` derive macro. It auto-registers your type with

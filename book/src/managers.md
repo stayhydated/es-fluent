@@ -66,6 +66,29 @@ es_fluent_manager_embedded::select_language(Languages::Fr)
 `select_language(...)` returns an error if initialization was skipped or if no
 discovered module can serve the requested locale.
 
+For larger apps that want startup to fail on registry conflicts instead of
+logging and skipping them, use the strict manager-core path:
+
+```rust
+use es_fluent::try_set_context;
+use es_fluent_manager_core::FluentManager;
+
+let manager = FluentManager::try_new_with_discovered_modules()
+    .expect("duplicate or invalid i18n registrations must be fixed");
+try_set_context(manager).expect("global context should only be installed once");
+```
+
+The concrete managers remain lenient by default so the common setup stays
+simple.
+
+If you are already using the embedded manager directly, you can opt into the
+same startup check without constructing the manager manually:
+
+```rust
+es_fluent_manager_embedded::try_init_with_language(Languages::Fr)
+    .expect("duplicate or invalid i18n registrations must be fixed");
+```
+
 ---
 
 ## Bevy Manager (`es-fluent-manager-bevy`)
@@ -122,6 +145,18 @@ use es_fluent_manager_bevy::{GlobalLocalizerMode, I18nPlugin};
 App::new().add_plugins(
     I18nPlugin::with_language(langid!("en-US"))
         .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
+);
+```
+
+If you want plugin startup to fail on duplicate or invalid i18n module
+registrations, opt into strict registry validation as well:
+
+```rust
+use es_fluent_manager_bevy::{I18nPlugin, ModuleRegistryMode};
+
+App::new().add_plugins(
+    I18nPlugin::with_language(langid!("en-US"))
+        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted),
 );
 ```
 

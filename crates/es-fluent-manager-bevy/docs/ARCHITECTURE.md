@@ -82,6 +82,11 @@ of silently replacing an existing owner. `GlobalLocalizerMode::ReplaceExisting`
 switches to `es_fluent::replace_custom_localizer` for apps that intentionally
 want Bevy to take ownership of that hook.
 
+`ModuleRegistryMode::Lenient` keeps the historical registry behavior: invalid
+or conflicting module registrations are logged and normalized. Opting into
+`ModuleRegistryMode::ErrorIfConflicted` makes plugin startup fail instead, and
+the fallback `FluentManager` is built through the same strict discovery path.
+
 In both modes, the custom localizer redirects global `localize!` calls (used by
 `derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust
 objects to stringify correctly even inside Bevy systems.

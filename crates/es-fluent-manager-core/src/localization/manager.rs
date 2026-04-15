@@ -1,4 +1,7 @@
-use super::{I18nModuleRegistration, Localizer, filter_module_registry};
+use super::{
+    I18nModuleRegistration, Localizer, ModuleDiscoveryError, filter_module_registry,
+    try_filter_module_registry,
+};
 use crate::asset_localization::ModuleData;
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
@@ -34,6 +37,36 @@ impl FluentManager {
             }
         }
         manager
+    }
+
+    /// Creates a new `FluentManager` with strict registry validation.
+    ///
+    /// Unlike [`Self::new_with_discovered_modules`], this returns an error when
+    /// discovery finds invalid module metadata or unresolvable duplicate
+    /// registrations.
+    pub fn try_new_with_discovered_modules() -> Result<Self, Vec<ModuleDiscoveryError>> {
+        let discovered_modules = try_filter_module_registry(
+            inventory::iter::<&'static dyn I18nModuleRegistration>()
+                .copied()
+                .collect::<Vec<_>>(),
+        )?;
+
+        let mut manager = Self::default();
+
+        for module in discovered_modules {
+            let data = module.data();
+            tracing::info!("Discovered and loading i18n module: {}", data.name);
+            if let Some(localizer) = module.create_localizer() {
+                manager.localizers.push((data, localizer));
+            } else {
+                tracing::debug!(
+                    "Skipping metadata-only i18n module '{}' for FluentManager runtime localization",
+                    data.name
+                );
+            }
+        }
+
+        Ok(manager)
     }
 
     /// Selects a language for all localizers.
