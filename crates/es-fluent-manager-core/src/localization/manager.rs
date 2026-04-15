@@ -37,7 +37,10 @@ impl FluentManager {
     }
 
     /// Selects a language for all localizers.
-    pub fn select_language(&self, lang: &LanguageIdentifier) {
+    pub fn select_language(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> crate::localization::LocalizationErrorResult<()> {
         let mut any_selected = false;
 
         for (data, localizer) in &self.localizers {
@@ -58,10 +61,17 @@ impl FluentManager {
 
         if !any_selected {
             tracing::warn!("No i18n modules support language '{}'", lang);
+            return Err(crate::localization::LocalizationError::LanguageNotSupported(lang.clone()));
         }
+
+        Ok(())
     }
 
     /// Localizes a message by its ID.
+    ///
+    /// This searches localizers in discovery order and returns the first match.
+    /// Use [`Self::localize_in_domain`] when the caller needs domain-scoped
+    /// lookup instead of first-match behavior.
     pub fn localize<'a>(
         &self,
         id: &str,
@@ -73,5 +83,18 @@ impl FluentManager {
             }
         }
         None
+    }
+
+    /// Localizes a message by its ID within a specific domain.
+    pub fn localize_in_domain<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.localizers
+            .iter()
+            .find(|(data, _)| data.domain == domain)
+            .and_then(|(_, localizer)| localizer.localize(id, args))
     }
 }

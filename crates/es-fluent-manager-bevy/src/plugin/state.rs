@@ -97,7 +97,7 @@ pub fn update_global_language(lang: LanguageIdentifier) {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
         if let Some(fallback_manager) = &old_state.fallback_manager {
-            fallback_manager.select_language(&lang);
+            let _ = fallback_manager.select_language(&lang);
         }
         let new_state = BevyI18nState::clone(&old_state).with_language(lang);
         state_swap.store(Arc::new(new_state));

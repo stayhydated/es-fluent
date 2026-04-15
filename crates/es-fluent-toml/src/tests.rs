@@ -339,7 +339,7 @@ fn test_available_languages_rejects_invalid_language_directory() {
 }
 
 #[test]
-fn test_available_languages_rejects_variant_language_directory() {
+fn test_available_languages_accepts_variant_language_directory() {
     let temp_dir = TempDir::new().unwrap();
     let assets = temp_dir.path().join("i18n");
     fs::create_dir(&assets).unwrap();
@@ -352,18 +352,21 @@ fn test_available_languages_rejects_variant_language_directory() {
         namespaces: None,
     };
 
-    let err = config
+    let languages = config
         .available_languages_from_base(Some(temp_dir.path()))
-        .expect_err("variant language directory must fail");
-    assert!(matches!(
-        err,
-        I18nConfigError::UnsupportedLanguageIdentifier { name, reason }
-            if name == "en-oxendict" && reason == "variants are not supported"
-    ));
+        .expect("variant language directory should be accepted");
+    assert_eq!(
+        languages,
+        vec![
+            "en-oxendict"
+                .parse::<unic_langid::LanguageIdentifier>()
+                .expect("language")
+        ]
+    );
 }
 
 #[test]
-fn test_fallback_language_identifier_rejects_variants() {
+fn test_fallback_language_identifier_accepts_variants() {
     let config = I18nConfig {
         fallback_language: "en-oxendict".to_string(),
         assets_dir: PathBuf::from("i18n"),
@@ -371,12 +374,13 @@ fn test_fallback_language_identifier_rejects_variants() {
         namespaces: None,
     };
 
-    let err = config
+    let language = config
         .fallback_language_identifier()
-        .expect_err("variant fallback should fail");
-    assert!(matches!(
-        err,
-        I18nConfigError::UnsupportedLanguageIdentifier { name, reason }
-            if name == "en-oxendict" && reason == "variants are not supported"
-    ));
+        .expect("variant fallback language should parse");
+    assert_eq!(
+        language,
+        "en-oxendict"
+            .parse::<unic_langid::LanguageIdentifier>()
+            .expect("language")
+    );
 }

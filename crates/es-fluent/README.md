@@ -65,6 +65,9 @@ fluent_feature = ["my-feature"]
 namespaces = ["ui", "errors", "messages"]
 ```
 
+Locale directory names use canonical BCP-47 tags such as `en-US`, `fr`, or
+`de-DE-1901`.
+
 ## Incremental builds for locale assets
 
 The manager macros discover locales at compile time. To ensure locale folder/file
@@ -168,7 +171,9 @@ pub enum StatusVariants { Active, Inactive }
 - Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
 When namespaces are used, namespace files are treated as the canonical split
-for that locale. `{crate}.ftl` remains optional for backwards compatibility.
+for that locale, but manager macros only require the namespace files that
+actually exist for each locale. `{crate}.ftl` remains optional for backwards
+compatibility, which makes staged namespace rollout practical.
 
 ### Namespace Values
 

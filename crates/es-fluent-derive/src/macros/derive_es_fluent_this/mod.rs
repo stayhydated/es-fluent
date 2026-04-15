@@ -2,7 +2,7 @@ use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::this::ThisOpts;
 use es_fluent_shared::namer;
 use quote::quote;
-use syn::{DeriveInput, parse_macro_input};
+use syn::{Data, DeriveInput, parse_macro_input};
 
 use crate::macros::utils::{
     InventoryModuleInput, generate_inventory_module, generate_this_ftl_impl,
@@ -34,6 +34,11 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     };
 
     let this_ftl_impl = generate_this_ftl_impl(original_ident, generics, ftl_key.as_deref());
+    let type_kind = match &input.data {
+        Data::Struct(_) => quote! { ::es_fluent::meta::TypeKind::Struct },
+        Data::Enum(_) => quote! { ::es_fluent::meta::TypeKind::Enum },
+        Data::Union(_) => unreachable!("EsFluentThis does not support unions"),
+    };
 
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
@@ -56,7 +61,7 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
         generate_inventory_module(InventoryModuleInput {
             ident: original_ident,
             module_name_prefix: "this_inventory",
-            type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
+            type_kind,
             variants: vec![this_variant],
             namespace_expr,
         })
@@ -143,5 +148,30 @@ mod tests {
         let tokens = expand_es_fluent_this(input).to_string();
         assert!(tokens.contains("parent"));
         assert!(!tokens.contains("child"));
+    }
+
+    #[test]
+    fn expand_es_fluent_this_uses_struct_type_kind_for_structs() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_this]
+            struct LoginForm;
+        };
+
+        let tokens = expand_es_fluent_this(input).to_string();
+        assert!(tokens.contains("TypeKind :: Struct"));
+        assert!(!tokens.contains("TypeKind :: Enum"));
+    }
+
+    #[test]
+    fn expand_es_fluent_this_uses_enum_type_kind_for_enums() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_this]
+            enum LoginState {
+                Ready
+            }
+        };
+
+        let tokens = expand_es_fluent_this(input).to_string();
+        assert!(tokens.contains("TypeKind :: Enum"));
     }
 }

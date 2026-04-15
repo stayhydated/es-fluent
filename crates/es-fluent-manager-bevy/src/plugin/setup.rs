@@ -71,7 +71,7 @@ pub(super) fn resolve_initial_language(
 
 pub(super) fn initialize_global_state(resolved_language: &LanguageIdentifier) -> I18nResource {
     let fallback_manager = Arc::new(FluentManager::new_with_discovered_modules());
-    fallback_manager.select_language(resolved_language);
+    let _ = fallback_manager.select_language(resolved_language);
     set_bevy_i18n_state(
         BevyI18nState::new(resolved_language.clone()).with_fallback_manager(fallback_manager),
     );

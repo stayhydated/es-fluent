@@ -19,6 +19,8 @@ pub use bundle::{
 pub use manager::FluentManager;
 pub use registry::filter_module_registry;
 
+pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
+
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
     fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;

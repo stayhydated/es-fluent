@@ -15,6 +15,8 @@ use std::sync::{Arc, OnceLock};
 #[doc(hidden)]
 use unic_langid::LanguageIdentifier;
 
+pub use es_fluent::GlobalLocalizationError;
+
 #[doc(hidden)]
 pub use es_fluent::__inventory;
 
@@ -36,7 +38,7 @@ static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 fn build_manager(initial_language: Option<&LanguageIdentifier>) -> Arc<FluentManager> {
     let manager = FluentManager::new_with_discovered_modules();
     if let Some(initial_language) = initial_language {
-        manager.select_language(initial_language);
+        let _ = manager.select_language(initial_language);
     }
     Arc::new(manager)
 }
@@ -88,13 +90,13 @@ pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
     let lang = lang.into();
     if let Some(manager) = GENERIC_MANAGER.get() {
         tracing::warn!("Generic fluent manager already initialized.");
-        manager.load().select_language(&lang);
+        let _ = manager.load().select_language(&lang);
         return;
     }
 
     if !initialize_manager(build_manager(Some(&lang))) {
         if let Some(manager) = GENERIC_MANAGER.get() {
-            manager.load().select_language(&lang);
+            let _ = manager.load().select_language(&lang);
         } else {
             tracing::error!(
                 "Generic fluent manager initialization lost a race and no live manager was found."
@@ -110,14 +112,19 @@ pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
 ///
 /// # Errors
 ///
-/// This function will log an error if the embedded singleton has not been initialized by
-/// calling `init()` first.
-pub fn select_language<L: Into<LanguageIdentifier>>(lang: L) {
-    if let Some(manager) = GENERIC_MANAGER.get() {
-        manager.load().select_language(&lang.into());
-    } else {
-        tracing::error!("Generic fluent manager not initialized. Call init() first.");
-    }
+/// Returns an error if the embedded singleton has not been initialized by
+/// calling `init()` first, or if no discovered module can serve the requested
+/// language.
+pub fn select_language<L: Into<LanguageIdentifier>>(
+    lang: L,
+) -> Result<(), GlobalLocalizationError> {
+    let manager = GENERIC_MANAGER
+        .get()
+        .ok_or(GlobalLocalizationError::ContextNotInitialized)?;
+    manager
+        .load()
+        .select_language(&lang.into())
+        .map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -204,13 +211,17 @@ mod tests {
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         // Exercise the pre-init error path.
-        select_language(langid!("en-US"));
+        let err = select_language(langid!("en-US")).expect_err("selecting before init should fail");
+        assert!(matches!(
+            err,
+            GlobalLocalizationError::ContextNotInitialized
+        ));
         assert!(GENERIC_MANAGER.get().is_none());
 
         init();
         assert!(GENERIC_MANAGER.get().is_some());
 
-        select_language(langid!("en-US"));
+        select_language(langid!("en-US")).expect("initialized manager should select language");
         let after_explicit_select = SELECT_CALLS.load(Ordering::Relaxed);
         assert!(after_explicit_select >= 1);
 

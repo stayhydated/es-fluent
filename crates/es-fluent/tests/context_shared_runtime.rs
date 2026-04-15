@@ -2,7 +2,9 @@ use es_fluent::__manager_core::{
     FluentManager, I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError,
     Localizer, ModuleData,
 };
-use es_fluent::{FluentValue, localize, set_shared_context};
+use es_fluent::{
+    FluentValue, GlobalLocalizationError, localize, set_shared_context, try_set_shared_context,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -62,9 +64,10 @@ fn shared_context_localizes_and_rejects_second_set() {
 
     assert_eq!(localize("shared-key", None), "from-shared-context");
 
-    let second_set = std::panic::catch_unwind(|| {
-        let manager = Arc::new(FluentManager::new_with_discovered_modules());
-        set_shared_context(manager);
-    });
-    assert!(second_set.is_err());
+    let second_set = try_set_shared_context(Arc::new(FluentManager::new_with_discovered_modules()))
+        .expect_err("second shared context install should fail");
+    assert!(matches!(
+        second_set,
+        GlobalLocalizationError::ContextAlreadyInitialized
+    ));
 }

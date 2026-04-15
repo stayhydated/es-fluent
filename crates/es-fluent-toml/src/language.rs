@@ -36,7 +36,6 @@ pub(crate) fn parse_language_entry(
         }
     })?;
 
-    ensure_supported_language_identifier(&lang, &name)?;
     Ok(Some(ParsedLanguageEntry {
         raw_name: name,
         language: lang,
@@ -44,15 +43,8 @@ pub(crate) fn parse_language_entry(
 }
 
 pub(crate) fn ensure_supported_language_identifier(
-    lang: &LanguageIdentifier,
-    original: &str,
+    _lang: &LanguageIdentifier,
+    _original: &str,
 ) -> Result<(), I18nConfigError> {
-    if lang.variants().next().is_some() {
-        return Err(I18nConfigError::UnsupportedLanguageIdentifier {
-            name: original.to_string(),
-            reason: "variants are not supported".to_string(),
-        });
-    }
-
     Ok(())
 }

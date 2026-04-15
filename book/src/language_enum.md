@@ -40,7 +40,7 @@ The macro also generates these trait implementations:
 | Trait                          | Description                                                       |
 | ------------------------------ | ----------------------------------------------------------------- |
 | `Default`                      | Returns the variant matching `fallback_language` from `i18n.toml` |
-| `FromStr`                      | Parses `"en-US"` or `"fr"` into the matching variant              |
+| `FromStr`                      | Parses `"en-US"`, `"fr"`, or `"de-DE-1901"` into the matching variant |
 | `TryFrom<&LanguageIdentifier>` | Converts from a `unic-langid` identifier                          |
 | `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                       |
 

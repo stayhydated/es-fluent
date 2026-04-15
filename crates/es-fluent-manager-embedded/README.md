@@ -42,5 +42,14 @@ fn main() {
 }
 ```
 
-If you prefer to initialize first and decide the locale later, `init()` and `select_language(...)`
-remain available.
+If you prefer to initialize first and decide the locale later, `init()` and
+`select_language(...)` remain available:
+
+```rs
+es_fluent_manager_embedded::init();
+es_fluent_manager_embedded::select_language(langid!("fr"))
+    .expect("manager initialized and locale is available");
+```
+
+`select_language(...)` returns an error if initialization was skipped or if no
+discovered module can serve the requested locale.

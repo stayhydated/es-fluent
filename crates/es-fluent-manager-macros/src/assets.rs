@@ -1,5 +1,9 @@
 use quote::quote;
-use std::{collections::BTreeSet, fs, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+};
 
 pub(crate) struct I18nAssets {
     pub(crate) root_path: PathBuf,
@@ -86,6 +90,8 @@ impl I18nAssets {
 
         let mut namespaces = BTreeSet::new();
         let mut languages = BTreeSet::new();
+        let mut base_file_languages = BTreeSet::new();
+        let mut namespaces_by_language: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
         for entry in entries {
             let entry = entry.map_err(|e| {
@@ -111,6 +117,9 @@ impl I18nAssets {
                 if has_main_file || has_namespace_dir {
                     languages.insert(lang_code.to_string());
                 }
+                if has_main_file {
+                    base_file_languages.insert(lang_code.to_string());
+                }
 
                 // Discover namespaces from the crate's subdirectory
                 if has_namespace_dir && let Ok(ns_entries) = fs::read_dir(&crate_dir_path) {
@@ -123,6 +132,10 @@ impl I18nAssets {
                             && ext == "ftl"
                         {
                             namespaces.insert(ns_name.to_string());
+                            namespaces_by_language
+                                .entry(lang_code.to_string())
+                                .or_default()
+                                .insert(ns_name.to_string());
                         }
                     }
                 }
@@ -145,7 +158,7 @@ impl I18nAssets {
                     required: true,
                 });
             } else {
-                if base_path.is_file() {
+                if base_file_languages.contains(lang) && base_path.is_file() {
                     specs.push(ResourceSpec {
                         key: crate_name.to_string(),
                         locale_relative_path: format!("{crate_name}.ftl"),
@@ -153,7 +166,11 @@ impl I18nAssets {
                     });
                 }
 
-                for namespace in &namespaces {
+                for namespace in namespaces_by_language
+                    .get(lang)
+                    .into_iter()
+                    .flat_map(|entries| entries.iter())
+                {
                     specs.push(ResourceSpec {
                         key: format!("{crate_name}/{namespace}"),
                         locale_relative_path: format!("{crate_name}/{namespace}.ftl"),
@@ -318,13 +335,10 @@ mod tests {
                 .find(|(lang, _)| lang == "en")
                 .map(|(_, specs)| specs)
                 .expect("en specs");
-            assert_eq!(en_specs.len(), 2);
+            assert_eq!(en_specs.len(), 1);
             assert_eq!(en_specs[0].key, "my-crate");
             assert_eq!(en_specs[0].locale_relative_path, "my-crate.ftl");
             assert!(!en_specs[0].required);
-            assert_eq!(en_specs[1].key, "my-crate/ui");
-            assert_eq!(en_specs[1].locale_relative_path, "my-crate/ui.ftl");
-            assert!(en_specs[1].required);
 
             let fr_specs = assets
                 .resource_specs_by_language

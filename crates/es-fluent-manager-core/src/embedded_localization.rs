@@ -1,8 +1,8 @@
 //! This module provides types for managing embedded translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, ResourceLoadStatus, load_locale_resources,
-    parse_fluent_resource_bytes,
+    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, ResourceKey, ResourceLoadStatus,
+    load_locale_resources, parse_fluent_resource_bytes,
 };
 use crate::fallback::fallback_locales;
 use crate::localization::{
@@ -12,7 +12,7 @@ use crate::localization::{
 use fluent_bundle::{FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use unic_langid::LanguageIdentifier;
 
@@ -41,7 +41,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         &self,
         lang: &LanguageIdentifier,
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
-        let resource_plan = self.data.resource_plan();
+        let resource_plan = self.resource_plan_for_language(lang);
         let (resources, report) = load_locale_resources(&resource_plan, |spec| {
             let file_path = spec.locale_path(lang);
 
@@ -84,6 +84,41 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         } else {
             Ok(resources)
         }
+    }
+
+    fn resource_plan_for_language(&self, lang: &LanguageIdentifier) -> Vec<ModuleResourceSpec> {
+        if self.data.namespaces.is_empty() {
+            return self.data.resource_plan();
+        }
+
+        let mut plan = Vec::with_capacity(self.data.namespaces.len() + 1);
+        let mut seen_namespaces = HashSet::new();
+        let base_relative_path = format!("{}.ftl", self.data.domain);
+
+        if T::get(&format!("{lang}/{base_relative_path}")).is_some() {
+            plan.push(ModuleResourceSpec {
+                key: ResourceKey::new(self.data.domain),
+                locale_relative_path: base_relative_path,
+                required: false,
+            });
+        }
+
+        for namespace in self.data.namespaces {
+            if !seen_namespaces.insert(*namespace) {
+                continue;
+            }
+
+            let locale_relative_path = format!("{}/{namespace}.ftl", self.data.domain);
+            if T::get(&format!("{lang}/{locale_relative_path}")).is_some() {
+                plan.push(ModuleResourceSpec {
+                    key: ResourceKey::new(format!("{}/{}", self.data.domain, namespace)),
+                    locale_relative_path,
+                    required: true,
+                });
+            }
+        }
+
+        plan
     }
 }
 
@@ -364,13 +399,13 @@ mod tests {
             LocalizationError::LanguageNotSupported(_)
         ));
 
-        let missing_namespace_err = localizer
+        localizer
             .select_language(&langid!("ef"))
-            .expect_err("missing required namespace file should fail");
-        assert!(matches!(
-            missing_namespace_err,
-            LocalizationError::LanguageNotSupported(_)
-        ));
+            .expect("base-only locale should still be usable during staged namespace rollout");
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from EF".to_string())
+        );
     }
 
     #[test]

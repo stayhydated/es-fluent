@@ -73,6 +73,7 @@ impl Localizer for LocalizerOk {
     ) -> Option<String> {
         match id {
             "from-ok" => Some("ok-value".to_string()),
+            "shared-id" => Some("ok-shared".to_string()),
             _ => None,
         }
     }
@@ -89,10 +90,10 @@ impl Localizer for LocalizerErr {
         id: &str,
         _args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        if id == "from-err" {
-            Some("err-value".to_string())
-        } else {
-            None
+        match id {
+            "from-err" => Some("err-value".to_string()),
+            "shared-id" => Some("err-shared".to_string()),
+            _ => None,
         }
     }
 }
@@ -165,7 +166,7 @@ fn manager_select_language_calls_all_localizers() {
     let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
     let manager = FluentManager::new_with_discovered_modules();
-    manager.select_language(&langid!("en-US"));
+    assert!(manager.select_language(&langid!("en-US")).is_ok());
 
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
@@ -173,7 +174,12 @@ fn manager_select_language_calls_all_localizers() {
 
 #[test]
 fn manager_localize_returns_first_matching_message() {
-    let manager = FluentManager::new_with_discovered_modules();
+    let manager = FluentManager {
+        localizers: vec![
+            (&MODULE_OK_DATA, Box::new(LocalizerOk)),
+            (&MODULE_ERR_DATA, Box::new(LocalizerErr)),
+        ],
+    };
     assert_eq!(
         manager.localize("from-ok", None),
         Some("ok-value".to_string())
@@ -182,19 +188,30 @@ fn manager_localize_returns_first_matching_message() {
         manager.localize("from-err", None),
         Some("err-value".to_string())
     );
+    assert_eq!(
+        manager.localize("shared-id", None),
+        Some("ok-shared".to_string())
+    );
+    assert_eq!(
+        manager.localize_in_domain("module-err", "shared-id", None),
+        Some("err-shared".to_string())
+    );
     assert_eq!(manager.localize("missing", None), None);
 }
 
 #[test]
-fn manager_select_language_with_only_failing_localizers_covers_warn_path() {
+fn manager_select_language_with_only_failing_localizers_returns_error() {
     let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
     let manager = FluentManager {
         localizers: vec![(&MODULE_ERR_DATA, Box::new(LocalizerErr))],
     };
-    manager.select_language(&langid!("en-US"));
+    let err = manager
+        .select_language(&langid!("en-US"))
+        .expect_err("no successful localizer should return an error");
 
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
+    assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
 }
 
 #[test]

@@ -54,7 +54,17 @@ If you have a [Language Enum](language_enum.md), you can pass it directly since 
 es_fluent_manager_embedded::init_with_language(Languages::En);
 ```
 
-If the language is not known during startup, call `init()` and switch later with `select_language(...)`.
+If the language is not known during startup, call `init()` and switch later with
+`select_language(...)`:
+
+```rust
+es_fluent_manager_embedded::init();
+es_fluent_manager_embedded::select_language(Languages::Fr)
+    .expect("manager initialized and locale is available");
+```
+
+`select_language(...)` returns an error if initialization was skipped or if no
+discovered module can serve the requested locale.
 
 ---
 

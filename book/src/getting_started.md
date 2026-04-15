@@ -32,6 +32,8 @@ namespaces = ["ui", "errors", "messages"]
 ```
 
 The CLI and build tools use this file as the single source of truth for locating `.ftl` files and validating keys.
+Locale directory names use canonical BCP-47 tags such as `en-US`, `fr`, or
+`de-DE-1901`.
 
 ## End-to-End Example
 

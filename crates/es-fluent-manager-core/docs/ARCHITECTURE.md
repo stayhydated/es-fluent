@@ -66,8 +66,8 @@ Common metadata contract for manager discovery.
 - Returns a shared `ModuleData` shape (`name`, `domain`, languages, namespaces).
 - Enables metadata-only registration for managers that don't create `Localizer`s (for example Bevy runtime asset loading).
 - Namespace semantics are shared across managers: when `namespaces` is non-empty,
-  namespace files are required for readiness while `{domain}.ftl` remains
-  optional compatibility data.
+  the namespace list records the module's known split files, while managers can
+  use a more precise per-language resource plan when one is available.
 
 ### `I18nModuleRegistration`
 
@@ -75,7 +75,7 @@ Unified inventory contract used by managers.
 
 - Extends `I18nModuleDescriptor` with optional runtime hooks.
 - `create_localizer()` supports runtime localization backends.
-- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads).
+- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads and to keep namespace readiness per-locale instead of globally strict).
 
 ### `Localizer`
 

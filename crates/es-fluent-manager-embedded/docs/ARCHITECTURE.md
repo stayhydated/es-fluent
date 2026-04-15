@@ -76,7 +76,8 @@ The initialization entry points are idempotent for manager setup:
 - `init_with_language()`
   Repeated calls log a warning and apply the requested language to the existing manager, matching `init(); select_language(...)`.
 
-If `select_language()` is called before initialization, an error is logged and the call has no effect.
+`select_language()` returns an error if initialization was skipped or if no
+discovered module can serve the requested locale.
 
 ## Usage
 
@@ -92,4 +93,5 @@ fn main() {
 }
 ```
 
-If the language is not known at startup, call `init()` first and `select_language(...)` later.
+If the language is not known at startup, call `init()` first and
+`select_language(...)` later, handling the returned `Result`.

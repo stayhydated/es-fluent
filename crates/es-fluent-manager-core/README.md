@@ -11,7 +11,7 @@ integrations.
 ## Key API
 
 - `FluentManager`: central runtime entry point for selecting locales and formatting
-  messages
+  messages, with optional domain-scoped lookup via `localize_in_domain`
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts
   for localization modules
 - `Localizer`: runtime formatter interface used by managers
@@ -28,3 +28,7 @@ Most applications should use a concrete manager crate instead:
 
 Reach for `es-fluent-manager-core` directly when building a custom runtime
 integration or reusing the shared fallback and module-registration logic.
+
+`FluentManager::localize()` remains a first-match search across discovered
+localizers. If your application needs explicit routing, prefer
+`FluentManager::localize_in_domain()` and keep domains unique.
