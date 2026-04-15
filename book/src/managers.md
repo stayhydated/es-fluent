@@ -89,6 +89,9 @@ es_fluent_manager_embedded::try_init_with_language(Languages::Fr)
     .expect("duplicate or invalid i18n registrations must be fixed");
 ```
 
+This strict path only publishes the embedded singleton after the requested
+language has been selected successfully.
+
 ---
 
 ## Bevy Manager (`es-fluent-manager-bevy`)

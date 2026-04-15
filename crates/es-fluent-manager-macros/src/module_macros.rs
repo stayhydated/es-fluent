@@ -132,6 +132,10 @@ fn generate_embedded_tokens(
             fn domain() -> &'static str {
                 #crate_name
             }
+
+            fn namespaces() -> &'static [&'static str] {
+                #module_data_name.namespaces
+            }
         }
 
         #module_data_static

@@ -78,7 +78,7 @@ The initialization entry points are idempotent for manager setup:
 - `init_with_language()`
   Repeated calls log a warning and apply the requested language to the existing manager, matching `init(); select_language(...)`.
 - `try_init_with_language()`
-  Uses the same strict discovered-manager path, then selects the requested language through the fallible runtime API.
+  Uses the same strict discovered-manager path, selects the requested language before publication, and only falls back to the live manager when another thread wins the initialization race.
 
 `select_language()` returns an error if initialization was skipped or if no
 discovered module can serve the requested locale.

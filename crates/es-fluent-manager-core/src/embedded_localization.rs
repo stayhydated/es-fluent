@@ -1,8 +1,8 @@
 //! This module provides types for managing embedded translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, ResourceKey, ResourceLoadStatus,
-    load_locale_resources, parse_fluent_resource_bytes,
+    I18nModuleDescriptor, ModuleData, ResourceLoadStatus, load_locale_resources,
+    parse_fluent_resource_bytes,
 };
 use crate::fallback::fallback_locales;
 use crate::localization::{
@@ -18,6 +18,15 @@ use unic_langid::LanguageIdentifier;
 
 pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
     fn domain() -> &'static str;
+
+    /// Returns the canonical namespace list for this embedded module.
+    ///
+    /// Macro-generated modules override this so embedded language discovery can
+    /// ignore stray files and only treat configured namespace paths as
+    /// canonical locale resources.
+    fn namespaces() -> &'static [&'static str] {
+        &[]
+    }
 }
 
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
@@ -41,7 +50,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         &self,
         lang: &LanguageIdentifier,
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
-        let resource_plan = self.resource_plan_for_language(lang);
+        let resource_plan = self.data.resource_plan();
         let (resources, report) = load_locale_resources(&resource_plan, |spec| {
             let file_path = spec.locale_path(lang);
 
@@ -84,41 +93,6 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
         } else {
             Ok(resources)
         }
-    }
-
-    fn resource_plan_for_language(&self, lang: &LanguageIdentifier) -> Vec<ModuleResourceSpec> {
-        if self.data.namespaces.is_empty() {
-            return self.data.resource_plan();
-        }
-
-        let mut plan = Vec::with_capacity(self.data.namespaces.len() + 1);
-        let mut seen_namespaces = HashSet::new();
-        let base_relative_path = format!("{}.ftl", self.data.domain);
-
-        if T::get(&format!("{lang}/{base_relative_path}")).is_some() {
-            plan.push(ModuleResourceSpec {
-                key: ResourceKey::new(self.data.domain),
-                locale_relative_path: base_relative_path,
-                required: false,
-            });
-        }
-
-        for namespace in self.data.namespaces {
-            if !seen_namespaces.insert(*namespace) {
-                continue;
-            }
-
-            let locale_relative_path = format!("{}/{namespace}.ftl", self.data.domain);
-            if T::get(&format!("{lang}/{locale_relative_path}")).is_some() {
-                plan.push(ModuleResourceSpec {
-                    key: ResourceKey::new(format!("{}/{}", self.data.domain, namespace)),
-                    locale_relative_path,
-                    required: true,
-                });
-            }
-        }
-
-        plan
     }
 }
 
@@ -176,24 +150,42 @@ pub struct EmbeddedI18nModule<T: EmbeddedAssets> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-fn language_from_embedded_asset_path(file_path: &str, domain: &str) -> Option<LanguageIdentifier> {
+fn embedded_resource_from_asset_path(
+    file_path: &str,
+    domain: &str,
+    namespaces: &[&str],
+) -> Option<(LanguageIdentifier, Option<String>)> {
     let mut segments = file_path.split('/');
     let language = segments.next()?;
     let next = segments.next()?;
 
-    let matches_domain = if next == format!("{domain}.ftl") {
-        segments.next().is_none()
-    } else if next == domain {
-        file_path.rsplit('/').next()?.ends_with(".ftl")
-    } else {
-        false
-    };
-
-    if matches_domain {
-        language.parse::<LanguageIdentifier>().ok()
-    } else {
-        None
+    if next == format!("{domain}.ftl") && segments.next().is_none() {
+        return language
+            .parse::<LanguageIdentifier>()
+            .ok()
+            .map(|lang| (lang, None));
     }
+
+    if next != domain {
+        return None;
+    }
+
+    let namespace_path = segments.collect::<Vec<_>>().join("/");
+    let namespace = namespace_path.strip_suffix(".ftl")?;
+    if namespace.is_empty() {
+        return None;
+    }
+
+    namespaces
+        .iter()
+        .any(|configured| configured == &namespace)
+        .then(|| {
+            language
+                .parse::<LanguageIdentifier>()
+                .ok()
+                .map(|lang| (lang, Some(namespace.to_string())))
+        })
+        .flatten()
 }
 
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
@@ -206,20 +198,52 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
 
     pub fn discover_languages() -> Vec<LanguageIdentifier> {
         let domain = T::domain();
-        let mut languages = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        let namespaces = T::namespaces();
+        if namespaces.is_empty() {
+            let mut languages = Vec::new();
+            let mut seen = HashSet::new();
+
+            for file_path in T::iter() {
+                let file_path_str = file_path.as_ref();
+                if let Some((lang_id, _)) =
+                    embedded_resource_from_asset_path(file_path_str, domain, namespaces)
+                    && seen.insert(lang_id.clone())
+                {
+                    languages.push(lang_id);
+                }
+            }
+
+            languages.sort_by_key(|a| a.to_string());
+            return languages;
+        }
+
+        let mut found_namespaces_by_language: HashMap<LanguageIdentifier, HashSet<String>> =
+            HashMap::new();
 
         for file_path in T::iter() {
             let file_path_str = file_path.as_ref();
-            // Discover locales from either `{lang}/{domain}.ftl` or nested
-            // namespaced files like `{lang}/{domain}/ui/button.ftl`.
-            if let Some(lang_id) = language_from_embedded_asset_path(file_path_str, domain)
-                && seen.insert(lang_id.clone())
+            // Discover locales from canonical resource paths only:
+            // `{lang}/{domain}.ftl` and configured namespaced files like
+            // `{lang}/{domain}/ui/button.ftl`.
+            if let Some((lang_id, Some(namespace))) =
+                embedded_resource_from_asset_path(file_path_str, domain, namespaces)
             {
-                languages.push(lang_id);
+                found_namespaces_by_language
+                    .entry(lang_id)
+                    .or_default()
+                    .insert(namespace);
             }
         }
 
+        let mut languages = found_namespaces_by_language
+            .into_iter()
+            .filter_map(|(lang_id, found_namespaces)| {
+                namespaces
+                    .iter()
+                    .all(|namespace| found_namespaces.contains(*namespace))
+                    .then_some(lang_id)
+            })
+            .collect::<Vec<_>>();
         languages.sort_by_key(|a| a.to_string());
         languages
     }
@@ -251,6 +275,10 @@ mod tests {
         fn domain() -> &'static str {
             "test-domain"
         }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
     }
 
     #[derive(RustEmbed)]
@@ -260,6 +288,10 @@ mod tests {
     impl EmbeddedAssets for NamespaceErrorAssets {
         fn domain() -> &'static str {
             "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
         }
     }
 
@@ -271,6 +303,10 @@ mod tests {
         fn domain() -> &'static str {
             "test-domain"
         }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
     }
 
     #[derive(RustEmbed)]
@@ -280,6 +316,10 @@ mod tests {
     impl EmbeddedAssets for NestedNamespaceAssets {
         fn domain() -> &'static str {
             "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui/button"]
         }
     }
 
@@ -322,16 +362,41 @@ mod tests {
     #[test]
     fn discover_languages_collects_and_sorts_unique_languages() {
         let languages = EmbeddedI18nModule::<TestAssets>::discover_languages();
-        assert_eq!(
-            languages,
-            vec![langid!("en"), langid!("en-GB"), langid!("fr")]
-        );
+        assert_eq!(languages, vec![langid!("en")]);
     }
 
     #[test]
     fn discover_languages_includes_locales_with_only_nested_namespace_files() {
         let languages = EmbeddedI18nModule::<NestedNamespaceAssets>::discover_languages();
         assert_eq!(languages, vec![langid!("en")]);
+    }
+
+    #[test]
+    fn embedded_language_discovery_only_accepts_canonical_resources() {
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain.ftl", "test-domain", &["ui"]),
+            Some((langid!("en"), None))
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain/ui.ftl", "test-domain", &["ui"]),
+            Some((langid!("en"), Some("ui".to_string())))
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path(
+                "en/test-domain/ui/button.ftl",
+                "test-domain",
+                &["ui/button"]
+            ),
+            Some((langid!("en"), Some("ui/button".to_string())))
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain/readme.txt", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain/misc.ftl", "test-domain", &["ui"]),
+            None
+        );
     }
 
     #[test]
@@ -426,13 +491,13 @@ mod tests {
             LocalizationError::LanguageNotSupported(_)
         ));
 
-        localizer
+        let missing_namespace_err = localizer
             .select_language(&langid!("ef"))
-            .expect("base-only locale should still be usable during staged namespace rollout");
-        assert_eq!(
-            localizer.localize("hello", None),
-            Some("Hello from EF".to_string())
-        );
+            .expect_err("base-only locale should fail when required namespaces are missing");
+        assert!(matches!(
+            missing_namespace_err,
+            LocalizationError::LanguageNotSupported(_)
+        ));
     }
 
     #[test]

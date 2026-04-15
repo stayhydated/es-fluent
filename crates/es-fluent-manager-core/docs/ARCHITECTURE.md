@@ -77,7 +77,7 @@ Unified inventory contract used by managers.
 
 - Extends `I18nModuleDescriptor` with optional runtime hooks.
 - `create_localizer()` supports runtime localization backends.
-- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads and to keep namespace readiness per-locale instead of globally strict).
+- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
 
 ### `Localizer`

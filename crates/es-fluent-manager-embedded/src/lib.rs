@@ -73,13 +73,22 @@ fn build_manager(initial_language: Option<&LanguageIdentifier>) -> Arc<FluentMan
     Arc::new(manager)
 }
 
+fn select_initial_language(
+    manager: &FluentManager,
+    initial_language: &LanguageIdentifier,
+) -> Result<(), EmbeddedInitError> {
+    manager
+        .select_language(initial_language)
+        .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
+}
+
 fn try_build_manager(
     initial_language: Option<&LanguageIdentifier>,
 ) -> Result<Arc<FluentManager>, EmbeddedInitError> {
     let manager = FluentManager::try_new_with_discovered_modules()
         .map_err(EmbeddedInitError::ModuleDiscovery)?;
     if let Some(initial_language) = initial_language {
-        let _ = manager.select_language(initial_language);
+        select_initial_language(&manager, initial_language)?;
     }
     Ok(Arc::new(manager))
 }
@@ -160,19 +169,38 @@ pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
 
 /// Initializes the embedded singleton with strict registry discovery and then
 /// selects the active language.
+///
+/// If the requested language cannot be selected during initial construction,
+/// this returns an error without publishing a global manager.
 pub fn try_init_with_language<L: Into<LanguageIdentifier>>(
     lang: L,
 ) -> Result<(), EmbeddedInitError> {
     let lang = lang.into();
-    if GENERIC_MANAGER.get().is_none() {
-        if !initialize_manager(try_build_manager(Some(&lang))?) && GENERIC_MANAGER.get().is_none() {
-            tracing::error!(
-                "Generic fluent manager initialization lost a race and no live manager was found."
-            );
-        }
+    if let Some(manager) = GENERIC_MANAGER.get() {
+        return manager
+            .load()
+            .select_language(&lang)
+            .map_err(|error| EmbeddedInitError::GlobalContext(error.into()));
     }
 
-    select_language(lang).map_err(EmbeddedInitError::GlobalContext)
+    let manager = try_build_manager(Some(&lang))?;
+    if initialize_manager(manager) {
+        return Ok(());
+    }
+
+    if let Some(manager) = GENERIC_MANAGER.get() {
+        manager
+            .load()
+            .select_language(&lang)
+            .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
+    } else {
+        tracing::error!(
+            "Generic fluent manager initialization lost a race and no live manager was found."
+        );
+        Err(EmbeddedInitError::GlobalContext(
+            GlobalLocalizationError::ContextNotInitialized,
+        ))
+    }
 }
 
 /// Selects the active language for the embedded singleton `FluentManager`.
@@ -225,8 +253,11 @@ mod tests {
     struct EmbeddedTestLocalizer;
 
     impl Localizer for EmbeddedTestLocalizer {
-        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
             SELECT_CALLS.fetch_add(1, Ordering::Relaxed);
+            if lang == &langid!("zz") {
+                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+            }
             Ok(())
         }
 
@@ -288,21 +319,42 @@ mod tests {
         ));
         assert!(GENERIC_MANAGER.get().is_none());
 
-        try_init().expect("strict init should validate and initialize");
+        let strict_init_err = try_init_with_language(langid!("zz"))
+            .expect_err("strict init should fail before publishing when selection fails");
+        assert!(matches!(
+            strict_init_err,
+            EmbeddedInitError::GlobalContext(GlobalLocalizationError::LanguageSelectionFailed(_))
+        ));
+        assert!(GENERIC_MANAGER.get().is_none());
+
+        SELECT_CALLS.store(0, Ordering::Relaxed);
+
+        try_init_with_language(langid!("en-US"))
+            .expect("strict init with language should validate, select once, and initialize");
         assert!(GENERIC_MANAGER.get().is_some());
+        assert_eq!(SELECT_CALLS.load(Ordering::Relaxed), 1);
 
         select_language(langid!("en-US")).expect("initialized manager should select language");
         let after_explicit_select = SELECT_CALLS.load(Ordering::Relaxed);
-        assert!(after_explicit_select >= 1);
+        assert_eq!(after_explicit_select, 2);
 
-        try_init_with_language(langid!("de"))
-            .expect("strict init with language should validate and select");
-        assert!(SELECT_CALLS.load(Ordering::Relaxed) > after_explicit_select);
+        try_init().expect("strict init should be a no-op once initialized");
 
         // Re-initialization with a language should still apply the requested selection.
         let after_try_init_with_language = SELECT_CALLS.load(Ordering::Relaxed);
+        try_init_with_language(langid!("de"))
+            .expect("strict init with language should apply selection on the live manager");
+        assert_eq!(
+            SELECT_CALLS.load(Ordering::Relaxed),
+            after_try_init_with_language + 1
+        );
+
+        let after_second_try_init_with_language = SELECT_CALLS.load(Ordering::Relaxed);
         init_with_language(langid!("fr"));
-        assert!(SELECT_CALLS.load(Ordering::Relaxed) > after_try_init_with_language);
+        assert_eq!(
+            SELECT_CALLS.load(Ordering::Relaxed),
+            after_second_try_init_with_language + 1
+        );
 
         // Plain init should still hit the already-initialized branch without changing language.
         let after_reinit_with_language = SELECT_CALLS.load(Ordering::Relaxed);

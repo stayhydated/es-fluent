@@ -61,3 +61,6 @@ the strict entry points:
 es_fluent_manager_embedded::try_init_with_language(langid!("fr"))
     .expect("registry conflicts must be fixed before startup");
 ```
+
+`try_init_with_language(...)` only publishes the singleton after the requested
+language has been selected successfully.
