@@ -33,7 +33,7 @@ pub(crate) fn sync_global_state(
     );
 
     if i18n_bundle.is_changed() {
-        update_global_bundle((*i18n_bundle).clone());
+        update_global_bundle((*i18n_bundle).clone(), i18n_assets.loaded_resources.clone());
 
         if !locale_switched
             && current_bundle_changed

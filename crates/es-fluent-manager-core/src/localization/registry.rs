@@ -132,9 +132,10 @@ pub fn filter_module_registry(
             {
                 if existing_data != data {
                     tracing::warn!(
-                        "Replacing metadata-only i18n module '{}' with runtime-localizer registration despite mismatched metadata",
+                        "Skipping runtime-localizer registration for i18n module '{}' because it conflicts with existing metadata-only registration",
                         data.name
                     );
+                    continue;
                 }
                 tracing::warn!(
                     "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
@@ -169,9 +170,10 @@ pub fn filter_module_registry(
                 {
                     if existing_data != data {
                         tracing::warn!(
-                            "Replacing metadata-only i18n module '{}' with runtime-localizer registration despite mismatched metadata",
+                            "Skipping runtime-localizer registration for i18n module '{}' because it conflicts with existing metadata-only registration",
                             data.name
                         );
+                        continue;
                     }
                     tracing::warn!(
                         "Replacing metadata-only i18n module '{}' with runtime-localizer registration",

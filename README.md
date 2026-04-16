@@ -61,6 +61,10 @@ singleton, use `es-fluent-manager-embedded::try_init_with_language(...)`. The
 Bevy plugin still exposes lenient vs strict registry behavior through
 `es-fluent-manager-bevy::ModuleRegistryMode`.
 
+Embedded locale selection now also rejects malformed/conflicting Fluent bundle
+builds instead of partially loading the locale, while keeping the last ready
+locale active on failure.
+
 ## Project configuration
 
 Create an `i18n.toml` next to your `Cargo.toml`:

@@ -15,7 +15,7 @@ pub use asset_localization::{
     record_locale_resource_error, record_missing_locale_resource, required_resource_keys_from_plan,
     resource_plan_for, store_locale_resource, validate_module_registry,
 };
-pub use embedded_localization::{EmbeddedAssets, EmbeddedI18nModule};
+pub use embedded_localization::{BundleBuildError, EmbeddedAssets, EmbeddedI18nModule};
 pub use fallback::{
     fallback_locales, locale_candidates, resolve_fallback_language, resolve_ready_locale,
 };

@@ -84,7 +84,8 @@ Unified inventory contract used by managers.
 - `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
 - `filter_module_registry()` remains the explicit best-effort path that logs and
-  skips conflicts.
+  skips conflicts, but it now only collapses metadata/runtime duplicates when
+  both registrations carry the exact same metadata.
 
 ### `Localizer`
 
@@ -97,6 +98,9 @@ Responsible for the actual string formatting logic.
   as at least one module accepts it.
 - `FluentManager::select_language_strict()` preserves transactional switching
   when callers need all modules to agree.
+- `EmbeddedLocalizer::select_language()` now rejects bundle-add conflicts (for
+  example duplicate message IDs across loaded files) and keeps the previous
+  ready locale active on failure.
 
 ### `EmbeddedAssets`
 

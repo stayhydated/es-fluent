@@ -31,11 +31,11 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     assert!(app.world().contains_resource::<CurrentLanguageId>());
     assert!(REGISTER_CALLS.load(Ordering::SeqCst) > 0);
     assert_eq!(
-        bevy_custom_localizer("from-fallback", None),
+        bevy_custom_localizer(None, "from-fallback", None),
         Some("fallback".to_string())
     );
     assert_eq!(
-        bevy_custom_localizer("hello", None),
+        bevy_custom_localizer(None, "hello", None),
         Some("fallback-hello".to_string())
     );
 
@@ -168,12 +168,20 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     );
     assert!(app.world().resource::<I18nBundle>().0.contains_key(&lang));
     assert_eq!(
-        bevy_custom_localizer("from-fallback", None),
+        bevy_custom_localizer(None, "from-fallback", None),
         Some("fallback".to_string())
     );
     assert_ne!(
-        bevy_custom_localizer("hello", None),
+        bevy_custom_localizer(None, "hello", None),
         Some("fallback-hello".to_string())
+    );
+    assert_eq!(
+        bevy_custom_localizer(Some("test-domain"), "hello", None),
+        Some("Hello".to_string())
+    );
+    assert_eq!(
+        bevy_custom_localizer(Some("namespaced-domain"), "hello", None),
+        Some("Hello from menu".to_string())
     );
 
     {
@@ -196,7 +204,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     app.update();
     assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("en"));
     assert_eq!(
-        bevy_custom_localizer("selected-language", None),
+        bevy_custom_localizer(None, "selected-language", None),
         Some("en".to_string())
     );
 
@@ -210,7 +218,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     app.update();
     assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("zz"));
     assert_eq!(
-        bevy_custom_localizer("selected-language", None),
+        bevy_custom_localizer(None, "selected-language", None),
         None,
         "unsupported modules are dropped from the fallback manager during best-effort selection"
     );
@@ -225,7 +233,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     assert_eq!(locale_changes, vec![langid!("zz")]);
 
     update_global_language(langid!("en"));
-    assert_eq!(bevy_custom_localizer("missing", None), None);
+    assert_eq!(bevy_custom_localizer(None, "missing", None), None);
 }
 
 #[test]
@@ -259,7 +267,23 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
 
     let mut bundles = HashMap::new();
     bundles.insert(langid!("en"), Arc::new(bundle));
-    let state = BevyI18nState::new(langid!("en")).with_bundle(I18nBundle(bundles));
+    let mut domain_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![langid!("en")]);
+    let domain_resource = Arc::new(
+        FluentResource::try_new("hello = Hello from app domain".to_string()).expect("valid ftl"),
+    );
+    domain_bundle
+        .add_resource(domain_resource)
+        .expect("add resource");
+    let mut domain_bundles = HashMap::new();
+    domain_bundles.insert(
+        langid!("en"),
+        HashMap::from([("app".to_string(), Arc::new(domain_bundle))]),
+    );
+
+    let state = BevyI18nState::new(langid!("en"))
+        .with_bundle(I18nBundle(bundles))
+        .with_domain_bundles(domain_bundles);
 
     assert_eq!(state.localize("only-attr", None), None);
 
@@ -272,8 +296,12 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
         .localize("hello", None)
         .expect("formatting with missing args still returns output");
     assert!(without_args.contains("Hello"));
+    assert_eq!(
+        state.localize_in_domain("app", "hello", None),
+        Some("Hello from app domain".to_string())
+    );
 
-    update_global_bundle(I18nBundle::default());
+    update_global_bundle(I18nBundle::default(), HashMap::new());
     update_global_language(langid!("en"));
-    let _ = bevy_custom_localizer("unknown-key", None);
+    let _ = bevy_custom_localizer(None, "unknown-key", None);
 }

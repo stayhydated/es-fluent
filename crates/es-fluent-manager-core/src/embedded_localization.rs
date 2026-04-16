@@ -9,10 +9,11 @@ use crate::localization::{
     I18nModule, LocalizationError, Localizer, SyncFluentBundle, build_sync_bundle,
     localize_with_bundle,
 };
-use fluent_bundle::{FluentResource, FluentValue};
+use fluent_bundle::{FluentError, FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
 use std::collections::{HashMap, HashSet};
+use std::io;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use unic_langid::LanguageIdentifier;
 
@@ -35,6 +36,66 @@ pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     current_lang: RwLock<Option<LanguageIdentifier>>,
     _phantom: std::marker::PhantomData<T>,
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BundleBuildError {
+    module_name: String,
+    language: LanguageIdentifier,
+    diagnostics: Vec<String>,
+}
+
+impl BundleBuildError {
+    fn from_add_errors(
+        module_name: &str,
+        language: &LanguageIdentifier,
+        add_errors: Vec<Vec<FluentError>>,
+    ) -> Self {
+        let diagnostics = add_errors
+            .into_iter()
+            .enumerate()
+            .map(|(resource_index, errors)| {
+                let messages = errors
+                    .into_iter()
+                    .map(|error| error.to_string())
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                format!("resource #{resource_index}: {messages}")
+            })
+            .collect();
+
+        Self {
+            module_name: module_name.to_string(),
+            language: language.clone(),
+            diagnostics,
+        }
+    }
+
+    pub fn module_name(&self) -> &str {
+        &self.module_name
+    }
+
+    pub fn language(&self) -> &LanguageIdentifier {
+        &self.language
+    }
+
+    pub fn diagnostics(&self) -> &[String] {
+        &self.diagnostics
+    }
+}
+
+impl std::fmt::Display for BundleBuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "failed to build a Fluent bundle for module '{}' and language '{}': {}",
+            self.module_name,
+            self.language,
+            self.diagnostics.join(" | ")
+        )
+    }
+}
+
+impl std::error::Error for BundleBuildError {}
 
 fn read_lock<'a, T>(lock: &'a RwLock<T>, context: &str) -> RwLockReadGuard<'a, T> {
     match lock.read() {
@@ -135,8 +196,11 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
 
             if let Ok(resources) = self.load_resource_for_language(&candidate) {
                 let (bundle, add_errors) = build_sync_bundle(&candidate, resources);
-                for errors in add_errors {
-                    tracing::error!("Failed to add resource to bundle: {:?}", errors);
+                if !add_errors.is_empty() {
+                    let error =
+                        BundleBuildError::from_add_errors(self.data.name, &candidate, add_errors);
+                    tracing::error!("{error}");
+                    return Err(io::Error::other(error).into());
                 }
                 *write_lock(&self.current_bundle, "embedded localizer bundle") =
                     Some(Arc::new(bundle));
@@ -346,6 +410,20 @@ mod tests {
         }
     }
 
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_bundle_add_error"]
+    struct BundleAddErrorAssets;
+
+    impl EmbeddedAssets for BundleAddErrorAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -380,6 +458,14 @@ mod tests {
         domain: "test-domain",
         supported_languages: NESTED_NAMESPACE_SUPPORTED_LANGUAGES,
         namespaces: &["ui/button"],
+    };
+    static BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
+        &[langid!("en"), langid!("fr")];
+    static BUNDLE_ADD_ERROR_MODULE_DATA: ModuleData = ModuleData {
+        name: "bundle-add-error-module",
+        domain: "test-domain",
+        supported_languages: BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
     };
 
     #[test]
@@ -571,6 +657,47 @@ mod tests {
         assert_eq!(
             localizer.localize("nested-title", None),
             Some("Nested UI Button".to_string())
+        );
+    }
+
+    #[test]
+    fn embedded_localizer_rejects_bundle_add_errors_and_preserves_previous_bundle() {
+        let localizer =
+            EmbeddedLocalizer::<BundleAddErrorAssets>::new(&BUNDLE_ADD_ERROR_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("en should load successfully");
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from bundle-add fixture".to_string())
+        );
+
+        let err = localizer
+            .select_language(&langid!("fr"))
+            .expect_err("duplicate ids across bundle resources should fail selection");
+        let bundle_error = match err {
+            LocalizationError::IoError(io_error) => io_error
+                .get_ref()
+                .and_then(|error| error.downcast_ref::<BundleBuildError>())
+                .cloned()
+                .expect("bundle build diagnostics should be preserved inside the io error"),
+            other => panic!("expected io-backed bundle build error, got {other:?}"),
+        };
+
+        assert_eq!(bundle_error.module_name(), "bundle-add-error-module");
+        assert_eq!(bundle_error.language(), &langid!("fr"));
+        assert!(
+            bundle_error
+                .diagnostics()
+                .iter()
+                .any(|message| message.contains("hello")),
+            "bundle build diagnostics should mention the duplicate message"
+        );
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from bundle-add fixture".to_string()),
+            "failed switches should keep the last ready locale active"
         );
     }
 }

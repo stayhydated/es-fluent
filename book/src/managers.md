@@ -63,10 +63,12 @@ es_fluent_manager_embedded::select_language(Languages::Fr)
     .expect("manager initialized and locale is available");
 ```
 
-`select_language(...)` returns an error if initialization was skipped or if no
-discovered module can serve the requested locale. When some modules support the
-requested locale and others do not, the default switch keeps the supporting
-modules active.
+`select_language(...)` returns an error if initialization was skipped, if no
+discovered module can serve the requested locale, or if a supported locale's
+resources would build a broken Fluent bundle (for example duplicate message
+definitions across loaded files). When some modules support the requested
+locale and others do not, the default switch keeps the supporting modules
+active. Failed switches keep the previous ready locale active.
 
 For larger apps that want explicit control over the shared context, manager-core
 is strict by default:

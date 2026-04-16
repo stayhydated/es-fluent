@@ -1,2 +1,2 @@
-hello = Hello main
+base-only = Hello main
 welcome = Welcome, { $name }!

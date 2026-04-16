@@ -117,10 +117,10 @@ impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
         match self.global_localizer_mode {
             GlobalLocalizerMode::ReplaceExisting => {
-                es_fluent::replace_custom_localizer(bevy_custom_localizer);
+                es_fluent::replace_custom_localizer_with_domain(bevy_custom_localizer);
             },
             GlobalLocalizerMode::ErrorIfAlreadySet => {
-                es_fluent::set_custom_localizer(bevy_custom_localizer);
+                es_fluent::set_custom_localizer_with_domain(bevy_custom_localizer);
             },
         }
 

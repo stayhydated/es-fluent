@@ -23,6 +23,8 @@ integrations.
   discovery that logs and skips conflicts
 - `Localizer`: runtime formatter interface used by managers
 - `EmbeddedAssets` and `EmbeddedI18nModule`: reusable support for embedded assets
+- `BundleBuildError`: structured diagnostics for embedded locale switches that
+  fail while assembling a Fluent bundle
 - `ModuleData`, `I18nModuleDescriptor`, and resource-plan helpers for asset-driven
   managers such as Bevy
 
@@ -40,6 +42,10 @@ integration or reusing the shared fallback and module-registration logic.
 localizers when you call it directly. Derived `es-fluent` messages route through
 their crate domain automatically; direct callers that need explicit routing
 should use `FluentManager::localize_in_domain()` and keep domains unique.
+
+Lenient discovery still logs and skips conflicts, but it no longer replaces a
+metadata-only registration with a runtime registration when their module
+metadata disagrees.
 
 Strict discovery is now the default constructor behavior:
 

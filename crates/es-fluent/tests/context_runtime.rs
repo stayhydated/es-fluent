@@ -4,7 +4,8 @@ use es_fluent::__manager_core::{
 };
 use es_fluent::{
     FluentValue, GlobalLocalizationError, localize, localize_in_domain, replace_custom_localizer,
-    select_language, set_context, set_custom_localizer, try_set_context, try_set_custom_localizer,
+    replace_custom_localizer_with_domain, select_language, set_context, set_custom_localizer,
+    try_set_context, try_set_custom_localizer, try_set_custom_localizer_with_domain,
 };
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -74,16 +75,14 @@ fn context_localization_prefers_custom_then_context_then_id() {
     set_context(manager);
     select_language(&langid!("en-US")).expect("context should accept language selection");
 
-    set_custom_localizer(|id, _| {
-        if id == "custom-key" {
-            Some("from-custom".to_string())
-        } else {
-            None
-        }
+    set_custom_localizer(|id, _| match id {
+        "custom-key" => Some("from-custom".to_string()),
+        "ctx-key" => Some("legacy-custom-no-domain".to_string()),
+        _ => None,
     });
 
     assert_eq!(localize("custom-key", None), "from-custom");
-    assert_eq!(localize("ctx-key", None), "from-context");
+    assert_eq!(localize("ctx-key", None), "legacy-custom-no-domain");
     assert_eq!(
         localize_in_domain("es-fluent-context-test", "ctx-key", None),
         "from-context"
@@ -105,7 +104,31 @@ fn context_localization_prefers_custom_then_context_then_id() {
         GlobalLocalizationError::CustomLocalizerAlreadyInitialized
     ));
 
+    let second_domain_custom =
+        try_set_custom_localizer_with_domain(|_, _, _| Some("again".to_string()))
+            .expect_err("second domain-aware custom localizer install should fail");
+    assert!(matches!(
+        second_domain_custom,
+        GlobalLocalizationError::CustomLocalizerAlreadyInitialized
+    ));
+
+    replace_custom_localizer_with_domain(|domain, id, _| match (domain, id) {
+        (None, "custom-key") => Some("domain-aware-global".to_string()),
+        (Some("es-fluent-context-test"), "ctx-key") => Some("domain-aware-domain".to_string()),
+        _ => None,
+    });
+    assert_eq!(localize("custom-key", None), "domain-aware-global");
+    assert_eq!(localize("ctx-key", None), "from-context");
+    assert_eq!(
+        localize_in_domain("es-fluent-context-test", "ctx-key", None),
+        "domain-aware-domain"
+    );
+
     replace_custom_localizer(|_, _| Some("again".to_string()));
     assert_eq!(localize("custom-key", None), "again");
     assert_eq!(localize("ctx-key", None), "again");
+    assert_eq!(
+        localize_in_domain("es-fluent-context-test", "ctx-key", None),
+        "from-context"
+    );
 }

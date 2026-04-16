@@ -524,6 +524,18 @@ fn filter_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity
 }
 
 #[test]
+fn filter_module_registry_keeps_metadata_only_registration_when_runtime_metadata_conflicts() {
+    let filtered = filter_module_registry([
+        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+        &FILTER_RUNTIME_MISMATCH_MODULE as &dyn I18nModuleRegistration,
+    ]);
+
+    assert_eq!(filtered.len(), 1);
+    assert!(filtered[0].create_localizer().is_none());
+    assert_eq!(filtered[0].data(), &FILTER_EXACT_DUP_DATA);
+}
+
+#[test]
 fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
     let filtered = filter_module_registry([
         &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
