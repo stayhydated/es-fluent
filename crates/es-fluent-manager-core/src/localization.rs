@@ -17,7 +17,18 @@ pub use bundle::{
     build_sync_bundle, localize_with_bundle,
 };
 pub use manager::FluentManager;
-pub use registry::filter_module_registry;
+pub use registry::{
+    ModuleDiscoveryError, ModuleRegistrationKind, filter_module_registry,
+    try_filter_module_registry,
+};
+
+pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LanguageSelectionPolicy {
+    BestEffort,
+    Strict,
+}
 
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
@@ -40,12 +51,18 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
         None
     }
 
-    /// Returns whether this registration can provide a runtime localizer.
+    /// Returns the registration kind for duplicate-resolution and discovery.
     ///
-    /// Implementations can override this to avoid constructing a localizer just
-    /// for capability checks during duplicate-resolution.
+    /// Manual registrations must implement this explicitly so discovery does
+    /// not infer metadata by constructing a localizer.
+    fn registration_kind(&self) -> ModuleRegistrationKind;
+
+    /// Returns whether this registration can provide a runtime localizer.
     fn supports_runtime_localization(&self) -> bool {
-        self.create_localizer().is_some()
+        matches!(
+            self.registration_kind(),
+            ModuleRegistrationKind::RuntimeLocalizer
+        )
     }
 
     /// Returns an optional manifest-derived resource plan for a specific language.
@@ -70,11 +87,19 @@ impl<T: I18nModule> I18nModuleRegistration for T {
         Some(I18nModule::create_localizer(self))
     }
 
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::RuntimeLocalizer
+    }
+
     fn supports_runtime_localization(&self) -> bool {
         true
     }
 }
 
-impl I18nModuleRegistration for StaticModuleDescriptor {}
+impl I18nModuleRegistration for StaticModuleDescriptor {
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::MetadataOnly
+    }
+}
 
 inventory::collect!(&'static dyn I18nModuleRegistration);

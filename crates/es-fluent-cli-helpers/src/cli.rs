@@ -21,10 +21,7 @@ struct KeyMeta {
 ///
 /// * `crate_name` - The name of the crate to collect inventory for (e.g., "my-crate")
 ///
-/// # Panics
-///
-/// Panics if serialization or file writing fails.
-pub fn write_inventory_for_crate(crate_name: &str) {
+pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runner::RunnerIoError> {
     let crate_ident = crate_name.replace('-', "_");
 
     // Collect all registered type infos for this crate
@@ -68,9 +65,7 @@ pub fn write_inventory_for_crate(crate_name: &str) {
 
     let data = InventoryData { expected_keys };
 
-    RunnerMetadataStore::new(Path::new("."))
-        .write_inventory(crate_name, &data)
-        .expect("Failed to write inventory file");
+    RunnerMetadataStore::new(Path::new(".")).write_inventory(crate_name, &data)
 }
 
 #[cfg(test)]
@@ -145,7 +140,7 @@ mod tests {
     #[test]
     fn write_inventory_for_crate_writes_expected_key_data() {
         with_temp_cwd(|cwd| {
-            write_inventory_for_crate("test-crate");
+            write_inventory_for_crate("test-crate").expect("write inventory");
 
             let inventory_path = cwd.join("metadata/test-crate/inventory.json");
             let content = std::fs::read_to_string(inventory_path).expect("read inventory");
@@ -175,7 +170,7 @@ mod tests {
     #[test]
     fn write_inventory_for_unknown_crate_writes_empty_result() {
         with_temp_cwd(|cwd| {
-            write_inventory_for_crate("unknown-crate");
+            write_inventory_for_crate("unknown-crate").expect("write inventory");
             let inventory_path = cwd.join("metadata/unknown-crate/inventory.json");
             let content = std::fs::read_to_string(inventory_path).expect("read inventory");
             let json: serde_json::Value = serde_json::from_str(&content).expect("parse json");
@@ -193,7 +188,7 @@ mod tests {
     #[test]
     fn write_inventory_sets_source_file_to_null_when_missing() {
         with_temp_cwd(|cwd| {
-            write_inventory_for_crate("test-crate-empty-file");
+            write_inventory_for_crate("test-crate-empty-file").expect("write inventory");
 
             let inventory_path = cwd.join("metadata/test-crate-empty-file/inventory.json");
             let content = std::fs::read_to_string(inventory_path).expect("read inventory");

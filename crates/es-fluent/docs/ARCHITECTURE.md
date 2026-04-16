@@ -55,9 +55,13 @@ To allow `Display` implementations (which can't easily pass arguments) to access
 static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 ```
 
-- **Initialization**: Only one backend (e.g., `embedded::init()` or `bevy` plugin) can initialize this context using `set_context` or `set_shared_context`.
-- **Language Selection**: The active language can be changed at runtime using `select_language`, which calls `select_language` on the global `FluentManager`.
-- **Consumption**: The internal `localize` function (used by the `FluentDisplay` trait) uses lock-free `ArcSwap::load()` to access the manager, providing better performance in read-heavy localization scenarios.
+- **Initialization**: Only one backend (e.g., `embedded::init()` or `bevy` plugin) can initialize this context using `set_context` or `set_shared_context`. Integrations that need explicit error handling can use `try_set_context` or `try_set_shared_context`.
+- **Language Selection**: The active language can be changed at runtime using `select_language`, which now returns an error when no global context exists or no module can serve the requested locale.
+- **Consumption**: The internal `localize` helpers (used by the `FluentDisplay`
+  trait) use lock-free `ArcSwap::load()` to access the manager, providing
+  better performance in read-heavy localization scenarios. Derive-generated
+  lookups route through the defining crate's domain so same-key collisions
+  across modules do not depend on discovery order.
 
 ### Why ArcSwap?
 
@@ -77,9 +81,10 @@ static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<dyn Fn(...) -> Option<String
     OnceLock::new();
 ```
 
-- **Registration**: `set_custom_localizer` is fail-fast and panics on a second registration.
+- **Registration**: `set_custom_localizer` remains fail-fast for convenience, while `try_set_custom_localizer` gives integrations a non-panicking path.
 - **Explicit override**: `replace_custom_localizer` exists for integrations that intentionally own the process-global hook.
-- **Priority**: The `localize` function first checks the custom localizer. If it returns `Some(string)`, that result is used.
+- **Priority**: The global localization helpers first check the custom
+  localizer. If it returns `Some(string)`, that result is used.
 - **Fallback**: If the custom localizer returns `None` (or isn't set), the system falls back to the Global Context.
 
 ## Traits

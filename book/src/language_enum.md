@@ -37,12 +37,12 @@ pub enum Languages {
 
 The macro also generates these trait implementations:
 
-| Trait                          | Description                                                       |
-| ------------------------------ | ----------------------------------------------------------------- |
-| `Default`                      | Returns the variant matching `fallback_language` from `i18n.toml` |
-| `FromStr`                      | Parses `"en-US"` or `"fr"` into the matching variant              |
-| `TryFrom<&LanguageIdentifier>` | Converts from a `unic-langid` identifier                          |
-| `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                       |
+| Trait                          | Description                                                           |
+| ------------------------------ | --------------------------------------------------------------------- |
+| `Default`                      | Returns the variant matching `fallback_language` from `i18n.toml`     |
+| `FromStr`                      | Parses `"en-US"`, `"fr"`, or `"de-DE-1901"` into the matching variant |
+| `TryFrom<&LanguageIdentifier>` | Converts from a `unic-langid` identifier                              |
+| `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                           |
 
 ## Using with Managers
 
@@ -81,3 +81,4 @@ In custom mode:
 
 - The enum **is** registered with inventory, so `cargo es-fluent generate` will create keys for it in your FTL files.
 - You provide your own translations instead of using the bundled autonyms.
+- Locale folders do **not** need to exist in the bundled `es-fluent-lang` locale table. Use this when your app ships custom language-name translations for project-specific or otherwise unsupported locale tags.

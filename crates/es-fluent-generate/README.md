@@ -15,6 +15,8 @@ formatting helpers used by the CLI's direct `format` command.
 - Merges updates into existing files without discarding manual translations or
   comments in conservative mode
 - Removes orphaned generated keys in aggressive and clean flows
+- Prunes stale namespaced `.ftl` files during clean runs when a namespace no
+  longer has any registered Rust types
 - Splits output into namespaced files when type metadata requests it
 - Sorts and normalizes Fluent AST output for reproducible diffs
 

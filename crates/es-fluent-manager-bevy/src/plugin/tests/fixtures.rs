@@ -2,10 +2,11 @@ use crate::BevyFluentTextRegistration;
 use bevy::prelude::App;
 use es_fluent_manager_core::{
     I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
+    ModuleData, ModuleRegistrationKind, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
 };
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
+use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use unic_langid::{LanguageIdentifier, langid};
 
@@ -51,6 +52,10 @@ impl I18nModuleDescriptor for TestManifestModule {
 }
 
 impl I18nModuleRegistration for TestManifestModule {
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::MetadataOnly
+    }
+
     fn resource_plan_for_language(
         &self,
         lang: &LanguageIdentifier,
@@ -79,8 +84,15 @@ static TEST_FALLBACK_DATA: ModuleData = ModuleData {
     supported_languages: &[],
     namespaces: &[],
 };
+static SELECTIVE_FALLBACK_DATA: ModuleData = ModuleData {
+    name: "selective-fallback-module",
+    domain: "selective-fallback-domain",
+    supported_languages: &[],
+    namespaces: &[],
+};
 
 struct TestFallbackModule;
+struct SelectiveFallbackModule;
 
 impl I18nModuleDescriptor for TestFallbackModule {
     fn data(&self) -> &'static ModuleData {
@@ -95,6 +107,9 @@ impl I18nModule for TestFallbackModule {
 }
 
 struct TestFallbackLocalizer;
+struct SelectiveFallbackLocalizer {
+    selected: RwLock<Option<LanguageIdentifier>>,
+}
 
 impl Localizer for TestFallbackLocalizer {
     fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -118,6 +133,54 @@ static TEST_FALLBACK_MODULE: TestFallbackModule = TestFallbackModule;
 
 inventory::submit! {
     &TEST_FALLBACK_MODULE as &dyn I18nModuleRegistration
+}
+
+impl SelectiveFallbackLocalizer {
+    fn new() -> Self {
+        Self {
+            selected: RwLock::new(None),
+        }
+    }
+}
+
+impl I18nModuleDescriptor for SelectiveFallbackModule {
+    fn data(&self) -> &'static ModuleData {
+        &SELECTIVE_FALLBACK_DATA
+    }
+}
+
+impl I18nModule for SelectiveFallbackModule {
+    fn create_localizer(&self) -> Box<dyn Localizer> {
+        Box::new(SelectiveFallbackLocalizer::new())
+    }
+}
+
+impl Localizer for SelectiveFallbackLocalizer {
+    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        if lang == &langid!("en") {
+            *self.selected.write().expect("lock poisoned") = Some(lang.clone());
+            Ok(())
+        } else {
+            Err(LocalizationError::LanguageNotSupported(lang.clone()))
+        }
+    }
+
+    fn localize<'a>(
+        &self,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        (id == "selected-language")
+            .then(|| self.selected.read().expect("lock poisoned").clone())
+            .flatten()
+            .map(|lang| lang.to_string())
+    }
+}
+
+static SELECTIVE_FALLBACK_MODULE: SelectiveFallbackModule = SelectiveFallbackModule;
+
+inventory::submit! {
+    &SELECTIVE_FALLBACK_MODULE as &dyn I18nModuleRegistration
 }
 
 pub(crate) static REGISTER_CALLS: AtomicUsize = AtomicUsize::new(0);

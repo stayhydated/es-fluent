@@ -1,8 +1,10 @@
 use super::events::{build_path_to_crate, process_file_events};
-use super::generation::{compute_src_hash, spawn_generation};
+use super::generation::{compute_watch_inputs_hash, spawn_generation};
 use super::{run_watch_loop_with_poll, watch_all};
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
-use crate::generation::cache::{RunnerCache, compute_content_hash, compute_workspace_inputs_hash};
+use crate::generation::cache::{
+    RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
+};
 use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use notify::{
     Event,
@@ -45,13 +47,13 @@ fn compute_src_hash_changes_when_i18n_changes() {
     let i18n_toml = temp.path().join("i18n.toml");
     std::fs::write(&i18n_toml, "fallback_language = \"en\"\n").expect("write i18n");
 
-    let first = compute_src_hash(&src_dir, &i18n_toml);
+    let first = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
     std::fs::write(
         &i18n_toml,
         "fallback_language = \"en\"\nfluent_feature = \"i18n\"\n",
     )
     .expect("rewrite i18n");
-    let second = compute_src_hash(&src_dir, &i18n_toml);
+    let second = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
 
     assert_ne!(first, second);
 }
@@ -65,6 +67,8 @@ fn process_file_events_filters_and_deduplicates_expected_paths() {
     let events = vec![
         event_with_path(&src_dir.join("lib.rs")),
         event_with_path(&src_dir.join("module.rs")),
+        event_with_path(&valid_crate.manifest_dir.join("Cargo.toml")),
+        event_with_path(&valid_crate.manifest_dir.join("build.rs")),
         event_with_path(&src_dir.join("notes.txt")),
         event_with_path(&src_dir.join("translation.ftl")),
         event_with_path(Path::new("/tmp/ws/crate-a/.es-fluent/temp.rs")),
@@ -75,6 +79,36 @@ fn process_file_events_filters_and_deduplicates_expected_paths() {
     affected.sort();
 
     assert_eq!(affected, vec!["crate-a".to_string()]);
+}
+
+#[test]
+fn compute_watch_inputs_hash_changes_when_manifest_or_build_script_changes() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    std::fs::create_dir_all(&src_dir).expect("create src");
+    std::fs::write(src_dir.join("lib.rs"), "pub struct A;\n").expect("write lib.rs");
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-demo\"\nversion = \"0.1.0\"\n",
+    )
+    .expect("write manifest");
+
+    let i18n_toml = temp.path().join("i18n.toml");
+    std::fs::write(&i18n_toml, "fallback_language = \"en\"\n").expect("write i18n");
+
+    let before_manifest = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    std::fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"watch-demo\"\nversion = \"0.2.0\"\n",
+    )
+    .expect("rewrite manifest");
+    let after_manifest = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    assert_ne!(before_manifest, after_manifest);
+
+    let before_build = after_manifest;
+    std::fs::write(temp.path().join("build.rs"), "fn main() {}\n").expect("write build.rs");
+    let after_build = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    assert_ne!(before_build, after_build);
 }
 
 #[test]
@@ -186,7 +220,7 @@ fn create_valid_workspace_with_fake_runner_behavior(
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("mtime duration")
         .as_secs();
-    let hash = compute_content_hash(&src_dir, Some(&i18n_toml));
+    let hash = compute_crate_inputs_hash(temp.path(), &src_dir, Some(&i18n_toml));
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());

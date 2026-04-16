@@ -61,16 +61,21 @@ pub fn generate_this_ftl_impl(
     ident: &syn::Ident,
     generics: &syn::Generics,
     ftl_key: Option<&str>,
+    domain_override: Option<&str>,
 ) -> TokenStream {
     let Some(ftl_key) = ftl_key else {
         return quote! {};
     };
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let domain_expr = match domain_override {
+        Some(domain) => quote! { #domain },
+        None => quote! { env!("CARGO_PKG_NAME") },
+    };
     quote! {
         impl #impl_generics ::es_fluent::ThisFtl for #ident #ty_generics #where_clause {
             fn this_ftl() -> String {
-                ::es_fluent::localize(#ftl_key, None)
+                ::es_fluent::localize_in_domain(#domain_expr, #ftl_key, None)
             }
         }
     }
@@ -271,7 +276,7 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
             .collect(),
         namespace_expr: namespace_expr.clone(),
     });
-    let this_impl = generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref());
+    let this_impl = generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref(), None);
     let this_inventory =
         generate_optional_this_inventory_module(ident, namespace_expr, this_key.as_deref());
     let from_impls = generate_from_impls(ident, &empty_generics);
@@ -385,6 +390,15 @@ pub fn inherited_fluent_namespace(
     }
 }
 
+pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<String>, darling::Error> {
+    match &input.data {
+        Data::Struct(_) => Ok(None),
+        Data::Enum(_) => EnumOpts::from_derive_input(input)
+            .map(|opts| opts.attr_args().domain().map(str::to_owned)),
+        Data::Union(_) => panic!("domain lookup is not supported for unions"),
+    }
+}
+
 pub fn preferred_namespace<'a>(
     namespaces: impl IntoIterator<Item = Option<&'a NamespaceValue>>,
 ) -> Option<&'a NamespaceValue> {
@@ -393,7 +407,10 @@ pub fn preferred_namespace<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{inherited_fluent_namespace, preferred_namespace};
+    use super::{
+        generate_this_ftl_impl, inherited_fluent_domain, inherited_fluent_namespace,
+        preferred_namespace,
+    };
     use es_fluent_derive_core::options::namespace::NamespaceValue;
     use syn::parse_quote;
 
@@ -439,5 +456,57 @@ mod tests {
             Some(&fallback)
         );
         assert_eq!(preferred_namespace([None, None, None]), None);
+    }
+
+    #[test]
+    fn generate_this_ftl_impl_routes_through_the_current_crate_domain() {
+        let tokens = generate_this_ftl_impl(
+            &parse_quote!(Greeting),
+            &parse_quote!(),
+            Some("hello"),
+            None,
+        )
+        .to_string();
+
+        assert!(tokens.contains(":: es_fluent :: localize_in_domain"));
+        assert!(tokens.contains("env ! (\"CARGO_PKG_NAME\")"));
+        assert!(tokens.contains("hello"));
+    }
+
+    #[test]
+    fn generate_this_ftl_impl_uses_explicit_domain_override_when_present() {
+        let tokens = generate_this_ftl_impl(
+            &parse_quote!(Languages),
+            &parse_quote!(),
+            Some("es-fluent-lang-this"),
+            Some("es-fluent-lang"),
+        )
+        .to_string();
+
+        assert!(tokens.contains(":: es_fluent :: localize_in_domain"));
+        assert!(tokens.contains("\"es-fluent-lang\""));
+        assert!(!tokens.contains("env ! (\"CARGO_PKG_NAME\")"));
+    }
+
+    #[test]
+    fn inherited_fluent_domain_reads_parent_attr_on_enums() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            #[fluent(domain = "es-fluent-lang")]
+            enum Languages {
+                En
+            }
+        };
+        let struct_input: syn::DeriveInput = parse_quote! {
+            struct LoginForm;
+        };
+
+        assert_eq!(
+            inherited_fluent_domain(&enum_input).expect("enum domain"),
+            Some("es-fluent-lang".to_string())
+        );
+        assert_eq!(
+            inherited_fluent_domain(&struct_input).expect("struct domain"),
+            None
+        );
     }
 }

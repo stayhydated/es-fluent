@@ -30,6 +30,20 @@ struct ChapterInfo {
     content: String,
 }
 
+fn ensure_parent_dir(path: &Path) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create output directory {}", parent.display()))?;
+    }
+    Ok(())
+}
+
+fn book_html_path(path: &Path) -> String {
+    path.with_extension("html")
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
 pub fn run_with_paths(
     book_root: &Path,
     llms_path: &Path,
@@ -51,7 +65,7 @@ pub fn run_with_paths(
                 let path = chapter.path.as_ref()?;
                 Some(ChapterInfo {
                     name: chapter.name.clone(),
-                    path: path.with_extension("html").display().to_string(),
+                    path: book_html_path(path),
                     content: chapter.content.clone(),
                 })
             } else {
@@ -66,10 +80,8 @@ pub fn run_with_paths(
     // Build llms-full.txt (expanded content)
     let llms_full_txt = build_llms_full_txt(&chapters);
 
-    if let Some(parent) = llms_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("Failed to create output directory {}", parent.display()))?;
-    }
+    ensure_parent_dir(llms_path)?;
+    ensure_parent_dir(llms_full_path)?;
 
     fs::write(llms_path, llms_txt)
         .with_context(|| format!("Failed to write llms.txt to {}", llms_path.display()))?;
@@ -115,7 +127,7 @@ fn build_llms_full_txt(chapters: &[ChapterInfo]) -> String {
 mod tests {
     use std::{fs, path::Path};
 
-    use super::{run_from_workspace_root, run_with_paths};
+    use super::{book_html_path, run_from_workspace_root, run_with_paths};
 
     fn write_file(path: &Path, content: &str) {
         if let Some(parent) = path.parent() {
@@ -292,6 +304,37 @@ title = "Test Book"
 
         assert!(llms_path.exists(), "llms.txt should be created");
         assert!(llms_full_path.exists(), "llms-full.txt should be created");
+    }
+
+    #[test]
+    fn run_with_paths_creates_both_output_directories_when_parents_differ() {
+        let tmp = tempfile::tempdir().expect("failed to create temp directory");
+        let book_root = tmp.path().join("book");
+        let book_src = book_root.join("src");
+        let llms_path = tmp.path().join("output").join("links").join("llms.txt");
+        let llms_full_path = tmp
+            .path()
+            .join("expanded")
+            .join("docs")
+            .join("llms-full.txt");
+
+        create_book_toml(&book_root);
+
+        let summary = "# Summary\n\n- [Test](test.md)\n";
+        write_file(&book_src.join("SUMMARY.md"), summary);
+        write_file(&book_src.join("test.md"), "# Test\n\nContent.");
+
+        run_with_paths(&book_root, &llms_path, &llms_full_path)
+            .expect("run_with_paths should succeed");
+
+        assert!(llms_path.exists(), "llms.txt should be created");
+        assert!(llms_full_path.exists(), "llms-full.txt should be created");
+    }
+
+    #[test]
+    fn book_html_path_normalizes_windows_separators() {
+        let normalized = book_html_path(Path::new(r"guide\intro.md"));
+        assert_eq!(normalized, "guide/intro.html");
     }
 
     #[test]

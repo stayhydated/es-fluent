@@ -4,7 +4,7 @@ use super::monolithic::MonolithicRunner;
 use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
 use crate::generation::cache::{
-    MetadataCache, RunnerCache, compute_content_hash, compute_workspace_inputs_hash,
+    MetadataCache, RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
 };
 use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
@@ -61,6 +61,14 @@ edition = "2024"
     };
 
     (temp, workspace)
+}
+
+fn crate_inputs_hash(krate: &CrateInfo) -> String {
+    compute_crate_inputs_hash(
+        &krate.manifest_dir,
+        &krate.src_dir,
+        Some(&krate.i18n_config_path),
+    )
 }
 
 #[test]
@@ -326,7 +334,7 @@ fn monolithic_runner_staleness_detects_hash_changes() {
         .as_secs();
 
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {
@@ -362,7 +370,7 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
         .as_secs();
 
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {
@@ -408,7 +416,7 @@ fn run_monolithic_fast_path_reports_binary_failure() {
         .as_secs();
 
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {
@@ -513,7 +521,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
         .as_secs();
 
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {
@@ -554,7 +562,7 @@ fn monolithic_runner_staleness_detects_workspace_manifest_changes() {
         .expect("mtime duration")
         .as_secs();
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {
@@ -586,6 +594,88 @@ serde = "1"
 }
 
 #[test]
+fn monolithic_runner_staleness_detects_crate_manifest_changes() {
+    let (_temp, workspace) = create_workspace_fixture("crate-manifest-stale", true);
+    let runner = MonolithicRunner::new(&workspace);
+    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
+        .expect("create binary dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+
+    let mtime = std::fs::metadata(&runner.binary_path)
+        .and_then(|m| m.modified())
+        .expect("runner mtime")
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("mtime duration")
+        .as_secs();
+    let krate = &workspace.crates[0];
+    let mut crate_hashes = indexmap::IndexMap::new();
+    crate_hashes.insert(krate.name.clone(), crate_inputs_hash(krate));
+    RunnerCache {
+        crate_hashes,
+        runner_mtime: mtime,
+        cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
+    }
+    .save(runner.temp_store.base_dir())
+    .expect("save cache");
+
+    std::fs::write(
+        krate.manifest_dir.join("Cargo.toml"),
+        r#"[package]
+name = "crate-manifest-stale"
+version = "0.2.0"
+edition = "2024"
+"#,
+    )
+    .expect("rewrite crate manifest");
+
+    assert!(
+        runner.is_stale(),
+        "crate manifest change should mark runner stale"
+    );
+}
+
+#[test]
+fn monolithic_runner_staleness_detects_build_script_changes() {
+    let (_temp, workspace) = create_workspace_fixture("build-script-stale", true);
+    let runner = MonolithicRunner::new(&workspace);
+    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
+        .expect("create binary dir");
+    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
+    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+
+    let mtime = std::fs::metadata(&runner.binary_path)
+        .and_then(|m| m.modified())
+        .expect("runner mtime")
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .expect("mtime duration")
+        .as_secs();
+    let krate = &workspace.crates[0];
+    let mut crate_hashes = indexmap::IndexMap::new();
+    crate_hashes.insert(krate.name.clone(), crate_inputs_hash(krate));
+    RunnerCache {
+        crate_hashes,
+        runner_mtime: mtime,
+        cli_version: CLI_VERSION.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
+    }
+    .save(runner.temp_store.base_dir())
+    .expect("save cache");
+
+    std::fs::write(
+        krate.manifest_dir.join("build.rs"),
+        "fn main() { println!(\"cargo:rerun-if-changed=build.rs\"); }\n",
+    )
+    .expect("write build.rs");
+
+    assert!(
+        runner.is_stale(),
+        "build script change should mark runner stale"
+    );
+}
+
+#[test]
 fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
     let (_temp, workspace) = create_workspace_fixture("lockfile-stale", true);
     std::fs::write(workspace.root_dir.join("Cargo.lock"), "version = 4\n").expect("write lock");
@@ -603,7 +693,7 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
         .expect("mtime duration")
         .as_secs();
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {
@@ -624,7 +714,7 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
 }
 
 #[test]
-fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
+fn monolithic_runner_staleness_rebuilds_when_mtime_changes() {
     let (_temp, workspace) = create_workspace_fixture("mtime-refresh", true);
     let runner = MonolithicRunner::new(&workspace);
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
@@ -639,7 +729,7 @@ fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
         .expect("mtime duration")
         .as_secs();
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {
@@ -651,12 +741,13 @@ fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
     .save(runner.temp_store.base_dir())
     .expect("save stale-mtime cache");
 
-    assert!(
-        !runner.is_stale(),
-        "mtime mismatch should refresh cache and stay fresh"
+    assert!(runner.is_stale(), "mtime mismatch should force a rebuild");
+    let cached = RunnerCache::load(runner.temp_store.base_dir()).expect("load cached runner");
+    assert_eq!(
+        cached.runner_mtime,
+        current_mtime.saturating_sub(1),
+        "staleness checks should not silently rewrite the cache"
     );
-    let updated = RunnerCache::load(runner.temp_store.base_dir()).expect("load updated cache");
-    assert_eq!(updated.runner_mtime, current_mtime);
 }
 
 #[test]
@@ -716,7 +807,7 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
         .expect("mtime duration")
         .as_secs();
     let krate = &workspace.crates[0];
-    let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+    let hash = crate_inputs_hash(krate);
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     RunnerCache {

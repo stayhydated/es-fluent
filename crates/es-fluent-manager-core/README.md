@@ -11,9 +11,16 @@ integrations.
 ## Key API
 
 - `FluentManager`: central runtime entry point for selecting locales and formatting
-  messages
+  messages, with optional domain-scoped lookup via `localize_in_domain`
+- `LanguageSelectionPolicy` plus `FluentManager::select_language_strict()`: choose
+  between best-effort locale switching and transactional switching
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts
   for localization modules
+- `FluentManager::new_with_discovered_modules()` and
+  `FluentManager::try_new_with_discovered_modules()`: strict discovery helpers
+  that fail fast on invalid metadata or repeated registrations of the same kind
+- `FluentManager::best_effort_with_discovered_modules()`: legacy lenient
+  discovery that logs and skips conflicts
 - `Localizer`: runtime formatter interface used by managers
 - `EmbeddedAssets` and `EmbeddedI18nModule`: reusable support for embedded assets
 - `ModuleData`, `I18nModuleDescriptor`, and resource-plan helpers for asset-driven
@@ -28,3 +35,24 @@ Most applications should use a concrete manager crate instead:
 
 Reach for `es-fluent-manager-core` directly when building a custom runtime
 integration or reusing the shared fallback and module-registration logic.
+
+`FluentManager::localize()` remains a first-match search across discovered
+localizers when you call it directly. Derived `es-fluent` messages route through
+their crate domain automatically; direct callers that need explicit routing
+should use `FluentManager::localize_in_domain()` and keep domains unique.
+
+Strict discovery is now the default constructor behavior:
+
+```rust
+use es_fluent_manager_core::FluentManager;
+
+let manager = FluentManager::new_with_discovered_modules();
+```
+
+If you intentionally want the legacy lenient behavior, opt in explicitly:
+
+```rust
+use es_fluent_manager_core::FluentManager;
+
+let manager = FluentManager::best_effort_with_discovered_modules();
+```

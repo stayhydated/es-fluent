@@ -76,6 +76,8 @@ cargo es-fluent clean
 
 Use `--dry-run` to preview changes without writing them. Use `--all` to clean all locales. Use `--force-run` to bypass the staleness cache.
 
+When a namespaced file no longer has any registered Rust types, `clean` also removes that stale namespace file in the locale being cleaned so discovery metadata stays in sync with code.
+
 #### Clean Orphaned Files
 
 Remove FTL files that are no longer tied to any registered types (e.g., when all items are now namespaced or the crate was deleted):

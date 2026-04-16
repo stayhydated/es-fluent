@@ -4,7 +4,10 @@ use crate::namespace_resolver::{
     file_relative_namespace, file_stem_namespace, folder_namespace, folder_relative_namespace,
 };
 use darling::FromMeta;
-use std::{borrow::Cow, path::Path};
+use std::{
+    borrow::Cow,
+    path::{Component, Path},
+};
 
 /// Namespace selection rules for FTL file output.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -32,6 +35,40 @@ impl NamespaceRule {
             Self::FolderRelative => folder_relative_namespace(file_path, manifest_dir),
         }
     }
+}
+
+/// Validate a resolved namespace before using it as a relative output path.
+pub fn validate_namespace_path(namespace: &str) -> Result<(), &'static str> {
+    let trimmed = namespace.trim();
+    if trimmed.is_empty() {
+        return Err("namespace must not be empty");
+    }
+    if namespace != trimmed {
+        return Err("namespace must not have leading or trailing whitespace");
+    }
+    if trimmed.contains('\\') {
+        return Err("namespace must use '/' as path separator");
+    }
+    if trimmed.split('/').any(|segment| segment.is_empty()) {
+        return Err("namespace path must not contain empty segments");
+    }
+    if trimmed
+        .split('/')
+        .any(|segment| matches!(segment, "." | ".."))
+    {
+        return Err("namespace path must not contain '.' or '..' segments");
+    }
+    if Path::new(trimmed)
+        .components()
+        .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
+    {
+        return Err("namespace must be a relative path");
+    }
+    if trimmed.ends_with(".ftl") {
+        return Err("namespace must not include file extension");
+    }
+
+    Ok(())
 }
 
 impl FromMeta for NamespaceRule {
@@ -173,6 +210,51 @@ mod tests {
         assert_eq!(
             NamespaceRule::FolderRelative.resolve("src/ui/button.rs", None),
             "ui"
+        );
+    }
+
+    #[test]
+    fn relative_namespace_resolution_normalizes_parent_segments() {
+        assert_eq!(
+            NamespaceRule::FileRelative.resolve("src/ui/../button.rs", None),
+            "button"
+        );
+        assert_eq!(
+            NamespaceRule::FolderRelative.resolve("src/ui/../forms/button.rs", None),
+            "forms"
+        );
+    }
+
+    #[test]
+    fn validate_namespace_path_rejects_unsafe_values() {
+        assert!(validate_namespace_path("ui/button").is_ok());
+        assert_eq!(
+            validate_namespace_path("").unwrap_err(),
+            "namespace must not be empty"
+        );
+        assert_eq!(
+            validate_namespace_path(" ui/button ").unwrap_err(),
+            "namespace must not have leading or trailing whitespace"
+        );
+        assert_eq!(
+            validate_namespace_path(r"ui\button").unwrap_err(),
+            "namespace must use '/' as path separator"
+        );
+        assert_eq!(
+            validate_namespace_path("ui//button").unwrap_err(),
+            "namespace path must not contain empty segments"
+        );
+        assert_eq!(
+            validate_namespace_path("../escape").unwrap_err(),
+            "namespace path must not contain '.' or '..' segments"
+        );
+        assert_eq!(
+            validate_namespace_path("/escape").unwrap_err(),
+            "namespace path must not contain empty segments"
+        );
+        assert_eq!(
+            validate_namespace_path("ui/button.ftl").unwrap_err(),
+            "namespace must not include file extension"
         );
     }
 }

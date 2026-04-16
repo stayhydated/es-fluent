@@ -14,7 +14,10 @@ The system uses a trait-based architecture to allow pluggable backends.
 classDiagram
     class FluentManager {
         +new_with_discovered_modules()
+        +best_effort_with_discovered_modules()
+        +try_new_with_discovered_modules()
         +select_language(lang)
+        +select_language_strict(lang)
         +localize(id, args)
     }
 
@@ -66,8 +69,9 @@ Common metadata contract for manager discovery.
 - Returns a shared `ModuleData` shape (`name`, `domain`, languages, namespaces).
 - Enables metadata-only registration for managers that don't create `Localizer`s (for example Bevy runtime asset loading).
 - Namespace semantics are shared across managers: when `namespaces` is non-empty,
-  namespace files are required for readiness while `{domain}.ftl` remains
-  optional compatibility data.
+  the namespace list records the module's known split files using canonical
+  forward-slash paths like `ui` or `ui/button`, while managers can
+  use a more precise per-language resource plan when one is available.
 
 ### `I18nModuleRegistration`
 
@@ -75,7 +79,12 @@ Unified inventory contract used by managers.
 
 - Extends `I18nModuleDescriptor` with optional runtime hooks.
 - `create_localizer()` supports runtime localization backends.
-- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads).
+- `registration_kind()` is explicit metadata, so discovery does not infer
+  module kind by constructing a localizer.
+- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
+- `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
+- `filter_module_registry()` remains the explicit best-effort path that logs and
+  skips conflicts.
 
 ### `Localizer`
 
@@ -83,6 +92,11 @@ Responsible for the actual string formatting logic.
 
 - Holds the loaded `FluentResource`s.
 - Wraps `fluent-bundle` logic.
+- `FluentManager::select_language()` is best-effort for unsupported locales:
+  modules that reject a locale with `LanguageNotSupported` are skipped as long
+  as at least one module accepts it.
+- `FluentManager::select_language_strict()` preserves transactional switching
+  when callers need all modules to agree.
 
 ### `EmbeddedAssets`
 

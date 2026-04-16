@@ -71,6 +71,18 @@ App::new().add_plugins(
 );
 ```
 
+If you also want plugin startup to fail on duplicate or invalid module
+registrations, opt into strict registry validation:
+
+```rs
+use es_fluent_manager_bevy::{I18nPlugin, ModuleRegistryMode};
+
+App::new().add_plugins(
+    I18nPlugin::with_language(langid!("en-US"))
+        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted),
+);
+```
+
 ### 3. Define Localizable Components (Recommended)
 
 Prefer the `BevyFluentText` derive macro. It auto-registers your type with
@@ -80,7 +92,9 @@ functions manually.
 If a field depends on the active locale (like the `Languages` enum from
 [es_fluent_lang](../es-fluent-lang/README.md)), mark it with `#[locale]`.
 The macro will generate `RefreshForLocale` and register the locale-aware
-systems for you.
+systems for you. `#[locale]` is supported on named struct fields and named
+enum variant fields, and you can mark more than one named field in the same
+variant when they all need refresh behavior.
 
 ```rs
 use bevy::prelude::Component;

@@ -1,4 +1,5 @@
 use super::resource::{ModuleResourceSpec, resource_plan_for};
+use es_fluent_shared::namespace::validate_namespace_path;
 use std::collections::HashSet;
 use std::fmt;
 use unic_langid::LanguageIdentifier;
@@ -7,7 +8,7 @@ use unic_langid::LanguageIdentifier;
 ///
 /// This single shape is shared by all managers (embedded, Bevy, and future
 /// third-party backends) so module discovery and routing can be standardized.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ModuleData {
     /// The unique module name (typically crate name).
     pub name: &'static str,
@@ -15,7 +16,7 @@ pub struct ModuleData {
     pub domain: &'static str,
     /// Languages that this module can provide.
     pub supported_languages: &'static [LanguageIdentifier],
-    /// Namespaces used by the module (e.g., "ui", "errors").
+    /// Namespaces used by the module (e.g., "ui", "ui/button").
     /// If empty, only the main `{domain}.ftl` file is used.
     /// If non-empty, namespace files are the canonical resources and managers
     /// treat `{domain}.ftl` as optional compatibility data.
@@ -99,7 +100,10 @@ impl std::error::Error for ModuleRegistryError {}
 /// - `name` and `domain` must be non-empty.
 /// - `name` and `domain` must be globally unique.
 /// - `supported_languages` and `namespaces` must not contain duplicates.
-/// - Namespaces must be bare namespace names (no slash and no `.ftl` suffix).
+/// - Namespaces use canonical forward-slash paths such as `ui` or `ui/button`.
+/// - Namespace paths must be relative, must not contain `.` or `..` segments,
+///   must not have leading or trailing whitespace, and must not include the
+///   `.ftl` suffix.
 pub fn validate_module_registry<'a>(
     modules: impl IntoIterator<Item = &'a ModuleData>,
 ) -> Result<(), Vec<ModuleRegistryError>> {
@@ -139,27 +143,13 @@ pub fn validate_module_registry<'a>(
         let mut seen_namespaces = HashSet::new();
         for namespace in data.namespaces {
             let trimmed = namespace.trim();
-            if trimmed.is_empty() {
+            if let Err(details) = validate_namespace_path(namespace) {
                 errors.push(ModuleRegistryError::InvalidNamespace {
                     module: data.name.to_string(),
                     namespace: namespace.to_string(),
-                    details: "namespace must not be empty",
+                    details,
                 });
                 continue;
-            }
-            if trimmed.contains('/') {
-                errors.push(ModuleRegistryError::InvalidNamespace {
-                    module: data.name.to_string(),
-                    namespace: namespace.to_string(),
-                    details: "namespace must not contain '/'",
-                });
-            }
-            if trimmed.ends_with(".ftl") {
-                errors.push(ModuleRegistryError::InvalidNamespace {
-                    module: data.name.to_string(),
-                    namespace: namespace.to_string(),
-                    details: "namespace must not include file extension",
-                });
             }
             if !seen_namespaces.insert(trimmed) {
                 errors.push(ModuleRegistryError::DuplicateNamespace {

@@ -12,12 +12,21 @@ use crate::localization::{
 use fluent_bundle::{FluentResource, FluentValue};
 use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use unic_langid::LanguageIdentifier;
 
 pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
     fn domain() -> &'static str;
+
+    /// Returns the canonical namespace list for this embedded module.
+    ///
+    /// Macro-generated modules override this so embedded language discovery can
+    /// ignore stray files and only treat configured namespace paths as
+    /// canonical locale resources.
+    fn namespaces() -> &'static [&'static str] {
+        &[]
+    }
 }
 
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
@@ -25,6 +34,26 @@ pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     current_bundle: RwLock<Option<Arc<SyncFluentBundle>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
     _phantom: std::marker::PhantomData<T>,
+}
+
+fn read_lock<'a, T>(lock: &'a RwLock<T>, context: &str) -> RwLockReadGuard<'a, T> {
+    match lock.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!("{context} lock poisoned while reading; recovering");
+            poisoned.into_inner()
+        },
+    }
+}
+
+fn write_lock<'a, T>(lock: &'a RwLock<T>, context: &str) -> RwLockWriteGuard<'a, T> {
+    match lock.write() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!("{context} lock poisoned while writing; recovering");
+            poisoned.into_inner()
+        },
+    }
 }
 
 impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
@@ -89,7 +118,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 
 impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        let mut current_lang_guard = self.current_lang.write().unwrap();
+        let mut current_lang_guard = write_lock(&self.current_lang, "embedded localizer language");
         for candidate in fallback_locales(lang).locales() {
             if !self
                 .data
@@ -109,12 +138,15 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
                 for errors in add_errors {
                     tracing::error!("Failed to add resource to bundle: {:?}", errors);
                 }
-                *self.current_bundle.write().unwrap() = Some(Arc::new(bundle));
+                *write_lock(&self.current_bundle, "embedded localizer bundle") =
+                    Some(Arc::new(bundle));
                 *current_lang_guard = Some(candidate);
                 return Ok(());
             }
         }
 
+        // Preserve the last ready bundle on failure so callers can keep using
+        // the previous locale until a new ready locale is selected.
         Err(LocalizationError::LanguageNotSupported(lang.clone()))
     }
 
@@ -123,7 +155,7 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let bundle_guard = self.current_bundle.read().unwrap();
+        let bundle_guard = read_lock(&self.current_bundle, "embedded localizer bundle");
         let bundle = bundle_guard.as_ref()?;
         let (value, errors) = localize_with_bundle(bundle.as_ref(), id, args)?;
 
@@ -141,6 +173,44 @@ pub struct EmbeddedI18nModule<T: EmbeddedAssets> {
     _phantom: std::marker::PhantomData<T>,
 }
 
+fn embedded_resource_from_asset_path(
+    file_path: &str,
+    domain: &str,
+    namespaces: &[&str],
+) -> Option<(LanguageIdentifier, Option<String>)> {
+    let mut segments = file_path.split('/');
+    let language = segments.next()?;
+    let next = segments.next()?;
+
+    if next == format!("{domain}.ftl") && segments.next().is_none() {
+        return language
+            .parse::<LanguageIdentifier>()
+            .ok()
+            .map(|lang| (lang, None));
+    }
+
+    if next != domain {
+        return None;
+    }
+
+    let namespace_path = segments.collect::<Vec<_>>().join("/");
+    let namespace = namespace_path.strip_suffix(".ftl")?;
+    if namespace.is_empty() {
+        return None;
+    }
+
+    namespaces
+        .iter()
+        .any(|configured| configured == &namespace)
+        .then(|| {
+            language
+                .parse::<LanguageIdentifier>()
+                .ok()
+                .map(|lang| (lang, Some(namespace.to_string())))
+        })
+        .flatten()
+}
+
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
     pub const fn new(data: &'static ModuleData) -> Self {
         Self {
@@ -151,36 +221,52 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
 
     pub fn discover_languages() -> Vec<LanguageIdentifier> {
         let domain = T::domain();
-        let file_name = format!("{}.ftl", domain);
-        let mut languages = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        let namespaces = T::namespaces();
+        if namespaces.is_empty() {
+            let mut languages = Vec::new();
+            let mut seen = HashSet::new();
 
-        for file_path in T::iter() {
-            let file_path_str = file_path.as_ref();
-
-            // Check for main domain file: {lang}/{domain}.ftl
-            if file_path_str.ends_with(&file_name) {
-                let suffix = format!("/{}", file_name);
-                if let Some(lang_part) = file_path_str.strip_suffix(&suffix)
-                    && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
+            for file_path in T::iter() {
+                let file_path_str = file_path.as_ref();
+                if let Some((lang_id, _)) =
+                    embedded_resource_from_asset_path(file_path_str, domain, namespaces)
                     && seen.insert(lang_id.clone())
                 {
                     languages.push(lang_id);
                 }
             }
 
-            // Check for namespaced files: {lang}/{domain}/{namespace}.ftl
-            if let Some(parent) = std::path::Path::new(file_path_str).parent()
-                && let Some(parent_str) = parent.to_str()
-                && parent_str.ends_with(&format!("/{}", domain))
-                && let Some(lang_part) = parent_str.strip_suffix(&format!("/{}", domain))
-                && let Ok(lang_id) = lang_part.parse::<LanguageIdentifier>()
-                && seen.insert(lang_id.clone())
+            languages.sort_by_key(|a| a.to_string());
+            return languages;
+        }
+
+        let mut found_namespaces_by_language: HashMap<LanguageIdentifier, HashSet<String>> =
+            HashMap::new();
+
+        for file_path in T::iter() {
+            let file_path_str = file_path.as_ref();
+            // Discover locales from canonical resource paths only:
+            // `{lang}/{domain}.ftl` and configured namespaced files like
+            // `{lang}/{domain}/ui/button.ftl`.
+            if let Some((lang_id, Some(namespace))) =
+                embedded_resource_from_asset_path(file_path_str, domain, namespaces)
             {
-                languages.push(lang_id);
+                found_namespaces_by_language
+                    .entry(lang_id)
+                    .or_default()
+                    .insert(namespace);
             }
         }
 
+        let mut languages = found_namespaces_by_language
+            .into_iter()
+            .filter_map(|(lang_id, found_namespaces)| {
+                namespaces
+                    .iter()
+                    .all(|namespace| found_namespaces.contains(*namespace))
+                    .then_some(lang_id)
+            })
+            .collect::<Vec<_>>();
         languages.sort_by_key(|a| a.to_string());
         languages
     }
@@ -212,6 +298,10 @@ mod tests {
         fn domain() -> &'static str {
             "test-domain"
         }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
     }
 
     #[derive(RustEmbed)]
@@ -222,6 +312,10 @@ mod tests {
         fn domain() -> &'static str {
             "test-domain"
         }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
     }
 
     #[derive(RustEmbed)]
@@ -231,6 +325,24 @@ mod tests {
     impl EmbeddedAssets for OptionalBaseErrorAssets {
         fn domain() -> &'static str {
             "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
+    }
+
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_nested"]
+    struct NestedNamespaceAssets;
+
+    impl EmbeddedAssets for NestedNamespaceAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui/button"]
         }
     }
 
@@ -262,13 +374,51 @@ mod tests {
         supported_languages: OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
+    static NESTED_NAMESPACE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static NESTED_NAMESPACE_MODULE_DATA: ModuleData = ModuleData {
+        name: "nested-namespace-module",
+        domain: "test-domain",
+        supported_languages: NESTED_NAMESPACE_SUPPORTED_LANGUAGES,
+        namespaces: &["ui/button"],
+    };
 
     #[test]
     fn discover_languages_collects_and_sorts_unique_languages() {
         let languages = EmbeddedI18nModule::<TestAssets>::discover_languages();
+        assert_eq!(languages, vec![langid!("en")]);
+    }
+
+    #[test]
+    fn discover_languages_includes_locales_with_only_nested_namespace_files() {
+        let languages = EmbeddedI18nModule::<NestedNamespaceAssets>::discover_languages();
+        assert_eq!(languages, vec![langid!("en")]);
+    }
+
+    #[test]
+    fn embedded_language_discovery_only_accepts_canonical_resources() {
         assert_eq!(
-            languages,
-            vec![langid!("en"), langid!("en-GB"), langid!("fr")]
+            embedded_resource_from_asset_path("en/test-domain.ftl", "test-domain", &["ui"]),
+            Some((langid!("en"), None))
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain/ui.ftl", "test-domain", &["ui"]),
+            Some((langid!("en"), Some("ui".to_string())))
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path(
+                "en/test-domain/ui/button.ftl",
+                "test-domain",
+                &["ui/button"]
+            ),
+            Some((langid!("en"), Some("ui/button".to_string())))
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain/readme.txt", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain/misc.ftl", "test-domain", &["ui"]),
+            None
         );
     }
 
@@ -337,6 +487,29 @@ mod tests {
     }
 
     #[test]
+    fn embedded_localizer_keeps_previous_bundle_when_selection_fails() {
+        let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("en should load successfully");
+        assert_eq!(
+            localizer.localize("ui-title", None),
+            Some("UI Title".to_string())
+        );
+
+        let err = localizer
+            .select_language(&langid!("fr"))
+            .expect_err("fr should fail because the embedded resource is invalid");
+        assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
+        assert_eq!(
+            localizer.localize("ui-title", None),
+            Some("UI Title".to_string()),
+            "failed switches should keep the last ready locale active"
+        );
+    }
+
+    #[test]
     fn embedded_module_data_and_factory_work() {
         let module = EmbeddedI18nModule::<TestAssets>::new(&MODULE_DATA);
         assert_eq!(module.data().name, "test-module");
@@ -366,7 +539,7 @@ mod tests {
 
         let missing_namespace_err = localizer
             .select_language(&langid!("ef"))
-            .expect_err("missing required namespace file should fail");
+            .expect_err("base-only locale should fail when required namespaces are missing");
         assert!(matches!(
             missing_namespace_err,
             LocalizationError::LanguageNotSupported(_)
@@ -384,6 +557,20 @@ mod tests {
         assert_eq!(
             localizer.localize("hello", None),
             Some("Hello from optional-base fixture".to_string())
+        );
+    }
+
+    #[test]
+    fn embedded_localizer_loads_nested_namespace_files() {
+        let localizer =
+            EmbeddedLocalizer::<NestedNamespaceAssets>::new(&NESTED_NAMESPACE_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("nested namespace file should make the locale ready");
+        assert_eq!(
+            localizer.localize("nested-title", None),
+            Some("Nested UI Button".to_string())
         );
     }
 }

@@ -21,6 +21,7 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
     let base_key = opts.base_key();
+    let domain_override = opts.attr_args().domain().map(str::to_owned);
 
     let variants = opts.variants();
 
@@ -31,6 +32,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         match variant_opt.style() {
             darling::ast::Style::Unit => {
                 let body = LocalizeCallSpec {
+                    domain_override: domain_override.clone(),
                     ftl_key,
                     arguments: Vec::new(),
                 }
@@ -68,7 +70,12 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         )
                     })
                     .collect();
-                let body = LocalizeCallSpec { ftl_key, arguments }.write_expr();
+                let body = LocalizeCallSpec {
+                    domain_override: domain_override.clone(),
+                    ftl_key,
+                    arguments,
+                }
+                .write_expr();
 
                 quote! {
                     Self::#variant_ident(#(#field_pats),*) => {
@@ -96,7 +103,12 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         )
                     })
                     .collect();
-                let body = LocalizeCallSpec { ftl_key, arguments }.write_expr();
+                let body = LocalizeCallSpec {
+                    domain_override: domain_override.clone(),
+                    ftl_key,
+                    arguments,
+                }
+                .write_expr();
 
                 let all_fields = variant_opt.all_fields();
                 let has_skipped_fields = all_fields.len() > fields.len();

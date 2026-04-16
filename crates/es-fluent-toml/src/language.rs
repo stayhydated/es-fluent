@@ -2,6 +2,7 @@ use crate::I18nConfigError;
 use std::{fs, io};
 use unic_langid::LanguageIdentifier;
 
+#[derive(Debug)]
 pub(crate) struct ParsedLanguageEntry {
     pub(crate) raw_name: String,
     pub(crate) language: LanguageIdentifier,
@@ -36,23 +37,8 @@ pub(crate) fn parse_language_entry(
         }
     })?;
 
-    ensure_supported_language_identifier(&lang, &name)?;
     Ok(Some(ParsedLanguageEntry {
         raw_name: name,
         language: lang,
     }))
-}
-
-pub(crate) fn ensure_supported_language_identifier(
-    lang: &LanguageIdentifier,
-    original: &str,
-) -> Result<(), I18nConfigError> {
-    if lang.variants().next().is_some() {
-        return Err(I18nConfigError::UnsupportedLanguageIdentifier {
-            name: original.to_string(),
-            reason: "variants are not supported".to_string(),
-        });
-    }
-
-    Ok(())
 }

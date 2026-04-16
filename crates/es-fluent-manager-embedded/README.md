@@ -42,5 +42,31 @@ fn main() {
 }
 ```
 
-If you prefer to initialize first and decide the locale later, `init()` and `select_language(...)`
-remain available.
+If you prefer to initialize first and decide the locale later, `init()` and
+`select_language(...)` remain available:
+
+```rs
+es_fluent_manager_embedded::init();
+es_fluent_manager_embedded::select_language(langid!("fr"))
+    .expect("manager initialized and locale is available");
+```
+
+`select_language(...)` returns an error if initialization was skipped or if no
+discovered module can serve the requested locale. When some modules support the
+requested locale and others do not, the default switch keeps the supporting
+modules active.
+
+`init()` and `init_with_language(...)` are best-effort convenience wrappers:
+duplicate or invalid registrations are logged and skipped, and initialization
+errors are logged instead of returned.
+
+If you want startup to fail fast before the singleton is published, use the
+fallible strict entry points instead:
+
+```rs
+es_fluent_manager_embedded::try_init_with_language(langid!("fr"))
+    .expect("embedded i18n manager should initialize");
+```
+
+Both `init_with_language(...)` and `try_init_with_language(...)` only publish
+the singleton after the requested language has been selected successfully.

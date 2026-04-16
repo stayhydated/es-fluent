@@ -3,9 +3,10 @@
 pub mod build;
 mod language;
 
-use language::{ensure_supported_language_identifier, parse_language_entry};
+use language::parse_language_entry;
 
 use serde::{Deserialize, Serialize};
+use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 use thiserror::Error;
@@ -30,14 +31,6 @@ pub enum I18nConfigError {
         /// The parsing error produced by `unic-langid`.
         #[source]
         source: LanguageIdentifierError,
-    },
-    /// Encountered a language identifier that uses an unsupported subtag combination.
-    #[error("Language identifier '{name}' is not supported: {reason}")]
-    UnsupportedLanguageIdentifier {
-        /// The invalid identifier.
-        name: String,
-        /// Explanation of why it is not supported.
-        reason: String,
     },
     /// Encountered an invalid fallback language identifier.
     #[error("Invalid fallback language identifier '{name}'")]
@@ -270,8 +263,6 @@ impl I18nConfig {
                 },
             )?;
 
-        ensure_supported_language_identifier(&lang, &self.fallback_language)?;
-
         Ok(lang)
     }
 
@@ -294,10 +285,7 @@ impl I18nConfig {
         let assets_path = self.assets_dir_from_base(base_dir)?;
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
 
-        let mut languages: Vec<(String, LanguageIdentifier)> = entries
-            .filter_map(|entry| entry.ok())
-            .filter_map(|entry| parse_language_entry(entry).transpose())
-            .collect::<Result<Vec<_>, _>>()?
+        let mut languages: Vec<(String, LanguageIdentifier)> = collect_language_entries(entries)?
             .into_iter()
             .map(|entry| {
                 let canonical = entry.language.to_string();
@@ -320,10 +308,7 @@ impl I18nConfig {
         let assets_path = self.assets_dir_from_base(base_dir)?;
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
 
-        let mut locales = entries
-            .filter_map(|entry| entry.ok())
-            .filter_map(|entry| parse_language_entry(entry).transpose())
-            .collect::<Result<Vec<_>, _>>()?
+        let mut locales = collect_language_entries(entries)?
             .into_iter()
             .map(|entry| entry.raw_name)
             .collect::<Vec<_>>();
@@ -381,6 +366,21 @@ impl I18nConfig {
         let assets_dir = config.assets_dir_from_base(Some(manifest_dir))?;
         Ok(assets_dir.join(&config.fallback_language))
     }
+}
+
+fn collect_language_entries(
+    entries: impl IntoIterator<Item = Result<DirEntry, std::io::Error>>,
+) -> Result<Vec<language::ParsedLanguageEntry>, I18nConfigError> {
+    let mut parsed_entries = Vec::new();
+
+    for entry in entries {
+        let entry = entry.map_err(I18nConfigError::ReadError)?;
+        if let Some(entry) = parse_language_entry(entry)? {
+            parsed_entries.push(entry);
+        }
+    }
+
+    Ok(parsed_entries)
 }
 
 #[cfg(test)]

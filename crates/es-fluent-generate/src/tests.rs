@@ -1,8 +1,9 @@
 use super::*;
 use es_fluent_shared::meta::TypeKind;
-use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant};
+use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use fluent_syntax::{ast, parser};
 use indexmap::IndexMap;
+use std::borrow::Cow;
 use std::path::PathBuf;
 use tempfile::tempdir;
 
@@ -78,8 +79,10 @@ fn read_existing_and_write_updated_resource_cover_io_branches() {
     assert!(empty.body.is_empty());
 
     std::fs::write(&file_path, "broken = {\n").expect("write invalid");
-    let partial = read_existing_resource(&file_path).expect("partial parse");
-    assert!(!partial.body.is_empty());
+    let err = read_existing_resource(&file_path)
+        .err()
+        .expect("invalid resource should fail");
+    assert!(err.to_string().contains("Refusing to use"));
 
     let updated = parse_resource_allowing_errors("updated = value\n");
     let dry_changed =
@@ -231,6 +234,39 @@ fn insert_late_relocated_handles_empty_groups_and_duplicate_names() {
 }
 
 #[test]
+fn smart_merge_moves_leading_comments_with_relocated_messages_and_terms() {
+    let group_a = test_type(
+        "GroupA",
+        vec![
+            test_variant("A1", "group_a-A1", &[]),
+            test_variant("Term", "-group_a-term", &[]),
+        ],
+    );
+    let group_b = test_type("GroupB", vec![test_variant("B1", "group_b-B1", &[])]);
+    let items = vec![&group_a, &group_b];
+
+    let existing = parse_resource_allowing_errors(
+        "## GroupA\n# move-with-message\ngroup_b-B1 = wrong-group\n\n## GroupB\n# move-with-term\n-group_a-term = wrong-group\n",
+    );
+    let merged = smart_merge(existing, &items, MergeBehavior::Append);
+    let content = fluent_syntax::serializer::serialize(&merged);
+
+    let group_a_pos = content.find("## GroupA").expect("group a");
+    let group_b_pos = content.find("## GroupB").expect("group b");
+    let message_comment_pos = content
+        .find("# move-with-message")
+        .expect("message comment");
+    let message_pos = content.find("group_b-B1 = wrong-group").expect("message");
+    let term_comment_pos = content.find("# move-with-term").expect("term comment");
+    let term_pos = content.find("-group_a-term = wrong-group").expect("term");
+
+    assert!(message_comment_pos > group_b_pos);
+    assert!(message_comment_pos < message_pos);
+    assert!(term_comment_pos > group_a_pos);
+    assert!(term_comment_pos < term_pos);
+}
+
+#[test]
 fn smart_merge_covers_relocation_terms_junk_and_cleanup_modes() {
     let group_a = test_type("GroupA", vec![test_variant("A1", "group_a-A1", &[])]);
     let group_b = test_type(
@@ -340,4 +376,91 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
 
     let dry_run_path = PathBuf::from("dry_run/absent.ftl");
     write_or_preview(&dry_run_path, "a = b\n", "a = c\n", false, true).expect("dry run");
+}
+
+#[test]
+fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
+    let temp = tempdir().expect("tempdir");
+    let i18n_root = temp.path().join("i18n");
+
+    let escaping = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "EscapingType",
+        variants: leak_slice(vec![test_variant("Hello", "hello", &[])]),
+        file_path: "src/../escape.rs",
+        module_path: "test",
+        namespace: Some(NamespaceRule::FileRelative),
+    };
+
+    let literal_escape = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "LiteralEscape",
+        variants: leak_slice(vec![test_variant("Bye", "bye", &[])]),
+        file_path: "src/lib.rs",
+        module_path: "test",
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("../literal-escape"))),
+    };
+
+    let err = generate(
+        "crate-name",
+        &i18n_root,
+        temp.path(),
+        &[&escaping, &literal_escape],
+        FluentParseMode::Conservative,
+        true,
+    )
+    .err()
+    .expect("escaping namespace should be rejected");
+
+    assert!(
+        err.to_string().contains("Invalid namespace '../escape'")
+            || err
+                .to_string()
+                .contains("Invalid namespace '../literal-escape'")
+    );
+    assert!(
+        !i18n_root.join("escape.ftl").exists(),
+        "generation should not create escaped output"
+    );
+}
+
+#[test]
+fn generate_rejects_noncanonical_namespace_literals() {
+    let temp = tempdir().expect("tempdir");
+    let i18n_root = temp.path().join("i18n");
+
+    let padded = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "PaddedNamespace",
+        variants: leak_slice(vec![test_variant("Hello", "hello", &[])]),
+        file_path: "src/lib.rs",
+        module_path: "test",
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed(" ui "))),
+    };
+
+    let with_extension = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "FileNamespace",
+        variants: leak_slice(vec![test_variant("Bye", "bye", &[])]),
+        file_path: "src/lib.rs",
+        module_path: "test",
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui.ftl"))),
+    };
+
+    let err = generate(
+        "crate-name",
+        &i18n_root,
+        temp.path(),
+        &[&padded, &with_extension],
+        FluentParseMode::Conservative,
+        true,
+    )
+    .err()
+    .expect("noncanonical namespaces should be rejected");
+
+    let error_text = err.to_string();
+    assert!(
+        error_text.contains("Invalid namespace ' ui '")
+            || error_text.contains("Invalid namespace 'ui.ftl'")
+    );
 }

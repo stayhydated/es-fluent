@@ -1,3 +1,4 @@
+use es_fluent_shared::namespace::validate_namespace_path;
 use std::collections::HashSet;
 use std::fmt;
 use unic_langid::LanguageIdentifier;
@@ -54,9 +55,9 @@ impl fmt::Display for ResourceKey {
 /// Canonical description of a single localized resource file.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ModuleResourceSpec {
-    /// Stable resource key used by managers (e.g., `my-crate`, `my-crate/ui`).
+    /// Stable resource key used by managers (e.g., `my-crate`, `my-crate/ui`, `my-crate/ui/button`).
     pub key: ResourceKey,
-    /// Path under a locale root (e.g., `my-crate.ftl`, `my-crate/ui.ftl`).
+    /// Path under a locale root (e.g., `my-crate.ftl`, `my-crate/ui.ftl`, `my-crate/ui/button.ftl`).
     pub locale_relative_path: String,
     /// Whether this resource is required for locale readiness.
     pub required: bool,
@@ -105,7 +106,14 @@ pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourc
 
     let mut seen = HashSet::new();
     for namespace in namespaces {
-        if !seen.insert(*namespace) {
+        debug_assert!(
+            validate_namespace_path(namespace).is_ok(),
+            "resource_plan_for received invalid namespace '{}'",
+            namespace
+        );
+
+        let namespace = namespace.trim();
+        if !seen.insert(namespace) {
             continue;
         }
 

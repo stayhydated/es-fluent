@@ -4,16 +4,48 @@
 use arc_swap::ArcSwap;
 
 #[doc(hidden)]
-use es_fluent::set_shared_context;
+use es_fluent::try_set_shared_context;
 
 #[doc(hidden)]
 use es_fluent_manager_core::FluentManager;
 
 #[doc(hidden)]
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock};
 
 #[doc(hidden)]
 use unic_langid::LanguageIdentifier;
+
+pub use es_fluent::GlobalLocalizationError;
+
+#[derive(Debug)]
+pub enum EmbeddedInitError {
+    ModuleDiscovery(Vec<es_fluent_manager_core::ModuleDiscoveryError>),
+    GlobalContext(GlobalLocalizationError),
+}
+
+impl std::fmt::Display for EmbeddedInitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ModuleDiscovery(errors) => {
+                f.write_str("failed strict i18n module discovery")?;
+                for error in errors {
+                    write!(f, "\n- {error}")?;
+                }
+                Ok(())
+            },
+            Self::GlobalContext(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for EmbeddedInitError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ModuleDiscovery(_) => None,
+            Self::GlobalContext(error) => Some(error),
+        }
+    }
+}
 
 #[doc(hidden)]
 pub use es_fluent::__inventory;
@@ -33,74 +65,163 @@ pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_mod
 #[doc(hidden)]
 static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
-fn build_manager(initial_language: Option<&LanguageIdentifier>) -> Arc<FluentManager> {
-    let manager = FluentManager::new_with_discovered_modules();
-    if let Some(initial_language) = initial_language {
-        manager.select_language(initial_language);
+static INIT_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+fn init_lock() -> MutexGuard<'static, ()> {
+    match INIT_LOCK.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!("Embedded manager init lock poisoned; recovering");
+            poisoned.into_inner()
+        },
     }
-    Arc::new(manager)
 }
 
-fn initialize_manager(manager: Arc<FluentManager>) -> bool {
-    if GENERIC_MANAGER
-        .set(ArcSwap::new(Arc::clone(&manager)))
-        .is_ok()
-    {
-        set_shared_context(manager);
-        true
+fn build_manager(
+    initial_language: Option<&LanguageIdentifier>,
+) -> Result<Arc<FluentManager>, EmbeddedInitError> {
+    let manager = FluentManager::try_new_with_discovered_modules()
+        .map_err(EmbeddedInitError::ModuleDiscovery)?;
+    if let Some(initial_language) = initial_language {
+        select_initial_language(&manager, initial_language)?;
+    }
+    Ok(Arc::new(manager))
+}
+
+fn select_initial_language(
+    manager: &FluentManager,
+    initial_language: &LanguageIdentifier,
+) -> Result<(), EmbeddedInitError> {
+    manager
+        .select_language(initial_language)
+        .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
+}
+
+fn build_best_effort_manager(
+    initial_language: Option<&LanguageIdentifier>,
+) -> Result<Arc<FluentManager>, EmbeddedInitError> {
+    let manager = FluentManager::best_effort_with_discovered_modules();
+    if let Some(initial_language) = initial_language {
+        select_initial_language(&manager, initial_language)?;
+    }
+    Ok(Arc::new(manager))
+}
+
+fn initialize_manager(manager: Arc<FluentManager>) -> Result<bool, EmbeddedInitError> {
+    let _guard = init_lock();
+
+    if GENERIC_MANAGER.get().is_some() {
+        tracing::warn!("Generic fluent manager already initialized.");
+        return Ok(false);
+    }
+
+    try_set_shared_context(Arc::clone(&manager)).map_err(EmbeddedInitError::GlobalContext)?;
+
+    if GENERIC_MANAGER.set(ArcSwap::new(manager)).is_ok() {
+        Ok(true)
+    } else {
+        tracing::error!(
+            "Embedded manager initialization published the shared context but failed to install the embedded singleton"
+        );
+        Err(EmbeddedInitError::GlobalContext(
+            GlobalLocalizationError::ContextAlreadyInitialized,
+        ))
+    }
+}
+
+fn apply_language_to_live_manager(lang: &LanguageIdentifier) -> Result<(), EmbeddedInitError> {
+    let manager = GENERIC_MANAGER
+        .get()
+        .ok_or(EmbeddedInitError::GlobalContext(
+            GlobalLocalizationError::ContextNotInitialized,
+        ))?;
+    manager
+        .load()
+        .select_language(lang)
+        .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
+}
+
+fn complete_raced_language_init(lang: &LanguageIdentifier) -> Result<(), EmbeddedInitError> {
+    if GENERIC_MANAGER.get().is_none() {
+        tracing::error!(
+            "Generic fluent manager initialization lost a race and no live manager was found."
+        );
+        return Err(EmbeddedInitError::GlobalContext(
+            GlobalLocalizationError::ContextNotInitialized,
+        ));
+    }
+
+    apply_language_to_live_manager(lang)
+}
+
+fn init_manager(
+    initial_language: Option<LanguageIdentifier>,
+    builder: fn(Option<&LanguageIdentifier>) -> Result<Arc<FluentManager>, EmbeddedInitError>,
+) -> Result<(), EmbeddedInitError> {
+    if let Some(lang) = initial_language {
+        if GENERIC_MANAGER.get().is_some() {
+            tracing::warn!("Generic fluent manager already initialized.");
+            return apply_language_to_live_manager(&lang);
+        }
+
+        let manager = builder(Some(&lang))?;
+        if initialize_manager(manager)? {
+            return Ok(());
+        }
+
+        return complete_raced_language_init(&lang);
+    }
+
+    if GENERIC_MANAGER.get().is_none() {
+        let _ = initialize_manager(builder(None)?)?;
     } else {
         tracing::warn!("Generic fluent manager already initialized.");
-        false
     }
+
+    Ok(())
 }
 
 /// Initializes the embedded singleton `FluentManager`.
 ///
-/// This function discovers all embedded i18n modules linked into the binary,
-/// creates a `FluentManager` with them, and sets it as a global embedded singleton.
-/// It also registers this manager with the `es-fluent` crate's central context,
-/// allowing the `es_fluent::localize!` macro to work.
-///
-/// This function should be called once at the beginning of your application's
-/// lifecycle.
-///
-/// # Panics
-///
-/// This function will not panic if called more than once, but it will log a
-/// warning and have no effect after the first successful call.
+/// This convenience entry point uses best-effort module discovery and logs
+/// initialization failures instead of returning them.
 pub fn init() {
-    let _ = initialize_manager(build_manager(None));
+    if let Err(error) = init_manager(None, build_best_effort_manager) {
+        tracing::error!("Failed to initialize embedded fluent manager: {}", error);
+    }
 }
 
-/// Initializes the embedded singleton `FluentManager` and selects the active language.
+/// Initializes the embedded singleton with strict registry discovery.
+pub fn try_init() -> Result<(), EmbeddedInitError> {
+    init_manager(None, build_manager)
+}
+
+/// Initializes the embedded singleton `FluentManager` and selects the active
+/// language.
 ///
-/// This is equivalent to calling [`init()`] followed by [`select_language()`], except the
-/// language is selected before the manager is published as the global singleton.
-/// If another thread initializes the singleton concurrently, `lang` is applied
-/// to the live manager after the race is resolved.
-///
-/// # Panics
-///
-/// This function will not panic if called more than once. If the singleton is
-/// already initialized, it logs a warning and applies `lang` to the existing
-/// manager.
+/// This convenience entry point uses best-effort module discovery and logs
+/// initialization failures instead of returning them. It is equivalent to
+/// calling [`init()`] followed by [`select_language()`], except the language is
+/// selected before the manager is published as the global singleton. If
+/// another thread initializes the singleton concurrently, `lang` is applied to
+/// the live manager after the race is resolved.
 pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
     let lang = lang.into();
-    if let Some(manager) = GENERIC_MANAGER.get() {
-        tracing::warn!("Generic fluent manager already initialized.");
-        manager.load().select_language(&lang);
-        return;
+    if let Err(error) = init_manager(Some(lang.clone()), build_best_effort_manager) {
+        tracing::error!(
+            "Failed to initialize embedded fluent manager with language '{}': {}",
+            lang,
+            error
+        );
     }
+}
 
-    if !initialize_manager(build_manager(Some(&lang))) {
-        if let Some(manager) = GENERIC_MANAGER.get() {
-            manager.load().select_language(&lang);
-        } else {
-            tracing::error!(
-                "Generic fluent manager initialization lost a race and no live manager was found."
-            );
-        }
-    }
+/// Initializes the embedded singleton with strict registry discovery and then
+/// selects the active language.
+pub fn try_init_with_language<L: Into<LanguageIdentifier>>(
+    lang: L,
+) -> Result<(), EmbeddedInitError> {
+    init_manager(Some(lang.into()), build_manager)
 }
 
 /// Selects the active language for the embedded singleton `FluentManager`.
@@ -110,14 +231,19 @@ pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
 ///
 /// # Errors
 ///
-/// This function will log an error if the embedded singleton has not been initialized by
-/// calling `init()` first.
-pub fn select_language<L: Into<LanguageIdentifier>>(lang: L) {
-    if let Some(manager) = GENERIC_MANAGER.get() {
-        manager.load().select_language(&lang.into());
-    } else {
-        tracing::error!("Generic fluent manager not initialized. Call init() first.");
-    }
+/// Returns an error if the embedded singleton has not been initialized by
+/// calling `init()` first, or if no discovered module can serve the requested
+/// language.
+pub fn select_language<L: Into<LanguageIdentifier>>(
+    lang: L,
+) -> Result<(), GlobalLocalizationError> {
+    let manager = GENERIC_MANAGER
+        .get()
+        .ok_or(GlobalLocalizationError::ContextNotInitialized)?;
+    manager
+        .load()
+        .select_language(&lang.into())
+        .map_err(Into::into)
 }
 
 #[cfg(test)]
@@ -148,8 +274,11 @@ mod tests {
     struct EmbeddedTestLocalizer;
 
     impl Localizer for EmbeddedTestLocalizer {
-        fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
             SELECT_CALLS.fetch_add(1, Ordering::Relaxed);
+            if lang == &langid!("zz") {
+                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
+            }
             Ok(())
         }
 
@@ -189,7 +318,8 @@ mod tests {
         let _guard = TEST_LOCK.lock().expect("lock poisoned");
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
-        let manager = build_manager(Some(&langid!("en-US")));
+        let manager = build_manager(Some(&langid!("en-US")))
+            .expect("strict manager build should still apply the initial language");
 
         assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
         assert_eq!(
@@ -199,24 +329,65 @@ mod tests {
     }
 
     #[test]
+    fn build_manager_rejects_unselectable_initial_language() {
+        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        SELECT_CALLS.store(0, Ordering::Relaxed);
+
+        let err = match build_manager(Some(&langid!("zz"))) {
+            Ok(_) => panic!("initial language selection failure should abort publication"),
+            Err(err) => err,
+        };
+
+        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
+        assert!(matches!(
+            err,
+            EmbeddedInitError::GlobalContext(GlobalLocalizationError::LanguageSelectionFailed(_))
+        ));
+    }
+
+    #[test]
     fn init_and_select_language_cover_singleton_paths() {
         let _guard = TEST_LOCK.lock().expect("lock poisoned");
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         // Exercise the pre-init error path.
-        select_language(langid!("en-US"));
+        let err = select_language(langid!("en-US")).expect_err("selecting before init should fail");
+        assert!(matches!(
+            err,
+            GlobalLocalizationError::ContextNotInitialized
+        ));
         assert!(GENERIC_MANAGER.get().is_none());
 
-        init();
-        assert!(GENERIC_MANAGER.get().is_some());
+        init_with_language(langid!("zz"));
+        assert!(GENERIC_MANAGER.get().is_none());
 
-        select_language(langid!("en-US"));
+        let strict_init_err = try_init_with_language(langid!("zz"))
+            .expect_err("strict init should fail before publishing when selection fails");
+        assert!(matches!(
+            strict_init_err,
+            EmbeddedInitError::GlobalContext(GlobalLocalizationError::LanguageSelectionFailed(_))
+        ));
+        assert!(GENERIC_MANAGER.get().is_none());
+
+        SELECT_CALLS.store(0, Ordering::Relaxed);
+
+        init_with_language(langid!("en-US"));
+        assert!(GENERIC_MANAGER.get().is_some());
+        assert_eq!(SELECT_CALLS.load(Ordering::Relaxed), 1);
+
+        select_language(langid!("en-US")).expect("initialized manager should select language");
         let after_explicit_select = SELECT_CALLS.load(Ordering::Relaxed);
-        assert!(after_explicit_select >= 1);
+        assert_eq!(after_explicit_select, 2);
+
+        init();
 
         // Re-initialization with a language should still apply the requested selection.
-        init_with_language(langid!("fr"));
-        assert!(SELECT_CALLS.load(Ordering::Relaxed) > after_explicit_select);
+        let after_init_with_language = SELECT_CALLS.load(Ordering::Relaxed);
+        init_with_language(langid!("de"));
+        assert_eq!(
+            SELECT_CALLS.load(Ordering::Relaxed),
+            after_init_with_language + 1
+        );
 
         // Plain init should still hit the already-initialized branch without changing language.
         let after_reinit_with_language = SELECT_CALLS.load(Ordering::Relaxed);

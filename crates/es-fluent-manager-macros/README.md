@@ -7,6 +7,8 @@ The `es-fluent-manager-macros` crate provides the compile-time macros used by `e
 
 These macros read your `i18n.toml` configuration, scan your translation directories at compile time, generate module metadata, and expose the `BevyFluentText` derive used by the Bevy integration.
 
+For `BevyFluentText`, `#[locale]` may be applied to named struct fields and named enum variant fields. Multiple named locale fields in the same variant are supported and refresh together.
+
 ## Usage
 
 You typically call one of these macros once in your `lib.rs` or `main.rs` to set up the translation module for your crate.

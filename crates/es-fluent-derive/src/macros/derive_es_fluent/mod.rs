@@ -235,6 +235,22 @@ mod tests {
     }
 
     #[test]
+    fn expand_es_fluent_uses_explicit_domain_override_for_enum_lookup() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang")]
+            enum Languages {
+                #[fluent(key = "en")]
+                En,
+            }
+        };
+
+        let tokens = expand_es_fluent(enum_input).to_string();
+        assert!(tokens.contains("localize_in_domain"));
+        assert!(tokens.contains("\"es-fluent-lang\""));
+        assert!(tokens.contains("es-fluent-lang-en"));
+    }
+
+    #[test]
     fn expand_es_fluent_handles_tuple_variant_with_all_fields_skipped() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {

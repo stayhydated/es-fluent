@@ -1,3 +1,4 @@
+use es_fluent::meta::TypeKind;
 use es_fluent::registry::NamespaceRule;
 use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants, ThisFtl};
 use std::borrow::Cow;
@@ -28,6 +29,13 @@ enum TestVariantsEnum {
 #[fluent(namespace = "this_ns")]
 #[allow(dead_code)]
 struct TestThisNamespace;
+
+#[derive(EsFluentThis)]
+#[fluent_this(origin)]
+#[allow(dead_code)]
+enum TestThisEnumKind {
+    Ready,
+}
 
 #[derive(EsFluentVariants)]
 #[fluent(namespace = "variants_ns")]
@@ -86,6 +94,21 @@ fn test_derive_this_namespace_from_fluent() {
         infos[0].namespace,
         Some(NamespaceRule::Literal(Cow::Borrowed("this_ns")))
     );
+    assert_eq!(infos[0].type_kind, TypeKind::Struct);
+}
+
+#[test]
+fn test_derive_this_origin_preserves_type_kind() {
+    let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
+        .filter(|info| info.type_name == "TestThisEnumKind")
+        .collect();
+
+    assert_eq!(
+        infos.len(),
+        1,
+        "Expected one registration for TestThisEnumKind"
+    );
+    assert_eq!(infos[0].type_kind, TypeKind::Enum);
 }
 
 #[test]

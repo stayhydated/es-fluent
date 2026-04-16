@@ -2,17 +2,27 @@ mod fixtures;
 mod pipeline;
 mod setup;
 
-use super::{GlobalLocalizerMode, I18nPlugin, I18nPluginConfig};
+use super::{GlobalLocalizerMode, I18nPlugin, I18nPluginConfig, ModuleRegistryMode};
 use bevy::{MinimalPlugins, asset::AssetPlugin, prelude::App, window::RequestRedraw};
 use unic_langid::langid;
 
 fn build_test_plugin_app() -> App {
     // The process-global custom localizer cannot currently be cleared between
     // tests, so most runtime tests exercise the explicit replacement path.
-    build_test_plugin_app_with_mode(GlobalLocalizerMode::ReplaceExisting)
+    build_test_plugin_app_with_modes(
+        GlobalLocalizerMode::ReplaceExisting,
+        ModuleRegistryMode::Lenient,
+    )
 }
 
 fn build_test_plugin_app_with_mode(global_localizer_mode: GlobalLocalizerMode) -> App {
+    build_test_plugin_app_with_modes(global_localizer_mode, ModuleRegistryMode::Lenient)
+}
+
+fn build_test_plugin_app_with_modes(
+    global_localizer_mode: GlobalLocalizerMode,
+    module_registry_mode: ModuleRegistryMode,
+) -> App {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.add_message::<RequestRedraw>();
@@ -21,7 +31,8 @@ fn build_test_plugin_app_with_mode(global_localizer_mode: GlobalLocalizerMode) -
             initial_language: langid!("en-US"),
             asset_path: "i18n".to_string(),
         })
-        .with_global_localizer_mode(global_localizer_mode),
+        .with_global_localizer_mode(global_localizer_mode)
+        .with_module_registry_mode(module_registry_mode),
     );
     app
 }

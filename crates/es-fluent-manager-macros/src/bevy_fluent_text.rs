@@ -1,7 +1,7 @@
 use heck::ToSnakeCase as _;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, parse_macro_input};
+use syn::{DeriveInput, parse_macro_input, spanned::Spanned as _};
 
 fn bevy_fluent_text_registration_module(
     mod_name: &syn::Ident,
@@ -33,7 +33,10 @@ pub(crate) fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
     let type_name = ident.to_string();
 
     // Collect all locale fields from all variants/fields
-    let locale_fields = collect_locale_fields(&input.data);
+    let locale_fields = match collect_locale_fields(&input.data) {
+        Ok(locale_fields) => locale_fields,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
 
     let mod_name = quote::format_ident!(
         "__bevy_fluent_text_registration_{}",
@@ -67,80 +70,90 @@ pub(crate) fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
 }
 
 /// Information about a field marked with #[locale]
+#[derive(Debug)]
 struct LocaleFieldInfo {
     /// The variant this field belongs to (for enums)
     variant_ident: Option<syn::Ident>,
-    /// The field identifier
-    field_ident: syn::Ident,
+    /// The locale-marked fields that should refresh together
+    locale_fields: Vec<syn::Ident>,
     /// Other fields in the same variant (for pattern matching)
     other_fields: Vec<syn::Ident>,
 }
 
 /// Collects all fields marked with #[locale] from the data structure
-fn collect_locale_fields(data: &syn::Data) -> Vec<LocaleFieldInfo> {
+fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> {
     let mut locale_fields = Vec::new();
 
     match data {
         syn::Data::Enum(data_enum) => {
             for variant in &data_enum.variants {
-                if let syn::Fields::Named(fields) = &variant.fields {
-                    let all_field_idents: Vec<_> = fields
-                        .named
-                        .iter()
-                        .filter_map(|f| f.ident.clone())
-                        .collect();
+                match &variant.fields {
+                    syn::Fields::Named(fields) => {
+                        let all_field_idents: Vec<_> = fields
+                            .named
+                            .iter()
+                            .filter_map(|f| f.ident.clone())
+                            .collect();
+                        let locale_field_idents: Vec<_> = fields
+                            .named
+                            .iter()
+                            .filter(|field| has_locale_attr(field))
+                            .filter_map(|field| field.ident.clone())
+                            .collect();
 
-                    for field in &fields.named {
-                        if has_locale_attr(field)
-                            && let Some(field_ident) = &field.ident
-                        {
+                        if !locale_field_idents.is_empty() {
                             let other_fields: Vec<_> = all_field_idents
                                 .iter()
-                                .filter(|id| *id != field_ident)
+                                .filter(|id| !locale_field_idents.contains(id))
                                 .cloned()
                                 .collect();
 
                             locale_fields.push(LocaleFieldInfo {
                                 variant_ident: Some(variant.ident.clone()),
-                                field_ident: field_ident.clone(),
+                                locale_fields: locale_field_idents,
                                 other_fields,
                             });
                         }
-                    }
+                    },
+                    syn::Fields::Unnamed(fields) => {
+                        if let Some(field) =
+                            fields.unnamed.iter().find(|field| has_locale_attr(field))
+                        {
+                            return Err(unsupported_locale_field_error(field));
+                        }
+                    },
+                    syn::Fields::Unit => {},
                 }
             }
         },
-        syn::Data::Struct(data_struct) => {
-            if let syn::Fields::Named(fields) = &data_struct.fields {
-                let all_field_idents: Vec<_> = fields
+        syn::Data::Struct(data_struct) => match &data_struct.fields {
+            syn::Fields::Named(fields) => {
+                let locale_field_idents: Vec<_> = fields
                     .named
                     .iter()
-                    .filter_map(|f| f.ident.clone())
+                    .filter(|field| has_locale_attr(field))
+                    .filter_map(|field| field.ident.clone())
                     .collect();
 
-                for field in &fields.named {
-                    if has_locale_attr(field)
-                        && let Some(field_ident) = &field.ident
-                    {
-                        let other_fields: Vec<_> = all_field_idents
-                            .iter()
-                            .filter(|id| *id != field_ident)
-                            .cloned()
-                            .collect();
-
-                        locale_fields.push(LocaleFieldInfo {
-                            variant_ident: None,
-                            field_ident: field_ident.clone(),
-                            other_fields,
-                        });
-                    }
+                if !locale_field_idents.is_empty() {
+                    locale_fields.push(LocaleFieldInfo {
+                        variant_ident: None,
+                        locale_fields: locale_field_idents,
+                        other_fields: Vec::new(),
+                    });
                 }
-            }
+            },
+            syn::Fields::Unnamed(fields) => {
+                if let Some(field) = fields.unnamed.iter().find(|field| has_locale_attr(field)) {
+                    return Err(unsupported_locale_field_error(field));
+                }
+            },
+            syn::Fields::Unit => {},
         },
         syn::Data::Union(_) => {},
     }
 
-    locale_fields
+    Ok(locale_fields)
 }
 
 /// Checks if a field has the #[locale] attribute
@@ -149,6 +162,19 @@ fn has_locale_attr(field: &syn::Field) -> bool {
         .attrs
         .iter()
         .any(|attr| attr.path().is_ident("locale"))
+}
+
+fn unsupported_locale_field_error(field: &syn::Field) -> syn::Error {
+    let span = field
+        .attrs
+        .iter()
+        .find(|attr| attr.path().is_ident("locale"))
+        .map(|attr| attr.span())
+        .unwrap_or_else(|| field.span());
+    syn::Error::new(
+        span,
+        "#[locale] is only supported on named struct fields and named enum variant fields",
+    )
 }
 
 /// Generates the RefreshForLocale implementation
@@ -165,17 +191,29 @@ fn generate_refresh_for_locale_impl(
                 .map(|info| {
                     let variant_ident =
                         info.variant_ident.as_ref().expect("enum field has variant");
-                    let field_ident = &info.field_ident;
+                    let locale_field_idents = &info.locale_fields;
                     let other_fields = &info.other_fields;
 
+                    let locale_patterns: Vec<_> = locale_field_idents
+                        .iter()
+                        .map(|field| quote! { #field })
+                        .collect();
                     let other_patterns: Vec<_> =
                         other_fields.iter().map(|f| quote! { #f: _ }).collect();
+                    let field_updates: Vec<_> = locale_field_idents
+                        .iter()
+                        .map(|field_ident| {
+                            quote! {
+                                if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
+                                    *#field_ident = value;
+                                }
+                            }
+                        })
+                        .collect();
 
                     quote! {
-                        Self::#variant_ident { #field_ident, #(#other_patterns),* } => {
-                            if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
-                                *#field_ident = value;
-                            }
+                        Self::#variant_ident { #(#locale_patterns,)* #(#other_patterns),* } => {
+                            #(#field_updates)*
                         }
                     }
                 })
@@ -195,8 +233,8 @@ fn generate_refresh_for_locale_impl(
         syn::Data::Struct(_) => {
             let field_updates: Vec<_> = locale_fields
                 .iter()
-                .map(|info| {
-                    let field_ident = &info.field_ident;
+                .flat_map(|info| info.locale_fields.iter())
+                .map(|field_ident| {
                     quote! {
                         if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
                             self.#field_ident = value;
@@ -229,13 +267,15 @@ mod tests {
                 A {
                     #[locale]
                     current_language: Lang,
+                    #[locale]
+                    fallback_language: Lang,
                     count: usize,
                 },
                 B { value: usize },
             }
         };
 
-        let enum_fields = collect_locale_fields(&enum_input.data);
+        let enum_fields = collect_locale_fields(&enum_input.data).expect("collect locale fields");
         assert_eq!(enum_fields.len(), 1);
         assert_eq!(
             enum_fields[0]
@@ -245,13 +285,25 @@ mod tests {
                 .to_string(),
             "A"
         );
-        assert_eq!(enum_fields[0].field_ident.to_string(), "current_language");
+        assert_eq!(
+            enum_fields[0]
+                .locale_fields
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+            vec![
+                "current_language".to_string(),
+                "fallback_language".to_string()
+            ]
+        );
         assert_eq!(enum_fields[0].other_fields.len(), 1);
         let enum_tokens =
             generate_refresh_for_locale_impl(&enum_input.ident, &enum_input.data, &enum_fields)
                 .to_string();
         assert!(enum_tokens.contains("match"));
         assert!(enum_tokens.contains("current_language"));
+        assert!(enum_tokens.contains("fallback_language"));
+        assert_eq!(enum_tokens.matches("Self :: A").count(), 1);
 
         let struct_input: DeriveInput = syn::parse_quote! {
             struct ExampleStruct {
@@ -260,7 +312,8 @@ mod tests {
                 value: usize,
             }
         };
-        let struct_fields = collect_locale_fields(&struct_input.data);
+        let struct_fields =
+            collect_locale_fields(&struct_input.data).expect("collect struct locale fields");
         assert_eq!(struct_fields.len(), 1);
         assert!(struct_fields[0].variant_ident.is_none());
         let struct_tokens = generate_refresh_for_locale_impl(
@@ -277,7 +330,7 @@ mod tests {
                 b: f32,
             }
         };
-        let union_fields = collect_locale_fields(&union_input.data);
+        let union_fields = collect_locale_fields(&union_input.data).expect("collect union fields");
         assert!(union_fields.is_empty());
         let union_tokens =
             generate_refresh_for_locale_impl(&union_input.ident, &union_input.data, &union_fields)
@@ -306,5 +359,28 @@ mod tests {
         assert!(module_tokens.contains("__test_module"));
         assert!(module_tokens.contains("register_me"));
         assert!(module_tokens.contains("inventory"));
+    }
+
+    #[test]
+    fn locale_field_collection_rejects_tuple_struct_and_tuple_variant_fields() {
+        let tuple_struct_input: DeriveInput = syn::parse_quote! {
+            struct ExampleTupleStruct(#[locale] Lang, usize);
+        };
+        let tuple_struct_err =
+            collect_locale_fields(&tuple_struct_input.data).expect_err("tuple struct should error");
+        assert!(tuple_struct_err.to_string().contains("named struct fields"));
+
+        let tuple_enum_input: DeriveInput = syn::parse_quote! {
+            enum ExampleTupleEnum {
+                A(#[locale] Lang, usize),
+            }
+        };
+        let tuple_enum_err =
+            collect_locale_fields(&tuple_enum_input.data).expect_err("tuple variant should error");
+        assert!(
+            tuple_enum_err
+                .to_string()
+                .contains("named enum variant fields")
+        );
     }
 }

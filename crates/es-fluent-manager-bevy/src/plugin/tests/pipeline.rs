@@ -10,6 +10,7 @@ use crate::{
     LocaleChangedEvent,
 };
 use bevy::asset::{AssetEvent, Assets};
+use bevy::ecs::message::Messages;
 use bevy::prelude::*;
 use es_fluent_manager_core::ResourceKey;
 use fluent_bundle::{FluentResource, FluentValue};
@@ -194,10 +195,34 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         .write_message(LocaleChangeEvent(langid!("en-US")));
     app.update();
     assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("en"));
+    assert_eq!(
+        bevy_custom_localizer("selected-language", None),
+        Some("en".to_string())
+    );
+
+    let mut locale_changed_cursor = {
+        let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+        messages.get_cursor_current()
+    };
+
     app.world_mut()
         .write_message(LocaleChangeEvent(langid!("zz")));
     app.update();
     assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("zz"));
+    assert_eq!(
+        bevy_custom_localizer("selected-language", None),
+        None,
+        "unsupported modules are dropped from the fallback manager during best-effort selection"
+    );
+
+    let locale_changes = {
+        let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+        locale_changed_cursor
+            .read(&messages)
+            .map(|message| message.0.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(locale_changes, vec![langid!("zz")]);
 
     update_global_language(langid!("en"));
     assert_eq!(bevy_custom_localizer("missing", None), None);

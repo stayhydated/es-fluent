@@ -18,4 +18,9 @@ use es_fluent_lang::es_fluent_language;
 pub enum MyLanguages {}
 ```
 
+Use `#[es_fluent_language(custom)]` when your app provides its own language-name
+translations. In that mode, the generated enum is inventory-visible and may
+include locale folders that are not covered by the bundled `es-fluent-lang`
+locale table.
+
 See the [es-fluent-lang documentation](https://docs.rs/es-fluent-lang) for full usage details.

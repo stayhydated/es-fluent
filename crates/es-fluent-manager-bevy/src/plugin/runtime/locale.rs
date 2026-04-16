@@ -1,4 +1,4 @@
-use super::super::state::update_global_language;
+use super::super::state::try_update_global_language;
 use crate::{
     CurrentLanguageId, I18nAssets, I18nBundle, I18nResource, LocaleChangeEvent, LocaleChangedEvent,
 };
@@ -18,8 +18,15 @@ fn apply_selected_language(
         return;
     }
 
+    if let Err(error) = try_update_global_language(resolved_language.clone()) {
+        warn!(
+            "Skipping locale change to '{}' because the fallback manager rejected the switch: {}",
+            resolved_language, error
+        );
+        return;
+    }
+
     i18n_resource.set_language(resolved_language.clone());
-    update_global_language(resolved_language.clone());
     current_language_id.0 = resolved_language.clone();
     locale_changed_events.write(LocaleChangedEvent(resolved_language));
 }

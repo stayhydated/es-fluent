@@ -129,3 +129,40 @@ fn test_clean_writes_namespaced_files() {
     let content = fs::read_to_string(&namespaced_file).unwrap();
     assert!(!content.contains("legacy-Old"));
 }
+
+#[test]
+fn test_clean_removes_stale_namespaced_files() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+    let crate_name = "test_crate";
+    let stale_file = i18n_path.join(crate_name).join("ui").join("forms.ftl");
+    let active_file = i18n_path.join(crate_name).join("errors.ftl");
+
+    fs::create_dir_all(stale_file.parent().unwrap()).unwrap();
+    fs::create_dir_all(active_file.parent().unwrap()).unwrap();
+    fs::write(&stale_file, "## Legacy\n\nlegacy-Old = Remove me\n").unwrap();
+    fs::write(&active_file, "## Errors\n\nerrors-Missing = Missing\n").unwrap();
+
+    let variant = variant("Missing", &ftl_key("Errors", "Missing"));
+    let item = common::enum_type_with_namespace("Errors", vec![variant], "errors");
+    let changed = es_fluent_generate::clean::clean(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        std::slice::from_ref(&item),
+        false,
+    )
+    .unwrap();
+
+    assert!(changed);
+    assert!(
+        !stale_file.exists(),
+        "stale namespace file should be removed"
+    );
+    assert!(
+        active_file.exists(),
+        "active namespace file should be retained"
+    );
+    let content = fs::read_to_string(&active_file).unwrap();
+    assert!(content.contains("errors-Missing"));
+}

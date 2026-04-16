@@ -132,6 +132,10 @@ fn generate_embedded_tokens(
             fn domain() -> &'static str {
                 #crate_name
             }
+
+            fn namespaces() -> &'static [&'static str] {
+                #module_data_name.namespaces
+            }
         }
 
         #module_data_static
@@ -190,6 +194,10 @@ fn generate_bevy_tokens(
         }
 
         impl #manager_core_path::I18nModuleRegistration for #registration_struct_name {
+            fn registration_kind(&self) -> #manager_core_path::ModuleRegistrationKind {
+                #manager_core_path::ModuleRegistrationKind::MetadataOnly
+            }
+
             fn resource_plan_for_language(
                 &self,
                 lang: &#langid_path::LanguageIdentifier,

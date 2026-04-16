@@ -45,6 +45,7 @@ impl SupportedLanguageSet {
 /// Use `#[es_fluent_language(custom)]` to:
 /// - NOT link to the bundled `es-fluent-lang.ftl` file (you provide your own translations)
 /// - Register the enum with inventory (so it appears in generated FTL files)
+/// - Allow locale folders that are not present in the bundled supported-language table
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -156,24 +157,26 @@ fn expand_es_fluent_language(
 
     let supported_languages = SupportedLanguageSet::new();
 
-    let unsupported_languages: Vec<_> = language_entries
-        .iter()
-        .filter_map(|(canonical, language)| {
-            if supported_languages.contains(language) {
-                None
-            } else {
-                Some(canonical.clone())
-            }
-        })
-        .collect();
+    if !custom_mode {
+        let unsupported_languages: Vec<_> = language_entries
+            .iter()
+            .filter_map(|(canonical, language)| {
+                if supported_languages.contains(language) {
+                    None
+                } else {
+                    Some(canonical.clone())
+                }
+            })
+            .collect();
 
-    if !unsupported_languages.is_empty() {
-        let formatted = unsupported_languages.join(", ");
-        return syn::Error::new(
-            enum_span,
-            format!("unsupported languages in assets: {formatted}."),
-        )
-        .to_compile_error();
+        if !unsupported_languages.is_empty() {
+            let formatted = unsupported_languages.join(", ");
+            return syn::Error::new(
+                enum_span,
+                format!("unsupported languages in assets: {formatted}."),
+            )
+            .to_compile_error();
+        }
     }
 
     let mut variant_idents = Vec::with_capacity(language_entries.len());
@@ -186,9 +189,9 @@ fn expand_es_fluent_language(
         // No resource attribute - user provides their own translations
         // No skip_inventory - enum will be registered with inventory
     } else {
-        input_enum
-            .attrs
-            .push(parse_quote!(#[fluent(resource = "es-fluent-lang", skip_inventory)]));
+        input_enum.attrs.push(parse_quote!(
+            #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang", skip_inventory)]
+        ));
     }
 
     input_enum.variants.clear();
@@ -462,6 +465,7 @@ mod tests {
             || {
                 let default_mode = run_macro("", "enum Languages {}");
                 assert!(default_mode.contains("resource = \"es-fluent-lang\""));
+                assert!(default_mode.contains("domain = \"es-fluent-lang\""));
                 assert!(default_mode.contains("Fr"));
                 assert!(default_mode.contains("EnUs"));
                 assert!(default_mode.contains("key = \"en\""));
@@ -471,6 +475,7 @@ mod tests {
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert!(!custom_mode.contains("resource = \"es-fluent-lang\""));
+                assert!(!custom_mode.contains("domain = \"es-fluent-lang\""));
                 assert!(custom_mode.contains("enum CustomLanguages"));
                 assert!(custom_mode.contains("key = \"en-US\""));
                 assert!(!custom_mode.contains(":: es_fluent_lang :: force_link"));
@@ -510,6 +515,10 @@ mod tests {
                 let output = run_macro("", "enum Unsupported {}");
                 assert!(output.contains("unsupported languages in assets"));
                 assert!(output.contains("zz"));
+
+                let custom_output = run_macro("custom", "enum CustomUnsupported {}");
+                assert!(!custom_output.contains("unsupported languages in assets"));
+                assert!(custom_output.contains("key = \"zz\""));
             },
         );
     }

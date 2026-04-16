@@ -33,15 +33,7 @@ pub(crate) fn print_diff(old: &str, new: &str) {
 
 /// Read and parse an existing FTL resource file.
 pub(crate) fn read_existing_resource(file_path: &Path) -> EsFluentResult<ast::Resource<String>> {
-    let (resource, errors) = crate::ftl::parse_ftl_file_with_errors(file_path)?;
-    if !errors.is_empty() {
-        tracing::warn!(
-            "Warning: Encountered parsing errors in {}: {:?}",
-            file_path.display(),
-            errors
-        );
-    }
-    Ok(resource)
+    crate::ftl::parse_ftl_file(file_path).map_err(Into::into)
 }
 
 /// Write an updated resource to disk, handling change detection and dry-run mode.

@@ -34,7 +34,7 @@ impl<'a> MonolithicRunner<'a> {
 
     pub(super) fn is_stale(&self) -> bool {
         use crate::generation::cache::{
-            RunnerCache, compute_content_hash, compute_workspace_inputs_hash,
+            RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
         };
 
         let runner_mtime = match fs::metadata(&self.binary_path).and_then(|m| m.modified()) {
@@ -51,7 +51,11 @@ impl<'a> MonolithicRunner<'a> {
         let mut current_hashes = indexmap::IndexMap::new();
         for krate in &self.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+                let hash = compute_crate_inputs_hash(
+                    &krate.manifest_dir,
+                    &krate.src_dir,
+                    Some(&krate.i18n_config_path),
+                );
                 current_hashes.insert(krate.name.clone(), hash);
             }
         }
@@ -78,14 +82,7 @@ impl<'a> MonolithicRunner<'a> {
                 return false;
             }
 
-            let new_cache = RunnerCache {
-                crate_hashes: current_hashes,
-                runner_mtime: runner_mtime_secs,
-                cli_version: CLI_VERSION.to_string(),
-                workspace_inputs_hash,
-            };
-            let _ = new_cache.save(self.temp_store.base_dir());
-            return false;
+            return true;
         }
 
         true
@@ -267,7 +264,7 @@ pub fn run_monolithic(
 
 fn write_runner_cache(runner: &MonolithicRunner<'_>) {
     use crate::generation::cache::{
-        RunnerCache, compute_content_hash, compute_workspace_inputs_hash,
+        RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
     };
 
     if let Ok(meta) = fs::metadata(&runner.binary_path)
@@ -281,7 +278,11 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
         let mut crate_hashes = indexmap::IndexMap::new();
         for krate in &runner.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = compute_content_hash(&krate.src_dir, Some(&krate.i18n_config_path));
+                let hash = compute_crate_inputs_hash(
+                    &krate.manifest_dir,
+                    &krate.src_dir,
+                    Some(&krate.i18n_config_path),
+                );
                 crate_hashes.insert(krate.name.clone(), hash);
             }
         }

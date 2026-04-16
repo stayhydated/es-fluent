@@ -1,5 +1,5 @@
 use super::events::{PathToCrateMap, build_path_to_crate, process_file_events};
-use super::generation::{compute_src_hash, spawn_generation};
+use super::generation::{compute_watch_inputs_hash, spawn_generation};
 use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, WorkspaceInfo};
 use crate::tui::{Message, TuiApp};
 use notify_debouncer_full::DebouncedEvent;
@@ -35,7 +35,11 @@ impl<'a> WatchRuntime<'a> {
             crates_by_name.insert(krate.name.clone(), *krate);
             observed_hashes.insert(
                 krate.name.clone(),
-                compute_src_hash(&krate.src_dir, &krate.i18n_config_path),
+                compute_watch_inputs_hash(
+                    &krate.manifest_dir,
+                    &krate.src_dir,
+                    &krate.i18n_config_path,
+                ),
             );
         }
 
@@ -89,7 +93,11 @@ impl<'a> WatchRuntime<'a> {
                 continue;
             };
 
-            let new_hash = compute_src_hash(&krate.src_dir, &krate.i18n_config_path);
+            let new_hash = compute_watch_inputs_hash(
+                &krate.manifest_dir,
+                &krate.src_dir,
+                &krate.i18n_config_path,
+            );
             if !self.observe_hash(&crate_name, new_hash) {
                 continue;
             }

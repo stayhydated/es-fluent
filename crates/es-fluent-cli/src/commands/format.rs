@@ -10,7 +10,6 @@ use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
-use fluent_syntax::parser;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -183,10 +182,16 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
         return FormatResult::unchanged(path);
     }
 
-    let resource = match parser::parse(content.clone()) {
-        Ok(res) => res,
-        Err((res, _errors)) => res, // Use the partial result even with errors
-    };
+    let (resource, errors) = es_fluent_generate::ftl::parse_ftl_content(content.clone());
+    if !errors.is_empty() {
+        return FormatResult::error(
+            path,
+            format!(
+                "Refusing to format file with parse errors: {}",
+                es_fluent_generate::ftl::format_parse_errors(&errors)
+            ),
+        );
+    }
 
     // Use shared formatting logic from es-fluent-generate
     let formatted = es_fluent_generate::formatting::sort_ftl_resource(&resource);
@@ -357,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn format_ftl_file_covers_read_empty_and_partial_parse_paths() {
+    fn format_ftl_file_covers_read_empty_and_parse_error_paths() {
         let temp = tempdir().expect("tempdir");
 
         let missing = temp.path().join("missing.ftl");
@@ -373,8 +378,14 @@ mod tests {
         let invalid = temp.path().join("invalid.ftl");
         std::fs::write(&invalid, "zeta = { $name\nalpha = A\n").expect("write invalid");
         let partial = format_ftl_file(&invalid, true);
-        assert!(partial.changed);
-        assert!(partial.diff_info.is_some());
+        assert!(!partial.changed);
+        assert!(partial.diff_info.is_none());
+        assert!(
+            partial
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("Refusing to format file with parse errors"))
+        );
     }
 
     #[test]

@@ -27,22 +27,7 @@ pub fn parse_language_entry(
             EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", e))
         })?;
 
-    ensure_supported_language_identifier(&lang, &name)?;
     Ok(Some(lang))
-}
-
-/// Ensure the language identifier is supported (no variants).
-fn ensure_supported_language_identifier(
-    lang: &unic_langid::LanguageIdentifier,
-    original: &str,
-) -> EsFluentResult<()> {
-    if lang.variants().next().is_some() {
-        return Err(EsFluentError::invalid_language_identifier(
-            original,
-            "variants are not supported",
-        ));
-    }
-    Ok(())
 }
 
 /// Validate that assets directory exists and is a directory.
@@ -97,7 +82,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_language_entry_rejects_invalid_or_unsupported_identifiers() {
+    fn parse_language_entry_rejects_invalid_identifiers_and_accepts_variants() {
         let temp = tempdir().expect("tempdir");
         std::fs::create_dir_all(temp.path().join("not-a-lang!")).expect("create invalid");
         std::fs::create_dir_all(temp.path().join("de-DE-1901")).expect("create variant");
@@ -110,11 +95,15 @@ mod tests {
         ));
 
         let variant_entry = read_dir_entry_by_name(temp.path(), "de-DE-1901");
-        let variant_err = parse_language_entry(variant_entry).expect_err("should fail");
-        assert!(matches!(
-            variant_err,
-            EsFluentError::InvalidLanguageIdentifier { .. }
-        ));
+        let variant_lang = parse_language_entry(variant_entry)
+            .expect("variant locale should parse")
+            .expect("language id");
+        assert_eq!(
+            variant_lang,
+            "de-DE-1901"
+                .parse::<unic_langid::LanguageIdentifier>()
+                .expect("language")
+        );
     }
 
     #[test]

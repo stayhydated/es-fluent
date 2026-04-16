@@ -9,6 +9,25 @@ fn empty_resource() -> ast::Resource<String> {
     ast::Resource { body: Vec::new() }
 }
 
+/// Render parser errors into a short, user-facing string.
+pub fn format_parse_errors(errors: &[fluent_syntax::parser::ParserError]) -> String {
+    let preview: Vec<String> = errors
+        .iter()
+        .take(3)
+        .map(|error| format!("{error:?}"))
+        .collect();
+
+    if errors.len() > preview.len() {
+        format!(
+            "{}; ... and {} more",
+            preview.join("; "),
+            errors.len() - preview.len()
+        )
+    } else {
+        preview.join("; ")
+    }
+}
+
 /// Parse raw FTL content, returning a partial resource plus any parse errors.
 pub fn parse_ftl_content(
     content: String,
@@ -51,9 +70,21 @@ pub fn parse_ftl_file_with_errors(
     Ok(parse_ftl_content(content))
 }
 
-/// Parse an FTL file and return the partial resource.
+/// Parse an FTL file and reject parser errors.
 pub fn parse_ftl_file(ftl_path: &Path) -> std::io::Result<ast::Resource<String>> {
-    parse_ftl_file_with_errors(ftl_path).map(|(resource, _)| resource)
+    let (resource, errors) = parse_ftl_file_with_errors(ftl_path)?;
+    if errors.is_empty() {
+        Ok(resource)
+    } else {
+        Err(Error::new(
+            ErrorKind::InvalidData,
+            format!(
+                "Refusing to use '{}' because it contains Fluent parse errors: {}",
+                ftl_path.display(),
+                format_parse_errors(&errors)
+            ),
+        ))
+    }
 }
 
 /// Extract message keys from a resource.
@@ -187,6 +218,19 @@ mod tests {
         let (partial, errors) = parse_ftl_content("hello = { $name\nworld = World\n".to_string());
         assert!(!partial.body.is_empty());
         assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn parse_ftl_file_rejects_parse_errors() {
+        let temp = tempdir().expect("tempdir");
+        let file_path = temp.path().join("invalid.ftl");
+        std::fs::write(&file_path, "broken = {\n").expect("write invalid");
+
+        let err = parse_ftl_file(&file_path)
+            .err()
+            .expect("expected parse error");
+        assert!(err.to_string().contains("Refusing to use"));
+        assert!(err.to_string().contains("Fluent parse errors"));
     }
 
     #[test]

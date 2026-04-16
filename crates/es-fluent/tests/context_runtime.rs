@@ -3,8 +3,8 @@ use es_fluent::__manager_core::{
     Localizer, ModuleData,
 };
 use es_fluent::{
-    FluentValue, localize, replace_custom_localizer, select_language, set_context,
-    set_custom_localizer,
+    FluentValue, GlobalLocalizationError, localize, localize_in_domain, replace_custom_localizer,
+    select_language, set_context, set_custom_localizer, try_set_context, try_set_custom_localizer,
 };
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -63,9 +63,16 @@ es_fluent::__inventory::submit! {
 
 #[test]
 fn context_localization_prefers_custom_then_context_then_id() {
+    let missing_context_err =
+        select_language(&langid!("en-US")).expect_err("selecting without context should fail");
+    assert!(matches!(
+        missing_context_err,
+        GlobalLocalizationError::ContextNotInitialized
+    ));
+
     let manager = FluentManager::new_with_discovered_modules();
     set_context(manager);
-    select_language(&langid!("en-US"));
+    select_language(&langid!("en-US")).expect("context should accept language selection");
 
     set_custom_localizer(|id, _| {
         if id == "custom-key" {
@@ -77,18 +84,26 @@ fn context_localization_prefers_custom_then_context_then_id() {
 
     assert_eq!(localize("custom-key", None), "from-custom");
     assert_eq!(localize("ctx-key", None), "from-context");
+    assert_eq!(
+        localize_in_domain("es-fluent-context-test", "ctx-key", None),
+        "from-context"
+    );
     assert_eq!(localize("missing-key", None), "missing-key");
     assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
 
-    let second_set_context = std::panic::catch_unwind(|| {
-        set_context(FluentManager::new_with_discovered_modules());
-    });
-    assert!(second_set_context.is_err());
+    let second_set_context = try_set_context(FluentManager::new_with_discovered_modules())
+        .expect_err("second context install should fail");
+    assert!(matches!(
+        second_set_context,
+        GlobalLocalizationError::ContextAlreadyInitialized
+    ));
 
-    let second_custom = std::panic::catch_unwind(|| {
-        set_custom_localizer(|_, _| Some("again".to_string()));
-    });
-    assert!(second_custom.is_err());
+    let second_custom = try_set_custom_localizer(|_, _| Some("again".to_string()))
+        .expect_err("second custom localizer install should fail");
+    assert!(matches!(
+        second_custom,
+        GlobalLocalizationError::CustomLocalizerAlreadyInitialized
+    ));
 
     replace_custom_localizer(|_, _| Some("again".to_string()));
     assert_eq!(localize("custom-key", None), "again");

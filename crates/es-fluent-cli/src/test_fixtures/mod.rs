@@ -5,7 +5,9 @@
 #![allow(dead_code)]
 
 #[cfg(test)]
-use crate::generation::cache::{RunnerCache, compute_content_hash, compute_workspace_inputs_hash};
+use crate::generation::cache::{
+    RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
+};
 #[cfg(test)]
 use std::fs;
 #[cfg(test)]
@@ -247,7 +249,7 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunne
 
     let src_dir = temp.path().join("src");
     let i18n_toml = temp.path().join("i18n.toml");
-    let hash = compute_content_hash(&src_dir, Some(&i18n_toml));
+    let hash = compute_crate_inputs_hash(temp.path(), &src_dir, Some(&i18n_toml));
     let mtime = fs::metadata(&binary_path)
         .and_then(|m| m.modified())
         .expect("runner mtime")

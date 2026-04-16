@@ -47,6 +47,20 @@ es-fluent-manager-embedded = "*"
 es-fluent-manager-bevy = "*"
 ```
 
+If you want startup to fail fast on duplicate or invalid module registrations,
+build the runtime through `es-fluent-manager-core::FluentManager::new_with_discovered_modules()`
+and install it with `es_fluent::try_set_context(...)`. The embedded manager
+keeps its convenience best-effort startup by default:
+
+```ignore
+es_fluent_manager_embedded::init_with_language(langid!("en-US"));
+```
+
+If you want the embedded manager itself to fail fast before publishing the
+singleton, use `es-fluent-manager-embedded::try_init_with_language(...)`. The
+Bevy plugin still exposes lenient vs strict registry behavior through
+`es-fluent-manager-bevy::ModuleRegistryMode`.
+
 ## Project configuration
 
 Create an `i18n.toml` next to your `Cargo.toml`:
@@ -64,6 +78,9 @@ fluent_feature = ["my-feature"]
 # Optional allowlist of namespace values for FTL file splitting
 namespaces = ["ui", "errors", "messages"]
 ```
+
+Locale directory names use canonical BCP-47 tags such as `en-US`, `fr`, or
+`de-DE-1901`.
 
 ## Incremental builds for locale assets
 
@@ -168,7 +185,9 @@ pub enum StatusVariants { Active, Inactive }
 - Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
 When namespaces are used, namespace files are treated as the canonical split
-for that locale. `{crate}.ftl` remains optional for backwards compatibility.
+for that locale, but manager macros only require the namespace files that
+actually exist for each locale. `{crate}.ftl` remains optional for backwards
+compatibility, which makes staged namespace rollout practical.
 
 ### Namespace Values
 

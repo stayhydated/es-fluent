@@ -1,3 +1,4 @@
+use super::ModuleRegistryMode;
 use super::runtime::{
     build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_global_state,
 };
@@ -8,7 +9,8 @@ use crate::{
 };
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    FluentManager, I18nModuleRegistration, filter_module_registry, resolve_ready_locale,
+    FluentManager, I18nModuleRegistration, ModuleDiscoveryError, filter_module_registry,
+    resolve_ready_locale, try_filter_module_registry,
 };
 use std::{collections::HashSet, sync::Arc};
 use unic_langid::LanguageIdentifier;
@@ -19,12 +21,16 @@ pub(super) struct ModuleDiscovery {
     pub(super) languages: HashSet<LanguageIdentifier>,
 }
 
-pub(super) fn discover_modules() -> ModuleDiscovery {
-    let modules = filter_module_registry(
-        inventory::iter::<&'static dyn I18nModuleRegistration>()
-            .copied()
-            .collect::<Vec<_>>(),
-    );
+pub(super) fn discover_modules(
+    module_registry_mode: ModuleRegistryMode,
+) -> Result<ModuleDiscovery, Vec<ModuleDiscoveryError>> {
+    let discovered = inventory::iter::<&'static dyn I18nModuleRegistration>()
+        .copied()
+        .collect::<Vec<_>>();
+    let modules = match module_registry_mode {
+        ModuleRegistryMode::Lenient => filter_module_registry(discovered),
+        ModuleRegistryMode::ErrorIfConflicted => try_filter_module_registry(discovered)?,
+    };
     let mut domains = HashSet::new();
     let mut languages = HashSet::new();
 
@@ -41,11 +47,11 @@ pub(super) fn discover_modules() -> ModuleDiscovery {
         );
     }
 
-    ModuleDiscovery {
+    Ok(ModuleDiscovery {
         modules,
         domains,
         languages,
-    }
+    })
 }
 
 pub(super) fn resolve_initial_language(
@@ -69,13 +75,39 @@ pub(super) fn resolve_initial_language(
     resolved_language
 }
 
-pub(super) fn initialize_global_state(resolved_language: &LanguageIdentifier) -> I18nResource {
-    let fallback_manager = Arc::new(FluentManager::new_with_discovered_modules());
-    fallback_manager.select_language(resolved_language);
+pub(super) fn initialize_global_state(
+    resolved_language: &LanguageIdentifier,
+    module_registry_mode: ModuleRegistryMode,
+) -> Result<I18nResource, String> {
+    let fallback_manager = match module_registry_mode {
+        ModuleRegistryMode::Lenient => {
+            Arc::new(FluentManager::best_effort_with_discovered_modules())
+        },
+        ModuleRegistryMode::ErrorIfConflicted => Arc::new(
+            FluentManager::try_new_with_discovered_modules()
+                .map_err(format_module_discovery_errors)?,
+        ),
+    };
+    fallback_manager
+        .select_language(resolved_language)
+        .map_err(|error| {
+            format!(
+                "fallback manager rejected initial language '{}': {}",
+                resolved_language, error
+            )
+        })?;
     set_bevy_i18n_state(
         BevyI18nState::new(resolved_language.clone()).with_fallback_manager(fallback_manager),
     );
-    I18nResource::new(resolved_language.clone())
+    Ok(I18nResource::new(resolved_language.clone()))
+}
+
+fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
+    errors
+        .into_iter()
+        .map(|error| format!("- {error}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub(super) fn build_i18n_assets(

@@ -9,6 +9,11 @@ By default, all your FTL keys land in a single `{crate}.ftl` file per locale. As
 | No namespace   | `assets_dir/{locale}/{crate}.ftl`             |
 | With namespace | `assets_dir/{locale}/{crate}/{namespace}.ftl` |
 
+When namespaces are enabled through the manager macros, the configured
+namespace files are the canonical per-locale resources.
+`{crate}.ftl` remains optional compatibility data once namespace files exist,
+but it does not make a locale ready on its own.
+
 ## Namespace Modes
 
 ### Explicit String

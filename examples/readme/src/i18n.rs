@@ -11,7 +11,10 @@ pub fn init_with_language(language: Languages) {
     i18n_manager::init_with_language(language);
 }
 
-pub fn change_locale(language: Languages) -> Result<(), unic_langid::LanguageIdentifierError> {
-    i18n_manager::select_language(language);
-    Ok(())
+pub fn try_init_with_language(language: Languages) -> Result<(), i18n_manager::EmbeddedInitError> {
+    i18n_manager::try_init_with_language(language)
+}
+
+pub fn change_locale(language: Languages) -> Result<(), i18n_manager::GlobalLocalizationError> {
+    i18n_manager::select_language(language)
 }

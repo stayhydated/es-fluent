@@ -1,5 +1,5 @@
 use crate::ast_build::{create_group_comment_entry, create_message_entry};
-use crate::model::{compare_type_infos, merge_ftl_type_infos};
+use crate::model::{OwnedTypeInfo, compare_type_infos, merge_ftl_type_infos};
 use es_fluent_shared::namer::FluentKey;
 use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::ast;
@@ -41,10 +41,12 @@ pub(crate) fn smart_merge(
     let mut new_body = Vec::new();
     let mut current_group_name: Option<String> = None;
     let cleanup = matches!(behavior, MergeBehavior::Clean);
+    let mut pending_comments: Vec<ast::Entry<String>> = Vec::new();
 
     for entry in existing.body {
         match entry {
             ast::Entry::GroupComment(ref comment) => {
+                new_body.append(&mut pending_comments);
                 if let Some(ref old_group) = current_group_name
                     && let Some(info) = item_map.get_mut(old_group)
                 {
@@ -85,83 +87,59 @@ pub(crate) fn smart_merge(
                     seen_groups.insert(group_name.clone());
                 }
             },
+            ast::Entry::Comment(_) => {
+                pending_comments.push(entry);
+            },
             ast::Entry::Message(msg) => {
                 let key = msg.id.name.clone();
-                let mut handled = false;
-                let mut relocate_to: Option<String> = None;
-
-                if seen_keys.contains(&key) {
-                    continue;
-                }
-
-                if let Some(expected_group) = key_to_group.get(&key).cloned() {
-                    if current_group_name.as_deref() != Some(expected_group.as_str())
-                        && matches!(behavior, MergeBehavior::Append)
-                    {
-                        relocate_to = Some(expected_group.clone());
-                    }
-                    handled = true;
-
-                    if let Some(info) = item_map.get_mut(&expected_group)
-                        && let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key)
-                    {
-                        info.variants.remove(idx);
-                    }
-                } else if !handled {
-                    for info in item_map.values_mut() {
-                        if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
-                            info.variants.remove(idx);
-                            handled = true;
-                            break;
-                        }
-                    }
-                }
-
-                if let Some(group_name) = relocate_to {
-                    seen_keys.insert(key);
-                    if seen_groups.contains(&group_name) {
-                        late_relocated_by_group
-                            .entry(group_name)
-                            .or_default()
-                            .push(ast::Entry::Message(msg));
-                    } else {
-                        relocated_by_group
-                            .entry(group_name)
-                            .or_default()
-                            .push(ast::Entry::Message(msg));
-                    }
-                } else if handled || !cleanup {
-                    seen_keys.insert(key);
-                    new_body.push(ast::Entry::Message(msg));
-                }
+                let mut bundle = std::mem::take(&mut pending_comments);
+                bundle.push(ast::Entry::Message(msg));
+                process_keyed_bundle(
+                    key,
+                    bundle,
+                    current_group_name.as_deref(),
+                    behavior,
+                    cleanup,
+                    &key_to_group,
+                    &mut item_map,
+                    &seen_groups,
+                    &mut seen_keys,
+                    &mut relocated_by_group,
+                    &mut late_relocated_by_group,
+                    &mut new_body,
+                );
             },
-            ast::Entry::Term(ref term) => {
+            ast::Entry::Term(term) => {
                 let key = format!("{}{}", FluentKey::DELIMITER, term.id.name);
-                let mut handled = false;
-                if seen_keys.contains(&key) {
-                    continue;
-                }
-                for info in item_map.values_mut() {
-                    if let Some(idx) = info.variants.iter().position(|v| v.ftl_key == key) {
-                        info.variants.remove(idx);
-                        handled = true;
-                        break;
-                    }
-                }
-
-                if handled || !cleanup {
-                    seen_keys.insert(key);
-                    new_body.push(entry);
-                }
+                let mut bundle = std::mem::take(&mut pending_comments);
+                bundle.push(ast::Entry::Term(term));
+                process_keyed_bundle(
+                    key,
+                    bundle,
+                    current_group_name.as_deref(),
+                    behavior,
+                    cleanup,
+                    &key_to_group,
+                    &mut item_map,
+                    &seen_groups,
+                    &mut seen_keys,
+                    &mut relocated_by_group,
+                    &mut late_relocated_by_group,
+                    &mut new_body,
+                );
             },
             ast::Entry::Junk { .. } => {
+                new_body.append(&mut pending_comments);
                 new_body.push(entry);
             },
             _ => {
+                new_body.append(&mut pending_comments);
                 new_body.push(entry);
             },
         }
     }
+
+    new_body.append(&mut pending_comments);
 
     if let Some(ref last_group) = current_group_name
         && let Some(info) = item_map.get_mut(last_group)
@@ -217,6 +195,88 @@ pub(crate) fn smart_merge(
     } else {
         resource
     }
+}
+
+fn process_keyed_bundle(
+    key: String,
+    bundle: Vec<ast::Entry<String>>,
+    current_group_name: Option<&str>,
+    behavior: MergeBehavior,
+    cleanup: bool,
+    key_to_group: &IndexMap<String, String>,
+    item_map: &mut IndexMap<String, OwnedTypeInfo>,
+    seen_groups: &HashSet<String>,
+    seen_keys: &mut HashSet<String>,
+    relocated_by_group: &mut IndexMap<String, Vec<ast::Entry<String>>>,
+    late_relocated_by_group: &mut IndexMap<String, Vec<ast::Entry<String>>>,
+    new_body: &mut Vec<ast::Entry<String>>,
+) {
+    if seen_keys.contains(&key) {
+        return;
+    }
+
+    let mut relocate_to: Option<String> = None;
+
+    let handled = if let Some(expected_group) = key_to_group.get(&key).cloned() {
+        if current_group_name != Some(expected_group.as_str())
+            && matches!(behavior, MergeBehavior::Append)
+        {
+            relocate_to = Some(expected_group.clone());
+        }
+        remove_variant_from_group(item_map, &expected_group, &key);
+        true
+    } else {
+        remove_variant_from_any_group(item_map, &key)
+    };
+
+    if let Some(group_name) = relocate_to {
+        seen_keys.insert(key);
+        let target = if seen_groups.contains(&group_name) {
+            late_relocated_by_group
+        } else {
+            relocated_by_group
+        };
+        target.entry(group_name).or_default().extend(bundle);
+    } else if handled || !cleanup {
+        seen_keys.insert(key);
+        new_body.extend(bundle);
+    }
+}
+
+fn remove_variant_from_group(
+    item_map: &mut IndexMap<String, OwnedTypeInfo>,
+    group_name: &str,
+    key: &str,
+) -> bool {
+    if let Some(info) = item_map.get_mut(group_name)
+        && let Some(idx) = info
+            .variants
+            .iter()
+            .position(|variant| variant.ftl_key == key)
+    {
+        info.variants.remove(idx);
+        return true;
+    }
+
+    false
+}
+
+fn remove_variant_from_any_group(
+    item_map: &mut IndexMap<String, OwnedTypeInfo>,
+    key: &str,
+) -> bool {
+    for info in item_map.values_mut() {
+        if let Some(idx) = info
+            .variants
+            .iter()
+            .position(|variant| variant.ftl_key == key)
+        {
+            info.variants.remove(idx);
+            return true;
+        }
+    }
+
+    false
 }
 
 pub(crate) fn group_comment_name(comment: &ast::Comment<String>) -> Option<String> {

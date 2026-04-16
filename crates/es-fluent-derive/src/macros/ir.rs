@@ -18,17 +18,26 @@ impl FluentArgument {
 }
 
 pub(crate) struct LocalizeCallSpec {
+    pub(crate) domain_override: Option<String>,
     pub(crate) ftl_key: String,
     pub(crate) arguments: Vec<FluentArgument>,
 }
 
 impl LocalizeCallSpec {
     pub(crate) fn write_expr(&self) -> TokenStream {
+        let domain_expr = match self.domain_override.as_deref() {
+            Some(domain) => quote! { #domain },
+            None => quote! { env!("CARGO_PKG_NAME") },
+        };
         let ftl_key = &self.ftl_key;
 
         if self.arguments.is_empty() {
             quote! {
-                write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
+                write!(
+                    f,
+                    "{}",
+                    ::es_fluent::localize_in_domain(#domain_expr, #ftl_key, None)
+                )
             }
         } else {
             let inserts: Vec<_> = self
@@ -40,7 +49,15 @@ impl LocalizeCallSpec {
             quote! {
                 let mut args = ::std::collections::HashMap::new();
                 #(#inserts)*
-                write!(f, "{}", ::es_fluent::localize(#ftl_key, Some(&args)))
+                write!(
+                    f,
+                    "{}",
+                    ::es_fluent::localize_in_domain(
+                        #domain_expr,
+                        #ftl_key,
+                        Some(&args),
+                    )
+                )
             }
         }
     }
@@ -81,7 +98,11 @@ impl GeneratedUnitEnumVariant {
         let variant_ident = &self.ident;
         let ftl_key = &self.ftl_key;
         quote! {
-            Self::#variant_ident => write!(f, "{}", ::es_fluent::localize(#ftl_key, None))
+            Self::#variant_ident => write!(
+                f,
+                "{}",
+                ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"), #ftl_key, None)
+            )
         }
     }
 
@@ -92,5 +113,58 @@ impl GeneratedUnitEnumVariant {
             arg_names: Vec::new(),
         }
         .tokens()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FluentArgument, GeneratedUnitEnumVariant, LocalizeCallSpec};
+    use quote::quote;
+    use syn::parse_quote;
+
+    #[test]
+    fn localize_call_spec_routes_through_the_current_crate_domain() {
+        let call = LocalizeCallSpec {
+            domain_override: None,
+            ftl_key: "welcome_message".to_string(),
+            arguments: vec![FluentArgument {
+                key: "name".to_string(),
+                value_expr: quote!("Alice"),
+            }],
+        };
+
+        let rendered = call.write_expr().to_string();
+        assert!(rendered.contains(":: es_fluent :: localize_in_domain"));
+        assert!(rendered.contains("env ! (\"CARGO_PKG_NAME\")"));
+        assert!(rendered.contains("welcome_message"));
+    }
+
+    #[test]
+    fn localize_call_spec_uses_explicit_domain_override_when_present() {
+        let call = LocalizeCallSpec {
+            domain_override: Some("es-fluent-lang".to_string()),
+            ftl_key: "es-fluent-lang-en".to_string(),
+            arguments: Vec::new(),
+        };
+
+        let rendered = call.write_expr().to_string();
+        assert!(rendered.contains(":: es_fluent :: localize_in_domain"));
+        assert!(rendered.contains("\"es-fluent-lang\""));
+        assert!(rendered.contains("es-fluent-lang-en"));
+        assert!(!rendered.contains("env ! (\"CARGO_PKG_NAME\")"));
+    }
+
+    #[test]
+    fn unit_enum_variant_display_arm_routes_through_the_current_crate_domain() {
+        let variant = GeneratedUnitEnumVariant {
+            ident: parse_quote!(Hello),
+            doc_name: "Hello".to_string(),
+            ftl_key: "hello".to_string(),
+        };
+
+        let rendered = variant.display_match_arm().to_string();
+        assert!(rendered.contains(":: es_fluent :: localize_in_domain"));
+        assert!(rendered.contains("env ! (\"CARGO_PKG_NAME\")"));
+        assert!(rendered.contains("hello"));
     }
 }

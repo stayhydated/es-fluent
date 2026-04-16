@@ -33,6 +33,16 @@ pub struct SyncArgs {
     pub dry_run: bool,
 }
 
+fn collect_affected_locales<'a>(
+    results: impl IntoIterator<Item = &'a locale::SyncLocaleResult>,
+) -> HashSet<String> {
+    results
+        .into_iter()
+        .filter(|result| result.keys_added > 0)
+        .map(|result| result.locale.clone())
+        .collect()
+}
+
 /// Run the sync command.
 pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
@@ -73,7 +83,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     }
 
     let mut total_keys_added = 0;
-    let mut total_locales_affected = 0;
+    let mut affected_locales: HashSet<String> = HashSet::new();
     let mut all_synced_keys: Vec<SyncMissingKey> = Vec::new();
 
     let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Syncing crates...");
@@ -82,10 +92,10 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
         pb.set_message(format!("Syncing {}", krate.name));
 
         let results = locale::sync_crate(krate, target_locales.as_ref(), args.dry_run)?;
+        affected_locales.extend(collect_affected_locales(results.iter()));
 
         for result in results {
             if result.keys_added > 0 {
-                total_locales_affected += 1;
                 total_keys_added += result.keys_added;
 
                 pb.suspend(|| {
@@ -115,6 +125,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
         pb.inc(1);
     }
     pb.finish_and_clear();
+    let total_locales_affected = affected_locales.len();
 
     if total_keys_added == 0 {
         ui::Ui::print_all_in_sync();
@@ -282,5 +293,39 @@ world = World"#;
         let fr_content =
             fs::read_to_string(temp.path().join("i18n/fr/test-app.ftl")).expect("read fr");
         assert!(fr_content.contains("world = World"));
+    }
+
+    #[test]
+    fn collect_affected_locales_deduplicates_namespaced_file_results() {
+        let temp = create_workspace_with_locales(&[
+            ("en", "hello = Hello\nworld = World\n"),
+            ("es", "hello = Hola\n"),
+        ]);
+        fs::create_dir_all(temp.path().join("i18n/en/test-app")).expect("create en namespace dir");
+        fs::write(
+            temp.path().join("i18n/en/test-app/ui.ftl"),
+            "button = Button\n",
+        )
+        .expect("write en namespaced fallback");
+
+        let workspace = WorkspaceCrates::discover(WorkspaceArgs {
+            path: Some(temp.path().to_path_buf()),
+            package: None,
+        })
+        .expect("discover workspace");
+        let krate = workspace.crates.first().expect("crate");
+        let targets = HashSet::from(["es".to_string()]);
+
+        let results = locale::sync_crate(krate, Some(&targets), true).expect("sync crate");
+
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| result.keys_added > 0)
+                .count(),
+            2,
+            "both locale files should report changes"
+        );
+        assert_eq!(collect_affected_locales(results.iter()).len(), 1);
     }
 }

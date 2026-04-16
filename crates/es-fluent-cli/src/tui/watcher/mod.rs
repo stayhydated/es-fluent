@@ -129,11 +129,9 @@ fn configure_file_watcher(
             .watch(&krate.src_dir, RecursiveMode::Recursive)
             .with_context(|| format!("Failed to watch {}", krate.src_dir.display()))?;
 
-        if krate.i18n_config_path.exists() {
-            debouncer
-                .watch(&krate.i18n_config_path, RecursiveMode::NonRecursive)
-                .with_context(|| format!("Failed to watch {}", krate.i18n_config_path.display()))?;
-        }
+        debouncer
+            .watch(&krate.manifest_dir, RecursiveMode::NonRecursive)
+            .with_context(|| format!("Failed to watch {}", krate.manifest_dir.display()))?;
     }
 
     Ok((debouncer, file_rx))
