@@ -48,7 +48,9 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
     /// Returns the registration kind for duplicate-resolution and discovery.
     ///
     /// Implementations that can answer this without constructing a localizer
-    /// should override the default to keep discovery metadata-only.
+    /// should override the default to keep discovery metadata-only. Manual
+    /// runtime registrations should also override this method explicitly,
+    /// because the default implementation probes `create_localizer()`.
     fn registration_kind(&self) -> ModuleRegistrationKind {
         if self.create_localizer().is_some() {
             ModuleRegistrationKind::RuntimeLocalizer

@@ -107,6 +107,23 @@ fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
         .find(|candidate| available.contains(candidate))
 }
 
+#[cfg(feature = "localized-langs")]
+fn parse_embedded_resource(
+    path: &str,
+    bytes: &[u8],
+) -> Result<Arc<FluentResource>, LocalizationError> {
+    let content = String::from_utf8(bytes.to_vec()).map_err(|err| {
+        tracing::error!("Invalid UTF-8 in embedded file '{}': {}", path, err);
+        LocalizationError::IoError(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Invalid UTF-8 in embedded file '{}': {}", path, err),
+        ))
+    })?;
+    let resource = FluentResource::try_new(content)
+        .map_err(|(_, errs)| LocalizationError::FluentParseError(errs))?;
+    Ok(Arc::new(resource))
+}
+
 fn localize_from_resource<'a>(
     lang: LanguageIdentifier,
     resource: Arc<FluentResource>,
@@ -246,16 +263,7 @@ impl EsFluentLanguageLocalizer {
         let path = format!("{}/{}", lang, I18N_RESOURCE_NAME);
         let file = EsFluentLangAssets::get(&path)
             .ok_or_else(|| LocalizationError::LanguageNotSupported(lang.clone()))?;
-        let content = match String::from_utf8(file.data.to_vec()) {
-            Ok(content) => content,
-            Err(err) => {
-                tracing::error!("Invalid UTF-8 in embedded file '{}': {}", path, err);
-                String::from_utf8_lossy(err.as_bytes()).into_owned()
-            },
-        };
-        let resource = FluentResource::try_new(content)
-            .map_err(|(_, errs)| LocalizationError::FluentParseError(errs))?;
-        let resource = Arc::new(resource);
+        let resource = parse_embedded_resource(&path, file.data.as_ref())?;
         self.resources
             .write()
             .expect("lock poisoned")
@@ -559,6 +567,21 @@ mod tests_localized {
             Some("anglais".to_string()),
             "fr-FR should fall back to fr translations"
         );
+    }
+
+    #[test]
+    fn parse_embedded_resource_rejects_invalid_utf8() {
+        let err = parse_embedded_resource("fr/es-fluent-lang.ftl", &[0xFF, 0xFE])
+            .expect_err("invalid utf-8 should fail");
+        assert!(matches!(err, LocalizationError::IoError(_)));
+        assert!(err.to_string().contains("Invalid UTF-8"));
+    }
+
+    #[test]
+    fn parse_embedded_resource_rejects_invalid_fluent() {
+        let err = parse_embedded_resource("fr/es-fluent-lang.ftl", b"broken = {")
+            .expect_err("invalid fluent should fail");
+        assert!(matches!(err, LocalizationError::FluentParseError(_)));
     }
 
     #[cfg(feature = "bevy")]

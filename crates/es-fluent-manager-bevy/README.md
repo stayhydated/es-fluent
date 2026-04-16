@@ -92,7 +92,9 @@ functions manually.
 If a field depends on the active locale (like the `Languages` enum from
 [es_fluent_lang](../es-fluent-lang/README.md)), mark it with `#[locale]`.
 The macro will generate `RefreshForLocale` and register the locale-aware
-systems for you.
+systems for you. `#[locale]` is supported on named struct fields and named
+enum variant fields, and you can mark more than one named field in the same
+variant when they all need refresh behavior.
 
 ```rs
 use bevy::prelude::Component;

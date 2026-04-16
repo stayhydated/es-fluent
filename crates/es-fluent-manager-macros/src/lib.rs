@@ -42,6 +42,7 @@ pub fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
 ///
 /// The `#[locale]` attribute marks fields that should be updated when the locale changes.
 /// The field type must implement `TryFrom<&LanguageIdentifier>`.
+/// `#[locale]` is supported on named struct fields and named enum variant fields.
 ///
 /// # Example (simple)
 ///
