@@ -164,7 +164,6 @@ impl I18nAssets {
 
         let mut namespaces = BTreeSet::new();
         let mut discovered_languages = BTreeSet::new();
-        let mut base_file_languages = BTreeSet::new();
         let mut namespaces_by_language: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
         for entry in entries {
@@ -197,10 +196,6 @@ impl I18nAssets {
                 if has_main_file || !discovered_namespaces.is_empty() {
                     discovered_languages.insert(lang_code.to_string());
                 }
-                if has_main_file {
-                    base_file_languages.insert(lang_code.to_string());
-                }
-
                 if !discovered_namespaces.is_empty() {
                     for namespace in discovered_namespaces {
                         namespaces.insert(namespace.clone());
@@ -229,9 +224,6 @@ impl I18nAssets {
         let mut resource_specs_by_language = Vec::with_capacity(languages.len());
 
         for lang in &languages {
-            let lang_path = i18n_root_path.join(lang);
-            let base_path = lang_path.join(format!("{}.ftl", crate_name));
-
             let mut specs = Vec::new();
             if namespaces.is_empty() {
                 specs.push(ResourceSpec {
@@ -240,14 +232,6 @@ impl I18nAssets {
                     required: true,
                 });
             } else {
-                if base_file_languages.contains(lang) && base_path.is_file() {
-                    specs.push(ResourceSpec {
-                        key: crate_name.to_string(),
-                        locale_relative_path: format!("{crate_name}.ftl"),
-                        required: false,
-                    });
-                }
-
                 for namespace in namespaces_by_language
                     .get(lang)
                     .into_iter()
@@ -470,6 +454,38 @@ mod tests {
                 &vec![ResourceSpec {
                     key: "my-crate/ui/button".to_string(),
                     locale_relative_path: "my-crate/ui/button.ftl".to_string(),
+                    required: true,
+                }]
+            );
+        });
+    }
+
+    #[test]
+    fn i18n_assets_load_ignores_base_files_for_namespaced_locales() {
+        let temp = tempdir().expect("tempdir");
+        write_manifest(temp.path(), "i18n");
+
+        std::fs::create_dir_all(temp.path().join("i18n/en/my-crate")).expect("mkdir en crate");
+        std::fs::write(temp.path().join("i18n/en/my-crate.ftl"), "hello = Base").expect("write");
+        std::fs::write(temp.path().join("i18n/en/my-crate/ui.ftl"), "title = UI").expect("write");
+
+        with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
+            let assets = I18nAssets::load("my-crate").expect("load assets");
+
+            assert_eq!(assets.languages, vec!["en".to_string()]);
+            assert_eq!(assets.namespaces, vec!["ui".to_string()]);
+
+            let en_specs = assets
+                .resource_specs_by_language
+                .iter()
+                .find(|(lang, _)| lang == "en")
+                .map(|(_, specs)| specs)
+                .expect("en specs");
+            assert_eq!(
+                en_specs,
+                &vec![ResourceSpec {
+                    key: "my-crate/ui".to_string(),
+                    locale_relative_path: "my-crate/ui.ftl".to_string(),
                     required: true,
                 }]
             );

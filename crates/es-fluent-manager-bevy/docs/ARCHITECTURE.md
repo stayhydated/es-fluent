@@ -141,10 +141,11 @@ required for that locale. The base `{domain}.ftl` file is not part of the
 canonical namespaced resource plan.
 
 For macro-generated modules, Bevy uses a compile-time manifest-derived
-`resource_plan_for_language` to decide which optional files should be queued.
-When no manifest is available, Bevy still loads optional assets through the
-normal `AssetServer` path and treats missing optional files as non-blocking
-load failures once the asset pipeline reports them.
+`resource_plan_for_language` as the authoritative per-locale load plan.
+Macro-generated namespaced modules emit only canonical `{domain}/{namespace}.ftl`
+entries in that manifest, so stray `{domain}.ftl` base files are not queued for
+namespaced locales. Optional entries only exist when a registration explicitly
+returns them in its resource plan.
 
 ## Flow
 

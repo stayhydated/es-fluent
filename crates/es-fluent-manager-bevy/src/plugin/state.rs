@@ -44,10 +44,18 @@ fn build_domain_bundles(
                 .into_iter()
                 .map(|(domain, mut resources)| {
                     resources.sort_by(|(left_key, _), (right_key, _)| left_key.cmp(right_key));
-                    let (bundle, _add_errors) = build_sync_bundle(
+                    let (bundle, add_errors) = build_sync_bundle(
                         &lang,
                         resources.into_iter().map(|(_, resource)| resource),
                     );
+                    for errors in add_errors {
+                        error!(
+                            "Failed to add resource to domain bundle while caching: lang={}, domain={}, errors={:?}",
+                            lang,
+                            domain,
+                            errors
+                        );
+                    }
                     (domain, Arc::new(bundle))
                 })
                 .collect::<HashMap<_, _>>();
