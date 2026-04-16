@@ -10,6 +10,7 @@ use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use unic_langid::LanguageIdentifier;
 
 type ManagedLocalizer = (&'static ModuleData, Box<dyn Localizer>);
+const MAX_DIAGNOSTIC_LANGUAGES: usize = 6;
 
 /// A manager for Fluent translations.
 #[derive(Default)]
@@ -82,6 +83,68 @@ fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
         .join("\n")
 }
 
+pub(crate) fn format_module_names(modules: &[&'static ModuleData]) -> String {
+    if modules.is_empty() {
+        return "<none>".to_string();
+    }
+
+    modules
+        .iter()
+        .map(|data| data.name)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub(crate) fn format_supported_languages(languages: &[LanguageIdentifier]) -> String {
+    if languages.is_empty() {
+        return "none declared".to_string();
+    }
+
+    let mut formatted = languages
+        .iter()
+        .take(MAX_DIAGNOSTIC_LANGUAGES)
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+
+    if languages.len() > MAX_DIAGNOSTIC_LANGUAGES {
+        formatted.push(format!(
+            "+{} more",
+            languages.len() - MAX_DIAGNOSTIC_LANGUAGES
+        ));
+    }
+
+    formatted.join(", ")
+}
+
+pub(crate) fn format_module_support(data: &ModuleData) -> String {
+    if data.domain == data.name {
+        return format!(
+            "{} (supports: {})",
+            data.name,
+            format_supported_languages(data.supported_languages)
+        );
+    }
+
+    format!(
+        "{} (domain: {}, supports: {})",
+        data.name,
+        data.domain,
+        format_supported_languages(data.supported_languages)
+    )
+}
+
+pub(crate) fn format_module_support_list(modules: &[&'static ModuleData]) -> String {
+    if modules.is_empty() {
+        return "<none>".to_string();
+    }
+
+    modules
+        .iter()
+        .map(|data| format_module_support(data))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 impl FluentManager {
     /// Creates a new `FluentManager` with strict discovered-module validation.
     pub fn new_with_discovered_modules() -> Self {
@@ -137,6 +200,7 @@ impl FluentManager {
         policy: LanguageSelectionPolicy,
     ) -> crate::localization::LocalizationErrorResult<()> {
         let mut next_localizers = Vec::with_capacity(self.modules.len());
+        let mut selected_modules = Vec::with_capacity(self.modules.len());
         let mut any_selected = false;
         let mut first_failure = None;
         let mut first_non_unsupported_failure = None;
@@ -153,7 +217,7 @@ impl FluentManager {
                     error
                 );
                 if first_non_unsupported_failure.is_none() {
-                    first_non_unsupported_failure = Some(error);
+                    first_non_unsupported_failure = Some((data, error));
                 }
                 continue;
             };
@@ -161,6 +225,7 @@ impl FluentManager {
             match localizer.select_language(lang) {
                 Ok(()) => {
                     any_selected = true;
+                    selected_modules.push(data);
                     next_localizers.push((data, localizer));
                 },
                 Err(error) => {
@@ -174,21 +239,23 @@ impl FluentManager {
                         &error,
                         crate::localization::LocalizationError::LanguageNotSupported(_)
                     ) {
-                        unsupported_modules.push(data.name);
+                        unsupported_modules.push(data);
                         if first_failure.is_none() {
                             first_failure = Some(error);
                         }
                     } else if first_non_unsupported_failure.is_none() {
-                        first_non_unsupported_failure = Some(error);
+                        first_non_unsupported_failure = Some((data, error));
                     }
                 },
             }
         }
 
-        if let Some(error) = first_non_unsupported_failure {
+        if let Some((module, error)) = first_non_unsupported_failure {
             tracing::warn!(
-                "Language selection for '{}' failed due to a runtime-localizer error; keeping the previous language active",
+                "Language selection for '{}' failed because module '{}' returned a runtime-localizer error: {}; keeping the previous language active",
                 lang,
+                module.name,
+                error,
             );
             return Err(error);
         }
@@ -198,26 +265,29 @@ impl FluentManager {
             && let Some(error) = first_failure
         {
             tracing::warn!(
-                "Language selection for '{}' failed for at least one i18n module; keeping the previous language active",
-                lang
+                "Language selection for '{}' failed in strict mode; modules that accepted it: {}; modules that rejected it: {}; keeping the previous language active",
+                lang,
+                format_module_names(&selected_modules),
+                format_module_support_list(&unsupported_modules),
             );
             return Err(error);
         }
 
         if !any_selected {
             tracing::warn!(
-                "No i18n modules support language '{}'; unsupported modules: {}",
+                "No i18n modules support language '{}'; modules checked: {}",
                 lang,
-                unsupported_modules.join(", ")
+                format_module_support_list(&unsupported_modules)
             );
             return Err(crate::localization::LocalizationError::LanguageNotSupported(lang.clone()));
         }
 
         if !unsupported_modules.is_empty() {
             tracing::warn!(
-                "Language '{}' is not supported by some i18n modules; continuing with: {}",
+                "Language '{}' is only partially supported; active modules: {}; skipped unsupported modules: {}",
                 lang,
-                unsupported_modules.join(", ")
+                format_module_names(&selected_modules),
+                format_module_support_list(&unsupported_modules),
             );
         }
 

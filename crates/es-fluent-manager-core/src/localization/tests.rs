@@ -1,5 +1,6 @@
 use super::*;
 use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
+use crate::localization::manager::{format_module_support, format_supported_languages};
 use fluent_bundle::FluentResource;
 use std::collections::HashMap;
 use std::io;
@@ -86,6 +87,21 @@ static FILTER_DUP_LANGUAGE_DATA: ModuleData = ModuleData {
     name: "filter-dup-language",
     domain: "filter-dup-language",
     supported_languages: &[langid!("en"), langid!("en")],
+    namespaces: &[],
+};
+static DIAGNOSTIC_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
+    langid!("en"),
+    langid!("fr"),
+    langid!("de"),
+    langid!("es"),
+    langid!("it"),
+    langid!("ja"),
+    langid!("zh"),
+];
+static DIAGNOSTIC_MODULE_DATA: ModuleData = ModuleData {
+    name: "diagnostic-module",
+    domain: "diagnostic-domain",
+    supported_languages: DIAGNOSTIC_SUPPORTED_LANGUAGES,
     namespaces: &[],
 };
 static FILTER_DESCRIPTOR: StaticModuleDescriptor = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
@@ -482,6 +498,30 @@ fn manager_keeps_previous_localizers_when_strict_selection_fails() {
     assert_eq!(
         manager.localize("selected-language", None),
         Some("en-US".to_string())
+    );
+}
+
+#[test]
+fn format_supported_languages_truncates_long_lists_for_diagnostics() {
+    assert_eq!(
+        format_supported_languages(DIAGNOSTIC_SUPPORTED_LANGUAGES),
+        "en, fr, de, es, it, ja, +1 more"
+    );
+}
+
+#[test]
+fn format_module_support_includes_domain_when_it_differs() {
+    assert_eq!(
+        format_module_support(&DIAGNOSTIC_MODULE_DATA),
+        "diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
+    );
+}
+
+#[test]
+fn format_module_support_reports_missing_declared_languages() {
+    assert_eq!(
+        format_module_support(&MODULE_ERR_DATA),
+        "module-err (supports: none declared)"
     );
 }
 
