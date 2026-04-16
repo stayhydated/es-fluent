@@ -60,7 +60,7 @@ namespaces = ["ui", "errors", "messages"]
 ## Key Responsibilities
 
 1. **Path Resolution**:
-   It resolves `assets_dir` relative to the `i18n.toml` location (usually the workspace root), ensuring that CLI tools and build scripts (proc-macros) see the same path regardless of their Current Working Directory.
+   It resolves `assets_dir` relative to the `i18n.toml` location, ensuring that CLI tools and build scripts (proc-macros) see the same path regardless of their Current Working Directory.
 
 1. **Language Discovery**:
    It scans the `assets_dir` to find all subdirectories that correspond to valid BCP-47 language codes. This allows the ecosystem to auto-discover available languages without manual registration. Languages are sorted alphabetically and deduplicated.

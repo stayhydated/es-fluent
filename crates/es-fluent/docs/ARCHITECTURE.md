@@ -8,7 +8,7 @@ This document details the architecture of the `es-fluent` crate, which serves as
 
 1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `EsFluentVariants`, `EsFluentThis`, `ToFluentString`, `ThisFtl`) and derive macros.
 1. **Registry Types**: `FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`, and inventory collection for FTL file generation (including optional namespaces).
-1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic localization macros.
+1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic derived localization calls.
 1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
 1. **Traits**: Standard definitions for how types invoke the localization system.
 
@@ -107,7 +107,7 @@ Used to convert an enum into a string that can be used as a Fluent choice (selec
 
 ### `ThisFtl`
 
-A trait for types that have a "this" fluent key representing the type itself, typically implemented via `#[derive(EsFluent)]` with `#[fluent(this)]`.
+A trait for types that have a "this" fluent key representing the type itself, implemented by `#[derive(EsFluentThis)]` and by generated variant enums when `#[fluent_this(variants)]` is used.
 
 ## Internal Namespace Helpers
 
@@ -145,4 +145,4 @@ enum Gender {
 }
 ```
 
-> **Note**: Consumers should rely on the `#[derive(EsFluent)]` macro and the `ToFluentString` trait. The trait only needs to be in scope to enable calling `to_fluent_string`. Direct usage of the internal `localize!` macro or function is discouraged and generally not necessary.
+> **Note**: Consumers should rely on the `#[derive(EsFluent)]` macro and the `ToFluentString` trait. The trait only needs to be in scope to enable calling `to_fluent_string`. Direct usage of the hidden `localize` helpers is discouraged and generally not necessary.

@@ -8,7 +8,7 @@ This document details the architecture of the `es-fluent-manager-embedded` crate
 
 - Localization files should be bundled into the single binary executable.
 - Hot-reloading is not required.
-- Global state access is preferred (via `once_cell` / `std::sync`).
+- Global state access is preferred through the shared singleton.
 
 ## Architecture
 
@@ -27,7 +27,7 @@ flowchart TD
 
     subgraph RUNTIME["Runtime"]
         Display["Impl FluentDisplay"]
-        Localize["localize! macro"]
+        Localize["derive-generated lookup helpers"]
     end
 
     MACRO -->|registers modules| MGR
@@ -59,7 +59,7 @@ Calls to `init()` or `init_with_language()`:
 For namespaced modules, namespace files are the canonical per-locale resources.
 `{domain}.ftl` is not part of the canonical resource plan when namespaces are present.
 
-This enables the use of `es_fluent::localize!` anywhere in the application code without passing a manager context around.
+This enables derive-generated `to_fluent_string()` lookups anywhere in the application code without passing a manager context around.
 
 ## Macro
 
@@ -97,7 +97,7 @@ es_fluent_manager_embedded::define_i18n_module!();
 
 // In main.rs
 fn main() {
-    es_fluent_manager_embedded::init_with_language("en-US");
+    es_fluent_manager_embedded::init_with_language(unic_langid::langid!("en-US"));
 
     println!("{}", MyMessage { ... }); // Automatically localized
 }

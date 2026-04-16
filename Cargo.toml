@@ -141,7 +141,14 @@ unexpected_cfgs = { level = "deny" }
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
+derive_partial_eq_without_eq = "warn"
+err_expect = "warn"
+incompatible_msrv = "deny"
+iter_on_single_items = "warn"
+needless_bool = "warn"
+redundant_clone = "warn"
 todo = "deny"
 type_complexity = "allow"
 uninlined_format_args = "allow"
 unused_trait_names = "warn"
+useless_conversion = "warn"

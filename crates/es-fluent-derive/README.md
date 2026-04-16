@@ -9,8 +9,6 @@ This crate is the engine that transforms your Rust structs and enums into Fluent
 
 All macros provided by this crate are fully independent and composable. You can use them individually or together on the same type depending on your needs.
 
-Internally, the derive entrypoints share common namespace resolution and token-emission helpers, so the struct, enum, `This`, and `Variants` expansions only carry the message-shape-specific logic.
-
 ## Features
 
 ### `#[derive(EsFluent)]`

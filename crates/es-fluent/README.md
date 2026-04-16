@@ -17,8 +17,6 @@ This framework gives you:
 - [Language Enum Generation](../es-fluent-lang/README.md)
 - Integration via a [embedded singleton manager](../es-fluent-manager-embedded/README.md) or [es-fluent-manager-bevy](../es-fluent-manager-bevy/README.md) for [bevy](https://bevy.org/)
 
-Internally, runtime-safe shared metadata and registry helpers now live in `es-fluent-shared`, while build-time attribute parsing stays in `es-fluent-derive-core`. The proc-macro crate, `es-fluent-derive`, now keeps shared namespace resolution and token-emission helpers in one place so each derive entrypoint only handles its type-specific message shape.
-
 ## Examples
 
 - [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))

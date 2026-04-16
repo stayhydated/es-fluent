@@ -86,10 +86,10 @@ Plugin startup uses the same strict discovery path as
 `FluentManager::try_new_with_discovered_modules()`, and the fallback
 `FluentManager` is built through that same strict validation flow.
 
-In both modes, the custom localizer redirects global `localize!` calls and
-domain-scoped `localize_in_domain()` calls (used by `derive(EsFluent)` types)
-to the active Bevy resources, allowing standard Rust objects to stringify
-correctly even inside Bevy systems.
+In both modes, the custom localizer redirects hidden global localization
+helpers plus domain-scoped `localize_in_domain()` calls (used by
+`derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust
+objects to stringify correctly even inside Bevy systems.
 
 ### `BevyFluentText` (derive macro)
 
@@ -114,7 +114,7 @@ A global static that mirrors the ECS state for use by the custom localizer. It u
 static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 ```
 
-Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access during localization calls. When the bundle or language changes, a new `BevyI18nState` is atomically swapped in, ensuring the hot path (`localize!` calls) never blocks on a lock.
+Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access during localization calls. When the bundle or language changes, a new `BevyI18nState` is atomically swapped in, ensuring the hot path for derived/localizer lookups never blocks on a lock.
 
 ### `FtlAssetLoader`
 
@@ -153,4 +153,4 @@ load failures once the asset pipeline reports them.
 1. **Compilation**: `I18nBundle` creates `FluentBundle`s from loaded assets.
 1. **Localization**:
    - **Components**: `FluentText<T>` components update automatically via `update_all_fluent_text_on_locale_change`.
-   - **Global**: `localize!("my-id")` works anywhere because the global hook calls back into the Bevy state.
+   - **Global**: derive-generated lookups and domain-scoped localization calls work because the global hook calls back into the Bevy state.
