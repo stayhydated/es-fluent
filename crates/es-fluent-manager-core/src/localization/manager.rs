@@ -193,12 +193,15 @@ impl FluentManager {
             return Err(error);
         }
 
-        if any_selected && first_failure.is_some() && policy == LanguageSelectionPolicy::Strict {
+        if any_selected
+            && policy == LanguageSelectionPolicy::Strict
+            && let Some(error) = first_failure
+        {
             tracing::warn!(
                 "Language selection for '{}' failed for at least one i18n module; keeping the previous language active",
                 lang
             );
-            return Err(first_failure.expect("selection failure should have been captured"));
+            return Err(error);
         }
 
         if !any_selected {

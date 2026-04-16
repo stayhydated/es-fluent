@@ -94,39 +94,37 @@ pub(crate) fn smart_merge(
                 let key = msg.id.name.clone();
                 let mut bundle = std::mem::take(&mut pending_comments);
                 bundle.push(ast::Entry::Message(msg));
-                process_keyed_bundle(
-                    key,
-                    bundle,
-                    current_group_name.as_deref(),
+                let mut context = BundleProcessingContext {
+                    current_group_name: current_group_name.as_deref(),
                     behavior,
                     cleanup,
-                    &key_to_group,
-                    &mut item_map,
-                    &seen_groups,
-                    &mut seen_keys,
-                    &mut relocated_by_group,
-                    &mut late_relocated_by_group,
-                    &mut new_body,
-                );
+                    key_to_group: &key_to_group,
+                    item_map: &mut item_map,
+                    seen_groups: &seen_groups,
+                    seen_keys: &mut seen_keys,
+                    relocated_by_group: &mut relocated_by_group,
+                    late_relocated_by_group: &mut late_relocated_by_group,
+                    new_body: &mut new_body,
+                };
+                process_keyed_bundle(key, bundle, &mut context);
             },
             ast::Entry::Term(term) => {
                 let key = format!("{}{}", FluentKey::DELIMITER, term.id.name);
                 let mut bundle = std::mem::take(&mut pending_comments);
                 bundle.push(ast::Entry::Term(term));
-                process_keyed_bundle(
-                    key,
-                    bundle,
-                    current_group_name.as_deref(),
+                let mut context = BundleProcessingContext {
+                    current_group_name: current_group_name.as_deref(),
                     behavior,
                     cleanup,
-                    &key_to_group,
-                    &mut item_map,
-                    &seen_groups,
-                    &mut seen_keys,
-                    &mut relocated_by_group,
-                    &mut late_relocated_by_group,
-                    &mut new_body,
-                );
+                    key_to_group: &key_to_group,
+                    item_map: &mut item_map,
+                    seen_groups: &seen_groups,
+                    seen_keys: &mut seen_keys,
+                    relocated_by_group: &mut relocated_by_group,
+                    late_relocated_by_group: &mut late_relocated_by_group,
+                    new_body: &mut new_body,
+                };
+                process_keyed_bundle(key, bundle, &mut context);
             },
             ast::Entry::Junk { .. } => {
                 new_body.append(&mut pending_comments);
@@ -200,47 +198,58 @@ pub(crate) fn smart_merge(
 fn process_keyed_bundle(
     key: String,
     bundle: Vec<ast::Entry<String>>,
-    current_group_name: Option<&str>,
-    behavior: MergeBehavior,
-    cleanup: bool,
-    key_to_group: &IndexMap<String, String>,
-    item_map: &mut IndexMap<String, OwnedTypeInfo>,
-    seen_groups: &HashSet<String>,
-    seen_keys: &mut HashSet<String>,
-    relocated_by_group: &mut IndexMap<String, Vec<ast::Entry<String>>>,
-    late_relocated_by_group: &mut IndexMap<String, Vec<ast::Entry<String>>>,
-    new_body: &mut Vec<ast::Entry<String>>,
+    context: &mut BundleProcessingContext<'_>,
 ) {
-    if seen_keys.contains(&key) {
+    if context.seen_keys.contains(&key) {
         return;
     }
 
     let mut relocate_to: Option<String> = None;
 
-    let handled = if let Some(expected_group) = key_to_group.get(&key).cloned() {
-        if current_group_name != Some(expected_group.as_str())
-            && matches!(behavior, MergeBehavior::Append)
+    let handled = if let Some(expected_group) = context.key_to_group.get(&key).cloned() {
+        if context.current_group_name != Some(expected_group.as_str())
+            && matches!(context.behavior, MergeBehavior::Append)
         {
             relocate_to = Some(expected_group.clone());
         }
-        remove_variant_from_group(item_map, &expected_group, &key);
+        remove_variant_from_group(context.item_map, &expected_group, &key);
         true
     } else {
-        remove_variant_from_any_group(item_map, &key)
+        remove_variant_from_any_group(context.item_map, &key)
     };
 
     if let Some(group_name) = relocate_to {
-        seen_keys.insert(key);
-        let target = if seen_groups.contains(&group_name) {
-            late_relocated_by_group
+        context.seen_keys.insert(key);
+        if context.seen_groups.contains(&group_name) {
+            context
+                .late_relocated_by_group
+                .entry(group_name)
+                .or_default()
+                .extend(bundle);
         } else {
-            relocated_by_group
-        };
-        target.entry(group_name).or_default().extend(bundle);
-    } else if handled || !cleanup {
-        seen_keys.insert(key);
-        new_body.extend(bundle);
+            context
+                .relocated_by_group
+                .entry(group_name)
+                .or_default()
+                .extend(bundle);
+        }
+    } else if handled || !context.cleanup {
+        context.seen_keys.insert(key);
+        context.new_body.extend(bundle);
     }
+}
+
+struct BundleProcessingContext<'a> {
+    current_group_name: Option<&'a str>,
+    behavior: MergeBehavior,
+    cleanup: bool,
+    key_to_group: &'a IndexMap<String, String>,
+    item_map: &'a mut IndexMap<String, OwnedTypeInfo>,
+    seen_groups: &'a HashSet<String>,
+    seen_keys: &'a mut HashSet<String>,
+    relocated_by_group: &'a mut IndexMap<String, Vec<ast::Entry<String>>>,
+    late_relocated_by_group: &'a mut IndexMap<String, Vec<ast::Entry<String>>>,
+    new_body: &'a mut Vec<ast::Entry<String>>,
 }
 
 fn remove_variant_from_group(
