@@ -57,7 +57,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
             .map(|(index, field_opt)| inventory_arg_name(*field_opt, *index))
             .collect();
         let static_variant =
-            inventory_variant_tokens(original_ident.to_string(), ftl_key.clone(), arg_names);
+            inventory_variant_tokens(original_ident.to_string(), ftl_key, arg_names);
 
         generate_inventory_module(InventoryModuleInput {
             ident: original_ident,

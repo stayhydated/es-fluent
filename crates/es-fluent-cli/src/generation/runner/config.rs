@@ -49,9 +49,8 @@ impl TempCrateConfig {
                 let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")
                     .or_else(Self::find_cli_workspace_dep_helpers)
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION));
-                let target = target_dir_from_env
-                    .clone()
-                    .unwrap_or_else(|| meta.target_directory.to_string());
+                let target =
+                    target_dir_from_env.unwrap_or_else(|| meta.target_directory.to_string());
                 (es_fluent, helpers, target)
             },
             None => (

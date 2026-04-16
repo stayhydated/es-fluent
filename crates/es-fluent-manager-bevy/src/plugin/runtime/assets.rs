@@ -89,7 +89,7 @@ fn handle_failed_asset(i18n_assets: &mut I18nAssets, event: &AssetLoadFailedEven
     };
     let Some(spec) = i18n_assets
         .resource_specs
-        .get(&(lang_key.clone(), resource_key.clone()))
+        .get(&(lang_key.clone(), resource_key))
         .cloned()
     else {
         return;

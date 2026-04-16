@@ -42,7 +42,7 @@ impl LocaleContext {
         };
 
         Ok(Self {
-            assets_dir: layout.assets_dir.clone(),
+            assets_dir: layout.assets_dir,
             fallback,
             locales,
             crate_name: krate.name.clone(),
