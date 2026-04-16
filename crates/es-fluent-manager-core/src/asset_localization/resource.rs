@@ -1,3 +1,4 @@
+use es_fluent_shared::namespace::validate_namespace_path;
 use std::collections::HashSet;
 use std::fmt;
 use unic_langid::LanguageIdentifier;
@@ -105,7 +106,14 @@ pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourc
 
     let mut seen = HashSet::new();
     for namespace in namespaces {
-        if !seen.insert(*namespace) {
+        debug_assert!(
+            validate_namespace_path(namespace).is_ok(),
+            "resource_plan_for received invalid namespace '{}'",
+            namespace
+        );
+
+        let namespace = namespace.trim();
+        if !seen.insert(namespace) {
             continue;
         }
 

@@ -423,3 +423,44 @@ fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
         "generation should not create escaped output"
     );
 }
+
+#[test]
+fn generate_rejects_noncanonical_namespace_literals() {
+    let temp = tempdir().expect("tempdir");
+    let i18n_root = temp.path().join("i18n");
+
+    let padded = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "PaddedNamespace",
+        variants: leak_slice(vec![test_variant("Hello", "hello", &[])]),
+        file_path: "src/lib.rs",
+        module_path: "test",
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed(" ui "))),
+    };
+
+    let with_extension = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "FileNamespace",
+        variants: leak_slice(vec![test_variant("Bye", "bye", &[])]),
+        file_path: "src/lib.rs",
+        module_path: "test",
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui.ftl"))),
+    };
+
+    let err = generate(
+        "crate-name",
+        &i18n_root,
+        temp.path(),
+        &[&padded, &with_extension],
+        FluentParseMode::Conservative,
+        true,
+    )
+    .err()
+    .expect("noncanonical namespaces should be rejected");
+
+    let error_text = err.to_string();
+    assert!(
+        error_text.contains("Invalid namespace ' ui '")
+            || error_text.contains("Invalid namespace 'ui.ftl'")
+    );
+}

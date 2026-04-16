@@ -43,6 +43,9 @@ pub fn validate_namespace_path(namespace: &str) -> Result<(), &'static str> {
     if trimmed.is_empty() {
         return Err("namespace must not be empty");
     }
+    if namespace != trimmed {
+        return Err("namespace must not have leading or trailing whitespace");
+    }
     if trimmed.contains('\\') {
         return Err("namespace must use '/' as path separator");
     }
@@ -60,6 +63,9 @@ pub fn validate_namespace_path(namespace: &str) -> Result<(), &'static str> {
         .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
     {
         return Err("namespace must be a relative path");
+    }
+    if trimmed.ends_with(".ftl") {
+        return Err("namespace must not include file extension");
     }
 
     Ok(())
@@ -227,6 +233,10 @@ mod tests {
             "namespace must not be empty"
         );
         assert_eq!(
+            validate_namespace_path(" ui/button ").unwrap_err(),
+            "namespace must not have leading or trailing whitespace"
+        );
+        assert_eq!(
             validate_namespace_path(r"ui\button").unwrap_err(),
             "namespace must use '/' as path separator"
         );
@@ -241,6 +251,10 @@ mod tests {
         assert_eq!(
             validate_namespace_path("/escape").unwrap_err(),
             "namespace path must not contain empty segments"
+        );
+        assert_eq!(
+            validate_namespace_path("ui/button.ftl").unwrap_err(),
+            "namespace must not include file extension"
         );
     }
 }

@@ -162,8 +162,16 @@ mod tests {
     #[test]
     fn validate_module_registry_rejects_duplicates_and_invalid_namespaces() {
         static DUP_LANGUAGE: &[LanguageIdentifier] = &[langid!("en"), langid!("en")];
-        static INVALID_NAMESPACES: &[&str] =
-            &["ui", "ui", "", "errors.ftl", "bad//path", r"bad\path"];
+        static INVALID_NAMESPACES: &[&str] = &[
+            "ui",
+            "ui",
+            "",
+            "errors.ftl",
+            "bad//path",
+            r"bad\path",
+            "../escape",
+            " ui ",
+        ];
         static BAD_DATA: ModuleData = ModuleData {
             name: "test-module",
             domain: "test-domain",
@@ -208,6 +216,20 @@ mod tests {
                 if module == "test-module"
                     && namespace == r"bad\path"
                     && details == &"namespace must use '/' as path separator"
+        )));
+        assert!(errs.iter().any(|err| matches!(
+            err,
+            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+                if module == "test-module"
+                    && namespace == "../escape"
+                    && details == &"namespace path must not contain '.' or '..' segments"
+        )));
+        assert!(errs.iter().any(|err| matches!(
+            err,
+            ModuleRegistryError::InvalidNamespace { module, namespace, details }
+                if module == "test-module"
+                    && namespace == " ui "
+                    && details == &"namespace must not have leading or trailing whitespace"
         )));
     }
 

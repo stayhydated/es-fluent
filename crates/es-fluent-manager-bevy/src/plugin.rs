@@ -139,13 +139,8 @@ impl Plugin for I18nPlugin {
         let resolved_language =
             resolve_initial_language(&self.config.initial_language, &discovery.languages);
         let i18n_resource = initialize_global_state(&resolved_language, self.module_registry_mode)
-            .unwrap_or_else(|errors| {
-                let details = errors
-                    .into_iter()
-                    .map(|error| format!("- {error}"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                panic!("failed to initialize i18n global state:\n{details}");
+            .unwrap_or_else(|error| {
+                panic!("failed to initialize i18n global state:\n{error}");
             });
         let i18n_assets = {
             let asset_server = app.world().resource::<AssetServer>();

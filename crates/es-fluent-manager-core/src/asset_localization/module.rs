@@ -1,4 +1,5 @@
 use super::resource::{ModuleResourceSpec, resource_plan_for};
+use es_fluent_shared::namespace::validate_namespace_path;
 use std::collections::HashSet;
 use std::fmt;
 use unic_langid::LanguageIdentifier;
@@ -100,8 +101,9 @@ impl std::error::Error for ModuleRegistryError {}
 /// - `name` and `domain` must be globally unique.
 /// - `supported_languages` and `namespaces` must not contain duplicates.
 /// - Namespaces use canonical forward-slash paths such as `ui` or `ui/button`.
-/// - Namespace paths must not be empty, contain empty segments, use backslashes,
-///   or include the `.ftl` suffix.
+/// - Namespace paths must be relative, must not contain `.` or `..` segments,
+///   must not have leading or trailing whitespace, and must not include the
+///   `.ftl` suffix.
 pub fn validate_module_registry<'a>(
     modules: impl IntoIterator<Item = &'a ModuleData>,
 ) -> Result<(), Vec<ModuleRegistryError>> {
@@ -141,34 +143,13 @@ pub fn validate_module_registry<'a>(
         let mut seen_namespaces = HashSet::new();
         for namespace in data.namespaces {
             let trimmed = namespace.trim();
-            if trimmed.is_empty() {
+            if let Err(details) = validate_namespace_path(namespace) {
                 errors.push(ModuleRegistryError::InvalidNamespace {
                     module: data.name.to_string(),
                     namespace: namespace.to_string(),
-                    details: "namespace must not be empty",
+                    details,
                 });
                 continue;
-            }
-            if trimmed.contains('\\') {
-                errors.push(ModuleRegistryError::InvalidNamespace {
-                    module: data.name.to_string(),
-                    namespace: namespace.to_string(),
-                    details: "namespace must use '/' as path separator",
-                });
-            }
-            if trimmed.split('/').any(|segment| segment.is_empty()) {
-                errors.push(ModuleRegistryError::InvalidNamespace {
-                    module: data.name.to_string(),
-                    namespace: namespace.to_string(),
-                    details: "namespace path must not contain empty segments",
-                });
-            }
-            if trimmed.ends_with(".ftl") {
-                errors.push(ModuleRegistryError::InvalidNamespace {
-                    module: data.name.to_string(),
-                    namespace: namespace.to_string(),
-                    details: "namespace must not include file extension",
-                });
             }
             if !seen_namespaces.insert(trimmed) {
                 errors.push(ModuleRegistryError::DuplicateNamespace {

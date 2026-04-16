@@ -78,18 +78,34 @@ pub(super) fn resolve_initial_language(
 pub(super) fn initialize_global_state(
     resolved_language: &LanguageIdentifier,
     module_registry_mode: ModuleRegistryMode,
-) -> Result<I18nResource, Vec<ModuleDiscoveryError>> {
+) -> Result<I18nResource, String> {
     let fallback_manager = match module_registry_mode {
         ModuleRegistryMode::Lenient => Arc::new(FluentManager::new_with_discovered_modules()),
-        ModuleRegistryMode::ErrorIfConflicted => {
-            Arc::new(FluentManager::try_new_with_discovered_modules()?)
-        },
+        ModuleRegistryMode::ErrorIfConflicted => Arc::new(
+            FluentManager::try_new_with_discovered_modules()
+                .map_err(format_module_discovery_errors)?,
+        ),
     };
-    let _ = fallback_manager.select_language(resolved_language);
+    fallback_manager
+        .select_language(resolved_language)
+        .map_err(|error| {
+            format!(
+                "fallback manager rejected initial language '{}': {}",
+                resolved_language, error
+            )
+        })?;
     set_bevy_i18n_state(
         BevyI18nState::new(resolved_language.clone()).with_fallback_manager(fallback_manager),
     );
     Ok(I18nResource::new(resolved_language.clone()))
+}
+
+fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
+    errors
+        .into_iter()
+        .map(|error| format!("- {error}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub(super) fn build_i18n_assets(

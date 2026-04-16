@@ -42,10 +42,3 @@ pub(crate) fn parse_language_entry(
         language: lang,
     }))
 }
-
-pub(crate) fn ensure_supported_language_identifier(
-    _lang: &LanguageIdentifier,
-    _original: &str,
-) -> Result<(), I18nConfigError> {
-    Ok(())
-}

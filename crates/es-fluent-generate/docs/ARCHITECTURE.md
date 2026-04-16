@@ -87,6 +87,7 @@ The crate uses `IndexMap` instead of `HashMap` for internal data structures to e
 
 - `formatting`: Logic for sorting (including `_this` priority) and comparing entries.
 - `value`: Expansion of placeables and text elements.
-- `clean`: Logic for the `clean` command (identifying and removing orphaned keys).
+- `clean`: Logic for the `clean` command (identifying and removing orphaned keys
+  and stale namespaced files).
 - `error`: Error handling types (`FluentGenerateError`).
 - `lib.rs`: Entry point `generate()`.

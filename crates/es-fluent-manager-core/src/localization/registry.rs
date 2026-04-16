@@ -100,17 +100,6 @@ pub fn filter_module_registry(
     modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
 ) -> Vec<&'static dyn I18nModuleRegistration> {
     let modules = modules.into_iter().collect::<Vec<_>>();
-    let discovered_data = inspect_module_registry(&modules)
-        .into_values()
-        .filter_map(|inspection| inspection.chosen_data)
-        .collect::<Vec<_>>();
-
-    if let Err(errors) = validate_module_registry(discovered_data.iter().copied()) {
-        for error in errors {
-            tracing::error!("Invalid i18n module registry entry: {}", error);
-        }
-    }
-
     let mut filtered: Vec<&'static dyn I18nModuleRegistration> = Vec::with_capacity(modules.len());
     let mut filtered_kinds: Vec<ModuleRegistrationKind> = Vec::with_capacity(modules.len());
     let mut seen_module_names: HashMap<&'static str, usize> = HashMap::new();
@@ -119,14 +108,13 @@ pub fn filter_module_registry(
     for module in modules {
         let data = module.data();
         let module_kind = module.registration_kind();
-        if data.name.trim().is_empty() || data.domain.trim().is_empty() {
-            tracing::warn!(
-                "Skipping i18n module with invalid metadata: name='{}', domain='{}'",
-                data.name,
-                data.domain
-            );
+        if let Err(errors) = validate_module_registry([data]) {
+            for error in errors {
+                tracing::warn!("Skipping i18n module with invalid metadata: {}", error);
+            }
             continue;
         }
+
         if let Some(&existing_index) = seen_module_names.get(data.name) {
             let existing_data = filtered[existing_index].data();
             let existing_kind = filtered_kinds[existing_index];
@@ -222,6 +210,15 @@ pub fn filter_module_registry(
         seen_domains.insert(data.domain, index);
         filtered.push(module);
         filtered_kinds.push(module_kind);
+    }
+
+    if let Err(errors) = validate_module_registry(filtered.iter().map(|module| module.data())) {
+        for error in errors {
+            tracing::error!(
+                "Invalid i18n module registry entry survived filtering: {}",
+                error
+            );
+        }
     }
 
     filtered

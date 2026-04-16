@@ -3,7 +3,7 @@
 pub mod build;
 mod language;
 
-use language::{ensure_supported_language_identifier, parse_language_entry};
+use language::parse_language_entry;
 
 use serde::{Deserialize, Serialize};
 use std::fs::DirEntry;
@@ -31,14 +31,6 @@ pub enum I18nConfigError {
         /// The parsing error produced by `unic-langid`.
         #[source]
         source: LanguageIdentifierError,
-    },
-    /// Encountered a language identifier that uses an unsupported subtag combination.
-    #[error("Language identifier '{name}' is not supported: {reason}")]
-    UnsupportedLanguageIdentifier {
-        /// The invalid identifier.
-        name: String,
-        /// Explanation of why it is not supported.
-        reason: String,
     },
     /// Encountered an invalid fallback language identifier.
     #[error("Invalid fallback language identifier '{name}'")]
@@ -270,8 +262,6 @@ impl I18nConfig {
                     source,
                 },
             )?;
-
-        ensure_supported_language_identifier(&lang, &self.fallback_language)?;
 
         Ok(lang)
     }

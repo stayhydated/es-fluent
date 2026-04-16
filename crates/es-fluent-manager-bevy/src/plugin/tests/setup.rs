@@ -126,3 +126,18 @@ fn plugin_can_use_strict_module_registry_mode() {
 
     assert!(strict_install.is_ok());
 }
+
+#[test]
+fn initialize_global_state_fails_when_fallback_manager_rejects_initial_language() {
+    let _guard = lock_bevy_global_state();
+
+    let err =
+        match plugin_setup::initialize_global_state(&langid!("zz"), ModuleRegistryMode::Lenient) {
+            Ok(_) => {
+                panic!("startup should fail when the fallback manager rejects the initial language")
+            },
+            Err(err) => err,
+        };
+
+    assert!(err.contains("fallback manager rejected initial language 'zz'"));
+}

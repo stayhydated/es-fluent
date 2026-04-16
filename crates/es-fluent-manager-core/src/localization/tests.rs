@@ -69,6 +69,18 @@ static FILTER_EXACT_DUP_RUNTIME_MISMATCH_DATA: ModuleData = ModuleData {
     supported_languages: &[langid!("en")],
     namespaces: &["ui"],
 };
+static FILTER_INVALID_NAMESPACE_DATA: ModuleData = ModuleData {
+    name: "filter-invalid-namespace",
+    domain: "filter-invalid-namespace",
+    supported_languages: &[],
+    namespaces: &[" ../escape "],
+};
+static FILTER_DUP_LANGUAGE_DATA: ModuleData = ModuleData {
+    name: "filter-dup-language",
+    domain: "filter-dup-language",
+    supported_languages: &[langid!("en"), langid!("en")],
+    namespaces: &[],
+};
 static FILTER_DESCRIPTOR: StaticModuleDescriptor = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
 static FILTER_DUP_NAME_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_DUP_NAME_DATA);
@@ -78,6 +90,10 @@ static FILTER_EXACT_DUP_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 static FILTER_EXACT_DUP_DESCRIPTOR_TWO: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
+static FILTER_INVALID_NAMESPACE_DESCRIPTOR: StaticModuleDescriptor =
+    StaticModuleDescriptor::new(&FILTER_INVALID_NAMESPACE_DATA);
+static FILTER_DUP_LANGUAGE_DESCRIPTOR: StaticModuleDescriptor =
+    StaticModuleDescriptor::new(&FILTER_DUP_LANGUAGE_DATA);
 
 struct ModuleOk;
 struct ModuleErr;
@@ -454,6 +470,18 @@ fn filter_module_registry_uses_explicit_registration_kind_without_constructing_l
 
     assert_eq!(filtered.len(), 1);
     assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 0);
+}
+
+#[test]
+fn filter_module_registry_skips_entries_with_invalid_metadata() {
+    let filtered = filter_module_registry([
+        &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
+        &FILTER_INVALID_NAMESPACE_DESCRIPTOR as &dyn I18nModuleRegistration,
+        &FILTER_DUP_LANGUAGE_DESCRIPTOR as &dyn I18nModuleRegistration,
+    ]);
+
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].data().name, "filter-module");
 }
 
 #[test]
