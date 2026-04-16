@@ -58,12 +58,12 @@ definitions across loaded files). When some modules support the requested
 locale and others do not, the default switch keeps the supporting modules
 active. Failed switches keep the previous ready locale active.
 
-`init()` and `init_with_language(...)` are best-effort convenience wrappers:
-duplicate or invalid registrations are logged and skipped, and initialization
-errors are logged instead of returned.
+`init()` and `init_with_language(...)` use the same strict discovery path as
+the fallible entry points. They log initialization errors instead of returning
+them.
 
-If you want startup to fail fast before the singleton is published, use the
-fallible strict entry points instead:
+If you want the initialization error back before the singleton is published,
+use the fallible entry points instead:
 
 ```rs
 es_fluent_manager_embedded::try_init_with_language(langid!("fr"))

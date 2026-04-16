@@ -223,7 +223,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     assert_eq!(
         bevy_custom_localizer(None, "selected-language", None),
         None,
-        "unsupported modules are dropped from the fallback manager during best-effort selection"
+        "unsupported modules are dropped from the fallback manager during default selection"
     );
 
     let locale_changes = {

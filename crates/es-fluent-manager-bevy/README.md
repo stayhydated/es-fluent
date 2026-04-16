@@ -71,17 +71,8 @@ App::new().add_plugins(
 );
 ```
 
-If you also want plugin startup to fail on duplicate or invalid module
-registrations, opt into strict registry validation:
-
-```rs
-use es_fluent_manager_bevy::{I18nPlugin, ModuleRegistryMode};
-
-App::new().add_plugins(
-    I18nPlugin::with_language(langid!("en-US"))
-        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted),
-);
-```
+Plugin startup always uses strict module discovery, so invalid or duplicate
+registrations fail the app boot instead of being normalized silently.
 
 ### 3. Define Localizable Components (Recommended)
 

@@ -1,6 +1,6 @@
 use super::{
     I18nModuleRegistration, LanguageSelectionPolicy, Localizer, ModuleDiscoveryError,
-    ModuleRegistrationKind, filter_module_registry, try_filter_module_registry,
+    ModuleRegistrationKind, try_filter_module_registry,
 };
 use crate::asset_localization::ModuleData;
 use fluent_bundle::FluentValue;
@@ -84,10 +84,6 @@ fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
 
 impl FluentManager {
     /// Creates a new `FluentManager` with strict discovered-module validation.
-    ///
-    /// This constructor fails fast when discovery finds invalid metadata or
-    /// duplicate registrations. Use [`Self::best_effort_with_discovered_modules`]
-    /// if you want discovery conflicts to be logged and skipped instead.
     pub fn new_with_discovered_modules() -> Self {
         Self::try_new_with_discovered_modules().unwrap_or_else(|errors| {
             panic!(
@@ -97,28 +93,10 @@ impl FluentManager {
         })
     }
 
-    /// Creates a new `FluentManager` with lenient discovered-module validation.
-    ///
-    /// This keeps the legacy best-effort behavior: invalid metadata and
-    /// unresolvable duplicates are logged and skipped.
-    pub fn best_effort_with_discovered_modules() -> Self {
-        let discovered_modules = filter_module_registry(
-            inventory::iter::<&'static dyn I18nModuleRegistration>()
-                .copied()
-                .collect::<Vec<_>>(),
-        );
-
-        Self {
-            modules: load_runtime_modules(discovered_modules),
-            localizers: RwLock::default(),
-        }
-    }
-
     /// Creates a new `FluentManager` with strict registry validation.
     ///
-    /// Unlike [`Self::new_with_discovered_modules`], this returns an error when
-    /// discovery finds invalid module metadata or unresolvable duplicate
-    /// registrations.
+    /// This returns an error instead of panicking when discovery finds invalid
+    /// module metadata or unresolvable duplicate registrations.
     pub fn try_new_with_discovered_modules() -> Result<Self, Vec<ModuleDiscoveryError>> {
         let discovered_modules = try_filter_module_registry(
             inventory::iter::<&'static dyn I18nModuleRegistration>()

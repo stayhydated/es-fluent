@@ -501,8 +501,8 @@ fn build_sync_bundle_reports_resource_add_errors() {
 }
 
 #[test]
-fn filter_module_registry_skips_duplicate_name_and_domain() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_skips_duplicate_name_and_domain() {
+    let filtered = normalize_module_registry([
         &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_DUP_NAME_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_DUP_DOMAIN_DESCRIPTOR as &dyn I18nModuleRegistration,
@@ -513,8 +513,8 @@ fn filter_module_registry_skips_duplicate_name_and_domain() {
 }
 
 #[test]
-fn filter_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
+    let filtered = normalize_module_registry([
         &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
     ]);
@@ -524,8 +524,8 @@ fn filter_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity
 }
 
 #[test]
-fn filter_module_registry_keeps_metadata_only_registration_when_runtime_metadata_conflicts() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_keeps_metadata_only_registration_when_runtime_metadata_conflicts() {
+    let filtered = normalize_module_registry([
         &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_RUNTIME_MISMATCH_MODULE as &dyn I18nModuleRegistration,
     ]);
@@ -536,8 +536,8 @@ fn filter_module_registry_keeps_metadata_only_registration_when_runtime_metadata
 }
 
 #[test]
-fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
+    let filtered = normalize_module_registry([
         &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
         &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
     ]);
@@ -547,19 +547,19 @@ fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follow
 }
 
 #[test]
-fn filter_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
+fn normalize_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
     EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
 
     let filtered =
-        filter_module_registry([&EXPLICIT_RUNTIME_REGISTRATION as &dyn I18nModuleRegistration]);
+        normalize_module_registry([&EXPLICIT_RUNTIME_REGISTRATION as &dyn I18nModuleRegistration]);
 
     assert_eq!(filtered.len(), 1);
     assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 0);
 }
 
 #[test]
-fn filter_module_registry_skips_entries_with_invalid_metadata() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_skips_entries_with_invalid_metadata() {
+    let filtered = normalize_module_registry([
         &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_INVALID_NAMESPACE_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_DUP_LANGUAGE_DESCRIPTOR as &dyn I18nModuleRegistration,

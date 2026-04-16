@@ -14,7 +14,6 @@ The system uses a trait-based architecture to allow pluggable backends.
 classDiagram
     class FluentManager {
         +new_with_discovered_modules()
-        +best_effort_with_discovered_modules()
         +try_new_with_discovered_modules()
         +select_language(lang)
         +select_language_strict(lang)
@@ -83,9 +82,9 @@ Unified inventory contract used by managers.
   module kind by constructing a localizer.
 - `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
-- `filter_module_registry()` remains the explicit best-effort path that logs and
-  skips conflicts, but it now only collapses metadata/runtime duplicates when
-  both registrations carry the exact same metadata.
+- Successful strict discovery still normalizes one metadata-only registration
+  plus one runtime-localizer registration for the same exact identity into a
+  single module when their metadata matches exactly.
 
 ### `Localizer`
 

@@ -97,16 +97,6 @@ fn select_initial_language(
         .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
 }
 
-fn build_best_effort_manager(
-    initial_language: Option<&LanguageIdentifier>,
-) -> Result<Arc<FluentManager>, EmbeddedInitError> {
-    let manager = FluentManager::best_effort_with_discovered_modules();
-    if let Some(initial_language) = initial_language {
-        select_initial_language(&manager, initial_language)?;
-    }
-    Ok(Arc::new(manager))
-}
-
 fn initialize_manager(manager: Arc<FluentManager>) -> Result<bool, EmbeddedInitError> {
     let _guard = init_lock();
 
@@ -183,10 +173,10 @@ fn init_manager(
 
 /// Initializes the embedded singleton `FluentManager`.
 ///
-/// This convenience entry point uses best-effort module discovery and logs
+/// This convenience entry point uses strict module discovery and logs
 /// initialization failures instead of returning them.
 pub fn init() {
-    if let Err(error) = init_manager(None, build_best_effort_manager) {
+    if let Err(error) = init_manager(None, build_manager) {
         tracing::error!("Failed to initialize embedded fluent manager: {}", error);
     }
 }
@@ -199,7 +189,7 @@ pub fn try_init() -> Result<(), EmbeddedInitError> {
 /// Initializes the embedded singleton `FluentManager` and selects the active
 /// language.
 ///
-/// This convenience entry point uses best-effort module discovery and logs
+/// This convenience entry point uses strict module discovery and logs
 /// initialization failures instead of returning them. It is equivalent to
 /// calling [`init()`] followed by [`select_language()`], except the language is
 /// selected before the manager is published as the global singleton. If
@@ -207,7 +197,7 @@ pub fn try_init() -> Result<(), EmbeddedInitError> {
 /// the live manager after the race is resolved.
 pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
     let lang = lang.into();
-    if let Err(error) = init_manager(Some(lang.clone()), build_best_effort_manager) {
+    if let Err(error) = init_manager(Some(lang.clone()), build_manager) {
         tracing::error!(
             "Failed to initialize embedded fluent manager with language '{}': {}",
             lang,

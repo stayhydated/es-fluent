@@ -82,10 +82,9 @@ fast instead of silently replacing an existing owner. `GlobalLocalizerMode::Repl
 switches to `es_fluent::replace_custom_localizer_with_domain` for apps that
 intentionally want Bevy to take ownership of that hook.
 
-`ModuleRegistryMode::Lenient` keeps the historical registry behavior: invalid
-or conflicting module registrations are logged and normalized. Opting into
-`ModuleRegistryMode::ErrorIfConflicted` makes plugin startup fail instead, and
-the fallback `FluentManager` is built through the same strict discovery path.
+Plugin startup uses the same strict discovery path as
+`FluentManager::try_new_with_discovered_modules()`, and the fallback
+`FluentManager` is built through that same strict validation flow.
 
 In both modes, the custom localizer redirects global `localize!` calls and
 domain-scoped `localize_in_domain()` calls (used by `derive(EsFluent)` types)

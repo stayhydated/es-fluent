@@ -81,9 +81,9 @@ let manager = FluentManager::new_with_discovered_modules();
 try_set_context(manager).expect("global context should only be installed once");
 ```
 
-The embedded manager keeps the convenience best-effort startup path by default.
-If you want it to fail fast before the singleton is published, use the fallible
-strict entry points instead:
+The embedded manager also uses strict discovery. `init_with_language(...)`
+logs initialization errors, while the fallible entry points return them before
+the singleton is published:
 
 ```rust
 es_fluent_manager_embedded::try_init_with_language(Languages::Fr)
@@ -153,17 +153,8 @@ App::new().add_plugins(
 );
 ```
 
-If you want plugin startup to fail on duplicate or invalid i18n module
-registrations, opt into strict registry validation as well:
-
-```rust
-use es_fluent_manager_bevy::{I18nPlugin, ModuleRegistryMode};
-
-App::new().add_plugins(
-    I18nPlugin::with_language(langid!("en-US"))
-        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted),
-);
-```
+Plugin startup also uses strict module discovery, so invalid or duplicate i18n
+module registrations fail the app boot instead of being normalized silently.
 
 #### 3. Define Localizable Components (Recommended)
 

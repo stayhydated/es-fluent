@@ -26,19 +26,6 @@ pub enum GlobalLocalizerMode {
     ReplaceExisting,
 }
 
-/// Controls how strictly the plugin validates discovered i18n module
-/// registrations.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum ModuleRegistryMode {
-    /// Keep the historical behavior: log invalid/conflicting registrations and
-    /// continue with the normalized module set.
-    #[default]
-    Lenient,
-    /// Fail plugin startup when discovery finds invalid metadata or repeated
-    /// registrations of the same kind for one exact module identity.
-    ErrorIfConflicted,
-}
-
 #[doc(hidden)]
 pub struct I18nPluginConfig {
     pub initial_language: LanguageIdentifier,
@@ -61,7 +48,6 @@ impl Default for I18nPluginConfig {
 pub struct I18nPlugin {
     config: I18nPluginConfig,
     global_localizer_mode: GlobalLocalizerMode,
-    module_registry_mode: ModuleRegistryMode,
 }
 
 impl I18nPlugin {
@@ -70,7 +56,6 @@ impl I18nPlugin {
         Self {
             config,
             global_localizer_mode: GlobalLocalizerMode::ErrorIfAlreadySet,
-            module_registry_mode: ModuleRegistryMode::Lenient,
         }
     }
 
@@ -86,7 +71,6 @@ impl I18nPlugin {
                 ..Default::default()
             },
             global_localizer_mode: GlobalLocalizerMode::ErrorIfAlreadySet,
-            module_registry_mode: ModuleRegistryMode::Lenient,
         }
     }
 
@@ -102,13 +86,6 @@ impl I18nPlugin {
         global_localizer_mode: GlobalLocalizerMode,
     ) -> Self {
         self.global_localizer_mode = global_localizer_mode;
-        self
-    }
-
-    /// Choose whether module discovery stays lenient or fails plugin startup on
-    /// registry conflicts.
-    pub fn with_module_registry_mode(mut self, module_registry_mode: ModuleRegistryMode) -> Self {
-        self.module_registry_mode = module_registry_mode;
         self
     }
 }
@@ -128,7 +105,7 @@ impl Plugin for I18nPlugin {
             .init_asset_loader::<FtlAssetLoader>()
             .init_resource::<I18nBundle>();
 
-        let discovery = discover_modules(self.module_registry_mode).unwrap_or_else(|errors| {
+        let discovery = discover_modules().unwrap_or_else(|errors| {
             let details = errors
                 .into_iter()
                 .map(|error| format!("- {error}"))
@@ -138,10 +115,8 @@ impl Plugin for I18nPlugin {
         });
         let resolved_language =
             resolve_initial_language(&self.config.initial_language, &discovery.languages);
-        let i18n_resource = initialize_global_state(&resolved_language, self.module_registry_mode)
-            .unwrap_or_else(|error| {
-                panic!("failed to initialize i18n global state:\n{error}");
-            });
+        let i18n_resource = initialize_global_state(&resolved_language)
+            .unwrap_or_else(|error| panic!("failed to initialize i18n global state:\n{error}"));
         let i18n_assets = {
             let asset_server = app.world().resource::<AssetServer>();
             build_i18n_assets(asset_server, &self.config.asset_path, &discovery.modules)

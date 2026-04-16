@@ -72,15 +72,14 @@ This macro requires the `macros` feature, which is enabled by default.
 The initialization entry points are idempotent for manager setup:
 
 - `init()`
-  Uses best-effort discovery and logs initialization failures instead of
+  Uses strict discovery and logs initialization failures instead of
   returning them.
 - `try_init()`
-  Uses strict discovery and returns a `Result`, so duplicate or invalid
-  registrations fail before publication.
+  Uses strict discovery and returns a `Result`.
 - `init_with_language()`
-  Uses best-effort discovery, selects the requested language before
-  publication, applies the language to the live manager on repeated calls, and
-  logs initialization failures instead of returning them.
+  Uses strict discovery, selects the requested language before publication,
+  applies the language to the live manager on repeated calls, and logs
+  initialization failures instead of returning them.
 - `try_init_with_language()`
   Uses the strict discovered-manager path, selects the requested language
   before publication, and returns any initialization error.
