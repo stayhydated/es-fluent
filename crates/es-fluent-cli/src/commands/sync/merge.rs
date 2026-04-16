@@ -1,6 +1,9 @@
 use es_fluent_generate::ftl::{entry_key, group_comment_name, is_section_comment};
 use fluent_syntax::ast;
-use std::collections::{BTreeMap, HashSet};
+use indexmap::IndexMap;
+use std::collections::HashSet;
+
+type EntryBundle = Vec<ast::Entry<String>>;
 
 /// Classification of an FTL entry for merge operations.
 enum EntryKind<'a> {
@@ -44,50 +47,57 @@ pub(super) fn merge_missing_keys(
     missing_keys: &[&String],
     added_keys: &mut Vec<String>,
 ) -> ast::Resource<String> {
-    let missing_set: HashSet<&String> = missing_keys.iter().copied().collect();
+    let missing_set: HashSet<&str> = missing_keys.iter().map(|key| key.as_str()).collect();
     let existing_groups = collect_group_comments(existing);
-    let mut inserted_groups: HashSet<String> = HashSet::new();
+    let mut pending_by_group =
+        collect_missing_entry_bundles(&existing_groups, fallback, &missing_set, added_keys);
+    let pending_entry_count = pending_by_group
+        .values()
+        .flat_map(|bundles| bundles.iter())
+        .map(Vec::len)
+        .sum::<usize>();
+    let mut body: Vec<ast::Entry<String>> =
+        Vec::with_capacity(existing.body.len() + pending_entry_count);
+    let mut current_group: Option<String> = None;
 
-    // Group existing entries by key for preservation
-    let mut entries_by_key: BTreeMap<String, Vec<ast::Entry<String>>> = BTreeMap::new();
-    let mut standalone_comments: Vec<ast::Entry<String>> = Vec::new();
-    let mut current_comments: Vec<ast::Entry<String>> = Vec::new();
-
-    // Process existing entries
     for entry in &existing.body {
-        match classify_entry(entry) {
-            EntryKind::SectionComment => {
-                standalone_comments.append(&mut current_comments);
-                current_comments.push(entry.clone());
-            },
-            EntryKind::Comment => {
-                current_comments.push(entry.clone());
-            },
-            EntryKind::Message(key) => {
-                let mut entries = std::mem::take(&mut current_comments);
-                entries.push(entry.clone());
-                entries_by_key.insert(key.to_string(), entries);
-            },
-            EntryKind::Term(key) => {
-                let mut entries = std::mem::take(&mut current_comments);
-                entries.push(entry.clone());
-                entries_by_key.insert(key.to_string(), entries);
-            },
-            EntryKind::Other => {},
+        if let ast::Entry::GroupComment(comment) = entry {
+            extend_group_bundles(&mut body, &mut pending_by_group, current_group.take());
+            current_group = group_comment_name(comment);
+        }
+
+        body.push(entry.clone());
+    }
+
+    extend_group_bundles(&mut body, &mut pending_by_group, current_group.take());
+
+    for (_group, bundles) in pending_by_group {
+        for bundle in bundles {
+            body.extend(bundle);
         }
     }
 
-    // Add missing entries from fallback
+    ast::Resource { body }
+}
+
+fn collect_missing_entry_bundles(
+    existing_groups: &HashSet<String>,
+    fallback: &ast::Resource<String>,
+    missing_set: &HashSet<&str>,
+    added_keys: &mut Vec<String>,
+) -> IndexMap<Option<String>, Vec<EntryBundle>> {
+    let mut bundles_by_group: IndexMap<Option<String>, Vec<EntryBundle>> = IndexMap::new();
+    let mut inserted_groups: HashSet<String> = HashSet::new();
     let mut fallback_comments: Vec<ast::Entry<String>> = Vec::new();
+    let mut current_group: Option<String> = None;
 
     for entry in &fallback.body {
         match classify_entry(entry) {
             EntryKind::SectionComment => {
-                // ResourceComment is skipped in original, GroupComment starts fresh
                 if let ast::Entry::GroupComment(comment) = entry {
+                    current_group = group_comment_name(comment);
                     fallback_comments.clear();
-                    let group_name = group_comment_name(comment);
-                    let keep_group = group_name.as_ref().is_none_or(|name| {
+                    let keep_group = current_group.as_ref().is_none_or(|name| {
                         !existing_groups.contains(name) && !inserted_groups.contains(name)
                     });
                     if keep_group {
@@ -99,19 +109,21 @@ pub(super) fn merge_missing_keys(
                 fallback_comments.push(entry.clone());
             },
             EntryKind::Message(key) | EntryKind::Term(key) => {
-                let key_str = key.to_string();
-                if missing_set.contains(&key_str) {
-                    added_keys.push(key_str.clone());
-                    let mut entries = std::mem::take(&mut fallback_comments);
-                    entries.push(entry.clone());
-                    for entry in &entries {
-                        if let ast::Entry::GroupComment(comment) = entry
+                if missing_set.contains(key.as_ref()) {
+                    added_keys.push(key.to_string());
+                    let mut bundle = std::mem::take(&mut fallback_comments);
+                    bundle.push(entry.clone());
+                    for bundle_entry in &bundle {
+                        if let ast::Entry::GroupComment(comment) = bundle_entry
                             && let Some(name) = group_comment_name(comment)
                         {
                             inserted_groups.insert(name);
                         }
                     }
-                    entries_by_key.insert(key_str, entries);
+                    bundles_by_group
+                        .entry(current_group.clone())
+                        .or_default()
+                        .push(bundle);
                 } else {
                     fallback_comments.clear();
                 }
@@ -120,16 +132,19 @@ pub(super) fn merge_missing_keys(
         }
     }
 
-    // Build sorted body
-    let mut body: Vec<ast::Entry<String>> = Vec::new();
-    body.extend(standalone_comments);
-    body.append(&mut current_comments);
+    bundles_by_group
+}
 
-    for (_key, entries) in entries_by_key {
-        body.extend(entries);
+fn extend_group_bundles(
+    body: &mut Vec<ast::Entry<String>>,
+    pending_by_group: &mut IndexMap<Option<String>, Vec<EntryBundle>>,
+    group_name: Option<String>,
+) {
+    if let Some(bundles) = pending_by_group.shift_remove(&group_name) {
+        for bundle in bundles {
+            body.extend(bundle);
+        }
     }
-
-    ast::Resource { body }
 }
 
 fn collect_group_comments(resource: &ast::Resource<String>) -> HashSet<String> {
@@ -329,6 +344,62 @@ country_label_variants-USA = Usa
             content.matches("## CountryLabelVariants").count(),
             1,
             "Group comment should not be duplicated: {content}"
+        );
+    }
+
+    #[test]
+    fn merge_missing_keys_preserves_existing_key_order() {
+        let existing = parser::parse("beta = Beta\nalpha = Alpha\n".to_string()).unwrap();
+        let fallback =
+            parser::parse("beta = Beta\naardvark = Aardvark\nalpha = Alpha\n".to_string()).unwrap();
+
+        let aardvark = "aardvark".to_string();
+        let missing_keys: Vec<&String> = vec![&aardvark];
+        let mut added = Vec::new();
+        let merged = merge_missing_keys(&existing, &fallback, &missing_keys, &mut added);
+
+        let ordered_keys: Vec<String> = merged
+            .body
+            .iter()
+            .filter_map(|entry| match entry {
+                ast::Entry::Message(message) => Some(message.id.name.clone()),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(added, vec!["aardvark".to_string()]);
+        assert_eq!(
+            ordered_keys,
+            vec![
+                "beta".to_string(),
+                "alpha".to_string(),
+                "aardvark".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn merge_missing_keys_inserts_missing_keys_at_existing_group_tail() {
+        let existing =
+            parser::parse("## Alpha\nalpha = Alpha\n\n## Beta\nbeta = Beta\n".to_string()).unwrap();
+        let fallback = parser::parse(
+            "## Alpha\nalpha = Alpha\nalpha_two = Alpha Two\n\n## Beta\nbeta = Beta\n".to_string(),
+        )
+        .unwrap();
+
+        let alpha_two = "alpha_two".to_string();
+        let missing_keys: Vec<&String> = vec![&alpha_two];
+        let mut added = Vec::new();
+        let merged = merge_missing_keys(&existing, &fallback, &missing_keys, &mut added);
+        let content = serializer::serialize(&merged);
+
+        assert_eq!(added, vec!["alpha_two".to_string()]);
+        assert!(
+            content
+                .find("alpha_two = Alpha Two")
+                .expect("missing key inserted")
+                < content.find("## Beta").expect("beta group present"),
+            "missing key should be inserted before the next group header: {content}"
         );
     }
 }
