@@ -64,33 +64,33 @@ es_fluent_manager_embedded::select_language(Languages::Fr)
 ```
 
 `select_language(...)` returns an error if initialization was skipped or if no
-discovered module can serve the requested locale.
+discovered module can serve the requested locale. When some modules support the
+requested locale and others do not, the default switch keeps the supporting
+modules active.
 
-For larger apps that want startup to fail on registry conflicts instead of
-logging and skipping them, use the strict manager-core path:
+For larger apps that want explicit control over the shared context, manager-core
+is strict by default:
 
 ```rust
 use es_fluent::try_set_context;
 use es_fluent_manager_core::FluentManager;
 
-let manager = FluentManager::try_new_with_discovered_modules()
-    .expect("duplicate or invalid i18n registrations must be fixed");
+let manager = FluentManager::new_with_discovered_modules();
 try_set_context(manager).expect("global context should only be installed once");
 ```
 
-The concrete managers remain lenient by default so the common setup stays
-simple.
-
-If you are already using the embedded manager directly, you can opt into the
-same startup check without constructing the manager manually:
+The embedded manager keeps the convenience best-effort startup path by default.
+If you want it to fail fast before the singleton is published, use the fallible
+strict entry points instead:
 
 ```rust
 es_fluent_manager_embedded::try_init_with_language(Languages::Fr)
-    .expect("duplicate or invalid i18n registrations must be fixed");
+    .expect("embedded i18n manager should initialize");
 ```
 
-This strict path only publishes the embedded singleton after the requested
-language has been selected successfully.
+Both `init_with_language(...)` and `try_init_with_language(...)` only publish
+the embedded singleton after the requested language has been selected
+successfully.
 
 ---
 

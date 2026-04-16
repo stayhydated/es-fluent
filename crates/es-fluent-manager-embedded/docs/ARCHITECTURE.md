@@ -72,16 +72,23 @@ This macro requires the `macros` feature, which is enabled by default.
 The initialization entry points are idempotent for manager setup:
 
 - `init()`
-  Repeated calls log a warning via `tracing` and leave the existing manager unchanged.
+  Uses best-effort discovery and logs initialization failures instead of
+  returning them.
 - `try_init()`
-  Builds the singleton through `FluentManager::try_new_with_discovered_modules()`, so invalid or duplicate registrations fail before the manager is published globally.
+  Uses strict discovery and returns a `Result`, so duplicate or invalid
+  registrations fail before publication.
 - `init_with_language()`
-  Repeated calls log a warning and apply the requested language to the existing manager, matching `init(); select_language(...)`.
+  Uses best-effort discovery, selects the requested language before
+  publication, applies the language to the live manager on repeated calls, and
+  logs initialization failures instead of returning them.
 - `try_init_with_language()`
-  Uses the same strict discovered-manager path, selects the requested language before publication, and only falls back to the live manager when another thread wins the initialization race.
+  Uses the strict discovered-manager path, selects the requested language
+  before publication, and returns any initialization error.
 
 `select_language()` returns an error if initialization was skipped or if no
-discovered module can serve the requested locale.
+discovered module can serve the requested locale. When some modules support the
+requested locale and others do not, the default switch keeps the supporting
+modules active.
 
 ## Usage
 
@@ -98,4 +105,4 @@ fn main() {
 ```
 
 If the language is not known at startup, call `init()` first and
-`select_language(...)` later, handling the returned `Result`.
+`select_language(...)` later.

@@ -1,6 +1,6 @@
 use super::{
-    I18nModuleRegistration, Localizer, ModuleDiscoveryError, ModuleRegistrationKind,
-    filter_module_registry, try_filter_module_registry,
+    I18nModuleRegistration, LanguageSelectionPolicy, Localizer, ModuleDiscoveryError,
+    ModuleRegistrationKind, filter_module_registry, try_filter_module_registry,
 };
 use crate::asset_localization::ModuleData;
 use fluent_bundle::FluentValue;
@@ -74,9 +74,34 @@ fn unexpected_missing_localizer(module: &ModuleData) -> crate::localization::Loc
     .into()
 }
 
+fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
+    errors
+        .into_iter()
+        .map(|error| format!("- {error}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 impl FluentManager {
-    /// Creates a new `FluentManager` with discovered i18n modules.
+    /// Creates a new `FluentManager` with strict discovered-module validation.
+    ///
+    /// This constructor fails fast when discovery finds invalid metadata or
+    /// duplicate registrations. Use [`Self::best_effort_with_discovered_modules`]
+    /// if you want discovery conflicts to be logged and skipped instead.
     pub fn new_with_discovered_modules() -> Self {
+        Self::try_new_with_discovered_modules().unwrap_or_else(|errors| {
+            panic!(
+                "failed strict i18n module discovery:\n{}",
+                format_module_discovery_errors(errors)
+            )
+        })
+    }
+
+    /// Creates a new `FluentManager` with lenient discovered-module validation.
+    ///
+    /// This keeps the legacy best-effort behavior: invalid metadata and
+    /// unresolvable duplicates are logged and skipped.
+    pub fn best_effort_with_discovered_modules() -> Self {
         let discovered_modules = filter_module_registry(
             inventory::iter::<&'static dyn I18nModuleRegistration>()
                 .copied()
@@ -108,14 +133,36 @@ impl FluentManager {
     }
 
     /// Selects a language for all localizers.
+    ///
+    /// By default this is best-effort: modules that report
+    /// `LanguageNotSupported` are skipped as long as at least one module
+    /// accepts the requested locale.
     pub fn select_language(
         &self,
         lang: &LanguageIdentifier,
+    ) -> crate::localization::LocalizationErrorResult<()> {
+        self.select_language_with_policy(lang, LanguageSelectionPolicy::BestEffort)
+    }
+
+    /// Selects a language for all localizers and fails if any module rejects it.
+    pub fn select_language_strict(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> crate::localization::LocalizationErrorResult<()> {
+        self.select_language_with_policy(lang, LanguageSelectionPolicy::Strict)
+    }
+
+    /// Selects a language for all localizers using the requested policy.
+    pub fn select_language_with_policy(
+        &self,
+        lang: &LanguageIdentifier,
+        policy: LanguageSelectionPolicy,
     ) -> crate::localization::LocalizationErrorResult<()> {
         let mut next_localizers = Vec::with_capacity(self.modules.len());
         let mut any_selected = false;
         let mut first_failure = None;
         let mut first_non_unsupported_failure = None;
+        let mut unsupported_modules = Vec::new();
 
         for module in &self.modules {
             let data = module.data();
@@ -145,36 +192,52 @@ impl FluentManager {
                         lang,
                         error
                     );
-                    if !matches!(
+                    if matches!(
                         &error,
                         crate::localization::LocalizationError::LanguageNotSupported(_)
-                    ) && first_non_unsupported_failure.is_none()
-                    {
+                    ) {
+                        unsupported_modules.push(data.name);
+                        if first_failure.is_none() {
+                            first_failure = Some(error);
+                        }
+                    } else if first_non_unsupported_failure.is_none() {
                         first_non_unsupported_failure = Some(error);
-                    } else if first_failure.is_none() {
-                        first_failure = Some(error);
                     }
                 },
             }
         }
 
-        if any_selected && (first_non_unsupported_failure.is_some() || first_failure.is_some()) {
+        if let Some(error) = first_non_unsupported_failure {
+            tracing::warn!(
+                "Language selection for '{}' failed due to a runtime-localizer error; keeping the previous language active",
+                lang,
+            );
+            return Err(error);
+        }
+
+        if any_selected && first_failure.is_some() && policy == LanguageSelectionPolicy::Strict {
             tracing::warn!(
                 "Language selection for '{}' failed for at least one i18n module; keeping the previous language active",
                 lang
             );
-            return Err(first_non_unsupported_failure
-                .or(first_failure)
-                .expect("selection failure should have been captured"));
+            return Err(first_failure.expect("selection failure should have been captured"));
         }
 
         if !any_selected {
-            if let Some(error) = first_non_unsupported_failure {
-                return Err(error);
-            }
-
-            tracing::warn!("No i18n modules support language '{}'", lang);
+            tracing::warn!(
+                "No i18n modules support language '{}'; unsupported modules: {}",
+                lang,
+                unsupported_modules.join(", ")
+            );
             return Err(crate::localization::LocalizationError::LanguageNotSupported(lang.clone()));
+        }
+
+        if !unsupported_modules.is_empty() {
+            tracing::warn!(
+                "Language '{}' is not supported by some i18n modules; continuing with: {}",
+                lang,
+                unsupported_modules.join(", ")
+            );
         }
 
         *write_localizers(&self.localizers) = next_localizers;

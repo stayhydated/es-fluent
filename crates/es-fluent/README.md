@@ -48,12 +48,18 @@ es-fluent-manager-bevy = "*"
 ```
 
 If you want startup to fail fast on duplicate or invalid module registrations,
-build the runtime through `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`
-and install it with `es_fluent::try_set_context(...)`. The concrete managers
-keep the existing lenient discovery behavior by default, but
-`es-fluent-manager-embedded::try_init_with_language(...)` and
-`es-fluent-manager-bevy::ModuleRegistryMode::ErrorIfConflicted` now expose the
-same strict startup check directly.
+build the runtime through `es-fluent-manager-core::FluentManager::new_with_discovered_modules()`
+and install it with `es_fluent::try_set_context(...)`. The embedded manager
+keeps its convenience best-effort startup by default:
+
+```ignore
+es_fluent_manager_embedded::init_with_language(langid!("en-US"));
+```
+
+If you want the embedded manager itself to fail fast before publishing the
+singleton, use `es-fluent-manager-embedded::try_init_with_language(...)`. The
+Bevy plugin still exposes lenient vs strict registry behavior through
+`es-fluent-manager-bevy::ModuleRegistryMode`.
 
 ## Project configuration
 

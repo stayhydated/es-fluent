@@ -82,14 +82,7 @@ impl<'a> MonolithicRunner<'a> {
                 return false;
             }
 
-            let new_cache = RunnerCache {
-                crate_hashes: current_hashes,
-                runner_mtime: runner_mtime_secs,
-                cli_version: CLI_VERSION.to_string(),
-                workspace_inputs_hash,
-            };
-            let _ = new_cache.save(self.temp_store.base_dir());
-            return false;
+            return true;
         }
 
         true

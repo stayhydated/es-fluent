@@ -2,6 +2,7 @@ use super::*;
 use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
 use fluent_bundle::FluentResource;
 use std::collections::HashMap;
+use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use unic_langid::langid;
@@ -30,6 +31,12 @@ static STATEFUL_SUCCESS_DATA: ModuleData = ModuleData {
 static STATEFUL_FAIL_DATA: ModuleData = ModuleData {
     name: "stateful-fail",
     domain: "stateful-fail",
+    supported_languages: &[],
+    namespaces: &[],
+};
+static HARD_FAIL_DATA: ModuleData = ModuleData {
+    name: "hard-fail",
+    domain: "hard-fail",
     supported_languages: &[],
     namespaces: &[],
 };
@@ -99,6 +106,7 @@ struct ModuleOk;
 struct ModuleErr;
 struct StatefulSuccessModule;
 struct StatefulFailModule;
+struct HardFailModule;
 struct FilterRuntimeModule;
 struct FilterRuntimeModuleTwo;
 struct FilterRuntimeMismatchModule;
@@ -111,6 +119,7 @@ struct StatefulSuccessLocalizer {
     selected: RwLock<Option<String>>,
 }
 struct StatefulFailLocalizer;
+struct HardFailLocalizer;
 
 impl Localizer for LocalizerOk {
     fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -192,6 +201,20 @@ impl Localizer for StatefulSuccessLocalizer {
 impl Localizer for StatefulFailLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         Err(LocalizationError::LanguageNotSupported(lang.clone()))
+    }
+
+    fn localize<'a>(
+        &self,
+        _id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        None
+    }
+}
+
+impl Localizer for HardFailLocalizer {
+    fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        Err(io::Error::other("hard failure").into())
     }
 
     fn localize<'a>(
@@ -287,6 +310,18 @@ impl I18nModule for StatefulFailModule {
     }
 }
 
+impl I18nModuleDescriptor for HardFailModule {
+    fn data(&self) -> &'static ModuleData {
+        &HARD_FAIL_DATA
+    }
+}
+
+impl I18nModule for HardFailModule {
+    fn create_localizer(&self) -> Box<dyn Localizer> {
+        Box::new(HardFailLocalizer)
+    }
+}
+
 impl I18nModuleDescriptor for ExplicitRuntimeRegistration {
     fn data(&self) -> &'static ModuleData {
         &EXPLICIT_RUNTIME_DATA
@@ -308,6 +343,7 @@ static MODULE_OK: ModuleOk = ModuleOk;
 static MODULE_ERR: ModuleErr = ModuleErr;
 static STATEFUL_SUCCESS_MODULE: StatefulSuccessModule = StatefulSuccessModule;
 static STATEFUL_FAIL_MODULE: StatefulFailModule = StatefulFailModule;
+static HARD_FAIL_MODULE: HardFailModule = HardFailModule;
 static FILTER_RUNTIME_MODULE: FilterRuntimeModule = FilterRuntimeModule;
 static FILTER_RUNTIME_MODULE_TWO: FilterRuntimeModuleTwo = FilterRuntimeModuleTwo;
 static FILTER_RUNTIME_MISMATCH_MODULE: FilterRuntimeMismatchModule = FilterRuntimeMismatchModule;
@@ -322,14 +358,33 @@ inventory::submit! {
 }
 
 #[test]
-fn manager_select_language_returns_error_when_any_module_fails() {
+fn manager_select_language_best_effort_skips_unsupported_modules_when_any_module_succeeds() {
+    let ok_before = SELECT_OK_CALLS.load(Ordering::Relaxed);
+    let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
+
+    let manager = FluentManager::new_with_discovered_modules();
+    manager
+        .select_language(&langid!("en-US"))
+        .expect("best-effort language selection should keep supporting modules active");
+
+    assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
+    assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
+    assert_eq!(
+        manager.localize("from-ok", None),
+        Some("ok-value".to_string())
+    );
+    assert_eq!(manager.localize("from-err", None), None);
+}
+
+#[test]
+fn manager_select_language_strict_returns_error_when_any_module_fails() {
     let ok_before = SELECT_OK_CALLS.load(Ordering::Relaxed);
     let err_before = SELECT_ERR_CALLS.load(Ordering::Relaxed);
 
     let manager = FluentManager::new_with_discovered_modules();
     let err = manager
-        .select_language(&langid!("en-US"))
-        .expect_err("partial language selection should fail");
+        .select_language_strict(&langid!("en-US"))
+        .expect_err("strict language selection should fail on partial support");
 
     assert!(SELECT_OK_CALLS.load(Ordering::Relaxed) > ok_before);
     assert!(SELECT_ERR_CALLS.load(Ordering::Relaxed) > err_before);
@@ -389,7 +444,25 @@ fn manager_select_language_with_only_failing_localizers_returns_error() {
 }
 
 #[test]
-fn manager_keeps_previous_localizers_when_selection_fails() {
+fn manager_select_language_returns_error_on_non_unsupported_failure() {
+    let manager = FluentManager {
+        modules: vec![
+            &STATEFUL_SUCCESS_MODULE as &dyn I18nModuleRegistration,
+            &HARD_FAIL_MODULE as &dyn I18nModuleRegistration,
+        ],
+        localizers: RwLock::default(),
+    };
+
+    let err = manager
+        .select_language(&langid!("fr"))
+        .expect_err("unexpected runtime-localizer failures should still abort");
+
+    assert!(matches!(err, LocalizationError::IoError(_)));
+    assert_eq!(manager.localize("selected-language", None), None);
+}
+
+#[test]
+fn manager_keeps_previous_localizers_when_strict_selection_fails() {
     let manager = FluentManager {
         modules: vec![
             &STATEFUL_SUCCESS_MODULE as &dyn I18nModuleRegistration,
@@ -402,7 +475,7 @@ fn manager_keeps_previous_localizers_when_selection_fails() {
     };
 
     let err = manager
-        .select_language(&langid!("fr"))
+        .select_language_strict(&langid!("fr"))
         .expect_err("failed selection should not replace the active localizers");
 
     assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));

@@ -714,7 +714,7 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
 }
 
 #[test]
-fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
+fn monolithic_runner_staleness_rebuilds_when_mtime_changes() {
     let (_temp, workspace) = create_workspace_fixture("mtime-refresh", true);
     let runner = MonolithicRunner::new(&workspace);
     std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
@@ -741,12 +741,13 @@ fn monolithic_runner_staleness_updates_cache_when_mtime_changes() {
     .save(runner.temp_store.base_dir())
     .expect("save stale-mtime cache");
 
-    assert!(
-        !runner.is_stale(),
-        "mtime mismatch should refresh cache and stay fresh"
+    assert!(runner.is_stale(), "mtime mismatch should force a rebuild");
+    let cached = RunnerCache::load(runner.temp_store.base_dir()).expect("load cached runner");
+    assert_eq!(
+        cached.runner_mtime,
+        current_mtime.saturating_sub(1),
+        "staleness checks should not silently rewrite the cache"
     );
-    let updated = RunnerCache::load(runner.temp_store.base_dir()).expect("load updated cache");
-    assert_eq!(updated.runner_mtime, current_mtime);
 }
 
 #[test]

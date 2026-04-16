@@ -6,7 +6,8 @@ use syn::{Data, DeriveInput, parse_macro_input};
 
 use crate::macros::utils::{
     InventoryModuleInput, generate_inventory_module, generate_this_ftl_impl,
-    inherited_fluent_namespace, namespace_rule_tokens, preferred_namespace,
+    inherited_fluent_domain, inherited_fluent_namespace, namespace_rule_tokens,
+    preferred_namespace,
 };
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -24,6 +25,10 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
         Ok(namespace) => namespace,
         Err(err) => return err.write_errors(),
     };
+    let fluent_domain = match inherited_fluent_domain(&input) {
+        Ok(domain) => domain,
+        Err(err) => return err.write_errors(),
+    };
 
     let original_ident = opts.ident();
     let generics = opts.generics();
@@ -33,7 +38,12 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
         None
     };
 
-    let this_ftl_impl = generate_this_ftl_impl(original_ident, generics, ftl_key.as_deref());
+    let this_ftl_impl = generate_this_ftl_impl(
+        original_ident,
+        generics,
+        ftl_key.as_deref(),
+        fluent_domain.as_deref(),
+    );
     let type_kind = match &input.data {
         Data::Struct(_) => quote! { ::es_fluent::meta::TypeKind::Struct },
         Data::Enum(_) => quote! { ::es_fluent::meta::TypeKind::Enum },

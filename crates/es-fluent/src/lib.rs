@@ -72,6 +72,16 @@ fn write_custom_localizer_slot() -> RwLockWriteGuard<'static, Option<Arc<CustomL
     }
 }
 
+fn try_custom_localizer<'a>(
+    id: &str,
+    args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+) -> Option<String> {
+    CUSTOM_LOCALIZER
+        .get()
+        .and_then(|_| read_custom_localizer_slot().clone())
+        .and_then(|custom_localizer| custom_localizer(id, args))
+}
+
 #[derive(Debug)]
 pub enum GlobalLocalizationError {
     ContextAlreadyInitialized,
@@ -238,11 +248,7 @@ pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
-    if let Some(custom_localizer) = CUSTOM_LOCALIZER
-        .get()
-        .and_then(|_| read_custom_localizer_slot().clone())
-        && let Some(message) = custom_localizer(id, args)
-    {
+    if let Some(message) = try_custom_localizer(id, args) {
         return message;
     }
 
@@ -253,5 +259,33 @@ pub fn localize<'a>(
     }
 
     tracing::warn!("Translation for '{}' not found or context not set.", id);
+    id.to_string()
+}
+
+/// Localizes a message by its ID within the given domain.
+///
+/// This first consults the process-global custom localizer, then performs an
+/// explicit domain-scoped lookup against the shared context.
+#[doc(hidden)]
+pub fn localize_in_domain<'a>(
+    domain: &str,
+    id: &str,
+    args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+) -> String {
+    if let Some(message) = try_custom_localizer(id, args) {
+        return message;
+    }
+
+    if let Some(context) = CONTEXT.get()
+        && let Some(message) = context.load().localize_in_domain(domain, id, args)
+    {
+        return message;
+    }
+
+    tracing::warn!(
+        "Translation for '{}' in domain '{}' not found or context not set.",
+        id,
+        domain
+    );
     id.to_string()
 }

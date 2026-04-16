@@ -41,6 +41,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
         .collect();
 
     let display_body = LocalizeCallSpec {
+        domain_override: None,
         ftl_key: ftl_key.clone(),
         arguments,
     }

@@ -2,7 +2,7 @@ use crate::BevyFluentTextRegistration;
 use bevy::prelude::App;
 use es_fluent_manager_core::{
     I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
+    ModuleData, ModuleRegistrationKind, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
 };
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
@@ -52,6 +52,10 @@ impl I18nModuleDescriptor for TestManifestModule {
 }
 
 impl I18nModuleRegistration for TestManifestModule {
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::MetadataOnly
+    }
+
     fn resource_plan_for_language(
         &self,
         lang: &LanguageIdentifier,

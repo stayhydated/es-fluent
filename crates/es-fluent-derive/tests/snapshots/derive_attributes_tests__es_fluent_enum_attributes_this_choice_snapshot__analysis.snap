@@ -183,6 +183,7 @@ EnumOpts {
     ),
     attr_args: FluentEnumAttributeArgs {
         resource: None,
+        domain: None,
         skip_inventory: None,
         namespace_args: NamespacedAttributeArgs {
             namespace: None,

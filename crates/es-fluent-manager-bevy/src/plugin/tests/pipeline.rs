@@ -208,10 +208,11 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     app.world_mut()
         .write_message(LocaleChangeEvent(langid!("zz")));
     app.update();
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("en"));
+    assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("zz"));
     assert_eq!(
         bevy_custom_localizer("selected-language", None),
-        Some("en".to_string())
+        None,
+        "unsupported modules are dropped from the fallback manager during best-effort selection"
     );
 
     let locale_changes = {
@@ -221,10 +222,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
             .map(|message| message.0.clone())
             .collect::<Vec<_>>()
     };
-    assert!(
-        locale_changes.is_empty(),
-        "failed fallback-manager selection should not emit LocaleChangedEvent"
-    );
+    assert_eq!(locale_changes, vec![langid!("zz")]);
 
     update_global_language(langid!("en"));
     assert_eq!(bevy_custom_localizer("missing", None), None);

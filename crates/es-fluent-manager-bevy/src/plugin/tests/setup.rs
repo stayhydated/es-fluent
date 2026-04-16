@@ -128,16 +128,12 @@ fn plugin_can_use_strict_module_registry_mode() {
 }
 
 #[test]
-fn initialize_global_state_fails_when_fallback_manager_rejects_initial_language() {
+fn initialize_global_state_accepts_partially_supported_initial_language() {
     let _guard = lock_bevy_global_state();
 
-    let err =
-        match plugin_setup::initialize_global_state(&langid!("zz"), ModuleRegistryMode::Lenient) {
-            Ok(_) => {
-                panic!("startup should fail when the fallback manager rejects the initial language")
-            },
-            Err(err) => err,
-        };
+    let resource =
+        plugin_setup::initialize_global_state(&langid!("zz"), ModuleRegistryMode::Lenient)
+            .expect("best-effort locale selection should keep supporting fallback modules active");
 
-    assert!(err.contains("fallback manager rejected initial language 'zz'"));
+    assert_eq!(resource.current_language(), &langid!("zz"));
 }

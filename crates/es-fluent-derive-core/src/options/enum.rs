@@ -78,6 +78,8 @@ impl EnumDataOptions for EnumOpts {
 pub struct FluentEnumAttributeArgs {
     #[darling(default)]
     resource: Option<String>,
+    #[darling(default)]
+    domain: Option<String>,
     /// Whether to skip inventory registration for this enum.
     /// Used by `#[es_fluent_language]` to prevent language enums from being registered.
     #[darling(default)]
@@ -90,6 +92,11 @@ impl FluentEnumAttributeArgs {
     /// Returns the explicit resource base key if provided.
     pub fn resource(&self) -> Option<&str> {
         self.resource.as_deref()
+    }
+
+    /// Returns the explicit lookup domain override if provided.
+    pub fn domain(&self) -> Option<&str> {
+        self.domain.as_deref()
     }
 
     /// Returns `true` if inventory registration should be skipped.
@@ -217,6 +224,7 @@ mod tests {
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         assert_eq!(opts.base_key(), "custom_error");
+        assert_eq!(opts.attr_args().domain(), None);
         assert!(opts.attr_args().skip_inventory());
         assert!(matches!(
             opts.attr_args().namespace(),
@@ -263,6 +271,16 @@ mod tests {
         let no_resource_opts =
             EnumOpts::from_derive_input(&no_resource_input).expect("EnumOpts should parse");
         assert_eq!(no_resource_opts.base_key(), "http_status");
+
+        let domain_input: DeriveInput = parse_quote! {
+            #[fluent(resource = "custom_error", domain = "shared-errors")]
+            enum DomainLinked {
+                A
+            }
+        };
+        let domain_opts = EnumOpts::from_derive_input(&domain_input).expect("domain parse");
+        assert_eq!(domain_opts.base_key(), "custom_error");
+        assert_eq!(domain_opts.attr_args().domain(), Some("shared-errors"));
     }
 
     #[test]

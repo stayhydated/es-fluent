@@ -24,6 +24,12 @@ pub use registry::{
 
 pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LanguageSelectionPolicy {
+    BestEffort,
+    Strict,
+}
+
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
     fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
@@ -47,17 +53,9 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
 
     /// Returns the registration kind for duplicate-resolution and discovery.
     ///
-    /// Implementations that can answer this without constructing a localizer
-    /// should override the default to keep discovery metadata-only. Manual
-    /// runtime registrations should also override this method explicitly,
-    /// because the default implementation probes `create_localizer()`.
-    fn registration_kind(&self) -> ModuleRegistrationKind {
-        if self.create_localizer().is_some() {
-            ModuleRegistrationKind::RuntimeLocalizer
-        } else {
-            ModuleRegistrationKind::MetadataOnly
-        }
-    }
+    /// Manual registrations must implement this explicitly so discovery does
+    /// not infer metadata by constructing a localizer.
+    fn registration_kind(&self) -> ModuleRegistrationKind;
 
     /// Returns whether this registration can provide a runtime localizer.
     fn supports_runtime_localization(&self) -> bool {
@@ -98,6 +96,10 @@ impl<T: I18nModule> I18nModuleRegistration for T {
     }
 }
 
-impl I18nModuleRegistration for StaticModuleDescriptor {}
+impl I18nModuleRegistration for StaticModuleDescriptor {
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::MetadataOnly
+    }
+}
 
 inventory::collect!(&'static dyn I18nModuleRegistration);

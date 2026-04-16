@@ -80,7 +80,9 @@ pub(super) fn initialize_global_state(
     module_registry_mode: ModuleRegistryMode,
 ) -> Result<I18nResource, String> {
     let fallback_manager = match module_registry_mode {
-        ModuleRegistryMode::Lenient => Arc::new(FluentManager::new_with_discovered_modules()),
+        ModuleRegistryMode::Lenient => {
+            Arc::new(FluentManager::best_effort_with_discovered_modules())
+        },
         ModuleRegistryMode::ErrorIfConflicted => Arc::new(
             FluentManager::try_new_with_discovered_modules()
                 .map_err(format_module_discovery_errors)?,

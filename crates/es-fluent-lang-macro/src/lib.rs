@@ -189,9 +189,9 @@ fn expand_es_fluent_language(
         // No resource attribute - user provides their own translations
         // No skip_inventory - enum will be registered with inventory
     } else {
-        input_enum
-            .attrs
-            .push(parse_quote!(#[fluent(resource = "es-fluent-lang", skip_inventory)]));
+        input_enum.attrs.push(parse_quote!(
+            #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang", skip_inventory)]
+        ));
     }
 
     input_enum.variants.clear();
@@ -465,6 +465,7 @@ mod tests {
             || {
                 let default_mode = run_macro("", "enum Languages {}");
                 assert!(default_mode.contains("resource = \"es-fluent-lang\""));
+                assert!(default_mode.contains("domain = \"es-fluent-lang\""));
                 assert!(default_mode.contains("Fr"));
                 assert!(default_mode.contains("EnUs"));
                 assert!(default_mode.contains("key = \"en\""));
@@ -474,6 +475,7 @@ mod tests {
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert!(!custom_mode.contains("resource = \"es-fluent-lang\""));
+                assert!(!custom_mode.contains("domain = \"es-fluent-lang\""));
                 assert!(custom_mode.contains("enum CustomLanguages"));
                 assert!(custom_mode.contains("key = \"en-US\""));
                 assert!(!custom_mode.contains(":: es_fluent_lang :: force_link"));

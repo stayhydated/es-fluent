@@ -52,15 +52,21 @@ es_fluent_manager_embedded::select_language(langid!("fr"))
 ```
 
 `select_language(...)` returns an error if initialization was skipped or if no
-discovered module can serve the requested locale.
+discovered module can serve the requested locale. When some modules support the
+requested locale and others do not, the default switch keeps the supporting
+modules active.
 
-If you want startup to fail on duplicate or invalid module registrations, use
-the strict entry points:
+`init()` and `init_with_language(...)` are best-effort convenience wrappers:
+duplicate or invalid registrations are logged and skipped, and initialization
+errors are logged instead of returned.
+
+If you want startup to fail fast before the singleton is published, use the
+fallible strict entry points instead:
 
 ```rs
 es_fluent_manager_embedded::try_init_with_language(langid!("fr"))
-    .expect("registry conflicts must be fixed before startup");
+    .expect("embedded i18n manager should initialize");
 ```
 
-`try_init_with_language(...)` only publishes the singleton after the requested
-language has been selected successfully.
+Both `init_with_language(...)` and `try_init_with_language(...)` only publish
+the singleton after the requested language has been selected successfully.

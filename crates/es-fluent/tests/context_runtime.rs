@@ -3,8 +3,8 @@ use es_fluent::__manager_core::{
     Localizer, ModuleData,
 };
 use es_fluent::{
-    FluentValue, GlobalLocalizationError, localize, replace_custom_localizer, select_language,
-    set_context, set_custom_localizer, try_set_context, try_set_custom_localizer,
+    FluentValue, GlobalLocalizationError, localize, localize_in_domain, replace_custom_localizer,
+    select_language, set_context, set_custom_localizer, try_set_context, try_set_custom_localizer,
 };
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -84,6 +84,10 @@ fn context_localization_prefers_custom_then_context_then_id() {
 
     assert_eq!(localize("custom-key", None), "from-custom");
     assert_eq!(localize("ctx-key", None), "from-context");
+    assert_eq!(
+        localize_in_domain("es-fluent-context-test", "ctx-key", None),
+        "from-context"
+    );
     assert_eq!(localize("missing-key", None), "missing-key");
     assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
 
