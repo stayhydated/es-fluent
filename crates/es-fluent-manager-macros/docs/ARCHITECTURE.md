@@ -26,7 +26,7 @@ Used by `es-fluent-manager-bevy`.
 1. **Generates**:
    - Static `ModuleData` listing supported languages.
    - `inventory::submit!` block to register an `I18nModuleRegistration`.
-   - A per-language resource plan manifest (`resource_plan_for_language`) so each locale only queues namespace files that actually exist, including nested paths like `{crate}/ui/button.ftl`, while `{domain}.ftl` remains optional compatibility data.
+   - A per-language resource plan manifest (`resource_plan_for_language`) so each locale only queues namespace files that actually exist, including nested paths like `{crate}/ui/button.ftl`.
    - _Note_: Does not embed files; Bevy still loads assets at runtime.
 
 ## Rationale

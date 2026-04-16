@@ -1,1 +1,1 @@
-hello = Bonjour from base
+base-only = Stray base resource

@@ -247,6 +247,10 @@ fn embedded_resource_from_asset_path(
     let next = segments.next()?;
 
     if next == format!("{domain}.ftl") && segments.next().is_none() {
+        if !namespaces.is_empty() {
+            return None;
+        }
+
         return language
             .parse::<LanguageIdentifier>()
             .ok()
@@ -309,8 +313,7 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
 
         for file_path in T::iter() {
             let file_path_str = file_path.as_ref();
-            // Discover locales from canonical resource paths only:
-            // `{lang}/{domain}.ftl` and configured namespaced files like
+            // Discover locales from configured namespace paths only:
             // `{lang}/{domain}/ui/button.ftl`.
             if let Some((lang_id, Some(namespace))) =
                 embedded_resource_from_asset_path(file_path_str, domain, namespaces)
@@ -383,10 +386,10 @@ mod tests {
     }
 
     #[derive(RustEmbed)]
-    #[folder = "tests/fixtures/embedded_i18n_optional_base_error"]
-    struct OptionalBaseErrorAssets;
+    #[folder = "tests/fixtures/embedded_i18n_stray_base_file"]
+    struct StrayBaseFileAssets;
 
-    impl EmbeddedAssets for OptionalBaseErrorAssets {
+    impl EmbeddedAssets for StrayBaseFileAssets {
         fn domain() -> &'static str {
             "test-domain"
         }
@@ -420,7 +423,7 @@ mod tests {
         }
 
         fn namespaces() -> &'static [&'static str] {
-            &["ui"]
+            &["ui", "errors"]
         }
     }
 
@@ -445,11 +448,11 @@ mod tests {
         supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
-    static OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
-    static OPTIONAL_BASE_ERROR_MODULE_DATA: ModuleData = ModuleData {
-        name: "optional-base-error-module",
+    static STRAY_BASE_FILE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static STRAY_BASE_FILE_MODULE_DATA: ModuleData = ModuleData {
+        name: "stray-base-file-module",
         domain: "test-domain",
-        supported_languages: OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES,
+        supported_languages: STRAY_BASE_FILE_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
     static NESTED_NAMESPACE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
@@ -465,7 +468,7 @@ mod tests {
         name: "bundle-add-error-module",
         domain: "test-domain",
         supported_languages: BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES,
-        namespaces: NAMESPACES,
+        namespaces: &["ui", "errors"],
     };
 
     #[test]
@@ -484,7 +487,7 @@ mod tests {
     fn embedded_language_discovery_only_accepts_canonical_resources() {
         assert_eq!(
             embedded_resource_from_asset_path("en/test-domain.ftl", "test-domain", &["ui"]),
-            Some((langid!("en"), None))
+            None
         );
         assert_eq!(
             embedded_resource_from_asset_path("en/test-domain/ui.ftl", "test-domain", &["ui"]),
@@ -545,7 +548,8 @@ mod tests {
     fn embedded_localizer_exercises_parse_and_utf8_error_paths() {
         let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
 
-        // en-GB has an invalid FTL file, so selection should fall back to en.
+        // en-GB does not have a ready canonical namespace resource, so
+        // selection should fall back to en.
         localizer
             .select_language(&langid!("en-GB"))
             .expect("should fall back from en-GB to en");
@@ -553,10 +557,10 @@ mod tests {
         // Missing required argument should produce formatting errors and return None.
         assert_eq!(localizer.localize("welcome", None), None);
 
-        // fr has invalid UTF-8 content.
+        // fr still is not ready, so selection should fail.
         let fr_err = localizer
             .select_language(&langid!("fr"))
-            .expect_err("invalid UTF-8 should fail");
+            .expect_err("unready locale should fail");
         assert!(matches!(fr_err, LocalizationError::LanguageNotSupported(_)));
 
         // it is declared as supported but has no resources.
@@ -633,16 +637,15 @@ mod tests {
     }
 
     #[test]
-    fn embedded_localizer_tolerates_optional_base_parse_failures() {
-        let localizer =
-            EmbeddedLocalizer::<OptionalBaseErrorAssets>::new(&OPTIONAL_BASE_ERROR_MODULE_DATA);
+    fn embedded_localizer_ignores_noncanonical_base_files() {
+        let localizer = EmbeddedLocalizer::<StrayBaseFileAssets>::new(&STRAY_BASE_FILE_MODULE_DATA);
 
         localizer
             .select_language(&langid!("en"))
-            .expect("optional base parse failure should not block namespaced readiness");
+            .expect("noncanonical base files should not block namespaced readiness");
         assert_eq!(
             localizer.localize("hello", None),
-            Some("Hello from optional-base fixture".to_string())
+            Some("Hello from stray-base fixture".to_string())
         );
     }
 

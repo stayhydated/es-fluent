@@ -5,7 +5,7 @@ use super::{
     build_test_plugin_app, build_test_plugin_app_with_mode, build_test_plugin_app_with_modes,
 };
 use crate::test_support::lock_bevy_global_state;
-use es_fluent::{localize, replace_custom_localizer};
+use es_fluent::{localize, replace_custom_localizer_with_domain};
 use unic_langid::langid;
 
 #[test]
@@ -89,7 +89,7 @@ fn setup_helpers_discover_modules_and_resolve_initial_language() {
 #[test]
 fn plugin_replaces_existing_custom_localizer_and_can_be_installed_twice() {
     let _guard = lock_bevy_global_state();
-    replace_custom_localizer(|_, _| Some("stale".to_string()));
+    replace_custom_localizer_with_domain(|_, _, _| Some("stale".to_string()));
 
     let _first_app = build_test_plugin_app();
     assert_eq!(localize("from-fallback", None), "fallback");
@@ -104,7 +104,7 @@ fn plugin_replaces_existing_custom_localizer_and_can_be_installed_twice() {
 #[test]
 fn plugin_can_fail_fast_when_global_localizer_must_not_be_replaced() {
     let _guard = lock_bevy_global_state();
-    replace_custom_localizer(|_, _| Some("stale".to_string()));
+    replace_custom_localizer_with_domain(|_, _, _| Some("stale".to_string()));
 
     let strict_install = std::panic::catch_unwind(|| {
         let _app = build_test_plugin_app_with_mode(GlobalLocalizerMode::ErrorIfAlreadySet);

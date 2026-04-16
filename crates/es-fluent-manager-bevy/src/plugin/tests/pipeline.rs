@@ -68,13 +68,6 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         app.world()
             .resource::<I18nAssets>()
             .assets
-            .contains_key(&(langid!("en"), ResourceKey::new("namespaced-domain"))),
-        "optional compatibility resources should be queued through AssetServer like other assets"
-    );
-    assert!(
-        app.world()
-            .resource::<I18nAssets>()
-            .assets
             .contains_key(&(langid!("en"), ResourceKey::new("manifest-domain"))),
         "manifest-driven optional resources should be loaded without speculative probing"
     );
@@ -116,6 +109,16 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
 
     let lang = langid!("en");
     assert!(!app.world().resource::<I18nBundle>().0.contains_key(&lang));
+    assert_eq!(
+        bevy_custom_localizer(Some("test-domain"), "hello", None),
+        None,
+        "domain lookups must stay unavailable until the locale is fully ready"
+    );
+    assert_eq!(
+        bevy_custom_localizer(Some("namespaced-domain"), "hello", None),
+        None,
+        "domain lookups must stay unavailable until all required namespace assets are ready"
+    );
 
     {
         let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();

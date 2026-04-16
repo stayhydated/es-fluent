@@ -57,7 +57,7 @@ Calls to `init()` or `init_with_language()`:
 1. Register it as the global context provider for `es-fluent`.
 
 For namespaced modules, namespace files are the canonical per-locale resources.
-`{domain}.ftl` is optional compatibility data when namespaces are present.
+`{domain}.ftl` is not part of the canonical resource plan when namespaces are present.
 
 This enables the use of `es_fluent::localize!` anywhere in the application code without passing a manager context around.
 

@@ -1,1 +1,1 @@
-base-only = Base compatibility resource
+base-only = Stray base resource

@@ -18,8 +18,8 @@ pub struct ModuleData {
     pub supported_languages: &'static [LanguageIdentifier],
     /// Namespaces used by the module (e.g., "ui", "ui/button").
     /// If empty, only the main `{domain}.ftl` file is used.
-    /// If non-empty, namespace files are the canonical resources and managers
-    /// treat `{domain}.ftl` as optional compatibility data.
+    /// If non-empty, only the configured namespace files are canonical
+    /// resources for the domain.
     pub namespaces: &'static [&'static str],
 }
 

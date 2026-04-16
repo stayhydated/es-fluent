@@ -86,8 +86,7 @@ fn module_resource_spec(
 ///
 /// Contract:
 /// - Without namespaces, `{domain}.ftl` is required.
-/// - With namespaces, `{domain}.ftl` is optional compatibility data and
-///   `{domain}/{namespace}.ftl` entries are required.
+/// - With namespaces, only `{domain}/{namespace}.ftl` entries are required.
 pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourceSpec> {
     if namespaces.is_empty() {
         return vec![module_resource_spec(
@@ -97,12 +96,7 @@ pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourc
         )];
     }
 
-    let mut plan = Vec::with_capacity(namespaces.len() + 1);
-    plan.push(module_resource_spec(
-        ResourceKey::new(domain.to_string()),
-        format!("{domain}.ftl"),
-        false,
-    ));
+    let mut plan = Vec::with_capacity(namespaces.len());
 
     let mut seen = HashSet::new();
     for namespace in namespaces {

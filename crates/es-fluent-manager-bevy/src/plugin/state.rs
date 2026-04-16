@@ -16,6 +16,7 @@ static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 type DomainBundles = HashMap<LanguageIdentifier, HashMap<String, Arc<SyncFluentBundle>>>;
 
 fn build_domain_bundles(
+    bundle: &I18nBundle,
     loaded_resources: HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
 ) -> DomainBundles {
     let mut grouped: HashMap<
@@ -24,6 +25,10 @@ fn build_domain_bundles(
     > = HashMap::new();
 
     for ((lang, resource_key), resource) in loaded_resources {
+        if !bundle.0.contains_key(&lang) {
+            continue;
+        }
+
         grouped
             .entry(lang)
             .or_default()
@@ -167,9 +172,10 @@ pub fn update_global_bundle(
 ) {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
+        let domain_bundles = build_domain_bundles(&bundle, loaded_resources);
         let new_state = BevyI18nState::clone(&old_state)
             .with_bundle(bundle)
-            .with_domain_bundles(build_domain_bundles(loaded_resources));
+            .with_domain_bundles(domain_bundles);
         state_swap.store(Arc::new(new_state));
     }
 }

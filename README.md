@@ -186,7 +186,7 @@ pub enum StatusVariants { Active, Inactive }
 - Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
 When namespaces are used, namespace files are treated as the canonical split
-for that locale. `{crate}.ftl` remains optional for backwards compatibility.
+for that locale.
 
 ### Namespace Values
 
