@@ -5,7 +5,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::{FtlAsset, FtlAssetLoader, I18nBundle};
+use crate::{BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nBundle, I18nDomainBundles};
 use bevy::prelude::*;
 use setup::{
     build_i18n_assets, configure_app, discover_modules, initialize_global_state,
@@ -103,7 +103,9 @@ impl Plugin for I18nPlugin {
 
         app.init_asset::<FtlAsset>()
             .init_asset_loader::<FtlAssetLoader>()
-            .init_resource::<I18nBundle>();
+            .init_resource::<I18nBundle>()
+            .init_resource::<I18nDomainBundles>()
+            .init_resource::<BundleBuildFailures>();
 
         let discovery = discover_modules().unwrap_or_else(|errors| {
             let details = errors

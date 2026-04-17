@@ -1,11 +1,8 @@
 use crate::*;
 use arc_swap::ArcSwap;
 use bevy::prelude::*;
-use es_fluent_manager_core::{
-    FluentManager, LocalizationError, ResourceKey, SyncFluentBundle, build_sync_bundle,
-    localize_with_bundle,
-};
-use fluent_bundle::{FluentResource, FluentValue};
+use es_fluent_manager_core::{FluentManager, LocalizationError, localize_with_bundle};
+use fluent_bundle::FluentValue;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use unic_langid::LanguageIdentifier;
@@ -13,63 +10,12 @@ use unic_langid::LanguageIdentifier;
 #[doc(hidden)]
 static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 
-type DomainBundles = HashMap<LanguageIdentifier, HashMap<String, Arc<SyncFluentBundle>>>;
-
-fn build_domain_bundles(
-    bundle: &I18nBundle,
-    loaded_resources: HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-) -> DomainBundles {
-    let mut grouped: HashMap<
-        LanguageIdentifier,
-        HashMap<String, Vec<(ResourceKey, Arc<FluentResource>)>>,
-    > = HashMap::new();
-
-    for ((lang, resource_key), resource) in loaded_resources {
-        if !bundle.0.contains_key(&lang) {
-            continue;
-        }
-
-        grouped
-            .entry(lang)
-            .or_default()
-            .entry(resource_key.domain().to_string())
-            .or_default()
-            .push((resource_key, resource));
-    }
-
-    grouped
-        .into_iter()
-        .map(|(lang, domain_resources)| {
-            let bundles = domain_resources
-                .into_iter()
-                .map(|(domain, mut resources)| {
-                    resources.sort_by(|(left_key, _), (right_key, _)| left_key.cmp(right_key));
-                    let (bundle, add_errors) = build_sync_bundle(
-                        &lang,
-                        resources.into_iter().map(|(_, resource)| resource),
-                    );
-                    for errors in add_errors {
-                        error!(
-                            "Failed to add resource to domain bundle while caching: lang={}, domain={}, errors={:?}",
-                            lang,
-                            domain,
-                            errors
-                        );
-                    }
-                    (domain, Arc::new(bundle))
-                })
-                .collect::<HashMap<_, _>>();
-            (lang, bundles)
-        })
-        .collect()
-}
-
 #[doc(hidden)]
 #[derive(Clone)]
 pub struct BevyI18nState {
     current_language: LanguageIdentifier,
     bundle: I18nBundle,
-    domain_bundles: DomainBundles,
+    domain_bundles: I18nDomainBundles,
     fallback_manager: Option<Arc<FluentManager>>,
 }
 
@@ -79,7 +25,7 @@ impl BevyI18nState {
         Self {
             current_language: initial_language,
             bundle: I18nBundle::default(),
-            domain_bundles: HashMap::new(),
+            domain_bundles: I18nDomainBundles::default(),
             fallback_manager: None,
         }
     }
@@ -88,7 +34,7 @@ impl BevyI18nState {
         Self { bundle, ..self }
     }
 
-    pub(crate) fn with_domain_bundles(self, domain_bundles: DomainBundles) -> Self {
+    pub(crate) fn with_domain_bundles(self, domain_bundles: I18nDomainBundles) -> Self {
         Self {
             domain_bundles,
             ..self
@@ -137,6 +83,7 @@ impl BevyI18nState {
     ) -> Option<String> {
         if let Some(bundle) = self
             .domain_bundles
+            .0
             .get(&self.current_language)
             .and_then(|bundles| bundles.get(domain))
             && let Some((value, errors)) = localize_with_bundle(bundle, id, args)
@@ -174,13 +121,9 @@ pub fn set_bevy_i18n_state(state: BevyI18nState) {
 }
 
 #[doc(hidden)]
-pub fn update_global_bundle(
-    bundle: I18nBundle,
-    loaded_resources: HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
-) {
+pub fn update_global_bundle(bundle: I18nBundle, domain_bundles: I18nDomainBundles) {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
-        let domain_bundles = build_domain_bundles(&bundle, loaded_resources);
         let new_state = BevyI18nState::clone(&old_state)
             .with_bundle(bundle)
             .with_domain_bundles(domain_bundles);

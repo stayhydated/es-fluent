@@ -1,18 +1,22 @@
-use super::super::runtime::handle_locale_changes;
+use super::super::runtime::{
+    build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_global_state,
+};
 use super::super::{
-    BevyI18nState, bevy_custom_localizer, update_global_bundle, update_global_language,
+    BevyI18nState, bevy_custom_localizer, set_bevy_i18n_state, update_global_bundle,
+    update_global_language,
 };
 use super::build_test_plugin_app;
 use super::fixtures::REGISTER_CALLS;
 use crate::test_support::lock_bevy_global_state;
 use crate::{
-    CurrentLanguageId, FtlAsset, I18nAssets, I18nBundle, I18nResource, LocaleChangeEvent,
-    LocaleChangedEvent,
+    BundleBuildFailures, CurrentLanguageId, FtlAsset, I18nAssets, I18nBundle, I18nDomainBundles,
+    I18nResource, LocaleChangeEvent, LocaleChangedEvent,
 };
-use bevy::asset::{AssetEvent, Assets};
+use bevy::asset::{AssetEvent, AssetLoadFailedEvent, Assets};
 use bevy::ecs::message::Messages;
 use bevy::prelude::*;
-use es_fluent_manager_core::ResourceKey;
+use bevy::window::RequestRedraw;
+use es_fluent_manager_core::{ModuleResourceSpec, ResourceKey};
 use fluent_bundle::{FluentResource, FluentValue};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -89,7 +93,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         let _ = assets.insert(
             menu_handle.id(),
             FtlAsset {
-                content: "hello = Hello from menu".to_string(),
+                content: "menu-hello = Hello from menu".to_string(),
             },
         );
     }
@@ -174,16 +178,16 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         bevy_custom_localizer(None, "from-fallback", None),
         Some("fallback".to_string())
     );
-    assert_ne!(
+    assert_eq!(
         bevy_custom_localizer(None, "hello", None),
-        Some("fallback-hello".to_string())
+        Some("Hello".to_string())
     );
     assert_eq!(
         bevy_custom_localizer(Some("test-domain"), "hello", None),
         Some("Hello".to_string())
     );
     assert_eq!(
-        bevy_custom_localizer(Some("namespaced-domain"), "hello", None),
+        bevy_custom_localizer(Some("namespaced-domain"), "menu-hello", None),
         Some("Hello from menu".to_string())
     );
 
@@ -240,6 +244,133 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
 }
 
 #[test]
+fn plugin_pipeline_preserves_last_good_bundle_when_hot_reload_introduces_conflict() {
+    let _guard = lock_bevy_global_state();
+    let lang = langid!("en");
+
+    set_bevy_i18n_state(BevyI18nState::new(lang.clone()));
+
+    let mut app = App::new();
+    app.add_message::<AssetEvent<FtlAsset>>();
+    app.add_message::<AssetLoadFailedEvent<FtlAsset>>();
+    app.add_message::<LocaleChangedEvent>();
+    app.add_message::<RequestRedraw>();
+    app.insert_resource(Assets::<FtlAsset>::default());
+    app.insert_resource(I18nBundle::default());
+    app.insert_resource(I18nDomainBundles::default());
+    app.insert_resource(BundleBuildFailures::default());
+    app.insert_resource(I18nResource::new(lang.clone()));
+    app.add_systems(
+        Update,
+        (
+            handle_asset_loading,
+            build_fluent_bundles,
+            sync_global_state,
+        )
+            .chain(),
+    );
+
+    let (base_handle, menu_handle, hud_handle) = {
+        let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+        let base = assets.add(FtlAsset {
+            content: "hello = Hello".to_string(),
+        });
+        let menu = assets.add(FtlAsset {
+            content: "menu-hello = Hello from menu".to_string(),
+        });
+        let hud = assets.add(FtlAsset {
+            content: "from-hud = Hud".to_string(),
+        });
+        (base, menu, hud)
+    };
+
+    let mut i18n_assets = I18nAssets::new();
+    i18n_assets.add_asset(lang.clone(), "test-domain".to_string(), base_handle.clone());
+    i18n_assets.add_asset_spec(
+        lang.clone(),
+        ModuleResourceSpec {
+            key: ResourceKey::new("namespaced-domain/menu"),
+            locale_relative_path: "namespaced-domain/menu.ftl".to_string(),
+            required: true,
+        },
+        menu_handle.clone(),
+    );
+    i18n_assets.add_asset_spec(
+        lang.clone(),
+        ModuleResourceSpec {
+            key: ResourceKey::new("namespaced-domain/hud"),
+            locale_relative_path: "namespaced-domain/hud.ftl".to_string(),
+            required: true,
+        },
+        hud_handle.clone(),
+    );
+    app.insert_resource(i18n_assets);
+
+    app.world_mut()
+        .write_message(AssetEvent::<FtlAsset>::Added {
+            id: base_handle.id(),
+        });
+    app.world_mut()
+        .write_message(AssetEvent::<FtlAsset>::Added {
+            id: menu_handle.id(),
+        });
+    app.world_mut()
+        .write_message(AssetEvent::<FtlAsset>::Added {
+            id: hud_handle.id(),
+        });
+    app.update();
+
+    assert!(
+        app.world().resource::<I18nBundle>().0.contains_key(&lang),
+        "the locale should become ready once every required resource is accepted"
+    );
+    assert_eq!(
+        bevy_custom_localizer(None, "hello", None),
+        Some("Hello".to_string())
+    );
+    assert_eq!(
+        bevy_custom_localizer(Some("namespaced-domain"), "menu-hello", None),
+        Some("Hello from menu".to_string())
+    );
+
+    {
+        let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+        let _ = assets.insert(
+            menu_handle.id(),
+            FtlAsset {
+                content: "hello = Broken duplicate".to_string(),
+            },
+        );
+    }
+    app.world_mut()
+        .write_message(AssetEvent::<FtlAsset>::Modified {
+            id: menu_handle.id(),
+        });
+    app.update();
+
+    assert!(
+        app.world()
+            .resource::<BundleBuildFailures>()
+            .0
+            .contains_key(&lang),
+        "broken hot reloads should record bundle build failures without replacing the last good bundle"
+    );
+    assert_eq!(
+        bevy_custom_localizer(None, "hello", None),
+        Some("Hello".to_string())
+    );
+    assert_eq!(
+        bevy_custom_localizer(Some("namespaced-domain"), "menu-hello", None),
+        Some("Hello from menu".to_string())
+    );
+    assert_eq!(
+        bevy_custom_localizer(Some("namespaced-domain"), "hello", None),
+        None,
+        "domain caches should stay aligned with the accepted resource set"
+    );
+}
+
+#[test]
 fn helper_paths_cover_args_and_missing_bundle_cases() {
     let _guard = lock_bevy_global_state();
     let mut app = App::new();
@@ -247,6 +378,7 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
     app.add_message::<LocaleChangedEvent>();
     app.insert_resource(I18nAssets::new());
     app.insert_resource(I18nBundle::default());
+    app.insert_resource(BundleBuildFailures::default());
     app.insert_resource(I18nResource::new(langid!("en")));
     app.insert_resource(CurrentLanguageId(langid!("en")));
     app.add_systems(Update, handle_locale_changes);
@@ -286,7 +418,7 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
 
     let state = BevyI18nState::new(langid!("en"))
         .with_bundle(I18nBundle(bundles))
-        .with_domain_bundles(domain_bundles);
+        .with_domain_bundles(I18nDomainBundles(domain_bundles));
 
     assert_eq!(state.localize("only-attr", None), None);
 
@@ -304,7 +436,7 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
         Some("Hello from app domain".to_string())
     );
 
-    update_global_bundle(I18nBundle::default(), HashMap::new());
+    update_global_bundle(I18nBundle::default(), I18nDomainBundles::default());
     update_global_language(langid!("en"));
     let _ = bevy_custom_localizer(None, "unknown-key", None);
 }

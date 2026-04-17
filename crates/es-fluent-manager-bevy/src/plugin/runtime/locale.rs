@@ -1,9 +1,10 @@
 use super::super::state::try_update_global_language;
 use crate::{
-    CurrentLanguageId, I18nAssets, I18nBundle, I18nResource, LocaleChangeEvent, LocaleChangedEvent,
+    BundleBuildFailures, CurrentLanguageId, I18nAssets, I18nBundle, I18nResource,
+    LocaleChangeEvent, LocaleChangedEvent,
 };
 use bevy::prelude::*;
-use es_fluent_manager_core::resolve_ready_locale;
+use es_fluent_manager_core::{resolve_fallback_language, resolve_ready_locale};
 use unic_langid::LanguageIdentifier;
 
 fn apply_selected_language(
@@ -35,21 +36,50 @@ fn resolve_requested_language(
     requested_language: &LanguageIdentifier,
     i18n_bundle: &I18nBundle,
     i18n_assets: &I18nAssets,
-) -> LanguageIdentifier {
-    let available_languages = i18n_assets.available_languages();
+    bundle_build_failures: &BundleBuildFailures,
+) -> Option<LanguageIdentifier> {
     let ready_languages = i18n_bundle.0.keys().cloned().collect::<Vec<_>>();
-    let resolved_language =
-        resolve_ready_locale(requested_language, &ready_languages, &available_languages)
-            .unwrap_or_else(|| requested_language.clone());
+    let blocked_languages = bundle_build_failures
+        .0
+        .keys()
+        .filter(|language| !i18n_bundle.0.contains_key(*language))
+        .cloned()
+        .collect::<Vec<_>>();
+    let available_languages = i18n_assets
+        .available_languages()
+        .into_iter()
+        .filter(|language| !blocked_languages.iter().any(|blocked| blocked == language))
+        .collect::<Vec<_>>();
 
-    if resolved_language != *requested_language {
-        info!(
-            "Locale '{}' not found, falling back to '{}'",
-            requested_language, resolved_language
-        );
+    if let Some(resolved_language) =
+        resolve_ready_locale(requested_language, &ready_languages, &available_languages)
+    {
+        if resolved_language != *requested_language {
+            info!(
+                "Locale '{}' not found, falling back to '{}'",
+                requested_language, resolved_language
+            );
+        }
+
+        return Some(resolved_language);
     }
 
-    resolved_language
+    if let Some(blocked_language) =
+        resolve_fallback_language(requested_language, &blocked_languages)
+    {
+        let diagnostics = bundle_build_failures
+            .0
+            .get(&blocked_language)
+            .map(|errors| errors.join(" | "))
+            .unwrap_or_else(|| "unknown bundle build failure".to_string());
+        warn!(
+            "Skipping locale change to '{}' because Fluent bundle assembly failed for '{}': {}",
+            requested_language, blocked_language, diagnostics
+        );
+        return None;
+    }
+
+    Some(requested_language.clone())
 }
 
 #[doc(hidden)]
@@ -59,16 +89,84 @@ pub(crate) fn handle_locale_changes(
     mut i18n_resource: ResMut<I18nResource>,
     i18n_bundle: Res<I18nBundle>,
     i18n_assets: Res<I18nAssets>,
+    bundle_build_failures: Res<BundleBuildFailures>,
     mut current_language_id: ResMut<CurrentLanguageId>,
 ) {
     for event in locale_change_events.read() {
         info!("Changing locale to: {}", event.0);
-        let resolved_language = resolve_requested_language(&event.0, &i18n_bundle, &i18n_assets);
+        let Some(resolved_language) = resolve_requested_language(
+            &event.0,
+            &i18n_bundle,
+            &i18n_assets,
+            &bundle_build_failures,
+        ) else {
+            continue;
+        };
         apply_selected_language(
             resolved_language,
             &mut i18n_resource,
             &mut current_language_id,
             &mut locale_changed_events,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::set_bevy_i18n_state;
+    use crate::test_support::lock_bevy_global_state;
+    use bevy::ecs::message::Messages;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use unic_langid::langid;
+
+    #[test]
+    fn handle_locale_changes_keeps_current_locale_when_requested_bundle_failed_to_build() {
+        let _guard = lock_bevy_global_state();
+        set_bevy_i18n_state(crate::BevyI18nState::new(langid!("en")));
+
+        let en = langid!("en");
+        let fr = langid!("fr");
+        let mut app = App::new();
+        let mut i18n_assets = I18nAssets::new();
+        i18n_assets.add_asset(en.clone(), "app".to_string(), Handle::default());
+        i18n_assets.add_asset(fr.clone(), "app".to_string(), Handle::default());
+
+        let resource = Arc::new(
+            fluent_bundle::FluentResource::try_new("hello = hi".to_string()).expect("ftl"),
+        );
+        let mut bundle = es_fluent_manager_core::SyncFluentBundle::new_concurrent(vec![en.clone()]);
+        bundle.add_resource(resource).expect("add resource");
+
+        app.add_message::<LocaleChangeEvent>();
+        app.add_message::<LocaleChangedEvent>();
+        app.insert_resource(i18n_assets);
+        app.insert_resource(I18nBundle(HashMap::from([(en.clone(), Arc::new(bundle))])));
+        app.insert_resource(BundleBuildFailures(HashMap::from([(
+            fr.clone(),
+            vec!["resource 'app': duplicate message id 'hello'".to_string()],
+        )])));
+        app.insert_resource(I18nResource::new(en.clone()));
+        app.insert_resource(CurrentLanguageId(en.clone()));
+        app.add_systems(Update, handle_locale_changes);
+
+        let mut locale_cursor = {
+            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+            messages.get_cursor_current()
+        };
+
+        app.world_mut().write_message(LocaleChangeEvent(fr));
+        app.update();
+
+        assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+        let locale_changes = {
+            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+            locale_cursor
+                .read(&messages)
+                .map(|message| message.0.clone())
+                .collect::<Vec<_>>()
+        };
+        assert!(locale_changes.is_empty());
     }
 }

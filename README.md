@@ -59,7 +59,9 @@ If you want the embedded manager to return initialization errors instead of
 logging them before publishing the singleton, use
 `es-fluent-manager-embedded::try_init_with_language(...)`. The Bevy plugin also
 uses strict module discovery and fails startup on invalid or duplicate
-registrations.
+registrations. Bevy now also rejects malformed/conflicting bundle rebuilds
+instead of publishing partial translations, while keeping the last ready bundle
+active.
 
 Embedded locale selection now also rejects malformed/conflicting Fluent bundle
 builds instead of partially loading the locale, while keeping the last ready

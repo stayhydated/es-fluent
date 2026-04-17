@@ -1,10 +1,11 @@
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    LocaleLoadReport, ModuleResourceSpec, ResourceKey, ResourceLoadError, build_locale_load_report,
-    collect_available_languages, collect_locale_resources, localize_with_bundle,
+    LocaleLoadReport, ModuleResourceSpec, ResourceKey, ResourceLoadError, SyncFluentBundle,
+    build_locale_load_report, collect_available_languages, collect_locale_resources,
+    localize_with_bundle,
 };
-use fluent_bundle::{FluentResource, FluentValue, bundle::FluentBundle};
+use fluent_bundle::{FluentResource, FluentValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -55,12 +56,19 @@ pub struct I18nAssets {
     pub load_errors: HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
 }
 
-type SyncFluentBundle =
-    FluentBundle<Arc<FluentResource>, intl_memoizer::concurrent::IntlLangMemoizer>;
-
 /// A Bevy resource containing the `FluentBundle` for each loaded language.
 #[derive(Clone, Default, Resource)]
 pub struct I18nBundle(pub HashMap<LanguageIdentifier, Arc<SyncFluentBundle>>);
+
+/// Per-language domain bundles derived from the same accepted resources as [`I18nBundle`].
+#[derive(Clone, Default, Resource)]
+pub(crate) struct I18nDomainBundles(
+    pub(crate) HashMap<LanguageIdentifier, HashMap<String, Arc<SyncFluentBundle>>>,
+);
+
+/// Bundle build failures that were rejected instead of replacing the last good cache.
+#[derive(Clone, Default, Resource)]
+pub(crate) struct BundleBuildFailures(pub(crate) HashMap<LanguageIdentifier, Vec<String>>);
 
 impl I18nAssets {
     /// Creates a new, empty `I18nAssets` resource.
@@ -151,6 +159,25 @@ impl I18nAssets {
     /// Retrieves all loaded `FluentResource`s for a given language.
     pub fn get_language_resources(&self, lang: &LanguageIdentifier) -> Vec<&Arc<FluentResource>> {
         collect_locale_resources(&self.loaded_resources, lang)
+    }
+
+    pub(crate) fn get_language_resource_entries(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Vec<(ResourceKey, Arc<FluentResource>)> {
+        let mut resources = self
+            .loaded_resources
+            .iter()
+            .filter_map(|((language_key, resource_key), resource)| {
+                if language_key == lang {
+                    Some((resource_key.clone(), resource.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        resources.sort_by(|(left_key, _), (right_key, _)| left_key.cmp(right_key));
+        resources
     }
 
     /// Returns the set of languages that have assets registered.

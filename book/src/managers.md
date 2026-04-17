@@ -155,6 +155,10 @@ App::new().add_plugins(
 
 Plugin startup also uses strict module discovery, so invalid or duplicate i18n
 module registrations fail the app boot instead of being normalized silently.
+Malformed or conflicting Fluent bundle rebuilds are also rejected during asset
+hot reloads and locale switches. When that happens, Bevy keeps the last ready
+bundle active instead of publishing partial translations, and domain-scoped
+lookups stay aligned with the accepted resource set.
 
 #### 3. Define Localizable Components (Recommended)
 

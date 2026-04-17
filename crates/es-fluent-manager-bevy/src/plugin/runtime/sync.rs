@@ -1,5 +1,5 @@
 use super::super::state::update_global_bundle;
-use crate::{I18nAssets, I18nBundle, I18nResource, LocaleChangedEvent};
+use crate::{I18nAssets, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent};
 use bevy::prelude::*;
 use bevy::window::RequestRedraw;
 use unic_langid::LanguageIdentifier;
@@ -14,6 +14,7 @@ fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Opt
 #[doc(hidden)]
 pub(crate) fn sync_global_state(
     i18n_bundle: Res<I18nBundle>,
+    i18n_domain_bundles: Res<I18nDomainBundles>,
     i18n_assets: Res<I18nAssets>,
     i18n_resource: Res<I18nResource>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
@@ -32,8 +33,8 @@ pub(crate) fn sync_global_state(
             if previous_lang == &current_lang && previous_bundle_id == &current_bundle_id
     );
 
-    if i18n_bundle.is_changed() {
-        update_global_bundle((*i18n_bundle).clone(), i18n_assets.loaded_resources.clone());
+    if i18n_bundle.is_changed() || i18n_domain_bundles.is_changed() {
+        update_global_bundle((*i18n_bundle).clone(), (*i18n_domain_bundles).clone());
 
         if !locale_switched
             && current_bundle_changed
@@ -90,6 +91,7 @@ mod tests {
         app.add_message::<RequestRedraw>();
         app.insert_resource(i18n_assets);
         app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(lang.clone()));
         app.register_fluent_text_from_locale::<RefreshableMessage>();
         app.add_systems(Update, sync_global_state);
@@ -170,6 +172,7 @@ mod tests {
         app.add_message::<RequestRedraw>();
         app.insert_resource(i18n_assets);
         app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(current_lang.clone()));
         app.add_systems(Update, sync_global_state);
 

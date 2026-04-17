@@ -35,6 +35,8 @@ pub use plugin::*;
 pub use registration::*;
 pub use systems::*;
 
+pub(crate) use assets::{BundleBuildFailures, I18nDomainBundles};
+
 #[cfg(test)]
 mod tests;
 
