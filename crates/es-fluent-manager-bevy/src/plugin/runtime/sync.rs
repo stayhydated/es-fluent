@@ -4,6 +4,7 @@ use crate::{
     CurrentLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
     PendingLanguageChange,
 };
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::RequestRedraw;
 use unic_langid::LanguageIdentifier;
@@ -15,57 +16,64 @@ fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Opt
         .map(|bundle| std::sync::Arc::as_ptr(bundle) as *const () as usize)
 }
 
+#[derive(SystemParam)]
+pub(crate) struct SyncGlobalStateParams<'w, 's> {
+    i18n_bundle: Res<'w, I18nBundle>,
+    i18n_domain_bundles: Res<'w, I18nDomainBundles>,
+    i18n_resource: ResMut<'w, I18nResource>,
+    current_language_id: ResMut<'w, CurrentLanguageId>,
+    pending_language_change: ResMut<'w, PendingLanguageChange>,
+    locale_changed_events: MessageWriter<'w, LocaleChangedEvent>,
+    redraw_events: MessageWriter<'w, RequestRedraw>,
+    last_current_bundle: Local<'s, Option<(LanguageIdentifier, LanguageIdentifier, Option<usize>)>>,
+}
+
 #[doc(hidden)]
-pub(crate) fn sync_global_state(
-    i18n_bundle: Res<I18nBundle>,
-    i18n_domain_bundles: Res<I18nDomainBundles>,
-    mut i18n_resource: ResMut<I18nResource>,
-    mut current_language_id: ResMut<CurrentLanguageId>,
-    mut pending_language_change: ResMut<PendingLanguageChange>,
-    mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
-    mut redraw_events: MessageWriter<RequestRedraw>,
-    mut last_current_bundle: Local<Option<(LanguageIdentifier, LanguageIdentifier, Option<usize>)>>,
-) {
-    let current_lang = i18n_resource.current_language().clone();
-    let current_resolved_lang = i18n_resource.resolved_language().clone();
-    let current_bundle_ptr_id = current_bundle_id(&i18n_bundle, &current_resolved_lang);
+pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
+    let current_lang = params.i18n_resource.current_language().clone();
+    let current_resolved_lang = params.i18n_resource.resolved_language().clone();
+    let current_bundle_ptr_id = current_bundle_id(&params.i18n_bundle, &current_resolved_lang);
     let current_bundle_present = current_bundle_ptr_id.is_some();
     let locale_switched = matches!(
-        last_current_bundle.as_ref(),
+        params.last_current_bundle.as_ref(),
         Some((previous_lang, previous_resolved_lang, _))
             if previous_lang != &current_lang
                 || previous_resolved_lang != &current_resolved_lang
     );
     let current_bundle_changed = !matches!(
-        last_current_bundle.as_ref(),
+        params.last_current_bundle.as_ref(),
         Some((previous_lang, previous_resolved_lang, previous_bundle_id))
             if previous_lang == &current_lang
                 && previous_resolved_lang == &current_resolved_lang
                 && previous_bundle_id == &current_bundle_ptr_id
     );
 
-    if i18n_bundle.is_changed() || i18n_domain_bundles.is_changed() {
-        update_global_bundle((*i18n_bundle).clone(), (*i18n_domain_bundles).clone());
+    if params.i18n_bundle.is_changed() || params.i18n_domain_bundles.is_changed() {
+        update_global_bundle(
+            (*params.i18n_bundle).clone(),
+            (*params.i18n_domain_bundles).clone(),
+        );
 
-        if let Some(pending_language) = pending_language_change.0.clone() {
-            let pending_bundle_id = current_bundle_id(&i18n_bundle, &pending_language.resolved);
+        if let Some(pending_language) = params.pending_language_change.0.clone() {
+            let pending_bundle_id =
+                current_bundle_id(&params.i18n_bundle, &pending_language.resolved);
             if pending_bundle_id.is_some() {
                 let published = apply_selected_language(
                     &pending_language,
-                    &mut i18n_resource,
-                    &mut current_language_id,
-                    &mut locale_changed_events,
+                    &mut params.i18n_resource,
+                    &mut params.current_language_id,
+                    &mut params.locale_changed_events,
                 );
-                pending_language_change.0 = None;
+                params.pending_language_change.0 = None;
                 if published {
-                    redraw_events.write(RequestRedraw);
-                    *last_current_bundle = Some((
+                    params.redraw_events.write(RequestRedraw);
+                    *params.last_current_bundle = Some((
                         pending_language.requested,
                         pending_language.resolved,
                         pending_bundle_id,
                     ));
                 } else {
-                    *last_current_bundle =
+                    *params.last_current_bundle =
                         Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
                 }
                 return;
@@ -77,13 +85,16 @@ pub(crate) fn sync_global_state(
             // Re-emit the active locale only after an accepted bundle exists for it,
             // so `RefreshForLocale` registrations refresh after async loads complete
             // and current-locale hot reloads, but not after rejected rebuilds.
-            locale_changed_events.write(LocaleChangedEvent(current_lang.clone()));
+            params
+                .locale_changed_events
+                .write(LocaleChangedEvent(current_lang.clone()));
             // Request a redraw so that UI updates even when using WinitSettings::desktop_app()
-            redraw_events.write(RequestRedraw);
+            params.redraw_events.write(RequestRedraw);
         }
     }
 
-    *last_current_bundle = Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
+    *params.last_current_bundle =
+        Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
 }
 
 #[cfg(test)]

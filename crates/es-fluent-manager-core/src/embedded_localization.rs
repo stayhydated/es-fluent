@@ -247,7 +247,7 @@ fn embedded_resource_from_asset_path(
         return language
             .parse::<LanguageIdentifier>()
             .ok()
-            .and_then(|lang| (language == lang.to_string()).then_some((lang, None)));
+            .and_then(|lang| (lang == language).then_some((lang, None)));
     }
 
     if next != domain {
@@ -267,9 +267,7 @@ fn embedded_resource_from_asset_path(
             language
                 .parse::<LanguageIdentifier>()
                 .ok()
-                .and_then(|lang| {
-                    (language == lang.to_string()).then_some((lang, Some(namespace.to_string())))
-                })
+                .and_then(|lang| (lang == language).then_some((lang, Some(namespace.to_string()))))
         })
         .flatten()
 }

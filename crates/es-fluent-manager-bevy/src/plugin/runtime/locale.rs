@@ -3,6 +3,7 @@ use crate::{
     BundleBuildFailures, CurrentLanguageId, I18nAssets, I18nBundle, I18nResource,
     LanguageSelection, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
 };
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use es_fluent_manager_core::resolve_fallback_language;
 use std::collections::HashSet;
@@ -43,6 +44,17 @@ enum RequestedLanguageResolution {
     Pending(LanguageSelection),
     Blocked(LanguageSelection),
     Immediate(LanguageSelection),
+}
+
+#[derive(SystemParam)]
+pub(crate) struct LocaleChangeParams<'w> {
+    locale_changed_events: MessageWriter<'w, LocaleChangedEvent>,
+    i18n_resource: ResMut<'w, I18nResource>,
+    i18n_bundle: Res<'w, I18nBundle>,
+    i18n_assets: Res<'w, I18nAssets>,
+    bundle_build_failures: Res<'w, BundleBuildFailures>,
+    current_language_id: ResMut<'w, CurrentLanguageId>,
+    pending_language_change: ResMut<'w, PendingLanguageChange>,
 }
 
 fn resolve_requested_language(
@@ -125,45 +137,39 @@ fn resolve_requested_language(
 #[doc(hidden)]
 pub(crate) fn handle_locale_changes(
     mut locale_change_events: MessageReader<LocaleChangeEvent>,
-    mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
-    mut i18n_resource: ResMut<I18nResource>,
-    i18n_bundle: Res<I18nBundle>,
-    i18n_assets: Res<I18nAssets>,
-    bundle_build_failures: Res<BundleBuildFailures>,
-    mut current_language_id: ResMut<CurrentLanguageId>,
-    mut pending_language_change: ResMut<PendingLanguageChange>,
+    mut params: LocaleChangeParams,
 ) {
     for event in locale_change_events.read() {
         info!("Changing locale to: {}", event.0);
         let resolution = resolve_requested_language(
             &event.0,
-            &i18n_bundle,
-            &i18n_assets,
-            &bundle_build_failures,
+            &params.i18n_bundle,
+            &params.i18n_assets,
+            &params.bundle_build_failures,
         );
 
         match resolution {
             RequestedLanguageResolution::Ready(selection)
             | RequestedLanguageResolution::Immediate(selection) => {
-                pending_language_change.0 = None;
+                params.pending_language_change.0 = None;
                 apply_selected_language(
                     &selection,
-                    &mut i18n_resource,
-                    &mut current_language_id,
-                    &mut locale_changed_events,
+                    &mut params.i18n_resource,
+                    &mut params.current_language_id,
+                    &mut params.locale_changed_events,
                 );
             },
             RequestedLanguageResolution::Pending(selection) => {
-                if pending_language_change.0.as_ref() != Some(&selection) {
+                if params.pending_language_change.0.as_ref() != Some(&selection) {
                     info!(
                         "Deferring locale change to '{}' until Fluent bundle '{}' is ready",
                         selection.requested, selection.resolved
                     );
                 }
-                pending_language_change.0 = Some(selection);
+                params.pending_language_change.0 = Some(selection);
             },
             RequestedLanguageResolution::Blocked(selection) => {
-                if let Some(pending_language) = pending_language_change.0.take() {
+                if let Some(pending_language) = params.pending_language_change.0.take() {
                     info!(
                         "Clearing deferred locale change to '{}' because a later request for blocked locale '{}' superseded it",
                         pending_language.requested, selection.requested

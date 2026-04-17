@@ -85,7 +85,7 @@ fn available_languages() -> &'static HashSet<LanguageIdentifier> {
             if let Some((lang, file_name)) = path.rsplit_once('/')
                 && file_name == I18N_RESOURCE_NAME
                 && let Ok(lang_id) = lang.parse::<LanguageIdentifier>()
-                && lang == lang_id.to_string()
+                && lang_id == lang
             {
                 set.insert(lang_id);
             }
