@@ -4087,6 +4087,7 @@ dependencies = [
 name = "es-fluent-toml"
 version = "0.15.0"
 dependencies = [
+ "es-fluent-shared",
  "serde",
  "tempfile",
  "thiserror 2.0.18",

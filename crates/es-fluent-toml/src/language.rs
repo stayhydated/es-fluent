@@ -1,4 +1,5 @@
 use crate::I18nConfigError;
+use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
 use std::{fs, io};
 use unic_langid::LanguageIdentifier;
 
@@ -30,19 +31,23 @@ pub(crate) fn parse_language_entry(
         ))
     })?;
 
-    let lang = name.parse::<LanguageIdentifier>().map_err(|source| {
-        I18nConfigError::InvalidLanguageIdentifier {
-            name: name.clone(),
-            source,
-        }
+    let lang = parse_canonical_language_identifier(&name).map_err(|err| match err {
+        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+            I18nConfigError::InvalidLanguageIdentifier {
+                name: name.clone(),
+                source,
+            }
+        },
+        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+            I18nConfigError::NonCanonicalLanguageIdentifier {
+                name: name.clone(),
+                canonical,
+            }
+        },
     })?;
-    let canonical = lang.to_string();
-    if canonical != name {
-        return Err(I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical });
-    }
 
     Ok(Some(ParsedLanguageEntry {
-        raw_name: canonical,
+        raw_name: name,
         language: lang,
     }))
 }

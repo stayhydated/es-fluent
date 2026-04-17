@@ -5,6 +5,7 @@ mod language;
 
 use language::parse_language_entry;
 
+use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
 use serde::{Deserialize, Serialize};
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
@@ -227,23 +228,8 @@ impl I18nConfig {
         let content = fs::read_to_string(path)?;
 
         let mut config: I18nConfig = toml::from_str(&content)?;
-        let fallback_language = config
-            .fallback_language
-            .parse::<LanguageIdentifier>()
-            .map_err(
-                |source| I18nConfigError::InvalidFallbackLanguageIdentifier {
-                    name: config.fallback_language.clone(),
-                    source,
-                },
-            )?;
-        let canonical_fallback = fallback_language.to_string();
-        if canonical_fallback != config.fallback_language {
-            return Err(I18nConfigError::NonCanonicalFallbackLanguageIdentifier {
-                name: config.fallback_language,
-                canonical: canonical_fallback,
-            });
-        }
-        config.fallback_language = canonical_fallback;
+        config.fallback_language =
+            parse_fallback_language_identifier(&config.fallback_language)?.to_string();
 
         Ok(config)
     }
@@ -286,17 +272,7 @@ impl I18nConfig {
 
     /// Returns the configured fallback language as a `LanguageIdentifier`.
     pub fn fallback_language_identifier(&self) -> Result<LanguageIdentifier, I18nConfigError> {
-        let lang = self
-            .fallback_language
-            .parse::<LanguageIdentifier>()
-            .map_err(
-                |source| I18nConfigError::InvalidFallbackLanguageIdentifier {
-                    name: self.fallback_language.clone(),
-                    source,
-                },
-            )?;
-
-        Ok(lang)
+        parse_fallback_language_identifier(&self.fallback_language)
     }
 
     /// Returns the languages available under the assets directory.
@@ -399,6 +375,23 @@ impl I18nConfig {
         let assets_dir = config.assets_dir_from_base(Some(manifest_dir))?;
         Ok(assets_dir.join(&config.fallback_language))
     }
+}
+
+fn parse_fallback_language_identifier(value: &str) -> Result<LanguageIdentifier, I18nConfigError> {
+    parse_canonical_language_identifier(value).map_err(|err| match err {
+        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+            I18nConfigError::InvalidFallbackLanguageIdentifier {
+                name: value.to_string(),
+                source,
+            }
+        },
+        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+            I18nConfigError::NonCanonicalFallbackLanguageIdentifier {
+                name: value.to_string(),
+                canonical,
+            }
+        },
+    })
 }
 
 fn collect_language_entries(

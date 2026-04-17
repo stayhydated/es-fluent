@@ -12,6 +12,7 @@ rust-version.workspace = true
 readme = "README.md"
 
 [dependencies]
+es-fluent-shared = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 thiserror = { workspace = true }
 toml = { workspace = true }

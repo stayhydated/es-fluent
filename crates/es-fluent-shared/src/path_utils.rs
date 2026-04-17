@@ -1,6 +1,7 @@
 //! Common path utilities for the es-fluent ecosystem.
 
 use crate::error::{EsFluentError, EsFluentResult};
+use crate::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
 use std::path::Path;
 
 /// Parse a directory entry as a language identifier.
@@ -21,21 +22,20 @@ pub fn parse_language_entry(
         ))
     })?;
 
-    let lang = name
-        .parse::<unic_langid::LanguageIdentifier>()
-        .map_err(|e| {
-            EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", e))
-        })?;
-    let canonical = lang.to_string();
-    if canonical != name {
-        return Err(EsFluentError::invalid_language_identifier(
-            &name,
-            format!(
-                "Locale directory must use canonical BCP-47 casing '{}'",
-                canonical
-            ),
-        ));
-    }
+    let lang = parse_canonical_language_identifier(&name).map_err(|err| match err {
+        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+            EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", source))
+        },
+        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+            EsFluentError::invalid_language_identifier(
+                &name,
+                format!(
+                    "Locale directory must use canonical BCP-47 casing '{}'",
+                    canonical
+                ),
+            )
+        },
+    })?;
 
     Ok(Some(lang))
 }
