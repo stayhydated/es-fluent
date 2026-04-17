@@ -93,8 +93,8 @@ Responsible for the actual string formatting logic.
 - Holds the loaded `FluentResource`s.
 - Wraps `fluent-bundle` logic.
 - Locale negotiation is centralized in the shared fallback helpers, which use
-  ICU4X locale fallback data plus `fluent-langneg` lookup instead of
-  hand-rolled subtag stripping.
+  ICU4X locale fallback data to build a CLDR-backed parent chain and pick the
+  first populated locale instead of hand-rolled subtag stripping.
 - `FluentManager::select_language()` is best-effort for unsupported locales:
   modules that reject a locale with `LanguageNotSupported` are skipped as long
   as at least one module accepts it.

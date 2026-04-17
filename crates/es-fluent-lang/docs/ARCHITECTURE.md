@@ -48,9 +48,9 @@ By default, the crate embeds the single `es-fluent-lang.ftl` autonym file (langu
 These resources are regenerated from ICU4X data with `cargo xtask generate-lang-names`.
 
 The localizer delegates locale fallback to the shared manager-core path, which
-combines ICU4X locale fallback data with `fluent-langneg` lookup. That means
-language-name resources can resolve both parent locales (for example,
-`zh-CN` -> `zh`) and Fluent-style best matches against the embedded locale set.
+uses ICU4X locale fallback data to walk a CLDR-backed parent chain. That means
+language-name resources can resolve parent locales (for example, `zh-CN` ->
+`zh`) without treating fallback as a separate best-fit locale negotiation step.
 
 ### Manager Integration
 

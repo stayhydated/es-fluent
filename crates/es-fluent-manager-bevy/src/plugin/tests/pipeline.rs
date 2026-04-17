@@ -754,7 +754,7 @@ fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
 }
 
 #[test]
-fn plugin_pipeline_blocked_exact_request_does_not_downgrade_to_ready_fallback() {
+fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
     let _guard = lock_bevy_global_state();
     let en = langid!("en");
     let fr = langid!("fr");
@@ -881,9 +881,13 @@ fn plugin_pipeline_blocked_exact_request_does_not_downgrade_to_ready_fallback() 
 
     assert_eq!(
         app.world().resource::<I18nResource>().current_language(),
-        &en
+        &fr_ca
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+    assert_eq!(
+        app.world().resource::<I18nResource>().resolved_language(),
+        &fr
+    );
+    assert_eq!(app.world().resource::<CurrentLanguageId>().0, fr_ca);
     assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
     let blocked_locale_changes = {
         let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -892,7 +896,7 @@ fn plugin_pipeline_blocked_exact_request_does_not_downgrade_to_ready_fallback() 
             .map(|message| message.0.clone())
             .collect::<Vec<_>>()
     };
-    assert!(blocked_locale_changes.is_empty());
+    assert_eq!(blocked_locale_changes, vec![fr_ca.clone()]);
     let blocked_redraw_count = {
         let messages = app.world().resource::<Messages<RequestRedraw>>();
         redraw_cursor.read(&messages).count()
@@ -900,12 +904,12 @@ fn plugin_pipeline_blocked_exact_request_does_not_downgrade_to_ready_fallback() 
     assert_eq!(blocked_redraw_count, 0);
     assert_eq!(
         &app.world().get::<Text>(entity).expect("text").0,
-        "en",
-        "a blocked exact locale must not downgrade to a lower-priority ready fallback"
+        "fr-CA",
+        "locale-aware UI should refresh with the requested locale even when bundle lookup falls back"
     );
     assert_eq!(
         bevy_custom_localizer(None, "hello", None),
-        Some("Hello".to_string())
+        Some("Bonjour".to_string())
     );
 
     app.world_mut()
@@ -947,18 +951,22 @@ fn plugin_pipeline_blocked_exact_request_does_not_downgrade_to_ready_fallback() 
     assert_eq!(repaired_redraw_count, 0);
     assert_eq!(
         app.world().resource::<I18nResource>().current_language(),
-        &en
+        &fr_ca
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+    assert_eq!(
+        app.world().resource::<I18nResource>().resolved_language(),
+        &fr
+    );
+    assert_eq!(app.world().resource::<CurrentLanguageId>().0, fr_ca);
     assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
     assert_eq!(
         &app.world().get::<Text>(entity).expect("text").0,
-        "en",
+        "fr-CA",
         "repairing a previously blocked exact locale should not switch unless the caller requests it again"
     );
     assert_eq!(
         bevy_custom_localizer(None, "hello", None),
-        Some("Hello".to_string())
+        Some("Bonjour".to_string())
     );
 }
 

@@ -4060,7 +4060,6 @@ dependencies = [
  "es-fluent-shared",
  "fluent-bundle",
  "fluent-fallback",
- "fluent-langneg 0.14.2",
  "icu_locale",
  "intl-memoizer",
  "inventory",
@@ -4343,7 +4342,7 @@ checksum = "79c3c892f121fff406e5dd6b28c1b30096b95111c30701a899d4f2b18da6d1bd"
 dependencies = [
  "displaydoc",
  "smallvec",
- "writeable 0.6.3",
+ "writeable",
 ]
 
 [[package]]
@@ -4392,7 +4391,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01203cb8918f5711e73891b347816d932046f95f54207710bda99beaeb423bf4"
 dependencies = [
- "fluent-langneg 0.13.1",
+ "fluent-langneg",
  "fluent-syntax",
  "intl-memoizer",
  "intl_pluralrules",
@@ -4425,15 +4424,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7eebbe59450baee8282d71676f3bfed5689aeab00b27545e83e5f14b1195e8b0"
 dependencies = [
  "unic-langid",
-]
-
-[[package]]
-name = "fluent-langneg"
-version = "0.14.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d5439a5e4ef14dc761bfe1d6ecbc4ba6fd698814ee65e7e623fa85aa9348dcc"
-dependencies = [
- "icu_locid",
 ]
 
 [[package]]
@@ -5728,7 +5718,7 @@ dependencies = [
  "icu_properties",
  "icu_provider",
  "potential_utf",
- "writeable 0.6.3",
+ "writeable",
  "zerovec",
 ]
 
@@ -5767,7 +5757,7 @@ dependencies = [
  "icu_pattern",
  "icu_plurals",
  "icu_provider",
- "writeable 0.6.3",
+ "writeable",
  "zerovec",
 ]
 
@@ -5798,14 +5788,14 @@ dependencies = [
  "icu_plurals",
  "icu_properties",
  "icu_provider",
- "litemap 0.8.2",
+ "litemap",
  "num-bigint",
  "num-rational",
  "num-traits",
  "potential_utf",
  "smallvec",
- "tinystr 0.8.3",
- "writeable 0.6.3",
+ "tinystr",
+ "writeable",
  "zerotrie",
  "zerovec",
 ]
@@ -5826,7 +5816,7 @@ dependencies = [
  "icu_locale",
  "icu_provider",
  "regex-automata",
- "writeable 0.6.3",
+ "writeable",
  "zerovec",
 ]
 
@@ -5847,7 +5837,7 @@ dependencies = [
  "icu_locale_data",
  "icu_provider",
  "potential_utf",
- "tinystr 0.8.3",
+ "tinystr",
  "zerovec",
 ]
 
@@ -5858,10 +5848,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92219b62b3e2b4d88ac5119f8904c10f8f61bf7e95b640d25ba3075e6cac2c29"
 dependencies = [
  "displaydoc",
- "litemap 0.8.2",
+ "litemap",
  "serde",
- "tinystr 0.8.3",
- "writeable 0.6.3",
+ "tinystr",
+ "writeable",
  "zerovec",
 ]
 
@@ -5870,18 +5860,6 @@ name = "icu_locale_data"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5fdcc9ac77c6d74ff5cf6e65ef3181d6af32003b16fce3a77fb451d2f695993"
-
-[[package]]
-name = "icu_locid"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13acbb8371917fc971be86fc8057c41a64b521c184808a698c02acc242dbf637"
-dependencies = [
- "displaydoc",
- "litemap 0.7.5",
- "tinystr 0.7.6",
- "writeable 0.5.5",
-]
 
 [[package]]
 name = "icu_normalizer"
@@ -5912,7 +5890,7 @@ dependencies = [
  "displaydoc",
  "either",
  "serde",
- "writeable 0.6.3",
+ "writeable",
  "yoke",
  "zerovec",
 ]
@@ -5967,7 +5945,7 @@ dependencies = [
  "icu_locale_core",
  "serde",
  "stable_deref_trait",
- "writeable 0.6.3",
+ "writeable",
  "yoke",
  "zerofrom",
  "zerotrie",
@@ -6652,12 +6630,6 @@ name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
-
-[[package]]
-name = "litemap"
-version = "0.7.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23fb14cb19457329c82206317a5663005a4d404783dc74f4252769b0d5f42856"
 
 [[package]]
 name = "litemap"
@@ -8533,7 +8505,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0103b1cef7ec0cf76490e969665504990193874ea05c85ff9bab8b911d0a0564"
 dependencies = [
  "serde_core",
- "writeable 0.6.3",
+ "writeable",
  "zerovec",
 ]
 
@@ -10645,15 +10617,6 @@ dependencies = [
 
 [[package]]
 name = "tinystr"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9117f5d4db391c1cf6927e7bea3db74b9a1c1add8f7eda9ffd5364f40f57b82f"
-dependencies = [
- "displaydoc",
-]
-
-[[package]]
-name = "tinystr"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8323304221c2a851516f22236c5722a72eaa19749016521d6dff0824447d96d"
@@ -11019,7 +10982,7 @@ version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dce1bf08044d4b7a94028c93786f8566047edc11110595914de93362559bc658"
 dependencies = [
- "tinystr 0.8.3",
+ "tinystr",
 ]
 
 [[package]]
@@ -11029,7 +10992,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5957eb82e346d7add14182a3315a7e298f04e1ba4baac36f7f0dbfedba5fc25"
 dependencies = [
  "proc-macro-hack",
- "tinystr 0.8.3",
+ "tinystr",
  "unic-langid-impl",
  "unic-langid-macros-impl",
 ]
@@ -12944,12 +12907,6 @@ name = "workspace-hack"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "beffa227304dbaea3ad6a06ac674f9bc83a3dec3b7f63eeb442de37e7cb6bb01"
-
-[[package]]
-name = "writeable"
-version = "0.5.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9df38ee2d2c3c5948ea468a8406ff0db0b29ae1ffde1bcf20ef305bcc95c51"
 
 [[package]]
 name = "writeable"

@@ -1,7 +1,4 @@
 use fluent_fallback::env::LocalesProvider;
-use fluent_langneg::{
-    LanguageIdentifier as FluentLanguageIdentifier, NegotiationStrategy, negotiate_languages,
-};
 use icu_locale::{Locale, fallback::LocaleFallbacker};
 use unic_langid::LanguageIdentifier;
 
@@ -10,10 +7,6 @@ fn sorted_languages(languages: &[LanguageIdentifier]) -> Vec<LanguageIdentifier>
     languages.sort_by_key(|lang| lang.to_string());
     languages.dedup();
     languages
-}
-
-fn to_fluent_language_identifier(lang: &LanguageIdentifier) -> Option<FluentLanguageIdentifier> {
-    lang.to_string().parse().ok()
 }
 
 /// Returns language candidates in fallback order for the requested language.
@@ -55,7 +48,7 @@ pub fn locale_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifi
     locales
 }
 
-/// Returns a Fluent-style fallback locale list for the requested language.
+/// Returns a CLDR-backed fallback locale list for the requested language.
 pub fn fallback_locales(requested: &LanguageIdentifier) -> impl LocalesProvider {
     locale_candidates(requested)
 }
@@ -66,27 +59,10 @@ pub fn resolve_fallback_language(
     available: &[LanguageIdentifier],
 ) -> Option<LanguageIdentifier> {
     let available = sorted_languages(available);
-    let requested = to_fluent_language_identifier(requested)?;
-    let available: Vec<_> = available
-        .into_iter()
-        .filter_map(|lang| to_fluent_language_identifier(&lang).map(|converted| (lang, converted)))
-        .collect();
-    let available_fluent: Vec<_> = available.iter().map(|(_, lang)| lang).collect();
 
-    negotiate_languages(
-        std::slice::from_ref(&requested),
-        &available_fluent,
-        None,
-        NegotiationStrategy::Lookup,
-    )
-    .into_iter()
-    .next()
-    .and_then(|resolved| {
-        available
-            .iter()
-            .find(|(_, lang)| lang == *resolved)
-            .map(|(lang, _)| lang.clone())
-    })
+    locale_candidates(requested)
+        .into_iter()
+        .find(|candidate| available.iter().any(|lang| lang == candidate))
 }
 
 /// Picks the best locale for active use, preferring ready locales over merely available locales.
@@ -171,14 +147,11 @@ mod tests {
     }
 
     #[test]
-    fn resolve_fallback_uses_fluent_lookup_for_base_locale_requests() {
+    fn resolve_fallback_returns_none_for_generic_request_without_parent_match() {
         let requested = langid!("en");
-        let available = vec![langid!("en-US"), langid!("fr")];
+        let available = vec![langid!("en-US"), langid!("en-CA")];
 
-        assert_eq!(
-            resolve_fallback_language(&requested, &available),
-            Some(langid!("en-US"))
-        );
+        assert_eq!(resolve_fallback_language(&requested, &available), None);
     }
 
     #[test]
@@ -211,6 +184,28 @@ mod tests {
                 langid!("de-1901"),
                 langid!("de"),
             ]
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_uses_documented_candidate_order() {
+        let requested = langid!("hi-Latn-IN");
+        let available = vec![langid!("en"), langid!("en-001")];
+
+        assert_eq!(
+            resolve_fallback_language(&requested, &available),
+            Some(langid!("en-001"))
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_normalizes_unsorted_duplicate_available_languages() {
+        let requested = langid!("en-US");
+        let available = vec![langid!("fr"), langid!("en"), langid!("fr"), langid!("en")];
+
+        assert_eq!(
+            resolve_fallback_language(&requested, &available),
+            Some(langid!("en"))
         );
     }
 }

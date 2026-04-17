@@ -68,7 +68,6 @@ es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.15.0" }
 es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.15.0" }
 fluent-bundle = "0.16"
 fluent-fallback = "0.7"
-fluent-langneg = "0.14"
 fluent-syntax = "0.12"
 fs-err = "3.3"
 getset = "0.1"
