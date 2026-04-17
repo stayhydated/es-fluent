@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+expression: struct_tokens
+---
+:: core :: compile_error ! { "Unexpected type `expected string literal, 'file', or 'folder'`" }

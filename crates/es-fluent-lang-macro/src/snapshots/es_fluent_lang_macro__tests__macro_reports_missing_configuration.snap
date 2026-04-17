@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-lang-macro/src/lib.rs
+expression: "normalize_output(&output, manifest_dir)"
+---
+:: core :: compile_error ! { "failed to read i18n configuration: i18n.toml configuration file not found" }

@@ -326,7 +326,7 @@ impl I18nAssets {
 #[serial_test::serial(manifest)]
 mod tests {
     use super::*;
-    use insta::assert_debug_snapshot;
+    use insta::{assert_debug_snapshot, assert_snapshot};
     use quote::quote;
     use tempfile::tempdir;
 
@@ -337,6 +337,19 @@ mod tests {
     fn snapshot_assets(mut assets: I18nAssets) -> I18nAssets {
         assets.root_path = std::path::PathBuf::from("<assets>");
         assets
+    }
+
+    fn normalize_temp_paths(text: &str, manifest_dir: &std::path::Path) -> String {
+        let manifest = manifest_dir.to_string_lossy();
+        let manifest_escaped = manifest.replace('\\', "\\\\");
+        let config = manifest_dir.join("i18n.toml");
+        let config = config.to_string_lossy();
+        let config_escaped = config.replace('\\', "\\\\");
+
+        text.replace(config.as_ref(), "<manifest-dir>/i18n.toml")
+            .replace(config_escaped.as_str(), "<manifest-dir>/i18n.toml")
+            .replace(manifest.as_ref(), "<manifest-dir>")
+            .replace(manifest_escaped.as_str(), "<manifest-dir>")
     }
 
     fn write_manifest(manifest_dir: &std::path::Path, assets_dir: &str) {
@@ -361,7 +374,7 @@ mod tests {
 
         with_env_var("CARGO_PKG_NAME", None, || {
             let err = current_crate_name().expect_err("missing env should fail");
-            assert!(err.to_string().contains("CARGO_PKG_NAME must be set"));
+            assert_snapshot!("current_crate_name_reports_missing_env", err.to_string());
         });
     }
 
@@ -443,7 +456,10 @@ mod tests {
             let err = I18nAssets::load("my-crate")
                 .err()
                 .expect("missing config should fail");
-            assert!(err.to_string().contains("No i18n.toml"));
+            assert_snapshot!(
+                "i18n_assets_load_reports_missing_configuration",
+                normalize_temp_paths(&err.to_string(), missing_temp.path())
+            );
         });
 
         let invalid_temp = tempdir().expect("tempdir");
@@ -452,9 +468,9 @@ mod tests {
             let err = I18nAssets::load("my-crate")
                 .err()
                 .expect("invalid assets should fail");
-            assert!(
-                err.to_string()
-                    .contains("Assets directory validation failed")
+            assert_snapshot!(
+                "i18n_assets_load_reports_invalid_assets_directory",
+                normalize_temp_paths(&err.to_string(), invalid_temp.path())
             );
         });
     }
@@ -472,8 +488,10 @@ mod tests {
             let err = I18nAssets::load("my-crate")
                 .err()
                 .expect("noncanonical locale dir should fail");
-            assert!(err.to_string().contains("en-us"));
-            assert!(err.to_string().contains("en-US"));
+            assert_snapshot!(
+                "i18n_assets_load_rejects_noncanonical_locale_directories",
+                normalize_temp_paths(&err.to_string(), temp.path())
+            );
         });
     }
 }

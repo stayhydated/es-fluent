@@ -60,8 +60,18 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
 #[serial_test::serial(manifest)]
 mod tests {
     use super::expand_es_fluent;
+    use insta::assert_snapshot;
+    use proc_macro2::TokenStream;
     use std::time::{SystemTime, UNIX_EPOCH};
     use syn::parse_quote;
+
+    fn normalized_tokens(tokens: TokenStream) -> String {
+        tokens
+            .to_string()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 
     fn with_manifest_dir<T>(namespaces: &[&str], f: impl FnOnce() -> T) -> T {
         let unique = SystemTime::now()
@@ -105,16 +115,19 @@ mod tests {
                 Ready,
             }
         };
-        let enum_tokens = expand_es_fluent(enum_input).to_string();
-        assert!(enum_tokens.contains("impl"));
+        let enum_tokens = normalized_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!("expand_es_fluent_generates_tokens_for_enum", enum_tokens);
 
         let struct_input: syn::DeriveInput = parse_quote! {
             struct User {
                 id: u64
             }
         };
-        let struct_tokens = expand_es_fluent(struct_input).to_string();
-        assert!(struct_tokens.contains("impl"));
+        let struct_tokens = normalized_tokens(expand_es_fluent(struct_input));
+        assert_snapshot!(
+            "expand_es_fluent_generates_tokens_for_struct",
+            struct_tokens
+        );
     }
 
     #[test]
@@ -125,8 +138,11 @@ mod tests {
                 A
             }
         };
-        let enum_tokens = expand_es_fluent(enum_input).to_string();
-        assert!(enum_tokens.contains("compile_error"));
+        let enum_tokens = normalized_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_errors_for_bad_enum_attribute",
+            enum_tokens
+        );
 
         let struct_input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = 123)]
@@ -134,8 +150,11 @@ mod tests {
                 a: i32
             }
         };
-        let struct_tokens = expand_es_fluent(struct_input).to_string();
-        assert!(struct_tokens.contains("compile_error"));
+        let struct_tokens = normalized_tokens(expand_es_fluent(struct_input));
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_errors_for_bad_struct_attribute",
+            struct_tokens
+        );
     }
 
     #[test]
@@ -200,8 +219,8 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(tokens.contains("\"value\""));
+        let tokens = normalized_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!("expand_es_fluent_emits_field_level_tuple_arg_name", tokens);
     }
 
     #[test]
@@ -212,9 +231,11 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(tokens.contains("\"f1\""));
-        assert!(tokens.contains("\"f2\""));
+        let tokens = normalized_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override",
+            tokens
+        );
     }
 
     #[test]
@@ -227,10 +248,11 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(tokens.contains("localize_in_domain"));
-        assert!(tokens.contains("\"es-fluent-lang\""));
-        assert!(tokens.contains("es-fluent-lang-en"));
+        let tokens = normalized_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_uses_explicit_domain_override_for_enum_lookup",
+            tokens
+        );
     }
 
     #[test]
@@ -241,7 +263,10 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(!tokens.contains("__es_fluent_arg_keys"));
+        let tokens = normalized_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_handles_tuple_variant_with_all_fields_skipped",
+            tokens
+        );
     }
 }

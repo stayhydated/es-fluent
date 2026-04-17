@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive/src/macros/ir.rs
+expression: rendered
+---
+let mut args = :: std :: collections :: HashMap :: new () ; args . insert ("name" , :: std :: convert :: Into :: into ("Alice")) ; write ! (f , "{}" , :: es_fluent :: localize_in_domain (env ! ("CARGO_PKG_NAME") , "welcome_message" , Some (& args) ,))

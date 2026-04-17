@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive-core/tests/validation_tests.rs
+expression: err.to_string()
+---
+Variant 'Something' error: duplicate field arg_name 'same' in variant fields

@@ -365,12 +365,13 @@ fn expand_es_fluent_language(
 mod tests {
     use super::expand_es_fluent_language;
     use insta::assert_snapshot;
+    use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn with_manifest_dir<T>(
         manifest_toml: Option<&str>,
         locale_dirs: &[&str],
-        f: impl FnOnce() -> T,
+        f: impl FnOnce(&Path) -> T,
     ) -> T {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -392,7 +393,9 @@ mod tests {
         }
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), f)
+            temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), || {
+                f(&manifest_dir)
+            })
         }));
         let _ = std::fs::remove_dir_all(&manifest_dir);
 
@@ -416,40 +419,74 @@ mod tests {
         output.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 
+    fn normalize_output(output: &str, manifest_dir: &Path) -> String {
+        let manifest = manifest_dir.to_string_lossy();
+        let manifest_escaped = manifest.replace('\\', "\\\\");
+        let i18n = manifest_dir.join("i18n.toml");
+        let i18n = i18n.to_string_lossy();
+        let i18n_escaped = i18n.replace('\\', "\\\\");
+
+        normalized_tokens(
+            &output
+                .replace(i18n.as_ref(), "<manifest-dir>/i18n.toml")
+                .replace(i18n_escaped.as_str(), "<manifest-dir>/i18n.toml")
+                .replace(manifest.as_ref(), "<manifest-dir>")
+                .replace(manifest_escaped.as_str(), "<manifest-dir>"),
+        )
+    }
+
     #[test]
     fn macro_rejects_invalid_attribute_arguments_and_input_shapes() {
         let invalid_attr = run_macro("bad", "enum Languages {}");
-        assert!(invalid_attr.contains("only accepts `custom`"));
+        assert_snapshot!(
+            "macro_rejects_invalid_attribute_arguments",
+            normalized_tokens(&invalid_attr)
+        );
 
         let generic_enum = run_macro("", "enum Languages<T> {}");
-        assert!(generic_enum.contains("does not support generic enums"));
+        assert_snapshot!(
+            "macro_rejects_generic_enums",
+            normalized_tokens(&generic_enum)
+        );
 
         let enum_with_variants = run_macro("", "enum Languages { En }");
-        assert!(enum_with_variants.contains("expects an enum without variants"));
+        assert_snapshot!(
+            "macro_rejects_enums_with_variants",
+            normalized_tokens(&enum_with_variants)
+        );
     }
 
     #[test]
     fn macro_reports_configuration_and_language_discovery_errors() {
-        with_manifest_dir(None, &[], || {
+        with_manifest_dir(None, &[], |manifest_dir| {
             let output = run_macro("", "enum MissingConfig {}");
-            assert!(output.contains("failed to read i18n configuration"));
+            assert_snapshot!(
+                "macro_reports_missing_configuration",
+                normalize_output(&output, manifest_dir)
+            );
         });
 
         with_manifest_dir(
             Some("fallback_language = \"en-US\"\nassets_dir = \"missing\"\n"),
             &[],
-            || {
+            |manifest_dir| {
                 let output = run_macro("", "enum MissingAssets {}");
-                assert!(output.contains("failed to collect available languages"));
+                assert_snapshot!(
+                    "macro_reports_missing_assets_directory",
+                    normalize_output(&output, manifest_dir)
+                );
             },
         );
 
         with_manifest_dir(
             Some("fallback_language = \"not-a-lang\"\nassets_dir = \"i18n\"\n"),
             &["en"],
-            || {
+            |manifest_dir| {
                 let output = run_macro("", "enum BadFallback {}");
-                assert!(output.contains("failed to read i18n configuration"));
+                assert_snapshot!(
+                    "macro_reports_invalid_fallback_configuration",
+                    normalize_output(&output, manifest_dir)
+                );
             },
         );
     }
@@ -459,7 +496,7 @@ mod tests {
         with_manifest_dir(
             Some("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n"),
             &["fr"],
-            || {
+            |_| {
                 let default_mode = run_macro("", "enum Languages {}");
                 assert_snapshot!(
                     "macro_adds_missing_fallback_default_mode",
@@ -480,7 +517,7 @@ mod tests {
         with_manifest_dir(
             Some("fallback_language = \"en\"\nassets_dir = \"i18n\"\n"),
             &["fr-FR", "zh-CN"],
-            || {
+            |_| {
                 let default_mode = run_macro("", "enum Languages {}");
                 assert_snapshot!(
                     "macro_uses_supported_lookup_keys_default_mode",
@@ -501,14 +538,18 @@ mod tests {
         with_manifest_dir(
             Some("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n"),
             &["zz"],
-            || {
+            |_| {
                 let output = run_macro("", "enum Unsupported {}");
-                assert!(output.contains("unsupported languages in assets"));
-                assert!(output.contains("zz"));
+                assert_snapshot!(
+                    "macro_rejects_unsupported_languages_default_mode",
+                    normalized_tokens(&output)
+                );
 
                 let custom_output = run_macro("custom", "enum CustomUnsupported {}");
-                assert!(!custom_output.contains("unsupported languages in assets"));
-                assert!(custom_output.contains("key = \"zz\""));
+                assert_snapshot!(
+                    "macro_rejects_unsupported_languages_custom_mode",
+                    normalized_tokens(&custom_output)
+                );
             },
         );
     }

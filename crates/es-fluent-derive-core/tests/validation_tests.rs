@@ -7,11 +7,26 @@ use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_derive_core::validation::{
     validate_enum, validate_namespace, validate_namespace_against_allowed, validate_struct,
 };
+use insta::assert_snapshot;
+use std::path::Path;
 use syn::{DeriveInput, parse_quote};
 use tempfile::tempdir;
 
 fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
     temp_env::with_var("CARGO_MANIFEST_DIR", manifest_dir, f)
+}
+
+fn normalize_temp_paths(text: &str, manifest_dir: &Path) -> String {
+    let manifest = manifest_dir.to_string_lossy();
+    let manifest_escaped = manifest.replace('\\', "\\\\");
+    let config = manifest_dir.join("i18n.toml");
+    let config = config.to_string_lossy();
+    let config_escaped = config.replace('\\', "\\\\");
+
+    text.replace(config.as_ref(), "<manifest-dir>/i18n.toml")
+        .replace(config_escaped.as_str(), "<manifest-dir>/i18n.toml")
+        .replace(manifest.as_ref(), "<manifest-dir>")
+        .replace(manifest_escaped.as_str(), "<manifest-dir>")
 }
 
 mod validate_struct_tests {
@@ -32,9 +47,10 @@ mod validate_struct_tests {
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         let err = validate_struct(&opts).expect_err("Expected validation error");
 
-        let err_msg = err.to_string();
-        assert!(err_msg.contains("multiple fields"));
-        assert!(err_msg.contains("field1"));
+        assert_snapshot!(
+            "validate_struct_multiple_defaults_produces_error",
+            err.to_string()
+        );
     }
 
     #[test]
@@ -52,8 +68,10 @@ mod validate_struct_tests {
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         let err = validate_struct(&opts).expect_err("Expected validation error");
 
-        let err_msg = err.to_string();
-        assert!(err_msg.contains("multiple fields"));
+        assert_snapshot!(
+            "validate_struct_multiple_defaults_tuple_struct_produces_error",
+            err.to_string()
+        );
     }
 
     #[test]
@@ -106,9 +124,10 @@ mod validate_struct_tests {
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         let err = validate_struct(&opts).expect_err("Expected validation error");
 
-        let err_msg = err.to_string();
-        assert!(err_msg.contains("skip"));
-        assert!(err_msg.contains("default"));
+        assert_snapshot!(
+            "validate_struct_skip_and_default_conflict_produces_error",
+            err.to_string()
+        );
     }
 
     #[test]
@@ -153,9 +172,7 @@ mod validate_struct_tests {
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         let err = validate_struct(&opts).expect_err("Expected validation error");
-        let err_msg = err.to_string();
-        assert!(err_msg.contains("duplicate argument name"));
-        assert!(err_msg.contains("value"));
+        assert_snapshot!("validate_struct_duplicate_arg_name_fails", err.to_string());
     }
 
     #[test]
@@ -170,9 +187,10 @@ mod validate_struct_tests {
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         let err = validate_struct(&opts).expect_err("Expected validation error");
-        let err_msg = err.to_string();
-        assert!(err_msg.contains("arg_name"));
-        assert!(err_msg.contains("skipped"));
+        assert_snapshot!(
+            "validate_struct_arg_name_on_skipped_field_fails",
+            err.to_string()
+        );
     }
 }
 
@@ -219,9 +237,10 @@ mod validate_enum_tests {
         };
 
         let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
-        let err_msg = err.to_string();
-
-        assert!(err_msg.contains("arg_name"));
+        assert_snapshot!(
+            "validate_enum_variant_level_arg_name_is_rejected",
+            err.to_string()
+        );
     }
 
     #[test]
@@ -239,10 +258,10 @@ mod validate_enum_tests {
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         let err = validate_enum(&opts).expect_err("Expected validation error");
-        let err_msg = err.to_string();
-
-        assert!(err_msg.contains("duplicate resolved argument name"));
-        assert!(err_msg.contains("value"));
+        assert_snapshot!(
+            "validate_enum_field_arg_name_duplicate_with_named_field_fails",
+            err.to_string()
+        );
     }
 
     #[test]
@@ -259,10 +278,10 @@ mod validate_enum_tests {
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         let err = validate_enum(&opts).expect_err("Expected validation error");
-        let err_msg = err.to_string();
-
-        assert!(err_msg.contains("duplicate"));
-        assert!(err_msg.contains("same"));
+        assert_snapshot!(
+            "validate_enum_duplicate_field_arg_name_overrides_fail",
+            err.to_string()
+        );
     }
 }
 
@@ -322,10 +341,10 @@ mod validate_namespace_tests {
             validate_namespace(&ns, None).expect_err("invalid config should be surfaced")
         });
 
-        let rendered = err.to_string();
-        assert!(rendered.contains("failed to read i18n.toml"));
-        assert!(rendered.contains("ui"));
-        assert!(rendered.contains("fix the i18n.toml configuration"));
+        assert_snapshot!(
+            "validate_namespace_reports_parse_errors_from_config",
+            normalize_temp_paths(&err.to_string(), temp.path())
+        );
     }
 }
 
@@ -354,12 +373,10 @@ mod validate_namespace_against_allowed_tests {
         let err = validate_namespace_against_allowed("unknown", &allowed, None)
             .expect_err("'unknown' should not be allowed");
 
-        let msg = err.to_string();
-        assert!(msg.contains("unknown"));
-        assert!(msg.contains("not in the allowed list"));
-        // Check help message contains allowed namespaces
-        assert!(msg.contains("ui"));
-        assert!(msg.contains("errors"));
+        assert_snapshot!(
+            "validate_namespace_against_allowed_invalid_namespace_not_in_allowed_list",
+            err.to_string()
+        );
     }
 
     #[test]
@@ -369,7 +386,10 @@ mod validate_namespace_against_allowed_tests {
         let err = validate_namespace_against_allowed("anything", &allowed, None)
             .expect_err("Empty allowed list should reject all namespaces");
 
-        assert!(err.to_string().contains("not in the allowed list"));
+        assert_snapshot!(
+            "validate_namespace_against_allowed_empty_allowed_list_rejects_everything",
+            err.to_string()
+        );
     }
 
     #[test]
@@ -383,7 +403,10 @@ mod validate_namespace_against_allowed_tests {
         // Different case should fail
         let err = validate_namespace_against_allowed("ui", &allowed, None)
             .expect_err("'ui' should not match 'UI'");
-        assert!(err.to_string().contains("ui"));
+        assert_snapshot!(
+            "validate_namespace_against_allowed_namespace_matching_is_case_sensitive",
+            err.to_string()
+        );
     }
 
     #[test]

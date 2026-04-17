@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-lang-macro/src/lib.rs
+expression: normalized_tokens(&output)
+---
+:: core :: compile_error ! { "unsupported languages in assets: zz." }

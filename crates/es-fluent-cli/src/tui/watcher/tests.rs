@@ -2,10 +2,10 @@ use super::events::{build_path_to_crate, process_file_events};
 use super::generation::{compute_watch_inputs_hash, spawn_generation};
 use super::{run_watch_loop_with_poll, watch_all};
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
-use crate::generation::cache::{
-    RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
+use crate::generation::cache::compute_crate_inputs_hash;
+use crate::test_fixtures::{
+    FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner_with_cache,
 };
-use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use crossbeam_channel::unbounded;
 use notify::{
     Event,
@@ -16,7 +16,7 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
     CrateInfo {
@@ -212,27 +212,18 @@ fn create_valid_workspace_with_fake_runner_behavior(
     };
 
     let binary_path = fake_runner_binary_path(&workspace.target_dir);
-    install_fake_runner(&binary_path, &behavior);
-
-    let mtime = std::fs::metadata(&binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
     let hash = compute_crate_inputs_hash(temp.path(), &src_dir, Some(&i18n_toml));
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
-    std::fs::create_dir_all(temp_store.base_dir()).expect("create .es-fluent");
-    RunnerCache {
+    install_fake_runner_with_cache(
+        &binary_path,
+        &temp_store,
+        temp.path(),
+        &behavior,
+        env!("CARGO_PKG_VERSION"),
         crate_hashes,
-        runner_mtime: mtime,
-        cli_version: env!("CARGO_PKG_VERSION").to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(temp.path()),
-    }
-    .save(temp_store.base_dir())
-    .expect("save runner cache");
+    );
 
     (temp, workspace, krate)
 }

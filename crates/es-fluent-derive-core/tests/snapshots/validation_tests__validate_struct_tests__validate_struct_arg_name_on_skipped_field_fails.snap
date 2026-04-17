@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive-core/tests/validation_tests.rs
+expression: err.to_string()
+---
+Field 'hidden' error: Cannot use #[fluent(arg_name = "...")] on a skipped field

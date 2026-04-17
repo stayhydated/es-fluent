@@ -377,7 +377,10 @@ mod tests {
         };
         let tuple_struct_err =
             collect_locale_fields(&tuple_struct_input.data).expect_err("tuple struct should error");
-        assert!(tuple_struct_err.to_string().contains("named struct fields"));
+        assert_snapshot!(
+            "locale_field_collection_rejects_tuple_struct_fields",
+            tuple_struct_err.to_string()
+        );
 
         let tuple_enum_input: DeriveInput = syn::parse_quote! {
             enum ExampleTupleEnum {
@@ -386,10 +389,9 @@ mod tests {
         };
         let tuple_enum_err =
             collect_locale_fields(&tuple_enum_input.data).expect_err("tuple variant should error");
-        assert!(
-            tuple_enum_err
-                .to_string()
-                .contains("named enum variant fields")
+        assert_snapshot!(
+            "locale_field_collection_rejects_tuple_variant_fields",
+            tuple_enum_err.to_string()
         );
     }
 }

@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_fluent_choice.rs
+expression: tokens
+---
+:: core :: compile_error ! { "Matching variant not found. Supported values are: snake_case, PascalCase, camelCase, kebab-case, SCREAMING_SNAKE_CASE, SCREAMING-KEBAB-CASE, Title Case, Train-Case, lowercase, UPPERCASE" }

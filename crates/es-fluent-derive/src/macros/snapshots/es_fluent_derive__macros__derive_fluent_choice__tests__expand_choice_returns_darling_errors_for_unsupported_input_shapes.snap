@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_fluent_choice.rs
+expression: tokens
+---
+:: core :: compile_error ! { "Unsupported shape `struct`. Expected enum with no fields." }
