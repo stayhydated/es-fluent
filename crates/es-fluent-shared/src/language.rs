@@ -1,5 +1,6 @@
 //! Shared language-identifier parsing helpers.
 
+use icu::locale::{Locale, LocaleCanonicalizer};
 use thiserror::Error;
 use unic_langid::{LanguageIdentifier, LanguageIdentifierError};
 
@@ -15,8 +16,8 @@ pub enum CanonicalLanguageIdentifierError {
         #[source]
         source: LanguageIdentifierError,
     },
-    /// The identifier parsed successfully but was not written in canonical casing.
-    #[error("Locale directory '{name}' must use canonical BCP-47 casing '{canonical}'")]
+    /// The identifier parsed successfully but was not written in canonical form.
+    #[error("Locale directory '{name}' must use canonical BCP-47 form '{canonical}'")]
     NonCanonical {
         /// The original identifier.
         name: String,
@@ -25,7 +26,7 @@ pub enum CanonicalLanguageIdentifierError {
     },
 }
 
-/// Parses a language identifier and rejects non-canonical casing.
+/// Parses a language identifier and rejects non-canonical locale forms.
 pub fn parse_canonical_language_identifier(
     name: &str,
 ) -> Result<LanguageIdentifier, CanonicalLanguageIdentifierError> {
@@ -35,7 +36,12 @@ pub fn parse_canonical_language_identifier(
             source,
         }
     })?;
-    let canonical = lang.to_string();
+    let mut locale = name
+        .parse::<Locale>()
+        .expect("valid unic-langid value should also be valid ICU locale");
+    LocaleCanonicalizer::new_extended().canonicalize(&mut locale);
+
+    let canonical = locale.to_string();
     if canonical != name {
         return Err(CanonicalLanguageIdentifierError::NonCanonical {
             name: name.to_string(),
@@ -75,6 +81,17 @@ mod tests {
             err,
             CanonicalLanguageIdentifierError::NonCanonical { name, canonical }
                 if name == "en-us" && canonical == "en-US"
+        ));
+    }
+
+    #[test]
+    fn rejects_aliases_that_are_not_canonicalized() {
+        let err =
+            parse_canonical_language_identifier("iw").expect_err("deprecated aliases should fail");
+        assert!(matches!(
+            err,
+            CanonicalLanguageIdentifierError::NonCanonical { name, canonical }
+                if name == "iw" && canonical == "he"
         ));
     }
 }

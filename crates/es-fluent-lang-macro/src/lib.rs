@@ -7,54 +7,17 @@ use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{Fields, ItemEnum, LitStr, Variant, parse_quote, spanned::Spanned as _};
 
-mod supported_locales;
-
-struct SupportedLanguageSet {
-    keys: std::collections::HashSet<&'static str>,
-    languages: Vec<unic_langid::LanguageIdentifier>,
-}
-
-impl SupportedLanguageSet {
-    fn new() -> Self {
-        let languages = supported_locales::SUPPORTED_LANGUAGE_KEYS
-            .iter()
-            .map(|key| {
-                key.parse::<unic_langid::LanguageIdentifier>()
-                    .expect("generated supported locale key should parse")
-            })
-            .collect();
-
-        Self {
-            keys: supported_locales::SUPPORTED_LANGUAGE_KEYS
-                .iter()
-                .copied()
-                .collect(),
-            languages,
-        }
-    }
-
-    fn resolve_supported_key(&self, lang: &unic_langid::LanguageIdentifier) -> Option<String> {
-        es_fluent_manager_core::resolve_fallback_language(lang, &self.languages)
-            .map(|candidate| candidate.to_string())
-            .filter(|key| self.keys.contains(key.as_str()))
-    }
-
-    fn contains(&self, lang: &unic_langid::LanguageIdentifier) -> bool {
-        self.resolve_supported_key(lang).is_some()
-    }
-}
-
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
 /// Which generates variants for each language in the i18n folder structure.
 ///
 /// By default, this macro:
-/// - Links to the bundled `es-fluent-lang.ftl` file for language name translations
+/// - Links to the built-in `es-fluent-lang` runtime for language name formatting
 /// - Does NOT register the enum with inventory (since it's a language selector, not a translatable item)
 ///
 /// Use `#[es_fluent_language(custom)]` to:
-/// - NOT link to the bundled `es-fluent-lang.ftl` file (you provide your own translations)
+/// - NOT link to the built-in `es-fluent-lang` runtime (you provide your own translations)
 /// - Register the enum with inventory (so it appears in generated FTL files)
-/// - Allow locale folders that are not present in the bundled supported-language table
+/// - Make your FTL files the source of truth for language labels
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -164,36 +127,12 @@ fn expand_es_fluent_language(
     language_entries.sort_by(|a, b| a.0.cmp(&b.0));
     language_entries.dedup_by(|a, b| a.0 == b.0);
 
-    let supported_languages = SupportedLanguageSet::new();
-
-    if !custom_mode {
-        let unsupported_languages: Vec<_> = language_entries
-            .iter()
-            .filter_map(|(canonical, language)| {
-                if supported_languages.contains(language) {
-                    None
-                } else {
-                    Some(canonical.clone())
-                }
-            })
-            .collect();
-
-        if !unsupported_languages.is_empty() {
-            let formatted = unsupported_languages.join(", ");
-            return syn::Error::new(
-                enum_span,
-                format!("unsupported languages in assets: {formatted}."),
-            )
-            .to_compile_error();
-        }
-    }
-
     let mut variant_idents = Vec::with_capacity(language_entries.len());
     let mut language_literals = Vec::with_capacity(language_entries.len());
     let mut fallback_variant_ident = None;
 
-    // In default mode: use bundled es-fluent-lang.ftl and skip inventory registration
-    // In custom mode: don't add resource attribute (user provides translations) and register with inventory
+    // In default mode: use the built-in es-fluent-lang runtime and skip inventory registration.
+    // In custom mode: don't add the resource attribute (user provides translations) and register with inventory.
     if custom_mode {
         // No resource attribute - user provides their own translations
         // No skip_inventory - enum will be registered with inventory
@@ -205,16 +144,9 @@ fn expand_es_fluent_language(
 
     input_enum.variants.clear();
 
-    for (canonical, language) in &language_entries {
+    for (canonical, _language) in &language_entries {
         let variant_name = canonical.replace('-', "_").to_upper_camel_case();
-        let fluent_key = if custom_mode {
-            canonical.clone()
-        } else {
-            // Map region/script variants to the nearest bundled key (e.g. fr-FR -> fr).
-            supported_languages
-                .resolve_supported_key(language)
-                .unwrap_or_else(|| canonical.clone())
-        };
+        let fluent_key = canonical.clone();
 
         let variant_ident = syn::Ident::new(&variant_name, Span::call_site());
         let literal = LitStr::new(canonical, Span::call_site());
@@ -513,20 +445,20 @@ mod tests {
     }
 
     #[test]
-    fn macro_uses_supported_lookup_keys_for_default_mode() {
+    fn macro_uses_exact_locale_keys_in_both_modes() {
         with_manifest_dir(
             Some("fallback_language = \"en\"\nassets_dir = \"i18n\"\n"),
             &["fr-FR", "zh-CN"],
             |_| {
                 let default_mode = run_macro("", "enum Languages {}");
                 assert_snapshot!(
-                    "macro_uses_supported_lookup_keys_default_mode",
+                    "macro_uses_exact_locale_keys_default_mode",
                     normalized_tokens(&default_mode)
                 );
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
-                    "macro_uses_supported_lookup_keys_custom_mode",
+                    "macro_uses_exact_locale_keys_custom_mode",
                     normalized_tokens(&custom_mode)
                 );
             },
@@ -534,20 +466,20 @@ mod tests {
     }
 
     #[test]
-    fn macro_rejects_unsupported_languages() {
+    fn macro_accepts_valid_unlocalized_languages() {
         with_manifest_dir(
             Some("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n"),
             &["zz"],
             |_| {
-                let output = run_macro("", "enum Unsupported {}");
+                let output = run_macro("", "enum Languages {}");
                 assert_snapshot!(
-                    "macro_rejects_unsupported_languages_default_mode",
+                    "macro_accepts_valid_unlocalized_languages_default_mode",
                     normalized_tokens(&output)
                 );
 
-                let custom_output = run_macro("custom", "enum CustomUnsupported {}");
+                let custom_output = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
-                    "macro_rejects_unsupported_languages_custom_mode",
+                    "macro_accepts_valid_unlocalized_languages_custom_mode",
                     normalized_tokens(&custom_output)
                 );
             },

@@ -160,14 +160,6 @@ Additional rules:
   Docs: [Architecture](xtask/docs/ARCHITECTURE.md)
   Role: maintenance task runner.
 
-  Regeneration command:
-  `cargo run -p xtask -- generate-lang-names`
-
-  This regenerates:
-  - `es-fluent-lang.ftl`,
-  - per-locale `es-fluent-lang.ftl` files under `i18n/`,
-  - `supported_locales.rs` used by `es-fluent-lang-macro`.
-
 ### Examples and web surfaces
 
 - `examples/first-example`
