@@ -1,9 +1,9 @@
 use super::super::runtime::{
     build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_global_state,
 };
+use super::super::state::update_global_bundle;
 use super::super::{
-    BevyI18nState, bevy_custom_localizer, set_bevy_i18n_state, update_global_bundle,
-    update_global_language,
+    BevyI18nState, bevy_custom_localizer, set_bevy_i18n_state, update_global_language,
 };
 use super::build_test_plugin_app;
 use super::fixtures::REGISTER_CALLS;

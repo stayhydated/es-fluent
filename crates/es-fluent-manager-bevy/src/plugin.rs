@@ -12,7 +12,7 @@ use setup::{
     register_discovered_fluent_text, resolve_initial_language,
 };
 use state::bevy_custom_localizer;
-pub use state::{BevyI18nState, set_bevy_i18n_state, update_global_bundle, update_global_language};
+pub use state::{BevyI18nState, set_bevy_i18n_state, update_global_language};
 use unic_langid::LanguageIdentifier;
 
 /// Controls how the Bevy plugin interacts with `es-fluent`'s process-global

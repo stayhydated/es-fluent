@@ -121,7 +121,7 @@ pub fn set_bevy_i18n_state(state: BevyI18nState) {
 }
 
 #[doc(hidden)]
-pub fn update_global_bundle(bundle: I18nBundle, domain_bundles: I18nDomainBundles) {
+pub(crate) fn update_global_bundle(bundle: I18nBundle, domain_bundles: I18nDomainBundles) {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
         let new_state = BevyI18nState::clone(&old_state)
