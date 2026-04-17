@@ -70,23 +70,29 @@ pub(super) fn resolve_initial_language(
 }
 
 pub(super) fn initialize_global_state(
+    requested_language: &LanguageIdentifier,
     resolved_language: &LanguageIdentifier,
 ) -> Result<I18nResource, String> {
     let fallback_manager = Arc::new(
         FluentManager::try_new_with_discovered_modules().map_err(format_module_discovery_errors)?,
     );
     fallback_manager
-        .select_language(resolved_language)
+        .select_language(requested_language)
         .map_err(|error| {
             format!(
                 "fallback manager rejected initial language '{}': {}",
-                resolved_language, error
+                requested_language, error
             )
         })?;
     set_bevy_i18n_state(
-        BevyI18nState::new(resolved_language.clone()).with_fallback_manager(fallback_manager),
+        BevyI18nState::new(requested_language.clone())
+            .with_resolved_language(resolved_language.clone())
+            .with_fallback_manager(fallback_manager),
     );
-    Ok(I18nResource::new(resolved_language.clone()))
+    Ok(I18nResource::new_with_resolved_language(
+        requested_language.clone(),
+        resolved_language.clone(),
+    ))
 }
 
 fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
@@ -149,11 +155,11 @@ pub(super) fn configure_app(
     app: &mut App,
     i18n_assets: I18nAssets,
     i18n_resource: I18nResource,
-    resolved_language: LanguageIdentifier,
+    requested_language: LanguageIdentifier,
 ) {
     app.insert_resource(i18n_assets)
         .insert_resource(i18n_resource)
-        .insert_resource(CurrentLanguageId(resolved_language))
+        .insert_resource(CurrentLanguageId(requested_language))
         .insert_resource(PendingLanguageChange::default())
         .add_message::<LocaleChangeEvent>()
         .add_message::<LocaleChangedEvent>()

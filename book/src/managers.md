@@ -167,6 +167,8 @@ Prefer the `BevyFluentText` derive macro. It auto-registers your type with `I18n
 If a field depends on the active locale (like the `Languages` enum from [Language Enum](language_enum.md)), mark it with `#[locale]`. The macro will generate `RefreshForLocale` and register the locale-aware systems for you.
 `#[locale]` is supported on named struct fields and named enum variant fields, and you can mark more than one named field in the same variant when they all need refresh behavior.
 
+`RefreshForLocale` receives the originally requested locale, not the fallback resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware fields still refresh with `en-GB`.
+
 ```rust
 use bevy::prelude::Component;
 use es_fluent::EsFluent;

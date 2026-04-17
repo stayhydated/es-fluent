@@ -190,24 +190,48 @@ impl I18nAssets {
 #[derive(Resource)]
 pub struct I18nResource {
     current_language: LanguageIdentifier,
+    resolved_language: LanguageIdentifier,
 }
 
 impl I18nResource {
     /// Creates a new `I18nResource` with the given initial language.
     pub fn new(initial_language: LanguageIdentifier) -> Self {
         Self {
-            current_language: initial_language,
+            current_language: initial_language.clone(),
+            resolved_language: initial_language,
         }
     }
 
-    /// Returns the current `LanguageIdentifier`.
+    /// Creates a new `I18nResource` with separate requested and resolved locales.
+    #[doc(hidden)]
+    pub fn new_with_resolved_language(
+        current_language: LanguageIdentifier,
+        resolved_language: LanguageIdentifier,
+    ) -> Self {
+        Self {
+            current_language,
+            resolved_language,
+        }
+    }
+
+    /// Returns the current requested `LanguageIdentifier`.
     pub fn current_language(&self) -> &LanguageIdentifier {
         &self.current_language
     }
 
-    /// Sets the current language.
-    pub fn set_language(&mut self, lang: LanguageIdentifier) {
-        self.current_language = lang;
+    /// Returns the resolved `LanguageIdentifier` used to look up loaded bundles.
+    pub fn resolved_language(&self) -> &LanguageIdentifier {
+        &self.resolved_language
+    }
+
+    /// Sets the current requested and resolved languages.
+    pub fn set_language(
+        &mut self,
+        current_language: LanguageIdentifier,
+        resolved_language: LanguageIdentifier,
+    ) {
+        self.current_language = current_language;
+        self.resolved_language = resolved_language;
     }
 
     /// Localizes a message by its ID and arguments.
@@ -219,7 +243,7 @@ impl I18nResource {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
         i18n_bundle: &I18nBundle,
     ) -> Option<String> {
-        let bundle = i18n_bundle.0.get(&self.current_language)?;
+        let bundle = i18n_bundle.0.get(&self.resolved_language)?;
         let (value, errors) = localize_with_bundle(bundle, id, args)?;
 
         if !errors.is_empty() {

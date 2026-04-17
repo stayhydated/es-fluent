@@ -4,6 +4,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use unic_langid::LanguageIdentifier;
 
 pub(crate) struct I18nAssets {
     pub(crate) root_path: PathBuf,
@@ -121,6 +122,24 @@ fn discover_namespaces(namespace_root: &Path) -> syn::Result<BTreeSet<String>> {
     Ok(namespaces)
 }
 
+fn canonical_locale_dir_name(path: &Path, raw_name: &str) -> syn::Result<String> {
+    let language = raw_name.parse::<LanguageIdentifier>().map_err(|error| {
+        macro_error(format!(
+            "Locale directory '{}' under {:?} is not a valid BCP-47 identifier: {}",
+            raw_name, path, error
+        ))
+    })?;
+    let canonical = language.to_string();
+    if canonical != raw_name {
+        return Err(macro_error(format!(
+            "Locale directory '{}' under {:?} must use canonical BCP-47 casing '{}'",
+            raw_name, path, canonical
+        )));
+    }
+
+    Ok(canonical)
+}
+
 impl I18nAssets {
     pub(crate) fn load(crate_name: &str) -> syn::Result<Self> {
         let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
@@ -177,6 +196,7 @@ impl I18nAssets {
             if path.is_dir()
                 && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
             {
+                let canonical_lang = canonical_locale_dir_name(&path, lang_code)?;
                 // Check for main FTL file (e.g., bevy-example.ftl)
                 let ftl_file_name = format!("{}.ftl", crate_name);
                 let ftl_path = path.join(&ftl_file_name);
@@ -194,13 +214,13 @@ impl I18nAssets {
                 };
 
                 if has_main_file || !discovered_namespaces.is_empty() {
-                    discovered_languages.insert(lang_code.to_string());
+                    discovered_languages.insert(canonical_lang.clone());
                 }
                 if !discovered_namespaces.is_empty() {
                     for namespace in discovered_namespaces {
                         namespaces.insert(namespace.clone());
                         namespaces_by_language
-                            .entry(lang_code.to_string())
+                            .entry(canonical_lang.clone())
                             .or_default()
                             .insert(namespace);
                     }
@@ -512,6 +532,24 @@ mod tests {
                 err.to_string()
                     .contains("Assets directory validation failed")
             );
+        });
+    }
+
+    #[test]
+    fn i18n_assets_load_rejects_noncanonical_locale_directories() {
+        let temp = tempdir().expect("tempdir");
+        write_manifest(temp.path(), "i18n");
+
+        std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
+        std::fs::write(temp.path().join("i18n/en-us/my-crate.ftl"), "hello = Hello")
+            .expect("write");
+
+        with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
+            let err = I18nAssets::load("my-crate")
+                .err()
+                .expect("noncanonical locale dir should fail");
+            assert!(err.to_string().contains("en-us"));
+            assert!(err.to_string().contains("en-US"));
         });
     }
 }

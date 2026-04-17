@@ -246,7 +246,7 @@ fn resolve_clean_paths_preserves_raw_locale_directory_names() {
     std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
     std::fs::write(
         temp.path().join("i18n.toml"),
-        "fallback_language = \"en-us\"\nassets_dir = \"i18n\"\n",
+        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
     )
     .expect("write i18n.toml");
 

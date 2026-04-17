@@ -4,13 +4,12 @@ use crate::asset_localization::{
     I18nModuleDescriptor, ModuleData, ResourceLoadStatus, load_locale_resources,
     parse_fluent_resource_bytes,
 };
-use crate::fallback::fallback_locales;
+use crate::fallback::resolve_fallback_language;
 use crate::localization::{
     I18nModule, LocalizationError, Localizer, SyncFluentBundle, build_sync_bundle,
     localize_with_bundle,
 };
 use fluent_bundle::{FluentError, FluentResource, FluentValue};
-use fluent_fallback::env::LocalesProvider as _;
 use rust_embed::RustEmbed;
 use std::collections::{HashMap, HashSet};
 use std::io;
@@ -180,31 +179,25 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         let mut current_lang_guard = write_lock(&self.current_lang, "embedded localizer language");
-        for candidate in fallback_locales(lang).locales() {
-            if !self
-                .data
-                .supported_languages
-                .iter()
-                .any(|supported| supported == &candidate)
-            {
-                continue;
-            }
+        let mut remaining_languages = self.data.supported_languages.to_vec();
 
-            if current_lang_guard.as_ref() == Some(&candidate) {
-                return Ok(());
-            }
+        if current_lang_guard.as_ref() == Some(lang) {
+            return Ok(());
+        }
+
+        while let Some(candidate) = resolve_fallback_language(lang, &remaining_languages) {
+            remaining_languages.retain(|supported| supported != &candidate);
 
             if let Ok(resources) = self.load_resource_for_language(&candidate) {
-                let (bundle, add_errors) = build_sync_bundle(&candidate, resources);
+                let (bundle, add_errors) = build_sync_bundle(lang, resources);
                 if !add_errors.is_empty() {
-                    let error =
-                        BundleBuildError::from_add_errors(self.data.name, &candidate, add_errors);
+                    let error = BundleBuildError::from_add_errors(self.data.name, lang, add_errors);
                     tracing::error!("{error}");
                     return Err(io::Error::other(error).into());
                 }
                 *write_lock(&self.current_bundle, "embedded localizer bundle") =
                     Some(Arc::new(bundle));
-                *current_lang_guard = Some(candidate);
+                *current_lang_guard = Some(lang.clone());
                 return Ok(());
             }
         }
@@ -254,7 +247,7 @@ fn embedded_resource_from_asset_path(
         return language
             .parse::<LanguageIdentifier>()
             .ok()
-            .map(|lang| (lang, None));
+            .and_then(|lang| (language == lang.to_string()).then_some((lang, None)));
     }
 
     if next != domain {
@@ -274,7 +267,9 @@ fn embedded_resource_from_asset_path(
             language
                 .parse::<LanguageIdentifier>()
                 .ok()
-                .map(|lang| (lang, Some(namespace.to_string())))
+                .and_then(|lang| {
+                    (language == lang.to_string()).then_some((lang, Some(namespace.to_string())))
+                })
         })
         .flatten()
 }
@@ -542,6 +537,28 @@ mod tests {
         localizer
             .select_language(&langid!("en"))
             .expect("re-selecting current language should no-op");
+    }
+
+    #[test]
+    fn embedded_localizer_preserves_requested_locale_in_bundle_metadata() {
+        let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("fallback to en should work");
+
+        assert_eq!(
+            read_lock(&localizer.current_lang, "embedded localizer language")
+                .as_ref()
+                .cloned(),
+            Some(langid!("en-US"))
+        );
+
+        let bundle = read_lock(&localizer.current_bundle, "embedded localizer bundle")
+            .as_ref()
+            .cloned()
+            .expect("bundle should be built");
+        assert_eq!(bundle.locales, vec![langid!("en-US")]);
     }
 
     #[test]

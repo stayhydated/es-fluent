@@ -49,6 +49,26 @@ assets_dir = "i18n"
 }
 
 #[test]
+fn test_read_from_path_rejects_noncanonical_fallback_language() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    let config_content = r#"
+fallback_language = "en-us"
+assets_dir = "i18n"
+"#;
+
+    fs::write(&config_path, config_content).unwrap();
+
+    let result = I18nConfig::read_from_path(&config_path);
+    assert!(matches!(
+        result,
+        Err(I18nConfigError::NonCanonicalFallbackLanguageIdentifier { name, canonical })
+            if name == "en-us" && canonical == "en-US"
+    ));
+}
+
+#[test]
 fn test_assets_dir_path() {
     let config = I18nConfig {
         fallback_language: "en-US".to_string(),
@@ -157,7 +177,7 @@ fn test_available_languages_allows_language_only() {
 }
 
 #[test]
-fn test_available_locale_names_preserve_raw_directory_names() {
+fn test_available_locale_names_reject_noncanonical_directory_names() {
     let temp_dir = TempDir::new().unwrap();
     let manifest_dir = temp_dir.path();
     let assets = manifest_dir.join("i18n");
@@ -166,24 +186,29 @@ fn test_available_locale_names_preserve_raw_directory_names() {
     fs::create_dir(assets.join("fr")).unwrap();
 
     let config = I18nConfig {
-        fallback_language: "en-us".to_string(),
+        fallback_language: "en-US".to_string(),
         assets_dir: PathBuf::from("i18n"),
         fluent_feature: None,
         namespaces: None,
     };
 
-    let locales = config
+    let locale_err = config
         .available_locale_names_from_base(Some(manifest_dir))
-        .unwrap();
-    assert_eq!(locales, vec!["en-us", "fr"]);
+        .expect_err("noncanonical locale directories should fail");
+    assert!(matches!(
+        locale_err,
+        I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical }
+            if name == "en-us" && canonical == "en-US"
+    ));
 
-    let canonical_languages = config
+    let language_err = config
         .available_languages_from_base(Some(manifest_dir))
-        .unwrap()
-        .into_iter()
-        .map(|lang| lang.to_string())
-        .collect::<Vec<_>>();
-    assert_eq!(canonical_languages, vec!["en-US", "fr"]);
+        .expect_err("noncanonical locale directories should fail");
+    assert!(matches!(
+        language_err,
+        I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical }
+            if name == "en-us" && canonical == "en-US"
+    ));
 }
 
 #[test]

@@ -36,9 +36,13 @@ pub(crate) fn parse_language_entry(
             source,
         }
     })?;
+    let canonical = lang.to_string();
+    if canonical != name {
+        return Err(I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical });
+    }
 
     Ok(Some(ParsedLanguageEntry {
-        raw_name: name,
+        raw_name: canonical,
         language: lang,
     }))
 }

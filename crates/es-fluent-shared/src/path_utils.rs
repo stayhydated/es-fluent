@@ -26,6 +26,16 @@ pub fn parse_language_entry(
         .map_err(|e| {
             EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", e))
         })?;
+    let canonical = lang.to_string();
+    if canonical != name {
+        return Err(EsFluentError::invalid_language_identifier(
+            &name,
+            format!(
+                "Locale directory must use canonical BCP-47 casing '{}'",
+                canonical
+            ),
+        ));
+    }
 
     Ok(Some(lang))
 }
@@ -104,6 +114,20 @@ mod tests {
                 .parse::<unic_langid::LanguageIdentifier>()
                 .expect("language")
         );
+    }
+
+    #[test]
+    fn parse_language_entry_rejects_noncanonical_locale_casing() {
+        let temp = tempdir().expect("tempdir");
+        std::fs::create_dir_all(temp.path().join("en-us")).expect("create noncanonical");
+
+        let entry = read_dir_entry_by_name(temp.path(), "en-us");
+        let err = parse_language_entry(entry).expect_err("noncanonical locale should fail");
+        assert!(matches!(
+            err,
+            EsFluentError::InvalidLanguageIdentifier { .. }
+        ));
+        assert!(err.to_string().contains("en-US"));
     }
 
     #[test]

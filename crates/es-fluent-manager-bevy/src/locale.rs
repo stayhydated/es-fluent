@@ -6,9 +6,29 @@ use unic_langid::LanguageIdentifier;
 #[derive(Clone, Resource)]
 pub struct CurrentLanguageId(pub LanguageIdentifier);
 
+/// Requested locale plus the resolved locale used for bundle lookup.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LanguageSelection {
+    pub(crate) requested: LanguageIdentifier,
+    pub(crate) resolved: LanguageIdentifier,
+}
+
+impl LanguageSelection {
+    pub(crate) fn new(requested: LanguageIdentifier, resolved: LanguageIdentifier) -> Self {
+        Self {
+            requested,
+            resolved,
+        }
+    }
+
+    pub(crate) fn immediate(requested: LanguageIdentifier) -> Self {
+        Self::new(requested.clone(), requested)
+    }
+}
+
 /// Internal bookkeeping for a requested locale that is still waiting on an accepted bundle.
 #[derive(Clone, Default, Resource)]
-pub(crate) struct PendingLanguageChange(pub(crate) Option<LanguageIdentifier>);
+pub(crate) struct PendingLanguageChange(pub(crate) Option<LanguageSelection>);
 
 /// Returns the primary language subtag from a `LanguageIdentifier`.
 ///

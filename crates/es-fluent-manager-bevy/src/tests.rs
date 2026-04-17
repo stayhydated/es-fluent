@@ -134,8 +134,9 @@ fn i18n_assets_namespace_contract_matrix() {
 
 #[test]
 fn i18n_resource_localizes_and_falls_back_to_id() {
-    let lang = langid!("en-US");
-    let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
+    let requested = langid!("en-US");
+    let resolved = langid!("en");
+    let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![requested.clone()]);
     bundle
         .add_resource(Arc::new(
             FluentResource::try_new(
@@ -146,9 +147,13 @@ fn i18n_resource_localizes_and_falls_back_to_id() {
         .expect("add resource");
 
     let mut map = HashMap::new();
-    map.insert(lang.clone(), Arc::new(bundle));
+    map.insert(resolved.clone(), Arc::new(bundle));
     let i18n_bundle = I18nBundle(map);
-    let i18n_resource = I18nResource::new(lang);
+    let i18n_resource =
+        I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
+
+    assert_eq!(i18n_resource.current_language(), &requested);
+    assert_eq!(i18n_resource.resolved_language(), &resolved);
 
     let mut args = HashMap::new();
     args.insert("name", FluentValue::from("Mark"));

@@ -15,7 +15,7 @@ pub fn update_fluent_text_system<T: ToFluentString + Clone + Component>(
     i18n_assets: Res<I18nAssets>,
     i18n_resource: Res<I18nResource>,
 ) {
-    if !i18n_assets.is_language_loaded(i18n_resource.current_language()) {
+    if !i18n_assets.is_language_loaded(i18n_resource.resolved_language()) {
         return;
     }
     for (entity, fluent_text, children) in fluent_text_query.iter() {
@@ -39,7 +39,7 @@ pub fn update_all_fluent_text_on_locale_change<T: ToFluentString + Clone + Compo
     // (handles initial load where event may not propagate across schedule boundaries)
     let should_update = locale_changed_events.read().next().is_some() || i18n_bundle.is_changed();
 
-    if should_update && i18n_assets.is_language_loaded(i18n_resource.current_language()) {
+    if should_update && i18n_assets.is_language_loaded(i18n_resource.resolved_language()) {
         // Perform a full update of all FluentText components
         for (entity, fluent_text, children) in fluent_text_query.iter() {
             update_text_for_entity(&mut text_query, entity, children, &fluent_text.value);

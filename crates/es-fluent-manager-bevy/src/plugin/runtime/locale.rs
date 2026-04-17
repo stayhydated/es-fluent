@@ -1,44 +1,48 @@
-use super::super::state::try_update_global_language;
+use super::super::state::try_update_global_language_selection;
 use crate::{
     BundleBuildFailures, CurrentLanguageId, I18nAssets, I18nBundle, I18nResource,
-    LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
+    LanguageSelection, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
 };
 use bevy::prelude::*;
-use es_fluent_manager_core::locale_candidates;
+use es_fluent_manager_core::resolve_fallback_language;
 use std::collections::HashSet;
 use unic_langid::LanguageIdentifier;
 
 pub(super) fn apply_selected_language(
-    resolved_language: LanguageIdentifier,
+    selection: &LanguageSelection,
     i18n_resource: &mut I18nResource,
     current_language_id: &mut CurrentLanguageId,
     locale_changed_events: &mut MessageWriter<LocaleChangedEvent>,
 ) -> bool {
-    if i18n_resource.current_language() == &resolved_language
-        && current_language_id.0 == resolved_language
+    if i18n_resource.current_language() == &selection.requested
+        && i18n_resource.resolved_language() == &selection.resolved
+        && current_language_id.0 == selection.requested
     {
         return false;
     }
 
-    if let Err(error) = try_update_global_language(resolved_language.clone()) {
+    if let Err(error) = try_update_global_language_selection(
+        selection.requested.clone(),
+        selection.resolved.clone(),
+    ) {
         warn!(
             "Skipping locale change to '{}' because the fallback manager rejected the switch: {}",
-            resolved_language, error
+            selection.requested, error
         );
         return false;
     }
 
-    i18n_resource.set_language(resolved_language.clone());
-    current_language_id.0 = resolved_language.clone();
-    locale_changed_events.write(LocaleChangedEvent(resolved_language));
+    i18n_resource.set_language(selection.requested.clone(), selection.resolved.clone());
+    current_language_id.0 = selection.requested.clone();
+    locale_changed_events.write(LocaleChangedEvent(selection.requested.clone()));
     true
 }
 
 enum RequestedLanguageResolution {
-    Ready(LanguageIdentifier),
-    Pending(LanguageIdentifier),
-    Blocked(LanguageIdentifier),
-    Immediate(LanguageIdentifier),
+    Ready(LanguageSelection),
+    Pending(LanguageSelection),
+    Blocked(LanguageSelection),
+    Immediate(LanguageSelection),
 }
 
 fn resolve_requested_language(
@@ -60,7 +64,16 @@ fn resolve_requested_language(
         .filter(|language| !blocked_languages.contains(language))
         .collect::<HashSet<_>>();
 
-    for candidate in locale_candidates(requested_language) {
+    let mut known_languages = blocked_languages.iter().cloned().collect::<Vec<_>>();
+    known_languages.extend(ready_languages.iter().cloned());
+    known_languages.extend(
+        available_languages
+            .iter()
+            .filter(|language| !ready_languages.contains(*language))
+            .cloned(),
+    );
+
+    if let Some(candidate) = resolve_fallback_language(requested_language, &known_languages) {
         if blocked_languages.contains(&candidate) {
             let diagnostics = bundle_build_failures
                 .0
@@ -71,7 +84,10 @@ fn resolve_requested_language(
                 "Skipping locale change to '{}' because Fluent bundle assembly failed for '{}': {}",
                 requested_language, candidate, diagnostics
             );
-            return RequestedLanguageResolution::Blocked(candidate);
+            return RequestedLanguageResolution::Blocked(LanguageSelection::new(
+                requested_language.clone(),
+                candidate,
+            ));
         }
 
         if ready_languages.contains(&candidate) {
@@ -82,7 +98,10 @@ fn resolve_requested_language(
                 );
             }
 
-            return RequestedLanguageResolution::Ready(candidate);
+            return RequestedLanguageResolution::Ready(LanguageSelection::new(
+                requested_language.clone(),
+                candidate,
+            ));
         }
 
         if available_languages.contains(&candidate) {
@@ -93,11 +112,14 @@ fn resolve_requested_language(
                 );
             }
 
-            return RequestedLanguageResolution::Pending(candidate);
+            return RequestedLanguageResolution::Pending(LanguageSelection::new(
+                requested_language.clone(),
+                candidate,
+            ));
         }
     }
 
-    RequestedLanguageResolution::Immediate(requested_language.clone())
+    RequestedLanguageResolution::Immediate(LanguageSelection::immediate(requested_language.clone()))
 }
 
 #[doc(hidden)]
@@ -121,30 +143,30 @@ pub(crate) fn handle_locale_changes(
         );
 
         match resolution {
-            RequestedLanguageResolution::Ready(resolved_language)
-            | RequestedLanguageResolution::Immediate(resolved_language) => {
+            RequestedLanguageResolution::Ready(selection)
+            | RequestedLanguageResolution::Immediate(selection) => {
                 pending_language_change.0 = None;
                 apply_selected_language(
-                    resolved_language,
+                    &selection,
                     &mut i18n_resource,
                     &mut current_language_id,
                     &mut locale_changed_events,
                 );
             },
-            RequestedLanguageResolution::Pending(resolved_language) => {
-                if pending_language_change.0.as_ref() != Some(&resolved_language) {
+            RequestedLanguageResolution::Pending(selection) => {
+                if pending_language_change.0.as_ref() != Some(&selection) {
                     info!(
-                        "Deferring locale change to '{}' until its Fluent bundle is ready",
-                        resolved_language
+                        "Deferring locale change to '{}' until Fluent bundle '{}' is ready",
+                        selection.requested, selection.resolved
                     );
                 }
-                pending_language_change.0 = Some(resolved_language);
+                pending_language_change.0 = Some(selection);
             },
-            RequestedLanguageResolution::Blocked(blocked_language) => {
+            RequestedLanguageResolution::Blocked(selection) => {
                 if let Some(pending_language) = pending_language_change.0.take() {
                     info!(
                         "Clearing deferred locale change to '{}' because a later request for blocked locale '{}' superseded it",
-                        pending_language, blocked_language
+                        pending_language.requested, selection.requested
                     );
                 }
             },
@@ -254,8 +276,12 @@ mod tests {
         );
         assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
         assert_eq!(
-            app.world().resource::<PendingLanguageChange>().0.as_ref(),
-            Some(&fr)
+            app.world()
+                .resource::<PendingLanguageChange>()
+                .0
+                .as_ref()
+                .map(|selection| (&selection.requested, &selection.resolved)),
+            Some((&fr, &fr))
         );
         let locale_changes = {
             let messages = app.world().resource::<Messages<LocaleChangedEvent>>();

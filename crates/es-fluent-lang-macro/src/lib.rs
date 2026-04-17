@@ -11,23 +11,32 @@ mod supported_locales;
 
 struct SupportedLanguageSet {
     keys: std::collections::HashSet<&'static str>,
+    languages: Vec<unic_langid::LanguageIdentifier>,
 }
 
 impl SupportedLanguageSet {
     fn new() -> Self {
+        let languages = supported_locales::SUPPORTED_LANGUAGE_KEYS
+            .iter()
+            .map(|key| {
+                key.parse::<unic_langid::LanguageIdentifier>()
+                    .expect("generated supported locale key should parse")
+            })
+            .collect();
+
         Self {
             keys: supported_locales::SUPPORTED_LANGUAGE_KEYS
                 .iter()
                 .copied()
                 .collect(),
+            languages,
         }
     }
 
     fn resolve_supported_key(&self, lang: &unic_langid::LanguageIdentifier) -> Option<String> {
-        es_fluent_manager_core::locale_candidates(lang)
-            .into_iter()
+        es_fluent_manager_core::resolve_fallback_language(lang, &self.languages)
             .map(|candidate| candidate.to_string())
-            .find(|key| self.keys.contains(key.as_str()))
+            .filter(|key| self.keys.contains(key.as_str()))
     }
 
     fn contains(&self, lang: &unic_langid::LanguageIdentifier) -> bool {
@@ -452,7 +461,7 @@ mod tests {
             &["en"],
             || {
                 let output = run_macro("", "enum BadFallback {}");
-                assert!(output.contains("failed to parse fallback language"));
+                assert!(output.contains("failed to read i18n configuration"));
             },
         );
     }

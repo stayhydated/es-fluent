@@ -242,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test_locale_context_preserves_raw_locale_directory_names() {
+    fn test_locale_context_rejects_noncanonical_locale_directory_names() {
         let temp_dir = tempdir().unwrap();
         let assets = temp_dir.path().join("i18n");
         fs::create_dir(&assets).unwrap();
@@ -252,7 +252,7 @@ mod tests {
         let config_path = temp_dir.path().join("i18n.toml");
         fs::write(
             &config_path,
-            "fallback_language = \"en-us\"\nassets_dir = \"i18n\"\n",
+            "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
         )
         .unwrap();
 
@@ -261,15 +261,14 @@ mod tests {
             manifest_dir: temp_dir.path().to_path_buf(),
             src_dir: temp_dir.path().join("src"),
             i18n_config_path: config_path,
-            ftl_output_dir: assets.join("en-us"),
+            ftl_output_dir: assets.join("en-US"),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         };
 
-        let ctx = LocaleContext::from_crate(&krate, true).unwrap();
-
-        assert!(ctx.locales.contains(&"en-us".to_string()));
-        assert!(!ctx.locales.contains(&"en-US".to_string()));
-        assert_eq!(ctx.ftl_path("en-us"), assets.join("en-us/test-crate.ftl"));
+        let err = LocaleContext::from_crate(&krate, true)
+            .expect_err("noncanonical locale directories should fail");
+        assert!(err.to_string().contains("en-us"));
+        assert!(err.to_string().contains("en-US"));
     }
 }

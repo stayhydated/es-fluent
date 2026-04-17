@@ -24,29 +24,34 @@ pub(crate) fn sync_global_state(
     mut pending_language_change: ResMut<PendingLanguageChange>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
     mut redraw_events: MessageWriter<RequestRedraw>,
-    mut last_current_bundle: Local<Option<(LanguageIdentifier, Option<usize>)>>,
+    mut last_current_bundle: Local<Option<(LanguageIdentifier, LanguageIdentifier, Option<usize>)>>,
 ) {
     let current_lang = i18n_resource.current_language().clone();
-    let current_bundle_ptr_id = current_bundle_id(&i18n_bundle, &current_lang);
+    let current_resolved_lang = i18n_resource.resolved_language().clone();
+    let current_bundle_ptr_id = current_bundle_id(&i18n_bundle, &current_resolved_lang);
     let current_bundle_present = current_bundle_ptr_id.is_some();
     let locale_switched = matches!(
         last_current_bundle.as_ref(),
-        Some((previous_lang, _)) if previous_lang != &current_lang
+        Some((previous_lang, previous_resolved_lang, _))
+            if previous_lang != &current_lang
+                || previous_resolved_lang != &current_resolved_lang
     );
     let current_bundle_changed = !matches!(
         last_current_bundle.as_ref(),
-        Some((previous_lang, previous_bundle_id))
-            if previous_lang == &current_lang && previous_bundle_id == &current_bundle_ptr_id
+        Some((previous_lang, previous_resolved_lang, previous_bundle_id))
+            if previous_lang == &current_lang
+                && previous_resolved_lang == &current_resolved_lang
+                && previous_bundle_id == &current_bundle_ptr_id
     );
 
     if i18n_bundle.is_changed() || i18n_domain_bundles.is_changed() {
         update_global_bundle((*i18n_bundle).clone(), (*i18n_domain_bundles).clone());
 
         if let Some(pending_language) = pending_language_change.0.clone() {
-            let pending_bundle_id = current_bundle_id(&i18n_bundle, &pending_language);
+            let pending_bundle_id = current_bundle_id(&i18n_bundle, &pending_language.resolved);
             if pending_bundle_id.is_some() {
                 let published = apply_selected_language(
-                    pending_language.clone(),
+                    &pending_language,
                     &mut i18n_resource,
                     &mut current_language_id,
                     &mut locale_changed_events,
@@ -54,9 +59,14 @@ pub(crate) fn sync_global_state(
                 pending_language_change.0 = None;
                 if published {
                     redraw_events.write(RequestRedraw);
-                    *last_current_bundle = Some((pending_language, pending_bundle_id));
+                    *last_current_bundle = Some((
+                        pending_language.requested,
+                        pending_language.resolved,
+                        pending_bundle_id,
+                    ));
                 } else {
-                    *last_current_bundle = Some((current_lang, current_bundle_ptr_id));
+                    *last_current_bundle =
+                        Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
                 }
                 return;
             }
@@ -73,7 +83,7 @@ pub(crate) fn sync_global_state(
         }
     }
 
-    *last_current_bundle = Some((current_lang, current_bundle_ptr_id));
+    *last_current_bundle = Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
 }
 
 #[cfg(test)]

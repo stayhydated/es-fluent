@@ -101,7 +101,9 @@ If any fields are marked with `#[locale]`, the macro generates a
 `RefreshForLocale` implementation and registers the locale-aware systems
 (`register_fluent_text_from_locale`). Otherwise it uses the standard
 registration (`register_fluent_text`). This keeps locale-driven fields
-(like `Languages` from `es_fluent_lang`) in sync automatically.
+(like `Languages` from `es_fluent_lang`) in sync automatically. Locale-aware
+refresh uses the originally requested locale, while bundle lookup can still use
+a resolved fallback resource locale underneath.
 
 Manual registration via `FluentTextRegistration` remains available for types
 that cannot derive the macro.

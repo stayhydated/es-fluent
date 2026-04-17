@@ -88,7 +88,7 @@ fn plugin_can_fail_fast_when_global_localizer_must_not_be_replaced() {
 fn initialize_global_state_accepts_partially_supported_initial_language() {
     let _guard = lock_bevy_global_state();
 
-    let resource = plugin_setup::initialize_global_state(&langid!("zz"))
+    let resource = plugin_setup::initialize_global_state(&langid!("zz"), &langid!("zz"))
         .expect("default locale selection should keep supporting fallback modules active");
 
     assert_eq!(resource.current_language(), &langid!("zz"));

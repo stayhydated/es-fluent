@@ -66,6 +66,7 @@ es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.15.0" }
 es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.15.0" }
 fluent-bundle = "0.16"
 fluent-fallback = "0.7"
+fluent-langneg = "0.14"
 fluent-syntax = "0.12"
 getset = "0.1"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "15d8660748b508b3525d3403e5d172f1a557bfa5" }

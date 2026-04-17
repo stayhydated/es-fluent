@@ -1,14 +1,19 @@
 use fluent_fallback::env::LocalesProvider;
+use fluent_langneg::{NegotiationStrategy, negotiate_languages};
+use icu_locale::{Locale, fallback::LocaleFallbacker};
 use unic_langid::LanguageIdentifier;
+
+fn sorted_languages(languages: &[LanguageIdentifier]) -> Vec<LanguageIdentifier> {
+    let mut languages = languages.to_vec();
+    languages.sort_by_key(|lang| lang.to_string());
+    languages.dedup();
+    languages
+}
 
 /// Returns language candidates in fallback order for the requested language.
 ///
-/// The order is:
-/// 1. Full canonical form.
-/// 2. Canonical form without variants.
-/// 3. Without region (if present).
-/// 4. Without script (if present).
-/// 5. Primary language subtag only.
+/// This uses ICU4X locale fallback data to produce a CLDR-backed parent chain
+/// independent of the currently available locales.
 pub fn locale_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
     let mut locales = Vec::new();
     let mut push = |candidate: LanguageIdentifier| {
@@ -19,37 +24,32 @@ pub fn locale_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifi
 
     push(requested.clone());
 
-    let mut without_variants = requested.clone();
-    without_variants.clear_variants();
-    push(without_variants.clone());
+    let Ok(locale) = requested.to_string().parse::<Locale>() else {
+        return locales;
+    };
 
-    if without_variants.region.is_some() {
-        let mut no_region = without_variants.clone();
-        no_region.region = None;
-        push(no_region);
-    }
+    let fallbacker = LocaleFallbacker::new();
+    let mut iterator = fallbacker
+        .for_config(Default::default())
+        .fallback_for(locale.into());
 
-    if without_variants.script.is_some() {
-        let mut no_script = without_variants.clone();
-        no_script.script = None;
-        push(no_script);
-    }
+    loop {
+        let current = iterator.get();
+        if current.is_unknown() {
+            break;
+        }
 
-    if let Ok(primary) = without_variants
-        .language
-        .as_str()
-        .parse::<LanguageIdentifier>()
-    {
-        push(primary);
+        if let Ok(candidate) = current.to_string().parse::<LanguageIdentifier>() {
+            push(candidate);
+        }
+
+        iterator.step();
     }
 
     locales
 }
 
 /// Returns a Fluent-style fallback locale list for the requested language.
-///
-/// This yields the requested locale first, then falls back to the primary
-/// language subtag when region/script/variant subtags are present.
 pub fn fallback_locales(requested: &LanguageIdentifier) -> impl LocalesProvider {
     locale_candidates(requested)
 }
@@ -59,9 +59,16 @@ pub fn resolve_fallback_language(
     requested: &LanguageIdentifier,
     available: &[LanguageIdentifier],
 ) -> Option<LanguageIdentifier> {
-    fallback_locales(requested)
-        .locales()
-        .find(|candidate| available.iter().any(|lang| lang == candidate))
+    let available = sorted_languages(available);
+    negotiate_languages(
+        std::slice::from_ref(requested),
+        &available,
+        None,
+        NegotiationStrategy::Lookup,
+    )
+    .into_iter()
+    .next()
+    .cloned()
 }
 
 /// Picks the best locale for active use, preferring ready locales over merely available locales.
@@ -146,29 +153,46 @@ mod tests {
     }
 
     #[test]
-    fn locale_candidates_include_script_and_region_fallbacks() {
-        let requested = langid!("sr-Cyrl-RS");
+    fn resolve_fallback_uses_fluent_lookup_for_base_locale_requests() {
+        let requested = langid!("en");
+        let available = vec![langid!("en-US"), langid!("fr")];
+
+        assert_eq!(
+            resolve_fallback_language(&requested, &available),
+            Some(langid!("en-US"))
+        );
+    }
+
+    #[test]
+    fn locale_candidates_include_cldr_parents() {
+        let requested = langid!("hi-Latn-IN");
         let locales = locale_candidates(&requested);
 
         assert_eq!(
             locales,
             vec![
-                langid!("sr-Cyrl-RS"),
-                langid!("sr-Cyrl"),
-                langid!("sr-RS"),
-                langid!("sr")
+                langid!("hi-Latn-IN"),
+                langid!("hi-Latn"),
+                langid!("en-IN"),
+                langid!("en-001"),
+                langid!("en"),
             ]
         );
     }
 
     #[test]
-    fn locale_candidates_include_variantless_form() {
+    fn locale_candidates_include_variant_and_variantless_parents() {
         let requested = langid!("de-DE-1901");
         let locales = locale_candidates(&requested);
 
         assert_eq!(
             locales,
-            vec![langid!("de-DE-1901"), langid!("de-DE"), langid!("de")]
+            vec![
+                langid!("de-DE-1901"),
+                langid!("de-DE"),
+                langid!("de-1901"),
+                langid!("de"),
+            ]
         );
     }
 }

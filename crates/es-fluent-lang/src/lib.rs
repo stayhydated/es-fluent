@@ -31,7 +31,7 @@ pub use es_fluent_lang_macro::es_fluent_language;
 #[doc(hidden)]
 use es_fluent_manager_core::{
     I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, localize_with_bundle,
+    ModuleData, localize_with_bundle, resolve_fallback_language,
 };
 use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
@@ -82,6 +82,7 @@ fn available_languages() -> &'static HashSet<LanguageIdentifier> {
             if let Some((lang, file_name)) = path.rsplit_once('/')
                 && file_name == I18N_RESOURCE_NAME
                 && let Ok(lang_id) = lang.parse::<LanguageIdentifier>()
+                && lang == lang_id.to_string()
             {
                 set.insert(lang_id);
             }
@@ -92,19 +93,9 @@ fn available_languages() -> &'static HashSet<LanguageIdentifier> {
 
 #[cfg(feature = "localized-langs")]
 #[doc(hidden)]
-fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
-    use es_fluent_manager_core::locale_candidates;
-
-    locale_candidates(lang)
-}
-
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
 fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
-    let available = available_languages();
-    candidate_languages(lang)
-        .into_iter()
-        .find(|candidate| available.contains(candidate))
+    let available = available_languages().iter().cloned().collect::<Vec<_>>();
+    resolve_fallback_language(lang, &available)
 }
 
 #[cfg(feature = "localized-langs")]
@@ -242,7 +233,7 @@ impl EsFluentLanguageLocalizer {
         let resolved = resolve_language(lang)
             .ok_or_else(|| LocalizationError::LanguageNotSupported(lang.clone()))?;
         let _ = self.load_resource(&resolved)?;
-        *self.current_lang.write().expect("lock poisoned") = Some(resolved);
+        *self.current_lang.write().expect("lock poisoned") = Some(lang.clone());
         Ok(())
     }
 
@@ -284,8 +275,18 @@ impl Localizer for EsFluentLanguageLocalizer {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let lang = self.current_lang.read().expect("lock poisoned").clone()?;
-        let resource = match self.load_resource(&lang) {
+        let requested_lang = self.current_lang.read().expect("lock poisoned").clone()?;
+        let resolved_lang = match resolve_language(&requested_lang) {
+            Some(lang) => lang,
+            None => {
+                tracing::error!(
+                    "Failed to resolve es-fluent-lang resource locale for '{}'",
+                    requested_lang
+                );
+                return None;
+            },
+        };
+        let resource = match self.load_resource(&resolved_lang) {
             Ok(resource) => resource,
             Err(err) => {
                 tracing::error!("Failed to load es-fluent-lang resource: {}", err);
@@ -293,7 +294,7 @@ impl Localizer for EsFluentLanguageLocalizer {
             },
         };
 
-        localize_from_resource(lang, resource, id, args)
+        localize_from_resource(requested_lang, resource, id, args)
     }
 }
 

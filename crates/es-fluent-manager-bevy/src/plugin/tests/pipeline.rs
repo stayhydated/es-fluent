@@ -225,10 +225,14 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     app.world_mut()
         .write_message(LocaleChangeEvent(langid!("en-US")));
     app.update();
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("en"));
+    assert_eq!(
+        app.world().resource::<CurrentLanguageId>().0,
+        langid!("en-US")
+    );
     assert_eq!(
         bevy_custom_localizer(None, "selected-language", None),
-        Some("en".to_string())
+        None,
+        "modules that want to keep participating under locale fallback must implement fallback internally"
     );
 
     let mut locale_changed_cursor = {
@@ -498,8 +502,12 @@ fn plugin_pipeline_defers_locale_switch_until_requested_bundle_is_ready() {
     );
     assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
     assert_eq!(
-        app.world().resource::<PendingLanguageChange>().0.as_ref(),
-        Some(&fr)
+        app.world()
+            .resource::<PendingLanguageChange>()
+            .0
+            .as_ref()
+            .map(|selection| (&selection.requested, &selection.resolved)),
+        Some((&fr, &fr))
     );
     let deferred_locale_changes = {
         let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -675,8 +683,12 @@ fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
     app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
     app.update();
     assert_eq!(
-        app.world().resource::<PendingLanguageChange>().0.as_ref(),
-        Some(&fr)
+        app.world()
+            .resource::<PendingLanguageChange>()
+            .0
+            .as_ref()
+            .map(|selection| (&selection.requested, &selection.resolved)),
+        Some((&fr, &fr))
     );
 
     app.world_mut()

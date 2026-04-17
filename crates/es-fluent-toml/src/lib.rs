@@ -32,6 +32,14 @@ pub enum I18nConfigError {
         #[source]
         source: LanguageIdentifierError,
     },
+    /// Encountered a non-canonical locale directory name.
+    #[error("Locale directory '{name}' must use canonical BCP-47 casing '{canonical}'")]
+    NonCanonicalLanguageIdentifier {
+        /// The locale directory name found on disk.
+        name: String,
+        /// The canonical locale directory name expected by the runtime.
+        canonical: String,
+    },
     /// Encountered an invalid fallback language identifier.
     #[error("Invalid fallback language identifier '{name}'")]
     InvalidFallbackLanguageIdentifier {
@@ -40,6 +48,14 @@ pub enum I18nConfigError {
         /// The parsing error produced by `unic-langid`.
         #[source]
         source: LanguageIdentifierError,
+    },
+    /// Encountered a non-canonical fallback language identifier.
+    #[error("Fallback language '{name}' must use canonical BCP-47 casing '{canonical}'")]
+    NonCanonicalFallbackLanguageIdentifier {
+        /// The configured fallback language string.
+        name: String,
+        /// The canonical fallback language string expected by the runtime.
+        canonical: String,
     },
 }
 
@@ -210,7 +226,24 @@ impl I18nConfig {
 
         let content = fs::read_to_string(path)?;
 
-        let config: I18nConfig = toml::from_str(&content)?;
+        let mut config: I18nConfig = toml::from_str(&content)?;
+        let fallback_language = config
+            .fallback_language
+            .parse::<LanguageIdentifier>()
+            .map_err(
+                |source| I18nConfigError::InvalidFallbackLanguageIdentifier {
+                    name: config.fallback_language.clone(),
+                    source,
+                },
+            )?;
+        let canonical_fallback = fallback_language.to_string();
+        if canonical_fallback != config.fallback_language {
+            return Err(I18nConfigError::NonCanonicalFallbackLanguageIdentifier {
+                name: config.fallback_language,
+                canonical: canonical_fallback,
+            });
+        }
+        config.fallback_language = canonical_fallback;
 
         Ok(config)
     }
