@@ -2,10 +2,11 @@ use super::*;
 use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
 use crate::localization::manager::{format_module_support, format_supported_languages};
 use fluent_bundle::FluentResource;
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::io;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
 use unic_langid::langid;
 
 static EXPLICIT_RUNTIME_CREATE_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -199,7 +200,7 @@ impl StatefulSuccessLocalizer {
 
 impl Localizer for StatefulSuccessLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        *self.selected.write().expect("lock poisoned") = Some(lang.to_string());
+        *self.selected.write() = Some(lang.to_string());
         Ok(())
     }
 
@@ -209,7 +210,7 @@ impl Localizer for StatefulSuccessLocalizer {
         _args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         (id == "selected-language")
-            .then(|| self.selected.read().expect("lock poisoned").clone())
+            .then(|| self.selected.read().clone())
             .flatten()
     }
 }

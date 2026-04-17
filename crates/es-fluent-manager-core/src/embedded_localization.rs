@@ -10,10 +10,11 @@ use crate::localization::{
     localize_with_bundle,
 };
 use fluent_bundle::{FluentError, FluentResource, FluentValue};
+use parking_lot::RwLock;
 use rust_embed::RustEmbed;
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
@@ -96,26 +97,6 @@ impl std::fmt::Display for BundleBuildError {
 
 impl std::error::Error for BundleBuildError {}
 
-fn read_lock<'a, T>(lock: &'a RwLock<T>, context: &str) -> RwLockReadGuard<'a, T> {
-    match lock.read() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("{context} lock poisoned while reading; recovering");
-            poisoned.into_inner()
-        },
-    }
-}
-
-fn write_lock<'a, T>(lock: &'a RwLock<T>, context: &str) -> RwLockWriteGuard<'a, T> {
-    match lock.write() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("{context} lock poisoned while writing; recovering");
-            poisoned.into_inner()
-        },
-    }
-}
-
 impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     pub fn new(data: &'static ModuleData) -> Self {
         Self {
@@ -178,7 +159,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 
 impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        let mut current_lang_guard = write_lock(&self.current_lang, "embedded localizer language");
+        let mut current_lang_guard = self.current_lang.write();
         let mut remaining_languages = self.data.supported_languages.to_vec();
 
         if current_lang_guard.as_ref() == Some(lang) {
@@ -195,8 +176,7 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
                     tracing::error!("{error}");
                     return Err(io::Error::other(error).into());
                 }
-                *write_lock(&self.current_bundle, "embedded localizer bundle") =
-                    Some(Arc::new(bundle));
+                *self.current_bundle.write() = Some(Arc::new(bundle));
                 *current_lang_guard = Some(lang.clone());
                 return Ok(());
             }
@@ -212,7 +192,7 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let bundle_guard = read_lock(&self.current_bundle, "embedded localizer bundle");
+        let bundle_guard = self.current_bundle.read();
         let bundle = bundle_guard.as_ref()?;
         let (value, errors) = localize_with_bundle(bundle.as_ref(), id, args)?;
 
@@ -546,13 +526,13 @@ mod tests {
             .expect("fallback to en should work");
 
         assert_eq!(
-            read_lock(&localizer.current_lang, "embedded localizer language")
-                .as_ref()
-                .cloned(),
+            localizer.current_lang.read().as_ref().cloned(),
             Some(langid!("en-US"))
         );
 
-        let bundle = read_lock(&localizer.current_bundle, "embedded localizer bundle")
+        let bundle = localizer
+            .current_bundle
+            .read()
             .as_ref()
             .cloned()
             .expect("bundle should be built");

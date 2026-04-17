@@ -10,7 +10,10 @@ use es_fluent::try_set_shared_context;
 use es_fluent_manager_core::FluentManager;
 
 #[doc(hidden)]
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock};
+use parking_lot::{Mutex, MutexGuard};
+
+#[doc(hidden)]
+use std::sync::{Arc, LazyLock, OnceLock};
 
 #[doc(hidden)]
 use unic_langid::LanguageIdentifier;
@@ -68,13 +71,7 @@ static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 static INIT_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 fn init_lock() -> MutexGuard<'static, ()> {
-    match INIT_LOCK.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("Embedded manager init lock poisoned; recovering");
-            poisoned.into_inner()
-        },
-    }
+    INIT_LOCK.lock()
 }
 
 fn build_manager(
@@ -244,9 +241,10 @@ mod tests {
         I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
         ModuleData,
     };
+    use parking_lot::Mutex;
     use std::collections::HashMap;
     use std::sync::{
-        LazyLock, Mutex,
+        LazyLock,
         atomic::{AtomicUsize, Ordering},
     };
     use unic_langid::langid;
@@ -305,7 +303,7 @@ mod tests {
 
     #[test]
     fn build_manager_selects_initial_language_when_requested() {
-        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        let _guard = TEST_LOCK.lock();
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         let manager = build_manager(Some(&langid!("en-US")))
@@ -320,7 +318,7 @@ mod tests {
 
     #[test]
     fn build_manager_rejects_unselectable_initial_language() {
-        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        let _guard = TEST_LOCK.lock();
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         let err = match build_manager(Some(&langid!("zz"))) {
@@ -337,7 +335,7 @@ mod tests {
 
     #[test]
     fn init_and_select_language_cover_singleton_paths() {
-        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        let _guard = TEST_LOCK.lock();
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         // Exercise the pre-init error path.

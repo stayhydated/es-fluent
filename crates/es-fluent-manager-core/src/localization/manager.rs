@@ -4,9 +4,9 @@ use super::{
 };
 use crate::asset_localization::ModuleData;
 use fluent_bundle::FluentValue;
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::io;
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use unic_langid::LanguageIdentifier;
 
 type ManagedLocalizer = (&'static ModuleData, Box<dyn Localizer>);
@@ -17,30 +17,6 @@ const MAX_DIAGNOSTIC_LANGUAGES: usize = 6;
 pub struct FluentManager {
     pub(super) modules: Vec<&'static dyn I18nModuleRegistration>,
     pub(super) localizers: RwLock<Vec<ManagedLocalizer>>,
-}
-
-fn read_localizers(
-    localizers: &RwLock<Vec<ManagedLocalizer>>,
-) -> RwLockReadGuard<'_, Vec<ManagedLocalizer>> {
-    match localizers.read() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("FluentManager localizer state lock poisoned while reading; recovering");
-            poisoned.into_inner()
-        },
-    }
-}
-
-fn write_localizers(
-    localizers: &RwLock<Vec<ManagedLocalizer>>,
-) -> RwLockWriteGuard<'_, Vec<ManagedLocalizer>> {
-    match localizers.write() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("FluentManager localizer state lock poisoned while writing; recovering");
-            poisoned.into_inner()
-        },
-    }
 }
 
 fn load_runtime_modules(
@@ -291,7 +267,7 @@ impl FluentManager {
             );
         }
 
-        *write_localizers(&self.localizers) = next_localizers;
+        *self.localizers.write() = next_localizers;
         Ok(())
     }
 
@@ -305,7 +281,7 @@ impl FluentManager {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        for (_, localizer) in read_localizers(&self.localizers).iter() {
+        for (_, localizer) in self.localizers.read().iter() {
             if let Some(message) = localizer.localize(id, args) {
                 return Some(message);
             }
@@ -320,7 +296,8 @@ impl FluentManager {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        read_localizers(&self.localizers)
+        self.localizers
+            .read()
             .iter()
             .find(|(data, _)| data.domain == domain)
             .and_then(|(_, localizer)| localizer.localize(id, args))

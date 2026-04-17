@@ -4023,6 +4023,7 @@ dependencies = [
  "icu_locale",
  "intl-memoizer",
  "inventory",
+ "parking_lot",
  "rust-embed",
  "tracing",
  "unic-langid",
@@ -4036,6 +4037,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
+ "parking_lot",
  "tracing",
  "unic-langid",
 ]

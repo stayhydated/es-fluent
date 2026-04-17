@@ -8,7 +8,7 @@ mod merge;
 
 use super::common::{WorkspaceArgs, WorkspaceCrates};
 use super::dry_run::DryRunSummary;
-use crate::core::{CliError, LocaleNotFoundError, SyncMissingKey};
+use crate::core::{CliError, LocaleNotFoundError};
 use crate::ftl::collect_all_available_locales;
 use crate::utils::ui;
 use clap::Parser;
@@ -84,8 +84,6 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 
     let mut total_keys_added = 0;
     let mut affected_locales: HashSet<String> = HashSet::new();
-    let mut all_synced_keys: Vec<SyncMissingKey> = Vec::new();
-
     let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Syncing crates...");
 
     for krate in &crates {
@@ -112,11 +110,6 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
                         ui::Ui::print_added_keys(result.keys_added, &result.locale);
                         for key in &result.added_keys {
                             ui::Ui::print_synced_key(key);
-                            all_synced_keys.push(SyncMissingKey {
-                                key: key.clone(),
-                                target_locale: result.locale.clone(),
-                                source_locale: "fallback".to_string(),
-                            });
                         }
                     }
                 });

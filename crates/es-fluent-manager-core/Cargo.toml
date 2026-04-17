@@ -19,6 +19,7 @@ fluent-langneg = { workspace = true }
 icu_locale = { workspace = true }
 intl-memoizer = { workspace = true }
 inventory = { workspace = true }
+parking_lot = { workspace = true }
 rust-embed = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }

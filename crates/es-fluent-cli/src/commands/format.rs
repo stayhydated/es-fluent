@@ -78,7 +78,6 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
 
     if !workspace.print_discovery(ui::Ui::print_format_header) {
-        ui::Ui::print_no_crates_found();
         return Ok(());
     }
 
