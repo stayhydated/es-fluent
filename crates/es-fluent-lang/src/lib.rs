@@ -37,8 +37,9 @@ use es_fluent_manager_core::{
     ModuleData, localize_with_bundle,
 };
 use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
+use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock};
 
 #[cfg(feature = "localized-langs")]
 #[doc(hidden)]
@@ -199,7 +200,7 @@ impl EsFluentLanguageLocalizer {
 #[doc(hidden)]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        *self.current_lang.write().expect("lock poisoned") = lang.clone();
+        *self.current_lang.write() = lang.clone();
         Ok(())
     }
 
@@ -208,7 +209,7 @@ impl Localizer for EsFluentLanguageLocalizer {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let lang = self.current_lang.read().expect("lock poisoned").clone();
+        let lang = self.current_lang.read().clone();
         localize_from_resource(lang, self.resource.clone(), id, args)
     }
 }
@@ -236,7 +237,7 @@ impl EsFluentLanguageLocalizer {
         let resolved = resolve_language(lang)
             .ok_or_else(|| LocalizationError::LanguageNotSupported(lang.clone()))?;
         let _ = self.load_resource(&resolved)?;
-        *self.current_lang.write().expect("lock poisoned") = Some(lang.clone());
+        *self.current_lang.write() = Some(lang.clone());
         Ok(())
     }
 
@@ -244,13 +245,7 @@ impl EsFluentLanguageLocalizer {
         &self,
         lang: &LanguageIdentifier,
     ) -> Result<Arc<FluentResource>, LocalizationError> {
-        if let Some(resource) = self
-            .resources
-            .read()
-            .expect("lock poisoned")
-            .get(lang)
-            .cloned()
-        {
+        if let Some(resource) = self.resources.read().get(lang).cloned() {
             return Ok(resource);
         }
 
@@ -260,7 +255,6 @@ impl EsFluentLanguageLocalizer {
         let resource = parse_embedded_resource(&path, file.data.as_ref())?;
         self.resources
             .write()
-            .expect("lock poisoned")
             .insert(lang.clone(), resource.clone());
         Ok(resource)
     }
@@ -278,7 +272,7 @@ impl Localizer for EsFluentLanguageLocalizer {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let requested_lang = self.current_lang.read().expect("lock poisoned").clone()?;
+        let requested_lang = self.current_lang.read().clone()?;
         let resolved_lang = match resolve_language(&requested_lang) {
             Some(lang) => lang,
             None => {

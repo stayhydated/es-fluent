@@ -12,10 +12,10 @@ use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
 use crate::generation::prepare_monolithic_runner_crate;
 use crate::tui::{self, TuiApp};
 use anyhow::{Context as _, Result};
+use crossbeam_channel::{Receiver, RecvTimeoutError, unbounded};
 use notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_full::{DebounceEventResult, RecommendedCache, new_debouncer};
 use ratatui::{Terminal, backend::Backend};
-use std::sync::mpsc::{self, Receiver};
 use std::time::Duration;
 
 /// Watch for changes and regenerate FTL files for all discovered crates.
@@ -102,8 +102,8 @@ fn run_watch_loop_with_poll<B: Backend>(
                     });
                 }
             },
-            Err(mpsc::RecvTimeoutError::Timeout) => {},
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(RecvTimeoutError::Timeout) => {},
+            Err(RecvTimeoutError::Disconnected) => break,
         }
 
         terminal
@@ -120,7 +120,7 @@ fn configure_file_watcher(
     notify_debouncer_full::Debouncer<RecommendedWatcher, RecommendedCache>,
     Receiver<DebounceEventResult>,
 )> {
-    let (file_tx, file_rx) = mpsc::channel();
+    let (file_tx, file_rx) = unbounded();
     let mut debouncer = new_debouncer(Duration::from_millis(300), None, file_tx)
         .context("Failed to create file watcher")?;
 

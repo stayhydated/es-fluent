@@ -6,7 +6,6 @@ use crate::ftl::LoadedFtlFile;
 use indexmap::IndexMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
 use tempfile::tempdir;
 
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
@@ -17,9 +16,28 @@ fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) 
     }
 }
 
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
+fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {
+    let previous = std::env::var_os("FORCE_HYPERLINK");
+    // SAFETY: the parent test module runs serially.
+    unsafe { std::env::set_var("FORCE_HYPERLINK", value) };
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+
+    match previous {
+        Some(previous) => {
+            // SAFETY: the parent test module runs serially.
+            unsafe { std::env::set_var("FORCE_HYPERLINK", previous) };
+        },
+        None => {
+            // SAFETY: the parent test module runs serially.
+            unsafe { std::env::remove_var("FORCE_HYPERLINK") };
+        },
+    }
+
+    match result {
+        Ok(value) => value,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
 }
 
 #[test]
@@ -140,72 +158,71 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
-    let _env_guard = env_lock().lock().unwrap();
-    unsafe {
-        std::env::set_var("FORCE_HYPERLINK", "1");
-    }
+    with_force_hyperlink("1", || {
+        let temp = tempdir().unwrap();
+        let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+        fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+        fs::write(&ftl_path, "hello = Hello\nbye = Bye\nraw = Raw\n").unwrap();
 
-    let temp = tempdir().unwrap();
-    let ftl_path = temp.path().join("i18n/en/test-app.ftl");
-    fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
-    fs::write(&ftl_path, "hello = Hello\nbye = Bye\nraw = Raw\n").unwrap();
+        let resource =
+            fluent_syntax::parser::parse("hello = Hello\nbye = Bye\nraw = Raw\n".to_string())
+                .unwrap();
+        let loaded_files = vec![LoadedFtlFile {
+            abs_path: ftl_path,
+            relative_path: PathBuf::from("test-app.ftl"),
+            resource,
+            keys: ["hello".to_string(), "bye".to_string(), "raw".to_string()]
+                .into_iter()
+                .collect(),
+        }];
 
-    let resource =
-        fluent_syntax::parser::parse("hello = Hello\nbye = Bye\nraw = Raw\n".to_string()).unwrap();
-    let loaded_files = vec![LoadedFtlFile {
-        abs_path: ftl_path,
-        relative_path: PathBuf::from("test-app.ftl"),
-        resource,
-        keys: ["hello".to_string(), "bye".to_string(), "raw".to_string()]
-            .into_iter()
-            .collect(),
-    }];
+        let mut expected_keys = IndexMap::new();
+        expected_keys.insert(
+            "hello".to_string(),
+            key_info(
+                &["name"],
+                Some(temp.path().join("src/lib.rs").to_string_lossy().as_ref()),
+                Some(7),
+            ),
+        );
+        expected_keys.insert(
+            "bye".to_string(),
+            key_info(&["who"], Some("src/lib.rs"), None),
+        );
+        expected_keys.insert("raw".to_string(), key_info(&["value"], None, None));
 
-    let mut expected_keys = IndexMap::new();
-    expected_keys.insert(
-        "hello".to_string(),
-        key_info(
-            &["name"],
-            Some(temp.path().join("src/lib.rs").to_string_lossy().as_ref()),
-            Some(7),
-        ),
-    );
-    expected_keys.insert(
-        "bye".to_string(),
-        key_info(&["who"], Some("src/lib.rs"), None),
-    );
-    expected_keys.insert("raw".to_string(), key_info(&["value"], None, None));
+        let ctx = ValidationContext {
+            expected_keys: &expected_keys,
+            workspace_root: temp.path(),
+            manifest_dir: temp.path(),
+        };
 
-    let ctx = ValidationContext {
-        expected_keys: &expected_keys,
-        workspace_root: temp.path(),
-        manifest_dir: temp.path(),
-    };
+        let issues = validate_loaded_ftl_files(&ctx, loaded_files, "en");
 
-    let issues = validate_loaded_ftl_files(&ctx, loaded_files, "en");
-
-    assert!(issues.iter().any(|issue| {
-        matches!(
-            issue,
-            ValidationIssue::MissingVariable(warning)
-                if warning.key == "hello" && warning.help.contains("src/lib.rs:7")
-        )
-    }));
-    assert!(issues.iter().any(|issue| {
-        matches!(
-            issue,
-            ValidationIssue::MissingVariable(warning)
-                if warning.key == "bye" && warning.help.contains("declared in")
-        )
-    }));
-    assert!(issues.iter().any(|issue| {
-        matches!(
-            issue,
-            ValidationIssue::MissingVariable(warning)
-                if warning.key == "raw" && warning.help.contains("Rust code")
-        )
-    }));
+        assert!(issues.iter().any(|issue| {
+            matches!(
+                issue,
+                ValidationIssue::MissingVariable(warning)
+                    if warning.key == "hello" && warning.help.contains("src/lib.rs:7")
+            )
+        }));
+        assert!(issues.iter().any(|issue| {
+            matches!(
+                issue,
+                ValidationIssue::MissingVariable(warning)
+                    if warning.key == "bye" && warning.help.contains("declared in")
+            )
+        }));
+        assert!(issues.iter().any(|issue| {
+            matches!(
+                issue,
+                ValidationIssue::MissingVariable(warning)
+                    if warning.key == "raw" && warning.help.contains("Rust code")
+            )
+        }));
+    });
 }
 
 #[test]

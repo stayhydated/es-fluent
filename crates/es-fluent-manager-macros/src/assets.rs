@@ -322,16 +322,13 @@ impl I18nAssets {
 }
 
 #[cfg(test)]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::*;
     use quote::quote;
-    use std::sync::{LazyLock, Mutex};
     use tempfile::tempdir;
 
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
     fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
-        let _guard = ENV_LOCK.lock().expect("lock poisoned");
         let previous = std::env::var(key).ok();
 
         match value {
@@ -345,7 +342,7 @@ mod tests {
             },
         }
 
-        let result = f();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
         match previous {
             Some(previous) => {
@@ -358,7 +355,10 @@ mod tests {
             },
         }
 
-        result
+        match result {
+            Ok(value) => value,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
     }
 
     fn write_manifest(manifest_dir: &std::path::Path, assets_dir: &str) {

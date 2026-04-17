@@ -7,14 +7,10 @@ use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_derive_core::validation::{
     validate_enum, validate_namespace, validate_namespace_against_allowed, validate_struct,
 };
-use std::sync::{LazyLock, Mutex};
 use syn::{DeriveInput, parse_quote};
 use tempfile::tempdir;
 
-static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
 fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
-    let _guard = ENV_LOCK.lock().expect("lock poisoned");
     let previous = std::env::var("CARGO_MANIFEST_DIR").ok();
 
     match manifest_dir {
@@ -28,7 +24,7 @@ fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce()
         },
     }
 
-    let result = f();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
     match previous {
         Some(path) => {
@@ -41,7 +37,10 @@ fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce()
         },
     }
 
-    result
+    match result {
+        Ok(value) => value,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
 }
 
 mod validate_struct_tests {
@@ -296,6 +295,7 @@ mod validate_enum_tests {
     }
 }
 
+#[serial_test::serial(manifest)]
 mod validate_namespace_tests {
     use super::*;
 

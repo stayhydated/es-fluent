@@ -3853,6 +3853,7 @@ dependencies = [
  "es-fluent-toml",
  "fluent-bundle",
  "inventory",
+ "parking_lot",
  "rust-embed",
  "strum",
  "tempfile",
@@ -3872,6 +3873,7 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "colored",
+ "crossbeam-channel",
  "crossterm",
  "es-fluent-generate",
  "es-fluent-runner",
@@ -3886,6 +3888,7 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
+ "serial_test",
  "similar",
  "tempfile",
  "terminal-link",
@@ -3909,6 +3912,7 @@ dependencies = [
  "es-fluent-shared",
  "es-fluent-toml",
  "serde_json",
+ "serial_test",
  "tempfile",
  "thiserror 2.0.18",
  "tracing",
@@ -3926,6 +3930,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
+ "serial_test",
  "strum",
  "syn 2.0.117",
 ]
@@ -3944,6 +3949,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
+ "serial_test",
  "strum",
  "syn 2.0.117",
  "tempfile",
@@ -3976,7 +3982,9 @@ dependencies = [
  "es-fluent-manager-core",
  "fluent-bundle",
  "inventory",
+ "parking_lot",
  "rust-embed",
+ "serial_test",
  "tempfile",
  "tracing",
  "unic-langid",
@@ -3992,6 +4000,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
+ "serial_test",
  "syn 2.0.117",
  "unic-langid",
 ]
@@ -4050,6 +4059,7 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
+ "serial_test",
  "syn 2.0.117",
  "tempfile",
  "unic-langid",
@@ -4091,6 +4101,7 @@ version = "0.15.0"
 dependencies = [
  "es-fluent-shared",
  "serde",
+ "serial_test",
  "tempfile",
  "thiserror 2.0.18",
  "toml 1.1.2+spec-1.1.0",
@@ -7371,6 +7382,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d3d07927151ff8575b7087f245456e549fea62edf0ec4e565a5ee50c8402bc3"
 dependencies = [
  "bitflags 2.11.1",
+ "crossbeam-channel",
  "fsevent-sys",
  "inotify 0.11.1",
  "kqueue",
@@ -7401,6 +7413,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c02b49179cfebc9932238d04d6079912d26de0379328872846118a0fa0dbb302"
 dependencies = [
+ "crossbeam-channel",
  "file-id",
  "log",
  "notify 8.2.0",
@@ -9381,6 +9394,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scc"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46e6f046b7fef48e2660c57ed794263155d713de679057f2d0c169bfc6e756cc"
+dependencies = [
+ "sdd",
+]
+
+[[package]]
 name = "scheduler"
 version = "0.1.0"
 source = "git+https://github.com/zed-industries/zed?rev=15d8660748b508b3525d3403e5d172f1a557bfa5#15d8660748b508b3525d3403e5d172f1a557bfa5"
@@ -9468,6 +9490,12 @@ dependencies = [
  "smithay-client-toolkit",
  "tiny-skia",
 ]
+
+[[package]]
+name = "sdd"
+version = "3.0.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490dcfcbfef26be6800d11870ff2df8774fa6e86d047e3e8c8a76b25655e41ca"
 
 [[package]]
 name = "seahash"
@@ -9636,6 +9664,32 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "serial_test"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "911bd979bf1070a3f3aa7b691a3b3e9968f339ceeec89e08c280a8a22207a32f"
+dependencies = [
+ "futures-executor",
+ "futures-util",
+ "log",
+ "once_cell",
+ "parking_lot",
+ "scc",
+ "serial_test_derive",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a7d91949b85b0d2fb687445e448b40d322b6b3e4af6b44a29b21d9a5f33e6d9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]

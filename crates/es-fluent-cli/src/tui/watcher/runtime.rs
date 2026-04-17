@@ -2,10 +2,10 @@ use super::events::{PathToCrateMap, build_path_to_crate, process_file_events};
 use super::generation::{compute_watch_inputs_hash, spawn_generation};
 use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, WorkspaceInfo};
 use crate::tui::{Message, TuiApp};
+use crossbeam_channel::{Receiver, Sender, unbounded};
 use notify_debouncer_full::DebouncedEvent;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::sync::mpsc::{self, Receiver, Sender};
 
 pub(super) struct WatchRuntime<'a> {
     workspace: Arc<WorkspaceInfo>,
@@ -43,7 +43,7 @@ impl<'a> WatchRuntime<'a> {
             );
         }
 
-        let (result_tx, result_rx) = mpsc::channel();
+        let (result_tx, result_rx) = unbounded();
 
         Self {
             workspace: Arc::new(workspace.clone()),

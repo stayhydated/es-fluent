@@ -4,7 +4,6 @@ use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use es_fluent_shared::meta::TypeKind;
 use std::borrow::Cow;
 use std::path::Path;
-use std::sync::{LazyLock, Mutex};
 use tempfile::tempdir;
 
 static EMPTY_VARIANTS: &[FtlVariant] = &[];
@@ -39,14 +38,11 @@ static CLEAN_INFO: FtlTypeInfo = FtlTypeInfo {
     module_path: "coverage_test_crate",
     namespace: None,
 };
-static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
 es_fluent::__inventory::submit! {
     es_fluent::registry::RegisteredFtlType(&CLEAN_INFO)
 }
 
 fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
-    let _guard = ENV_LOCK.lock().expect("lock poisoned");
     let previous = std::env::var_os(key);
 
     match value {
@@ -60,7 +56,7 @@ fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
         },
     }
 
-    let result = f();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
     match previous {
         Some(previous) => {
@@ -73,11 +69,13 @@ fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
         },
     }
 
-    result
+    match result {
+        Ok(value) => value,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
 }
 
 fn with_env_vars<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
-    let _guard = ENV_LOCK.lock().expect("lock poisoned");
     let previous: Vec<(String, Option<std::ffi::OsString>)> = vars
         .iter()
         .map(|(key, _)| ((*key).to_string(), std::env::var_os(key)))
@@ -96,7 +94,7 @@ fn with_env_vars<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
         }
     }
 
-    let result = f();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
     for (key, value) in previous {
         match value {
@@ -111,7 +109,10 @@ fn with_env_vars<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
         }
     }
 
-    result
+    match result {
+        Ok(value) => value,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
 }
 
 fn write_basic_i18n_config(manifest_dir: &Path) {
@@ -157,6 +158,7 @@ fn resolve_helpers_use_overrides_and_config_defaults() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn resolve_helpers_can_load_defaults_from_manifest_environment() {
     let temp = tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
@@ -181,6 +183,7 @@ fn resolve_helpers_can_load_defaults_from_manifest_environment() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn resolve_manifest_dir_reports_missing_environment() {
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -396,6 +399,7 @@ fn clean_marks_changes_when_cleaner_rewrites_files() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn detect_crate_name_works_in_test_environment() {
     with_env_vars(
         &[
@@ -410,6 +414,7 @@ fn detect_crate_name_works_in_test_environment() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
     let temp = tempdir().expect("tempdir");
 
@@ -446,6 +451,7 @@ fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn env_helpers_restore_unset_variables() {
     let key = format!("ES_FLUENT_TEST_UNSET_{}_A", std::process::id());
     with_env_var(&key, Some("value"), || {

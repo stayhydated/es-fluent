@@ -1,10 +1,6 @@
 use std::path::Path;
-use std::sync::{LazyLock, Mutex};
-
-pub static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 pub fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
-    let _guard = ENV_LOCK.lock().expect("lock poisoned");
     let previous = std::env::var("CARGO_MANIFEST_DIR").ok();
 
     match value {
@@ -16,7 +12,7 @@ pub fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
         },
     }
 
-    let result = f();
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
     match previous {
         Some(prev) => {
@@ -27,5 +23,8 @@ pub fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
         },
     }
 
-    result
+    match result {
+        Ok(value) => value,
+        Err(panic) => std::panic::resume_unwind(panic),
+    }
 }

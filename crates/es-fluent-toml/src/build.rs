@@ -29,6 +29,7 @@ pub fn track_i18n_assets() {
 }
 
 #[cfg(test)]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::*;
     use crate::test_utils::with_manifest_env;

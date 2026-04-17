@@ -26,6 +26,7 @@ es-fluent-shared = { workspace = true }
 es-fluent-toml = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
+parking_lot = { workspace = true }
 rust-embed = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }

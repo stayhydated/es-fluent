@@ -23,11 +23,13 @@ es-fluent-lang-macro = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
+parking_lot = { workspace = true }
 rust-embed = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [dev-dependencies]
+serial_test = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

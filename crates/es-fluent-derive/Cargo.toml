@@ -28,6 +28,7 @@ syn = { features = [ "full" ], workspace = true }
 [dev-dependencies]
 es-fluent-derive-core = { workspace = true }
 insta = { workspace = true }
+serial_test = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
 
 [lints]

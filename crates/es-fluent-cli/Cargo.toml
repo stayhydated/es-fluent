@@ -25,6 +25,7 @@ cargo-manifest = { workspace = true }
 cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
+crossbeam-channel = { workspace = true }
 crossterm = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-runner = { workspace = true }
@@ -35,7 +36,7 @@ indicatif = { workspace = true }
 jiff = { workspace = true }
 miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
-notify-debouncer-full = { workspace = true }
+notify-debouncer-full = { features = [ "crossbeam-channel" ], workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -50,6 +51,7 @@ walkdir = { workspace = true }
 [dev-dependencies]
 assert_fs = { workspace = true }
 serde_json = { workspace = true }
+serial_test = { workspace = true }
 tempfile.workspace = true
 
 

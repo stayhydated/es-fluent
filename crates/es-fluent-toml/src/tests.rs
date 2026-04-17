@@ -272,6 +272,7 @@ fn test_fluent_feature_is_empty_variants() {
 }
 
 #[test]
+#[serial_test::serial(manifest)]
 fn test_available_languages_uses_manifest_env_when_base_not_provided() {
     let temp_dir = TempDir::new().unwrap();
     let assets = temp_dir.path().join("i18n");
@@ -297,6 +298,7 @@ fn test_available_languages_uses_manifest_env_when_base_not_provided() {
 }
 
 #[test]
+#[serial_test::serial(manifest)]
 fn test_validate_assets_dir_reports_missing_and_non_directory() {
     let temp_dir = TempDir::new().unwrap();
     let config = I18nConfig {

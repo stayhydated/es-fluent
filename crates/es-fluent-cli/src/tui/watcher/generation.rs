@@ -1,8 +1,8 @@
 use crate::core::{CrateInfo, FluentParseMode, GenerateResult, GenerationAction, WorkspaceInfo};
 use crate::generation::MonolithicExecutor;
+use crossbeam_channel::Sender;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::mpsc::Sender;
 use std::thread;
 
 /// Compute a hash of the crate-local inputs that affect watch-mode generation.

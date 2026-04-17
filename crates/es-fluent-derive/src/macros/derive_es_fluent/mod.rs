@@ -57,16 +57,13 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
 }
 
 #[cfg(test)]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::expand_es_fluent;
-    use std::sync::{LazyLock, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
     use syn::parse_quote;
 
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
     fn with_manifest_dir<T>(namespaces: &[&str], f: impl FnOnce() -> T) -> T {
-        let _guard = ENV_LOCK.lock().expect("lock poisoned");
         let previous = std::env::var_os("CARGO_MANIFEST_DIR");
 
         let unique = SystemTime::now()

@@ -19,15 +19,12 @@ fn i18n_dir_from_manifest() -> PathBuf {
 }
 
 #[cfg(test)]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::*;
-    use std::sync::{LazyLock, Mutex};
     use tempfile::tempdir;
 
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
     fn with_manifest_env<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
-        let _guard = ENV_LOCK.lock().expect("lock poisoned");
         let previous = env::var("CARGO_MANIFEST_DIR").ok();
 
         match manifest_dir {
@@ -41,7 +38,7 @@ mod tests {
             },
         }
 
-        let result = f();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
 
         match previous {
             Some(previous) => {
@@ -54,7 +51,10 @@ mod tests {
             },
         }
 
-        result
+        match result {
+            Ok(value) => value,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
     }
 
     #[test]

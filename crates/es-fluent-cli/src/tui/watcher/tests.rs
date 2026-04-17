@@ -6,6 +6,7 @@ use crate::generation::cache::{
     RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
 };
 use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
+use crossbeam_channel::unbounded;
 use notify::{
     Event,
     event::{EventKind, ModifyKind},
@@ -15,7 +16,6 @@ use ratatui::{Terminal, backend::TestBackend};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime};
 
 fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
@@ -151,7 +151,7 @@ fn spawn_generation_sends_failure_for_missing_lib_rs() {
         crates: vec![krate.clone()],
     };
 
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = unbounded();
     spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
 
     let result = rx
@@ -292,7 +292,7 @@ fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
     std::fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
     std::fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
 
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = unbounded();
     spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
     let result = rx
         .recv_timeout(Duration::from_secs(2))
@@ -321,7 +321,7 @@ fn spawn_generation_handles_invalid_json_and_empty_output() {
     std::fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
     std::fs::write(&result_json, "{not-json").expect("write invalid json");
 
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = unbounded();
     spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
     let result = rx
         .recv_timeout(Duration::from_secs(2))
