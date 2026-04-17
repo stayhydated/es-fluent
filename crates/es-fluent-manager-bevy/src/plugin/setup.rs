@@ -4,7 +4,7 @@ use super::runtime::{
 use super::state::{BevyI18nState, set_bevy_i18n_state};
 use crate::{
     BevyFluentTextRegistration, CurrentLanguageId, FtlAsset, I18nAssets, I18nResource,
-    LocaleChangeEvent, LocaleChangedEvent,
+    LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
 };
 use bevy::prelude::*;
 use es_fluent_manager_core::{
@@ -154,6 +154,7 @@ pub(super) fn configure_app(
     app.insert_resource(i18n_assets)
         .insert_resource(i18n_resource)
         .insert_resource(CurrentLanguageId(resolved_language))
+        .insert_resource(PendingLanguageChange::default())
         .add_message::<LocaleChangeEvent>()
         .add_message::<LocaleChangedEvent>()
         .add_systems(

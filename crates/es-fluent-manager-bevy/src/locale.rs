@@ -6,6 +6,10 @@ use unic_langid::LanguageIdentifier;
 #[derive(Clone, Resource)]
 pub struct CurrentLanguageId(pub LanguageIdentifier);
 
+/// Internal bookkeeping for a requested locale that is still waiting on an accepted bundle.
+#[derive(Clone, Default, Resource)]
+pub(crate) struct PendingLanguageChange(pub(crate) Option<LanguageIdentifier>);
+
 /// Returns the primary language subtag from a `LanguageIdentifier`.
 ///
 /// For example, for `en-US`, this would return `en`.

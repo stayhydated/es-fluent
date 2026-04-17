@@ -1,5 +1,9 @@
 use super::super::state::update_global_bundle;
-use crate::{I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent};
+use super::locale::apply_selected_language;
+use crate::{
+    CurrentLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
+    PendingLanguageChange,
+};
 use bevy::prelude::*;
 use bevy::window::RequestRedraw;
 use unic_langid::LanguageIdentifier;
@@ -15,14 +19,16 @@ fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Opt
 pub(crate) fn sync_global_state(
     i18n_bundle: Res<I18nBundle>,
     i18n_domain_bundles: Res<I18nDomainBundles>,
-    i18n_resource: Res<I18nResource>,
+    mut i18n_resource: ResMut<I18nResource>,
+    mut current_language_id: ResMut<CurrentLanguageId>,
+    mut pending_language_change: ResMut<PendingLanguageChange>,
     mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
     mut redraw_events: MessageWriter<RequestRedraw>,
     mut last_current_bundle: Local<Option<(LanguageIdentifier, Option<usize>)>>,
 ) {
     let current_lang = i18n_resource.current_language().clone();
-    let current_bundle_id = current_bundle_id(&i18n_bundle, &current_lang);
-    let current_bundle_present = current_bundle_id.is_some();
+    let current_bundle_ptr_id = current_bundle_id(&i18n_bundle, &current_lang);
+    let current_bundle_present = current_bundle_ptr_id.is_some();
     let locale_switched = matches!(
         last_current_bundle.as_ref(),
         Some((previous_lang, _)) if previous_lang != &current_lang
@@ -30,11 +36,31 @@ pub(crate) fn sync_global_state(
     let current_bundle_changed = !matches!(
         last_current_bundle.as_ref(),
         Some((previous_lang, previous_bundle_id))
-            if previous_lang == &current_lang && previous_bundle_id == &current_bundle_id
+            if previous_lang == &current_lang && previous_bundle_id == &current_bundle_ptr_id
     );
 
     if i18n_bundle.is_changed() || i18n_domain_bundles.is_changed() {
         update_global_bundle((*i18n_bundle).clone(), (*i18n_domain_bundles).clone());
+
+        if let Some(pending_language) = pending_language_change.0.clone() {
+            let pending_bundle_id = current_bundle_id(&i18n_bundle, &pending_language);
+            if pending_bundle_id.is_some() {
+                let published = apply_selected_language(
+                    pending_language.clone(),
+                    &mut i18n_resource,
+                    &mut current_language_id,
+                    &mut locale_changed_events,
+                );
+                pending_language_change.0 = None;
+                if published {
+                    redraw_events.write(RequestRedraw);
+                    *last_current_bundle = Some((pending_language, pending_bundle_id));
+                } else {
+                    *last_current_bundle = Some((current_lang, current_bundle_ptr_id));
+                }
+                return;
+            }
+        }
 
         if !locale_switched && current_bundle_changed && current_bundle_present {
             debug!("I18n bundle ready for current language: {}", current_lang);
@@ -47,7 +73,7 @@ pub(crate) fn sync_global_state(
         }
     }
 
-    *last_current_bundle = Some((current_lang, current_bundle_id));
+    *last_current_bundle = Some((current_lang, current_bundle_ptr_id));
 }
 
 #[cfg(test)]
@@ -55,8 +81,8 @@ mod tests {
     use super::*;
     use crate::test_support::lock_bevy_global_state;
     use crate::{
-        BundleBuildFailures, FluentText, FluentTextRegistration, I18nAssets, RefreshForLocale,
-        ToFluentString,
+        BundleBuildFailures, CurrentLanguageId, FluentText, FluentTextRegistration, I18nAssets,
+        PendingLanguageChange, RefreshForLocale, ToFluentString,
     };
     use bevy::ecs::message::Messages;
     use es_fluent_manager_core::ResourceKey;
@@ -94,6 +120,8 @@ mod tests {
         app.insert_resource(I18nBundle::default());
         app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(lang.clone()));
+        app.insert_resource(CurrentLanguageId(lang.clone()));
+        app.insert_resource(PendingLanguageChange::default());
         app.register_fluent_text_from_locale::<RefreshableMessage>();
         app.add_systems(Update, sync_global_state);
 
@@ -181,6 +209,8 @@ mod tests {
             vec!["resource 'app': duplicate message id 'hello'".to_string()],
         )])));
         app.insert_resource(I18nResource::new(lang.clone()));
+        app.insert_resource(CurrentLanguageId(lang.clone()));
+        app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, sync_global_state);
         app.add_systems(
             PostUpdate,
@@ -246,6 +276,8 @@ mod tests {
         app.insert_resource(I18nBundle::default());
         app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(current_lang.clone()));
+        app.insert_resource(CurrentLanguageId(current_lang.clone()));
+        app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, sync_global_state);
 
         let current_resource =
