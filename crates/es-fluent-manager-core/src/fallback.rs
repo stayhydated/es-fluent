@@ -1,5 +1,7 @@
 use fluent_fallback::env::LocalesProvider;
-use fluent_langneg::{NegotiationStrategy, negotiate_languages};
+use fluent_langneg::{
+    LanguageIdentifier as FluentLanguageIdentifier, NegotiationStrategy, negotiate_languages,
+};
 use icu_locale::{Locale, fallback::LocaleFallbacker};
 use unic_langid::LanguageIdentifier;
 
@@ -8,6 +10,10 @@ fn sorted_languages(languages: &[LanguageIdentifier]) -> Vec<LanguageIdentifier>
     languages.sort_by_key(|lang| lang.to_string());
     languages.dedup();
     languages
+}
+
+fn to_fluent_language_identifier(lang: &LanguageIdentifier) -> Option<FluentLanguageIdentifier> {
+    lang.to_string().parse().ok()
 }
 
 /// Returns language candidates in fallback order for the requested language.
@@ -60,15 +66,27 @@ pub fn resolve_fallback_language(
     available: &[LanguageIdentifier],
 ) -> Option<LanguageIdentifier> {
     let available = sorted_languages(available);
+    let requested = to_fluent_language_identifier(requested)?;
+    let available: Vec<_> = available
+        .into_iter()
+        .filter_map(|lang| to_fluent_language_identifier(&lang).map(|converted| (lang, converted)))
+        .collect();
+    let available_fluent: Vec<_> = available.iter().map(|(_, lang)| lang).collect();
+
     negotiate_languages(
-        std::slice::from_ref(requested),
-        &available,
+        std::slice::from_ref(&requested),
+        &available_fluent,
         None,
         NegotiationStrategy::Lookup,
     )
     .into_iter()
     .next()
-    .cloned()
+    .and_then(|resolved| {
+        available
+            .iter()
+            .find(|(_, lang)| lang == *resolved)
+            .map(|(lang, _)| lang.clone())
+    })
 }
 
 /// Picks the best locale for active use, preferring ready locales over merely available locales.

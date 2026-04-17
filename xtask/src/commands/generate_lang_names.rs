@@ -2,11 +2,12 @@ use crate::util::workspace_root;
 use anyhow::{bail, Context, Result};
 use clap::Args;
 use icu_experimental::displaynames::{
+    multi::LocaleDisplayNamesFormatter,
     provider::{
         LanguageDisplayNamesV1, LocaleDisplayNamesV1, RegionDisplayNamesV1, ScriptDisplayNamesV1,
         VariantDisplayNamesV1,
     },
-    DisplayNamesOptions, LocaleDisplayNamesFormatter,
+    DisplayNamesOptions,
 };
 use icu_experimental_data::*;
 use icu_locale::Locale;

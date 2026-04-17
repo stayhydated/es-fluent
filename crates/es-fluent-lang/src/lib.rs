@@ -28,10 +28,13 @@ pub fn force_link() -> usize {
 #[cfg(feature = "macros")]
 pub use es_fluent_lang_macro::es_fluent_language;
 
+#[cfg(feature = "localized-langs")]
+#[doc(hidden)]
+use es_fluent_manager_core::resolve_fallback_language;
 #[doc(hidden)]
 use es_fluent_manager_core::{
     I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, localize_with_bundle, resolve_fallback_language,
+    ModuleData, localize_with_bundle,
 };
 use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
 use std::collections::HashMap;
