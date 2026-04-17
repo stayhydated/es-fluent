@@ -2,6 +2,7 @@ use crate::assets::{I18nAssets, current_crate_name, module_data_static_tokens};
 use heck::ToPascalCase as _;
 use proc_macro::TokenStream;
 use quote::quote;
+use std::path::Path;
 
 struct ManagerPaths {
     manager_core_path: proc_macro2::TokenStream,
@@ -36,8 +37,13 @@ impl ManagerPaths {
     }
 }
 
-type ModuleTokenGenerator =
-    fn(String, I18nAssets, syn::Ident, proc_macro2::TokenStream, &ManagerPaths) -> TokenStream;
+type ModuleTokenGenerator = fn(
+    String,
+    I18nAssets,
+    syn::Ident,
+    proc_macro2::TokenStream,
+    &ManagerPaths,
+) -> syn::Result<TokenStream>;
 
 fn expand_define_i18n_module(
     manager_paths: ManagerPaths,
@@ -73,13 +79,16 @@ fn expand_define_i18n_module(
         &namespace_strings,
     );
 
-    generate_tokens(
+    match generate_tokens(
         crate_name,
         assets,
         module_data_name,
         module_data_static,
         &manager_paths,
-    )
+    ) {
+        Ok(tokens) => tokens,
+        Err(err) => TokenStream::from(err.to_compile_error()),
+    }
 }
 
 pub(crate) fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
@@ -96,7 +105,7 @@ fn generate_embedded_tokens(
     module_data_name: syn::Ident,
     module_data_static: proc_macro2::TokenStream,
     manager_paths: &ManagerPaths,
-) -> TokenStream {
+) -> syn::Result<TokenStream> {
     let assets_struct_name = syn::Ident::new(
         &format!(
             "{}I18nAssets",
@@ -113,7 +122,7 @@ fn generate_embedded_tokens(
         proc_macro2::Span::call_site(),
     );
 
-    let i18n_root_str = assets.root_path.to_string_lossy();
+    let i18n_root_str = utf8_folder_literal(&assets.root_path)?;
     let rust_embed_path = &manager_paths.rust_embed_path;
     let rust_embed_attr_path = syn::LitStr::new(
         manager_paths.rust_embed_attr_path,
@@ -150,7 +159,7 @@ fn generate_embedded_tokens(
         );
     };
 
-    TokenStream::from(expanded)
+    Ok(TokenStream::from(expanded))
 }
 
 fn generate_bevy_tokens(
@@ -159,7 +168,7 @@ fn generate_bevy_tokens(
     module_data_name: syn::Ident,
     module_data_static: proc_macro2::TokenStream,
     manager_paths: &ManagerPaths,
-) -> TokenStream {
+) -> syn::Result<TokenStream> {
     let registration_struct_name = syn::Ident::new(
         &format!(
             "{}I18nRegistration",
@@ -216,5 +225,18 @@ fn generate_bevy_tokens(
         );
     };
 
-    TokenStream::from(expanded)
+    Ok(TokenStream::from(expanded))
+}
+
+fn utf8_folder_literal(path: &Path) -> syn::Result<syn::LitStr> {
+    let path = path.to_str().ok_or_else(|| {
+        syn::Error::new(
+            proc_macro2::Span::call_site(),
+            format!(
+                "i18n assets directory path must be valid UTF-8 for RustEmbed: {:?}",
+                path
+            ),
+        )
+    })?;
+    Ok(syn::LitStr::new(path, proc_macro2::Span::call_site()))
 }

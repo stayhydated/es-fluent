@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive/src/macros/utils.rs
+expression: tokens
+---
+impl :: es_fluent :: ThisFtl for Languages { fn this_ftl () -> String { :: es_fluent :: localize_in_domain ("es-fluent-lang" , "es-fluent-lang-this" , None) } }

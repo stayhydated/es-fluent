@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-manager-macros/src/bevy_fluent_text.rs
+expression: normalized_tokens(module_tokens)
+---
+# [doc (hidden)] mod __test_module { use super :: * ; struct Registration ; impl :: es_fluent_manager_bevy :: BevyFluentTextRegistration for Registration { fn register (& self , app : & mut :: es_fluent_manager_bevy :: bevy :: prelude :: App) { register_me (app) ; } } :: es_fluent_manager_bevy :: inventory :: submit ! (& Registration as & dyn :: es_fluent_manager_bevy :: BevyFluentTextRegistration) ; }

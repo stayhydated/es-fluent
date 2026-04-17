@@ -412,7 +412,17 @@ mod tests {
         preferred_namespace,
     };
     use es_fluent_derive_core::options::namespace::NamespaceValue;
+    use insta::assert_snapshot;
+    use proc_macro2::TokenStream;
     use syn::parse_quote;
+
+    fn normalized_tokens(tokens: TokenStream) -> String {
+        tokens
+            .to_string()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 
     #[test]
     fn inherited_fluent_namespace_reads_parent_attr_on_structs_and_enums() {
@@ -460,32 +470,26 @@ mod tests {
 
     #[test]
     fn generate_this_ftl_impl_routes_through_the_current_crate_domain() {
-        let tokens = generate_this_ftl_impl(
+        let tokens = normalized_tokens(generate_this_ftl_impl(
             &parse_quote!(Greeting),
             &parse_quote!(),
             Some("hello"),
             None,
-        )
-        .to_string();
+        ));
 
-        assert!(tokens.contains(":: es_fluent :: localize_in_domain"));
-        assert!(tokens.contains("env ! (\"CARGO_PKG_NAME\")"));
-        assert!(tokens.contains("hello"));
+        assert_snapshot!("generate_this_ftl_impl_current_crate_domain", tokens);
     }
 
     #[test]
     fn generate_this_ftl_impl_uses_explicit_domain_override_when_present() {
-        let tokens = generate_this_ftl_impl(
+        let tokens = normalized_tokens(generate_this_ftl_impl(
             &parse_quote!(Languages),
             &parse_quote!(),
             Some("es-fluent-lang-this"),
             Some("es-fluent-lang"),
-        )
-        .to_string();
+        ));
 
-        assert!(tokens.contains(":: es_fluent :: localize_in_domain"));
-        assert!(tokens.contains("\"es-fluent-lang\""));
-        assert!(!tokens.contains("env ! (\"CARGO_PKG_NAME\")"));
+        assert_snapshot!("generate_this_ftl_impl_explicit_domain_override", tokens);
     }
 
     #[test]

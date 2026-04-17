@@ -1,6 +1,8 @@
-use super::CLI_VERSION;
+use super::{CLI_VERSION, utf8_path_string};
+use anyhow::Result;
 use cargo_manifest::{Dependency, DependencyDetail};
 use es_fluent_runner::RunnerMetadataStore;
+use fs_err as fs;
 use std::{env, path::Path};
 
 type ManifestOverrides = toml::map::Map<String, toml::Value>;
@@ -15,7 +17,7 @@ pub(super) struct TempCrateConfig {
 
 impl TempCrateConfig {
     /// Create config by querying cargo metadata once, or from cache if valid.
-    pub(super) fn from_manifest(manifest_path: &Path) -> Self {
+    pub(super) fn from_manifest(manifest_path: &Path) -> Result<Self> {
         use crate::generation::cache::MetadataCache;
 
         let target_dir_from_env = std::env::var("CARGO_TARGET_DIR").ok();
@@ -27,12 +29,12 @@ impl TempCrateConfig {
         if let Some(cache) = MetadataCache::load(temp_dir.base_dir())
             && cache.is_valid(workspace_root)
         {
-            return Self {
+            return Ok(Self {
                 es_fluent_dep: cache.es_fluent_dep,
                 es_fluent_cli_helpers_dep: cache.es_fluent_cli_helpers_dep,
                 target_dir: target_dir_from_env.unwrap_or(cache.target_dir),
                 manifest_overrides,
-            };
+            });
         }
 
         let metadata = cargo_metadata::MetadataCommand::new()
@@ -43,27 +45,27 @@ impl TempCrateConfig {
 
         let (es_fluent_dep, es_fluent_cli_helpers_dep, target_dir) = match metadata {
             Some(ref meta) => {
-                let es_fluent = Self::find_local_dep(meta, "es-fluent")
-                    .or_else(Self::find_cli_workspace_dep_es_fluent)
+                let es_fluent = Self::find_local_dep(meta, "es-fluent")?
+                    .or(Self::find_cli_workspace_dep_es_fluent()?)
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION));
-                let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")
-                    .or_else(Self::find_cli_workspace_dep_helpers)
+                let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")?
+                    .or(Self::find_cli_workspace_dep_helpers()?)
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION));
                 let target =
                     target_dir_from_env.unwrap_or_else(|| meta.target_directory.to_string());
                 (es_fluent, helpers, target)
             },
             None => (
-                Self::find_cli_workspace_dep_es_fluent()
+                Self::find_cli_workspace_dep_es_fluent()?
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION)),
-                Self::find_cli_workspace_dep_helpers()
+                Self::find_cli_workspace_dep_helpers()?
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION)),
                 target_dir_from_env.unwrap_or_else(|| "../target".to_string()),
             ),
         };
 
         if let Some(cargo_lock_hash) = MetadataCache::hash_cargo_lock(workspace_root) {
-            let _ = std::fs::create_dir_all(temp_dir.base_dir());
+            let _ = fs::create_dir_all(temp_dir.base_dir());
             let cache = MetadataCache {
                 cargo_lock_hash,
                 es_fluent_dep: es_fluent_dep.clone(),
@@ -73,43 +75,63 @@ impl TempCrateConfig {
             let _ = cache.save(temp_dir.base_dir());
         }
 
-        Self {
+        Ok(Self {
             es_fluent_dep,
             es_fluent_cli_helpers_dep,
             target_dir,
             manifest_overrides,
-        }
+        })
     }
 
-    fn find_local_dep(meta: &cargo_metadata::Metadata, crate_name: &str) -> Option<Dependency> {
-        meta.packages
+    fn find_local_dep(
+        meta: &cargo_metadata::Metadata,
+        crate_name: &str,
+    ) -> Result<Option<Dependency>> {
+        Ok(meta
+            .packages
             .iter()
             .find(|p| p.name.as_str() == crate_name && p.source.is_none())
             .map(|pkg| {
-                let path = pkg.manifest_path.parent().unwrap();
-                Self::path_dep(path.as_std_path())
-            })
+                Self::path_dep_utf8(
+                    pkg.manifest_path
+                        .parent()
+                        .expect("manifest path parent")
+                        .as_str(),
+                )
+            }))
     }
 
-    fn find_cli_workspace_dep_es_fluent() -> Option<Dependency> {
+    fn find_cli_workspace_dep_es_fluent() -> Result<Option<Dependency>> {
         let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
         let cli_path = Path::new(cli_manifest_dir);
-        let es_fluent_path = cli_path.parent()?.join("es-fluent");
+        let Some(workspace_dir) = cli_path.parent() else {
+            return Ok(None);
+        };
+        let es_fluent_path = workspace_dir.join("es-fluent");
         if es_fluent_path.join("Cargo.toml").exists() {
-            Some(Self::path_dep(&es_fluent_path))
+            Ok(Some(Self::path_dep(
+                &es_fluent_path,
+                "es-fluent workspace dependency path",
+            )?))
         } else {
-            None
+            Ok(None)
         }
     }
 
-    fn find_cli_workspace_dep_helpers() -> Option<Dependency> {
+    fn find_cli_workspace_dep_helpers() -> Result<Option<Dependency>> {
         let cli_manifest_dir = env!("CARGO_MANIFEST_DIR");
         let cli_path = Path::new(cli_manifest_dir);
-        let helpers_path = cli_path.parent()?.join("es-fluent-cli-helpers");
+        let Some(workspace_dir) = cli_path.parent() else {
+            return Ok(None);
+        };
+        let helpers_path = workspace_dir.join("es-fluent-cli-helpers");
         if helpers_path.join("Cargo.toml").exists() {
-            Some(Self::path_dep(&helpers_path))
+            Ok(Some(Self::path_dep(
+                &helpers_path,
+                "es-fluent-cli-helpers workspace dependency path",
+            )?))
         } else {
-            None
+            Ok(None)
         }
     }
 
@@ -119,7 +141,7 @@ impl TempCrateConfig {
     /// overrides from the project's manifest unless we mirror them into the generated
     /// `.es-fluent/Cargo.toml`.
     pub(super) fn extract_manifest_overrides(manifest_path: &Path) -> ManifestOverrides {
-        let content = match std::fs::read_to_string(manifest_path) {
+        let content = match fs::read_to_string(manifest_path) {
             Ok(content) => content,
             Err(_) => return ManifestOverrides::new(),
         };
@@ -146,9 +168,14 @@ impl TempCrateConfig {
         overrides
     }
 
-    fn path_dep(path: &Path) -> Dependency {
+    fn path_dep(path: &Path, context: &str) -> Result<Dependency> {
+        let path = utf8_path_string(path, context)?;
+        Ok(Self::path_dep_utf8(&path))
+    }
+
+    fn path_dep_utf8(path: &str) -> Dependency {
         Dependency::Detailed(DependencyDetail {
-            path: Some(path.to_string_lossy().into_owned()),
+            path: Some(path.to_string()),
             ..Default::default()
         })
     }

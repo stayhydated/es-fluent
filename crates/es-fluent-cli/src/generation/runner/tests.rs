@@ -73,7 +73,8 @@ fn crate_inputs_hash(krate: &CrateInfo) -> String {
 
 #[test]
 fn test_temp_crate_config_nonexistent_manifest() {
-    let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"));
+    let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"))
+        .expect("load temp crate config");
     // With fallback, should find local es-fluent from CLI workspace
     // If running in CI or different environment, may still be crates.io
     assert!(matches!(
@@ -105,7 +106,7 @@ es-fluent = { version = "*" }
     fs::create_dir_all(&src_dir).unwrap();
     fs::write(src_dir.join("lib.rs"), "").unwrap();
 
-    let config = TempCrateConfig::from_manifest(&manifest_path);
+    let config = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
     // With fallback, should find local es-fluent from CLI workspace
     assert!(matches!(
         config.es_fluent_dep,
@@ -176,7 +177,7 @@ edition = "2024"
     .save(temp_dir.base_dir())
     .expect("save metadata cache");
 
-    let config = TempCrateConfig::from_manifest(&manifest_path);
+    let config = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
     match &config.es_fluent_dep {
         cargo_manifest::Dependency::Detailed(detail) => {
             assert_eq!(detail.path.as_deref(), Some("/tmp/es"));
@@ -207,7 +208,7 @@ edition = "2024"
     .expect("write Cargo.toml");
     std::fs::write(temp.path().join("Cargo.lock"), "lock-content").expect("write lock");
 
-    let _ = TempCrateConfig::from_manifest(&manifest_path);
+    let _ = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
     let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let cache = MetadataCache::load(temp_dir.base_dir());
     assert!(cache.is_some(), "metadata cache should be written");

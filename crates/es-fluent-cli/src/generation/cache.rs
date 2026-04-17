@@ -4,6 +4,7 @@
 //! - Cargo metadata results
 //! - Runner binary staleness detection via content hashing
 
+use fs_err as fs;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -24,7 +25,7 @@ fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path) {
     files.sort();
 
     for path in files {
-        if let Ok(content) = std::fs::read(&path) {
+        if let Ok(content) = fs::read(&path) {
             let relative_path = path.strip_prefix(src_dir).unwrap_or(&path);
             let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
             hasher.update(normalized_path.as_bytes());
@@ -34,7 +35,7 @@ fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path) {
 }
 
 fn hash_optional_file(hasher: &mut blake3::Hasher, label: &str, path: &Path) {
-    if let Ok(content) = std::fs::read(path) {
+    if let Ok(content) = fs::read(path) {
         hasher.update(label.as_bytes());
         hasher.update(&content);
     }
@@ -62,7 +63,7 @@ impl MetadataCache {
     /// Load cache from the temp directory.
     pub fn load(temp_dir: &Path) -> Option<Self> {
         let cache_path = temp_dir.join(Self::CACHE_FILE);
-        let content = std::fs::read_to_string(&cache_path).ok()?;
+        let content = fs::read_to_string(&cache_path).ok()?;
         serde_json::from_str(&content).ok()
     }
 
@@ -70,13 +71,13 @@ impl MetadataCache {
     pub fn save(&self, temp_dir: &Path) -> std::io::Result<()> {
         let cache_path = temp_dir.join(Self::CACHE_FILE);
         let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(cache_path, content)
+        fs::write(cache_path, content)
     }
 
     /// Compute hash of Cargo.lock file.
     pub fn hash_cargo_lock(workspace_root: &Path) -> Option<String> {
         let lock_path = workspace_root.join("Cargo.lock");
-        let content = std::fs::read(&lock_path).ok()?;
+        let content = fs::read(&lock_path).ok()?;
         Some(blake3::hash(&content).to_hex().to_string())
     }
 
@@ -128,7 +129,7 @@ pub fn compute_workspace_inputs_hash(workspace_root: &Path) -> String {
 
     for file_name in ["Cargo.toml", "Cargo.lock"] {
         let path = workspace_root.join(file_name);
-        if let Ok(content) = std::fs::read(&path) {
+        if let Ok(content) = fs::read(&path) {
             hasher.update(file_name.as_bytes());
             hasher.update(&content);
         }
@@ -161,7 +162,7 @@ impl RunnerCache {
     /// Load cache from the temp directory.
     pub fn load(temp_dir: &Path) -> Option<Self> {
         let cache_path = temp_dir.join(Self::CACHE_FILE);
-        let content = std::fs::read_to_string(&cache_path).ok()?;
+        let content = fs::read_to_string(&cache_path).ok()?;
         serde_json::from_str(&content).ok()
     }
 
@@ -169,7 +170,7 @@ impl RunnerCache {
     pub fn save(&self, temp_dir: &Path) -> std::io::Result<()> {
         let cache_path = temp_dir.join(Self::CACHE_FILE);
         let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(cache_path, content)
+        fs::write(cache_path, content)
     }
 }
 

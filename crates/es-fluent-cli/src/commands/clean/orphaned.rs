@@ -3,6 +3,7 @@ use crate::core::CliError;
 use crate::ftl::{CrateFtlLayout, LocaleContext, discover_locale_ftl_files};
 use crate::utils::ui;
 use colored::Colorize as _;
+use fs_err as fs;
 use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
 
@@ -100,13 +101,13 @@ pub(super) fn clean_orphaned_files(
                         "✓".green(),
                         file_info.relative_path.display().to_string().cyan()
                     );
-                    std::fs::remove_file(&file_info.abs_path)?;
+                    fs::remove_file(&file_info.abs_path)?;
 
                     // Try to remove empty parent directories.
                     if let Some(parent) = file_info.abs_path.parent()
                         && parent != target.locale_dir
                     {
-                        let _ = std::fs::remove_dir(parent);
+                        let _ = fs::remove_dir(parent);
                     }
                 }
             }
