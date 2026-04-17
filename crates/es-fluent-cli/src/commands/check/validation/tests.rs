@@ -159,13 +159,15 @@ fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
         }];
 
         let mut expected_keys = IndexMap::new();
+        let absolute_source = temp
+            .path()
+            .join("src/lib.rs")
+            .to_str()
+            .expect("utf-8 test path")
+            .to_string();
         expected_keys.insert(
             "hello".to_string(),
-            key_info(
-                &["name"],
-                Some(temp.path().join("src/lib.rs").to_string_lossy().as_ref()),
-                Some(7),
-            ),
+            key_info(&["name"], Some(&absolute_source), Some(7)),
         );
         expected_keys.insert(
             "bye".to_string(),

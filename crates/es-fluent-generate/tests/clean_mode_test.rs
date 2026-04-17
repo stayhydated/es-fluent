@@ -3,8 +3,14 @@ mod fixtures;
 
 use common::{enum_type, ftl_key, variant};
 use fixtures::{COUNTRY_VARIANTS, EMPTY_GROUP_A, ORPHAN_GROUPS};
+use insta::assert_snapshot;
 use std::fs;
+use std::path::Path;
 use tempfile::TempDir;
+
+fn read_ftl(path: &Path) -> String {
+    fs::read_to_string(path).expect("read ftl")
+}
 
 #[test]
 fn test_clean_mode_orphans() {
@@ -31,18 +37,8 @@ fn test_clean_mode_orphans() {
     )
     .unwrap();
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-    println!("Generated Content:\n{}", content);
-
-    // Verify orphans are gone
-    assert!(!content.contains("orphan-Key"));
-    assert!(!content.contains("orphan-Other"));
-    assert!(!content.contains("what-Hi"));
-    assert!(!content.contains("awdawd"));
-
-    // Verify valid keys remain
-    assert!(content.contains("group_a-Key1"));
-    assert!(content.contains("## GroupA"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!("clean_mode_orphans", content);
 }
 
 #[test]
@@ -63,11 +59,11 @@ fn test_clean_removes_empty_group_comments_for_valid_groups() {
     es_fluent_generate::clean::clean(crate_name, &i18n_path, temp_dir.path(), &items, false)
         .unwrap();
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-
-    assert!(!content.contains("## GroupA"));
-    assert!(content.contains("## GroupB"));
-    assert!(content.contains("group_b-Key1"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!(
+        "clean_removes_empty_group_comments_for_valid_groups",
+        content
+    );
 }
 
 #[test]
@@ -96,11 +92,8 @@ fn test_clean_preserves_variants_items() {
     )
     .unwrap();
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-
-    assert!(content.contains("## CountryLabelVariants"));
-    assert!(content.contains("country_label_variants-Canada"));
-    assert!(content.contains("country_label_variants-USA"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!("clean_preserves_variants_items", content);
 }
 
 #[test]
@@ -126,8 +119,8 @@ fn test_clean_writes_namespaced_files() {
     .unwrap();
 
     assert!(changed);
-    let content = fs::read_to_string(&namespaced_file).unwrap();
-    assert!(!content.contains("legacy-Old"));
+    let content = read_ftl(&namespaced_file);
+    assert_snapshot!("clean_writes_namespaced_files", content);
 }
 
 #[test]
@@ -163,6 +156,6 @@ fn test_clean_removes_stale_namespaced_files() {
         active_file.exists(),
         "active namespace file should be retained"
     );
-    let content = fs::read_to_string(&active_file).unwrap();
-    assert!(content.contains("errors-Missing"));
+    let content = read_ftl(&active_file);
+    assert_snapshot!("clean_removes_stale_namespaced_files_active", content);
 }

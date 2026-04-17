@@ -90,7 +90,17 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
 #[cfg(test)]
 mod tests {
     use super::expand_es_fluent_this;
+    use insta::assert_snapshot;
+    use proc_macro2::TokenStream;
     use syn::parse_quote;
+
+    fn normalized_tokens(tokens: TokenStream) -> String {
+        tokens
+            .to_string()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
 
     #[test]
     fn expand_es_fluent_this_generates_inventory_when_origin_is_enabled() {
@@ -100,9 +110,11 @@ mod tests {
             struct LoginForm;
         };
 
-        let tokens = expand_es_fluent_this(input).to_string();
-        assert!(tokens.contains("__es_fluent_this_inventory_login_form"));
-        assert!(tokens.contains("login_form_this"));
+        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        assert_snapshot!(
+            "expand_es_fluent_this_generates_inventory_when_origin_is_enabled",
+            tokens
+        );
     }
 
     #[test]
@@ -114,9 +126,11 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent_this(input).to_string();
-        assert!(!tokens.contains("__es_fluent_this_inventory_no_origin"));
-        assert!(!tokens.contains("_this"));
+        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        assert_snapshot!(
+            "expand_es_fluent_this_skips_inventory_when_origin_is_disabled",
+            tokens
+        );
     }
 
     #[test]
@@ -125,16 +139,22 @@ mod tests {
             #[fluent_this(origin = "nope")]
             struct InvalidThisOpts;
         };
-        let this_opts_tokens = expand_es_fluent_this(this_opts_error).to_string();
-        assert!(this_opts_tokens.contains("compile_error"));
+        let this_opts_tokens = normalized_tokens(expand_es_fluent_this(this_opts_error));
+        assert_snapshot!(
+            "expand_es_fluent_this_returns_compile_errors_for_invalid_this_opts",
+            this_opts_tokens
+        );
 
         let struct_namespace_error: syn::DeriveInput = parse_quote! {
             #[fluent_this]
             #[fluent(namespace = 123)]
             struct InvalidStructNamespace;
         };
-        let struct_tokens = expand_es_fluent_this(struct_namespace_error).to_string();
-        assert!(struct_tokens.contains("compile_error"));
+        let struct_tokens = normalized_tokens(expand_es_fluent_this(struct_namespace_error));
+        assert_snapshot!(
+            "expand_es_fluent_this_returns_compile_errors_for_invalid_struct_namespace",
+            struct_tokens
+        );
 
         let enum_namespace_error: syn::DeriveInput = parse_quote! {
             #[fluent_this]
@@ -143,8 +163,11 @@ mod tests {
                 A
             }
         };
-        let enum_tokens = expand_es_fluent_this(enum_namespace_error).to_string();
-        assert!(enum_tokens.contains("compile_error"));
+        let enum_tokens = normalized_tokens(expand_es_fluent_this(enum_namespace_error));
+        assert_snapshot!(
+            "expand_es_fluent_this_returns_compile_errors_for_invalid_enum_namespace",
+            enum_tokens
+        );
     }
 
     #[test]
@@ -155,9 +178,11 @@ mod tests {
             struct NamespacedThis;
         };
 
-        let tokens = expand_es_fluent_this(input).to_string();
-        assert!(tokens.contains("parent"));
-        assert!(!tokens.contains("child"));
+        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        assert_snapshot!(
+            "expand_es_fluent_this_prefers_parent_fluent_namespace_over_this_namespace",
+            tokens
+        );
     }
 
     #[test]
@@ -167,9 +192,11 @@ mod tests {
             struct LoginForm;
         };
 
-        let tokens = expand_es_fluent_this(input).to_string();
-        assert!(tokens.contains("TypeKind :: Struct"));
-        assert!(!tokens.contains("TypeKind :: Enum"));
+        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        assert_snapshot!(
+            "expand_es_fluent_this_uses_struct_type_kind_for_structs",
+            tokens
+        );
     }
 
     #[test]
@@ -181,7 +208,10 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent_this(input).to_string();
-        assert!(tokens.contains("TypeKind :: Enum"));
+        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        assert_snapshot!(
+            "expand_es_fluent_this_uses_enum_type_kind_for_enums",
+            tokens
+        );
     }
 }

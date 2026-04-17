@@ -1,0 +1,7 @@
+---
+source: crates/es-fluent-generate/tests/generate_tests.rs
+expression: ui_content
+---
+## Button
+
+button-Submit = Submit

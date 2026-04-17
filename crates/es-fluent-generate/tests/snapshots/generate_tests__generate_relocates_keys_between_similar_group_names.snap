@@ -1,0 +1,12 @@
+---
+source: crates/es-fluent-generate/tests/generate_tests.rs
+expression: content
+---
+## EmptyStructVariants
+
+empty_struct_variants_this = Empty Struct Variants
+
+## EmptyStruct
+
+empty_struct_this = Empty Struct
+empty_struct = Empty Struct

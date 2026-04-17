@@ -14,6 +14,7 @@ pub use self::args::GeneratorArgs;
 pub use self::error::GeneratorError;
 pub use es_fluent_generate::FluentParseMode;
 use es_fluent_toml::ResolvedI18nLayout;
+use fs_err as fs;
 use std::path::{Path, PathBuf};
 
 /// Builder for generating FTL files from registered types.
@@ -181,7 +182,7 @@ impl EsFluentGenerator {
     }
 
     fn resolve_clean_locale_dirs(assets_dir: &Path) -> Vec<PathBuf> {
-        std::fs::read_dir(assets_dir)
+        fs::read_dir(assets_dir)
             .ok()
             .into_iter()
             .flat_map(|entries| entries.filter_map(Result::ok))

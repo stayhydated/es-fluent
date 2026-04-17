@@ -1,0 +1,7 @@
+---
+source: crates/es-fluent-generate/tests/clean_mode_test.rs
+expression: content
+---
+## GroupB
+
+group_b-Key1 = Value B
