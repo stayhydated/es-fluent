@@ -6,10 +6,10 @@ mod language;
 use language::parse_language_entry;
 
 use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use fs_err::{self as fs, DirEntry};
 use serde::{Deserialize, Serialize};
-use std::fs::DirEntry;
+use std::env;
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 use thiserror::Error;
 use unic_langid::{LanguageIdentifier, LanguageIdentifierError};
 

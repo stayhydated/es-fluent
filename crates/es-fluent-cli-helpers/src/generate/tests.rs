@@ -43,76 +43,11 @@ es_fluent::__inventory::submit! {
 }
 
 fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
-    let previous = std::env::var_os(key);
-
-    match value {
-        Some(value) => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::set_var(key, value) };
-        },
-        None => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::remove_var(key) };
-        },
-    }
-
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-    match previous {
-        Some(previous) => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::set_var(key, previous) };
-        },
-        None => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::remove_var(key) };
-        },
-    }
-
-    match result {
-        Ok(value) => value,
-        Err(panic) => std::panic::resume_unwind(panic),
-    }
+    temp_env::with_var(key, value, f)
 }
 
 fn with_env_vars<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
-    let previous: Vec<(String, Option<std::ffi::OsString>)> = vars
-        .iter()
-        .map(|(key, _)| ((*key).to_string(), std::env::var_os(key)))
-        .collect();
-
-    for (key, value) in vars {
-        match value {
-            Some(value) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(key, value) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(key) };
-            },
-        }
-    }
-
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-    for (key, value) in previous {
-        match value {
-            Some(value) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(&key, value) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(&key) };
-            },
-        }
-    }
-
-    match result {
-        Ok(value) => value,
-        Err(panic) => std::panic::resume_unwind(panic),
-    }
+    temp_env::with_vars(vars, f)
 }
 
 fn write_basic_i18n_config(manifest_dir: &Path) {

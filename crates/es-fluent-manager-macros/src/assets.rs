@@ -6,6 +6,7 @@ use std::{
 };
 use unic_langid::LanguageIdentifier;
 
+#[derive(Debug)]
 pub(crate) struct I18nAssets {
     pub(crate) root_path: PathBuf,
     pub(crate) languages: Vec<String>,
@@ -325,40 +326,17 @@ impl I18nAssets {
 #[serial_test::serial(manifest)]
 mod tests {
     use super::*;
+    use insta::assert_debug_snapshot;
     use quote::quote;
     use tempfile::tempdir;
 
     fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
-        let previous = std::env::var(key).ok();
+        temp_env::with_var(key, value, f)
+    }
 
-        match value {
-            Some(value) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(key, value) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(key) };
-            },
-        }
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-        match previous {
-            Some(previous) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(key, previous) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(key) };
-            },
-        }
-
-        match result {
-            Ok(value) => value,
-            Err(panic) => std::panic::resume_unwind(panic),
-        }
+    fn snapshot_assets(mut assets: I18nAssets) -> I18nAssets {
+        assets.root_path = std::path::PathBuf::from("<assets>");
+        assets
     }
 
     fn write_manifest(manifest_dir: &std::path::Path, assets_dir: &str) {
@@ -404,30 +382,10 @@ mod tests {
         .expect("write");
 
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
-            let assets = I18nAssets::load("my-crate").expect("load assets");
-            assert_eq!(assets.root_path, temp.path().join("i18n"));
-
-            let mut languages = assets.languages.clone();
-            languages.sort();
-            assert_eq!(languages, vec!["fr".to_string()]);
-
-            let mut namespaces = assets.namespaces.clone();
-            namespaces.sort();
-            assert_eq!(namespaces, vec!["ui".to_string()]);
-
-            let fr_specs = assets
-                .resource_specs_by_language
-                .iter()
-                .find(|(lang, _)| lang == "fr")
-                .map(|(_, specs)| specs)
-                .expect("fr specs");
-            assert_eq!(
-                fr_specs,
-                &vec![ResourceSpec {
-                    key: "my-crate/ui".to_string(),
-                    locale_relative_path: "my-crate/ui.ftl".to_string(),
-                    required: true,
-                }]
+            let assets = snapshot_assets(I18nAssets::load("my-crate").expect("load assets"));
+            assert_debug_snapshot!(
+                "i18n_assets_load_discovers_languages_and_namespaces",
+                assets
             );
 
             assert_eq!(
@@ -455,28 +413,8 @@ mod tests {
         .expect("write");
 
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
-            let assets = I18nAssets::load("my-crate").expect("load assets");
-
-            let mut languages = assets.languages.clone();
-            languages.sort();
-            assert_eq!(languages, vec!["fr".to_string()]);
-
-            assert_eq!(assets.namespaces, vec!["ui/button".to_string()]);
-
-            let fr_specs = assets
-                .resource_specs_by_language
-                .iter()
-                .find(|(lang, _)| lang == "fr")
-                .map(|(_, specs)| specs)
-                .expect("fr specs");
-            assert_eq!(
-                fr_specs,
-                &vec![ResourceSpec {
-                    key: "my-crate/ui/button".to_string(),
-                    locale_relative_path: "my-crate/ui/button.ftl".to_string(),
-                    required: true,
-                }]
-            );
+            let assets = snapshot_assets(I18nAssets::load("my-crate").expect("load assets"));
+            assert_debug_snapshot!("i18n_assets_load_discovers_nested_namespaces", assets);
         });
     }
 
@@ -490,24 +428,10 @@ mod tests {
         std::fs::write(temp.path().join("i18n/en/my-crate/ui.ftl"), "title = UI").expect("write");
 
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
-            let assets = I18nAssets::load("my-crate").expect("load assets");
-
-            assert_eq!(assets.languages, vec!["en".to_string()]);
-            assert_eq!(assets.namespaces, vec!["ui".to_string()]);
-
-            let en_specs = assets
-                .resource_specs_by_language
-                .iter()
-                .find(|(lang, _)| lang == "en")
-                .map(|(_, specs)| specs)
-                .expect("en specs");
-            assert_eq!(
-                en_specs,
-                &vec![ResourceSpec {
-                    key: "my-crate/ui".to_string(),
-                    locale_relative_path: "my-crate/ui.ftl".to_string(),
-                    required: true,
-                }]
+            let assets = snapshot_assets(I18nAssets::load("my-crate").expect("load assets"));
+            assert_debug_snapshot!(
+                "i18n_assets_load_ignores_base_files_for_namespaced_locales",
+                assets
             );
         });
     }

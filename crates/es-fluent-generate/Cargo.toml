@@ -16,6 +16,7 @@ clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
 es-fluent-shared = { workspace = true }
 fluent-syntax = { workspace = true }
+fs-err = { workspace = true }
 heck = { workspace = true }
 indexmap = { workspace = true }
 similar = { workspace = true }

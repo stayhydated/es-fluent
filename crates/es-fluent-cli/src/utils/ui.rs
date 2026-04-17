@@ -341,72 +341,42 @@ mod tests {
     }
 
     fn with_terminal_env<T>(f: impl FnOnce() -> T) -> T {
-        const ENV_KEYS: &[&str] = &["FORCE_HYPERLINK", "NO_COLOR", "CI", "GITHUB_ACTIONS"];
-        let previous: Vec<_> = ENV_KEYS
-            .iter()
-            .map(|key| ((*key).to_string(), std::env::var_os(key)))
-            .collect();
+        temp_env::with_vars(
+            [
+                ("FORCE_HYPERLINK", None::<&str>),
+                ("NO_COLOR", None::<&str>),
+                ("CI", None::<&str>),
+                ("GITHUB_ACTIONS", None::<&str>),
+            ],
+            || {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+                Ui::set_e2e_mode(false);
 
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-        for (key, value) in previous {
-            match value {
-                Some(value) => {
-                    // SAFETY: this test module runs serially.
-                    unsafe { std::env::set_var(&key, value) };
-                },
-                None => {
-                    // SAFETY: this test module runs serially.
-                    unsafe { std::env::remove_var(&key) };
-                },
-            }
-        }
-        Ui::set_e2e_mode(false);
-
-        match result {
-            Ok(value) => value,
-            Err(panic) => std::panic::resume_unwind(panic),
-        }
+                match result {
+                    Ok(value) => value,
+                    Err(panic) => std::panic::resume_unwind(panic),
+                }
+            },
+        )
     }
 
     #[test]
     fn terminal_links_enabled_honors_env_and_modes() {
         with_terminal_env(|| {
             Ui::set_e2e_mode(false);
-            // SAFETY: this test module runs serially.
-            unsafe {
-                std::env::remove_var("FORCE_HYPERLINK");
-                std::env::remove_var("NO_COLOR");
-                std::env::remove_var("CI");
-                std::env::remove_var("GITHUB_ACTIONS");
-                std::env::set_var("FORCE_HYPERLINK", "1");
-            }
-            assert!(Ui::terminal_links_enabled());
+            temp_env::with_var("FORCE_HYPERLINK", Some("1"), || {
+                assert!(Ui::terminal_links_enabled());
+            });
+            temp_env::with_var("FORCE_HYPERLINK", Some("0"), || {
+                assert!(!Ui::terminal_links_enabled());
+            });
+            temp_env::with_var("NO_COLOR", Some("1"), || {
+                assert!(!Ui::terminal_links_enabled());
+            });
+            temp_env::with_var("CI", Some("1"), || {
+                assert!(!Ui::terminal_links_enabled());
+            });
 
-            // SAFETY: this test module runs serially.
-            unsafe {
-                std::env::set_var("FORCE_HYPERLINK", "0");
-            }
-            assert!(!Ui::terminal_links_enabled());
-
-            // SAFETY: this test module runs serially.
-            unsafe {
-                std::env::remove_var("FORCE_HYPERLINK");
-                std::env::set_var("NO_COLOR", "1");
-            }
-            assert!(!Ui::terminal_links_enabled());
-
-            // SAFETY: this test module runs serially.
-            unsafe {
-                std::env::remove_var("NO_COLOR");
-                std::env::set_var("CI", "1");
-            }
-            assert!(!Ui::terminal_links_enabled());
-
-            // SAFETY: this test module runs serially.
-            unsafe {
-                std::env::remove_var("CI");
-            }
             Ui::set_e2e_mode(true);
             assert!(!Ui::terminal_links_enabled());
         });
@@ -434,13 +404,6 @@ mod tests {
     fn terminal_links_enabled_falls_back_to_terminal_probe_branch() {
         with_terminal_env(|| {
             Ui::set_e2e_mode(false);
-            // SAFETY: this test module runs serially.
-            unsafe {
-                std::env::remove_var("FORCE_HYPERLINK");
-                std::env::remove_var("NO_COLOR");
-                std::env::remove_var("CI");
-                std::env::remove_var("GITHUB_ACTIONS");
-            }
 
             // Environment-dependent; the assertion is that the code path executes without panicking.
             let _ = Ui::terminal_links_enabled();

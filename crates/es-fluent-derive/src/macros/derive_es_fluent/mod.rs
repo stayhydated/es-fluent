@@ -64,8 +64,6 @@ mod tests {
     use syn::parse_quote;
 
     fn with_manifest_dir<T>(namespaces: &[&str], f: impl FnOnce() -> T) -> T {
-        let previous = std::env::var_os("CARGO_MANIFEST_DIR");
-
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("clock should be after unix epoch")
@@ -89,21 +87,9 @@ mod tests {
         )
         .expect("write i18n.toml");
 
-        // SAFETY: tests serialize environment updates with a global lock.
-        unsafe { std::env::set_var("CARGO_MANIFEST_DIR", &manifest_dir) };
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-        match previous {
-            Some(prev) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var("CARGO_MANIFEST_DIR", prev) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
-            },
-        }
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), f)
+        }));
         let _ = std::fs::remove_dir_all(&manifest_dir);
 
         match result {

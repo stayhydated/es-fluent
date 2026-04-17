@@ -23,7 +23,9 @@ syn = { features = [ "full" ], workspace = true }
 unic-langid = { workspace = true }
 
 [dev-dependencies]
+insta = { workspace = true }
 serial_test = { workspace = true }
+temp-env = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

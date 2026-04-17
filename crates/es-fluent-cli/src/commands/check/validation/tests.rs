@@ -17,27 +17,7 @@ fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) 
 }
 
 fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {
-    let previous = std::env::var_os("FORCE_HYPERLINK");
-    // SAFETY: the parent test module runs serially.
-    unsafe { std::env::set_var("FORCE_HYPERLINK", value) };
-
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-    match previous {
-        Some(previous) => {
-            // SAFETY: the parent test module runs serially.
-            unsafe { std::env::set_var("FORCE_HYPERLINK", previous) };
-        },
-        None => {
-            // SAFETY: the parent test module runs serially.
-            unsafe { std::env::remove_var("FORCE_HYPERLINK") };
-        },
-    }
-
-    match result {
-        Ok(value) => value,
-        Err(panic) => std::panic::resume_unwind(panic),
-    }
+    temp_env::with_var("FORCE_HYPERLINK", Some(value), f)
 }
 
 #[test]

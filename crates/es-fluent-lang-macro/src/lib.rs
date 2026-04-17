@@ -364,6 +364,7 @@ fn expand_es_fluent_language(
 #[serial_test::serial(manifest)]
 mod tests {
     use super::expand_es_fluent_language;
+    use insta::assert_snapshot;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn with_manifest_dir<T>(
@@ -371,8 +372,6 @@ mod tests {
         locale_dirs: &[&str],
         f: impl FnOnce() -> T,
     ) -> T {
-        let previous = std::env::var_os("CARGO_MANIFEST_DIR");
-
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("clock should be after unix epoch")
@@ -392,21 +391,9 @@ mod tests {
                 .expect("create locale dir");
         }
 
-        // SAFETY: tests serialize environment updates with a global lock.
-        unsafe { std::env::set_var("CARGO_MANIFEST_DIR", &manifest_dir) };
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-        match previous {
-            Some(previous) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var("CARGO_MANIFEST_DIR", previous) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
-            },
-        }
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), f)
+        }));
         let _ = std::fs::remove_dir_all(&manifest_dir);
 
         match result {
@@ -423,6 +410,10 @@ mod tests {
         };
         let item_tokens: proc_macro2::TokenStream = item.parse().expect("parse item tokens");
         expand_es_fluent_language(attr_tokens, item_tokens).to_string()
+    }
+
+    fn normalized_tokens(output: &str) -> String {
+        output.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 
     #[test]
@@ -470,21 +461,16 @@ mod tests {
             &["fr"],
             || {
                 let default_mode = run_macro("", "enum Languages {}");
-                assert!(default_mode.contains("resource = \"es-fluent-lang\""));
-                assert!(default_mode.contains("domain = \"es-fluent-lang\""));
-                assert!(default_mode.contains("Fr"));
-                assert!(default_mode.contains("EnUs"));
-                assert!(default_mode.contains("key = \"en\""));
-                assert!(!default_mode.contains("key = \"en-US\""));
-                assert!(default_mode.contains(":: es_fluent_lang :: force_link"));
-                assert!(default_mode.contains("# [used]"));
+                assert_snapshot!(
+                    "macro_adds_missing_fallback_default_mode",
+                    normalized_tokens(&default_mode)
+                );
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
-                assert!(!custom_mode.contains("resource = \"es-fluent-lang\""));
-                assert!(!custom_mode.contains("domain = \"es-fluent-lang\""));
-                assert!(custom_mode.contains("enum CustomLanguages"));
-                assert!(custom_mode.contains("key = \"en-US\""));
-                assert!(!custom_mode.contains(":: es_fluent_lang :: force_link"));
+                assert_snapshot!(
+                    "macro_adds_missing_fallback_custom_mode",
+                    normalized_tokens(&custom_mode)
+                );
             },
         );
     }
@@ -496,18 +482,16 @@ mod tests {
             &["fr-FR", "zh-CN"],
             || {
                 let default_mode = run_macro("", "enum Languages {}");
-                assert!(default_mode.contains("FrFr"));
-                assert!(default_mode.contains("ZhCn"));
-                assert!(default_mode.contains("key = \"fr\""));
-                assert!(default_mode.contains("key = \"zh\""));
-                assert!(!default_mode.contains("key = \"fr-FR\""));
-                assert!(!default_mode.contains("key = \"zh-CN\""));
-                assert!(default_mode.contains("\"fr-FR\" => Ok"));
-                assert!(default_mode.contains("\"zh-CN\" => Ok"));
+                assert_snapshot!(
+                    "macro_uses_supported_lookup_keys_default_mode",
+                    normalized_tokens(&default_mode)
+                );
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
-                assert!(custom_mode.contains("key = \"fr-FR\""));
-                assert!(custom_mode.contains("key = \"zh-CN\""));
+                assert_snapshot!(
+                    "macro_uses_supported_lookup_keys_custom_mode",
+                    normalized_tokens(&custom_mode)
+                );
             },
         );
     }

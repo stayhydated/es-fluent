@@ -25,36 +25,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn with_manifest_env<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
-        let previous = env::var("CARGO_MANIFEST_DIR").ok();
-
-        match manifest_dir {
-            Some(path) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { env::set_var("CARGO_MANIFEST_DIR", path) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { env::remove_var("CARGO_MANIFEST_DIR") };
-            },
-        }
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-        match previous {
-            Some(previous) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { env::set_var("CARGO_MANIFEST_DIR", previous) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { env::remove_var("CARGO_MANIFEST_DIR") };
-            },
-        }
-
-        match result {
-            Ok(value) => value,
-            Err(panic) => std::panic::resume_unwind(panic),
-        }
+        temp_env::with_var("CARGO_MANIFEST_DIR", manifest_dir, f)
     }
 
     #[test]

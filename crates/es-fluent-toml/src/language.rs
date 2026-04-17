@@ -1,6 +1,7 @@
 use crate::I18nConfigError;
 use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
-use std::{fs, io};
+use fs_err as fs;
+use std::io;
 use unic_langid::LanguageIdentifier;
 
 #[derive(Debug)]

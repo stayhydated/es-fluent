@@ -11,36 +11,7 @@ use syn::{DeriveInput, parse_quote};
 use tempfile::tempdir;
 
 fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
-    let previous = std::env::var("CARGO_MANIFEST_DIR").ok();
-
-    match manifest_dir {
-        Some(path) => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::set_var("CARGO_MANIFEST_DIR", path) };
-        },
-        None => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
-        },
-    }
-
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-    match previous {
-        Some(path) => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::set_var("CARGO_MANIFEST_DIR", path) };
-        },
-        None => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
-        },
-    }
-
-    match result {
-        Ok(value) => value,
-        Err(panic) => std::panic::resume_unwind(panic),
-    }
+    temp_env::with_var("CARGO_MANIFEST_DIR", manifest_dir, f)
 }
 
 mod validate_struct_tests {

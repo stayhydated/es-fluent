@@ -30,6 +30,7 @@ es-fluent-derive-core = { workspace = true }
 insta = { workspace = true }
 serial_test = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
+temp-env = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,8 +1,8 @@
 mod fixtures;
 
+use assert_cmd::Command;
 use fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS};
 use std::fs;
-use std::process::Command;
 
 fn create_workspace() -> tempfile::TempDir {
     let temp = tempfile::tempdir().expect("tempdir");
@@ -17,17 +17,18 @@ fn create_workspace() -> tempfile::TempDir {
 
 #[test]
 fn binary_help_command_succeeds() {
-    let status = Command::new(env!("CARGO_BIN_EXE_cargo-es-fluent"))
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
         .args(["es-fluent", "--help"])
-        .status()
-        .expect("run help");
-    assert!(status.success());
+        .assert()
+        .success();
 }
 
 #[test]
 fn binary_generate_with_missing_package_filter_succeeds() {
     let temp = create_workspace();
-    let status = Command::new(env!("CARGO_BIN_EXE_cargo-es-fluent"))
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
         .args([
             "es-fluent",
             "generate",
@@ -36,21 +37,20 @@ fn binary_generate_with_missing_package_filter_succeeds() {
             "--package",
             "missing-package",
         ])
-        .status()
-        .expect("run generate");
-    assert!(status.success());
+        .assert()
+        .success();
 }
 
 #[test]
 fn binary_generate_with_invalid_path_fails() {
-    let status = Command::new(env!("CARGO_BIN_EXE_cargo-es-fluent"))
+    Command::cargo_bin("cargo-es-fluent")
+        .expect("binary exists")
         .args([
             "es-fluent",
             "generate",
             "--path",
             "/definitely/missing/path",
         ])
-        .status()
-        .expect("run generate invalid path");
-    assert!(!status.success());
+        .assert()
+        .failure();
 }
