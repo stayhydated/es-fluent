@@ -571,6 +571,177 @@ fn plugin_pipeline_defers_locale_switch_until_requested_bundle_is_ready() {
 }
 
 #[test]
+fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
+    let _guard = lock_bevy_global_state();
+    let en = langid!("en");
+    let fr = langid!("fr");
+    let es = langid!("es");
+    let fallback_manager = Arc::new(
+        FluentManager::try_new_with_discovered_modules().expect("discover fallback modules"),
+    );
+    fallback_manager
+        .select_language(&en)
+        .expect("select initial language");
+    set_bevy_i18n_state(BevyI18nState::new(en.clone()).with_fallback_manager(fallback_manager));
+
+    let mut app = App::new();
+    app.add_message::<AssetEvent<FtlAsset>>();
+    app.add_message::<AssetLoadFailedEvent<FtlAsset>>();
+    app.add_message::<LocaleChangeEvent>();
+    app.add_message::<LocaleChangedEvent>();
+    app.add_message::<RequestRedraw>();
+    app.insert_resource(Assets::<FtlAsset>::default());
+    app.insert_resource(I18nBundle::default());
+    app.insert_resource(I18nDomainBundles::default());
+    app.insert_resource(BundleBuildFailures::default());
+    app.insert_resource(I18nResource::new(en.clone()));
+    app.insert_resource(CurrentLanguageId(en.clone()));
+    app.insert_resource(PendingLanguageChange::default());
+    app.register_fluent_text_from_locale::<RefreshableMessage>();
+    app.add_systems(
+        Update,
+        (
+            handle_asset_loading,
+            build_fluent_bundles,
+            handle_locale_changes,
+            sync_global_state,
+        )
+            .chain(),
+    );
+
+    let (en_handle, fr_handle, es_handle) = {
+        let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+        let en_handle = assets.add(FtlAsset {
+            content: "hello = Hello".to_string(),
+        });
+        let fr_handle = assets.add(FtlAsset {
+            content: "hello = Bonjour".to_string(),
+        });
+        let es_handle = assets.add(FtlAsset {
+            content: "hello = Hola".to_string(),
+        });
+        (en_handle, fr_handle, es_handle)
+    };
+
+    let mut i18n_assets = I18nAssets::new();
+    i18n_assets.add_asset(en.clone(), "app".to_string(), en_handle.clone());
+    i18n_assets.add_asset(fr.clone(), "app".to_string(), fr_handle.clone());
+    i18n_assets.add_asset(es.clone(), "app".to_string(), es_handle.clone());
+    app.insert_resource(i18n_assets);
+
+    let entity = app
+        .world_mut()
+        .spawn((
+            FluentText::new(RefreshableMessage("en".to_string())),
+            Text::new("en"),
+        ))
+        .id();
+
+    let en_resource = Arc::new(FluentResource::try_new("hello = Hello".to_string()).expect("ftl"));
+    app.world_mut()
+        .resource_mut::<I18nAssets>()
+        .loaded_resources
+        .insert((en.clone(), ResourceKey::new("app")), en_resource.clone());
+    let mut en_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![en.clone()]);
+    en_bundle.add_resource(en_resource).expect("add resource");
+    app.world_mut()
+        .resource_mut::<I18nBundle>()
+        .0
+        .insert(en.clone(), Arc::new(en_bundle));
+
+    let mut initial_locale_cursor = {
+        let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+        messages.get_cursor_current()
+    };
+    app.update();
+    let initial_locale_changes = {
+        let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+        initial_locale_cursor
+            .read(&messages)
+            .map(|message| message.0.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(initial_locale_changes, vec![en.clone()]);
+
+    let mut locale_cursor = {
+        let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+        messages.get_cursor_current()
+    };
+    let mut redraw_cursor = {
+        let messages = app.world().resource::<Messages<RequestRedraw>>();
+        messages.get_cursor_current()
+    };
+
+    app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
+    app.update();
+    assert_eq!(
+        app.world().resource::<PendingLanguageChange>().0.as_ref(),
+        Some(&fr)
+    );
+
+    app.world_mut()
+        .resource_mut::<BundleBuildFailures>()
+        .0
+        .insert(
+            es.clone(),
+            vec!["resource 'app': duplicate message id 'hello'".to_string()],
+        );
+    app.world_mut().write_message(LocaleChangeEvent(es));
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<I18nResource>().current_language(),
+        &en
+    );
+    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+    assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
+
+    let fr_resource =
+        Arc::new(FluentResource::try_new("hello = Bonjour".to_string()).expect("ftl"));
+    app.world_mut()
+        .resource_mut::<I18nAssets>()
+        .loaded_resources
+        .insert((fr.clone(), ResourceKey::new("app")), fr_resource.clone());
+    let mut fr_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![fr.clone()]);
+    fr_bundle.add_resource(fr_resource).expect("add resource");
+    app.world_mut()
+        .resource_mut::<I18nBundle>()
+        .0
+        .insert(fr.clone(), Arc::new(fr_bundle));
+
+    app.update();
+
+    let locale_changes = {
+        let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+        locale_cursor
+            .read(&messages)
+            .map(|message| message.0.clone())
+            .collect::<Vec<_>>()
+    };
+    assert!(locale_changes.is_empty());
+
+    let redraw_count = {
+        let messages = app.world().resource::<Messages<RequestRedraw>>();
+        redraw_cursor.read(&messages).count()
+    };
+    assert_eq!(redraw_count, 0);
+    assert_eq!(
+        app.world().resource::<I18nResource>().current_language(),
+        &en
+    );
+    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+    assert_eq!(
+        &app.world().get::<Text>(entity).expect("text").0,
+        "en",
+        "a later blocked request should cancel the older deferred locale change"
+    );
+    assert_eq!(
+        bevy_custom_localizer(None, "hello", None),
+        Some("Hello".to_string())
+    );
+}
+
+#[test]
 fn helper_paths_cover_args_and_missing_bundle_cases() {
     let _guard = lock_bevy_global_state();
     let mut app = App::new();

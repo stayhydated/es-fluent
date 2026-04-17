@@ -36,6 +36,7 @@ pub(super) fn apply_selected_language(
 enum RequestedLanguageResolution {
     Ready(LanguageIdentifier),
     Pending(LanguageIdentifier),
+    Blocked(LanguageIdentifier),
     Immediate(LanguageIdentifier),
 }
 
@@ -44,7 +45,7 @@ fn resolve_requested_language(
     i18n_bundle: &I18nBundle,
     i18n_assets: &I18nAssets,
     bundle_build_failures: &BundleBuildFailures,
-) -> Option<RequestedLanguageResolution> {
+) -> RequestedLanguageResolution {
     let ready_languages = i18n_bundle.0.keys().cloned().collect::<Vec<_>>();
     let blocked_languages = bundle_build_failures
         .0
@@ -67,7 +68,7 @@ fn resolve_requested_language(
             );
         }
 
-        return Some(RequestedLanguageResolution::Ready(resolved_language));
+        return RequestedLanguageResolution::Ready(resolved_language);
     }
 
     if let Some(resolved_language) =
@@ -80,7 +81,7 @@ fn resolve_requested_language(
             );
         }
 
-        return Some(RequestedLanguageResolution::Pending(resolved_language));
+        return RequestedLanguageResolution::Pending(resolved_language);
     }
 
     if let Some(blocked_language) =
@@ -95,12 +96,10 @@ fn resolve_requested_language(
             "Skipping locale change to '{}' because Fluent bundle assembly failed for '{}': {}",
             requested_language, blocked_language, diagnostics
         );
-        return None;
+        return RequestedLanguageResolution::Blocked(blocked_language);
     }
 
-    Some(RequestedLanguageResolution::Immediate(
-        requested_language.clone(),
-    ))
+    RequestedLanguageResolution::Immediate(requested_language.clone())
 }
 
 #[doc(hidden)]
@@ -116,14 +115,12 @@ pub(crate) fn handle_locale_changes(
 ) {
     for event in locale_change_events.read() {
         info!("Changing locale to: {}", event.0);
-        let Some(resolution) = resolve_requested_language(
+        let resolution = resolve_requested_language(
             &event.0,
             &i18n_bundle,
             &i18n_assets,
             &bundle_build_failures,
-        ) else {
-            continue;
-        };
+        );
 
         match resolution {
             RequestedLanguageResolution::Ready(resolved_language)
@@ -144,6 +141,14 @@ pub(crate) fn handle_locale_changes(
                     );
                 }
                 pending_language_change.0 = Some(resolved_language);
+            },
+            RequestedLanguageResolution::Blocked(blocked_language) => {
+                if let Some(pending_language) = pending_language_change.0.take() {
+                    info!(
+                        "Clearing deferred locale change to '{}' because a later request for blocked locale '{}' superseded it",
+                        pending_language, blocked_language
+                    );
+                }
             },
         }
     }
