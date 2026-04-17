@@ -4,7 +4,8 @@ use crate::{
     LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
 };
 use bevy::prelude::*;
-use es_fluent_manager_core::resolve_fallback_language;
+use es_fluent_manager_core::locale_candidates;
+use std::collections::HashSet;
 use unic_langid::LanguageIdentifier;
 
 pub(super) fn apply_selected_language(
@@ -46,57 +47,54 @@ fn resolve_requested_language(
     i18n_assets: &I18nAssets,
     bundle_build_failures: &BundleBuildFailures,
 ) -> RequestedLanguageResolution {
-    let ready_languages = i18n_bundle.0.keys().cloned().collect::<Vec<_>>();
+    let ready_languages = i18n_bundle.0.keys().cloned().collect::<HashSet<_>>();
     let blocked_languages = bundle_build_failures
         .0
         .keys()
-        .filter(|language| !i18n_bundle.0.contains_key(*language))
+        .filter(|language| !ready_languages.contains(*language))
         .cloned()
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
     let available_languages = i18n_assets
         .available_languages()
         .into_iter()
-        .filter(|language| !blocked_languages.iter().any(|blocked| blocked == language))
-        .collect::<Vec<_>>();
+        .filter(|language| !blocked_languages.contains(language))
+        .collect::<HashSet<_>>();
 
-    if let Some(resolved_language) = resolve_fallback_language(requested_language, &ready_languages)
-    {
-        if resolved_language != *requested_language {
-            info!(
-                "Locale '{}' not found, falling back to '{}'",
-                requested_language, resolved_language
+    for candidate in locale_candidates(requested_language) {
+        if blocked_languages.contains(&candidate) {
+            let diagnostics = bundle_build_failures
+                .0
+                .get(&candidate)
+                .map(|errors| errors.join(" | "))
+                .unwrap_or_else(|| "unknown bundle build failure".to_string());
+            warn!(
+                "Skipping locale change to '{}' because Fluent bundle assembly failed for '{}': {}",
+                requested_language, candidate, diagnostics
             );
+            return RequestedLanguageResolution::Blocked(candidate);
         }
 
-        return RequestedLanguageResolution::Ready(resolved_language);
-    }
+        if ready_languages.contains(&candidate) {
+            if candidate != *requested_language {
+                info!(
+                    "Locale '{}' not found, falling back to '{}'",
+                    requested_language, candidate
+                );
+            }
 
-    if let Some(resolved_language) =
-        resolve_fallback_language(requested_language, &available_languages)
-    {
-        if resolved_language != *requested_language {
-            info!(
-                "Locale '{}' is not ready yet, waiting for available fallback '{}'",
-                requested_language, resolved_language
-            );
+            return RequestedLanguageResolution::Ready(candidate);
         }
 
-        return RequestedLanguageResolution::Pending(resolved_language);
-    }
+        if available_languages.contains(&candidate) {
+            if candidate != *requested_language {
+                info!(
+                    "Locale '{}' is not ready yet, waiting for available fallback '{}'",
+                    requested_language, candidate
+                );
+            }
 
-    if let Some(blocked_language) =
-        resolve_fallback_language(requested_language, &blocked_languages)
-    {
-        let diagnostics = bundle_build_failures
-            .0
-            .get(&blocked_language)
-            .map(|errors| errors.join(" | "))
-            .unwrap_or_else(|| "unknown bundle build failure".to_string());
-        warn!(
-            "Skipping locale change to '{}' because Fluent bundle assembly failed for '{}': {}",
-            requested_language, blocked_language, diagnostics
-        );
-        return RequestedLanguageResolution::Blocked(blocked_language);
+            return RequestedLanguageResolution::Pending(candidate);
+        }
     }
 
     RequestedLanguageResolution::Immediate(requested_language.clone())
