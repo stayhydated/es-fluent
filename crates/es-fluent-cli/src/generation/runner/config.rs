@@ -188,61 +188,15 @@ impl TempCrateConfig {
 #[cfg(test)]
 mod tests {
     use super::TempCrateConfig;
+    use crate::test_fixtures::{
+        toml_helpers::{
+            package_manifest as package_manifest_toml, string_value, workspace_manifest, write_toml,
+        },
+        write_file,
+    };
     use cargo_manifest::Dependency;
-    use fs_err as fs;
     use std::path::Path;
     use toml::Value;
-
-    fn write_file(path: &Path, contents: &str) {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).expect("create parent directory");
-        }
-        fs::write(path, contents).expect("write file");
-    }
-
-    fn string_value(value: &str) -> Value {
-        Value::String(value.to_string())
-    }
-
-    fn table(
-        entries: impl IntoIterator<Item = (&'static str, Value)>,
-    ) -> toml::map::Map<String, Value> {
-        entries
-            .into_iter()
-            .map(|(key, value)| (key.to_string(), value))
-            .collect()
-    }
-
-    fn write_toml(path: &Path, value: &Value) {
-        write_file(
-            path,
-            &toml::to_string(value).expect("serialize TOML fixture"),
-        );
-    }
-
-    fn workspace_manifest(members: &[&str]) -> Value {
-        Value::Table(table([(
-            "workspace",
-            Value::Table(table([
-                (
-                    "members",
-                    Value::Array(members.iter().copied().map(string_value).collect()),
-                ),
-                ("resolver", string_value("2")),
-            ])),
-        )]))
-    }
-
-    fn package_manifest(name: &str) -> Value {
-        Value::Table(table([(
-            "package",
-            Value::Table(table([
-                ("name", string_value(name)),
-                ("version", string_value("0.1.0")),
-                ("edition", string_value("2024")),
-            ])),
-        )]))
-    }
 
     fn dependency_path(dep: Dependency) -> Option<String> {
         match dep {
@@ -260,12 +214,12 @@ mod tests {
         );
         write_toml(
             &temp.path().join("app/Cargo.toml"),
-            &package_manifest("app"),
+            &package_manifest_toml("app", "0.1.0"),
         );
         write_file(&temp.path().join("app/src/lib.rs"), "pub struct App;\n");
         write_toml(
             &temp.path().join("es-fluent/Cargo.toml"),
-            &package_manifest("es-fluent"),
+            &package_manifest_toml("es-fluent", "0.1.0"),
         );
         write_file(
             &temp.path().join("es-fluent/src/lib.rs"),
@@ -273,7 +227,7 @@ mod tests {
         );
         write_toml(
             &temp.path().join("es-fluent-cli-helpers/Cargo.toml"),
-            &package_manifest("es-fluent-cli-helpers"),
+            &package_manifest_toml("es-fluent-cli-helpers", "0.1.0"),
         );
         write_file(
             &temp.path().join("es-fluent-cli-helpers/src/lib.rs"),

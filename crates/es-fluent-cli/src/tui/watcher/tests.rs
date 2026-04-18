@@ -5,6 +5,7 @@ use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
 use crate::generation::cache::compute_crate_inputs_hash;
 use crate::test_fixtures::{
     FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner_with_cache,
+    toml_helpers::{package_manifest, string_value, table, write_toml},
 };
 use crossbeam_channel::unbounded;
 use fs_err as fs;
@@ -37,38 +38,6 @@ fn event_with_path(path: &Path) -> DebouncedEvent {
         Event::new(EventKind::Modify(ModifyKind::Any)).add_path(path.to_path_buf()),
         Instant::now(),
     )
-}
-
-fn string_value(value: &str) -> Value {
-    Value::String(value.to_string())
-}
-
-fn table(
-    entries: impl IntoIterator<Item = (&'static str, Value)>,
-) -> toml::map::Map<String, Value> {
-    entries
-        .into_iter()
-        .map(|(key, value)| (key.to_string(), value))
-        .collect()
-}
-
-fn write_toml(path: &Path, value: &Value) {
-    fs::write(
-        path,
-        toml::to_string(value).expect("serialize TOML fixture"),
-    )
-    .expect("write TOML");
-}
-
-fn package_manifest(name: &str, version: &str) -> Value {
-    Value::Table(table([(
-        "package",
-        Value::Table(table([
-            ("name", string_value(name)),
-            ("version", string_value(version)),
-            ("edition", string_value("2024")),
-        ])),
-    )]))
 }
 
 fn i18n_config(

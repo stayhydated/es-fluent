@@ -126,6 +126,79 @@ pub fn create_workspace_with_locales(locales: &[(&str, &str)]) -> tempfile::Temp
 }
 
 #[cfg(test)]
+pub fn write_file(path: &Path, contents: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent directory");
+    }
+    fs::write(path, contents).expect("write file");
+}
+
+#[cfg(test)]
+pub mod toml_helpers {
+    use super::write_file;
+    use std::path::Path;
+    use toml::Value;
+
+    pub fn string_value(value: &str) -> Value {
+        Value::String(value.to_string())
+    }
+
+    pub fn table(
+        entries: impl IntoIterator<Item = (&'static str, Value)>,
+    ) -> toml::map::Map<String, Value> {
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect()
+    }
+
+    pub fn write_toml(path: &Path, value: &Value) {
+        write_file(
+            path,
+            &toml::to_string(value).expect("serialize TOML fixture"),
+        );
+    }
+
+    pub fn insert_section(document: &mut Value, key: &str, value: Value) {
+        document
+            .as_table_mut()
+            .expect("TOML document table")
+            .insert(key.to_string(), value);
+    }
+
+    pub fn package_manifest(name: &str, version: &str) -> Value {
+        Value::Table(table([(
+            "package",
+            Value::Table(table([
+                ("name", string_value(name)),
+                ("version", string_value(version)),
+                ("edition", string_value("2024")),
+            ])),
+        )]))
+    }
+
+    pub fn workspace_manifest(members: &[&str]) -> Value {
+        Value::Table(table([(
+            "workspace",
+            Value::Table(table([
+                (
+                    "members",
+                    Value::Array(members.iter().copied().map(string_value).collect()),
+                ),
+                ("resolver", string_value("2")),
+            ])),
+        )]))
+    }
+
+    pub fn i18n_config(fallback_language: &str, assets_dir: &str) -> Value {
+        Value::Table(table([
+            ("fallback_language", string_value(fallback_language)),
+            ("assets_dir", string_value(assets_dir)),
+        ]))
+    }
+}
+
+#[cfg(test)]
 pub fn fake_runner_binary_name() -> String {
     format!("es-fluent-runner{}", std::env::consts::EXE_SUFFIX)
 }

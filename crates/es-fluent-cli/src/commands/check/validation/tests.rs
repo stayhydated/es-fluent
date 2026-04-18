@@ -3,11 +3,11 @@ use super::loaded::validate_loaded_ftl_files;
 use super::*;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
+use crate::test_fixtures::toml_helpers::{i18n_config, write_toml};
 use fs_err as fs;
 use indexmap::IndexMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::tempdir;
-use toml::Value;
 
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
     KeyInfo {
@@ -15,37 +15,6 @@ fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) 
         source_file: source_file.map(ToString::to_string),
         source_line,
     }
-}
-
-fn string_value(value: &str) -> Value {
-    Value::String(value.to_string())
-}
-
-fn table(
-    entries: impl IntoIterator<Item = (&'static str, Value)>,
-) -> toml::map::Map<String, Value> {
-    entries
-        .into_iter()
-        .map(|(key, value)| (key.to_string(), value))
-        .collect()
-}
-
-fn write_toml(path: &Path, value: &Value) {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).expect("create parent directory");
-    }
-    fs::write(
-        path,
-        toml::to_string(value).expect("serialize TOML fixture"),
-    )
-    .expect("write TOML fixture");
-}
-
-fn i18n_config(fallback_language: &str, assets_dir: &str) -> Value {
-    Value::Table(table([
-        ("fallback_language", string_value(fallback_language)),
-        ("assets_dir", string_value(assets_dir)),
-    ]))
 }
 
 fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {

@@ -1,28 +1,8 @@
 mod fixtures;
 
 use assert_cmd::Command;
-use assert_fs::{TempDir, prelude::*};
-use fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS};
+use fixtures::create_workspace;
 use predicates::prelude::*;
-
-fn create_workspace() -> TempDir {
-    let temp = TempDir::new().expect("tempdir");
-    temp.child("src").create_dir_all().expect("create src");
-    temp.child("i18n/en").create_dir_all().expect("create i18n");
-    temp.child("Cargo.toml")
-        .write_str(CARGO_TOML)
-        .expect("write Cargo.toml");
-    temp.child("src/lib.rs")
-        .write_str(LIB_RS)
-        .expect("write lib.rs");
-    temp.child("i18n.toml")
-        .write_str(I18N_TOML)
-        .expect("write i18n.toml");
-    temp.child("i18n/en/test-app.ftl")
-        .write_str(HELLO_FTL)
-        .expect("write ftl");
-    temp
-}
 
 #[test]
 fn binary_help_command_succeeds() {

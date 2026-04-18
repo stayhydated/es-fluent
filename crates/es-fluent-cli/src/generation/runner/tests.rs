@@ -7,67 +7,27 @@ use crate::generation::cache::{MetadataCache, RunnerCache, compute_crate_inputs_
 use crate::test_fixtures::{
     FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner,
     install_fake_runner_with_cache, runner_binary_mtime, save_runner_cache,
+    toml_helpers::{
+        i18n_config, insert_section, package_manifest as package_manifest_toml, string_value,
+        table, write_toml,
+    },
+    write_file,
 };
 use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
 use fs_err as fs;
 use std::path::Path;
 use toml::Value;
 
-fn write_file(path: &Path, contents: &str) {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).expect("create parent directory");
-    }
-    fs::write(path, contents).expect("write file");
-}
-
-fn string_value(value: &str) -> Value {
-    Value::String(value.to_string())
-}
-
-fn table(
-    entries: impl IntoIterator<Item = (&'static str, Value)>,
-) -> toml::map::Map<String, Value> {
-    entries
-        .into_iter()
-        .map(|(key, value)| (key.to_string(), value))
-        .collect()
-}
-
-fn toml_string(value: &Value) -> String {
-    toml::to_string(value).expect("serialize TOML fixture")
-}
-
-fn write_toml(path: &Path, value: &Value) {
-    write_file(path, &toml_string(value));
-}
-
 fn package_manifest(name: &str) -> Value {
     package_manifest_with_version(name, "0.1.0")
 }
 
 fn package_manifest_with_version(name: &str, version: &str) -> Value {
-    Value::Table(table([(
-        "package",
-        Value::Table(table([
-            ("name", string_value(name)),
-            ("version", string_value(version)),
-            ("edition", string_value("2024")),
-        ])),
-    )]))
+    package_manifest_toml(name, version)
 }
 
-fn insert_section(document: &mut Value, key: &str, value: Value) {
-    document
-        .as_table_mut()
-        .expect("TOML document table")
-        .insert(key.to_string(), value);
-}
-
-fn i18n_config(fallback_language: &str, assets_dir: &str) -> Value {
-    Value::Table(table([
-        ("fallback_language", string_value(fallback_language)),
-        ("assets_dir", string_value(assets_dir)),
-    ]))
+fn toml_string(value: &Value) -> String {
+    toml::to_string(value).expect("serialize TOML fixture")
 }
 
 fn cargo_build_config(target_dir: &str) -> Value {
