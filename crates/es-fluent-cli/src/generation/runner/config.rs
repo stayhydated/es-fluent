@@ -205,6 +205,10 @@ mod tests {
         }
     }
 
+    fn dependency_path_ends_with(dep: Dependency, suffix: &Path) -> bool {
+        dependency_path(dep).is_some_and(|path| Path::new(&path).ends_with(suffix))
+    }
+
     #[test]
     fn find_local_dep_returns_path_dependency_for_local_workspace_package() {
         let temp = tempfile::tempdir().expect("tempdir");
@@ -271,15 +275,19 @@ mod tests {
         let es_fluent = TempCrateConfig::find_cli_workspace_dep_es_fluent()
             .expect("resolve es-fluent workspace dep");
         assert!(
-            dependency_path(es_fluent.expect("expected es-fluent workspace dependency"))
-                .is_some_and(|path| path.ends_with("/crates/es-fluent"))
+            dependency_path_ends_with(
+                es_fluent.expect("expected es-fluent workspace dependency"),
+                &Path::new("crates").join("es-fluent"),
+            )
         );
 
         let helpers = TempCrateConfig::find_cli_workspace_dep_helpers()
             .expect("resolve helpers workspace dep");
         assert!(
-            dependency_path(helpers.expect("expected helpers workspace dependency"))
-                .is_some_and(|path| path.ends_with("/crates/es-fluent-cli-helpers"))
+            dependency_path_ends_with(
+                helpers.expect("expected helpers workspace dependency"),
+                &Path::new("crates").join("es-fluent-cli-helpers"),
+            )
         );
     }
 
