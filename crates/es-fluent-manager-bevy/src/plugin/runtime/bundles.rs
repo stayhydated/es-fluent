@@ -1,13 +1,14 @@
 use crate::{BundleBuildFailures, FtlAsset, I18nAssets, I18nBundle, I18nDomainBundles};
 use bevy::asset::{AssetEvent, AssetId, AssetLoadFailedEvent};
 use bevy::prelude::*;
-use es_fluent_manager_core::{ResourceKey, SyncFluentBundle};
+use es_fluent_manager_core::{ResourceKey, SyncFluentBundle, locale_candidates};
 use fluent_bundle::{FluentError, FluentResource};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 type DomainBundleMap = HashMap<String, Arc<SyncFluentBundle>>;
+type DomainResourceMap = HashMap<String, Vec<Arc<FluentResource>>>;
 
 fn dirty_asset_ids(
     asset_events: &mut MessageReader<AssetEvent<FtlAsset>>,
@@ -59,25 +60,37 @@ fn rebuild_bundle_for_language(
     i18n_assets: &I18nAssets,
     lang: &LanguageIdentifier,
 ) {
-    if !i18n_assets.is_language_loaded(lang) {
-        i18n_bundle.0.remove(lang);
-        i18n_domain_bundles.0.remove(lang);
+    let resources = i18n_assets.get_language_resource_entries(lang);
+    if resources.is_empty() {
+        i18n_bundle.remove(lang);
+        i18n_domain_bundles.remove(lang);
         bundle_build_failures.0.remove(lang);
-        debug!("Removed fluent bundle cache for {}", lang);
+        debug!("Removed fluent resource cache for {}", lang);
         return;
     }
 
-    let resources = i18n_assets.get_language_resource_entries(lang);
     match build_bundle_caches(lang, resources) {
-        Ok((bundle, domain_bundles)) => {
-            i18n_bundle.0.insert(lang.clone(), bundle);
-            i18n_domain_bundles.0.insert(lang.clone(), domain_bundles);
+        Ok((bundle, accepted_resources, domain_bundles, domain_locale_resources)) => {
+            i18n_bundle.set_locale_resources(lang.clone(), accepted_resources);
+            i18n_domain_bundles.set_locale_resources(lang.clone(), domain_locale_resources);
             bundle_build_failures.0.remove(lang);
-            debug!("Updated fluent bundle cache for {}", lang);
+
+            if i18n_assets.is_language_loaded(lang) {
+                i18n_bundle.set_bundle(lang.clone(), bundle);
+                i18n_domain_bundles.set_bundles(lang.clone(), domain_bundles);
+                debug!("Updated fluent bundle cache for {}", lang);
+            } else {
+                i18n_bundle.remove_bundle(lang);
+                i18n_domain_bundles.remove_bundles(lang);
+                debug!(
+                    "Stored partial fluent resource cache for {} while waiting on required resources",
+                    lang
+                );
+            }
         },
         Err(diagnostics) => {
             error!(
-                "Skipping fluent bundle cache update for {} because bundle assembly failed: {}",
+                "Skipping fluent bundle cache replacement for {} because bundle assembly failed: {}",
                 lang,
                 diagnostics.join(" | ")
             );
@@ -89,10 +102,28 @@ fn rebuild_bundle_for_language(
 fn build_bundle_caches(
     lang: &LanguageIdentifier,
     resources: Vec<(ResourceKey, Arc<FluentResource>)>,
-) -> Result<(Arc<SyncFluentBundle>, DomainBundleMap), Vec<String>> {
+) -> Result<
+    (
+        Arc<SyncFluentBundle>,
+        Vec<Arc<FluentResource>>,
+        DomainBundleMap,
+        DomainResourceMap,
+    ),
+    Vec<String>,
+> {
     let (bundle, accepted_resources) = build_bundle_from_resources(lang, resources)?;
-    let domain_bundles = build_domain_bundles(lang, &accepted_resources)?;
-    Ok((bundle, domain_bundles))
+    let (domain_bundles, domain_locale_resources) =
+        build_domain_bundles(lang, &accepted_resources)?;
+    let locale_resources = accepted_resources
+        .iter()
+        .map(|(_, resource)| resource.clone())
+        .collect::<Vec<_>>();
+    Ok((
+        bundle,
+        locale_resources,
+        domain_bundles,
+        domain_locale_resources,
+    ))
 }
 
 fn build_bundle_from_resources(
@@ -105,7 +136,7 @@ fn build_bundle_from_resources(
     ),
     Vec<String>,
 > {
-    let mut bundle = SyncFluentBundle::new_concurrent(vec![lang.clone()]);
+    let mut bundle = SyncFluentBundle::new_concurrent(locale_candidates(lang));
     let mut accepted_resources = Vec::with_capacity(resources.len());
     let mut diagnostics = Vec::new();
 
@@ -126,7 +157,7 @@ fn build_bundle_from_resources(
 fn build_domain_bundles(
     lang: &LanguageIdentifier,
     accepted_resources: &[(ResourceKey, Arc<FluentResource>)],
-) -> Result<DomainBundleMap, Vec<String>> {
+) -> Result<(DomainBundleMap, DomainResourceMap), Vec<String>> {
     let mut grouped = HashMap::<String, Vec<(ResourceKey, Arc<FluentResource>)>>::new();
     for (resource_key, resource) in accepted_resources.iter().cloned() {
         grouped
@@ -136,19 +167,27 @@ fn build_domain_bundles(
     }
 
     let mut domain_bundles = HashMap::with_capacity(grouped.len());
+    let mut domain_locale_resources = HashMap::with_capacity(grouped.len());
     for (domain, mut resources) in grouped {
         resources.sort_by(|(left_key, _), (right_key, _)| left_key.cmp(right_key));
-        let (bundle, _accepted_resources) =
+        let (bundle, accepted_resources) =
             build_bundle_from_resources(lang, resources).map_err(|diagnostics| {
                 diagnostics
                     .into_iter()
                     .map(|diagnostic| format!("domain '{}': {}", domain, diagnostic))
                     .collect::<Vec<_>>()
             })?;
-        domain_bundles.insert(domain, bundle);
+        domain_bundles.insert(domain.clone(), bundle);
+        domain_locale_resources.insert(
+            domain,
+            accepted_resources
+                .into_iter()
+                .map(|(_, resource)| resource)
+                .collect(),
+        );
     }
 
-    Ok(domain_bundles)
+    Ok((domain_bundles, domain_locale_resources))
 }
 
 fn format_add_errors(resource_key: &ResourceKey, errors: Vec<FluentError>) -> String {

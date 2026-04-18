@@ -14,7 +14,8 @@ use unic_langid::LanguageIdentifier;
 
 pub use bundle::{
     LocalizationError, SyncFluentBundle, add_resources_to_bundle, build_fluent_args,
-    build_sync_bundle, localize_with_bundle,
+    build_sync_bundle, fallback_errors_are_fatal, localize_with_bundle,
+    localize_with_fallback_resources,
 };
 pub use manager::FluentManager;
 #[cfg(test)]

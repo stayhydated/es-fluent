@@ -1,7 +1,9 @@
 use crate::*;
 use arc_swap::ArcSwap;
 use bevy::prelude::*;
-use es_fluent_manager_core::{FluentManager, LocalizationError, localize_with_bundle};
+use es_fluent_manager_core::{
+    FluentManager, LocalizationError, fallback_errors_are_fatal, localize_with_fallback_resources,
+};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -14,7 +16,6 @@ static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 #[derive(Clone)]
 pub struct BevyI18nState {
     current_language: LanguageIdentifier,
-    resolved_language: LanguageIdentifier,
     bundle: I18nBundle,
     domain_bundles: I18nDomainBundles,
     fallback_manager: Option<Arc<FluentManager>>,
@@ -24,8 +25,7 @@ pub struct BevyI18nState {
 impl BevyI18nState {
     pub fn new(initial_language: LanguageIdentifier) -> Self {
         Self {
-            current_language: initial_language.clone(),
-            resolved_language: initial_language,
+            current_language: initial_language,
             bundle: I18nBundle::default(),
             domain_bundles: I18nDomainBundles::default(),
             fallback_manager: None,
@@ -50,25 +50,10 @@ impl BevyI18nState {
         }
     }
 
-    pub(crate) fn with_resolved_language(self, lang: LanguageIdentifier) -> Self {
-        Self {
-            resolved_language: lang,
-            ..self
-        }
-    }
-
     pub fn with_fallback_manager(self, fallback_manager: Arc<FluentManager>) -> Self {
         Self {
             fallback_manager: Some(fallback_manager),
             ..self
-        }
-    }
-
-    fn active_bundle_language(&self) -> &LanguageIdentifier {
-        if self.current_language == self.resolved_language {
-            &self.current_language
-        } else {
-            &self.resolved_language
         }
     }
 
@@ -77,14 +62,20 @@ impl BevyI18nState {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        if let Some(bundle) = self.bundle.0.get(self.active_bundle_language())
-            && let Some((value, errors)) = localize_with_bundle(bundle, id, args)
-        {
-            if !errors.is_empty() {
-                error!("Fluent formatting errors for '{}': {:?}", id, errors);
-            }
+        let locale_resources = self
+            .bundle
+            .fallback_locale_resources(&self.current_language);
+        let (value, errors) =
+            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
+        if fallback_errors_are_fatal(&errors) {
+            error!(
+                "Fluent fallback formatting errors for '{}': {:?}",
+                id, errors
+            );
+        }
 
-            return Some(value);
+        if value.is_some() {
+            return value;
         }
 
         self.fallback_manager
@@ -98,21 +89,20 @@ impl BevyI18nState {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        if let Some(bundle) = self
+        let locale_resources = self
             .domain_bundles
-            .0
-            .get(self.active_bundle_language())
-            .and_then(|bundles| bundles.get(domain))
-            && let Some((value, errors)) = localize_with_bundle(bundle, id, args)
-        {
-            if !errors.is_empty() {
-                error!(
-                    "Fluent formatting errors for '{}' in domain '{}': {:?}",
-                    id, domain, errors
-                );
-            }
+            .fallback_locale_resources(&self.current_language, domain);
+        let (value, errors) =
+            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
+        if fallback_errors_are_fatal(&errors) {
+            error!(
+                "Fluent fallback formatting errors for '{}' in domain '{}': {:?}",
+                id, domain, errors
+            );
+        }
 
-            return Some(value);
+        if value.is_some() {
+            return value;
         }
 
         self.fallback_manager
@@ -151,16 +141,13 @@ pub(crate) fn update_global_bundle(bundle: I18nBundle, domain_bundles: I18nDomai
 #[doc(hidden)]
 pub(crate) fn try_update_global_language_selection(
     requested_language: LanguageIdentifier,
-    resolved_language: LanguageIdentifier,
 ) -> Result<(), LocalizationError> {
     if let Some(state_swap) = BEVY_I18N_STATE.get() {
         let old_state = state_swap.load();
         if let Some(fallback_manager) = &old_state.fallback_manager {
             fallback_manager.select_language(&requested_language)?;
         }
-        let new_state = BevyI18nState::clone(&old_state)
-            .with_language(requested_language)
-            .with_resolved_language(resolved_language);
+        let new_state = BevyI18nState::clone(&old_state).with_language(requested_language);
         state_swap.store(Arc::new(new_state));
     }
 
@@ -169,7 +156,7 @@ pub(crate) fn try_update_global_language_selection(
 
 #[doc(hidden)]
 pub fn try_update_global_language(lang: LanguageIdentifier) -> Result<(), LocalizationError> {
-    try_update_global_language_selection(lang.clone(), lang)
+    try_update_global_language_selection(lang)
 }
 
 #[doc(hidden)]

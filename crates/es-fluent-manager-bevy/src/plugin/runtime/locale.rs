@@ -22,10 +22,7 @@ pub(super) fn apply_selected_language(
         return false;
     }
 
-    if let Err(error) = try_update_global_language_selection(
-        selection.requested.clone(),
-        selection.resolved.clone(),
-    ) {
+    if let Err(error) = try_update_global_language_selection(selection.requested.clone()) {
         warn!(
             "Skipping locale change to '{}' because the fallback manager rejected the switch: {}",
             selection.requested, error
@@ -63,7 +60,7 @@ fn resolve_requested_language(
     i18n_assets: &I18nAssets,
     bundle_build_failures: &BundleBuildFailures,
 ) -> RequestedLanguageResolution {
-    let ready_languages = i18n_bundle.0.keys().cloned().collect::<HashSet<_>>();
+    let ready_languages = i18n_bundle.languages().cloned().collect::<HashSet<_>>();
     let blocked_languages = bundle_build_failures
         .0
         .keys()
@@ -216,7 +213,9 @@ mod tests {
         app.add_message::<LocaleChangeEvent>();
         app.add_message::<LocaleChangedEvent>();
         app.insert_resource(i18n_assets);
-        app.insert_resource(I18nBundle(HashMap::from([(en.clone(), Arc::new(bundle))])));
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.insert(en.clone(), Arc::new(bundle), Vec::new());
+        app.insert_resource(i18n_bundle);
         app.insert_resource(BundleBuildFailures(HashMap::from([(
             fr.clone(),
             vec!["resource 'app': duplicate message id 'hello'".to_string()],
@@ -266,7 +265,9 @@ mod tests {
         app.add_message::<LocaleChangeEvent>();
         app.add_message::<LocaleChangedEvent>();
         app.insert_resource(i18n_assets);
-        app.insert_resource(I18nBundle(HashMap::from([(en.clone(), Arc::new(bundle))])));
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.insert(en.clone(), Arc::new(bundle), Vec::new());
+        app.insert_resource(i18n_bundle);
         app.insert_resource(BundleBuildFailures::default());
         app.insert_resource(I18nResource::new(en.clone()));
         app.insert_resource(CurrentLanguageId(en.clone()));
@@ -318,7 +319,9 @@ mod tests {
         app.add_message::<LocaleChangeEvent>();
         app.add_message::<LocaleChangedEvent>();
         app.insert_resource(i18n_assets);
-        app.insert_resource(I18nBundle(HashMap::from([(en.clone(), Arc::new(bundle))])));
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.insert(en.clone(), Arc::new(bundle), Vec::new());
+        app.insert_resource(i18n_bundle);
         app.insert_resource(BundleBuildFailures(HashMap::from([(
             en_us.clone(),
             vec!["resource 'app': duplicate message id 'hello'".to_string()],
@@ -373,7 +376,9 @@ mod tests {
         app.add_message::<LocaleChangeEvent>();
         app.add_message::<LocaleChangedEvent>();
         app.insert_resource(i18n_assets);
-        app.insert_resource(I18nBundle(HashMap::from([(en.clone(), Arc::new(bundle))])));
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.insert(en.clone(), Arc::new(bundle), Vec::new());
+        app.insert_resource(i18n_bundle);
         app.insert_resource(BundleBuildFailures::default());
         app.insert_resource(I18nResource::new(en.clone()));
         app.insert_resource(CurrentLanguageId(en.clone()));

@@ -74,10 +74,11 @@ App::new().add_plugins(
 Plugin startup always uses strict module discovery, so invalid or duplicate
 registrations fail the app boot instead of being normalized silently.
 Malformed or conflicting Fluent bundle rebuilds are also rejected during asset
-hot reloads and locale switches. During a locale switch, Bevy immediately uses
-the best ready fallback bundle when one exists and only keeps the previous
-ready bundle when no accepted fallback is available, so it never publishes
-partial translations. Domain-scoped lookups stay aligned with the accepted
+hot reloads and locale switches without replacing the last accepted cache.
+During a locale switch, Bevy still waits for the best ready fallback bundle
+before publishing the switch, but accepted exact-locale resources can already
+participate in lookup through the requested locale fallback chain before the
+full locale is ready. Domain-scoped lookups stay aligned with the accepted
 resource set.
 
 ### 3. Define Localizable Components (Recommended)

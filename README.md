@@ -60,8 +60,10 @@ logging them before publishing the singleton, use
 `es-fluent-manager-embedded::try_init_with_language(...)`. The Bevy plugin also
 uses strict module discovery and fails startup on invalid or duplicate
 registrations. Bevy now also rejects malformed/conflicting bundle rebuilds
-instead of publishing partial translations, while keeping the last ready bundle
-active.
+without replacing the last accepted cache. Bevy still waits for a ready
+fallback bundle before publishing a locale switch, but accepted exact-locale
+resources can already satisfy lookups through the requested locale fallback
+chain before the full locale is ready.
 
 Embedded locale selection now also rejects malformed/conflicting Fluent bundle
 builds instead of partially loading the locale, while keeping the last ready

@@ -135,20 +135,83 @@ fn i18n_assets_namespace_contract_matrix() {
 #[test]
 fn i18n_resource_localizes_and_falls_back_to_id() {
     let requested = langid!("en-US");
-    let resolved = langid!("en");
-    let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![requested.clone()]);
-    bundle
-        .add_resource(Arc::new(
-            FluentResource::try_new(
-                "welcome = Welcome, { $name }!\nplain = Plain text".to_string(),
-            )
+    let resolved = requested.clone();
+    let requested_resource = Arc::new(
+        FluentResource::try_new("welcome = Welcome, { $name }!\nplain = Plain text".to_string())
             .expect("ftl"),
-        ))
+    );
+    let mut requested_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![requested.clone()]);
+    requested_bundle
+        .add_resource(requested_resource.clone())
         .expect("add resource");
 
-    let mut map = HashMap::new();
-    map.insert(resolved.clone(), Arc::new(bundle));
-    let i18n_bundle = I18nBundle(map);
+    let parent = langid!("en");
+    let parent_resource = Arc::new(
+        FluentResource::try_new("shared = Shared fallback value".to_string()).expect("ftl"),
+    );
+    let mut parent_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![parent.clone()]);
+    parent_bundle
+        .add_resource(parent_resource.clone())
+        .expect("add resource");
+
+    let mut i18n_bundle = I18nBundle::default();
+    i18n_bundle.insert(
+        requested.clone(),
+        Arc::new(requested_bundle),
+        vec![requested_resource],
+    );
+    i18n_bundle.insert(
+        parent.clone(),
+        Arc::new(parent_bundle),
+        vec![parent_resource],
+    );
+    let i18n_resource =
+        I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
+
+    assert_eq!(i18n_resource.current_language(), &requested);
+    assert_eq!(i18n_resource.resolved_language(), &resolved);
+
+    let mut args = HashMap::new();
+    args.insert("name", FluentValue::from("Mark"));
+    let localized = i18n_resource
+        .localize("welcome", Some(&args), &i18n_bundle)
+        .expect("localized text");
+    assert!(localized.contains("Welcome"));
+    assert!(localized.contains("Mark"));
+
+    assert_eq!(
+        i18n_resource.localize("shared", None, &i18n_bundle),
+        Some("Shared fallback value".to_string())
+    );
+    assert_eq!(i18n_resource.localize("missing", None, &i18n_bundle), None);
+    assert_eq!(
+        i18n_resource.localize_with_fallback(&i18n_bundle, "missing", None),
+        "missing"
+    );
+}
+
+#[test]
+fn i18n_resource_uses_resolved_bundle_when_requested_locale_is_unavailable() {
+    let requested = langid!("en-US");
+    let resolved = langid!("en");
+    let resolved_resource = Arc::new(
+        FluentResource::try_new("welcome = Welcome, { $name }!\nplain = Plain text".to_string())
+            .expect("ftl"),
+    );
+    let mut resolved_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![resolved.clone()]);
+    resolved_bundle
+        .add_resource(resolved_resource.clone())
+        .expect("add resource");
+
+    let mut i18n_bundle = I18nBundle::default();
+    i18n_bundle.insert(
+        resolved.clone(),
+        Arc::new(resolved_bundle),
+        vec![resolved_resource],
+    );
     let i18n_resource =
         I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
 
@@ -167,6 +230,43 @@ fn i18n_resource_localizes_and_falls_back_to_id() {
     assert_eq!(
         i18n_resource.localize_with_fallback(&i18n_bundle, "missing", None),
         "missing"
+    );
+}
+
+#[test]
+fn i18n_resource_prefers_partial_requested_locale_resources_over_resolved_parent_bundle() {
+    let requested = langid!("en-US");
+    let resolved = langid!("en");
+    let requested_resource =
+        Arc::new(FluentResource::try_new("hello = Hello from en-US".to_string()).expect("ftl"));
+    let resolved_resource = Arc::new(
+        FluentResource::try_new("hello = Hello from en\nshared = Shared fallback".to_string())
+            .expect("ftl"),
+    );
+    let mut resolved_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![resolved.clone()]);
+    resolved_bundle
+        .add_resource(resolved_resource.clone())
+        .expect("add resource");
+
+    let mut i18n_bundle = I18nBundle::default();
+    i18n_bundle.set_locale_resources(requested.clone(), vec![requested_resource]);
+    i18n_bundle.insert(
+        resolved.clone(),
+        Arc::new(resolved_bundle),
+        vec![resolved_resource],
+    );
+
+    let i18n_resource =
+        I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
+
+    assert_eq!(
+        i18n_resource.localize("hello", None, &i18n_bundle),
+        Some("Hello from en-US".to_string())
+    );
+    assert_eq!(
+        i18n_resource.localize("shared", None, &i18n_bundle),
+        Some("Shared fallback".to_string())
     );
 }
 
@@ -228,11 +328,10 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
         .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
 
     let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
-    bundle.add_resource(resource).expect("add resource");
+    bundle.add_resource(resource.clone()).expect("add resource");
     app.world_mut()
         .resource_mut::<I18nBundle>()
-        .0
-        .insert(lang, Arc::new(bundle));
+        .insert(lang, Arc::new(bundle), vec![resource]);
 
     app.update();
 

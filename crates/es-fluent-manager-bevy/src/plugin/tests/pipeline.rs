@@ -128,11 +128,16 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     app.update();
 
     let lang = langid!("en");
-    assert!(!app.world().resource::<I18nBundle>().0.contains_key(&lang));
+    assert!(
+        !app.world()
+            .resource::<I18nBundle>()
+            .bundles
+            .contains_key(&lang)
+    );
     assert_eq!(
         bevy_custom_localizer(Some("test-domain"), "hello", None),
-        None,
-        "domain lookups must stay unavailable until the locale is fully ready"
+        Some("Hello".to_string()),
+        "accepted requested-locale resources should already participate in fallback lookup before the full locale is ready"
     );
     assert_eq!(
         bevy_custom_localizer(Some("namespaced-domain"), "hello", None),
@@ -189,7 +194,12 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
             .loaded_resources
             .contains_key(&(lang.clone(), ResourceKey::new("namespaced-domain/hud")))
     );
-    assert!(app.world().resource::<I18nBundle>().0.contains_key(&lang));
+    assert!(
+        app.world()
+            .resource::<I18nBundle>()
+            .bundles
+            .contains_key(&lang)
+    );
     assert_eq!(
         bevy_custom_localizer(None, "from-fallback", None),
         Some("fallback".to_string())
@@ -343,7 +353,10 @@ fn plugin_pipeline_preserves_last_good_bundle_when_hot_reload_introduces_conflic
     app.update();
 
     assert!(
-        app.world().resource::<I18nBundle>().0.contains_key(&lang),
+        app.world()
+            .resource::<I18nBundle>()
+            .bundles
+            .contains_key(&lang),
         "the locale should become ready once every required resource is accepted"
     );
     assert_eq!(
@@ -460,11 +473,14 @@ fn plugin_pipeline_defers_locale_switch_until_requested_bundle_is_ready() {
         .loaded_resources
         .insert((en.clone(), ResourceKey::new("app")), en_resource.clone());
     let mut en_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![en.clone()]);
-    en_bundle.add_resource(en_resource).expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .0
-        .insert(en.clone(), Arc::new(en_bundle));
+    en_bundle
+        .add_resource(en_resource.clone())
+        .expect("add resource");
+    app.world_mut().resource_mut::<I18nBundle>().insert(
+        en.clone(),
+        Arc::new(en_bundle),
+        vec![en_resource],
+    );
 
     let mut initial_locale_cursor = {
         let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -540,11 +556,14 @@ fn plugin_pipeline_defers_locale_switch_until_requested_bundle_is_ready() {
         .loaded_resources
         .insert((fr.clone(), ResourceKey::new("app")), fr_resource.clone());
     let mut fr_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![fr.clone()]);
-    fr_bundle.add_resource(fr_resource).expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .0
-        .insert(fr.clone(), Arc::new(fr_bundle));
+    fr_bundle
+        .add_resource(fr_resource.clone())
+        .expect("add resource");
+    app.world_mut().resource_mut::<I18nBundle>().insert(
+        fr.clone(),
+        Arc::new(fr_bundle),
+        vec![fr_resource],
+    );
 
     app.update();
 
@@ -651,11 +670,14 @@ fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
         .loaded_resources
         .insert((en.clone(), ResourceKey::new("app")), en_resource.clone());
     let mut en_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![en.clone()]);
-    en_bundle.add_resource(en_resource).expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .0
-        .insert(en.clone(), Arc::new(en_bundle));
+    en_bundle
+        .add_resource(en_resource.clone())
+        .expect("add resource");
+    app.world_mut().resource_mut::<I18nBundle>().insert(
+        en.clone(),
+        Arc::new(en_bundle),
+        vec![en_resource],
+    );
 
     let mut initial_locale_cursor = {
         let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -715,11 +737,14 @@ fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
         .loaded_resources
         .insert((fr.clone(), ResourceKey::new("app")), fr_resource.clone());
     let mut fr_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![fr.clone()]);
-    fr_bundle.add_resource(fr_resource).expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .0
-        .insert(fr.clone(), Arc::new(fr_bundle));
+    fr_bundle
+        .add_resource(fr_resource.clone())
+        .expect("add resource");
+    app.world_mut().resource_mut::<I18nBundle>().insert(
+        fr.clone(),
+        Arc::new(fr_bundle),
+        vec![fr_resource],
+    );
 
     app.update();
 
@@ -826,11 +851,14 @@ fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
         .loaded_resources
         .insert((en.clone(), ResourceKey::new("app")), en_resource.clone());
     let mut en_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![en.clone()]);
-    en_bundle.add_resource(en_resource).expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .0
-        .insert(en.clone(), Arc::new(en_bundle));
+    en_bundle
+        .add_resource(en_resource.clone())
+        .expect("add resource");
+    app.world_mut().resource_mut::<I18nBundle>().insert(
+        en.clone(),
+        Arc::new(en_bundle),
+        vec![en_resource],
+    );
 
     let fr_resource =
         Arc::new(FluentResource::try_new("hello = Bonjour".to_string()).expect("ftl"));
@@ -839,11 +867,14 @@ fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
         .loaded_resources
         .insert((fr.clone(), ResourceKey::new("app")), fr_resource.clone());
     let mut fr_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![fr.clone()]);
-    fr_bundle.add_resource(fr_resource).expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .0
-        .insert(fr.clone(), Arc::new(fr_bundle));
+    fr_bundle
+        .add_resource(fr_resource.clone())
+        .expect("add resource");
+    app.world_mut().resource_mut::<I18nBundle>().insert(
+        fr.clone(),
+        Arc::new(fr_bundle),
+        vec![fr_resource],
+    );
 
     let mut initial_locale_cursor = {
         let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -927,12 +958,13 @@ fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
         );
     let mut fr_ca_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![fr_ca.clone()]);
     fr_ca_bundle
-        .add_resource(fr_ca_resource)
+        .add_resource(fr_ca_resource.clone())
         .expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .0
-        .insert(fr_ca.clone(), Arc::new(fr_ca_bundle));
+    app.world_mut().resource_mut::<I18nBundle>().insert(
+        fr_ca.clone(),
+        Arc::new(fr_ca_bundle),
+        vec![fr_ca_resource],
+    );
 
     app.update();
 
@@ -966,7 +998,109 @@ fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
     );
     assert_eq!(
         bevy_custom_localizer(None, "hello", None),
-        Some("Bonjour".to_string())
+        Some("Bonjour du Canada".to_string())
+    );
+}
+
+#[test]
+fn plugin_pipeline_partial_exact_locale_uses_requested_overrides_before_parent_fallback() {
+    let _guard = lock_bevy_global_state();
+    let en = langid!("en");
+    let en_us = langid!("en-US");
+
+    set_bevy_i18n_state(BevyI18nState::new(en.clone()));
+
+    let mut app = App::new();
+    app.add_message::<AssetEvent<FtlAsset>>();
+    app.add_message::<AssetLoadFailedEvent<FtlAsset>>();
+    app.add_message::<LocaleChangeEvent>();
+    app.add_message::<LocaleChangedEvent>();
+    app.add_message::<RequestRedraw>();
+    app.insert_resource(Assets::<FtlAsset>::default());
+    app.insert_resource(I18nBundle::default());
+    app.insert_resource(I18nDomainBundles::default());
+    app.insert_resource(BundleBuildFailures::default());
+    app.insert_resource(I18nResource::new(en.clone()));
+    app.insert_resource(CurrentLanguageId(en.clone()));
+    app.insert_resource(PendingLanguageChange::default());
+    app.add_systems(
+        Update,
+        (
+            handle_asset_loading,
+            build_fluent_bundles,
+            handle_locale_changes,
+            sync_global_state,
+        )
+            .chain(),
+    );
+
+    let (en_ui_handle, en_errors_handle, en_us_ui_handle) = {
+        let mut assets = app.world_mut().resource_mut::<Assets<FtlAsset>>();
+        let en_ui_handle = assets.add(FtlAsset {
+            content: "hello = Hello from en".to_string(),
+        });
+        let en_errors_handle = assets.add(FtlAsset {
+            content: "shared = Shared fallback".to_string(),
+        });
+        let en_us_ui_handle = assets.add(FtlAsset {
+            content: "hello = Hello from en-US".to_string(),
+        });
+        (en_ui_handle, en_errors_handle, en_us_ui_handle)
+    };
+
+    let ui_spec = ModuleResourceSpec {
+        key: ResourceKey::new("app/ui"),
+        locale_relative_path: "app/ui.ftl".to_string(),
+        required: true,
+    };
+    let errors_spec = ModuleResourceSpec {
+        key: ResourceKey::new("app/errors"),
+        locale_relative_path: "app/errors.ftl".to_string(),
+        required: true,
+    };
+
+    let mut i18n_assets = I18nAssets::new();
+    i18n_assets.add_asset_spec(en.clone(), ui_spec.clone(), en_ui_handle.clone());
+    i18n_assets.add_asset_spec(en.clone(), errors_spec.clone(), en_errors_handle.clone());
+    i18n_assets.add_asset_spec(en_us.clone(), ui_spec, en_us_ui_handle.clone());
+    i18n_assets.add_asset_spec(en_us.clone(), errors_spec, Handle::default());
+    app.insert_resource(i18n_assets);
+
+    app.world_mut()
+        .write_message(AssetEvent::<FtlAsset>::Added {
+            id: en_ui_handle.id(),
+        });
+    app.world_mut()
+        .write_message(AssetEvent::<FtlAsset>::Added {
+            id: en_errors_handle.id(),
+        });
+    app.world_mut()
+        .write_message(AssetEvent::<FtlAsset>::Added {
+            id: en_us_ui_handle.id(),
+        });
+    app.update();
+
+    app.world_mut()
+        .write_message(LocaleChangeEvent(en_us.clone()));
+    app.update();
+
+    assert_eq!(
+        app.world().resource::<I18nResource>().current_language(),
+        &en_us
+    );
+    assert_eq!(
+        app.world().resource::<I18nResource>().resolved_language(),
+        &en
+    );
+    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en_us);
+    assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
+    assert_eq!(
+        bevy_custom_localizer(None, "hello", None),
+        Some("Hello from en-US".to_string())
+    );
+    assert_eq!(
+        bevy_custom_localizer(None, "shared", None),
+        Some("Shared fallback".to_string())
     );
 }
 
@@ -992,34 +1126,73 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
     let missing_bundle_state = BevyI18nState::new(langid!("en"));
     assert_eq!(missing_bundle_state.localize("hello", None), None);
 
-    let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![langid!("en")]);
-    let resource = Arc::new(
+    let requested = langid!("en-US");
+    let parent = langid!("en");
+    let requested_resource = Arc::new(
         FluentResource::try_new(
             "hello = Hello { $name }\nonly-attr =\n    .label = Label".to_string(),
         )
         .expect("valid ftl"),
     );
-    bundle.add_resource(resource).expect("add resource");
+    let mut requested_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![requested.clone()]);
+    requested_bundle
+        .add_resource(requested_resource.clone())
+        .expect("add resource");
 
-    let mut bundles = HashMap::new();
-    bundles.insert(langid!("en"), Arc::new(bundle));
-    let mut domain_bundle =
-        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![langid!("en")]);
-    let domain_resource = Arc::new(
+    let parent_resource = Arc::new(
+        FluentResource::try_new("shared = Shared parent value".to_string()).expect("valid ftl"),
+    );
+    let mut parent_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![parent.clone()]);
+    parent_bundle
+        .add_resource(parent_resource.clone())
+        .expect("add resource");
+
+    let mut bundles = I18nBundle::default();
+    bundles.insert(
+        requested.clone(),
+        Arc::new(requested_bundle),
+        vec![requested_resource],
+    );
+    bundles.insert(
+        parent.clone(),
+        Arc::new(parent_bundle),
+        vec![parent_resource],
+    );
+
+    let mut requested_domain_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![requested.clone()]);
+    let requested_domain_resource = Arc::new(
         FluentResource::try_new("hello = Hello from app domain".to_string()).expect("valid ftl"),
     );
-    domain_bundle
-        .add_resource(domain_resource)
+    requested_domain_bundle
+        .add_resource(requested_domain_resource.clone())
         .expect("add resource");
-    let mut domain_bundles = HashMap::new();
+    let parent_domain_resource = Arc::new(
+        FluentResource::try_new("shared = Shared domain parent".to_string()).expect("valid ftl"),
+    );
+    let mut parent_domain_bundle =
+        fluent_bundle::bundle::FluentBundle::new_concurrent(vec![parent.clone()]);
+    parent_domain_bundle
+        .add_resource(parent_domain_resource.clone())
+        .expect("add resource");
+
+    let mut domain_bundles = I18nDomainBundles::default();
     domain_bundles.insert(
-        langid!("en"),
-        HashMap::from([("app".to_string(), Arc::new(domain_bundle))]),
+        requested.clone(),
+        HashMap::from([("app".to_string(), Arc::new(requested_domain_bundle))]),
+        HashMap::from([("app".to_string(), vec![requested_domain_resource])]),
+    );
+    domain_bundles.insert(
+        parent.clone(),
+        HashMap::from([("app".to_string(), Arc::new(parent_domain_bundle))]),
+        HashMap::from([("app".to_string(), vec![parent_domain_resource])]),
     );
 
-    let state = BevyI18nState::new(langid!("en"))
-        .with_bundle(I18nBundle(bundles))
-        .with_domain_bundles(I18nDomainBundles(domain_bundles));
+    let state = BevyI18nState::new(requested.clone())
+        .with_bundle(bundles)
+        .with_domain_bundles(domain_bundles);
 
     assert_eq!(state.localize("only-attr", None), None);
 
@@ -1033,8 +1206,16 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
         .expect("formatting with missing args still returns output");
     assert!(without_args.contains("Hello"));
     assert_eq!(
+        state.localize("shared", None),
+        Some("Shared parent value".to_string())
+    );
+    assert_eq!(
         state.localize_in_domain("app", "hello", None),
         Some("Hello from app domain".to_string())
+    );
+    assert_eq!(
+        state.localize_in_domain("app", "shared", None),
+        Some("Shared domain parent".to_string())
     );
 
     update_global_bundle(I18nBundle::default(), I18nDomainBundles::default());

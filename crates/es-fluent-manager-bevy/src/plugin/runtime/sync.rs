@@ -11,7 +11,6 @@ use unic_langid::LanguageIdentifier;
 
 fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Option<usize> {
     i18n_bundle
-        .0
         .get(lang)
         .map(|bundle| std::sync::Arc::as_ptr(bundle) as *const () as usize)
 }
@@ -177,11 +176,12 @@ mod tests {
             .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
 
         let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
-        bundle.add_resource(resource).expect("add resource");
-        app.world_mut()
-            .resource_mut::<I18nBundle>()
-            .0
-            .insert(lang.clone(), Arc::new(bundle));
+        bundle.add_resource(resource.clone()).expect("add resource");
+        app.world_mut().resource_mut::<I18nBundle>().insert(
+            lang.clone(),
+            Arc::new(bundle),
+            vec![resource],
+        );
 
         app.update();
 
@@ -255,7 +255,10 @@ mod tests {
         app.update();
 
         assert!(
-            !app.world().resource::<I18nBundle>().0.contains_key(&lang),
+            !app.world()
+                .resource::<I18nBundle>()
+                .bundles
+                .contains_key(&lang),
             "a recorded build failure must not look like a ready bundle"
         );
 
@@ -314,12 +317,13 @@ mod tests {
         let mut current_bundle =
             fluent_bundle::bundle::FluentBundle::new_concurrent(vec![current_lang.clone()]);
         current_bundle
-            .add_resource(current_resource)
+            .add_resource(current_resource.clone())
             .expect("add resource");
-        app.world_mut()
-            .resource_mut::<I18nBundle>()
-            .0
-            .insert(current_lang.clone(), Arc::new(current_bundle));
+        app.world_mut().resource_mut::<I18nBundle>().insert(
+            current_lang.clone(),
+            Arc::new(current_bundle),
+            vec![current_resource],
+        );
 
         let mut locale_cursor = {
             let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -360,12 +364,13 @@ mod tests {
         let mut other_bundle =
             fluent_bundle::bundle::FluentBundle::new_concurrent(vec![other_lang.clone()]);
         other_bundle
-            .add_resource(other_resource)
+            .add_resource(other_resource.clone())
             .expect("add resource");
-        app.world_mut()
-            .resource_mut::<I18nBundle>()
-            .0
-            .insert(other_lang.clone(), Arc::new(other_bundle));
+        app.world_mut().resource_mut::<I18nBundle>().insert(
+            other_lang.clone(),
+            Arc::new(other_bundle),
+            vec![other_resource],
+        );
 
         app.update();
 

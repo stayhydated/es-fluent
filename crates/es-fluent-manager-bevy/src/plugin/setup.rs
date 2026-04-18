@@ -85,9 +85,7 @@ pub(super) fn initialize_global_state(
             )
         })?;
     set_bevy_i18n_state(
-        BevyI18nState::new(requested_language.clone())
-            .with_resolved_language(resolved_language.clone())
-            .with_fallback_manager(fallback_manager),
+        BevyI18nState::new(requested_language.clone()).with_fallback_manager(fallback_manager),
     );
     Ok(I18nResource::new_with_resolved_language(
         requested_language.clone(),

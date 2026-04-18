@@ -535,6 +535,7 @@ fn build_sync_bundle_reports_resource_add_errors() {
 
     let (bundle, add_errors) = build_sync_bundle(&lang, vec![first, duplicate]);
     assert!(!add_errors.is_empty());
+    assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
 
     let (localized, _format_errors) =
         localize_with_bundle(&bundle, "hello", None).expect("message should exist");

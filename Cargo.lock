@@ -4067,11 +4067,13 @@ dependencies = [
  "es-fluent-shared",
  "fluent-bundle",
  "fluent-fallback",
+ "futures",
  "icu_locale",
  "intl-memoizer",
  "inventory",
  "parking_lot",
  "rust-embed",
+ "rustc-hash 2.1.2",
  "tracing",
  "unic-langid",
 ]
@@ -4093,6 +4095,7 @@ dependencies = [
 name = "es-fluent-manager-macros"
 version = "0.15.0"
 dependencies = [
+ "es-fluent-shared",
  "es-fluent-toml",
  "heck 0.5.0",
  "insta",
@@ -4102,7 +4105,6 @@ dependencies = [
  "syn 2.0.117",
  "temp-env",
  "tempfile",
- "unic-langid",
 ]
 
 [[package]]

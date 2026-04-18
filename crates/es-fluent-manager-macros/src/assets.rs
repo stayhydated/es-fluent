@@ -1,10 +1,10 @@
+use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
 use quote::quote;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
 };
-use unic_langid::LanguageIdentifier;
 
 #[derive(Debug)]
 pub(crate) struct I18nAssets {
@@ -124,21 +124,20 @@ fn discover_namespaces(namespace_root: &Path) -> syn::Result<BTreeSet<String>> {
 }
 
 fn canonical_locale_dir_name(path: &Path, raw_name: &str) -> syn::Result<String> {
-    let language = raw_name.parse::<LanguageIdentifier>().map_err(|error| {
-        macro_error(format!(
-            "Locale directory '{}' under {:?} is not a valid BCP-47 identifier: {}",
-            raw_name, path, error
-        ))
-    })?;
-    let canonical = language.to_string();
-    if canonical != raw_name {
-        return Err(macro_error(format!(
-            "Locale directory '{}' under {:?} must use canonical BCP-47 casing '{}'",
-            raw_name, path, canonical
-        )));
-    }
-
-    Ok(canonical)
+    parse_canonical_language_identifier(raw_name)
+        .map(|language| language.to_string())
+        .map_err(|error| match error {
+            CanonicalLanguageIdentifierError::Invalid { source, .. } => macro_error(format!(
+                "Locale directory '{}' under {:?} is not a valid BCP-47 identifier: {}",
+                raw_name, path, source
+            )),
+            CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+                macro_error(format!(
+                    "Locale directory '{}' under {:?} must use canonical BCP-47 form '{}'",
+                    raw_name, path, canonical
+                ))
+            },
+        })
 }
 
 impl I18nAssets {

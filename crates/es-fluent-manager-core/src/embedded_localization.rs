@@ -7,8 +7,9 @@ use crate::asset_localization::{
 use crate::fallback::resolve_fallback_language;
 use crate::localization::{
     I18nModule, LocalizationError, Localizer, SyncFluentBundle, build_sync_bundle,
-    localize_with_bundle,
+    fallback_errors_are_fatal, localize_with_bundle, localize_with_fallback_resources,
 };
+use es_fluent_shared::parse_canonical_language_identifier;
 use fluent_bundle::{FluentError, FluentResource, FluentValue};
 use parking_lot::RwLock;
 use rust_embed::RustEmbed;
@@ -34,6 +35,7 @@ pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     data: &'static ModuleData,
     current_bundle: RwLock<Option<Arc<SyncFluentBundle>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
+    current_locale_resources: RwLock<Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)>>,
     _phantom: std::marker::PhantomData<T>,
 }
 
@@ -103,6 +105,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
             data,
             current_bundle: RwLock::new(None),
             current_lang: RwLock::new(None),
+            current_locale_resources: RwLock::new(Vec::new()),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -160,26 +163,52 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         let mut current_lang_guard = self.current_lang.write();
-        let mut remaining_languages = self.data.supported_languages.to_vec();
 
         if current_lang_guard.as_ref() == Some(lang) {
             return Ok(());
         }
 
+        let mut remaining_languages = self.data.supported_languages.to_vec();
+        let mut current_bundle = None;
+        let mut locale_resources = Vec::new();
+
         while let Some(candidate) = resolve_fallback_language(lang, &remaining_languages) {
             remaining_languages.retain(|supported| supported != &candidate);
 
             if let Ok(resources) = self.load_resource_for_language(&candidate) {
-                let (bundle, add_errors) = build_sync_bundle(lang, resources);
+                let (mut candidate_bundle, add_errors) =
+                    build_sync_bundle(&candidate, resources.clone());
                 if !add_errors.is_empty() {
-                    let error = BundleBuildError::from_add_errors(self.data.name, lang, add_errors);
-                    tracing::error!("{error}");
-                    return Err(io::Error::other(error).into());
+                    if locale_resources.is_empty() {
+                        let error =
+                            BundleBuildError::from_add_errors(self.data.name, lang, add_errors);
+                        tracing::error!("{error}");
+                        return Err(io::Error::other(error).into());
+                    }
+
+                    tracing::warn!(
+                        "Skipping fallback locale '{}' for requested locale '{}' in module '{}' because Fluent bundle assembly failed",
+                        candidate,
+                        lang,
+                        self.data.name
+                    );
+                    continue;
                 }
-                *self.current_bundle.write() = Some(Arc::new(bundle));
-                *current_lang_guard = Some(lang.clone());
-                return Ok(());
+
+                if current_bundle.is_none() {
+                    candidate_bundle.locales = crate::fallback::locale_candidates(lang);
+                    current_bundle = Some(Arc::new(candidate_bundle));
+                }
+
+                locale_resources.push((candidate, resources));
             }
+        }
+
+        if let Some(bundle) = current_bundle {
+            *self.current_bundle.write() = Some(bundle);
+            *self.current_locale_resources.write() = locale_resources;
+            *current_lang_guard = Some(lang.clone());
+            return Ok(());
         }
 
         // Preserve the last ready bundle on failure so callers can keep using
@@ -192,16 +221,31 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let bundle_guard = self.current_bundle.read();
-        let bundle = bundle_guard.as_ref()?;
-        let (value, errors) = localize_with_bundle(bundle.as_ref(), id, args)?;
+        if let Some(bundle) = self.current_bundle.read().as_ref()
+            && let Some((value, errors)) = localize_with_bundle(bundle.as_ref(), id, args)
+        {
+            if !errors.is_empty() {
+                tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+                return None;
+            }
 
-        if !errors.is_empty() {
-            tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+            return Some(value);
+        }
+
+        let locale_resources = self.current_locale_resources.read();
+        let (value, errors) =
+            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
+
+        if fallback_errors_are_fatal(&errors) {
+            tracing::error!(
+                "Fluent fallback formatting errors for id '{}': {:?}",
+                id,
+                errors
+            );
             return None;
         }
 
-        Some(value)
+        value
     }
 }
 
@@ -224,10 +268,7 @@ fn embedded_resource_from_asset_path(
             return None;
         }
 
-        return language
-            .parse::<LanguageIdentifier>()
-            .ok()
-            .and_then(|lang| (lang == language).then_some((lang, None)));
+        return parse_embedded_language_identifier(language).map(|lang| (lang, None));
     }
 
     if next != domain {
@@ -244,12 +285,14 @@ fn embedded_resource_from_asset_path(
         .iter()
         .any(|configured| configured == &namespace)
         .then(|| {
-            language
-                .parse::<LanguageIdentifier>()
-                .ok()
-                .and_then(|lang| (lang == language).then_some((lang, Some(namespace.to_string()))))
+            parse_embedded_language_identifier(language)
+                .map(|lang| (lang, Some(namespace.to_string())))
         })
         .flatten()
+}
+
+fn parse_embedded_language_identifier(raw: &str) -> Option<LanguageIdentifier> {
+    parse_canonical_language_identifier(raw).ok()
 }
 
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
@@ -400,6 +443,20 @@ mod tests {
         }
     }
 
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_partial_fallback"]
+    struct PartialFallbackAssets;
+
+    impl EmbeddedAssets for PartialFallbackAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -443,6 +500,14 @@ mod tests {
         supported_languages: BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES,
         namespaces: &["ui", "errors"],
     };
+    static PARTIAL_FALLBACK_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
+        &[langid!("en-US"), langid!("en")];
+    static PARTIAL_FALLBACK_MODULE_DATA: ModuleData = ModuleData {
+        name: "partial-fallback-module",
+        domain: "test-domain",
+        supported_languages: PARTIAL_FALLBACK_SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
+    };
 
     #[test]
     fn discover_languages_collects_and_sorts_unique_languages() {
@@ -480,6 +545,10 @@ mod tests {
         );
         assert_eq!(
             embedded_resource_from_asset_path("en/test-domain/misc.ftl", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("iw/test-domain/ui.ftl", "test-domain", &["ui"]),
             None
         );
     }
@@ -536,7 +605,26 @@ mod tests {
             .as_ref()
             .cloned()
             .expect("bundle should be built");
-        assert_eq!(bundle.locales, vec![langid!("en-US")]);
+        assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
+    }
+
+    #[test]
+    fn embedded_localizer_uses_fluent_fallback_for_missing_messages() {
+        let localizer =
+            EmbeddedLocalizer::<PartialFallbackAssets>::new(&PARTIAL_FALLBACK_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("partial locale should fall back to en for missing messages");
+
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from en-US".to_string())
+        );
+        assert_eq!(
+            localizer.localize("ui-title", None),
+            Some("Shared UI Title".to_string())
+        );
     }
 
     #[test]

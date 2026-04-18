@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use es_fluent_manager_core::{
     LocaleLoadReport, ModuleResourceSpec, ResourceKey, ResourceLoadError, SyncFluentBundle,
     build_locale_load_report, collect_available_languages, collect_locale_resources,
-    localize_with_bundle,
+    fallback_errors_are_fatal, locale_candidates, localize_with_fallback_resources,
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use serde::{Deserialize, Serialize};
@@ -56,15 +56,22 @@ pub struct I18nAssets {
     pub load_errors: HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,
 }
 
-/// A Bevy resource containing the `FluentBundle` for each loaded language.
+/// A Bevy resource containing per-locale Fluent bundles plus accepted resources
+/// used for locale fallback lookups.
 #[derive(Clone, Default, Resource)]
-pub struct I18nBundle(pub HashMap<LanguageIdentifier, Arc<SyncFluentBundle>>);
+pub struct I18nBundle {
+    pub(crate) bundles: HashMap<LanguageIdentifier, Arc<SyncFluentBundle>>,
+    pub(crate) locale_resources: HashMap<LanguageIdentifier, Vec<Arc<FluentResource>>>,
+}
 
-/// Per-language domain bundles derived from the same accepted resources as [`I18nBundle`].
+/// Per-language domain bundles plus accepted per-domain resources derived from
+/// the same accepted resources as [`I18nBundle`].
 #[derive(Clone, Default, Resource)]
-pub(crate) struct I18nDomainBundles(
-    pub(crate) HashMap<LanguageIdentifier, HashMap<String, Arc<SyncFluentBundle>>>,
-);
+pub(crate) struct I18nDomainBundles {
+    pub(crate) bundles: HashMap<LanguageIdentifier, HashMap<String, Arc<SyncFluentBundle>>>,
+    pub(crate) locale_resources:
+        HashMap<LanguageIdentifier, HashMap<String, Vec<Arc<FluentResource>>>>,
+}
 
 /// Bundle build failures that were rejected instead of replacing the last good cache.
 #[derive(Clone, Default, Resource)]
@@ -186,6 +193,118 @@ impl I18nAssets {
     }
 }
 
+impl I18nBundle {
+    pub(crate) fn get(&self, lang: &LanguageIdentifier) -> Option<&Arc<SyncFluentBundle>> {
+        self.bundles.get(lang)
+    }
+
+    pub(crate) fn languages(&self) -> impl Iterator<Item = &LanguageIdentifier> {
+        self.bundles.keys()
+    }
+
+    pub(crate) fn set_locale_resources(
+        &mut self,
+        lang: LanguageIdentifier,
+        accepted_resources: Vec<Arc<FluentResource>>,
+    ) {
+        self.locale_resources.insert(lang, accepted_resources);
+    }
+
+    pub(crate) fn set_bundle(&mut self, lang: LanguageIdentifier, bundle: Arc<SyncFluentBundle>) {
+        self.bundles.insert(lang, bundle);
+    }
+
+    pub(crate) fn remove_bundle(&mut self, lang: &LanguageIdentifier) {
+        self.bundles.remove(lang);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert(
+        &mut self,
+        lang: LanguageIdentifier,
+        bundle: Arc<SyncFluentBundle>,
+        accepted_resources: Vec<Arc<FluentResource>>,
+    ) {
+        self.bundles.insert(lang.clone(), bundle);
+        self.locale_resources.insert(lang, accepted_resources);
+    }
+
+    pub(crate) fn remove(&mut self, lang: &LanguageIdentifier) {
+        self.bundles.remove(lang);
+        self.locale_resources.remove(lang);
+    }
+
+    pub(crate) fn fallback_locale_resources(
+        &self,
+        requested: &LanguageIdentifier,
+    ) -> Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)> {
+        locale_candidates(requested)
+            .into_iter()
+            .filter_map(|candidate| {
+                self.locale_resources
+                    .get(&candidate)
+                    .cloned()
+                    .map(|resources| (candidate, resources))
+            })
+            .collect()
+    }
+}
+
+impl I18nDomainBundles {
+    pub(crate) fn set_locale_resources(
+        &mut self,
+        lang: LanguageIdentifier,
+        locale_resources: HashMap<String, Vec<Arc<FluentResource>>>,
+    ) {
+        self.locale_resources.insert(lang, locale_resources);
+    }
+
+    pub(crate) fn set_bundles(
+        &mut self,
+        lang: LanguageIdentifier,
+        bundles: HashMap<String, Arc<SyncFluentBundle>>,
+    ) {
+        self.bundles.insert(lang, bundles);
+    }
+
+    pub(crate) fn remove_bundles(&mut self, lang: &LanguageIdentifier) {
+        self.bundles.remove(lang);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert(
+        &mut self,
+        lang: LanguageIdentifier,
+        bundles: HashMap<String, Arc<SyncFluentBundle>>,
+        locale_resources: HashMap<String, Vec<Arc<FluentResource>>>,
+    ) {
+        self.bundles.insert(lang.clone(), bundles);
+        self.locale_resources.insert(lang, locale_resources);
+    }
+
+    pub(crate) fn remove(&mut self, lang: &LanguageIdentifier) {
+        self.bundles.remove(lang);
+        self.locale_resources.remove(lang);
+    }
+
+    pub(crate) fn fallback_locale_resources(
+        &self,
+        requested: &LanguageIdentifier,
+        domain: &str,
+    ) -> Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)> {
+        locale_candidates(requested)
+            .into_iter()
+            .filter_map(|candidate| {
+                self.locale_resources
+                    .get(&candidate)
+                    .and_then(|bundles| bundles.get(domain))
+                    .cloned()
+                    .map(|resources| (candidate, resources))
+            })
+            .collect()
+    }
+}
+
 /// The main resource for handling localization.
 #[derive(Resource)]
 pub struct I18nResource {
@@ -234,23 +353,28 @@ impl I18nResource {
         self.resolved_language = resolved_language;
     }
 
-    /// Localizes a message by its ID and arguments.
+    /// Localizes a message by its ID and arguments against the requested locale
+    /// fallback chain.
     ///
-    /// Returns `None` if the message ID is not found in the bundle for the current language.
+    /// Returns `None` if the message ID is not found in any cached locale in
+    /// that chain.
     pub fn localize<'a>(
         &self,
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
         i18n_bundle: &I18nBundle,
     ) -> Option<String> {
-        let bundle = i18n_bundle.0.get(&self.resolved_language)?;
-        let (value, errors) = localize_with_bundle(bundle, id, args)?;
-
-        if !errors.is_empty() {
-            error!("Fluent formatting errors for '{}': {:?}", id, errors);
+        let locale_resources = i18n_bundle.fallback_locale_resources(&self.current_language);
+        let (value, errors) =
+            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
+        if fallback_errors_are_fatal(&errors) {
+            error!(
+                "Fluent fallback formatting errors for '{}': {:?}",
+                id, errors
+            );
         }
 
-        Some(value)
+        value
     }
 
     #[doc(hidden)]
