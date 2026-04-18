@@ -61,9 +61,47 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
 mod tests {
     use super::expand_es_fluent;
     use crate::snapshot_support::pretty_file_tokens;
+    use fs_err as fs;
     use insta::assert_snapshot;
+    use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
     use syn::parse_quote;
+    use toml::Value;
+
+    fn string_value(value: &str) -> Value {
+        Value::String(value.to_string())
+    }
+
+    fn table(
+        entries: impl IntoIterator<Item = (&'static str, Value)>,
+    ) -> toml::map::Map<String, Value> {
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect()
+    }
+
+    fn write_toml(path: &Path, value: &Value) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create parent directory");
+        }
+        fs::write(
+            path,
+            toml::to_string(value).expect("serialize TOML fixture"),
+        )
+        .expect("write TOML fixture");
+    }
+
+    fn i18n_config(namespaces: &[&str]) -> Value {
+        Value::Table(table([
+            ("fallback_language", string_value("en-US")),
+            ("assets_dir", string_value("i18n")),
+            (
+                "namespaces",
+                Value::Array(namespaces.iter().copied().map(string_value).collect()),
+            ),
+        ]))
+    }
 
     fn with_manifest_dir<T>(namespaces: &[&str], f: impl FnOnce() -> T) -> T {
         let unique = SystemTime::now()
@@ -75,24 +113,13 @@ mod tests {
             pid = std::process::id()
         ));
 
-        std::fs::create_dir_all(&manifest_dir).expect("create temp manifest dir");
-        let namespaces_value = namespaces
-            .iter()
-            .map(|ns| format!("\"{ns}\""))
-            .collect::<Vec<_>>()
-            .join(", ");
-        std::fs::write(
-            manifest_dir.join("i18n.toml"),
-            format!(
-                "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\nnamespaces = [{namespaces_value}]\n"
-            ),
-        )
-        .expect("write i18n.toml");
+        fs::create_dir_all(&manifest_dir).expect("create temp manifest dir");
+        write_toml(&manifest_dir.join("i18n.toml"), &i18n_config(namespaces));
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), f)
         }));
-        let _ = std::fs::remove_dir_all(&manifest_dir);
+        let _ = fs::remove_dir_all(&manifest_dir);
 
         match result {
             Ok(value) => value,

@@ -2,6 +2,7 @@ use super::*;
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use fluent_syntax::{ast, parser};
+use fs_err as fs;
 use indexmap::IndexMap;
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -74,11 +75,11 @@ fn read_existing_and_write_updated_resource_cover_io_branches() {
     let missing = read_existing_resource(&file_path).expect("missing resource");
     assert!(missing.body.is_empty());
 
-    std::fs::write(&file_path, "   \n").expect("write whitespace");
+    fs::write(&file_path, "   \n").expect("write whitespace");
     let empty = read_existing_resource(&file_path).expect("empty resource");
     assert!(empty.body.is_empty());
 
-    std::fs::write(&file_path, "broken = {\n").expect("write invalid");
+    fs::write(&file_path, "broken = {\n").expect("write invalid");
     let err = read_existing_resource(&file_path)
         .err()
         .expect("invalid resource should fail");
@@ -90,7 +91,7 @@ fn read_existing_and_write_updated_resource_cover_io_branches() {
             .expect("dry run");
     assert!(dry_changed);
     assert!(
-        std::fs::read_to_string(&file_path)
+        fs::read_to_string(&file_path)
             .expect("read")
             .contains("broken")
     );
@@ -113,7 +114,7 @@ fn read_existing_and_write_updated_resource_cover_io_branches() {
     )
     .expect("write empty");
     assert!(emptied);
-    assert_eq!(std::fs::read_to_string(&file_path).expect("read empty"), "");
+    assert_eq!(fs::read_to_string(&file_path).expect("read empty"), "");
 }
 
 #[test]
@@ -133,7 +134,7 @@ fn write_or_preview_and_print_diff_cover_preview_and_write_paths() {
 fn write_updated_resource_covers_unchanged_empty_and_dry_run_empty_paths() {
     let temp = tempdir().expect("tempdir");
     let file_path = temp.path().join("empty.ftl");
-    std::fs::write(&file_path, "").expect("write empty file");
+    fs::write(&file_path, "").expect("write empty file");
 
     let empty_resource = ast::Resource { body: vec![] };
     let unchanged = write_updated_resource(

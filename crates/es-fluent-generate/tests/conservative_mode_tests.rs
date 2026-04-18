@@ -4,7 +4,7 @@ mod fixtures;
 use common::{enum_type, ftl_key, variant};
 use es_fluent_generate::{FluentParseMode, generate};
 use fixtures::SINGLE_GROUP_KEY;
-use std::fs;
+use fs_err as fs;
 use tempfile::TempDir;
 
 #[test]

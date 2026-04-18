@@ -3,10 +3,11 @@ use super::loaded::validate_loaded_ftl_files;
 use super::*;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
+use fs_err as fs;
 use indexmap::IndexMap;
-use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::tempdir;
+use toml::Value;
 
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
     KeyInfo {
@@ -14,6 +15,37 @@ fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) 
         source_file: source_file.map(ToString::to_string),
         source_line,
     }
+}
+
+fn string_value(value: &str) -> Value {
+    Value::String(value.to_string())
+}
+
+fn table(
+    entries: impl IntoIterator<Item = (&'static str, Value)>,
+) -> toml::map::Map<String, Value> {
+    entries
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect()
+}
+
+fn write_toml(path: &Path, value: &Value) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent directory");
+    }
+    fs::write(
+        path,
+        toml::to_string(value).expect("serialize TOML fixture"),
+    )
+    .expect("write TOML fixture");
+}
+
+fn i18n_config(fallback_language: &str, assets_dir: &str) -> Value {
+    Value::Table(table([
+        ("fallback_language", string_value(fallback_language)),
+        ("assets_dir", string_value(assets_dir)),
+    ]))
 }
 
 fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {
@@ -94,11 +126,7 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
 fn validate_crate_reports_missing_main_file_as_missing_key() {
     let temp = tempdir().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();
-    fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-    )
-    .unwrap();
+    write_toml(&temp.path().join("i18n.toml"), &i18n_config("en", "i18n"));
 
     let inventory_path =
         es_fluent_runner::RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
@@ -233,11 +261,7 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).unwrap();
     fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").unwrap();
-    fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-    )
-    .unwrap();
+    write_toml(&temp.path().join("i18n.toml"), &i18n_config("en", "i18n"));
 
     let broken_dir = temp.path().join("i18n/en/test-crate");
     fs::create_dir_all(broken_dir.parent().unwrap()).unwrap();

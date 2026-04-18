@@ -417,6 +417,38 @@ fn manager_try_new_with_discovered_modules_succeeds_for_clean_inventory() {
 }
 
 #[test]
+fn registration_runtime_support_defaults_match_registration_kind() {
+    let metadata_only = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
+    assert_eq!(
+        metadata_only.registration_kind(),
+        ModuleRegistrationKind::MetadataOnly
+    );
+    assert!(!metadata_only.supports_runtime_localization());
+    assert!(metadata_only.create_localizer().is_none());
+    assert_eq!(
+        metadata_only.resource_plan_for_language(&langid!("en")),
+        None
+    );
+
+    let runtime_module = &MODULE_OK as &dyn I18nModuleRegistration;
+    assert_eq!(
+        runtime_module.registration_kind(),
+        ModuleRegistrationKind::RuntimeLocalizer
+    );
+    assert!(runtime_module.supports_runtime_localization());
+    assert!(runtime_module.create_localizer().is_some());
+    assert_eq!(
+        runtime_module.resource_plan_for_language(&langid!("en")),
+        None
+    );
+
+    EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
+    assert!(EXPLICIT_RUNTIME_REGISTRATION.supports_runtime_localization());
+    assert!(EXPLICIT_RUNTIME_REGISTRATION.create_localizer().is_some());
+    assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn manager_localize_returns_first_matching_message() {
     let manager = FluentManager {
         modules: Vec::new(),

@@ -7,6 +7,7 @@ use crate::test_fixtures::{
     FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner_with_cache,
 };
 use crossbeam_channel::unbounded;
+use fs_err as fs;
 use notify::{
     Event,
     event::{EventKind, ModifyKind},
@@ -17,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+use toml::Value;
 
 fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
     CrateInfo {
@@ -37,22 +39,65 @@ fn event_with_path(path: &Path) -> DebouncedEvent {
     )
 }
 
+fn string_value(value: &str) -> Value {
+    Value::String(value.to_string())
+}
+
+fn table(
+    entries: impl IntoIterator<Item = (&'static str, Value)>,
+) -> toml::map::Map<String, Value> {
+    entries
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect()
+}
+
+fn write_toml(path: &Path, value: &Value) {
+    fs::write(
+        path,
+        toml::to_string(value).expect("serialize TOML fixture"),
+    )
+    .expect("write TOML");
+}
+
+fn package_manifest(name: &str, version: &str) -> Value {
+    Value::Table(table([(
+        "package",
+        Value::Table(table([
+            ("name", string_value(name)),
+            ("version", string_value(version)),
+            ("edition", string_value("2024")),
+        ])),
+    )]))
+}
+
+fn i18n_config(
+    fallback_language: &str,
+    assets_dir: Option<&str>,
+    fluent_feature: Option<&str>,
+) -> Value {
+    let mut config = table([("fallback_language", string_value(fallback_language))]);
+    if let Some(assets_dir) = assets_dir {
+        config.insert("assets_dir".to_string(), string_value(assets_dir));
+    }
+    if let Some(fluent_feature) = fluent_feature {
+        config.insert("fluent_feature".to_string(), string_value(fluent_feature));
+    }
+    Value::Table(config)
+}
+
 #[test]
 fn compute_src_hash_changes_when_i18n_changes() {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
-    std::fs::create_dir_all(&src_dir).expect("create src");
-    std::fs::write(src_dir.join("lib.rs"), "pub struct A;\n").expect("write lib.rs");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct A;\n").expect("write lib.rs");
 
     let i18n_toml = temp.path().join("i18n.toml");
-    std::fs::write(&i18n_toml, "fallback_language = \"en\"\n").expect("write i18n");
+    write_toml(&i18n_toml, &i18n_config("en", None, None));
 
     let first = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
-    std::fs::write(
-        &i18n_toml,
-        "fallback_language = \"en\"\nfluent_feature = \"i18n\"\n",
-    )
-    .expect("rewrite i18n");
+    write_toml(&i18n_toml, &i18n_config("en", None, Some("i18n")));
     let second = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
 
     assert_ne!(first, second);
@@ -85,28 +130,26 @@ fn process_file_events_filters_and_deduplicates_expected_paths() {
 fn compute_watch_inputs_hash_changes_when_manifest_or_build_script_changes() {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
-    std::fs::create_dir_all(&src_dir).expect("create src");
-    std::fs::write(src_dir.join("lib.rs"), "pub struct A;\n").expect("write lib.rs");
-    std::fs::write(
-        temp.path().join("Cargo.toml"),
-        "[package]\nname = \"watch-demo\"\nversion = \"0.1.0\"\n",
-    )
-    .expect("write manifest");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct A;\n").expect("write lib.rs");
+    write_toml(
+        &temp.path().join("Cargo.toml"),
+        &package_manifest("watch-demo", "0.1.0"),
+    );
 
     let i18n_toml = temp.path().join("i18n.toml");
-    std::fs::write(&i18n_toml, "fallback_language = \"en\"\n").expect("write i18n");
+    write_toml(&i18n_toml, &i18n_config("en", None, None));
 
     let before_manifest = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
-    std::fs::write(
-        temp.path().join("Cargo.toml"),
-        "[package]\nname = \"watch-demo\"\nversion = \"0.2.0\"\n",
-    )
-    .expect("rewrite manifest");
+    write_toml(
+        &temp.path().join("Cargo.toml"),
+        &package_manifest("watch-demo", "0.2.0"),
+    );
     let after_manifest = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
     assert_ne!(before_manifest, after_manifest);
 
     let before_build = after_manifest;
-    std::fs::write(temp.path().join("build.rs"), "fn main() {}\n").expect("write build.rs");
+    fs::write(temp.path().join("build.rs"), "fn main() {}\n").expect("write build.rs");
     let after_build = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
     assert_ne!(before_build, after_build);
 }
@@ -186,15 +229,11 @@ fn create_valid_workspace_with_fake_runner_behavior(
 ) -> (tempfile::TempDir, WorkspaceInfo, CrateInfo) {
     let temp = tempfile::tempdir().expect("tempdir");
     let src_dir = temp.path().join("src");
-    std::fs::create_dir_all(&src_dir).expect("create src");
-    std::fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+    fs::create_dir_all(&src_dir).expect("create src");
+    fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
 
     let i18n_toml = temp.path().join("i18n.toml");
-    std::fs::write(
-        &i18n_toml,
-        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-    )
-    .expect("write i18n.toml");
+    write_toml(&i18n_toml, &i18n_config("en", Some("i18n"), None));
 
     let krate = CrateInfo {
         name: "watch-crate".to_string(),
@@ -280,8 +319,13 @@ fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
     let (_temp, workspace, krate) = create_valid_workspace_with_fake_runner();
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
     let result_json = temp_store.result_path(&krate.name);
-    std::fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
-    std::fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
+    fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
+    fs::write(
+        &result_json,
+        serde_json::to_string(&serde_json::json!({ "changed": true }))
+            .expect("serialize result json"),
+    )
+    .expect("write result json");
 
     let (tx, rx) = unbounded();
     spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
@@ -309,8 +353,8 @@ fn spawn_generation_handles_invalid_json_and_empty_output() {
         create_valid_workspace_with_fake_runner_behavior(FakeRunnerBehavior::silent_success());
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
     let result_json = temp_store.result_path(&krate.name);
-    std::fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
-    std::fs::write(&result_json, "{not-json").expect("write invalid json");
+    fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
+    fs::write(&result_json, "{not-json").expect("write invalid json");
 
     let (tx, rx) = unbounded();
     spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
@@ -342,7 +386,7 @@ fn run_watch_loop_with_poll_processes_file_change_events() {
     let src_file = krate.src_dir.join("lib.rs");
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(350));
-        let _ = std::fs::write(&src_file, "pub struct DemoChanged;\n");
+        let _ = fs::write(&src_file, "pub struct DemoChanged;\n");
     });
 
     let result = run_watch_loop_with_poll(
@@ -355,4 +399,51 @@ fn run_watch_loop_with_poll_processes_file_change_events() {
     );
 
     assert!(result.is_ok());
+}
+
+#[test]
+fn run_watch_loop_with_poll_respects_zero_iteration_limit() {
+    let (_temp, workspace, krate) = create_valid_workspace_with_fake_runner();
+    let backend = TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend).expect("create terminal");
+
+    let result = run_watch_loop_with_poll(
+        &mut terminal,
+        &[krate],
+        &workspace,
+        &FluentParseMode::default(),
+        always_quit,
+        Some(0),
+    );
+
+    assert!(result.is_ok());
+}
+
+#[test]
+fn watch_all_propagates_runner_preparation_errors() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let workspace_root = temp.path().join("workspace-root-file");
+    fs::write(&workspace_root, "not-a-directory").expect("write workspace root sentinel");
+
+    let krate = CrateInfo {
+        name: "broken-watch".to_string(),
+        manifest_dir: temp.path().to_path_buf(),
+        src_dir: temp.path().join("src"),
+        i18n_config_path: temp.path().join("i18n.toml"),
+        ftl_output_dir: temp.path().join("i18n/en"),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+    let workspace = WorkspaceInfo {
+        root_dir: workspace_root,
+        target_dir: temp.path().join("target"),
+        crates: vec![krate.clone()],
+    };
+
+    let err = watch_all(&[krate], &workspace, &FluentParseMode::default())
+        .expect_err("invalid workspace root should fail before entering the TUI loop");
+    assert!(
+        err.to_string()
+            .contains("Failed to create .es-fluent directory")
+    );
 }

@@ -99,4 +99,40 @@ mod tests {
 
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn run_clean_orphaned_returns_ok_when_package_filter_matches_nothing() {
+        let temp = create_test_crate_workspace();
+
+        let result = run_clean(CleanArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: Some("missing-crate".to_string()),
+            },
+            all: false,
+            dry_run: false,
+            force_run: false,
+            orphaned: true,
+        });
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn run_clean_orphaned_handles_workspace_without_orphans() {
+        let temp = create_test_crate_workspace();
+
+        let result = run_clean(CleanArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            all: false,
+            dry_run: false,
+            force_run: false,
+            orphaned: true,
+        });
+
+        assert!(result.is_ok());
+    }
 }

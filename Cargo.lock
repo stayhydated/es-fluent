@@ -3949,6 +3949,7 @@ dependencies = [
  "temp-env",
  "tempfile",
  "thiserror 2.0.18",
+ "toml 1.1.2+spec-1.1.0",
  "tracing",
 ]
 
@@ -3959,6 +3960,7 @@ dependencies = [
  "darling 0.23.0",
  "es-fluent-derive-core",
  "es-fluent-shared",
+ "fs-err",
  "heck 0.5.0",
  "insta",
  "prettyplease",
@@ -3969,6 +3971,7 @@ dependencies = [
  "strum",
  "syn 2.0.117",
  "temp-env",
+ "toml 1.1.2+spec-1.1.0",
 ]
 
 [[package]]

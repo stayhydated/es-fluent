@@ -9,7 +9,7 @@ use crate::generation::cache::{
     RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
 };
 #[cfg(test)]
-use std::fs;
+use fs_err as fs;
 #[cfg(test)]
 use std::path::{Path, PathBuf};
 #[cfg(test)]

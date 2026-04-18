@@ -52,3 +52,55 @@ pub(crate) fn parse_language_entry(
         language: lang,
     }))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_language_entry;
+    use crate::I18nConfigError;
+    use fs_err as fs;
+
+    fn first_entry(path: &std::path::Path) -> fs::DirEntry {
+        fs::read_dir(path)
+            .expect("read dir")
+            .next()
+            .expect("expected one entry")
+            .expect("dir entry")
+    }
+
+    #[test]
+    fn parse_language_entry_returns_none_for_files() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(temp.path().join("README.txt"), "ignored").expect("write file");
+
+        let parsed = parse_language_entry(first_entry(temp.path())).expect("parse entry");
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn parse_language_entry_returns_canonical_language_for_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join("en-US")).expect("create locale dir");
+
+        let parsed = parse_language_entry(first_entry(temp.path()))
+            .expect("parse entry")
+            .expect("directory entry should be parsed");
+        assert_eq!(parsed.raw_name, "en-US");
+        assert_eq!(parsed.language.to_string(), "en-US");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parse_language_entry_rejects_non_utf8_directory_names() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let invalid_name = OsString::from_vec(vec![0xff, b'e', b'n']);
+        fs::create_dir(temp.path().join(&invalid_name)).expect("create invalid locale dir");
+
+        let err = parse_language_entry(first_entry(temp.path()))
+            .expect_err("non-utf8 directory names should fail");
+        assert!(matches!(err, I18nConfigError::ReadError(_)));
+        assert!(err.to_string().contains("non UTF-8 entry"));
+    }
+}

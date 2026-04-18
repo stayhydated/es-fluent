@@ -142,7 +142,7 @@ mod tests {
     use crate::ftl::extract_message_keys;
     use crate::test_fixtures::create_workspace_with_locales;
     use fluent_syntax::parser;
-    use std::fs;
+    use fs_err as fs;
 
     #[test]
     fn test_extract_message_keys() {
@@ -223,7 +223,7 @@ world = World"#;
             ("es", "hello = Hola\n"),
         ]);
         let es_path = temp.path().join("i18n/es/test-app.ftl");
-        let before = std::fs::read_to_string(&es_path).expect("read before");
+        let before = fs::read_to_string(&es_path).expect("read before");
 
         let result = run_sync(SyncArgs {
             workspace: WorkspaceArgs {
@@ -236,7 +236,7 @@ world = World"#;
         });
 
         assert!(result.is_ok());
-        let after = std::fs::read_to_string(&es_path).expect("read after");
+        let after = fs::read_to_string(&es_path).expect("read after");
         assert_eq!(before, after, "dry-run should not modify locale files");
     }
 

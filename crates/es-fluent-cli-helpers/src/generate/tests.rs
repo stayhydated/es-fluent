@@ -2,9 +2,11 @@ use super::inventory::collect_type_infos;
 use super::*;
 use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use es_fluent_shared::meta::TypeKind;
+use fs_err as fs;
 use std::borrow::Cow;
 use std::path::Path;
 use tempfile::tempdir;
+use toml::Value;
 
 static EMPTY_VARIANTS: &[FtlVariant] = &[];
 static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
@@ -50,14 +52,51 @@ fn with_env_vars<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
     temp_env::with_vars(vars, f)
 }
 
-fn write_basic_i18n_config(manifest_dir: &Path) {
-    std::fs::create_dir_all(manifest_dir.join("i18n/en-US")).expect("mkdir en-US");
-    std::fs::create_dir_all(manifest_dir.join("i18n/fr")).expect("mkdir fr");
-    std::fs::write(
-        manifest_dir.join("i18n.toml"),
-        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\nnamespaces = [\"ui\"]\n",
+fn string_value(value: &str) -> Value {
+    Value::String(value.to_string())
+}
+
+fn table(
+    entries: impl IntoIterator<Item = (&'static str, Value)>,
+) -> toml::map::Map<String, Value> {
+    entries
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect()
+}
+
+fn write_toml(path: &Path, value: &Value) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent directory");
+    }
+    fs::write(
+        path,
+        toml::to_string(value).expect("serialize TOML fixture"),
     )
-    .expect("write i18n.toml");
+    .expect("write TOML fixture");
+}
+
+fn i18n_config(fallback_language: &str, assets_dir: &str, namespaces: &[&str]) -> Value {
+    let mut config = table([
+        ("fallback_language", string_value(fallback_language)),
+        ("assets_dir", string_value(assets_dir)),
+    ]);
+    if !namespaces.is_empty() {
+        config.insert(
+            "namespaces".to_string(),
+            Value::Array(namespaces.iter().copied().map(string_value).collect()),
+        );
+    }
+    Value::Table(config)
+}
+
+fn write_basic_i18n_config(manifest_dir: &Path) {
+    fs::create_dir_all(manifest_dir.join("i18n/en-US")).expect("mkdir en-US");
+    fs::create_dir_all(manifest_dir.join("i18n/fr")).expect("mkdir fr");
+    write_toml(
+        &manifest_dir.join("i18n.toml"),
+        &i18n_config("en-US", "i18n", &["ui"]),
+    );
 }
 
 #[test]
@@ -180,13 +219,12 @@ fn resolve_clean_paths_supports_single_or_all_locales() {
 #[test]
 fn resolve_clean_paths_preserves_raw_locale_directory_names() {
     let temp = tempdir().expect("tempdir");
-    std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
-    std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
-    std::fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
-    )
-    .expect("write i18n.toml");
+    fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
+    fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
+    write_toml(
+        &temp.path().join("i18n.toml"),
+        &i18n_config("en-US", "i18n", &[]),
+    );
 
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -208,8 +246,8 @@ fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
     write_basic_i18n_config(temp.path());
 
     let override_assets = temp.path().join("custom-assets");
-    std::fs::create_dir_all(override_assets.join("es-MX")).expect("mkdir es-MX");
-    std::fs::create_dir_all(override_assets.join("ja")).expect("mkdir ja");
+    fs::create_dir_all(override_assets.join("es-MX")).expect("mkdir es-MX");
+    fs::create_dir_all(override_assets.join("ja")).expect("mkdir ja");
 
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -229,14 +267,13 @@ fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
 #[test]
 fn resolve_clean_paths_tolerates_invalid_locale_directory_names() {
     let temp = tempdir().expect("tempdir");
-    std::fs::create_dir_all(temp.path().join("i18n/en-US")).expect("mkdir en-US");
-    std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
-    std::fs::create_dir_all(temp.path().join("i18n/not_a_locale")).expect("mkdir invalid");
-    std::fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
-    )
-    .expect("write i18n.toml");
+    fs::create_dir_all(temp.path().join("i18n/en-US")).expect("mkdir en-US");
+    fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
+    fs::create_dir_all(temp.path().join("i18n/not_a_locale")).expect("mkdir invalid");
+    write_toml(
+        &temp.path().join("i18n.toml"),
+        &i18n_config("en-US", "i18n", &[]),
+    );
 
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -318,7 +355,7 @@ fn clean_marks_changes_when_cleaner_rewrites_files() {
     write_basic_i18n_config(temp.path());
 
     let target_file = temp.path().join("i18n/en-US/coverage-test-crate.ftl");
-    std::fs::write(
+    fs::write(
         &target_file,
         "## GroupA\n\ngroup_a-Key1 = Keep\norphan-Old = stale value\n",
     )

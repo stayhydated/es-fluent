@@ -6,8 +6,8 @@ use common::{
 };
 use es_fluent_generate::{FluentParseMode, generate};
 use fixtures::{EMPTY_GROUP, EMPTY_GROUPS_SIMILAR, ORPHAN_GROUPS, RELOCATE_GROUPS};
+use fs_err as fs;
 use insta::assert_snapshot;
-use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
 

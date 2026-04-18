@@ -184,3 +184,194 @@ impl TempCrateConfig {
         Dependency::Simple(version.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::TempCrateConfig;
+    use cargo_manifest::Dependency;
+    use fs_err as fs;
+    use std::path::Path;
+    use toml::Value;
+
+    fn write_file(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create parent directory");
+        }
+        fs::write(path, contents).expect("write file");
+    }
+
+    fn string_value(value: &str) -> Value {
+        Value::String(value.to_string())
+    }
+
+    fn table(
+        entries: impl IntoIterator<Item = (&'static str, Value)>,
+    ) -> toml::map::Map<String, Value> {
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect()
+    }
+
+    fn write_toml(path: &Path, value: &Value) {
+        write_file(
+            path,
+            &toml::to_string(value).expect("serialize TOML fixture"),
+        );
+    }
+
+    fn workspace_manifest(members: &[&str]) -> Value {
+        Value::Table(table([(
+            "workspace",
+            Value::Table(table([
+                (
+                    "members",
+                    Value::Array(members.iter().copied().map(string_value).collect()),
+                ),
+                ("resolver", string_value("2")),
+            ])),
+        )]))
+    }
+
+    fn package_manifest(name: &str) -> Value {
+        Value::Table(table([(
+            "package",
+            Value::Table(table([
+                ("name", string_value(name)),
+                ("version", string_value("0.1.0")),
+                ("edition", string_value("2024")),
+            ])),
+        )]))
+    }
+
+    fn dependency_path(dep: Dependency) -> Option<String> {
+        match dep {
+            Dependency::Detailed(detail) => detail.path,
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn find_local_dep_returns_path_dependency_for_local_workspace_package() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        write_toml(
+            &temp.path().join("Cargo.toml"),
+            &workspace_manifest(&["app", "es-fluent", "es-fluent-cli-helpers"]),
+        );
+        write_toml(
+            &temp.path().join("app/Cargo.toml"),
+            &package_manifest("app"),
+        );
+        write_file(&temp.path().join("app/src/lib.rs"), "pub struct App;\n");
+        write_toml(
+            &temp.path().join("es-fluent/Cargo.toml"),
+            &package_manifest("es-fluent"),
+        );
+        write_file(
+            &temp.path().join("es-fluent/src/lib.rs"),
+            "pub struct EsFluent;\n",
+        );
+        write_toml(
+            &temp.path().join("es-fluent-cli-helpers/Cargo.toml"),
+            &package_manifest("es-fluent-cli-helpers"),
+        );
+        write_file(
+            &temp.path().join("es-fluent-cli-helpers/src/lib.rs"),
+            "pub struct Helpers;\n",
+        );
+
+        let metadata = cargo_metadata::MetadataCommand::new()
+            .manifest_path(temp.path().join("Cargo.toml"))
+            .no_deps()
+            .exec()
+            .expect("load cargo metadata");
+
+        let es_fluent =
+            TempCrateConfig::find_local_dep(&metadata, "es-fluent").expect("find local dep");
+        assert_eq!(
+            dependency_path(es_fluent.expect("expected es-fluent dependency")),
+            Some(temp.path().join("es-fluent").display().to_string())
+        );
+
+        let helpers = TempCrateConfig::find_local_dep(&metadata, "es-fluent-cli-helpers")
+            .expect("find helpers dep");
+        assert_eq!(
+            dependency_path(helpers.expect("expected helpers dependency")),
+            Some(
+                temp.path()
+                    .join("es-fluent-cli-helpers")
+                    .display()
+                    .to_string()
+            )
+        );
+
+        assert!(
+            TempCrateConfig::find_local_dep(&metadata, "missing-crate")
+                .expect("missing crate lookup")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn find_cli_workspace_deps_use_repo_crate_paths() {
+        let es_fluent = TempCrateConfig::find_cli_workspace_dep_es_fluent()
+            .expect("resolve es-fluent workspace dep");
+        assert!(
+            dependency_path(es_fluent.expect("expected es-fluent workspace dependency"))
+                .is_some_and(|path| path.ends_with("/crates/es-fluent"))
+        );
+
+        let helpers = TempCrateConfig::find_cli_workspace_dep_helpers()
+            .expect("resolve helpers workspace dep");
+        assert!(
+            dependency_path(helpers.expect("expected helpers workspace dependency"))
+                .is_some_and(|path| path.ends_with("/crates/es-fluent-cli-helpers"))
+        );
+    }
+
+    #[test]
+    fn extract_manifest_overrides_handles_patch_and_invalid_inputs() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let patch_manifest = temp.path().join("patch.toml");
+        let patch_value: Value = toml::from_str(
+            r#"
+[patch.crates-io]
+serde = { version = "1" }
+"#,
+        )
+        .expect("parse patch manifest fixture");
+        write_toml(&patch_manifest, &patch_value);
+        let overrides = TempCrateConfig::extract_manifest_overrides(&patch_manifest);
+        assert!(overrides.contains_key("patch"));
+        assert!(!overrides.contains_key("replace"));
+
+        let invalid_manifest = temp.path().join("invalid.toml");
+        write_file(&invalid_manifest, "not = [valid");
+        assert!(TempCrateConfig::extract_manifest_overrides(&invalid_manifest).is_empty());
+
+        let non_table_manifest = temp.path().join("scalar.toml");
+        write_file(
+            &non_table_manifest,
+            &string_value("scalar-value").to_string(),
+        );
+        assert!(TempCrateConfig::extract_manifest_overrides(&non_table_manifest).is_empty());
+    }
+
+    #[test]
+    fn dependency_builders_preserve_expected_shapes() {
+        let path_dep = TempCrateConfig::path_dep(Path::new("/tmp/example"), "example path")
+            .expect("build path dependency");
+        assert_eq!(dependency_path(path_dep), Some("/tmp/example".to_string()));
+
+        let utf8_dep = TempCrateConfig::path_dep_utf8("/tmp/example-utf8");
+        assert_eq!(
+            dependency_path(utf8_dep),
+            Some("/tmp/example-utf8".to_string())
+        );
+
+        match TempCrateConfig::version_dep("1.2.3") {
+            Dependency::Simple(version) => assert_eq!(version, "1.2.3"),
+            dep => panic!("expected simple version dependency, got {dep:?}"),
+        }
+    }
+}
