@@ -20,7 +20,7 @@ This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and As
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localizer hook or fail fast when another integration already installed one.
+- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localization bridge or fail fast when another integration already installed one.
 
 ## Quick Start
 
@@ -56,8 +56,7 @@ fn main() {
 `I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
 inside Bevy, but it now defaults to
 `GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
-another integration already owns the process-global `es_fluent::localize`
-hook.
+another integration already owns the process-global localization bridge.
 
 If your Bevy app intentionally owns that hook and should override any previous
 registration, opt in explicitly:
@@ -73,13 +72,8 @@ App::new().add_plugins(
 
 Plugin startup always uses strict module discovery, so invalid or duplicate
 registrations fail the app boot instead of being normalized silently.
-Malformed or conflicting Fluent bundle rebuilds are also rejected during asset
-hot reloads and locale switches without replacing the last accepted cache.
-During a locale switch, Bevy still waits for the best ready fallback bundle
-before publishing the switch, but accepted exact-locale resources can already
-participate in lookup through the requested locale fallback chain before the
-full locale is ready. Domain-scoped lookups stay aligned with the accepted
-resource set.
+Failed hot reloads or locale switches keep the last accepted locale active
+instead of publishing a broken update.
 
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to

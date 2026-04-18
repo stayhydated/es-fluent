@@ -28,9 +28,9 @@ If your `assets_dir` contains `en`, `fr`, and `de` folders, this generates:
 
 ```rs
 pub enum Languages {
+    De,
     En,
     Fr,
-    De,
 }
 ```
 
@@ -46,8 +46,9 @@ For user-facing labels, derive `EsFluent` on the generated enum and call
 
 If you want to provide your own language-name translations, use
 `#[es_fluent_language(custom)]`. Custom mode skips the built-in
-`es-fluent-lang` runtime hook and registers the enum with inventory so your own
-FTL resources can provide the labels.
+`es-fluent-lang` runtime hook. When combined with `#[derive(EsFluent)]`, it
+also leaves inventory registration enabled so your own FTL resources can
+provide the labels.
 
 ### Feature Flags
 

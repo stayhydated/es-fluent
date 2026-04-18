@@ -45,21 +45,20 @@ es-fluent-manager-embedded = "*"
 es-fluent-manager-bevy = "*"
 ```
 
-If you want startup to fail fast on duplicate or invalid module registrations,
-build the runtime through `es-fluent-manager-core::FluentManager::new_with_discovered_modules()`
-and install it with `es_fluent::try_set_context(...)`. The embedded manager
-uses the same strict discovery path, while its convenience entry points log
-initialization failures instead of returning them:
+`es_fluent_manager_embedded::init_with_language(...)` is the simplest startup
+path. If you want initialization errors back instead of log-only behavior, use
+`es-fluent-manager-embedded::try_init_with_language(...)`:
 
 ```ignore
 es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 ```
 
-If you want the embedded manager to return initialization errors instead of
-logging them before publishing the singleton, use
-`es-fluent-manager-embedded::try_init_with_language(...)`. The Bevy plugin also
-uses strict module discovery and fails startup on invalid or duplicate
-registrations.
+For custom runtime integrations, use
+`es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
+The Bevy plugin uses the same strict discovery model and exposes both
+`RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
+requested locale from the currently published one. Failed locale switches keep
+the last ready locale active.
 
 ## Project configuration
 

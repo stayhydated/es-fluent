@@ -42,7 +42,7 @@ cargo es-fluent generate
 This will:
 
 1. Scan your `src/` directory.
-1. Update `i18n/en-US/{your_crate}.ftl` (and `i18n/en-US/{your_crate}/{namespace}.ftl` for namespaced types).
+1. Update `assets_dir/en-US/{your_crate}.ftl` (and `assets_dir/en-US/{your_crate}/{namespace}.ftl` for namespaced types).
    - **New items**: Added as new messages.
    - **Changed items**: Variables updated (e.g. if you added a field).
    - **Existing translations**: Preserved untouched.

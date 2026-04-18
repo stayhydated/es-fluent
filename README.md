@@ -45,30 +45,20 @@ es-fluent-manager-embedded = "*"
 es-fluent-manager-bevy = "*"
 ```
 
-If you want startup to fail fast on duplicate or invalid module registrations,
-build the runtime through `es-fluent-manager-core::FluentManager::new_with_discovered_modules()`
-and install it with `es_fluent::try_set_context(...)`. The embedded manager
-uses the same strict discovery path, while its convenience entry points log
-initialization failures instead of returning them:
+`es_fluent_manager_embedded::init_with_language(...)` is the simplest startup
+path. If you want initialization errors back instead of log-only behavior, use
+`es-fluent-manager-embedded::try_init_with_language(...)`:
 
 ```rust
 es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 ```
 
-If you want the embedded manager to return initialization errors instead of
-logging them before publishing the singleton, use
-`es-fluent-manager-embedded::try_init_with_language(...)`. The Bevy plugin also
-uses strict module discovery and fails startup on invalid or duplicate
-registrations. Bevy now also rejects malformed/conflicting bundle rebuilds
-without replacing the last accepted cache. Bevy still waits for a ready
-fallback bundle before publishing a locale switch, but accepted exact-locale
-resources can already satisfy lookups through the requested locale fallback
-chain before the full locale is ready. The Bevy API exposes that split
-explicitly through `RequestedLanguageId` and `ActiveLanguageId`.
-
-Embedded locale selection now also rejects malformed/conflicting Fluent bundle
-builds instead of partially loading the locale, while keeping the last ready
-locale active on failure.
+For custom runtime integrations, use
+`es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
+The Bevy plugin uses the same strict discovery model and exposes both
+`RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
+requested locale from the currently published one. Failed locale switches keep
+the last ready locale active.
 
 ## Project configuration
 

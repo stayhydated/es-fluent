@@ -64,7 +64,7 @@ By deriving `EsFluent` alongside `#[es_fluent_language]`, you get `to_fluent_str
 use es_fluent::ToFluentString;
 
 // Prints the language name in its native script
-println!("{}", Languages::Fr.to_fluent_string()); // → "Français"
+println!("{}", Languages::Fr.to_fluent_string()); // → "français"
 ```
 
 ## Custom Mode
@@ -79,6 +79,7 @@ pub enum Languages {}
 
 In custom mode:
 
-- The enum **is** registered with inventory, so `cargo es-fluent generate` will create keys for it in your FTL files.
+- The macro stops injecting the built-in `es-fluent-lang` resource attributes.
+- When you also derive `EsFluent`, `cargo es-fluent generate` will create keys for the enum in your FTL files.
 - You provide your own translations instead of using ICU4X-backed labels.
 - Use this when your app ships custom language-name translations for project-specific or otherwise unsupported locale tags.

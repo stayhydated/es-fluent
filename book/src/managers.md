@@ -15,9 +15,9 @@ Bundles your translations directly into the binary and exposes a global singleto
 
 ### Features
 
-- **Embedded Assets**: Compiles your FTL files into the binary (using `rust-embed` under the hood).
+- **Embedded Assets**: Compiles your FTL files into the binary.
 - **Global Access**: Once initialized, you can call `to_fluent_string()` anywhere in your code without passing context around.
-- **Thread Safe**: Uses `OnceLock` and atomic swaps for safe concurrent access.
+- **Thread Safe**: Safe to use from multiple threads after initialization.
 
 ### Quick Start
 
@@ -70,16 +70,10 @@ definitions across loaded files). When some modules support the requested
 locale and others do not, the default switch keeps the supporting modules
 active. Failed switches keep the previous ready locale active.
 
-For larger apps that want explicit control over the shared context, manager-core
-is strict by default:
-
-```rust
-use es_fluent::try_set_context;
-use es_fluent_manager_core::FluentManager;
-
-let manager = FluentManager::new_with_discovered_modules();
-try_set_context(manager).expect("global context should only be installed once");
-```
+For custom runtime integrations, `es-fluent-manager-core` exposes the same
+strict discovery behavior through
+`FluentManager::try_new_with_discovered_modules()`. Most applications should
+prefer a concrete manager crate instead of wiring the shared context manually.
 
 The embedded manager also uses strict discovery. `init_with_language(...)`
 logs initialization errors, while the fallible entry points return them before
@@ -105,7 +99,7 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localizer hook or fail fast when another integration already installed one.
+- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localization bridge or fail fast when another integration already installed one.
 
 ### Quick Start
 
@@ -138,8 +132,7 @@ fn main() {
 `I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
 inside Bevy, but it now defaults to
 `GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
-another integration already owns the process-global `es_fluent::localize`
-hook.
+another integration already owns the process-global localization bridge.
 
 If your Bevy app intentionally owns that hook and should override any previous
 registration, opt in explicitly:
@@ -155,13 +148,8 @@ App::new().add_plugins(
 
 Plugin startup also uses strict module discovery, so invalid or duplicate i18n
 module registrations fail the app boot instead of being normalized silently.
-Malformed or conflicting Fluent bundle rebuilds are also rejected during asset
-hot reloads and locale switches without replacing the last accepted cache.
-During a locale switch, Bevy still waits for the best ready fallback bundle
-before publishing the switch, but accepted exact-locale resources can already
-participate in lookup through the requested locale fallback chain before the
-full locale is ready. Domain-scoped lookups stay aligned with the accepted
-resource set.
+Failed hot reloads or locale switches keep the last accepted locale active
+instead of publishing a broken update.
 
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
