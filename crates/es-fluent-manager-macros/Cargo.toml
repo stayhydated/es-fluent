@@ -18,6 +18,7 @@ proc-macro = true
 es-fluent-shared = { workspace = true }
 es-fluent-toml = { workspace = true }
 heck = { workspace = true }
+path-slash = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { features = [ "full" ], workspace = true }

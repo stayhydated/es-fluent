@@ -405,6 +405,30 @@ fn test_validate_assets_dir_reports_missing_and_non_directory() {
 }
 
 #[test]
+fn test_available_languages_reports_missing_assets_directory_consistently() {
+    let temp_dir = TempDir::new().unwrap();
+    let config = I18nConfig {
+        fallback_language: "en".to_string(),
+        assets_dir: PathBuf::from("i18n"),
+        fluent_feature: None,
+        namespaces: None,
+    };
+
+    let err = config
+        .available_languages_from_base(Some(temp_dir.path()))
+        .expect_err("missing assets directory should fail");
+
+    match err {
+        I18nConfigError::ReadError(inner) => {
+            assert_eq!(inner.kind(), std::io::ErrorKind::NotFound);
+            assert!(inner.to_string().contains("Assets directory"));
+            assert!(inner.to_string().contains("does not exist"));
+        },
+        other => panic!("expected read error, got {other:?}"),
+    }
+}
+
+#[test]
 fn test_manifest_dir_helper_methods() {
     let temp_dir = TempDir::new().unwrap();
     write_toml(

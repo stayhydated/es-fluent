@@ -61,28 +61,32 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     );
 
     let (base_handle, menu_handle, hud_handle) = {
-        let assets = &app.world().resource::<I18nAssets>().assets;
-        let base = assets
-            .iter()
-            .find(|((lang, domain), _)| {
-                *lang == langid!("en") && domain == &ResourceKey::new("test-domain")
-            })
-            .map(|(_, handle)| handle.clone())
-            .expect("expected discovered base domain handle");
-        let menu = assets
-            .iter()
-            .find(|((lang, domain), _)| {
-                *lang == langid!("en") && domain == &ResourceKey::new("namespaced-domain/menu")
-            })
-            .map(|(_, handle)| handle.clone())
-            .expect("expected discovered namespaced menu handle");
-        let hud = assets
-            .iter()
-            .find(|((lang, domain), _)| {
-                *lang == langid!("en") && domain == &ResourceKey::new("namespaced-domain/hud")
-            })
-            .map(|(_, handle)| handle.clone())
-            .expect("expected discovered namespaced hud handle");
+        // Replace plugin-created AssetServer handles with deterministic reserved
+        // test handles so background load failures for nonexistent files cannot
+        // race this test's manual asset insertion path.
+        let (base, menu, hud, manifest) = {
+            let assets = &mut app.world_mut().resource_mut::<Assets<FtlAsset>>();
+            (
+                assets.reserve_handle(),
+                assets.reserve_handle(),
+                assets.reserve_handle(),
+                assets.reserve_handle(),
+            )
+        };
+        let discovered_assets = &mut app.world_mut().resource_mut::<I18nAssets>().assets;
+        discovered_assets.insert((langid!("en"), ResourceKey::new("test-domain")), base.clone());
+        discovered_assets.insert(
+            (langid!("en"), ResourceKey::new("namespaced-domain/menu")),
+            menu.clone(),
+        );
+        discovered_assets.insert(
+            (langid!("en"), ResourceKey::new("namespaced-domain/hud")),
+            hud.clone(),
+        );
+        discovered_assets.insert(
+            (langid!("en"), ResourceKey::new("manifest-domain")),
+            manifest,
+        );
         (base, menu, hud)
     };
     assert!(

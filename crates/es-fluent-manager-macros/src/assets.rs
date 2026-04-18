@@ -1,4 +1,5 @@
 use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use path_slash::PathExt as _;
 use quote::quote;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -124,17 +125,19 @@ fn discover_namespaces(namespace_root: &Path) -> syn::Result<BTreeSet<String>> {
 }
 
 fn canonical_locale_dir_name(path: &Path, raw_name: &str) -> syn::Result<String> {
+    let display_path = path.to_slash_lossy();
+
     parse_canonical_language_identifier(raw_name)
         .map(|language| language.to_string())
         .map_err(|error| match error {
             CanonicalLanguageIdentifierError::Invalid { source, .. } => macro_error(format!(
-                "Locale directory '{}' under {:?} is not a valid BCP-47 identifier: {}",
-                raw_name, path, source
+                "Locale directory '{}' under \"{}\" is not a valid BCP-47 identifier: {}",
+                raw_name, display_path, source
             )),
             CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
                 macro_error(format!(
-                    "Locale directory '{}' under {:?} must use canonical BCP-47 form '{}'",
-                    raw_name, path, canonical
+                    "Locale directory '{}' under \"{}\" must use canonical BCP-47 form '{}'",
+                    raw_name, display_path, canonical
                 ))
             },
         })
@@ -341,14 +344,18 @@ mod tests {
     fn normalize_temp_paths(text: &str, manifest_dir: &std::path::Path) -> String {
         let manifest = manifest_dir.to_string_lossy();
         let manifest_escaped = manifest.replace('\\', "\\\\");
-        let config = manifest_dir.join("i18n.toml");
-        let config = config.to_string_lossy();
+        let manifest_slash = manifest_dir.to_slash_lossy();
+        let config_path = manifest_dir.join("i18n.toml");
+        let config = config_path.to_string_lossy();
         let config_escaped = config.replace('\\', "\\\\");
+        let config_slash = config_path.to_slash_lossy();
 
         text.replace(config.as_ref(), "<manifest-dir>/i18n.toml")
             .replace(config_escaped.as_str(), "<manifest-dir>/i18n.toml")
+            .replace(config_slash.as_ref(), "<manifest-dir>/i18n.toml")
             .replace(manifest.as_ref(), "<manifest-dir>")
             .replace(manifest_escaped.as_str(), "<manifest-dir>")
+            .replace(manifest_slash.as_ref(), "<manifest-dir>")
     }
 
     fn write_manifest(manifest_dir: &std::path::Path, assets_dir: &str) {

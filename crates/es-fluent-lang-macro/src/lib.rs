@@ -297,6 +297,7 @@ fn expand_es_fluent_language(
 mod tests {
     use super::expand_es_fluent_language;
     use insta::assert_snapshot;
+    use path_slash::PathExt as _;
     use std::path::Path;
     use tempfile::TempDir;
 
@@ -346,10 +347,10 @@ mod tests {
     }
 
     fn normalize_output(tokens: &proc_macro2::TokenStream, manifest_dir: &Path) -> String {
-        let manifest = manifest_dir.to_string_lossy();
+        let manifest = manifest_dir.to_slash_lossy();
         let manifest_escaped = manifest.replace('\\', "\\\\");
         let i18n = manifest_dir.join("i18n.toml");
-        let i18n = i18n.to_string_lossy();
+        let i18n = i18n.to_slash_lossy();
         let i18n_escaped = i18n.replace('\\', "\\\\");
         let output = pretty_tokens(tokens);
 
