@@ -1,5 +1,3 @@
-mod snapshot_support;
-
 use darling::FromDeriveInput;
 use es_fluent_derive_core::options::{
     EnumDataOptions, FluentField, GeneratedVariantsOptions, StructDataOptions, VariantFields,
@@ -7,9 +5,21 @@ use es_fluent_derive_core::options::{
     namespace::NamespaceValue,
     r#struct::{StructOpts, StructVariantsOpts},
 };
-use snapshot_support::normalized_debug_snapshot;
-
 use syn::{DeriveInput, parse_quote};
+
+fn assert_no_generics(generics: &syn::Generics) {
+    assert!(generics.params.is_empty());
+    assert!(generics.where_clause.is_none());
+}
+
+fn ignored_enum_variant_count(
+    data: &darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
+) -> usize {
+    match data {
+        darling::ast::Data::Enum(variants) => variants.len(),
+        darling::ast::Data::Struct(_) => panic!("expected enum data"),
+    }
+}
 
 #[test]
 fn enum_variants_and_fields_skipping_and_choice() {
@@ -37,13 +47,11 @@ fn enum_variants_and_fields_skipping_and_choice() {
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
     let variants = opts.variants();
 
-    // Find Data variant
     let data = variants
-        .iter()
-        .find(|v| v.ident().to_string() == "Data")
+        .into_iter()
+        .find(|variant| variant.ident().to_string() == "Data")
         .expect("Data variant present");
     assert!(matches!(data.style(), darling::ast::Style::Struct));
-    // fields() filters out skipped fields
     let data_fields = data.fields();
     assert_eq!(data_fields.len(), 1, "Only non-skipped field remains");
     assert_eq!(
@@ -56,21 +64,20 @@ fn enum_variants_and_fields_skipping_and_choice() {
         "Field 'a' should be marked as choice"
     );
 
-    // Tuple variant: one skipped, one retained
-    let tuple = variants
-        .iter()
-        .find(|v| v.ident().to_string() == "Tuple")
+    let tuple = opts
+        .variants()
+        .into_iter()
+        .find(|variant| variant.ident().to_string() == "Tuple")
         .expect("Tuple variant present");
     assert!(matches!(tuple.style(), darling::ast::Style::Tuple));
     assert_eq!(tuple.all_fields().len(), 2, "All tuple fields parsed");
     assert_eq!(tuple.fields().len(), 1, "One tuple field was skipped");
-    // For tuple fields, idents are None, so just ensure the remaining one is present
     assert!(tuple.fields()[0].ident().is_none());
 
-    // Unit variant style check
-    let unit = variants
-        .iter()
-        .find(|v| v.ident().to_string() == "Unit")
+    let unit = opts
+        .variants()
+        .into_iter()
+        .find(|variant| variant.ident().to_string() == "Unit")
         .expect("Unit variant present");
     assert!(matches!(unit.style(), darling::ast::Style::Unit));
     assert!(unit.fields().is_empty());
@@ -102,8 +109,8 @@ fn enum_tuple_field_arg_name_parsing() {
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
     let variants = opts.variants();
     let tuple = variants
-        .iter()
-        .find(|v| v.ident().to_string() == "Tuple")
+        .into_iter()
+        .find(|variant| variant.ident().to_string() == "Tuple")
         .expect("Tuple variant present");
 
     let fields = tuple.all_fields();
@@ -126,8 +133,8 @@ fn enum_named_field_arg_name_parsing() {
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
     let variants = opts.variants();
     let named = variants
-        .iter()
-        .find(|v| v.ident().to_string() == "Named")
+        .into_iter()
+        .find(|variant| variant.ident().to_string() == "Named")
         .expect("Named variant present");
 
     let fields = named.all_fields();
@@ -150,15 +157,17 @@ fn struct_variants_keys_parsing_and_field_skipping() {
     let opts =
         StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
 
-    // ftl_enum_ident is <StructName>Variants
     assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructVariants");
+    assert_eq!(
+        opts.attr_args().key_strings(),
+        Some(vec!["error".to_string(), "notice".to_string()])
+    );
 
-    // keyed_idents are <StructName><Key>Variants
     let mut key_names: Vec<String> = opts
         .keyed_idents()
-        .unwrap()
+        .expect("keyed identifiers should parse")
         .into_iter()
-        .map(|k| k.to_string())
+        .map(|ident| ident.to_string())
         .collect();
     key_names.sort();
     assert_eq!(
@@ -169,7 +178,6 @@ fn struct_variants_keys_parsing_and_field_skipping() {
         ]
     );
 
-    // fields() filters out skipped fields
     let fields = opts.fields();
     assert_eq!(fields.len(), 1);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "a");
@@ -212,7 +220,25 @@ fn struct_fluent_parsing() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
+    assert_eq!(opts.ident().to_string(), "MyStruct");
+    assert_no_generics(opts.generics());
+    assert!(opts.attr_args().derive().is_empty());
+    assert!(opts.attr_args().namespace().is_none());
+
+    let fields = opts.fields();
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields[0].ident().expect("named field").to_string(), "a");
+    assert!(!fields[0].is_choice());
+    assert_eq!(fields[1].ident().expect("named field").to_string(), "c");
+    assert!(fields[1].is_choice());
+
+    let all_fields = opts.all_indexed_fields();
+    assert_eq!(all_fields.len(), 3);
+    assert_eq!(
+        all_fields[1].1.ident().expect("named field").to_string(),
+        "b"
+    );
+    assert!(all_fields[1].1.is_skipped());
 }
 
 #[test]
@@ -226,7 +252,7 @@ fn struct_tuple_fields_parsing() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     let fields = opts.fields();
     assert_eq!(fields.len(), 2, "Only non-skipped fields remain");
-    assert!(fields.iter().all(|f| f.ident().is_none()));
+    assert!(fields.iter().all(|field| field.ident().is_none()));
 
     let indexed_fields = opts.indexed_fields();
     assert_eq!(indexed_fields.len(), 2, "Two indexed fields remain");
@@ -277,7 +303,13 @@ fn enum_choice_parsing() {
     };
 
     let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
-    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
+    assert_eq!(opts.ident().to_string(), "MyEnum");
+    assert_no_generics(opts.generics());
+    assert_eq!(ignored_enum_variant_count(opts.data()), 2);
+    assert_eq!(
+        opts.attr_args().serialize_all().as_deref(),
+        Some("snake_case")
+    );
 }
 
 #[test]
@@ -291,7 +323,17 @@ fn struct_fluent_with_namespace_literal() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
+    assert_eq!(opts.ident().to_string(), "Button");
+    assert_no_generics(opts.generics());
+    assert_eq!(opts.fields().len(), 1);
+    assert_eq!(
+        opts.fields()[0].ident().expect("named field").to_string(),
+        "label"
+    );
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(NamespaceValue::Literal(value)) if value == "ui"
+    ));
 }
 
 #[test]
@@ -305,7 +347,17 @@ fn struct_fluent_with_namespace_file() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
+    assert_eq!(opts.ident().to_string(), "Dialog");
+    assert_no_generics(opts.generics());
+    assert_eq!(opts.fields().len(), 1);
+    assert_eq!(
+        opts.fields()[0].ident().expect("named field").to_string(),
+        "title"
+    );
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(NamespaceValue::File)
+    ));
 }
 
 #[test]
@@ -319,7 +371,17 @@ fn struct_fluent_with_namespace_file_relative() {
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
+    assert_eq!(opts.ident().to_string(), "Modal");
+    assert_no_generics(opts.generics());
+    assert_eq!(opts.fields().len(), 1);
+    assert_eq!(
+        opts.fields()[0].ident().expect("named field").to_string(),
+        "content"
+    );
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(NamespaceValue::FileRelative)
+    ));
 }
 
 #[test]
@@ -368,5 +430,15 @@ fn enum_fluent_with_namespace_literal() {
     };
 
     let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-    insta::assert_snapshot!(normalized_debug_snapshot(&opts));
+    assert_eq!(opts.ident().to_string(), "ApiError");
+    assert_no_generics(opts.generics());
+    assert_eq!(opts.base_key(), "api_error");
+    assert_eq!(opts.variants().len(), 2);
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(NamespaceValue::Literal(value)) if value == "errors"
+    ));
+    assert!(opts.attr_args().resource().is_none());
+    assert!(opts.attr_args().domain().is_none());
+    assert!(!opts.attr_args().skip_inventory());
 }
