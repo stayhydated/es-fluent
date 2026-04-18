@@ -219,7 +219,7 @@ pub fn discover_and_load_ftl_files(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use assert_fs::TempDir;
+    use tempfile::TempDir;
 
     #[test]
     fn test_ftl_file_info_new() {
