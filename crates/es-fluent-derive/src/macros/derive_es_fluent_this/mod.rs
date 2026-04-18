@@ -90,17 +90,9 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
 #[cfg(test)]
 mod tests {
     use super::expand_es_fluent_this;
+    use crate::snapshot_support::pretty_file_tokens;
     use insta::assert_snapshot;
-    use proc_macro2::TokenStream;
     use syn::parse_quote;
-
-    fn normalized_tokens(tokens: TokenStream) -> String {
-        tokens
-            .to_string()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 
     #[test]
     fn expand_es_fluent_this_generates_inventory_when_origin_is_enabled() {
@@ -110,7 +102,7 @@ mod tests {
             struct LoginForm;
         };
 
-        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
         assert_snapshot!(
             "expand_es_fluent_this_generates_inventory_when_origin_is_enabled",
             tokens
@@ -126,7 +118,7 @@ mod tests {
             }
         };
 
-        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
         assert_snapshot!(
             "expand_es_fluent_this_skips_inventory_when_origin_is_disabled",
             tokens
@@ -139,7 +131,7 @@ mod tests {
             #[fluent_this(origin = "nope")]
             struct InvalidThisOpts;
         };
-        let this_opts_tokens = normalized_tokens(expand_es_fluent_this(this_opts_error));
+        let this_opts_tokens = pretty_file_tokens(expand_es_fluent_this(this_opts_error));
         assert_snapshot!(
             "expand_es_fluent_this_returns_compile_errors_for_invalid_this_opts",
             this_opts_tokens
@@ -150,7 +142,7 @@ mod tests {
             #[fluent(namespace = 123)]
             struct InvalidStructNamespace;
         };
-        let struct_tokens = normalized_tokens(expand_es_fluent_this(struct_namespace_error));
+        let struct_tokens = pretty_file_tokens(expand_es_fluent_this(struct_namespace_error));
         assert_snapshot!(
             "expand_es_fluent_this_returns_compile_errors_for_invalid_struct_namespace",
             struct_tokens
@@ -163,7 +155,7 @@ mod tests {
                 A
             }
         };
-        let enum_tokens = normalized_tokens(expand_es_fluent_this(enum_namespace_error));
+        let enum_tokens = pretty_file_tokens(expand_es_fluent_this(enum_namespace_error));
         assert_snapshot!(
             "expand_es_fluent_this_returns_compile_errors_for_invalid_enum_namespace",
             enum_tokens
@@ -178,7 +170,7 @@ mod tests {
             struct NamespacedThis;
         };
 
-        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
         assert_snapshot!(
             "expand_es_fluent_this_prefers_parent_fluent_namespace_over_this_namespace",
             tokens
@@ -192,7 +184,7 @@ mod tests {
             struct LoginForm;
         };
 
-        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
         assert_snapshot!(
             "expand_es_fluent_this_uses_struct_type_kind_for_structs",
             tokens
@@ -208,7 +200,7 @@ mod tests {
             }
         };
 
-        let tokens = normalized_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
         assert_snapshot!(
             "expand_es_fluent_this_uses_enum_type_kind_for_enums",
             tokens

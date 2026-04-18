@@ -25,6 +25,7 @@ unic-langid = { features = [ "macros" ], workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+prettyplease = { workspace = true }
 serial_test = { workspace = true }
 temp-env = { workspace = true }
 

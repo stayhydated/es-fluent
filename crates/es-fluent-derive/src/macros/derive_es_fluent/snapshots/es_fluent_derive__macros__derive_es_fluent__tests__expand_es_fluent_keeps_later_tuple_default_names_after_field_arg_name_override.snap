@@ -2,4 +2,54 @@
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
 expression: tokens
 ---
-impl :: es_fluent :: FluentDisplay for LoginError { fn fluent_fmt (& self , f : & mut :: std :: fmt :: Formatter < '_ >) -> :: std :: fmt :: Result { match self { Self :: Something (f0 , f1 , f2) => { let mut args = :: std :: collections :: HashMap :: new () ; args . insert ("f0" , :: std :: convert :: Into :: into ((f0) . clone ())) ; args . insert ("f1" , :: std :: convert :: Into :: into ((f1) . clone ())) ; args . insert ("f2" , :: std :: convert :: Into :: into ((f2) . clone ())) ; write ! (f , "{}" , :: es_fluent :: localize_in_domain (env ! ("CARGO_PKG_NAME") , "login_error-Something" , Some (& args) ,)) } } } } # [doc (hidden)] mod __es_fluent_inventory_login_error { use super :: * ; static VARIANTS : & [:: es_fluent :: registry :: FtlVariant] = & [:: es_fluent :: registry :: FtlVariant { name : "Something" , ftl_key : "login_error-Something" , args : & ["f0" , "f1" , "f2"] , module_path : module_path ! () , line : line ! () , }] ; static TYPE_INFO : :: es_fluent :: registry :: FtlTypeInfo = :: es_fluent :: registry :: FtlTypeInfo { type_kind : :: es_fluent :: meta :: TypeKind :: Enum , type_name : "LoginError" , variants : VARIANTS , file_path : file ! () , module_path : module_path ! () , namespace : None , } ; :: es_fluent :: __inventory :: submit ! (:: es_fluent :: registry :: RegisteredFtlType (& TYPE_INFO)) ; } impl From < & LoginError > for :: es_fluent :: FluentValue < '_ > { fn from (value : & LoginError) -> Self { use :: es_fluent :: ToFluentString as _ ; value . to_fluent_string () . into () } } impl From < LoginError > for :: es_fluent :: FluentValue < '_ > { fn from (value : LoginError) -> Self { (& value) . into () } }
+impl ::es_fluent::FluentDisplay for LoginError {
+    fn fluent_fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match self {
+            Self::Something(f0, f1, f2) => {
+                let mut args = ::std::collections::HashMap::new();
+                args.insert("f0", ::std::convert::Into::into((f0).clone()));
+                args.insert("f1", ::std::convert::Into::into((f1).clone()));
+                args.insert("f2", ::std::convert::Into::into((f2).clone()));
+                write!(
+                    f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"),
+                    "login_error-Something", Some(& args),)
+                )
+            }
+        }
+    }
+}
+#[doc(hidden)]
+mod __es_fluent_inventory_login_error {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::FtlVariant {
+            name: "Something",
+            ftl_key: "login_error-Something",
+            args: &["f0", "f1", "f2"],
+            module_path: module_path!(),
+            line: line!(),
+        },
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
+        type_kind: ::es_fluent::meta::TypeKind::Enum,
+        type_name: "LoginError",
+        variants: VARIANTS,
+        file_path: file!(),
+        module_path: module_path!(),
+        namespace: None,
+    };
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}
+impl From<&LoginError> for ::es_fluent::FluentValue<'_> {
+    fn from(value: &LoginError) -> Self {
+        use ::es_fluent::ToFluentString as _;
+        value.to_fluent_string().into()
+    }
+}
+impl From<LoginError> for ::es_fluent::FluentValue<'_> {
+    fn from(value: LoginError) -> Self {
+        (&value).into()
+    }
+}

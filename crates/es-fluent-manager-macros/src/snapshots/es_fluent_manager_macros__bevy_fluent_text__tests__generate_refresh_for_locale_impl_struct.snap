@@ -1,5 +1,14 @@
 ---
 source: crates/es-fluent-manager-macros/src/bevy_fluent_text.rs
-expression: normalized_tokens(struct_tokens)
+expression: pretty_tokens(struct_tokens)
 ---
-impl :: es_fluent_manager_bevy :: RefreshForLocale for ExampleStruct { fn refresh_for_locale (& mut self , lang : & :: es_fluent_manager_bevy :: unic_langid :: LanguageIdentifier) { if let Ok (value) = :: std :: convert :: TryFrom :: try_from (lang) { self . locale = value ; } } }
+impl ::es_fluent_manager_bevy::RefreshForLocale for ExampleStruct {
+    fn refresh_for_locale(
+        &mut self,
+        lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier,
+    ) {
+        if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
+            self.locale = value;
+        }
+    }
+}

@@ -337,34 +337,35 @@ mod tests {
         }
     }
 
-    fn run_macro(attr: &str, item: &str) -> String {
+    fn run_macro(attr: &str, item: &str) -> proc_macro2::TokenStream {
         let attr_tokens = if attr.trim().is_empty() {
             proc_macro2::TokenStream::new()
         } else {
             attr.parse().expect("parse attribute tokens")
         };
         let item_tokens: proc_macro2::TokenStream = item.parse().expect("parse item tokens");
-        expand_es_fluent_language(attr_tokens, item_tokens).to_string()
+        expand_es_fluent_language(attr_tokens, item_tokens)
     }
 
-    fn normalized_tokens(output: &str) -> String {
-        output.split_whitespace().collect::<Vec<_>>().join(" ")
+    fn pretty_tokens(tokens: &proc_macro2::TokenStream) -> String {
+        let file: syn::File =
+            syn::parse2(tokens.clone()).expect("generated tokens should parse as a Rust file");
+        prettyplease::unparse(&file).trim().to_string()
     }
 
-    fn normalize_output(output: &str, manifest_dir: &Path) -> String {
+    fn normalize_output(tokens: &proc_macro2::TokenStream, manifest_dir: &Path) -> String {
         let manifest = manifest_dir.to_string_lossy();
         let manifest_escaped = manifest.replace('\\', "\\\\");
         let i18n = manifest_dir.join("i18n.toml");
         let i18n = i18n.to_string_lossy();
         let i18n_escaped = i18n.replace('\\', "\\\\");
+        let output = pretty_tokens(tokens);
 
-        normalized_tokens(
-            &output
-                .replace(i18n.as_ref(), "<manifest-dir>/i18n.toml")
-                .replace(i18n_escaped.as_str(), "<manifest-dir>/i18n.toml")
-                .replace(manifest.as_ref(), "<manifest-dir>")
-                .replace(manifest_escaped.as_str(), "<manifest-dir>"),
-        )
+        output
+            .replace(i18n.as_ref(), "<manifest-dir>/i18n.toml")
+            .replace(i18n_escaped.as_str(), "<manifest-dir>/i18n.toml")
+            .replace(manifest.as_ref(), "<manifest-dir>")
+            .replace(manifest_escaped.as_str(), "<manifest-dir>")
     }
 
     #[test]
@@ -372,19 +373,16 @@ mod tests {
         let invalid_attr = run_macro("bad", "enum Languages {}");
         assert_snapshot!(
             "macro_rejects_invalid_attribute_arguments",
-            normalized_tokens(&invalid_attr)
+            pretty_tokens(&invalid_attr)
         );
 
         let generic_enum = run_macro("", "enum Languages<T> {}");
-        assert_snapshot!(
-            "macro_rejects_generic_enums",
-            normalized_tokens(&generic_enum)
-        );
+        assert_snapshot!("macro_rejects_generic_enums", pretty_tokens(&generic_enum));
 
         let enum_with_variants = run_macro("", "enum Languages { En }");
         assert_snapshot!(
             "macro_rejects_enums_with_variants",
-            normalized_tokens(&enum_with_variants)
+            pretty_tokens(&enum_with_variants)
         );
     }
 
@@ -432,13 +430,13 @@ mod tests {
                 let default_mode = run_macro("", "enum Languages {}");
                 assert_snapshot!(
                     "macro_adds_missing_fallback_default_mode",
-                    normalized_tokens(&default_mode)
+                    pretty_tokens(&default_mode)
                 );
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_adds_missing_fallback_custom_mode",
-                    normalized_tokens(&custom_mode)
+                    pretty_tokens(&custom_mode)
                 );
             },
         );
@@ -453,13 +451,13 @@ mod tests {
                 let default_mode = run_macro("", "enum Languages {}");
                 assert_snapshot!(
                     "macro_uses_exact_locale_keys_default_mode",
-                    normalized_tokens(&default_mode)
+                    pretty_tokens(&default_mode)
                 );
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_uses_exact_locale_keys_custom_mode",
-                    normalized_tokens(&custom_mode)
+                    pretty_tokens(&custom_mode)
                 );
             },
         );
@@ -474,13 +472,13 @@ mod tests {
                 let output = run_macro("", "enum Languages {}");
                 assert_snapshot!(
                     "macro_accepts_valid_unlocalized_languages_default_mode",
-                    normalized_tokens(&output)
+                    pretty_tokens(&output)
                 );
 
                 let custom_output = run_macro("custom", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_accepts_valid_unlocalized_languages_custom_mode",
-                    normalized_tokens(&custom_output)
+                    pretty_tokens(&custom_output)
                 );
             },
         );

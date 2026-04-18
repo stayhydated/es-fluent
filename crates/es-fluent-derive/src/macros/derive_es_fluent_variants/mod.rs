@@ -178,21 +178,13 @@ fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed
 mod tests {
     use super::{process_enum, process_struct};
     use crate::macros::utils::inherited_fluent_namespace;
+    use crate::snapshot_support::pretty_file_tokens;
     use darling::FromDeriveInput as _;
     use es_fluent_derive_core::options::{
         r#enum::EnumVariantsOpts, r#struct::StructVariantsOpts, this::ThisOpts,
     };
     use insta::assert_snapshot;
-    use proc_macro2::TokenStream;
     use syn::parse_quote;
-
-    fn normalized_tokens(tokens: TokenStream) -> String {
-        tokens
-            .to_string()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 
     #[test]
     fn process_struct_emits_keyed_generated_enums() {
@@ -209,7 +201,7 @@ mod tests {
         let this_opts = ThisOpts::from_derive_input(&input).ok();
         let fluent_namespace = inherited_fluent_namespace(&input).expect("parent namespace");
 
-        let tokens = normalized_tokens(process_struct(
+        let tokens = pretty_file_tokens(process_struct(
             &opts,
             this_opts.as_ref(),
             fluent_namespace.as_ref(),
@@ -232,7 +224,7 @@ mod tests {
         let this_opts = ThisOpts::from_derive_input(&input).ok();
         let fluent_namespace = inherited_fluent_namespace(&input).expect("parent namespace");
 
-        let tokens = normalized_tokens(process_enum(
+        let tokens = pretty_file_tokens(process_enum(
             &opts,
             this_opts.as_ref(),
             fluent_namespace.as_ref(),
@@ -255,7 +247,7 @@ mod tests {
         let this_opts = ThisOpts::from_derive_input(&input).ok();
         let fluent_namespace = inherited_fluent_namespace(&input).expect("parent namespace");
 
-        let tokens = normalized_tokens(process_struct(
+        let tokens = pretty_file_tokens(process_struct(
             &opts,
             this_opts.as_ref(),
             fluent_namespace.as_ref(),

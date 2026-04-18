@@ -2,4 +2,6 @@
 source: crates/es-fluent-lang-macro/src/lib.rs
 expression: "normalize_output(&output, manifest_dir)"
 ---
-:: core :: compile_error ! { "failed to collect available languages: Failed to read configuration file: failed to read directory `<manifest-dir>/missing`: No such file or directory (os error 2)" }
+::core::compile_error! {
+    "failed to collect available languages: Failed to read configuration file: failed to read directory `<manifest-dir>/missing`: No such file or directory (os error 2)"
+}

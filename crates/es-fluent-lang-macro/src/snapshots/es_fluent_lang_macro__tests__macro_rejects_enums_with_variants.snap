@@ -1,5 +1,7 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
-expression: normalized_tokens(&enum_with_variants)
+expression: pretty_tokens(&enum_with_variants)
 ---
-:: core :: compile_error ! { "#[es_fluent_language] expects an enum without variants" }
+::core::compile_error! {
+    "#[es_fluent_language] expects an enum without variants"
+}

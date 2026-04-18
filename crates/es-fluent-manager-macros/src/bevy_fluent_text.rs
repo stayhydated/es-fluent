@@ -261,12 +261,10 @@ mod tests {
     use insta::assert_snapshot;
     use quote::quote;
 
-    fn normalized_tokens(tokens: proc_macro2::TokenStream) -> String {
-        tokens
-            .to_string()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
+    fn pretty_tokens(tokens: proc_macro2::TokenStream) -> String {
+        let file: syn::File =
+            syn::parse2(tokens).expect("generated tokens should parse as a Rust file");
+        prettyplease::unparse(&file).trim().to_string()
     }
 
     #[test]
@@ -310,7 +308,7 @@ mod tests {
             generate_refresh_for_locale_impl(&enum_input.ident, &enum_input.data, &enum_fields);
         assert_snapshot!(
             "generate_refresh_for_locale_impl_enum",
-            normalized_tokens(enum_tokens)
+            pretty_tokens(enum_tokens)
         );
 
         let struct_input: DeriveInput = syn::parse_quote! {
@@ -331,7 +329,7 @@ mod tests {
         );
         assert_snapshot!(
             "generate_refresh_for_locale_impl_struct",
-            normalized_tokens(struct_tokens)
+            pretty_tokens(struct_tokens)
         );
 
         let union_input: DeriveInput = syn::parse_quote! {
@@ -366,7 +364,7 @@ mod tests {
         );
         assert_snapshot!(
             "bevy_fluent_text_registration_module",
-            normalized_tokens(module_tokens)
+            pretty_tokens(module_tokens)
         );
     }
 

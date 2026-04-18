@@ -411,18 +411,10 @@ mod tests {
         generate_this_ftl_impl, inherited_fluent_domain, inherited_fluent_namespace,
         preferred_namespace,
     };
+    use crate::snapshot_support::pretty_file_tokens;
     use es_fluent_derive_core::options::namespace::NamespaceValue;
     use insta::assert_snapshot;
-    use proc_macro2::TokenStream;
     use syn::parse_quote;
-
-    fn normalized_tokens(tokens: TokenStream) -> String {
-        tokens
-            .to_string()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 
     #[test]
     fn inherited_fluent_namespace_reads_parent_attr_on_structs_and_enums() {
@@ -470,7 +462,7 @@ mod tests {
 
     #[test]
     fn generate_this_ftl_impl_routes_through_the_current_crate_domain() {
-        let tokens = normalized_tokens(generate_this_ftl_impl(
+        let tokens = pretty_file_tokens(generate_this_ftl_impl(
             &parse_quote!(Greeting),
             &parse_quote!(),
             Some("hello"),
@@ -482,7 +474,7 @@ mod tests {
 
     #[test]
     fn generate_this_ftl_impl_uses_explicit_domain_override_when_present() {
-        let tokens = normalized_tokens(generate_this_ftl_impl(
+        let tokens = pretty_file_tokens(generate_this_ftl_impl(
             &parse_quote!(Languages),
             &parse_quote!(),
             Some("es-fluent-lang-this"),

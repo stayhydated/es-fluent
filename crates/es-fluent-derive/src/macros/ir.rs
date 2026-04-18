@@ -119,18 +119,10 @@ impl GeneratedUnitEnumVariant {
 #[cfg(test)]
 mod tests {
     use super::{FluentArgument, GeneratedUnitEnumVariant, LocalizeCallSpec};
+    use crate::snapshot_support::{pretty_block_tokens, pretty_match_arm_tokens};
     use insta::assert_snapshot;
-    use proc_macro2::TokenStream;
     use quote::quote;
     use syn::parse_quote;
-
-    fn normalized_tokens(tokens: TokenStream) -> String {
-        tokens
-            .to_string()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 
     #[test]
     fn localize_call_spec_routes_through_the_current_crate_domain() {
@@ -143,7 +135,7 @@ mod tests {
             }],
         };
 
-        let rendered = normalized_tokens(call.write_expr());
+        let rendered = pretty_block_tokens(call.write_expr());
         assert_snapshot!(
             "localize_call_spec_routes_through_the_current_crate_domain",
             rendered
@@ -158,7 +150,7 @@ mod tests {
             arguments: Vec::new(),
         };
 
-        let rendered = normalized_tokens(call.write_expr());
+        let rendered = pretty_block_tokens(call.write_expr());
         assert_snapshot!(
             "localize_call_spec_uses_explicit_domain_override_when_present",
             rendered
@@ -173,7 +165,7 @@ mod tests {
             ftl_key: "hello".to_string(),
         };
 
-        let rendered = normalized_tokens(variant.display_match_arm());
+        let rendered = pretty_match_arm_tokens(variant.display_match_arm());
         assert_snapshot!(
             "unit_enum_variant_display_arm_routes_through_the_current_crate_domain",
             rendered

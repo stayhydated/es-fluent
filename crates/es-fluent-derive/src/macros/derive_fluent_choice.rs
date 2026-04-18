@@ -70,17 +70,9 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
 #[cfg(test)]
 mod tests {
     use super::expand_choice;
+    use crate::snapshot_support::pretty_file_tokens;
     use insta::assert_snapshot;
-    use proc_macro2::TokenStream;
     use syn::parse_quote;
-
-    fn normalized_tokens(tokens: TokenStream) -> String {
-        tokens
-            .to_string()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 
     #[test]
     fn expand_choice_generates_expected_tokens_for_default_and_serialized_modes() {
@@ -89,7 +81,7 @@ mod tests {
                 VeryHigh
             }
         };
-        let default_tokens = normalized_tokens(expand_choice(default_input));
+        let default_tokens = pretty_file_tokens(expand_choice(default_input));
         assert_snapshot!(
             "expand_choice_generates_expected_tokens_for_default_mode",
             default_tokens
@@ -101,7 +93,7 @@ mod tests {
                 VeryHigh
             }
         };
-        let snake_tokens = normalized_tokens(expand_choice(snake_input));
+        let snake_tokens = pretty_file_tokens(expand_choice(snake_input));
         assert_snapshot!(
             "expand_choice_generates_expected_tokens_for_snake_case_mode",
             snake_tokens
@@ -117,7 +109,7 @@ mod tests {
             }
         };
 
-        let tokens = normalized_tokens(expand_choice(input));
+        let tokens = pretty_file_tokens(expand_choice(input));
         assert_snapshot!(
             "expand_choice_emits_compile_error_for_invalid_serialize_all",
             tokens
@@ -130,7 +122,7 @@ mod tests {
             struct NotAnEnum;
         };
 
-        let tokens = normalized_tokens(expand_choice(input));
+        let tokens = pretty_file_tokens(expand_choice(input));
         assert_snapshot!(
             "expand_choice_returns_darling_errors_for_unsupported_input_shapes",
             tokens
