@@ -163,6 +163,10 @@ participate in lookup through the requested locale fallback chain before the
 full locale is ready. Domain-scoped lookups stay aligned with the accepted
 resource set.
 
+Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
+to read the currently published locale. `LocaleChangedEvent` refers to
+`ActiveLanguageId`, not merely the latest request.
+
 #### 3. Define Localizable Components (Recommended)
 
 Prefer the `BevyFluentText` derive macro. It auto-registers your type with `I18nPlugin` via inventory, so you don't have to call any registration functions manually.

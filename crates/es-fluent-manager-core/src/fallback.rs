@@ -2,6 +2,15 @@ use fluent_fallback::env::LocalesProvider;
 use icu_locale::{Locale, fallback::LocaleFallbacker};
 use unic_langid::LanguageIdentifier;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[doc(hidden)]
+pub enum FallbackChainAvailability {
+    Ready(LanguageIdentifier),
+    Available(LanguageIdentifier),
+    Blocked(LanguageIdentifier),
+    Unavailable,
+}
+
 fn sorted_languages(languages: &[LanguageIdentifier]) -> Vec<LanguageIdentifier> {
     let mut languages = languages.to_vec();
     languages.sort_by_key(|lang| lang.to_string());
@@ -65,6 +74,47 @@ pub fn resolve_fallback_language(
         .find(|candidate| available.iter().any(|lang| lang == candidate))
 }
 
+/// Resolves the first matching locale in the fallback chain by availability category.
+///
+/// Category precedence is global across the entire fallback chain:
+/// 1. First locale present in `ready`
+/// 2. Otherwise first locale present in `available`
+/// 3. Otherwise first locale present in `blocked`
+#[doc(hidden)]
+pub fn resolve_fallback_chain_availability(
+    requested: &LanguageIdentifier,
+    ready: &[LanguageIdentifier],
+    available: &[LanguageIdentifier],
+    blocked: &[LanguageIdentifier],
+) -> FallbackChainAvailability {
+    let ready = sorted_languages(ready);
+    let available = sorted_languages(available);
+    let blocked = sorted_languages(blocked);
+
+    if let Some(candidate) = locale_candidates(requested)
+        .into_iter()
+        .find(|candidate| ready.iter().any(|lang| lang == candidate))
+    {
+        return FallbackChainAvailability::Ready(candidate);
+    }
+
+    if let Some(candidate) = locale_candidates(requested)
+        .into_iter()
+        .find(|candidate| available.iter().any(|lang| lang == candidate))
+    {
+        return FallbackChainAvailability::Available(candidate);
+    }
+
+    if let Some(candidate) = locale_candidates(requested)
+        .into_iter()
+        .find(|candidate| blocked.iter().any(|lang| lang == candidate))
+    {
+        return FallbackChainAvailability::Blocked(candidate);
+    }
+
+    FallbackChainAvailability::Unavailable
+}
+
 /// Picks the best locale for active use, preferring ready locales over merely available locales.
 ///
 /// Resolution order:
@@ -75,8 +125,11 @@ pub fn resolve_ready_locale(
     ready: &[LanguageIdentifier],
     available: &[LanguageIdentifier],
 ) -> Option<LanguageIdentifier> {
-    resolve_fallback_language(requested, ready)
-        .or_else(|| resolve_fallback_language(requested, available))
+    match resolve_fallback_chain_availability(requested, ready, available, &[]) {
+        FallbackChainAvailability::Ready(candidate)
+        | FallbackChainAvailability::Available(candidate) => Some(candidate),
+        FallbackChainAvailability::Blocked(_) | FallbackChainAvailability::Unavailable => None,
+    }
 }
 
 #[cfg(test)]
@@ -143,6 +196,50 @@ mod tests {
         assert_eq!(
             resolve_ready_locale(&requested, &ready, &available),
             Some(langid!("en-US"))
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_chain_availability_prefers_ready_over_blocked_exact_match() {
+        let requested = langid!("en-US");
+        let ready = vec![langid!("en")];
+        let blocked = vec![langid!("en-US")];
+
+        assert_eq!(
+            resolve_fallback_chain_availability(&requested, &ready, &[], &blocked),
+            FallbackChainAvailability::Ready(langid!("en"))
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_chain_availability_returns_available_when_not_ready() {
+        let requested = langid!("en-US");
+        let available = vec![langid!("en-US"), langid!("en")];
+
+        assert_eq!(
+            resolve_fallback_chain_availability(&requested, &[], &available, &[]),
+            FallbackChainAvailability::Available(langid!("en-US"))
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_chain_availability_returns_blocked_when_only_blocked_match_exists() {
+        let requested = langid!("en-US");
+        let blocked = vec![langid!("en-US"), langid!("en")];
+
+        assert_eq!(
+            resolve_fallback_chain_availability(&requested, &[], &[], &blocked),
+            FallbackChainAvailability::Blocked(langid!("en-US"))
+        );
+    }
+
+    #[test]
+    fn resolve_fallback_chain_availability_returns_unavailable_when_missing() {
+        let requested = langid!("en-US");
+
+        assert_eq!(
+            resolve_fallback_chain_availability(&requested, &[], &[], &[]),
+            FallbackChainAvailability::Unavailable
         );
     }
 

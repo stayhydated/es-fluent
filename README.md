@@ -63,7 +63,8 @@ registrations. Bevy now also rejects malformed/conflicting bundle rebuilds
 without replacing the last accepted cache. Bevy still waits for a ready
 fallback bundle before publishing a locale switch, but accepted exact-locale
 resources can already satisfy lookups through the requested locale fallback
-chain before the full locale is ready.
+chain before the full locale is ready. The Bevy API exposes that split
+explicitly through `RequestedLanguageId` and `ActiveLanguageId`.
 
 Embedded locale selection now also rejects malformed/conflicting Fluent bundle
 builds instead of partially loading the locale, while keeping the last ready

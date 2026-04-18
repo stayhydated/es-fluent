@@ -91,5 +91,5 @@ fn initialize_global_state_accepts_partially_supported_initial_language() {
     let resource = plugin_setup::initialize_global_state(&langid!("zz"), &langid!("zz"))
         .expect("default locale selection should keep supporting fallback modules active");
 
-    assert_eq!(resource.current_language(), &langid!("zz"));
+    assert_eq!(resource.active_language(), &langid!("zz"));
 }

@@ -17,7 +17,8 @@ pub use asset_localization::{
 };
 pub use embedded_localization::{BundleBuildError, EmbeddedAssets, EmbeddedI18nModule};
 pub use fallback::{
-    fallback_locales, locale_candidates, resolve_fallback_language, resolve_ready_locale,
+    FallbackChainAvailability, fallback_locales, locale_candidates,
+    resolve_fallback_chain_availability, resolve_fallback_language, resolve_ready_locale,
 };
 pub use localization::{
     FluentManager, I18nModule, I18nModuleRegistration, LocalizationError, Localizer,

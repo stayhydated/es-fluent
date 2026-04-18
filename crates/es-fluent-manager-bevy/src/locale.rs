@@ -2,9 +2,16 @@ use crate::{FluentText, ToFluentString};
 use bevy::prelude::*;
 use unic_langid::LanguageIdentifier;
 
-/// A Bevy resource that holds the currently active `LanguageIdentifier`.
+/// A Bevy resource that holds the most recently requested `LanguageIdentifier`.
 #[derive(Clone, Resource)]
-pub struct CurrentLanguageId(pub LanguageIdentifier);
+pub struct RequestedLanguageId(pub LanguageIdentifier);
+
+/// A Bevy resource that holds the currently published active `LanguageIdentifier`.
+///
+/// This is the locale that `LocaleChangedEvent` refers to and that
+/// locale-aware UI should treat as active.
+#[derive(Clone, Resource)]
+pub struct ActiveLanguageId(pub LanguageIdentifier);
 
 /// Requested locale plus the resolved locale used for bundle lookup.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -20,13 +27,10 @@ impl LanguageSelection {
             resolved,
         }
     }
-
-    pub(crate) fn immediate(requested: LanguageIdentifier) -> Self {
-        Self::new(requested.clone(), requested)
-    }
 }
 
-/// Internal bookkeeping for a requested locale that is still waiting on an accepted bundle.
+/// Internal bookkeeping for a requested locale that is still waiting on a
+/// ready accepted bundle chain.
 #[derive(Clone, Default, Resource)]
 pub(crate) struct PendingLanguageChange(pub(crate) Option<LanguageSelection>);
 
@@ -69,11 +73,11 @@ where
     }
 }
 
-/// A Bevy `Message` sent to request a change of the current locale.
+/// A Bevy `Message` sent to request a change of the requested locale.
 #[derive(Clone, Message)]
 pub struct LocaleChangeEvent(pub LanguageIdentifier);
 
-/// A Bevy `Message` sent after the current locale has been successfully changed.
+/// A Bevy `Message` sent after the active locale has been successfully published.
 #[derive(Clone, Message)]
 pub struct LocaleChangedEvent(pub LanguageIdentifier);
 

@@ -170,7 +170,7 @@ fn i18n_resource_localizes_and_falls_back_to_id() {
     let i18n_resource =
         I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
 
-    assert_eq!(i18n_resource.current_language(), &requested);
+    assert_eq!(i18n_resource.active_language(), &requested);
     assert_eq!(i18n_resource.resolved_language(), &resolved);
 
     let mut args = HashMap::new();
@@ -215,7 +215,7 @@ fn i18n_resource_uses_resolved_bundle_when_requested_locale_is_unavailable() {
     let i18n_resource =
         I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
 
-    assert_eq!(i18n_resource.current_language(), &requested);
+    assert_eq!(i18n_resource.active_language(), &requested);
     assert_eq!(i18n_resource.resolved_language(), &resolved);
 
     let mut args = HashMap::new();
@@ -303,7 +303,8 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
     app.insert_resource(i18n_assets);
     app.insert_resource(I18nBundle::default());
     app.insert_resource(I18nResource::new(lang.clone()));
-    app.insert_resource(CurrentLanguageId(lang.clone()));
+    app.insert_resource(RequestedLanguageId(lang.clone()));
+    app.insert_resource(ActiveLanguageId(lang.clone()));
     app.register_fluent_text_from_locale::<RefreshableMessage>();
 
     let entity = app

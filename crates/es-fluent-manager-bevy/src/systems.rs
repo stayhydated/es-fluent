@@ -80,7 +80,7 @@ fn update_text_for_entity<T: ToFluentString>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CurrentLanguageId, FtlAsset};
+    use crate::{ActiveLanguageId, FtlAsset, RequestedLanguageId};
     use es_fluent_manager_core::ResourceKey;
     use fluent_bundle::FluentResource;
     use std::sync::Arc;
@@ -115,7 +115,8 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(loaded_assets_for(lang.clone()));
         app.insert_resource(I18nResource::new(lang));
-        app.insert_resource(CurrentLanguageId(langid!("en-US")));
+        app.insert_resource(RequestedLanguageId(langid!("en-US")));
+        app.insert_resource(ActiveLanguageId(langid!("en-US")));
         app.add_systems(Update, update_fluent_text_system::<FakeMessage>);
 
         let child = app.world_mut().spawn(Text::new("old child")).id();
@@ -142,7 +143,8 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(loaded_assets_for(lang.clone()));
         app.insert_resource(I18nResource::new(lang.clone()));
-        app.insert_resource(CurrentLanguageId(lang.clone()));
+        app.insert_resource(RequestedLanguageId(lang.clone()));
+        app.insert_resource(ActiveLanguageId(lang.clone()));
         app.insert_resource(I18nBundle::default());
         app.add_message::<LocaleChangedEvent>();
         app.add_systems(

@@ -1,23 +1,23 @@
 use super::super::state::try_update_global_language_selection;
 use crate::{
-    BundleBuildFailures, CurrentLanguageId, I18nAssets, I18nBundle, I18nResource,
-    LanguageSelection, LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange,
+    ActiveLanguageId, BundleBuildFailures, I18nAssets, I18nBundle, I18nResource, LanguageSelection,
+    LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange, RequestedLanguageId,
 };
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use es_fluent_manager_core::{resolve_fallback_language, resolve_ready_locale};
+use es_fluent_manager_core::{FallbackChainAvailability, resolve_fallback_chain_availability};
 use std::collections::HashSet;
 use unic_langid::LanguageIdentifier;
 
 pub(super) fn apply_selected_language(
     selection: &LanguageSelection,
     i18n_resource: &mut I18nResource,
-    current_language_id: &mut CurrentLanguageId,
+    active_language_id: &mut ActiveLanguageId,
     locale_changed_events: &mut MessageWriter<LocaleChangedEvent>,
 ) -> bool {
-    if i18n_resource.current_language() == &selection.requested
+    if i18n_resource.active_language() == &selection.requested
         && i18n_resource.resolved_language() == &selection.resolved
-        && current_language_id.0 == selection.requested
+        && active_language_id.0 == selection.requested
     {
         return false;
     }
@@ -30,8 +30,8 @@ pub(super) fn apply_selected_language(
         return false;
     }
 
-    i18n_resource.set_language(selection.requested.clone(), selection.resolved.clone());
-    current_language_id.0 = selection.requested.clone();
+    i18n_resource.set_active_language(selection.requested.clone(), selection.resolved.clone());
+    active_language_id.0 = selection.requested.clone();
     locale_changed_events.write(LocaleChangedEvent(selection.requested.clone()));
     true
 }
@@ -40,7 +40,7 @@ enum RequestedLanguageResolution {
     Ready(LanguageSelection),
     Pending(LanguageSelection),
     Blocked(LanguageSelection),
-    Immediate(LanguageSelection),
+    Unavailable,
 }
 
 #[derive(SystemParam)]
@@ -50,7 +50,8 @@ pub(crate) struct LocaleChangeParams<'w> {
     i18n_bundle: Res<'w, I18nBundle>,
     i18n_assets: Res<'w, I18nAssets>,
     bundle_build_failures: Res<'w, BundleBuildFailures>,
-    current_language_id: ResMut<'w, CurrentLanguageId>,
+    requested_language_id: ResMut<'w, RequestedLanguageId>,
+    active_language_id: ResMut<'w, ActiveLanguageId>,
     pending_language_change: ResMut<'w, PendingLanguageChange>,
 }
 
@@ -74,11 +75,15 @@ fn resolve_requested_language(
         .collect::<HashSet<_>>();
     let ready_candidates = ready_languages.iter().cloned().collect::<Vec<_>>();
     let available_candidates = available_languages.iter().cloned().collect::<Vec<_>>();
+    let blocked_candidates = blocked_languages.iter().cloned().collect::<Vec<_>>();
 
-    if let Some(candidate) =
-        resolve_ready_locale(requested_language, &ready_candidates, &available_candidates)
-    {
-        if ready_languages.contains(&candidate) {
+    match resolve_fallback_chain_availability(
+        requested_language,
+        &ready_candidates,
+        &available_candidates,
+        &blocked_candidates,
+    ) {
+        FallbackChainAvailability::Ready(candidate) => {
             if candidate != *requested_language {
                 if let Some(errors) = bundle_build_failures.0.get(requested_language) {
                     warn!(
@@ -95,13 +100,12 @@ fn resolve_requested_language(
                 }
             }
 
-            return RequestedLanguageResolution::Ready(LanguageSelection::new(
+            RequestedLanguageResolution::Ready(LanguageSelection::new(
                 requested_language.clone(),
                 candidate,
-            ));
-        }
-
-        if available_languages.contains(&candidate) {
+            ))
+        },
+        FallbackChainAvailability::Available(candidate) => {
             if candidate != *requested_language {
                 info!(
                     "Locale '{}' is not ready yet, waiting for available fallback '{}'",
@@ -109,31 +113,28 @@ fn resolve_requested_language(
                 );
             }
 
-            return RequestedLanguageResolution::Pending(LanguageSelection::new(
+            RequestedLanguageResolution::Pending(LanguageSelection::new(
                 requested_language.clone(),
                 candidate,
-            ));
-        }
+            ))
+        },
+        FallbackChainAvailability::Blocked(candidate) => {
+            let diagnostics = bundle_build_failures
+                .0
+                .get(&candidate)
+                .map(|errors| errors.join(" | "))
+                .unwrap_or_else(|| "unknown bundle build failure".to_string());
+            warn!(
+                "Skipping locale change to '{}' because Fluent bundle assembly failed for '{}': {}",
+                requested_language, candidate, diagnostics
+            );
+            RequestedLanguageResolution::Blocked(LanguageSelection::new(
+                requested_language.clone(),
+                candidate,
+            ))
+        },
+        FallbackChainAvailability::Unavailable => RequestedLanguageResolution::Unavailable,
     }
-
-    let blocked_candidates = blocked_languages.iter().cloned().collect::<Vec<_>>();
-    if let Some(candidate) = resolve_fallback_language(requested_language, &blocked_candidates) {
-        let diagnostics = bundle_build_failures
-            .0
-            .get(&candidate)
-            .map(|errors| errors.join(" | "))
-            .unwrap_or_else(|| "unknown bundle build failure".to_string());
-        warn!(
-            "Skipping locale change to '{}' because Fluent bundle assembly failed for '{}': {}",
-            requested_language, candidate, diagnostics
-        );
-        return RequestedLanguageResolution::Blocked(LanguageSelection::new(
-            requested_language.clone(),
-            candidate,
-        ));
-    }
-
-    RequestedLanguageResolution::Immediate(LanguageSelection::immediate(requested_language.clone()))
 }
 
 #[doc(hidden)]
@@ -143,6 +144,7 @@ pub(crate) fn handle_locale_changes(
 ) {
     for event in locale_change_events.read() {
         info!("Changing locale to: {}", event.0);
+        params.requested_language_id.0 = event.0.clone();
         let resolution = resolve_requested_language(
             &event.0,
             &params.i18n_bundle,
@@ -151,13 +153,12 @@ pub(crate) fn handle_locale_changes(
         );
 
         match resolution {
-            RequestedLanguageResolution::Ready(selection)
-            | RequestedLanguageResolution::Immediate(selection) => {
+            RequestedLanguageResolution::Ready(selection) => {
                 params.pending_language_change.0 = None;
                 apply_selected_language(
                     &selection,
                     &mut params.i18n_resource,
-                    &mut params.current_language_id,
+                    &mut params.active_language_id,
                     &mut params.locale_changed_events,
                 );
             },
@@ -178,6 +179,18 @@ pub(crate) fn handle_locale_changes(
                     );
                 }
             },
+            RequestedLanguageResolution::Unavailable => {
+                if let Some(pending_language) = params.pending_language_change.0.take() {
+                    info!(
+                        "Clearing deferred locale change to '{}' because a later request for unsupported locale '{}' superseded it",
+                        pending_language.requested, event.0
+                    );
+                }
+                info!(
+                    "Keeping active locale '{}' because requested locale '{}' has no usable Bevy asset fallback chain",
+                    params.active_language_id.0, event.0
+                );
+            },
         }
     }
 }
@@ -187,6 +200,7 @@ mod tests {
     use super::*;
     use crate::set_bevy_i18n_state;
     use crate::test_support::lock_bevy_global_state;
+    use crate::{ActiveLanguageId, RequestedLanguageId};
     use bevy::ecs::message::Messages;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -221,7 +235,8 @@ mod tests {
             vec!["resource 'app': duplicate message id 'hello'".to_string()],
         )])));
         app.insert_resource(I18nResource::new(en.clone()));
-        app.insert_resource(CurrentLanguageId(en.clone()));
+        app.insert_resource(RequestedLanguageId(en.clone()));
+        app.insert_resource(ActiveLanguageId(en.clone()));
         app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, handle_locale_changes);
 
@@ -230,10 +245,11 @@ mod tests {
             messages.get_cursor_current()
         };
 
-        app.world_mut().write_message(LocaleChangeEvent(fr));
+        app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
         app.update();
 
-        assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+        assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, en);
         let locale_changes = {
             let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
             locale_cursor
@@ -270,7 +286,8 @@ mod tests {
         app.insert_resource(i18n_bundle);
         app.insert_resource(BundleBuildFailures::default());
         app.insert_resource(I18nResource::new(en.clone()));
-        app.insert_resource(CurrentLanguageId(en.clone()));
+        app.insert_resource(RequestedLanguageId(en.clone()));
+        app.insert_resource(ActiveLanguageId(en.clone()));
         app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, handle_locale_changes);
 
@@ -284,9 +301,10 @@ mod tests {
         app.update();
 
         let i18n_resource = app.world().resource::<I18nResource>();
-        assert_eq!(i18n_resource.current_language(), &en_us);
+        assert_eq!(i18n_resource.active_language(), &en_us);
         assert_eq!(i18n_resource.resolved_language(), &en);
-        assert_eq!(app.world().resource::<CurrentLanguageId>().0, en_us);
+        assert_eq!(app.world().resource::<RequestedLanguageId>().0, en_us);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, en_us);
         assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
         let locale_changes = {
             let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -327,7 +345,8 @@ mod tests {
             vec!["resource 'app': duplicate message id 'hello'".to_string()],
         )])));
         app.insert_resource(I18nResource::new(en.clone()));
-        app.insert_resource(CurrentLanguageId(en.clone()));
+        app.insert_resource(RequestedLanguageId(en.clone()));
+        app.insert_resource(ActiveLanguageId(en.clone()));
         app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, handle_locale_changes);
 
@@ -341,9 +360,10 @@ mod tests {
         app.update();
 
         let i18n_resource = app.world().resource::<I18nResource>();
-        assert_eq!(i18n_resource.current_language(), &en_us);
+        assert_eq!(i18n_resource.active_language(), &en_us);
         assert_eq!(i18n_resource.resolved_language(), &en);
-        assert_eq!(app.world().resource::<CurrentLanguageId>().0, en_us);
+        assert_eq!(app.world().resource::<RequestedLanguageId>().0, en_us);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, en_us);
         assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
         let locale_changes = {
             let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -381,7 +401,8 @@ mod tests {
         app.insert_resource(i18n_bundle);
         app.insert_resource(BundleBuildFailures::default());
         app.insert_resource(I18nResource::new(en.clone()));
-        app.insert_resource(CurrentLanguageId(en.clone()));
+        app.insert_resource(RequestedLanguageId(en.clone()));
+        app.insert_resource(ActiveLanguageId(en.clone()));
         app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, handle_locale_changes);
 
@@ -394,10 +415,11 @@ mod tests {
         app.update();
 
         assert_eq!(
-            app.world().resource::<I18nResource>().current_language(),
+            app.world().resource::<I18nResource>().active_language(),
             &en
         );
-        assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+        assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, en);
         assert_eq!(
             app.world()
                 .resource::<PendingLanguageChange>()

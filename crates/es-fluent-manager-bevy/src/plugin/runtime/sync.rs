@@ -1,7 +1,7 @@
 use super::super::state::update_global_bundle;
 use super::locale::apply_selected_language;
 use crate::{
-    CurrentLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
+    ActiveLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
     PendingLanguageChange,
 };
 use bevy::ecs::system::SystemParam;
@@ -20,7 +20,7 @@ pub(crate) struct SyncGlobalStateParams<'w, 's> {
     i18n_bundle: Res<'w, I18nBundle>,
     i18n_domain_bundles: Res<'w, I18nDomainBundles>,
     i18n_resource: ResMut<'w, I18nResource>,
-    current_language_id: ResMut<'w, CurrentLanguageId>,
+    active_language_id: ResMut<'w, ActiveLanguageId>,
     pending_language_change: ResMut<'w, PendingLanguageChange>,
     locale_changed_events: MessageWriter<'w, LocaleChangedEvent>,
     redraw_events: MessageWriter<'w, RequestRedraw>,
@@ -29,7 +29,7 @@ pub(crate) struct SyncGlobalStateParams<'w, 's> {
 
 #[doc(hidden)]
 pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
-    let current_lang = params.i18n_resource.current_language().clone();
+    let current_lang = params.i18n_resource.active_language().clone();
     let current_resolved_lang = params.i18n_resource.resolved_language().clone();
     let current_bundle_ptr_id = current_bundle_id(&params.i18n_bundle, &current_resolved_lang);
     let current_bundle_present = current_bundle_ptr_id.is_some();
@@ -60,7 +60,7 @@ pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
                 let published = apply_selected_language(
                     &pending_language,
                     &mut params.i18n_resource,
-                    &mut params.current_language_id,
+                    &mut params.active_language_id,
                     &mut params.locale_changed_events,
                 );
                 params.pending_language_change.0 = None;
@@ -101,8 +101,8 @@ mod tests {
     use super::*;
     use crate::test_support::lock_bevy_global_state;
     use crate::{
-        BundleBuildFailures, CurrentLanguageId, FluentText, FluentTextRegistration, I18nAssets,
-        PendingLanguageChange, RefreshForLocale, ToFluentString,
+        ActiveLanguageId, BundleBuildFailures, FluentText, FluentTextRegistration, I18nAssets,
+        PendingLanguageChange, RefreshForLocale, RequestedLanguageId, ToFluentString,
     };
     use bevy::ecs::message::Messages;
     use es_fluent_manager_core::ResourceKey;
@@ -140,7 +140,8 @@ mod tests {
         app.insert_resource(I18nBundle::default());
         app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(lang.clone()));
-        app.insert_resource(CurrentLanguageId(lang.clone()));
+        app.insert_resource(RequestedLanguageId(lang.clone()));
+        app.insert_resource(ActiveLanguageId(lang.clone()));
         app.insert_resource(PendingLanguageChange::default());
         app.register_fluent_text_from_locale::<RefreshableMessage>();
         app.add_systems(Update, sync_global_state);
@@ -230,7 +231,8 @@ mod tests {
             vec!["resource 'app': duplicate message id 'hello'".to_string()],
         )])));
         app.insert_resource(I18nResource::new(lang.clone()));
-        app.insert_resource(CurrentLanguageId(lang.clone()));
+        app.insert_resource(RequestedLanguageId(lang.clone()));
+        app.insert_resource(ActiveLanguageId(lang.clone()));
         app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, sync_global_state);
         app.add_systems(
@@ -300,7 +302,8 @@ mod tests {
         app.insert_resource(I18nBundle::default());
         app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(current_lang.clone()));
-        app.insert_resource(CurrentLanguageId(current_lang.clone()));
+        app.insert_resource(RequestedLanguageId(current_lang.clone()));
+        app.insert_resource(ActiveLanguageId(current_lang.clone()));
         app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, sync_global_state);
 

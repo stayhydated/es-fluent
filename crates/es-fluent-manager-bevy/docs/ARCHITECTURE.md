@@ -25,7 +25,9 @@ flowchart TD
     end
 
     subgraph STATE["Resources"]
-        RES["I18nResource (Current Lang)"]
+        RES["I18nResource (Active + Resolved Langs)"]
+        REQUESTED["RequestedLanguageId"]
+        ACTIVE["ActiveLanguageId"]
         BUNDLE["I18nBundle (Compiled Bundles)"]
         GLOBAL["BevyI18nState (ArcSwap Global)"]
     end
@@ -44,7 +46,9 @@ flowchart TD
     LOADER -->|produce| STORE
     STORE -->|compile| BUNDLE
 
-    RES -->|change| EVENT
+    REQUESTED -->|intent| RES
+    RES -->|publish| ACTIVE
+    ACTIVE -->|change| EVENT
     EVENT -->|trigger| SYS
     SYS -->|read| COMP
     SYS -->|format using| BUNDLE
@@ -124,7 +128,15 @@ Implements `AssetLoader` to parse `.ftl` files into `FtlAsset`s.
 
 ### `I18nResource`
 
-Holds the current active language. Setting this triggers the update pipeline.
+Holds the currently published active locale plus the resolved ready locale used
+for bundle lookup.
+
+### `RequestedLanguageId` and `ActiveLanguageId`
+
+`RequestedLanguageId` tracks the latest locale request immediately.
+`ActiveLanguageId` tracks the last locale the plugin actually published for UI
+and `LocaleChangedEvent`. This keeps Bevy-facing state explicit: user intent can
+move ahead of renderable state while assets are still loading.
 
 ### `FluentText<T>`
 
@@ -132,7 +144,11 @@ A component wrapper for localizable data. When registered (typically via
 `BevyFluentText`), the update systems keep the rendered string in sync with
 the current locale.
 
-When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change` system iterates over all `FluentText` components and re-renders the string data. Additionally, `update_fluent_text_system` handles initial rendering and updates when `FluentText` components are added or modified.
+When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change`
+system iterates over all `FluentText` components and re-renders the string
+data for the published active locale. Additionally, `update_fluent_text_system`
+handles initial rendering and updates when `FluentText` components are added or
+modified.
 
 ### `define_i18n_module!`
 

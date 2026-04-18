@@ -308,7 +308,7 @@ impl I18nDomainBundles {
 /// The main resource for handling localization.
 #[derive(Resource)]
 pub struct I18nResource {
-    current_language: LanguageIdentifier,
+    active_language: LanguageIdentifier,
     resolved_language: LanguageIdentifier,
 }
 
@@ -316,40 +316,40 @@ impl I18nResource {
     /// Creates a new `I18nResource` with the given initial language.
     pub fn new(initial_language: LanguageIdentifier) -> Self {
         Self {
-            current_language: initial_language.clone(),
+            active_language: initial_language.clone(),
             resolved_language: initial_language,
         }
     }
 
-    /// Creates a new `I18nResource` with separate requested and resolved locales.
+    /// Creates a new `I18nResource` with separate active and resolved locales.
     #[doc(hidden)]
     pub fn new_with_resolved_language(
-        current_language: LanguageIdentifier,
+        active_language: LanguageIdentifier,
         resolved_language: LanguageIdentifier,
     ) -> Self {
         Self {
-            current_language,
+            active_language,
             resolved_language,
         }
     }
 
-    /// Returns the current requested `LanguageIdentifier`.
-    pub fn current_language(&self) -> &LanguageIdentifier {
-        &self.current_language
+    /// Returns the current published active `LanguageIdentifier`.
+    pub fn active_language(&self) -> &LanguageIdentifier {
+        &self.active_language
     }
 
-    /// Returns the resolved `LanguageIdentifier` used to look up loaded bundles.
+    /// Returns the resolved fallback `LanguageIdentifier` used to look up ready bundles.
     pub fn resolved_language(&self) -> &LanguageIdentifier {
         &self.resolved_language
     }
 
-    /// Sets the current requested and resolved languages.
-    pub fn set_language(
+    /// Sets the current active and resolved languages.
+    pub fn set_active_language(
         &mut self,
-        current_language: LanguageIdentifier,
+        active_language: LanguageIdentifier,
         resolved_language: LanguageIdentifier,
     ) {
-        self.current_language = current_language;
+        self.active_language = active_language;
         self.resolved_language = resolved_language;
     }
 
@@ -364,7 +364,7 @@ impl I18nResource {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
         i18n_bundle: &I18nBundle,
     ) -> Option<String> {
-        let locale_resources = i18n_bundle.fallback_locale_resources(&self.current_language);
+        let locale_resources = i18n_bundle.fallback_locale_resources(&self.active_language);
         let (value, errors) =
             localize_with_fallback_resources(locale_resources.as_slice(), id, args);
         if fallback_errors_are_fatal(&errors) {

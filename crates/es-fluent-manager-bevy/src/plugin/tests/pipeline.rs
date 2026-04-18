@@ -9,9 +9,9 @@ use super::build_test_plugin_app;
 use super::fixtures::REGISTER_CALLS;
 use crate::test_support::lock_bevy_global_state;
 use crate::{
-    BundleBuildFailures, CurrentLanguageId, FluentText, FluentTextRegistration, FtlAsset,
+    ActiveLanguageId, BundleBuildFailures, FluentText, FluentTextRegistration, FtlAsset,
     I18nAssets, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangeEvent, LocaleChangedEvent,
-    PendingLanguageChange, RefreshForLocale, ToFluentString,
+    PendingLanguageChange, RefreshForLocale, RequestedLanguageId, ToFluentString,
 };
 use bevy::asset::{AssetEvent, AssetLoadFailedEvent, Assets};
 use bevy::ecs::message::Messages;
@@ -48,7 +48,8 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
 
     assert!(app.world().contains_resource::<I18nAssets>());
     assert!(app.world().contains_resource::<I18nResource>());
-    assert!(app.world().contains_resource::<CurrentLanguageId>());
+    assert!(app.world().contains_resource::<RequestedLanguageId>());
+    assert!(app.world().contains_resource::<ActiveLanguageId>());
     assert!(REGISTER_CALLS.load(Ordering::SeqCst) > 0);
     assert_eq!(
         bevy_custom_localizer(None, "from-fallback", None),
@@ -236,7 +237,11 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
         .write_message(LocaleChangeEvent(langid!("en-US")));
     app.update();
     assert_eq!(
-        app.world().resource::<CurrentLanguageId>().0,
+        app.world().resource::<RequestedLanguageId>().0,
+        langid!("en-US")
+    );
+    assert_eq!(
+        app.world().resource::<ActiveLanguageId>().0,
         langid!("en-US")
     );
     assert_eq!(
@@ -253,7 +258,14 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
     app.world_mut()
         .write_message(LocaleChangeEvent(langid!("zz")));
     app.update();
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("zz"));
+    assert_eq!(
+        app.world().resource::<RequestedLanguageId>().0,
+        langid!("zz")
+    );
+    assert_eq!(
+        app.world().resource::<ActiveLanguageId>().0,
+        langid!("en-US")
+    );
     assert_eq!(
         bevy_custom_localizer(None, "selected-language", None),
         None,
@@ -267,7 +279,7 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
             .map(|message| message.0.clone())
             .collect::<Vec<_>>()
     };
-    assert_eq!(locale_changes, vec![langid!("zz")]);
+    assert!(locale_changes.is_empty());
 
     update_global_language(langid!("en"));
     assert_eq!(bevy_custom_localizer(None, "missing", None), None);
@@ -290,7 +302,8 @@ fn plugin_pipeline_preserves_last_good_bundle_when_hot_reload_introduces_conflic
     app.insert_resource(I18nDomainBundles::default());
     app.insert_resource(BundleBuildFailures::default());
     app.insert_resource(I18nResource::new(lang.clone()));
-    app.insert_resource(CurrentLanguageId(lang.clone()));
+    app.insert_resource(RequestedLanguageId(lang.clone()));
+    app.insert_resource(ActiveLanguageId(lang.clone()));
     app.insert_resource(PendingLanguageChange::default());
     app.add_systems(
         Update,
@@ -429,7 +442,8 @@ fn plugin_pipeline_defers_locale_switch_until_requested_bundle_is_ready() {
     app.insert_resource(I18nDomainBundles::default());
     app.insert_resource(BundleBuildFailures::default());
     app.insert_resource(I18nResource::new(en.clone()));
-    app.insert_resource(CurrentLanguageId(en.clone()));
+    app.insert_resource(RequestedLanguageId(en.clone()));
+    app.insert_resource(ActiveLanguageId(en.clone()));
     app.insert_resource(PendingLanguageChange::default());
     app.register_fluent_text_from_locale::<RefreshableMessage>();
     app.add_systems(
@@ -513,10 +527,11 @@ fn plugin_pipeline_defers_locale_switch_until_requested_bundle_is_ready() {
     app.update();
 
     assert_eq!(
-        app.world().resource::<I18nResource>().current_language(),
+        app.world().resource::<I18nResource>().active_language(),
         &en
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+    assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, en);
     assert_eq!(
         app.world()
             .resource::<PendingLanguageChange>()
@@ -568,10 +583,11 @@ fn plugin_pipeline_defers_locale_switch_until_requested_bundle_is_ready() {
     app.update();
 
     assert_eq!(
-        app.world().resource::<I18nResource>().current_language(),
+        app.world().resource::<I18nResource>().active_language(),
         &fr
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, fr);
+    assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, fr);
     assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
     let ready_locale_changes = {
         let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -622,7 +638,8 @@ fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
     app.insert_resource(I18nDomainBundles::default());
     app.insert_resource(BundleBuildFailures::default());
     app.insert_resource(I18nResource::new(en.clone()));
-    app.insert_resource(CurrentLanguageId(en.clone()));
+    app.insert_resource(RequestedLanguageId(en.clone()));
+    app.insert_resource(ActiveLanguageId(en.clone()));
     app.insert_resource(PendingLanguageChange::default());
     app.register_fluent_text_from_locale::<RefreshableMessage>();
     app.add_systems(
@@ -720,14 +737,15 @@ fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
             es.clone(),
             vec!["resource 'app': duplicate message id 'hello'".to_string()],
         );
-    app.world_mut().write_message(LocaleChangeEvent(es));
+    app.world_mut().write_message(LocaleChangeEvent(es.clone()));
     app.update();
 
     assert_eq!(
-        app.world().resource::<I18nResource>().current_language(),
+        app.world().resource::<I18nResource>().active_language(),
         &en
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+    assert_eq!(app.world().resource::<RequestedLanguageId>().0, es);
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, en);
     assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
 
     let fr_resource =
@@ -763,10 +781,11 @@ fn plugin_pipeline_blocked_request_cancels_older_pending_locale_switch() {
     };
     assert_eq!(redraw_count, 0);
     assert_eq!(
-        app.world().resource::<I18nResource>().current_language(),
+        app.world().resource::<I18nResource>().active_language(),
         &en
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en);
+    assert_eq!(app.world().resource::<RequestedLanguageId>().0, es);
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, en);
     assert_eq!(
         &app.world().get::<Text>(entity).expect("text").0,
         "en",
@@ -803,7 +822,8 @@ fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
     app.insert_resource(I18nDomainBundles::default());
     app.insert_resource(BundleBuildFailures::default());
     app.insert_resource(I18nResource::new(en.clone()));
-    app.insert_resource(CurrentLanguageId(en.clone()));
+    app.insert_resource(RequestedLanguageId(en.clone()));
+    app.insert_resource(ActiveLanguageId(en.clone()));
     app.insert_resource(PendingLanguageChange::default());
     app.register_fluent_text_from_locale::<RefreshableMessage>();
     app.add_systems(
@@ -911,14 +931,15 @@ fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
     app.update();
 
     assert_eq!(
-        app.world().resource::<I18nResource>().current_language(),
+        app.world().resource::<I18nResource>().active_language(),
         &fr_ca
     );
     assert_eq!(
         app.world().resource::<I18nResource>().resolved_language(),
         &fr
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, fr_ca);
+    assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr_ca);
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, fr_ca);
     assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
     let blocked_locale_changes = {
         let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -982,14 +1003,15 @@ fn plugin_pipeline_blocked_exact_request_uses_ready_fallback() {
     };
     assert_eq!(repaired_redraw_count, 0);
     assert_eq!(
-        app.world().resource::<I18nResource>().current_language(),
+        app.world().resource::<I18nResource>().active_language(),
         &fr_ca
     );
     assert_eq!(
         app.world().resource::<I18nResource>().resolved_language(),
         &fr
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, fr_ca);
+    assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr_ca);
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, fr_ca);
     assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
     assert_eq!(
         &app.world().get::<Text>(entity).expect("text").0,
@@ -1021,7 +1043,8 @@ fn plugin_pipeline_partial_exact_locale_uses_requested_overrides_before_parent_f
     app.insert_resource(I18nDomainBundles::default());
     app.insert_resource(BundleBuildFailures::default());
     app.insert_resource(I18nResource::new(en.clone()));
-    app.insert_resource(CurrentLanguageId(en.clone()));
+    app.insert_resource(RequestedLanguageId(en.clone()));
+    app.insert_resource(ActiveLanguageId(en.clone()));
     app.insert_resource(PendingLanguageChange::default());
     app.add_systems(
         Update,
@@ -1085,14 +1108,15 @@ fn plugin_pipeline_partial_exact_locale_uses_requested_overrides_before_parent_f
     app.update();
 
     assert_eq!(
-        app.world().resource::<I18nResource>().current_language(),
+        app.world().resource::<I18nResource>().active_language(),
         &en_us
     );
     assert_eq!(
         app.world().resource::<I18nResource>().resolved_language(),
         &en
     );
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, en_us);
+    assert_eq!(app.world().resource::<RequestedLanguageId>().0, en_us);
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, en_us);
     assert_eq!(app.world().resource::<PendingLanguageChange>().0, None);
     assert_eq!(
         bevy_custom_localizer(None, "hello", None),
@@ -1114,14 +1138,19 @@ fn helper_paths_cover_args_and_missing_bundle_cases() {
     app.insert_resource(I18nBundle::default());
     app.insert_resource(BundleBuildFailures::default());
     app.insert_resource(I18nResource::new(langid!("en")));
-    app.insert_resource(CurrentLanguageId(langid!("en")));
+    app.insert_resource(RequestedLanguageId(langid!("en")));
+    app.insert_resource(ActiveLanguageId(langid!("en")));
     app.insert_resource(PendingLanguageChange::default());
     app.add_systems(Update, handle_locale_changes);
 
     app.world_mut()
         .write_message(LocaleChangeEvent(langid!("zz")));
     app.update();
-    assert_eq!(app.world().resource::<CurrentLanguageId>().0, langid!("zz"));
+    assert_eq!(
+        app.world().resource::<RequestedLanguageId>().0,
+        langid!("zz")
+    );
+    assert_eq!(app.world().resource::<ActiveLanguageId>().0, langid!("en"));
 
     let missing_bundle_state = BevyI18nState::new(langid!("en"));
     assert_eq!(missing_bundle_state.localize("hello", None), None);

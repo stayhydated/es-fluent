@@ -15,7 +15,7 @@ static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 #[doc(hidden)]
 #[derive(Clone)]
 pub struct BevyI18nState {
-    current_language: LanguageIdentifier,
+    active_language: LanguageIdentifier,
     bundle: I18nBundle,
     domain_bundles: I18nDomainBundles,
     fallback_manager: Option<Arc<FluentManager>>,
@@ -25,7 +25,7 @@ pub struct BevyI18nState {
 impl BevyI18nState {
     pub fn new(initial_language: LanguageIdentifier) -> Self {
         Self {
-            current_language: initial_language,
+            active_language: initial_language,
             bundle: I18nBundle::default(),
             domain_bundles: I18nDomainBundles::default(),
             fallback_manager: None,
@@ -43,9 +43,9 @@ impl BevyI18nState {
         }
     }
 
-    pub fn with_language(self, lang: LanguageIdentifier) -> Self {
+    pub fn with_active_language(self, lang: LanguageIdentifier) -> Self {
         Self {
-            current_language: lang,
+            active_language: lang,
             ..self
         }
     }
@@ -62,9 +62,7 @@ impl BevyI18nState {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let locale_resources = self
-            .bundle
-            .fallback_locale_resources(&self.current_language);
+        let locale_resources = self.bundle.fallback_locale_resources(&self.active_language);
         let (value, errors) =
             localize_with_fallback_resources(locale_resources.as_slice(), id, args);
         if fallback_errors_are_fatal(&errors) {
@@ -91,7 +89,7 @@ impl BevyI18nState {
     ) -> Option<String> {
         let locale_resources = self
             .domain_bundles
-            .fallback_locale_resources(&self.current_language, domain);
+            .fallback_locale_resources(&self.active_language, domain);
         let (value, errors) =
             localize_with_fallback_resources(locale_resources.as_slice(), id, args);
         if fallback_errors_are_fatal(&errors) {
@@ -147,7 +145,7 @@ pub(crate) fn try_update_global_language_selection(
         if let Some(fallback_manager) = &old_state.fallback_manager {
             fallback_manager.select_language(&requested_language)?;
         }
-        let new_state = BevyI18nState::clone(&old_state).with_language(requested_language);
+        let new_state = BevyI18nState::clone(&old_state).with_active_language(requested_language);
         state_swap.store(Arc::new(new_state));
     }
 
