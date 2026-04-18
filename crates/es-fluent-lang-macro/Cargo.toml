@@ -28,6 +28,7 @@ insta = { workspace = true }
 prettyplease = { workspace = true }
 serial_test = { workspace = true }
 temp-env = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

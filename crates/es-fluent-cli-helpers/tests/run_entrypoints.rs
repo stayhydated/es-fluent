@@ -1,24 +1,25 @@
 use assert_cmd::Command;
+use assert_fs::{TempDir, prelude::*};
 use es_fluent_runner::{RunnerParseMode, RunnerRequest};
-use std::path::{Path, PathBuf};
-use tempfile::tempdir;
+use predicates::prelude::*;
+use std::path::PathBuf;
 
-fn write_basic_manifest(manifest_dir: &Path) -> PathBuf {
-    std::fs::create_dir_all(manifest_dir.join("i18n/en-US")).expect("mkdir en-US");
-    std::fs::create_dir_all(manifest_dir.join("i18n/fr")).expect("mkdir fr");
-    std::fs::write(
-        manifest_dir.join("i18n.toml"),
-        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
-    )
-    .expect("write i18n.toml");
+fn write_basic_manifest(temp: &TempDir) -> PathBuf {
+    temp.child("i18n/en-US")
+        .create_dir_all()
+        .expect("mkdir en-US");
+    temp.child("i18n/fr").create_dir_all().expect("mkdir fr");
+    temp.child("i18n.toml")
+        .write_str("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n")
+        .expect("write i18n.toml");
 
-    manifest_dir.join("i18n.toml")
+    temp.path().join("i18n.toml")
 }
 
 #[test]
 fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
-    let temp = tempdir().expect("tempdir");
-    let i18n_toml = write_basic_manifest(temp.path());
+    let temp = TempDir::new().expect("tempdir");
+    let i18n_toml = write_basic_manifest(&temp);
 
     let check_request = RunnerRequest::Check {
         crate_name: "unknown-crate".to_string(),
@@ -29,11 +30,8 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
         .arg(check_request.encode().expect("encode check request"))
         .assert()
         .success();
-    assert!(
-        temp.path()
-            .join("metadata/unknown-crate/inventory.json")
-            .exists()
-    );
+    temp.child("metadata/unknown-crate/inventory.json")
+        .assert(predicate::path::exists());
 
     let generate_request = RunnerRequest::Generate {
         crate_name: "unknown-crate".to_string(),
@@ -47,11 +45,8 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
         .arg(generate_request.encode().expect("encode generate request"))
         .assert()
         .success();
-    assert!(
-        temp.path()
-            .join("metadata/unknown-crate/result.json")
-            .exists()
-    );
+    temp.child("metadata/unknown-crate/result.json")
+        .assert(predicate::path::exists());
 
     let clean_request = RunnerRequest::Clean {
         crate_name: "unknown-crate".to_string(),
@@ -72,20 +67,22 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
         .current_dir(temp.path())
         .arg(invalid_request)
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains("Failed to decode"));
 
     Command::cargo_bin("cli_helpers_run")
         .expect("binary exists")
         .current_dir(temp.path())
         .arg("unknown-command")
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains("Failed to decode"));
 }
 
 #[test]
 fn run_generate_entrypoint_supports_generate_and_clean_subcommands() {
-    let temp = tempdir().expect("tempdir");
-    let i18n_toml = write_basic_manifest(temp.path());
+    let temp = TempDir::new().expect("tempdir");
+    let i18n_toml = write_basic_manifest(&temp);
 
     Command::cargo_bin("cli_helpers_run_generate")
         .expect("binary exists")
@@ -105,18 +102,17 @@ fn run_generate_entrypoint_supports_generate_and_clean_subcommands() {
         .assert()
         .success();
 
-    assert!(
-        temp.path()
-            .join("metadata/unknown-crate/result.json")
-            .exists()
-    );
+    temp.child("metadata/unknown-crate/result.json")
+        .assert(predicate::path::exists());
 }
 
 #[test]
 fn run_entrypoint_reports_invalid_config_without_panicking() {
-    let temp = tempdir().expect("tempdir");
+    let temp = TempDir::new().expect("tempdir");
+    temp.child("i18n.toml")
+        .write_str("{not-valid")
+        .expect("write invalid config");
     let i18n_toml = temp.path().join("i18n.toml");
-    std::fs::write(&i18n_toml, "{not-valid").expect("write invalid config");
 
     let generate_request = RunnerRequest::Generate {
         crate_name: "unknown-crate".to_string(),
@@ -125,13 +121,14 @@ fn run_entrypoint_reports_invalid_config_without_panicking() {
         dry_run: true,
     };
 
-    let assert = Command::cargo_bin("cli_helpers_run")
+    Command::cargo_bin("cli_helpers_run")
         .expect("binary exists")
         .current_dir(temp.path())
         .arg(generate_request.encode().expect("encode generate request"))
         .assert()
-        .failure();
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(stderr.contains("Configuration error"));
-    assert!(!stderr.contains("panicked"));
+        .failure()
+        .stderr(
+            predicate::str::contains("Configuration error")
+                .and(predicate::str::contains("panicked").not()),
+        );
 }

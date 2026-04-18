@@ -298,22 +298,15 @@ mod tests {
     use super::expand_es_fluent_language;
     use insta::assert_snapshot;
     use std::path::Path;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use tempfile::TempDir;
 
     fn with_manifest_dir<T>(
         manifest_toml: Option<&str>,
         locale_dirs: &[&str],
         f: impl FnOnce(&Path) -> T,
     ) -> T {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock should be after unix epoch")
-            .as_nanos();
-        let manifest_dir = std::env::temp_dir().join(format!(
-            "es-fluent-lang-macro-test-{pid}-{unique}",
-            pid = std::process::id()
-        ));
-        std::fs::create_dir_all(&manifest_dir).expect("create temp manifest dir");
+        let temp_dir = TempDir::new().expect("create temp manifest dir");
+        let manifest_dir = temp_dir.path();
 
         if let Some(manifest_toml) = manifest_toml {
             std::fs::write(manifest_dir.join("i18n.toml"), manifest_toml).expect("write i18n.toml");
@@ -329,7 +322,6 @@ mod tests {
                 f(&manifest_dir)
             })
         }));
-        let _ = std::fs::remove_dir_all(&manifest_dir);
 
         match result {
             Ok(value) => value,

@@ -64,8 +64,8 @@ mod tests {
     use fs_err as fs;
     use insta::assert_snapshot;
     use std::path::Path;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use syn::parse_quote;
+    use tempfile::TempDir;
     use toml::Value;
 
     fn string_value(value: &str) -> Value {
@@ -104,22 +104,14 @@ mod tests {
     }
 
     fn with_manifest_dir<T>(namespaces: &[&str], f: impl FnOnce() -> T) -> T {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock should be after unix epoch")
-            .as_nanos();
-        let manifest_dir = std::env::temp_dir().join(format!(
-            "es-fluent-derive-expand-{pid}-{unique}",
-            pid = std::process::id()
-        ));
+        let temp_dir = TempDir::new().expect("create temp manifest dir");
+        let manifest_dir = temp_dir.path();
 
-        fs::create_dir_all(&manifest_dir).expect("create temp manifest dir");
         write_toml(&manifest_dir.join("i18n.toml"), &i18n_config(namespaces));
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), f)
         }));
-        let _ = fs::remove_dir_all(&manifest_dir);
 
         match result {
             Ok(value) => value,

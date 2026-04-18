@@ -1,17 +1,26 @@
 mod fixtures;
 
 use assert_cmd::Command;
+use assert_fs::{TempDir, prelude::*};
 use fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS};
-use std::fs;
+use predicates::prelude::*;
 
-fn create_workspace() -> tempfile::TempDir {
-    let temp = tempfile::tempdir().expect("tempdir");
-    fs::create_dir_all(temp.path().join("src")).expect("create src");
-    fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n");
-    fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).expect("write Cargo.toml");
-    fs::write(temp.path().join("src/lib.rs"), LIB_RS).expect("write lib.rs");
-    fs::write(temp.path().join("i18n.toml"), I18N_TOML).expect("write i18n.toml");
-    fs::write(temp.path().join("i18n/en/test-app.ftl"), HELLO_FTL).expect("write ftl");
+fn create_workspace() -> TempDir {
+    let temp = TempDir::new().expect("tempdir");
+    temp.child("src").create_dir_all().expect("create src");
+    temp.child("i18n/en").create_dir_all().expect("create i18n");
+    temp.child("Cargo.toml")
+        .write_str(CARGO_TOML)
+        .expect("write Cargo.toml");
+    temp.child("src/lib.rs")
+        .write_str(LIB_RS)
+        .expect("write lib.rs");
+    temp.child("i18n.toml")
+        .write_str(I18N_TOML)
+        .expect("write i18n.toml");
+    temp.child("i18n/en/test-app.ftl")
+        .write_str(HELLO_FTL)
+        .expect("write ftl");
     temp
 }
 
@@ -21,7 +30,8 @@ fn binary_help_command_succeeds() {
         .expect("binary exists")
         .args(["es-fluent", "--help"])
         .assert()
-        .success();
+        .success()
+        .stdout(predicate::str::contains("generate"));
 }
 
 #[test]

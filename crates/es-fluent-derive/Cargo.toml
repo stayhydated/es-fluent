@@ -33,6 +33,7 @@ prettyplease = { workspace = true }
 serial_test = { workspace = true }
 syn = { features = [ "full" ], workspace = true }
 temp-env = { workspace = true }
+tempfile = { workspace = true }
 toml = { workspace = true }
 
 [lints]

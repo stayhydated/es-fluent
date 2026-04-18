@@ -1,5 +1,6 @@
 use super::*;
 use fs_err as fs;
+use rstest::rstest;
 use tempfile::TempDir;
 
 use crate::test_utils::with_manifest_env;
@@ -315,53 +316,33 @@ fn test_available_languages_and_locale_names_use_manifest_env() {
     });
 }
 
-#[test]
-fn test_fluent_feature_single_string() {
+#[rstest]
+#[case(Some(string_value("fluent")), Some(vec!["fluent"]))]
+#[case(
+    Some(toml::Value::Array(vec![
+        string_value("fluent"),
+        string_value("i18n"),
+    ])),
+    Some(vec!["fluent", "i18n"]),
+)]
+#[case(None, None)]
+fn test_fluent_feature_parsing(
+    #[case] fluent_feature: Option<toml::Value>,
+    #[case] expected: Option<Vec<&str>>,
+) {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("i18n.toml");
 
     write_toml(
         &config_path,
-        &config_document("en", "i18n", Some(string_value("fluent")), None),
+        &config_document("en", "i18n", fluent_feature, None),
     );
 
     let config = I18nConfig::read_from_path(&config_path).unwrap();
-    let features = config.fluent_feature.unwrap().as_vec();
-    assert_eq!(features, vec!["fluent"]);
-}
-
-#[test]
-fn test_fluent_feature_array() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("i18n.toml");
-
-    write_toml(
-        &config_path,
-        &config_document(
-            "en",
-            "i18n",
-            Some(toml::Value::Array(vec![
-                string_value("fluent"),
-                string_value("i18n"),
-            ])),
-            None,
-        ),
-    );
-
-    let config = I18nConfig::read_from_path(&config_path).unwrap();
-    let features = config.fluent_feature.unwrap().as_vec();
-    assert_eq!(features, vec!["fluent", "i18n"]);
-}
-
-#[test]
-fn test_fluent_feature_none() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("i18n.toml");
-
-    write_toml(&config_path, &config_document("en", "i18n", None, None));
-
-    let config = I18nConfig::read_from_path(&config_path).unwrap();
-    assert!(config.fluent_feature.is_none());
+    let actual = config.fluent_feature.map(|feature| feature.as_vec());
+    let expected =
+        expected.map(|values| values.into_iter().map(str::to_string).collect::<Vec<_>>());
+    assert_eq!(actual, expected);
 }
 
 #[test]
