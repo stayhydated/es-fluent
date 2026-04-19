@@ -274,21 +274,17 @@ mod tests {
     fn find_cli_workspace_deps_use_repo_crate_paths() {
         let es_fluent = TempCrateConfig::find_cli_workspace_dep_es_fluent()
             .expect("resolve es-fluent workspace dep");
-        assert!(
-            dependency_path_ends_with(
-                es_fluent.expect("expected es-fluent workspace dependency"),
-                &Path::new("crates").join("es-fluent"),
-            )
-        );
+        assert!(dependency_path_ends_with(
+            es_fluent.expect("expected es-fluent workspace dependency"),
+            &Path::new("crates").join("es-fluent"),
+        ));
 
         let helpers = TempCrateConfig::find_cli_workspace_dep_helpers()
             .expect("resolve helpers workspace dep");
-        assert!(
-            dependency_path_ends_with(
-                helpers.expect("expected helpers workspace dependency"),
-                &Path::new("crates").join("es-fluent-cli-helpers"),
-            )
-        );
+        assert!(dependency_path_ends_with(
+            helpers.expect("expected helpers workspace dependency"),
+            &Path::new("crates").join("es-fluent-cli-helpers"),
+        ));
     }
 
     #[test]

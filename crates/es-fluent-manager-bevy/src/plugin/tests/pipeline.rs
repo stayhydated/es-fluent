@@ -74,7 +74,10 @@ fn plugin_pipeline_loads_assets_and_updates_global_state() {
             )
         };
         let discovered_assets = &mut app.world_mut().resource_mut::<I18nAssets>().assets;
-        discovered_assets.insert((langid!("en"), ResourceKey::new("test-domain")), base.clone());
+        discovered_assets.insert(
+            (langid!("en"), ResourceKey::new("test-domain")),
+            base.clone(),
+        );
         discovered_assets.insert(
             (langid!("en"), ResourceKey::new("namespaced-domain/menu")),
             menu.clone(),
