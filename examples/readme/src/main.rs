@@ -10,8 +10,7 @@ fn main() {
 
 fn run(locale: Languages) {
     i18n::change_locale(locale).unwrap();
-    // Escaping the typical macro generation checks, we can test and print
-    // what string paths each type evaluates to:
+    println!("=== Locale: {locale:?} ===");
     println!("=== Deriving Messages ===");
     println!(
         "InvalidPassword: {}",
@@ -34,6 +33,10 @@ fn run(locale: Languages) {
         count: 5,
     };
     println!("WelcomeMessage: {}", welcome.to_fluent_string());
+    println!(
+        "TransactionError Network: {}",
+        TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string()
+    );
 
     println!("\n=== Using Choices ===");
     let greeting = Greeting {
@@ -46,6 +49,10 @@ fn run(locale: Languages) {
     println!(
         "LoginFormVariants Username Label: {}",
         LoginFormVariantsLabelVariants::Username.to_fluent_string()
+    );
+    println!(
+        "SettingsTab Notifications: {}",
+        SettingsTabVariants::Notifications.to_fluent_string()
     );
 
     println!("\n=== Type-level Keys (This) ===");

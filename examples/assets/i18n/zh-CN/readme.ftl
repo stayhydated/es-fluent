@@ -14,7 +14,12 @@ gender_choice-Other = 其他
 
 ## Greeting
 
-greeting = 问候 { $name } { $gender }
+greeting =
+    { $gender ->
+        [male] 欢迎您，{ $name }先生
+        [female] 欢迎您，{ $name }女士
+       *[other] 欢迎您，{ $name }
+    }
 
 ## LoginError
 
@@ -44,6 +49,16 @@ login_form_variants_description_variants-username = 用户名
 
 login_form_variants_label_variants-password = 密码
 login_form_variants_label_variants-username = 用户名
+
+## NetworkError
+
+network_error-ApiUnavailable = API 不可用
+
+## SettingsTabVariants
+
+settings_tab_variants-General = 常规
+settings_tab_variants-Notifications = 通知
+settings_tab_variants-Privacy = 隐私
 
 ## WelcomeMessage
 

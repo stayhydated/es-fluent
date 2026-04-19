@@ -15,6 +15,11 @@ I18nAssets {
             "en",
             [
                 ResourceSpec {
+                    key: "my-crate",
+                    locale_relative_path: "my-crate.ftl",
+                    required: false,
+                },
+                ResourceSpec {
                     key: "my-crate/ui",
                     locale_relative_path: "my-crate/ui.ftl",
                     required: true,

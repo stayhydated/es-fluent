@@ -61,6 +61,35 @@ Argument naming attributes:
 
 - `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 
+Skipped single-field enum variants:
+
+`#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
+key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+transparent wrapper enums.
+
+```rust
+use es_fluent::{EsFluent, ToFluentString};
+
+#[derive(EsFluent)]
+pub enum NetworkError {
+    ApiUnavailable,
+}
+
+#[derive(EsFluent)]
+pub enum TransactionError {
+    #[fluent(skip)]
+    Network(NetworkError),
+}
+
+let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+```
+
+```ftl
+## NetworkError
+
+network_error-ApiUnavailable = API is unavailable
+```
+
 ## Using Choices
 
 Choices allow an enum to be used _inside_ another message as a Fluent selector (e.g., for gender or category). Derive `EsFluentChoice` alongside `EsFluent` on the selector enum.
@@ -102,7 +131,10 @@ let _ = greeting.to_fluent_string();
 
 ## Generating Variants
 
-`EsFluentVariants` generates key-value pair enums for struct fields. This is useful for generating UI labels, placeholders, or descriptions for a form object — one enum per key.
+`EsFluentVariants` generates key-value pair enums for struct fields or enum
+variants. This is useful for generating UI labels, placeholders, or
+descriptions for a form object, and it can also expose enum variants as
+localizable keys.
 
 ```rust
 use es_fluent::EsFluentVariants;
@@ -132,6 +164,33 @@ login_form_variants_description_variants-username = Username
 ```rust
 use es_fluent::ToFluentString;
 let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+```
+
+Enums are supported too. In that case, the derive generates a single
+`...Variants` enum over the original variants:
+
+```rust
+use es_fluent::EsFluentVariants;
+
+#[derive(EsFluentVariants)]
+pub enum SettingsTab {
+    General,
+    Notifications,
+    Privacy,
+}
+```
+
+```ftl
+## SettingsTabVariants
+
+settings_tab_variants-General = General
+settings_tab_variants-Notifications = Notifications
+settings_tab_variants-Privacy = Privacy
+```
+
+```rust
+use es_fluent::ToFluentString;
+let _ = SettingsTabVariants::Notifications.to_fluent_string();
 ```
 
 ## Type-level Keys (This)

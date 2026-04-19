@@ -70,11 +70,16 @@ mod tests {
     }
 
     #[test]
-    fn resource_plan_with_namespaces_requires_namespace_files() {
+    fn resource_plan_with_namespaces_requires_namespace_files_and_keeps_base_optional() {
         let plan = resource_plan_for("app", &["ui", "errors"]);
         assert_eq!(
             plan,
             vec![
+                ModuleResourceSpec {
+                    key: ResourceKey::new("app"),
+                    locale_relative_path: "app.ftl".to_string(),
+                    required: false
+                },
                 ModuleResourceSpec {
                     key: ResourceKey::new("app/ui"),
                     locale_relative_path: "app/ui.ftl".to_string(),
@@ -87,7 +92,8 @@ mod tests {
                 }
             ]
         );
-        assert_eq!(plan[0].locale_path(&langid!("en-US")), "en-US/app/ui.ftl");
+        assert_eq!(plan[0].locale_path(&langid!("en-US")), "en-US/app.ftl");
+        assert_eq!(plan[1].locale_path(&langid!("en-US")), "en-US/app/ui.ftl");
     }
 
     #[test]
@@ -95,19 +101,27 @@ mod tests {
         let plan = resource_plan_for("app", &["ui/button"]);
         assert_eq!(
             plan,
-            vec![ModuleResourceSpec {
-                key: ResourceKey::new("app/ui/button"),
-                locale_relative_path: "app/ui/button.ftl".to_string(),
-                required: true
-            }]
+            vec![
+                ModuleResourceSpec {
+                    key: ResourceKey::new("app"),
+                    locale_relative_path: "app.ftl".to_string(),
+                    required: false
+                },
+                ModuleResourceSpec {
+                    key: ResourceKey::new("app/ui/button"),
+                    locale_relative_path: "app/ui/button.ftl".to_string(),
+                    required: true
+                }
+            ]
         );
     }
 
     #[test]
     fn resource_plan_deduplicates_duplicate_namespaces() {
         let plan = resource_plan_for("app", &["ui", "ui"]);
-        assert_eq!(plan.len(), 1);
-        assert_eq!(plan[0].key, ResourceKey::new("app/ui"));
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].key, ResourceKey::new("app"));
+        assert_eq!(plan[1].key, ResourceKey::new("app/ui"));
     }
 
     #[test]
@@ -116,7 +130,7 @@ mod tests {
         let required = required_resource_keys_from_plan(&plan);
         let optional = optional_resource_keys_from_plan(&plan);
 
-        assert!(optional.is_empty());
+        assert_eq!(optional, HashSet::from([ResourceKey::new("app")]));
 
         let ready_loaded =
             HashSet::from([ResourceKey::new("app/ui"), ResourceKey::new("app/errors")]);
@@ -138,7 +152,10 @@ mod tests {
             report.required_keys(),
             &HashSet::from([ResourceKey::new("app/ui")])
         );
-        assert!(report.optional_keys().is_empty());
+        assert_eq!(
+            report.optional_keys(),
+            &HashSet::from([ResourceKey::new("app")])
+        );
         assert!(report.loaded_keys().contains(&ResourceKey::new("app/ui")));
         assert_eq!(report.missing_required_keys(), HashSet::new());
     }
@@ -270,7 +287,14 @@ mod tests {
 
         assert_eq!(resources.len(), 1);
         assert!(report.is_ready());
-        assert!(report.errors().is_empty());
+        assert_eq!(report.errors().len(), 1);
+        assert!(matches!(
+            report.errors()[0],
+            ResourceLoadError::Missing {
+                required: false,
+                ..
+            }
+        ));
     }
 
     #[test]

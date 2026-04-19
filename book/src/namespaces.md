@@ -11,7 +11,8 @@ By default, all your FTL keys land in a single `{crate}.ftl` file per locale. As
 
 When namespaces are enabled through the manager macros, the configured
 namespace files are the canonical per-locale resources.
-`{crate}.ftl` is not part of the namespaced resource plan.
+`{crate}.ftl` remains an optional mixed-mode resource for non-namespaced
+messages when it exists.
 
 ## Namespace Modes
 

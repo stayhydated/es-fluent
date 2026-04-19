@@ -185,6 +185,7 @@ impl I18nAssets {
         })?;
 
         let mut namespaces = BTreeSet::new();
+        let mut languages_with_base_file = BTreeSet::new();
         let mut discovered_languages = BTreeSet::new();
         let mut namespaces_by_language: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
@@ -218,6 +219,9 @@ impl I18nAssets {
 
                 if has_main_file || !discovered_namespaces.is_empty() {
                     discovered_languages.insert(canonical_lang.clone());
+                }
+                if has_main_file {
+                    languages_with_base_file.insert(canonical_lang.clone());
                 }
                 if !discovered_namespaces.is_empty() {
                     for namespace in discovered_namespaces {
@@ -255,6 +259,13 @@ impl I18nAssets {
                     required: true,
                 });
             } else {
+                if languages_with_base_file.contains(lang) {
+                    specs.push(ResourceSpec {
+                        key: crate_name.to_string(),
+                        locale_relative_path: format!("{crate_name}.ftl"),
+                        required: false,
+                    });
+                }
                 for namespace in namespaces_by_language
                     .get(lang)
                     .into_iter()
@@ -438,7 +449,7 @@ mod tests {
     }
 
     #[test]
-    fn i18n_assets_load_ignores_base_files_for_namespaced_locales() {
+    fn i18n_assets_load_keeps_base_files_optional_for_namespaced_locales() {
         let temp = tempdir().expect("tempdir");
         write_manifest(temp.path(), "i18n");
 
@@ -449,7 +460,7 @@ mod tests {
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
             let assets = snapshot_assets(I18nAssets::load("my-crate").expect("load assets"));
             assert_debug_snapshot!(
-                "i18n_assets_load_ignores_base_files_for_namespaced_locales",
+                "i18n_assets_load_keeps_base_files_optional_for_namespaced_locales",
                 assets
             );
         });
