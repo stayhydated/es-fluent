@@ -55,7 +55,7 @@ pub(crate) fn parse_language_entry(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_language_entry;
+    use super::*;
     use fs_err as fs;
 
     fn first_entry(path: &std::path::Path) -> fs::DirEntry {
