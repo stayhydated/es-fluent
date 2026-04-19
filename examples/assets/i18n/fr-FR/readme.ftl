@@ -6,6 +6,10 @@ gender_this_only_this = Genre (this uniquement)
 
 login_form_combined_this = Formulaire de connexion combiné
 
+## NetworkError
+
+network_error-ApiUnavailable = API indisponible
+
 ## GenderChoice
 
 gender_choice-Female = Femme

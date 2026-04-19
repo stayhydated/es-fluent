@@ -49,6 +49,17 @@ pub struct Greeting<'a> {
     pub gender: &'a GenderChoice,
 }
 
+#[derive(EsFluent)]
+pub enum NetworkError {
+    ApiUnavailable,
+}
+
+#[derive(EsFluent)]
+pub enum TransactionError {
+    #[fluent(skip)]
+    Network(NetworkError),
+}
+
 // #[derive(EsFluentVariants)]
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys = ["label", "description"])]

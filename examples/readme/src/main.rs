@@ -33,6 +33,10 @@ fn run(locale: Languages) {
         count: 5,
     };
     println!("WelcomeMessage: {}", welcome.to_fluent_string());
+    println!(
+        "TransactionError Network: {}",
+        TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string()
+    );
 
     println!("\n=== Using Choices ===");
     let greeting = Greeting {

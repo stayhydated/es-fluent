@@ -286,4 +286,21 @@ mod tests {
             tokens
         );
     }
+
+    #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
+    fn expand_es_fluent_delegates_skipped_single_field_variant() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network(NetworkError),
+            }
+        };
+
+        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_delegates_skipped_single_field_variant",
+            tokens
+        );
+    }
 }

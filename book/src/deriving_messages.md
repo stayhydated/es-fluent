@@ -61,6 +61,35 @@ Argument naming attributes:
 
 - `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 
+Skipped single-field enum variants:
+
+`#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
+key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+transparent wrapper enums.
+
+```rust
+use es_fluent::{EsFluent, ToFluentString};
+
+#[derive(EsFluent)]
+pub enum NetworkError {
+    ApiUnavailable,
+}
+
+#[derive(EsFluent)]
+pub enum TransactionError {
+    #[fluent(skip)]
+    Network(NetworkError),
+}
+
+let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+```
+
+```ftl
+## NetworkError
+
+network_error-ApiUnavailable = API is unavailable
+```
+
 ## Using Choices
 
 Choices allow an enum to be used _inside_ another message as a Fluent selector (e.g., for gender or category). Derive `EsFluentChoice` alongside `EsFluent` on the selector enum.

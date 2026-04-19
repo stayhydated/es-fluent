@@ -1,0 +1,42 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+assertion_line: 301
+expression: tokens
+---
+impl ::es_fluent::FluentDisplay for LoginError {
+    fn fluent_fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match self {
+            Self::Network(value) => {
+                use ::es_fluent::ToFluentString as _;
+                write!(f, "{}", value.to_fluent_string())
+            }
+        }
+    }
+}
+#[doc(hidden)]
+mod __es_fluent_inventory_login_error {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
+        type_kind: ::es_fluent::meta::TypeKind::Enum,
+        type_name: "LoginError",
+        variants: VARIANTS,
+        file_path: file!(),
+        module_path: module_path!(),
+        namespace: None,
+    };
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}
+impl From<&LoginError> for ::es_fluent::FluentValue<'_> {
+    fn from(value: &LoginError) -> Self {
+        use ::es_fluent::ToFluentString as _;
+        value.to_fluent_string().into()
+    }
+}
+impl From<LoginError> for ::es_fluent::FluentValue<'_> {
+    fn from(value: LoginError) -> Self {
+        (&value).into()
+    }
+}

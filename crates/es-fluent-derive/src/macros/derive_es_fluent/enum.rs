@@ -1,4 +1,4 @@
-use es_fluent_derive_core::options::r#enum::EnumOpts;
+use es_fluent_derive_core::options::r#enum::{EnumOpts, VariantOpts};
 use es_fluent_derive_core::options::{
     EnumDataOptions as _, FluentField, FluentFieldOpts, KeyedVariant as _, Skippable as _,
     VariantFields as _,
@@ -18,6 +18,60 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
     generate(opts, data)
 }
 
+fn skipped_variant_fallback(variant_ident: &syn::Ident) -> TokenStream {
+    let variant_name = variant_ident.to_string();
+    quote! {
+        write!(f, "{}", #variant_name)
+    }
+}
+
+fn skipped_variant_match_arm(variant_opt: &VariantOpts) -> TokenStream {
+    let variant_ident = variant_opt.ident();
+    let fallback = skipped_variant_fallback(variant_ident);
+
+    match variant_opt.style() {
+        darling::ast::Style::Unit => {
+            quote! {
+                Self::#variant_ident => #fallback
+            }
+        },
+        darling::ast::Style::Tuple => {
+            let all_fields = variant_opt.all_fields();
+
+            if all_fields.len() == 1 {
+                quote! {
+                    Self::#variant_ident(value) => {
+                        use ::es_fluent::ToFluentString as _;
+                        write!(f, "{}", value.to_fluent_string())
+                    }
+                }
+            } else {
+                let wildcards: Vec<_> = (0..all_fields.len()).map(|_| quote! { _ }).collect();
+                quote! {
+                    Self::#variant_ident(#(#wildcards),*) => #fallback
+                }
+            }
+        },
+        darling::ast::Style::Struct => {
+            let all_fields = variant_opt.all_fields();
+
+            if all_fields.len() == 1 {
+                let field_ident = all_fields[0].ident().expect("named field");
+                quote! {
+                    Self::#variant_ident { #field_ident } => {
+                        use ::es_fluent::ToFluentString as _;
+                        write!(f, "{}", #field_ident.to_fluent_string())
+                    }
+                }
+            } else {
+                quote! {
+                    Self::#variant_ident { .. } => #fallback
+                }
+            }
+        },
+    }
+}
+
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
     let base_key = opts.base_key();
@@ -26,6 +80,10 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let variants = opts.variants();
 
     let match_arms = variants.iter().map(|variant_opt| {
+        if variant_opt.is_skipped() {
+            return skipped_variant_match_arm(variant_opt);
+        }
+
         let variant_ident = variant_opt.ident();
         let ftl_key = variant_ftl_key(base_key.as_str(), variant_ident, variant_opt.key());
 

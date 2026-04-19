@@ -6,6 +6,10 @@ gender_this_only_this = 性别（仅 this）
 
 login_form_combined_this = 组合登录表单
 
+## NetworkError
+
+network_error-ApiUnavailable = API 不可用
+
 ## GenderChoice
 
 gender_choice-Female = 女
