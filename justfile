@@ -6,6 +6,7 @@ default:
 fmt:
     cargo sort-derives
     cargo fmt
+    cargo es-fluent-local format --all
     taplo fmt
     bun run fmt
 

@@ -6,10 +6,6 @@ gender_this_only_this = Genre (this uniquement)
 
 login_form_combined_this = Formulaire de connexion combiné
 
-## NetworkError
-
-network_error-ApiUnavailable = API indisponible
-
 ## GenderChoice
 
 gender_choice-Female = Femme
@@ -18,11 +14,12 @@ gender_choice-Other = Autre
 
 ## Greeting
 
-greeting = { $gender ->
-    [male] Bienvenue M. { $name }
-    [female] Bienvenue Mme { $name }
-   *[other] Bienvenue { $name }
-}
+greeting =
+    { $gender ->
+        [male] Bienvenue M. { $name }
+        [female] Bienvenue Mme { $name }
+       *[other] Bienvenue { $name }
+    }
 
 ## LoginError
 
@@ -52,6 +49,10 @@ login_form_variants_description_variants-username = Nom d'utilisateur
 
 login_form_variants_label_variants-password = Mot de passe
 login_form_variants_label_variants-username = Nom d'utilisateur
+
+## NetworkError
+
+network_error-ApiUnavailable = API indisponible
 
 ## SettingsTabVariants
 
