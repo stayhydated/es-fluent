@@ -39,6 +39,7 @@ jiff = { workspace = true }
 miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
 notify-debouncer-full = { features = [ "crossbeam-channel" ], workspace = true }
+path-slash = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

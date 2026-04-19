@@ -4,6 +4,7 @@ use std::path::Path;
 use anyhow::Context;
 use mdbook_driver::book::BookItem;
 use mdbook_driver::MDBook;
+use path_slash::PathExt as _;
 
 use crate::util::workspace_root;
 
@@ -38,10 +39,11 @@ fn ensure_parent_dir(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn book_html_path(path: &Path) -> String {
+fn book_html_path(path: &Path) -> anyhow::Result<String> {
     path.with_extension("html")
-        .to_string_lossy()
-        .replace('\\', "/")
+        .to_slash()
+        .map(|path| path.into_owned())
+        .with_context(|| format!("Book chapter path is not valid UTF-8: {}", path.display()))
 }
 
 pub fn run_with_paths(
@@ -57,22 +59,23 @@ pub fn run_with_paths(
 
     let chapters: Vec<ChapterInfo> = mdbook
         .iter()
-        .filter_map(|item| {
-            if let BookItem::Chapter(chapter) = item {
-                if chapter.is_draft_chapter() {
-                    return None;
-                }
-                let path = chapter.path.as_ref()?;
-                Some(ChapterInfo {
-                    name: chapter.name.clone(),
-                    path: book_html_path(path),
-                    content: chapter.content.clone(),
-                })
-            } else {
-                None
-            }
+        .filter_map(|item| match item {
+            BookItem::Chapter(chapter) if !chapter.is_draft_chapter() => Some(chapter),
+            _ => None,
         })
-        .collect();
+        .map(|chapter| {
+            let path = chapter
+                .path
+                .as_ref()
+                .with_context(|| format!("Missing path for book chapter '{}'", chapter.name))?;
+
+            Ok(ChapterInfo {
+                name: chapter.name.clone(),
+                path: book_html_path(path)?,
+                content: chapter.content.clone(),
+            })
+        })
+        .collect::<anyhow::Result<_>>()?;
 
     // Build llms.txt (structured index with links)
     let llms_txt = build_llms_txt(&chapters);
@@ -333,7 +336,12 @@ title = "Test Book"
 
     #[test]
     fn book_html_path_normalizes_windows_separators() {
-        let normalized = book_html_path(Path::new(r"guide\intro.md"));
+        use std::path::PathBuf;
+
+        use path_slash::PathBufExt as _;
+
+        let path = PathBuf::from_backslash(r"guide\intro.md");
+        let normalized = book_html_path(&path).expect("path should be valid UTF-8");
         assert_eq!(normalized, "guide/intro.html");
     }
 

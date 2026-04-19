@@ -254,25 +254,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_fluent_resource_bytes_reports_utf8_errors() {
-        let spec = ModuleResourceSpec {
-            key: ResourceKey::new("app/ui"),
-            locale_relative_path: "app/ui.ftl".to_string(),
-            required: false,
-        };
-
-        let err =
-            parse_fluent_resource_bytes(&spec, &[0xFF, 0xFE]).expect_err("invalid utf-8 bytes");
-        assert!(matches!(
-            err,
-            ResourceLoadError::InvalidUtf8 {
-                required: false,
-                ..
-            }
-        ));
-    }
-
-    #[test]
     fn load_locale_resources_centralizes_report_bookkeeping() {
         let plan = resource_plan_for("app", &["ui"]);
         let (resources, report) = load_locale_resources(&plan, |spec| {

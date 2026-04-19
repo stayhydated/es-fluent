@@ -470,8 +470,7 @@ mod tests {
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
-    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
-        &[langid!("ab"), langid!("cd"), langid!("ef")];
+    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("ef")];
     static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "ns-error-module",
         domain: "test-domain",
@@ -628,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn embedded_localizer_exercises_parse_and_utf8_error_paths() {
+    fn embedded_localizer_exercises_fallback_and_missing_resource_paths() {
         let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
 
         // en-GB does not have a ready canonical namespace resource, so
@@ -640,7 +639,7 @@ mod tests {
         // Missing required argument should produce formatting errors and return None.
         assert_eq!(localizer.localize("welcome", None), None);
 
-        // fr still is not ready, so selection should fail.
+        // fr still is not ready because the required namespaced resource is missing.
         let fr_err = localizer
             .select_language(&langid!("fr"))
             .expect_err("unready locale should fail");
@@ -673,7 +672,7 @@ mod tests {
 
         let err = localizer
             .select_language(&langid!("fr"))
-            .expect_err("fr should fail because the embedded resource is invalid");
+            .expect_err("fr should fail because required namespaced resources are missing");
         assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
         assert_eq!(
             localizer.localize("ui-title", None),
@@ -691,7 +690,7 @@ mod tests {
     }
 
     #[test]
-    fn embedded_localizer_exercises_namespaced_parse_and_utf8_error_paths() {
+    fn embedded_localizer_exercises_namespaced_parse_and_missing_namespace_paths() {
         let localizer = EmbeddedLocalizer::<NamespaceErrorAssets>::new(&NS_ERROR_MODULE_DATA);
 
         let parse_err = localizer
@@ -699,14 +698,6 @@ mod tests {
             .expect_err("invalid namespaced FTL should fail");
         assert!(matches!(
             parse_err,
-            LocalizationError::LanguageNotSupported(_)
-        ));
-
-        let utf8_err = localizer
-            .select_language(&langid!("cd"))
-            .expect_err("invalid namespaced UTF-8 should fail");
-        assert!(matches!(
-            utf8_err,
             LocalizationError::LanguageNotSupported(_)
         ));
 

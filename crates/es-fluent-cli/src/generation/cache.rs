@@ -6,6 +6,7 @@
 
 use fs_err as fs;
 use indexmap::IndexMap;
+use path_slash::PathExt as _;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -27,7 +28,7 @@ fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path) {
     for path in files {
         if let Ok(content) = fs::read(&path) {
             let relative_path = path.strip_prefix(src_dir).unwrap_or(&path);
-            let normalized_path = relative_path.to_string_lossy().replace('\\', "/");
+            let normalized_path = relative_path.to_slash_lossy();
             hasher.update(normalized_path.as_bytes());
             hasher.update(&content);
         }
