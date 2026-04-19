@@ -33,6 +33,7 @@ mod validate_struct_tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn multiple_defaults_produces_error() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -54,6 +55,7 @@ mod validate_struct_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn multiple_defaults_tuple_struct_produces_error() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -112,6 +114,7 @@ mod validate_struct_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn skip_and_default_conflict_produces_error() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -160,6 +163,7 @@ mod validate_struct_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn duplicate_struct_arg_name_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -176,6 +180,7 @@ mod validate_struct_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn arg_name_on_skipped_field_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -227,6 +232,7 @@ mod validate_enum_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn variant_level_arg_name_is_rejected() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -244,6 +250,7 @@ mod validate_enum_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn field_arg_name_duplicate_with_named_field_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -265,6 +272,7 @@ mod validate_enum_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn duplicate_field_arg_name_overrides_fail() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -332,6 +340,7 @@ mod validate_namespace_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn literal_namespace_reports_parse_errors_from_config() {
         let temp = tempdir().expect("tempdir");
         std::fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write i18n.toml");
@@ -367,6 +376,7 @@ mod validate_namespace_against_allowed_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn invalid_namespace_not_in_allowed_list() {
         let allowed = vec!["ui".to_string(), "errors".to_string()];
 
@@ -380,6 +390,7 @@ mod validate_namespace_against_allowed_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn empty_allowed_list_rejects_everything() {
         let allowed: Vec<String> = vec![];
 
@@ -393,6 +404,7 @@ mod validate_namespace_against_allowed_tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn namespace_matching_is_case_sensitive() {
         let allowed = vec!["UI".to_string(), "Errors".to_string()];
 

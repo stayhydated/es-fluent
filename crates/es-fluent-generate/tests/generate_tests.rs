@@ -36,6 +36,7 @@ fn test_generate_empty_items() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_with_items() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -63,6 +64,7 @@ fn test_generate_with_items() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_aggressive_mode() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -91,6 +93,7 @@ fn test_generate_aggressive_mode() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_conservative_mode_preserves_existing() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -119,6 +122,7 @@ fn test_generate_conservative_mode_preserves_existing() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_inserts_variants_into_empty_group() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -153,6 +157,7 @@ fn test_generate_inserts_variants_into_empty_group() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_relocates_late_group_keys_without_duplicates() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -202,6 +207,7 @@ fn test_generate_relocates_late_group_keys_without_duplicates() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_relocates_keys_between_similar_group_names() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -257,6 +263,7 @@ fn test_generate_relocates_keys_between_similar_group_names() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_clean_mode_removes_orphans() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -289,6 +296,7 @@ fn test_generate_clean_mode_removes_orphans() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_this_types_sorted_first() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -336,6 +344,7 @@ fn test_this_types_sorted_first() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_this_variants_sorted_first_within_group() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -385,6 +394,7 @@ fn test_this_variants_sorted_first_within_group() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_with_namespace_creates_subdirectory() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -414,6 +424,7 @@ fn test_generate_with_namespace_creates_subdirectory() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_mixed_namespaced_and_non_namespaced() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -461,6 +472,7 @@ fn test_generate_mixed_namespaced_and_non_namespaced() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_multiple_namespaces() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -502,6 +514,7 @@ fn test_generate_multiple_namespaces() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_nested_namespace_creates_parent_dirs() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");

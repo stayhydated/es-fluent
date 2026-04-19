@@ -461,6 +461,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_this_ftl_impl_routes_through_the_current_crate_domain() {
         let tokens = pretty_file_tokens(generate_this_ftl_impl(
             &parse_quote!(Greeting),
@@ -473,6 +474,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_this_ftl_impl_uses_explicit_domain_override_when_present() {
         let tokens = pretty_file_tokens(generate_this_ftl_impl(
             &parse_quote!(Languages),

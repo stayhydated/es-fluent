@@ -324,7 +324,7 @@ impl I18nAssets {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 #[serial_test::serial(manifest)]
 mod tests {
     use super::*;

@@ -67,7 +67,7 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
     generated
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::expand_choice;
     use crate::snapshot_support::pretty_file_tokens;

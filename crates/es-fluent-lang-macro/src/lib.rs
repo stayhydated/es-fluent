@@ -292,7 +292,7 @@ fn expand_es_fluent_language(
     expanded
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 #[serial_test::serial(manifest)]
 mod tests {
     use super::expand_es_fluent_language;

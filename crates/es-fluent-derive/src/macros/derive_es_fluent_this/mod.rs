@@ -87,7 +87,7 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     tokens
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::expand_es_fluent_this;
     use crate::snapshot_support::pretty_file_tokens;

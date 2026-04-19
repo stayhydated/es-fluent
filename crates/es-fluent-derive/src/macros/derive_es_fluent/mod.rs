@@ -120,6 +120,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_generates_tokens_for_enum_and_struct() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum Status {
@@ -142,6 +143,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_returns_compile_errors_for_attribute_parse_failures() {
         let enum_input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = 123)]
@@ -223,6 +225,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_emits_field_level_tuple_arg_name() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
@@ -235,6 +238,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
@@ -250,6 +254,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_uses_explicit_domain_override_for_enum_lookup() {
         let enum_input: syn::DeriveInput = parse_quote! {
             #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang")]
@@ -267,6 +272,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_handles_tuple_variant_with_all_fields_skipped() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {

@@ -174,7 +174,7 @@ fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed
         .collect()
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::{process_enum, process_struct};
     use crate::macros::utils::inherited_fluent_namespace;
