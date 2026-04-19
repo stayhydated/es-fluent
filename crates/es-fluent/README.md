@@ -83,10 +83,11 @@ Locale directory names use canonical BCP-47 tags such as `en-US`, `fr`, or
 
 ## Incremental builds for locale assets
 
-The manager macros discover locales at compile time. To ensure locale folder/file
-renames (for example `fr` to `fr-FR`) trigger rebuilds,
-enable the `build` feature of `es-fluent` in build dependencies and call the
-tracking helper from `build.rs`.
+If your crate uses the embedded or Bevy manager macros, they discover locales at
+compile time by scanning `assets_dir`. To ensure locale folder/file renames
+(for example `fr` to `fr-FR`) trigger rebuilds, enable the `build` feature of
+`es-fluent` in build dependencies and call the tracking helper from `build.rs`.
+Crates that only use the derive macros do not need this setup.
 
 ```toml
 [build-dependencies]
