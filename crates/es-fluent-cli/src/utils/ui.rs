@@ -324,14 +324,9 @@ impl Ui {
 }
 
 #[cfg(test)]
+#[serial_test::serial(process)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, OnceLock};
-
-    fn env_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
 
     fn test_crate(name: &str) -> CrateInfo {
         CrateInfo {
@@ -345,49 +340,46 @@ mod tests {
         }
     }
 
+    fn with_terminal_env<T>(f: impl FnOnce() -> T) -> T {
+        temp_env::with_vars(
+            [
+                ("FORCE_HYPERLINK", None::<&str>),
+                ("NO_COLOR", None::<&str>),
+                ("CI", None::<&str>),
+                ("GITHUB_ACTIONS", None::<&str>),
+            ],
+            || {
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+                Ui::set_e2e_mode(false);
+
+                match result {
+                    Ok(value) => value,
+                    Err(panic) => std::panic::resume_unwind(panic),
+                }
+            },
+        )
+    }
+
     #[test]
     fn terminal_links_enabled_honors_env_and_modes() {
-        let _guard = env_lock().lock().unwrap();
+        with_terminal_env(|| {
+            Ui::set_e2e_mode(false);
+            temp_env::with_var("FORCE_HYPERLINK", Some("1"), || {
+                assert!(Ui::terminal_links_enabled());
+            });
+            temp_env::with_var("FORCE_HYPERLINK", Some("0"), || {
+                assert!(!Ui::terminal_links_enabled());
+            });
+            temp_env::with_var("NO_COLOR", Some("1"), || {
+                assert!(!Ui::terminal_links_enabled());
+            });
+            temp_env::with_var("CI", Some("1"), || {
+                assert!(!Ui::terminal_links_enabled());
+            });
 
-        Ui::set_e2e_mode(false);
-        // SAFETY: We serialize env var mutations with a global mutex.
-        unsafe {
-            std::env::remove_var("FORCE_HYPERLINK");
-            std::env::remove_var("NO_COLOR");
-            std::env::remove_var("CI");
-            std::env::remove_var("GITHUB_ACTIONS");
-            std::env::set_var("FORCE_HYPERLINK", "1");
-        }
-        assert!(Ui::terminal_links_enabled());
-
-        // SAFETY: Protected by the same global mutex.
-        unsafe {
-            std::env::set_var("FORCE_HYPERLINK", "0");
-        }
-        assert!(!Ui::terminal_links_enabled());
-
-        // SAFETY: Protected by the same global mutex.
-        unsafe {
-            std::env::remove_var("FORCE_HYPERLINK");
-            std::env::set_var("NO_COLOR", "1");
-        }
-        assert!(!Ui::terminal_links_enabled());
-
-        // SAFETY: Protected by the same global mutex.
-        unsafe {
-            std::env::remove_var("NO_COLOR");
-            std::env::set_var("CI", "1");
-        }
-        assert!(!Ui::terminal_links_enabled());
-
-        // SAFETY: Protected by the same global mutex.
-        unsafe {
-            std::env::remove_var("CI");
-        }
-        Ui::set_e2e_mode(true);
-        assert!(!Ui::terminal_links_enabled());
-
-        Ui::set_e2e_mode(false);
+            Ui::set_e2e_mode(true);
+            assert!(!Ui::terminal_links_enabled());
+        });
     }
 
     #[test]
@@ -410,18 +402,12 @@ mod tests {
 
     #[test]
     fn terminal_links_enabled_falls_back_to_terminal_probe_branch() {
-        let _guard = env_lock().lock().unwrap();
-        Ui::set_e2e_mode(false);
-        // SAFETY: Protected by env_lock mutex.
-        unsafe {
-            std::env::remove_var("FORCE_HYPERLINK");
-            std::env::remove_var("NO_COLOR");
-            std::env::remove_var("CI");
-            std::env::remove_var("GITHUB_ACTIONS");
-        }
+        with_terminal_env(|| {
+            Ui::set_e2e_mode(false);
 
-        // Environment-dependent; the assertion is that the code path executes without panicking.
-        let _ = Ui::terminal_links_enabled();
+            // Environment-dependent; the assertion is that the code path executes without panicking.
+            let _ = Ui::terminal_links_enabled();
+        });
     }
 
     #[test]

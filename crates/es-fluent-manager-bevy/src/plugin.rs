@@ -5,14 +5,14 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-use crate::{FtlAsset, FtlAssetLoader, I18nBundle};
+use crate::{BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nBundle, I18nDomainBundles};
 use bevy::prelude::*;
 use setup::{
     build_i18n_assets, configure_app, discover_modules, initialize_global_state,
     register_discovered_fluent_text, resolve_initial_language,
 };
 use state::bevy_custom_localizer;
-pub use state::{BevyI18nState, set_bevy_i18n_state, update_global_bundle, update_global_language};
+pub use state::{BevyI18nState, set_bevy_i18n_state, update_global_language};
 use unic_langid::LanguageIdentifier;
 
 /// Controls how the Bevy plugin interacts with `es-fluent`'s process-global
@@ -24,19 +24,6 @@ pub enum GlobalLocalizerMode {
     ErrorIfAlreadySet,
     /// Replace any existing custom localizer so Bevy owns the global hook.
     ReplaceExisting,
-}
-
-/// Controls how strictly the plugin validates discovered i18n module
-/// registrations.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum ModuleRegistryMode {
-    /// Keep the historical behavior: log invalid/conflicting registrations and
-    /// continue with the normalized module set.
-    #[default]
-    Lenient,
-    /// Fail plugin startup when discovery finds invalid metadata or repeated
-    /// registrations of the same kind for one exact module identity.
-    ErrorIfConflicted,
 }
 
 #[doc(hidden)]
@@ -61,7 +48,6 @@ impl Default for I18nPluginConfig {
 pub struct I18nPlugin {
     config: I18nPluginConfig,
     global_localizer_mode: GlobalLocalizerMode,
-    module_registry_mode: ModuleRegistryMode,
 }
 
 impl I18nPlugin {
@@ -70,7 +56,6 @@ impl I18nPlugin {
         Self {
             config,
             global_localizer_mode: GlobalLocalizerMode::ErrorIfAlreadySet,
-            module_registry_mode: ModuleRegistryMode::Lenient,
         }
     }
 
@@ -86,7 +71,6 @@ impl I18nPlugin {
                 ..Default::default()
             },
             global_localizer_mode: GlobalLocalizerMode::ErrorIfAlreadySet,
-            module_registry_mode: ModuleRegistryMode::Lenient,
         }
     }
 
@@ -104,31 +88,26 @@ impl I18nPlugin {
         self.global_localizer_mode = global_localizer_mode;
         self
     }
-
-    /// Choose whether module discovery stays lenient or fails plugin startup on
-    /// registry conflicts.
-    pub fn with_module_registry_mode(mut self, module_registry_mode: ModuleRegistryMode) -> Self {
-        self.module_registry_mode = module_registry_mode;
-        self
-    }
 }
 
 impl Plugin for I18nPlugin {
     fn build(&self, app: &mut App) {
         match self.global_localizer_mode {
             GlobalLocalizerMode::ReplaceExisting => {
-                es_fluent::replace_custom_localizer(bevy_custom_localizer);
+                es_fluent::replace_custom_localizer_with_domain(bevy_custom_localizer);
             },
             GlobalLocalizerMode::ErrorIfAlreadySet => {
-                es_fluent::set_custom_localizer(bevy_custom_localizer);
+                es_fluent::set_custom_localizer_with_domain(bevy_custom_localizer);
             },
         }
 
         app.init_asset::<FtlAsset>()
             .init_asset_loader::<FtlAssetLoader>()
-            .init_resource::<I18nBundle>();
+            .init_resource::<I18nBundle>()
+            .init_resource::<I18nDomainBundles>()
+            .init_resource::<BundleBuildFailures>();
 
-        let discovery = discover_modules(self.module_registry_mode).unwrap_or_else(|errors| {
+        let discovery = discover_modules().unwrap_or_else(|errors| {
             let details = errors
                 .into_iter()
                 .map(|error| format!("- {error}"))
@@ -138,10 +117,9 @@ impl Plugin for I18nPlugin {
         });
         let resolved_language =
             resolve_initial_language(&self.config.initial_language, &discovery.languages);
-        let i18n_resource = initialize_global_state(&resolved_language, self.module_registry_mode)
-            .unwrap_or_else(|error| {
-                panic!("failed to initialize i18n global state:\n{error}");
-            });
+        let i18n_resource =
+            initialize_global_state(&self.config.initial_language, &resolved_language)
+                .unwrap_or_else(|error| panic!("failed to initialize i18n global state:\n{error}"));
         let i18n_assets = {
             let asset_server = app.world().resource::<AssetServer>();
             build_i18n_assets(asset_server, &self.config.asset_path, &discovery.modules)
@@ -159,7 +137,12 @@ impl Plugin for I18nPlugin {
             info!("Auto-registered {} FluentText types", registered_count);
         }
 
-        configure_app(app, i18n_assets, i18n_resource, resolved_language);
+        configure_app(
+            app,
+            i18n_assets,
+            i18n_resource,
+            self.config.initial_language.clone(),
+        );
 
         info!("I18n plugin initialized successfully");
     }

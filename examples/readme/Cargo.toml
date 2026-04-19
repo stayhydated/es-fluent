@@ -11,7 +11,6 @@ es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-embedded = { workspace = true }
 example-shared-lib = { features = [ "gpui" ], path = "../example-shared-lib" }
 strum = { features = [ "derive" ], workspace = true }
-unic-langid = { workspace = true }
 
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }

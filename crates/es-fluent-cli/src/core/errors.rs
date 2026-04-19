@@ -245,37 +245,6 @@ pub struct FormatReport {
     pub errors: Vec<FormatError>,
 }
 
-/// Warning when a key needs to be synced to another locale.
-#[derive(Debug, Diagnostic, Error)]
-#[error("missing translation for key '{key}' in locale '{target_locale}'")]
-#[diagnostic(code(es_fluent::sync::missing), severity(Warning))]
-pub struct SyncMissingKey {
-    /// The key that is missing.
-    pub key: String,
-
-    /// The target locale where the key is missing.
-    pub target_locale: String,
-
-    /// The source locale (fallback).
-    pub source_locale: String,
-}
-
-/// Report for sync command results.
-#[derive(Debug, Diagnostic, Error)]
-#[error("sync: added {added_count} key(s) to {locale_count} locale(s)")]
-#[diagnostic(code(es_fluent::sync::report))]
-pub struct SyncReport {
-    /// Number of keys added.
-    pub added_count: usize,
-
-    /// Number of locales affected.
-    pub locale_count: usize,
-
-    /// Keys that were synced.
-    #[related]
-    pub synced_keys: Vec<SyncMissingKey>,
-}
-
 #[derive(Debug, Diagnostic, Error)]
 pub enum CliError {
     #[error(transparent)]
@@ -309,10 +278,6 @@ pub enum CliError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     Format(#[from] FormatReport),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    Sync(#[from] SyncReport),
 
     #[error("IO error: {0}")]
     #[diagnostic(code(es_fluent::io))]

@@ -1,0 +1,7 @@
+---
+source: crates/es-fluent-lang-macro/src/lib.rs
+expression: pretty_tokens(&invalid_attr)
+---
+::core::compile_error! {
+    "#[es_fluent_language] only accepts `custom` as an argument; found `bad`"
+}

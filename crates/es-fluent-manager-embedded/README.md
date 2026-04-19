@@ -9,9 +9,9 @@ This crate provides a "Just Works" experience for adding localization to standar
 
 ## Features
 
-- **Embedded Assets**: Compiles your FTL files into the binary (using `rust-embed` under the hood).
-- **Global Access**: Once initialized, you can call \`to_fluent_string() anywhere in your code without passing context around.
-- **Thread Safe**: Uses `OnceLock` and atomic swaps for safe concurrent access.
+- **Embedded Assets**: Compiles your FTL files into the binary.
+- **Global Access**: Once initialized, you can call `to_fluent_string()` anywhere in your code without passing context around.
+- **Thread Safe**: Safe to use from multiple threads after initialization.
 
 ## Quick Start
 
@@ -51,17 +51,19 @@ es_fluent_manager_embedded::select_language(langid!("fr"))
     .expect("manager initialized and locale is available");
 ```
 
-`select_language(...)` returns an error if initialization was skipped or if no
-discovered module can serve the requested locale. When some modules support the
-requested locale and others do not, the default switch keeps the supporting
-modules active.
+`select_language(...)` returns an error if initialization was skipped, if no
+discovered module can serve the requested locale, or if a supported locale's
+resources would build a broken Fluent bundle (for example duplicate message
+definitions across loaded files). When some modules support the requested
+locale and others do not, the default switch keeps the supporting modules
+active. Failed switches keep the previous ready locale active.
 
-`init()` and `init_with_language(...)` are best-effort convenience wrappers:
-duplicate or invalid registrations are logged and skipped, and initialization
-errors are logged instead of returned.
+`init()` and `init_with_language(...)` use the same strict discovery path as
+the fallible entry points. They log initialization errors instead of returning
+them.
 
-If you want startup to fail fast before the singleton is published, use the
-fallible strict entry points instead:
+If you want the initialization error back before the singleton is published,
+use the fallible entry points instead:
 
 ```rs
 es_fluent_manager_embedded::try_init_with_language(langid!("fr"))

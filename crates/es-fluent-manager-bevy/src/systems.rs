@@ -15,7 +15,7 @@ pub fn update_fluent_text_system<T: ToFluentString + Clone + Component>(
     i18n_assets: Res<I18nAssets>,
     i18n_resource: Res<I18nResource>,
 ) {
-    if !i18n_assets.is_language_loaded(i18n_resource.current_language()) {
+    if !i18n_assets.is_language_loaded(i18n_resource.resolved_language()) {
         return;
     }
     for (entity, fluent_text, children) in fluent_text_query.iter() {
@@ -39,7 +39,7 @@ pub fn update_all_fluent_text_on_locale_change<T: ToFluentString + Clone + Compo
     // (handles initial load where event may not propagate across schedule boundaries)
     let should_update = locale_changed_events.read().next().is_some() || i18n_bundle.is_changed();
 
-    if should_update && i18n_assets.is_language_loaded(i18n_resource.current_language()) {
+    if should_update && i18n_assets.is_language_loaded(i18n_resource.resolved_language()) {
         // Perform a full update of all FluentText components
         for (entity, fluent_text, children) in fluent_text_query.iter() {
             update_text_for_entity(&mut text_query, entity, children, &fluent_text.value);
@@ -80,7 +80,7 @@ fn update_text_for_entity<T: ToFluentString>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CurrentLanguageId, FtlAsset};
+    use crate::{ActiveLanguageId, FtlAsset, RequestedLanguageId};
     use es_fluent_manager_core::ResourceKey;
     use fluent_bundle::FluentResource;
     use std::sync::Arc;
@@ -115,7 +115,8 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(loaded_assets_for(lang.clone()));
         app.insert_resource(I18nResource::new(lang));
-        app.insert_resource(CurrentLanguageId(langid!("en-US")));
+        app.insert_resource(RequestedLanguageId(langid!("en-US")));
+        app.insert_resource(ActiveLanguageId(langid!("en-US")));
         app.add_systems(Update, update_fluent_text_system::<FakeMessage>);
 
         let child = app.world_mut().spawn(Text::new("old child")).id();
@@ -142,7 +143,8 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(loaded_assets_for(lang.clone()));
         app.insert_resource(I18nResource::new(lang.clone()));
-        app.insert_resource(CurrentLanguageId(lang.clone()));
+        app.insert_resource(RequestedLanguageId(lang.clone()));
+        app.insert_resource(ActiveLanguageId(lang.clone()));
         app.insert_resource(I18nBundle::default());
         app.add_message::<LocaleChangedEvent>();
         app.add_systems(

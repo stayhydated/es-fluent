@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-manager-macros/src/assets.rs
+expression: "normalize_temp_paths(&err.to_string(), missing_temp.path())"
+---
+No i18n.toml configuration file found in project root. Please create one with the required settings.

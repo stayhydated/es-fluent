@@ -1,0 +1,6 @@
+---
+source: crates/es-fluent-derive-core/tests/validation_tests.rs
+expression: err.to_string()
+---
+Attribute error: namespace 'ui' is not in the allowed list configured in i18n.toml
+help: allowed namespaces are: UI, Errors

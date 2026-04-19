@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-derive-core/tests/validation_tests.rs
+expression: err.to_string()
+---
+Unknown field: `arg_name`. Available values: `key`, `skip`

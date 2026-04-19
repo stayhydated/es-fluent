@@ -2,15 +2,12 @@
 authors = [ "stayhydated" ]
 language = "en"
 src = "src"
-title = "es-fluent Documentation"
+title = "es-fluent"
 
 [rust]
 edition = "2024"
 
 [build]
-
-[output.html]
-additional-css = [ "theme/oled-neon.css" ]
 
 [output.html.playground]
 runnable = false

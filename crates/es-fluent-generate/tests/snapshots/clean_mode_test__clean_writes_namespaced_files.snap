@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-generate/tests/clean_mode_test.rs
+expression: content
+---
+

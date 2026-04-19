@@ -1,3 +1,5 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
+
 use es_fluent::ToFluentString as _;
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui::{

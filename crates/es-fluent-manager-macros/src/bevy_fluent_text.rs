@@ -255,10 +255,17 @@ fn generate_refresh_for_locale_impl(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
+    use insta::assert_snapshot;
     use quote::quote;
+
+    fn pretty_tokens(tokens: proc_macro2::TokenStream) -> String {
+        let file: syn::File =
+            syn::parse2(tokens).expect("generated tokens should parse as a Rust file");
+        prettyplease::unparse(&file).trim().to_string()
+    }
 
     #[test]
     fn locale_field_collection_and_generation_cover_enum_struct_and_union() {
@@ -298,12 +305,11 @@ mod tests {
         );
         assert_eq!(enum_fields[0].other_fields.len(), 1);
         let enum_tokens =
-            generate_refresh_for_locale_impl(&enum_input.ident, &enum_input.data, &enum_fields)
-                .to_string();
-        assert!(enum_tokens.contains("match"));
-        assert!(enum_tokens.contains("current_language"));
-        assert!(enum_tokens.contains("fallback_language"));
-        assert_eq!(enum_tokens.matches("Self :: A").count(), 1);
+            generate_refresh_for_locale_impl(&enum_input.ident, &enum_input.data, &enum_fields);
+        assert_snapshot!(
+            "generate_refresh_for_locale_impl_enum",
+            pretty_tokens(enum_tokens)
+        );
 
         let struct_input: DeriveInput = syn::parse_quote! {
             struct ExampleStruct {
@@ -320,9 +326,11 @@ mod tests {
             &struct_input.ident,
             &struct_input.data,
             &struct_fields,
-        )
-        .to_string();
-        assert!(struct_tokens.contains("self . locale"));
+        );
+        assert_snapshot!(
+            "generate_refresh_for_locale_impl_struct",
+            pretty_tokens(struct_tokens)
+        );
 
         let union_input: DeriveInput = syn::parse_quote! {
             union ExampleUnion {
@@ -353,12 +361,11 @@ mod tests {
         let module_tokens = bevy_fluent_text_registration_module(
             &syn::Ident::new("__test_module", proc_macro2::Span::call_site()),
             quote! { register_me(app); },
-        )
-        .to_string();
-
-        assert!(module_tokens.contains("__test_module"));
-        assert!(module_tokens.contains("register_me"));
-        assert!(module_tokens.contains("inventory"));
+        );
+        assert_snapshot!(
+            "bevy_fluent_text_registration_module",
+            pretty_tokens(module_tokens)
+        );
     }
 
     #[test]
@@ -368,7 +375,10 @@ mod tests {
         };
         let tuple_struct_err =
             collect_locale_fields(&tuple_struct_input.data).expect_err("tuple struct should error");
-        assert!(tuple_struct_err.to_string().contains("named struct fields"));
+        assert_snapshot!(
+            "locale_field_collection_rejects_tuple_struct_fields",
+            tuple_struct_err.to_string()
+        );
 
         let tuple_enum_input: DeriveInput = syn::parse_quote! {
             enum ExampleTupleEnum {
@@ -377,10 +387,9 @@ mod tests {
         };
         let tuple_enum_err =
             collect_locale_fields(&tuple_enum_input.data).expect_err("tuple variant should error");
-        assert!(
-            tuple_enum_err
-                .to_string()
-                .contains("named enum variant fields")
+        assert_snapshot!(
+            "locale_field_collection_rejects_tuple_variant_fields",
+            tuple_enum_err.to_string()
         );
     }
 }

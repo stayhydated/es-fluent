@@ -301,7 +301,7 @@ pub fn collect_locale_resources<'a>(
             }
         })
         .collect::<Vec<_>>();
-    resources.sort_by(|(left_key, _), (right_key, _)| left_key.cmp(right_key));
+    resources.sort_by_key(|(resource_key, _)| *resource_key);
     resources
         .into_iter()
         .map(|(_, resource)| resource)

@@ -29,16 +29,18 @@ pub fn track_i18n_assets() {
 }
 
 #[cfg(test)]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::*;
     use crate::test_utils::with_manifest_env;
+    use path_slash::PathExt as _;
     use std::fs;
     use std::path::Path;
     use std::process::Command;
     use tempfile::tempdir;
 
     fn toml_path(path: &Path) -> String {
-        path.to_string_lossy().replace('\\', "/")
+        path.to_slash_lossy().into_owned()
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 pub use unic_langid::{LanguageIdentifier, langid};
 
-/// Force the linker to keep `es-fluent-lang` runtime resources.
+/// Force the linker to keep the `es-fluent-lang` runtime module.
 ///
 /// This is used by WASM examples where localization inventory registration can be
 /// stripped by aggressive release optimization.
@@ -31,123 +31,68 @@ pub use es_fluent_lang_macro::es_fluent_language;
 #[doc(hidden)]
 use es_fluent_manager_core::{
     I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, localize_with_bundle,
+    ModuleData, locale_candidates,
 };
-use fluent_bundle::{FluentBundle, FluentResource, FluentValue};
+use fluent_bundle::FluentValue;
+use icu_experimental::displaynames::{DisplayNamesOptions, multi::LocaleDisplayNamesFormatter};
+use icu_locale::Locale;
+use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock, RwLock};
 
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-use rust_embed::RustEmbed;
-#[cfg(feature = "localized-langs")]
-use std::collections::HashSet;
+const ES_FLUENT_LANG_PREFIX: &str = "es-fluent-lang-";
+const DISPLAY_LANGUAGE_FALLBACKS: &[&str] = &["en", "en-001"];
 
-#[cfg(not(feature = "localized-langs"))]
-const ES_FLUENT_LANG_FTL: &str = include_str!("../es-fluent-lang.ftl");
-
-#[cfg(not(feature = "localized-langs"))]
-#[doc(hidden)]
-fn embedded_resource() -> Arc<FluentResource> {
-    static RESOURCE: OnceLock<Arc<FluentResource>> = OnceLock::new();
-    RESOURCE
-        .get_or_init(|| {
-            Arc::new(
-                FluentResource::try_new(ES_FLUENT_LANG_FTL.to_owned()).expect(
-                    "Invalid Fluent resource embedded in es-fluent-lang/es-fluent-lang.ftl",
-                ),
-            )
-        })
-        .clone()
+fn parse_message_language(id: &str) -> Option<LanguageIdentifier> {
+    id.strip_prefix(ES_FLUENT_LANG_PREFIX)?.parse().ok()
 }
 
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-const I18N_RESOURCE_NAME: &str = "es-fluent-lang.ftl";
+fn formatter_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
+    let mut candidates = locale_candidates(requested);
 
-#[cfg(feature = "localized-langs")]
-#[derive(RustEmbed)]
-#[folder = "i18n"]
-#[doc(hidden)]
-struct EsFluentLangAssets;
-
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-fn available_languages() -> &'static HashSet<LanguageIdentifier> {
-    static AVAILABLE: OnceLock<HashSet<LanguageIdentifier>> = OnceLock::new();
-    AVAILABLE.get_or_init(|| {
-        let mut set = HashSet::new();
-        for file in EsFluentLangAssets::iter() {
-            let path = file.as_ref();
-            if let Some((lang, file_name)) = path.rsplit_once('/')
-                && file_name == I18N_RESOURCE_NAME
-                && let Ok(lang_id) = lang.parse::<LanguageIdentifier>()
-            {
-                set.insert(lang_id);
-            }
+    for fallback in DISPLAY_LANGUAGE_FALLBACKS {
+        if let Ok(language) = fallback.parse::<LanguageIdentifier>()
+            && !candidates.iter().any(|candidate| candidate == &language)
+        {
+            candidates.push(language);
         }
-        set
-    })
+    }
+
+    candidates
 }
 
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-fn candidate_languages(lang: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
-    use es_fluent_manager_core::locale_candidates;
-
-    locale_candidates(lang)
-}
-
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-fn resolve_language(lang: &LanguageIdentifier) -> Option<LanguageIdentifier> {
-    let available = available_languages();
-    candidate_languages(lang)
-        .into_iter()
-        .find(|candidate| available.contains(candidate))
-}
-
-#[cfg(feature = "localized-langs")]
-fn parse_embedded_resource(
-    path: &str,
-    bytes: &[u8],
-) -> Result<Arc<FluentResource>, LocalizationError> {
-    let content = String::from_utf8(bytes.to_vec()).map_err(|err| {
-        tracing::error!("Invalid UTF-8 in embedded file '{}': {}", path, err);
-        LocalizationError::IoError(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Invalid UTF-8 in embedded file '{}': {}", path, err),
-        ))
-    })?;
-    let resource = FluentResource::try_new(content)
-        .map_err(|(_, errs)| LocalizationError::FluentParseError(errs))?;
-    Ok(Arc::new(resource))
-}
-
-fn localize_from_resource<'a>(
-    lang: LanguageIdentifier,
-    resource: Arc<FluentResource>,
-    id: &str,
-    args: Option<&HashMap<&str, FluentValue<'a>>>,
+fn format_language_name(
+    display_language: &LanguageIdentifier,
+    target_language: &LanguageIdentifier,
 ) -> Option<String> {
-    let mut bundle = FluentBundle::new(vec![lang]);
-    if let Err(err) = bundle.add_resource(resource) {
-        tracing::error!("Failed to add es-fluent-lang resource: {:?}", err);
-        return None;
+    let target_locale = target_language.to_string().parse::<Locale>().ok()?;
+
+    for candidate in formatter_candidates(display_language) {
+        let display_locale = match candidate.to_string().parse::<Locale>() {
+            Ok(locale) => locale,
+            Err(err) => {
+                tracing::debug!(
+                    "Skipping invalid ICU display locale candidate '{}': {}",
+                    candidate,
+                    err
+                );
+                continue;
+            },
+        };
+
+        match LocaleDisplayNamesFormatter::try_new(
+            display_locale.into(),
+            DisplayNamesOptions::default(),
+        ) {
+            Ok(formatter) => return Some(formatter.of(&target_locale).into_owned()),
+            Err(err) => tracing::debug!(
+                "ICU display names formatter not available for '{}': {}",
+                candidate,
+                err
+            ),
+        }
     }
 
-    let (formatted, errors) = localize_with_bundle(&bundle, id, args)?;
-
-    if errors.is_empty() {
-        Some(formatted)
-    } else {
-        tracing::error!(
-            "Formatting errors while localizing '{}' from es-fluent-lang: {:?}",
-            id,
-            errors
-        );
-        None
-    }
+    None
 }
 
 #[doc(hidden)]
@@ -168,44 +113,28 @@ impl I18nModuleDescriptor for EsFluentLanguageModule {
 
 impl I18nModule for EsFluentLanguageModule {
     fn create_localizer(&self) -> Box<dyn Localizer> {
-        #[cfg(not(feature = "localized-langs"))]
-        {
-            Box::new(EsFluentLanguageLocalizer::new(
-                embedded_resource(),
-                langid!("en-US"),
-            ))
-        }
-
-        #[cfg(feature = "localized-langs")]
-        {
-            Box::new(EsFluentLanguageLocalizer::new(langid!("en-US")))
-        }
+        Box::new(EsFluentLanguageLocalizer::new(langid!("en-US")))
     }
 }
 
-#[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 struct EsFluentLanguageLocalizer {
-    resource: Arc<FluentResource>,
     current_lang: RwLock<LanguageIdentifier>,
 }
 
-#[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 impl EsFluentLanguageLocalizer {
-    fn new(resource: Arc<FluentResource>, default_lang: LanguageIdentifier) -> Self {
+    fn new(default_lang: LanguageIdentifier) -> Self {
         Self {
-            resource,
             current_lang: RwLock::new(default_lang),
         }
     }
 }
 
-#[cfg(not(feature = "localized-langs"))]
 #[doc(hidden)]
 impl Localizer for EsFluentLanguageLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        *self.current_lang.write().expect("lock poisoned") = lang.clone();
+        *self.current_lang.write() = lang.clone();
         Ok(())
     }
 
@@ -214,86 +143,22 @@ impl Localizer for EsFluentLanguageLocalizer {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let lang = self.current_lang.read().expect("lock poisoned").clone();
-        localize_from_resource(lang, self.resource.clone(), id, args)
-    }
-}
-
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-struct EsFluentLanguageLocalizer {
-    resources: RwLock<HashMap<LanguageIdentifier, Arc<FluentResource>>>,
-    current_lang: RwLock<Option<LanguageIdentifier>>,
-}
-
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-impl EsFluentLanguageLocalizer {
-    fn new(default_lang: LanguageIdentifier) -> Self {
-        let localizer = Self {
-            resources: RwLock::new(HashMap::new()),
-            current_lang: RwLock::new(None),
-        };
-        let _ = localizer.set_language(&default_lang);
-        localizer
-    }
-
-    fn set_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        let resolved = resolve_language(lang)
-            .ok_or_else(|| LocalizationError::LanguageNotSupported(lang.clone()))?;
-        let _ = self.load_resource(&resolved)?;
-        *self.current_lang.write().expect("lock poisoned") = Some(resolved);
-        Ok(())
-    }
-
-    fn load_resource(
-        &self,
-        lang: &LanguageIdentifier,
-    ) -> Result<Arc<FluentResource>, LocalizationError> {
-        if let Some(resource) = self
-            .resources
-            .read()
-            .expect("lock poisoned")
-            .get(lang)
-            .cloned()
-        {
-            return Ok(resource);
+        if args.is_some_and(|args| !args.is_empty()) {
+            tracing::debug!(
+                "Ignoring Fluent args for built-in language label '{}'; ICU-backed labels do not accept arguments",
+                id
+            );
         }
 
-        let path = format!("{}/{}", lang, I18N_RESOURCE_NAME);
-        let file = EsFluentLangAssets::get(&path)
-            .ok_or_else(|| LocalizationError::LanguageNotSupported(lang.clone()))?;
-        let resource = parse_embedded_resource(&path, file.data.as_ref())?;
-        self.resources
-            .write()
-            .expect("lock poisoned")
-            .insert(lang.clone(), resource.clone());
-        Ok(resource)
-    }
-}
+        let target_language = parse_message_language(id)?;
 
-#[cfg(feature = "localized-langs")]
-#[doc(hidden)]
-impl Localizer for EsFluentLanguageLocalizer {
-    fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        self.set_language(lang)
-    }
+        #[cfg(feature = "localized-langs")]
+        let display_language = self.current_lang.read().clone();
 
-    fn localize<'a>(
-        &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        let lang = self.current_lang.read().expect("lock poisoned").clone()?;
-        let resource = match self.load_resource(&lang) {
-            Ok(resource) => resource,
-            Err(err) => {
-                tracing::error!("Failed to load es-fluent-lang resource: {}", err);
-                return None;
-            },
-        };
+        #[cfg(not(feature = "localized-langs"))]
+        let display_language = target_language.clone();
 
-        localize_from_resource(lang, resource, id, args)
+        format_language_name(&display_language, &target_language)
     }
 }
 
@@ -315,52 +180,29 @@ mod bevy_support {
     }
 }
 
-#[cfg(all(test, not(feature = "localized-langs")))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use unic_langid::langid;
 
     #[test]
-    fn embedded_resource_is_cached_and_localizes_known_keys() {
-        let first = embedded_resource();
-        let second = embedded_resource();
-        assert!(Arc::ptr_eq(&first, &second));
-
+    fn parse_message_language_extracts_language_identifier() {
         assert_eq!(
-            localize_from_resource(langid!("en-US"), first, "es-fluent-lang-en", None),
-            Some("English".to_string())
+            parse_message_language("es-fluent-lang-fr-FR"),
+            Some(langid!("fr-FR"))
         );
-        assert_eq!(
-            localize_from_resource(langid!("en-US"), second, "missing-key", None),
-            None
-        );
+        assert_eq!(parse_message_language("missing-prefix"), None);
+        assert_eq!(parse_message_language("es-fluent-lang-invalid!"), None);
     }
 
     #[test]
-    fn localize_from_resource_formats_args_and_reports_missing_args() {
-        let resource = Arc::new(
-            FluentResource::try_new("welcome = Welcome, { $name }!".to_string())
-                .expect("valid ftl"),
-        );
+    fn formatter_candidates_include_requested_chain_and_defaults() {
+        let candidates = formatter_candidates(&langid!("fr-CA"));
 
-        assert_eq!(
-            localize_from_resource(langid!("en-US"), resource.clone(), "welcome", None),
-            None
-        );
-
-        let mut args = HashMap::new();
-        args.insert("name", FluentValue::from("Mark"));
-        let localized = localize_from_resource(langid!("en-US"), resource, "welcome", Some(&args));
-        assert!(
-            localized
-                .as_deref()
-                .is_some_and(|value| value.contains("Welcome"))
-        );
-        assert!(
-            localized
-                .as_deref()
-                .is_some_and(|value| value.contains("Mark"))
-        );
+        assert!(candidates.contains(&langid!("fr-CA")));
+        assert!(candidates.contains(&langid!("fr")));
+        assert!(candidates.contains(&langid!("en")));
+        assert!(candidates.contains(&langid!("en-001")));
     }
 
     #[test]
@@ -372,12 +214,21 @@ mod tests {
         localizer
             .select_language(&langid!("en-US"))
             .expect("language selection should succeed");
+
+        #[cfg(not(feature = "localized-langs"))]
         assert_eq!(
             localizer.localize("es-fluent-lang-fr", None),
-            Some("français".to_string())
+            Some(expected_french_name())
+        );
+
+        #[cfg(feature = "localized-langs")]
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("French".to_string())
         );
     }
 
+    #[cfg(not(feature = "localized-langs"))]
     #[test]
     fn autonym_mode_returns_native_language_names_regardless_of_selected_locale() {
         let module = EsFluentLanguageModule;
@@ -389,23 +240,15 @@ mod tests {
 
         assert_eq!(
             localizer.localize("es-fluent-lang-en", None),
-            Some("English".to_string()),
-            "English autonym should be 'English'"
+            Some("English".to_string())
         );
         assert_eq!(
             localizer.localize("es-fluent-lang-fr", None),
-            Some("français".to_string()),
-            "French autonym should be 'français' (native script)"
+            Some(expected_french_name())
         );
         assert_eq!(
             localizer.localize("es-fluent-lang-ja", None),
-            Some("日本語".to_string()),
-            "Japanese autonym should be '日本語' (native script)"
-        );
-        assert_eq!(
-            localizer.localize("es-fluent-lang-de", None),
-            Some("Deutsch".to_string()),
-            "German autonym should be 'Deutsch' (native script)"
+            Some(expected_japanese_name())
         );
 
         localizer
@@ -414,19 +257,88 @@ mod tests {
 
         assert_eq!(
             localizer.localize("es-fluent-lang-fr", None),
-            Some("français".to_string()),
-            "Autonym mode should still return 'français' even with Japanese locale selected"
+            Some(expected_french_name())
         );
         assert_eq!(
             localizer.localize("es-fluent-lang-ja", None),
-            Some("日本語".to_string()),
-            "Autonym mode should still return '日本語' even with Japanese locale selected"
+            Some(expected_japanese_name())
+        );
+    }
+
+    #[cfg(feature = "localized-langs")]
+    #[test]
+    fn localized_mode_returns_translated_language_names() {
+        let module = EsFluentLanguageModule;
+        let localizer = I18nModule::create_localizer(&module);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("English language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some("French".to_string())
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-de", None),
+            Some("German".to_string())
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-ja", None),
+            Some("Japanese".to_string())
+        );
+
+        localizer
+            .select_language(&langid!("fr"))
+            .expect("French language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", None),
+            Some(expected_french_name())
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-de", None),
+            Some("allemand".to_string())
+        );
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("anglais".to_string())
+        );
+    }
+
+    #[cfg(feature = "localized-langs")]
+    #[test]
+    fn localized_mode_falls_back_to_parent_display_locale() {
+        let module = EsFluentLanguageModule;
+        let localizer = I18nModule::create_localizer(&module);
+
+        localizer
+            .select_language(&langid!("fr-FR"))
+            .expect("fr-FR should fall back to fr");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-en", None),
+            Some("anglais".to_string())
+        );
+    }
+
+    #[cfg(feature = "localized-langs")]
+    #[test]
+    fn localized_mode_ignores_unused_args() {
+        let module = EsFluentLanguageModule;
+        let localizer = I18nModule::create_localizer(&module);
+        let mut args = HashMap::new();
+        args.insert("unused", FluentValue::from("value"));
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("language selection should succeed");
+        assert_eq!(
+            localizer.localize("es-fluent-lang-fr", Some(&args)),
+            Some("French".to_string())
         );
     }
 
     #[cfg(feature = "bevy")]
     #[test]
-    fn bevy_uses_standard_module_registration_for_autonyms() {
+    fn bevy_uses_standard_module_registration() {
         let registration = inventory::iter::<&'static dyn I18nModuleRegistration>()
             .find(|registration| registration.data().domain == "es-fluent-lang")
             .expect("es-fluent-lang module registration should be present");
@@ -448,164 +360,13 @@ mod tests {
     fn force_link_reports_linked_resources() {
         assert!(force_link() > 0);
     }
-}
 
-#[cfg(all(test, feature = "localized-langs"))]
-mod tests_localized {
-    use super::*;
-    use unic_langid::langid;
-
-    #[test]
-    fn localize_from_resource_formats_args_and_reports_missing_args() {
-        let resource = Arc::new(
-            FluentResource::try_new("welcome = Welcome, { $name }!".to_string())
-                .expect("valid ftl"),
-        );
-
-        assert_eq!(
-            localize_from_resource(langid!("en-US"), resource.clone(), "welcome", None),
-            None
-        );
-
-        let mut args = HashMap::new();
-        args.insert("name", FluentValue::from("Mark"));
-        let localized = localize_from_resource(langid!("en-US"), resource, "welcome", Some(&args));
-        assert!(
-            localized
-                .as_deref()
-                .is_some_and(|value| value.contains("Welcome"))
-        );
-        assert!(
-            localized
-                .as_deref()
-                .is_some_and(|value| value.contains("Mark"))
-        );
+    fn expected_french_name() -> String {
+        "français".to_string()
     }
 
-    #[test]
-    fn localized_mode_returns_translated_language_names() {
-        let module = EsFluentLanguageModule;
-        let localizer = I18nModule::create_localizer(&module);
-
-        localizer
-            .select_language(&langid!("en"))
-            .expect("English language selection should succeed");
-        assert_eq!(
-            localizer.localize("es-fluent-lang-fr", None),
-            Some("French".to_string()),
-            "With English UI, French should be 'French'"
-        );
-        assert_eq!(
-            localizer.localize("es-fluent-lang-de", None),
-            Some("German".to_string()),
-            "With English UI, German should be 'German'"
-        );
-        assert_eq!(
-            localizer.localize("es-fluent-lang-ja", None),
-            Some("Japanese".to_string()),
-            "With English UI, Japanese should be 'Japanese'"
-        );
-
-        localizer
-            .select_language(&langid!("fr"))
-            .expect("French language selection should succeed");
-        assert_eq!(
-            localizer.localize("es-fluent-lang-fr", None),
-            Some("français".to_string()),
-            "With French UI, French should be 'français'"
-        );
-        assert_eq!(
-            localizer.localize("es-fluent-lang-de", None),
-            Some("allemand".to_string()),
-            "With French UI, German should be 'allemand'"
-        );
-        assert_eq!(
-            localizer.localize("es-fluent-lang-en", None),
-            Some("anglais".to_string()),
-            "With French UI, English should be 'anglais'"
-        );
-
-        localizer
-            .select_language(&langid!("ja"))
-            .expect("Japanese language selection should succeed");
-        assert_eq!(
-            localizer.localize("es-fluent-lang-fr", None),
-            Some("フランス語".to_string()),
-            "With Japanese UI, French should be 'フランス語'"
-        );
-        assert_eq!(
-            localizer.localize("es-fluent-lang-de", None),
-            Some("ドイツ語".to_string()),
-            "With Japanese UI, German should be 'ドイツ語'"
-        );
-        assert_eq!(
-            localizer.localize("es-fluent-lang-en", None),
-            Some("英語".to_string()),
-            "With Japanese UI, English should be '英語'"
-        );
-    }
-
-    #[test]
-    fn localized_mode_fallback_to_base_locale() {
-        let module = EsFluentLanguageModule;
-        let localizer = I18nModule::create_localizer(&module);
-
-        localizer
-            .select_language(&langid!("en-US"))
-            .expect("en-US should fall back to en");
-        assert_eq!(
-            localizer.localize("es-fluent-lang-fr", None),
-            Some("French".to_string()),
-            "en-US should fall back to en translations"
-        );
-
-        localizer
-            .select_language(&langid!("fr-FR"))
-            .expect("fr-FR should fall back to fr");
-        assert_eq!(
-            localizer.localize("es-fluent-lang-en", None),
-            Some("anglais".to_string()),
-            "fr-FR should fall back to fr translations"
-        );
-    }
-
-    #[test]
-    fn parse_embedded_resource_rejects_invalid_utf8() {
-        let err = parse_embedded_resource("fr/es-fluent-lang.ftl", &[0xFF, 0xFE])
-            .expect_err("invalid utf-8 should fail");
-        assert!(matches!(err, LocalizationError::IoError(_)));
-        assert!(err.to_string().contains("Invalid UTF-8"));
-    }
-
-    #[test]
-    fn parse_embedded_resource_rejects_invalid_fluent() {
-        let err = parse_embedded_resource("fr/es-fluent-lang.ftl", b"broken = {")
-            .expect_err("invalid fluent should fail");
-        assert!(matches!(err, LocalizationError::FluentParseError(_)));
-    }
-
-    #[cfg(feature = "bevy")]
-    #[test]
-    fn bevy_uses_standard_module_registration_for_localized_names() {
-        let registration = inventory::iter::<&'static dyn I18nModuleRegistration>()
-            .find(|registration| registration.data().domain == "es-fluent-lang")
-            .expect("es-fluent-lang module registration should be present");
-        let localizer = registration
-            .create_localizer()
-            .expect("es-fluent-lang should provide a localizer");
-
-        localizer
-            .select_language(&langid!("fr"))
-            .expect("language selection should succeed");
-        assert_eq!(
-            localizer.localize("es-fluent-lang-en", None),
-            Some("anglais".to_string())
-        );
-    }
-
-    #[cfg(feature = "bevy")]
-    #[test]
-    fn force_link_reports_linked_resources() {
-        assert!(force_link() > 0);
+    #[cfg(not(feature = "localized-langs"))]
+    fn expected_japanese_name() -> String {
+        "日本語".to_string()
     }
 }

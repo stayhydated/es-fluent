@@ -70,7 +70,7 @@ Contains reusable naming primitives such as:
 Contains shared filesystem helpers for:
 
 - validating asset directories
-- parsing locale directory entries into `LanguageIdentifier`
+- parsing canonical locale directory entries into `LanguageIdentifier`
 
 ## Boundary
 

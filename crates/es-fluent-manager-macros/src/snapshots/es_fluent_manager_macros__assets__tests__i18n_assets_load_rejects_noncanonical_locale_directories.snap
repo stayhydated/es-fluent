@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-manager-macros/src/assets.rs
+expression: "normalize_temp_paths(&err.to_string(), temp.path())"
+---
+Locale directory 'en-us' under "<manifest-dir>/i18n/en-us" must use canonical BCP-47 form 'en-US'

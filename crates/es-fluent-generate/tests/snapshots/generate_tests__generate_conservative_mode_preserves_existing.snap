@@ -1,0 +1,9 @@
+---
+source: crates/es-fluent-generate/tests/generate_tests.rs
+expression: content
+---
+existing-message = Existing Content
+
+## TestEnum
+
+test_enum-Variant1 = Variant1

@@ -1,5 +1,7 @@
 use crate::I18nConfigError;
-use std::{fs, io};
+use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use fs_err as fs;
+use std::io;
 use unic_langid::LanguageIdentifier;
 
 #[derive(Debug)]
@@ -30,15 +32,58 @@ pub(crate) fn parse_language_entry(
         ))
     })?;
 
-    let lang = name.parse::<LanguageIdentifier>().map_err(|source| {
-        I18nConfigError::InvalidLanguageIdentifier {
-            name: name.clone(),
-            source,
-        }
+    let lang = parse_canonical_language_identifier(&name).map_err(|err| match err {
+        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+            I18nConfigError::InvalidLanguageIdentifier {
+                name: name.clone(),
+                source,
+            }
+        },
+        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+            I18nConfigError::NonCanonicalLanguageIdentifier {
+                name: name.clone(),
+                canonical,
+            }
+        },
     })?;
 
     Ok(Some(ParsedLanguageEntry {
         raw_name: name,
         language: lang,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fs_err as fs;
+
+    fn first_entry(path: &std::path::Path) -> fs::DirEntry {
+        fs::read_dir(path)
+            .expect("read dir")
+            .next()
+            .expect("expected one entry")
+            .expect("dir entry")
+    }
+
+    #[test]
+    fn parse_language_entry_returns_none_for_files() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(temp.path().join("README.txt"), "ignored").expect("write file");
+
+        let parsed = parse_language_entry(first_entry(temp.path())).expect("parse entry");
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn parse_language_entry_returns_canonical_language_for_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join("en-US")).expect("create locale dir");
+
+        let parsed = parse_language_entry(first_entry(temp.path()))
+            .expect("parse entry")
+            .expect("directory entry should be parsed");
+        assert_eq!(parsed.raw_name, "en-US");
+        assert_eq!(parsed.language.to_string(), "en-US");
+    }
 }

@@ -25,7 +25,9 @@ flowchart TD
     end
 
     subgraph STATE["Resources"]
-        RES["I18nResource (Current Lang)"]
+        RES["I18nResource (Active + Resolved Langs)"]
+        REQUESTED["RequestedLanguageId"]
+        ACTIVE["ActiveLanguageId"]
         BUNDLE["I18nBundle (Compiled Bundles)"]
         GLOBAL["BevyI18nState (ArcSwap Global)"]
     end
@@ -44,7 +46,9 @@ flowchart TD
     LOADER -->|produce| STORE
     STORE -->|compile| BUNDLE
 
-    RES -->|change| EVENT
+    REQUESTED -->|intent| RES
+    RES -->|publish| ACTIVE
+    ACTIVE -->|change| EVENT
     EVENT -->|trigger| SYS
     SYS -->|read| COMP
     SYS -->|format using| BUNDLE
@@ -77,17 +81,17 @@ This keeps the crate root declarative and makes the Bevy-facing public API easie
 The entry point. It registers the `FtlAssetLoader`, resources, and installs a
 **custom localizer** for the process-global `es-fluent` hook. The default
 `GlobalLocalizerMode::ErrorIfAlreadySet` path uses
-`es_fluent::set_custom_localizer`, so integration conflicts fail fast instead
-of silently replacing an existing owner. `GlobalLocalizerMode::ReplaceExisting`
-switches to `es_fluent::replace_custom_localizer` for apps that intentionally
-want Bevy to take ownership of that hook.
+`es_fluent::set_custom_localizer_with_domain`, so integration conflicts fail
+fast instead of silently replacing an existing owner. `GlobalLocalizerMode::ReplaceExisting`
+switches to `es_fluent::replace_custom_localizer_with_domain` for apps that
+intentionally want Bevy to take ownership of that hook.
 
-`ModuleRegistryMode::Lenient` keeps the historical registry behavior: invalid
-or conflicting module registrations are logged and normalized. Opting into
-`ModuleRegistryMode::ErrorIfConflicted` makes plugin startup fail instead, and
-the fallback `FluentManager` is built through the same strict discovery path.
+Plugin startup uses the same strict discovery path as
+`FluentManager::try_new_with_discovered_modules()`, and the fallback
+`FluentManager` is built through that same strict validation flow.
 
-In both modes, the custom localizer redirects global `localize!` calls (used by
+In both modes, the custom localizer redirects hidden global localization
+helpers plus domain-scoped `localize_in_domain()` calls (used by
 `derive(EsFluent)` types) to the active Bevy resources, allowing standard Rust
 objects to stringify correctly even inside Bevy systems.
 
@@ -101,7 +105,9 @@ If any fields are marked with `#[locale]`, the macro generates a
 `RefreshForLocale` implementation and registers the locale-aware systems
 (`register_fluent_text_from_locale`). Otherwise it uses the standard
 registration (`register_fluent_text`). This keeps locale-driven fields
-(like `Languages` from `es_fluent_lang`) in sync automatically.
+(like `Languages` from `es_fluent_lang`) in sync automatically. Locale-aware
+refresh uses the originally requested locale, while bundle lookup can still use
+a resolved fallback resource locale underneath.
 
 Manual registration via `FluentTextRegistration` remains available for types
 that cannot derive the macro.
@@ -114,7 +120,7 @@ A global static that mirrors the ECS state for use by the custom localizer. It u
 static BEVY_I18N_STATE: OnceLock<ArcSwap<BevyI18nState>> = OnceLock::new();
 ```
 
-Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access during localization calls. When the bundle or language changes, a new `BevyI18nState` is atomically swapped in, ensuring the hot path (`localize!` calls) never blocks on a lock.
+Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access during localization calls. When the bundle or language changes, a new `BevyI18nState` is atomically swapped in, ensuring the hot path for derived/localizer lookups never blocks on a lock.
 
 ### `FtlAssetLoader`
 
@@ -122,7 +128,15 @@ Implements `AssetLoader` to parse `.ftl` files into `FtlAsset`s.
 
 ### `I18nResource`
 
-Holds the current active language. Setting this triggers the update pipeline.
+Holds the currently published active locale plus the resolved ready locale used
+for bundle lookup.
+
+### `RequestedLanguageId` and `ActiveLanguageId`
+
+`RequestedLanguageId` tracks the latest locale request immediately.
+`ActiveLanguageId` tracks the last locale the plugin actually published for UI
+and `LocaleChangedEvent`. This keeps Bevy-facing state explicit: user intent can
+move ahead of renderable state while assets are still loading.
 
 ### `FluentText<T>`
 
@@ -130,21 +144,26 @@ A component wrapper for localizable data. When registered (typically via
 `BevyFluentText`), the update systems keep the rendered string in sync with
 the current locale.
 
-When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change` system iterates over all `FluentText` components and re-renders the string data. Additionally, `update_fluent_text_system` handles initial rendering and updates when `FluentText` components are added or modified.
+When `LocaleChangedEvent` fires, the `update_all_fluent_text_on_locale_change`
+system iterates over all `FluentText` components and re-renders the string
+data for the published active locale. Additionally, `update_fluent_text_system`
+handles initial rendering and updates when `FluentText` components are added or
+modified.
 
 ### `define_i18n_module!`
 
 Re-exported from `es-fluent-manager-macros::define_bevy_i18n_module`. See the [es-fluent-manager-macros architecture](../../es-fluent-manager-macros/docs/ARCHITECTURE.md) for details on how the macro discovers languages and generates module data. This macro registers the crate's assets with the system so Bevy knows which domains to load.
 
 When namespaces are declared for a domain, namespace files are treated as
-required for that locale. The base `{domain}.ftl` file is loaded as optional
-compatibility data.
+required for that locale. The base `{domain}.ftl` file is not part of the
+canonical namespaced resource plan.
 
 For macro-generated modules, Bevy uses a compile-time manifest-derived
-`resource_plan_for_language` to decide which optional files should be queued.
-When no manifest is available, Bevy still loads optional assets through the
-normal `AssetServer` path and treats missing optional files as non-blocking
-load failures once the asset pipeline reports them.
+`resource_plan_for_language` as the authoritative per-locale load plan.
+Macro-generated namespaced modules emit only canonical `{domain}/{namespace}.ftl`
+entries in that manifest, so stray `{domain}.ftl` base files are not queued for
+namespaced locales. Optional entries only exist when a registration explicitly
+returns them in its resource plan.
 
 ## Flow
 
@@ -153,4 +172,4 @@ load failures once the asset pipeline reports them.
 1. **Compilation**: `I18nBundle` creates `FluentBundle`s from loaded assets.
 1. **Localization**:
    - **Components**: `FluentText<T>` components update automatically via `update_all_fluent_text_on_locale_change`.
-   - **Global**: `localize!("my-id")` works anywhere because the global hook calls back into the Bevy state.
+   - **Global**: derive-generated lookups and domain-scoped localization calls work because the global hook calls back into the Bevy state.

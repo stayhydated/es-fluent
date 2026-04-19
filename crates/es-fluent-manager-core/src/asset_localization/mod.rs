@@ -70,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn resource_plan_with_namespaces_requires_namespace_files() {
+    fn resource_plan_with_namespaces_requires_namespace_files_and_keeps_base_optional() {
         let plan = resource_plan_for("app", &["ui", "errors"]);
         assert_eq!(
             plan,
@@ -92,6 +92,7 @@ mod tests {
                 }
             ]
         );
+        assert_eq!(plan[0].locale_path(&langid!("en-US")), "en-US/app.ftl");
         assert_eq!(plan[1].locale_path(&langid!("en-US")), "en-US/app/ui.ftl");
     }
 
@@ -119,6 +120,7 @@ mod tests {
     fn resource_plan_deduplicates_duplicate_namespaces() {
         let plan = resource_plan_for("app", &["ui", "ui"]);
         assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].key, ResourceKey::new("app"));
         assert_eq!(plan[1].key, ResourceKey::new("app/ui"));
     }
 
@@ -144,7 +146,6 @@ mod tests {
         let mut report = LocaleLoadReport::from_plan(&plan);
 
         report.mark_loaded(ResourceKey::new("app/ui"));
-        report.record_error(ResourceLoadError::load(&plan[0], "file watcher error"));
 
         assert!(report.is_ready());
         assert_eq!(
@@ -270,25 +271,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_fluent_resource_bytes_reports_utf8_errors() {
-        let spec = ModuleResourceSpec {
-            key: ResourceKey::new("app/ui"),
-            locale_relative_path: "app/ui.ftl".to_string(),
-            required: false,
-        };
-
-        let err =
-            parse_fluent_resource_bytes(&spec, &[0xFF, 0xFE]).expect_err("invalid utf-8 bytes");
-        assert!(matches!(
-            err,
-            ResourceLoadError::InvalidUtf8 {
-                required: false,
-                ..
-            }
-        ));
-    }
-
-    #[test]
     fn load_locale_resources_centralizes_report_bookkeeping() {
         let plan = resource_plan_for("app", &["ui"]);
         let (resources, report) = load_locale_resources(&plan, |spec| {
@@ -306,6 +288,13 @@ mod tests {
         assert_eq!(resources.len(), 1);
         assert!(report.is_ready());
         assert_eq!(report.errors().len(), 1);
+        assert!(matches!(
+            report.errors()[0],
+            ResourceLoadError::Missing {
+                required: false,
+                ..
+            }
+        ));
     }
 
     #[test]

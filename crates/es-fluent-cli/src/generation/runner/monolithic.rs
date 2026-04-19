@@ -1,6 +1,6 @@
-use super::CLI_VERSION;
 use super::config::TempCrateConfig;
 use super::exec::RunnerCrate;
+use super::{CLI_VERSION, utf8_path_string};
 use crate::core::WorkspaceInfo;
 use crate::generation::templates::{
     GitignoreTemplate, MonolithicCrateDep, MonolithicMainRsTemplate,
@@ -12,9 +12,10 @@ use cargo_manifest::{
     Workspace,
 };
 use es_fluent_runner::{RunnerMetadataStore, RunnerRequest};
+use fs_err as fs;
+use std::env;
 use std::path::PathBuf;
 use std::process::Command;
-use std::{env, fs};
 use toml::{Value, map::Map as TomlMap};
 
 pub(super) struct MonolithicRunner<'a> {
@@ -104,20 +105,25 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
     .context("Failed to write .es-fluent/.gitignore")?;
 
     let root_manifest = workspace.root_dir.join("Cargo.toml");
-    let config = TempCrateConfig::from_manifest(&root_manifest);
+    let config = TempCrateConfig::from_manifest(&root_manifest)?;
 
     let crate_deps: Vec<MonolithicCrateDep> = workspace
         .crates
         .iter()
         .filter(|c| c.has_lib_rs)
-        .map(|c| MonolithicCrateDep {
-            name: &c.name,
-            path: c.manifest_dir.to_string_lossy().into_owned(),
-            ident: c.name.replace('-', "_"),
-            has_features: !c.fluent_features.is_empty(),
-            features: &c.fluent_features,
+        .map(|c| {
+            Ok(MonolithicCrateDep {
+                name: &c.name,
+                path: utf8_path_string(
+                    &c.manifest_dir,
+                    &format!("workspace manifest directory for crate '{}'", c.name),
+                )?,
+                ident: c.name.replace('-', "_"),
+                has_features: !c.fluent_features.is_empty(),
+                features: &c.fluent_features,
+            })
         })
-        .collect();
+        .collect::<Result<_>>()?;
 
     runner_crate.write_cargo_toml(&render_monolithic_cargo_toml(&crate_deps, &config)?)?;
 

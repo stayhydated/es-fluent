@@ -1,0 +1,8 @@
+---
+source: crates/es-fluent-generate/tests/clean_mode_test.rs
+expression: content
+---
+## CountryLabelVariants
+
+country_label_variants-Canada = Canada
+country_label_variants-USA = USA

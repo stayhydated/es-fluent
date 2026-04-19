@@ -1,7 +1,7 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    BevyFluentText, CurrentLanguageId, FluentText, I18nPlugin, LocaleChangeEvent,
+    BevyFluentText, FluentText, I18nPlugin, LocaleChangeEvent, RequestedLanguageId,
 };
 use example_shared_lib::{ButtonState, Languages};
 
@@ -75,10 +75,10 @@ pub fn wasm_main() {
 fn locale_change_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut locale_change_events: MessageWriter<LocaleChangeEvent>,
-    current_language: Res<CurrentLanguageId>,
+    requested_language: Res<RequestedLanguageId>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyT)
-        && let Ok(lang) = Languages::try_from(&current_language.0)
+        && let Ok(lang) = Languages::try_from(&requested_language.0)
     {
         locale_change_events.write(LocaleChangeEvent(lang.next().into()));
     }
@@ -128,7 +128,7 @@ fn button_system(
 
 fn locale_button_system(
     mut locale_change_events: MessageWriter<LocaleChangeEvent>,
-    current_language: Res<CurrentLanguageId>,
+    requested_language: Res<RequestedLanguageId>,
     mut interaction_query: Query<
         (&Interaction, &mut BackgroundColor, &mut BorderColor),
         (Changed<Interaction>, With<LocaleButton>),
@@ -139,7 +139,7 @@ fn locale_button_system(
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
                 *border_color = BorderColor::all(RED);
-                if let Ok(lang) = Languages::try_from(&current_language.0) {
+                if let Ok(lang) = Languages::try_from(&requested_language.0) {
                     locale_change_events.write(LocaleChangeEvent(lang.next().into()));
                 }
             },

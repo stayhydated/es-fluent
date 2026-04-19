@@ -8,7 +8,7 @@ This document details the architecture of the `es-fluent-manager-embedded` crate
 
 - Localization files should be bundled into the single binary executable.
 - Hot-reloading is not required.
-- Global state access is preferred (via `once_cell` / `std::sync`).
+- Global state access is preferred through the shared singleton.
 
 ## Architecture
 
@@ -27,7 +27,7 @@ flowchart TD
 
     subgraph RUNTIME["Runtime"]
         Display["Impl FluentDisplay"]
-        Localize["localize! macro"]
+        Localize["derive-generated lookup helpers"]
     end
 
     MACRO -->|registers modules| MGR
@@ -57,9 +57,9 @@ Calls to `init()` or `init_with_language()`:
 1. Register it as the global context provider for `es-fluent`.
 
 For namespaced modules, namespace files are the canonical per-locale resources.
-`{domain}.ftl` is optional compatibility data when namespaces are present.
+`{domain}.ftl` is not part of the canonical resource plan when namespaces are present.
 
-This enables the use of `es_fluent::localize!` anywhere in the application code without passing a manager context around.
+This enables derive-generated `to_fluent_string()` lookups anywhere in the application code without passing a manager context around.
 
 ## Macro
 
@@ -72,15 +72,14 @@ This macro requires the `macros` feature, which is enabled by default.
 The initialization entry points are idempotent for manager setup:
 
 - `init()`
-  Uses best-effort discovery and logs initialization failures instead of
+  Uses strict discovery and logs initialization failures instead of
   returning them.
 - `try_init()`
-  Uses strict discovery and returns a `Result`, so duplicate or invalid
-  registrations fail before publication.
+  Uses strict discovery and returns a `Result`.
 - `init_with_language()`
-  Uses best-effort discovery, selects the requested language before
-  publication, applies the language to the live manager on repeated calls, and
-  logs initialization failures instead of returning them.
+  Uses strict discovery, selects the requested language before publication,
+  applies the language to the live manager on repeated calls, and logs
+  initialization failures instead of returning them.
 - `try_init_with_language()`
   Uses the strict discovered-manager path, selects the requested language
   before publication, and returns any initialization error.
@@ -98,7 +97,7 @@ es_fluent_manager_embedded::define_i18n_module!();
 
 // In main.rs
 fn main() {
-    es_fluent_manager_embedded::init_with_language("en-US");
+    es_fluent_manager_embedded::init_with_language(unic_langid::langid!("en-US"));
 
     println!("{}", MyMessage { ... }); // Automatically localized
 }

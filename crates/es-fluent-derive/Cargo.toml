@@ -26,9 +26,13 @@ strum = { features = [ "derive" ], workspace = true }
 syn = { features = [ "full" ], workspace = true }
 
 [dev-dependencies]
-es-fluent-derive-core = { workspace = true }
+fs-err = { workspace = true }
 insta = { workspace = true }
-syn = { features = [ "full" ], workspace = true }
+prettyplease = { workspace = true }
+serial_test = { workspace = true }
+temp-env = { workspace = true }
+tempfile = { workspace = true }
+toml = { workspace = true }
 
 [lints]
 workspace = true

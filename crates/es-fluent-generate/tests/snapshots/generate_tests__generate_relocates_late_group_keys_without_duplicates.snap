@@ -1,0 +1,11 @@
+---
+source: crates/es-fluent-generate/tests/generate_tests.rs
+expression: content
+---
+## GroupA
+
+group_a-A1 = Value A1
+
+## GroupB
+
+group_b-B1 = B1

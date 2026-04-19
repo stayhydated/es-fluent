@@ -4,16 +4,18 @@ use crate::asset_localization::{
     I18nModuleDescriptor, ModuleData, ResourceLoadStatus, load_locale_resources,
     parse_fluent_resource_bytes,
 };
-use crate::fallback::fallback_locales;
+use crate::fallback::resolve_fallback_language;
 use crate::localization::{
     I18nModule, LocalizationError, Localizer, SyncFluentBundle, build_sync_bundle,
-    localize_with_bundle,
+    fallback_errors_are_fatal, localize_with_bundle, localize_with_fallback_resources,
 };
-use fluent_bundle::{FluentResource, FluentValue};
-use fluent_fallback::env::LocalesProvider as _;
+use es_fluent_shared::parse_canonical_language_identifier;
+use fluent_bundle::{FluentError, FluentResource, FluentValue};
+use parking_lot::RwLock;
 use rust_embed::RustEmbed;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::io;
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
@@ -33,28 +35,69 @@ pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     data: &'static ModuleData,
     current_bundle: RwLock<Option<Arc<SyncFluentBundle>>>,
     current_lang: RwLock<Option<LanguageIdentifier>>,
+    current_locale_resources: RwLock<Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)>>,
     _phantom: std::marker::PhantomData<T>,
 }
 
-fn read_lock<'a, T>(lock: &'a RwLock<T>, context: &str) -> RwLockReadGuard<'a, T> {
-    match lock.read() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("{context} lock poisoned while reading; recovering");
-            poisoned.into_inner()
-        },
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BundleBuildError {
+    module_name: String,
+    language: LanguageIdentifier,
+    diagnostics: Vec<String>,
+}
+
+impl BundleBuildError {
+    fn from_add_errors(
+        module_name: &str,
+        language: &LanguageIdentifier,
+        add_errors: Vec<Vec<FluentError>>,
+    ) -> Self {
+        let diagnostics = add_errors
+            .into_iter()
+            .enumerate()
+            .map(|(resource_index, errors)| {
+                let messages = errors
+                    .into_iter()
+                    .map(|error| error.to_string())
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                format!("resource #{resource_index}: {messages}")
+            })
+            .collect();
+
+        Self {
+            module_name: module_name.to_string(),
+            language: language.clone(),
+            diagnostics,
+        }
+    }
+
+    pub fn module_name(&self) -> &str {
+        &self.module_name
+    }
+
+    pub fn language(&self) -> &LanguageIdentifier {
+        &self.language
+    }
+
+    pub fn diagnostics(&self) -> &[String] {
+        &self.diagnostics
     }
 }
 
-fn write_lock<'a, T>(lock: &'a RwLock<T>, context: &str) -> RwLockWriteGuard<'a, T> {
-    match lock.write() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("{context} lock poisoned while writing; recovering");
-            poisoned.into_inner()
-        },
+impl std::fmt::Display for BundleBuildError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "failed to build a Fluent bundle for module '{}' and language '{}': {}",
+            self.module_name,
+            self.language,
+            self.diagnostics.join(" | ")
+        )
     }
 }
+
+impl std::error::Error for BundleBuildError {}
 
 impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     pub fn new(data: &'static ModuleData) -> Self {
@@ -62,6 +105,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
             data,
             current_bundle: RwLock::new(None),
             current_lang: RwLock::new(None),
+            current_locale_resources: RwLock::new(Vec::new()),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -118,31 +162,53 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 
 impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        let mut current_lang_guard = write_lock(&self.current_lang, "embedded localizer language");
-        for candidate in fallback_locales(lang).locales() {
-            if !self
-                .data
-                .supported_languages
-                .iter()
-                .any(|supported| supported == &candidate)
-            {
-                continue;
-            }
+        let mut current_lang_guard = self.current_lang.write();
 
-            if current_lang_guard.as_ref() == Some(&candidate) {
-                return Ok(());
-            }
+        if current_lang_guard.as_ref() == Some(lang) {
+            return Ok(());
+        }
+
+        let mut remaining_languages = self.data.supported_languages.to_vec();
+        let mut current_bundle = None;
+        let mut locale_resources = Vec::new();
+
+        while let Some(candidate) = resolve_fallback_language(lang, &remaining_languages) {
+            remaining_languages.retain(|supported| supported != &candidate);
 
             if let Ok(resources) = self.load_resource_for_language(&candidate) {
-                let (bundle, add_errors) = build_sync_bundle(&candidate, resources);
-                for errors in add_errors {
-                    tracing::error!("Failed to add resource to bundle: {:?}", errors);
+                let (mut candidate_bundle, add_errors) =
+                    build_sync_bundle(&candidate, resources.clone());
+                if !add_errors.is_empty() {
+                    if locale_resources.is_empty() {
+                        let error =
+                            BundleBuildError::from_add_errors(self.data.name, lang, add_errors);
+                        tracing::error!("{error}");
+                        return Err(io::Error::other(error).into());
+                    }
+
+                    tracing::warn!(
+                        "Skipping fallback locale '{}' for requested locale '{}' in module '{}' because Fluent bundle assembly failed",
+                        candidate,
+                        lang,
+                        self.data.name
+                    );
+                    continue;
                 }
-                *write_lock(&self.current_bundle, "embedded localizer bundle") =
-                    Some(Arc::new(bundle));
-                *current_lang_guard = Some(candidate);
-                return Ok(());
+
+                if current_bundle.is_none() {
+                    candidate_bundle.locales = crate::fallback::locale_candidates(lang);
+                    current_bundle = Some(Arc::new(candidate_bundle));
+                }
+
+                locale_resources.push((candidate, resources));
             }
+        }
+
+        if let Some(bundle) = current_bundle {
+            *self.current_bundle.write() = Some(bundle);
+            *self.current_locale_resources.write() = locale_resources;
+            *current_lang_guard = Some(lang.clone());
+            return Ok(());
         }
 
         // Preserve the last ready bundle on failure so callers can keep using
@@ -155,16 +221,31 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let bundle_guard = read_lock(&self.current_bundle, "embedded localizer bundle");
-        let bundle = bundle_guard.as_ref()?;
-        let (value, errors) = localize_with_bundle(bundle.as_ref(), id, args)?;
+        if let Some(bundle) = self.current_bundle.read().as_ref()
+            && let Some((value, errors)) = localize_with_bundle(bundle.as_ref(), id, args)
+        {
+            if !errors.is_empty() {
+                tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+                return None;
+            }
 
-        if !errors.is_empty() {
-            tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
+            return Some(value);
+        }
+
+        let locale_resources = self.current_locale_resources.read();
+        let (value, errors) =
+            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
+
+        if fallback_errors_are_fatal(&errors) {
+            tracing::error!(
+                "Fluent fallback formatting errors for id '{}': {:?}",
+                id,
+                errors
+            );
             return None;
         }
 
-        Some(value)
+        value
     }
 }
 
@@ -183,10 +264,11 @@ fn embedded_resource_from_asset_path(
     let next = segments.next()?;
 
     if next == format!("{domain}.ftl") && segments.next().is_none() {
-        return language
-            .parse::<LanguageIdentifier>()
-            .ok()
-            .map(|lang| (lang, None));
+        if !namespaces.is_empty() {
+            return None;
+        }
+
+        return parse_embedded_language_identifier(language).map(|lang| (lang, None));
     }
 
     if next != domain {
@@ -203,12 +285,14 @@ fn embedded_resource_from_asset_path(
         .iter()
         .any(|configured| configured == &namespace)
         .then(|| {
-            language
-                .parse::<LanguageIdentifier>()
-                .ok()
+            parse_embedded_language_identifier(language)
                 .map(|lang| (lang, Some(namespace.to_string())))
         })
         .flatten()
+}
+
+fn parse_embedded_language_identifier(raw: &str) -> Option<LanguageIdentifier> {
+    parse_canonical_language_identifier(raw).ok()
 }
 
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
@@ -245,8 +329,7 @@ impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {
 
         for file_path in T::iter() {
             let file_path_str = file_path.as_ref();
-            // Discover locales from canonical resource paths only:
-            // `{lang}/{domain}.ftl` and configured namespaced files like
+            // Discover locales from configured namespace paths only:
             // `{lang}/{domain}/ui/button.ftl`.
             if let Some((lang_id, Some(namespace))) =
                 embedded_resource_from_asset_path(file_path_str, domain, namespaces)
@@ -319,10 +402,10 @@ mod tests {
     }
 
     #[derive(RustEmbed)]
-    #[folder = "tests/fixtures/embedded_i18n_optional_base_error"]
-    struct OptionalBaseErrorAssets;
+    #[folder = "tests/fixtures/embedded_i18n_stray_base_file"]
+    struct StrayBaseFileAssets;
 
-    impl EmbeddedAssets for OptionalBaseErrorAssets {
+    impl EmbeddedAssets for StrayBaseFileAssets {
         fn domain() -> &'static str {
             "test-domain"
         }
@@ -346,6 +429,34 @@ mod tests {
         }
     }
 
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_bundle_add_error"]
+    struct BundleAddErrorAssets;
+
+    impl EmbeddedAssets for BundleAddErrorAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui", "errors"]
+        }
+    }
+
+    #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n_partial_fallback"]
+    struct PartialFallbackAssets;
+
+    impl EmbeddedAssets for PartialFallbackAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+
+        fn namespaces() -> &'static [&'static str] {
+            &["ui"]
+        }
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -359,19 +470,18 @@ mod tests {
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
-    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
-        &[langid!("ab"), langid!("cd"), langid!("ef")];
+    static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("ef")];
     static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "ns-error-module",
         domain: "test-domain",
         supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
-    static OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
-    static OPTIONAL_BASE_ERROR_MODULE_DATA: ModuleData = ModuleData {
-        name: "optional-base-error-module",
+    static STRAY_BASE_FILE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static STRAY_BASE_FILE_MODULE_DATA: ModuleData = ModuleData {
+        name: "stray-base-file-module",
         domain: "test-domain",
-        supported_languages: OPTIONAL_BASE_ERROR_SUPPORTED_LANGUAGES,
+        supported_languages: STRAY_BASE_FILE_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
     static NESTED_NAMESPACE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
@@ -380,6 +490,22 @@ mod tests {
         domain: "test-domain",
         supported_languages: NESTED_NAMESPACE_SUPPORTED_LANGUAGES,
         namespaces: &["ui/button"],
+    };
+    static BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
+        &[langid!("en"), langid!("fr")];
+    static BUNDLE_ADD_ERROR_MODULE_DATA: ModuleData = ModuleData {
+        name: "bundle-add-error-module",
+        domain: "test-domain",
+        supported_languages: BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES,
+        namespaces: &["ui", "errors"],
+    };
+    static PARTIAL_FALLBACK_SUPPORTED_LANGUAGES: &[LanguageIdentifier] =
+        &[langid!("en-US"), langid!("en")];
+    static PARTIAL_FALLBACK_MODULE_DATA: ModuleData = ModuleData {
+        name: "partial-fallback-module",
+        domain: "test-domain",
+        supported_languages: PARTIAL_FALLBACK_SUPPORTED_LANGUAGES,
+        namespaces: NAMESPACES,
     };
 
     #[test]
@@ -398,7 +524,7 @@ mod tests {
     fn embedded_language_discovery_only_accepts_canonical_resources() {
         assert_eq!(
             embedded_resource_from_asset_path("en/test-domain.ftl", "test-domain", &["ui"]),
-            Some((langid!("en"), None))
+            None
         );
         assert_eq!(
             embedded_resource_from_asset_path("en/test-domain/ui.ftl", "test-domain", &["ui"]),
@@ -418,6 +544,10 @@ mod tests {
         );
         assert_eq!(
             embedded_resource_from_asset_path("en/test-domain/misc.ftl", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("iw/test-domain/ui.ftl", "test-domain", &["ui"]),
             None
         );
     }
@@ -446,6 +576,10 @@ mod tests {
                 .is_some_and(|value| value.contains("Mark"))
         );
         assert_eq!(
+            localizer.localize("base-only", None),
+            Some("Hello main".to_string())
+        );
+        assert_eq!(
             localizer.localize("ui-title", None),
             Some("UI Title".to_string())
         );
@@ -456,10 +590,52 @@ mod tests {
     }
 
     #[test]
-    fn embedded_localizer_exercises_parse_and_utf8_error_paths() {
+    fn embedded_localizer_preserves_requested_locale_in_bundle_metadata() {
         let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
 
-        // en-GB has an invalid FTL file, so selection should fall back to en.
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("fallback to en should work");
+
+        assert_eq!(
+            localizer.current_lang.read().as_ref().cloned(),
+            Some(langid!("en-US"))
+        );
+
+        let bundle = localizer
+            .current_bundle
+            .read()
+            .as_ref()
+            .cloned()
+            .expect("bundle should be built");
+        assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
+    }
+
+    #[test]
+    fn embedded_localizer_uses_fluent_fallback_for_missing_messages() {
+        let localizer =
+            EmbeddedLocalizer::<PartialFallbackAssets>::new(&PARTIAL_FALLBACK_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en-US"))
+            .expect("partial locale should fall back to en for missing messages");
+
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from en-US".to_string())
+        );
+        assert_eq!(
+            localizer.localize("ui-title", None),
+            Some("Shared UI Title".to_string())
+        );
+    }
+
+    #[test]
+    fn embedded_localizer_exercises_fallback_and_missing_resource_paths() {
+        let localizer = EmbeddedLocalizer::<TestAssets>::new(&MODULE_DATA);
+
+        // en-GB does not have a ready canonical namespace resource, so
+        // selection should fall back to en.
         localizer
             .select_language(&langid!("en-GB"))
             .expect("should fall back from en-GB to en");
@@ -467,10 +643,10 @@ mod tests {
         // Missing required argument should produce formatting errors and return None.
         assert_eq!(localizer.localize("welcome", None), None);
 
-        // fr has invalid UTF-8 content.
+        // fr still is not ready because the required namespaced resource is missing.
         let fr_err = localizer
             .select_language(&langid!("fr"))
-            .expect_err("invalid UTF-8 should fail");
+            .expect_err("unready locale should fail");
         assert!(matches!(fr_err, LocalizationError::LanguageNotSupported(_)));
 
         // it is declared as supported but has no resources.
@@ -500,7 +676,7 @@ mod tests {
 
         let err = localizer
             .select_language(&langid!("fr"))
-            .expect_err("fr should fail because the embedded resource is invalid");
+            .expect_err("fr should fail because required namespaced resources are missing");
         assert!(matches!(err, LocalizationError::LanguageNotSupported(_)));
         assert_eq!(
             localizer.localize("ui-title", None),
@@ -518,7 +694,7 @@ mod tests {
     }
 
     #[test]
-    fn embedded_localizer_exercises_namespaced_parse_and_utf8_error_paths() {
+    fn embedded_localizer_exercises_namespaced_parse_and_missing_namespace_paths() {
         let localizer = EmbeddedLocalizer::<NamespaceErrorAssets>::new(&NS_ERROR_MODULE_DATA);
 
         let parse_err = localizer
@@ -526,14 +702,6 @@ mod tests {
             .expect_err("invalid namespaced FTL should fail");
         assert!(matches!(
             parse_err,
-            LocalizationError::LanguageNotSupported(_)
-        ));
-
-        let utf8_err = localizer
-            .select_language(&langid!("cd"))
-            .expect_err("invalid namespaced UTF-8 should fail");
-        assert!(matches!(
-            utf8_err,
             LocalizationError::LanguageNotSupported(_)
         ));
 
@@ -547,16 +715,15 @@ mod tests {
     }
 
     #[test]
-    fn embedded_localizer_tolerates_optional_base_parse_failures() {
-        let localizer =
-            EmbeddedLocalizer::<OptionalBaseErrorAssets>::new(&OPTIONAL_BASE_ERROR_MODULE_DATA);
+    fn embedded_localizer_ignores_noncanonical_base_files() {
+        let localizer = EmbeddedLocalizer::<StrayBaseFileAssets>::new(&STRAY_BASE_FILE_MODULE_DATA);
 
         localizer
             .select_language(&langid!("en"))
-            .expect("optional base parse failure should not block namespaced readiness");
+            .expect("noncanonical base files should not block namespaced readiness");
         assert_eq!(
             localizer.localize("hello", None),
-            Some("Hello from optional-base fixture".to_string())
+            Some("Hello from stray-base fixture".to_string())
         );
     }
 
@@ -571,6 +738,47 @@ mod tests {
         assert_eq!(
             localizer.localize("nested-title", None),
             Some("Nested UI Button".to_string())
+        );
+    }
+
+    #[test]
+    fn embedded_localizer_rejects_bundle_add_errors_and_preserves_previous_bundle() {
+        let localizer =
+            EmbeddedLocalizer::<BundleAddErrorAssets>::new(&BUNDLE_ADD_ERROR_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("en should load successfully");
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from bundle-add fixture".to_string())
+        );
+
+        let err = localizer
+            .select_language(&langid!("fr"))
+            .expect_err("duplicate ids across bundle resources should fail selection");
+        let bundle_error = match err {
+            LocalizationError::IoError(io_error) => io_error
+                .get_ref()
+                .and_then(|error| error.downcast_ref::<BundleBuildError>())
+                .cloned()
+                .expect("bundle build diagnostics should be preserved inside the io error"),
+            other => panic!("expected io-backed bundle build error, got {other:?}"),
+        };
+
+        assert_eq!(bundle_error.module_name(), "bundle-add-error-module");
+        assert_eq!(bundle_error.language(), &langid!("fr"));
+        assert!(
+            bundle_error
+                .diagnostics()
+                .iter()
+                .any(|message| message.contains("hello")),
+            "bundle build diagnostics should mention the duplicate message"
+        );
+        assert_eq!(
+            localizer.localize("hello", None),
+            Some("Hello from bundle-add fixture".to_string()),
+            "failed switches should keep the last ready locale active"
         );
     }
 }

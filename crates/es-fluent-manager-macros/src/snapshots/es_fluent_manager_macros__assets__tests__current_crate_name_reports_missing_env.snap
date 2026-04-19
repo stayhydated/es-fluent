@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-manager-macros/src/assets.rs
+expression: err.to_string()
+---
+CARGO_PKG_NAME must be set

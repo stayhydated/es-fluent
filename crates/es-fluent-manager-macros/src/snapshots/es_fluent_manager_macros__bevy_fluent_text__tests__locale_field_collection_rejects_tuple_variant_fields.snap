@@ -1,0 +1,5 @@
+---
+source: crates/es-fluent-manager-macros/src/bevy_fluent_text.rs
+expression: tuple_enum_err.to_string()
+---
+#[locale] is only supported on named struct fields and named enum variant fields

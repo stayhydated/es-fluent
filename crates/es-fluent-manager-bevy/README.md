@@ -20,7 +20,7 @@ This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and As
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localizer hook or fail fast when another integration already installed one.
+- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localization bridge or fail fast when another integration already installed one.
 
 ## Quick Start
 
@@ -56,8 +56,7 @@ fn main() {
 `I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
 inside Bevy, but it now defaults to
 `GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
-another integration already owns the process-global `es_fluent::localize`
-hook.
+another integration already owns the process-global localization bridge.
 
 If your Bevy app intentionally owns that hook and should override any previous
 registration, opt in explicitly:
@@ -71,17 +70,14 @@ App::new().add_plugins(
 );
 ```
 
-If you also want plugin startup to fail on duplicate or invalid module
-registrations, opt into strict registry validation:
+Plugin startup always uses strict module discovery, so invalid or duplicate
+registrations fail the app boot instead of being normalized silently.
+Failed hot reloads or locale switches keep the last accepted locale active
+instead of publishing a broken update.
 
-```rs
-use es_fluent_manager_bevy::{I18nPlugin, ModuleRegistryMode};
-
-App::new().add_plugins(
-    I18nPlugin::with_language(langid!("en-US"))
-        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted),
-);
-```
+Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
+to read the currently published locale. `LocaleChangedEvent` refers to
+`ActiveLanguageId`, not merely the latest request.
 
 ### 3. Define Localizable Components (Recommended)
 
@@ -95,6 +91,10 @@ The macro will generate `RefreshForLocale` and register the locale-aware
 systems for you. `#[locale]` is supported on named struct fields and named
 enum variant fields, and you can mark more than one named field in the same
 variant when they all need refresh behavior.
+
+`RefreshForLocale` receives the originally requested locale, not the fallback
+resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware
+fields still refresh with `en-GB`.
 
 ```rs
 use bevy::prelude::Component;

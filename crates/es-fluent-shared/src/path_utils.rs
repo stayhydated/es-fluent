@@ -1,6 +1,7 @@
 //! Common path utilities for the es-fluent ecosystem.
 
 use crate::error::{EsFluentError, EsFluentResult};
+use crate::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
 use std::path::Path;
 
 /// Parse a directory entry as a language identifier.
@@ -21,11 +22,20 @@ pub fn parse_language_entry(
         ))
     })?;
 
-    let lang = name
-        .parse::<unic_langid::LanguageIdentifier>()
-        .map_err(|e| {
-            EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", e))
-        })?;
+    let lang = parse_canonical_language_identifier(&name).map_err(|err| match err {
+        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+            EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", source))
+        },
+        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+            EsFluentError::invalid_language_identifier(
+                &name,
+                format!(
+                    "Locale directory must use canonical BCP-47 casing '{}'",
+                    canonical
+                ),
+            )
+        },
+    })?;
 
     Ok(Some(lang))
 }
@@ -104,6 +114,20 @@ mod tests {
                 .parse::<unic_langid::LanguageIdentifier>()
                 .expect("language")
         );
+    }
+
+    #[test]
+    fn parse_language_entry_rejects_noncanonical_locale_casing() {
+        let temp = tempdir().expect("tempdir");
+        std::fs::create_dir_all(temp.path().join("en-us")).expect("create noncanonical");
+
+        let entry = read_dir_entry_by_name(temp.path(), "en-us");
+        let err = parse_language_entry(entry).expect_err("noncanonical locale should fail");
+        assert!(matches!(
+            err,
+            EsFluentError::InvalidLanguageIdentifier { .. }
+        ));
+        assert!(err.to_string().contains("en-US"));
     }
 
     #[test]

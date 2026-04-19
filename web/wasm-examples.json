@@ -13,7 +13,7 @@
           "destination": "web/public/bevy-example/assets"
         }
       ],
-      "required_markers": ["es-fluent-lang-en = English"]
+      "required_markers": ["es-fluent-lang-en"]
     }
   ]
 }

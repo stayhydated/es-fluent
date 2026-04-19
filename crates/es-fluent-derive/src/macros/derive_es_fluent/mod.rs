@@ -57,57 +57,61 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
 }
 
 #[cfg(test)]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::expand_es_fluent;
-    use std::sync::{LazyLock, Mutex};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use crate::snapshot_support::pretty_file_tokens;
+    use fs_err as fs;
+    use insta::assert_snapshot;
+    use std::path::Path;
     use syn::parse_quote;
+    use tempfile::TempDir;
+    use toml::Value;
 
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+    fn string_value(value: &str) -> Value {
+        Value::String(value.to_string())
+    }
+
+    fn table(
+        entries: impl IntoIterator<Item = (&'static str, Value)>,
+    ) -> toml::map::Map<String, Value> {
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect()
+    }
+
+    fn write_toml(path: &Path, value: &Value) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create parent directory");
+        }
+        fs::write(
+            path,
+            toml::to_string(value).expect("serialize TOML fixture"),
+        )
+        .expect("write TOML fixture");
+    }
+
+    fn i18n_config(namespaces: &[&str]) -> Value {
+        Value::Table(table([
+            ("fallback_language", string_value("en-US")),
+            ("assets_dir", string_value("i18n")),
+            (
+                "namespaces",
+                Value::Array(namespaces.iter().copied().map(string_value).collect()),
+            ),
+        ]))
+    }
 
     fn with_manifest_dir<T>(namespaces: &[&str], f: impl FnOnce() -> T) -> T {
-        let _guard = ENV_LOCK.lock().expect("lock poisoned");
-        let previous = std::env::var_os("CARGO_MANIFEST_DIR");
+        let temp_dir = TempDir::new().expect("create temp manifest dir");
+        let manifest_dir = temp_dir.path();
 
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock should be after unix epoch")
-            .as_nanos();
-        let manifest_dir = std::env::temp_dir().join(format!(
-            "es-fluent-derive-expand-{pid}-{unique}",
-            pid = std::process::id()
-        ));
+        write_toml(&manifest_dir.join("i18n.toml"), &i18n_config(namespaces));
 
-        std::fs::create_dir_all(&manifest_dir).expect("create temp manifest dir");
-        let namespaces_value = namespaces
-            .iter()
-            .map(|ns| format!("\"{ns}\""))
-            .collect::<Vec<_>>()
-            .join(", ");
-        std::fs::write(
-            manifest_dir.join("i18n.toml"),
-            format!(
-                "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\nnamespaces = [{namespaces_value}]\n"
-            ),
-        )
-        .expect("write i18n.toml");
-
-        // SAFETY: tests serialize environment updates with a global lock.
-        unsafe { std::env::set_var("CARGO_MANIFEST_DIR", &manifest_dir) };
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-        match previous {
-            Some(prev) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var("CARGO_MANIFEST_DIR", prev) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
-            },
-        }
-        let _ = std::fs::remove_dir_all(&manifest_dir);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), f)
+        }));
 
         match result {
             Ok(value) => value,
@@ -116,25 +120,30 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_generates_tokens_for_enum_and_struct() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum Status {
                 Ready,
             }
         };
-        let enum_tokens = expand_es_fluent(enum_input).to_string();
-        assert!(enum_tokens.contains("impl"));
+        let enum_tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!("expand_es_fluent_generates_tokens_for_enum", enum_tokens);
 
         let struct_input: syn::DeriveInput = parse_quote! {
             struct User {
                 id: u64
             }
         };
-        let struct_tokens = expand_es_fluent(struct_input).to_string();
-        assert!(struct_tokens.contains("impl"));
+        let struct_tokens = pretty_file_tokens(expand_es_fluent(struct_input));
+        assert_snapshot!(
+            "expand_es_fluent_generates_tokens_for_struct",
+            struct_tokens
+        );
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_returns_compile_errors_for_attribute_parse_failures() {
         let enum_input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = 123)]
@@ -142,8 +151,11 @@ mod tests {
                 A
             }
         };
-        let enum_tokens = expand_es_fluent(enum_input).to_string();
-        assert!(enum_tokens.contains("compile_error"));
+        let enum_tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_errors_for_bad_enum_attribute",
+            enum_tokens
+        );
 
         let struct_input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = 123)]
@@ -151,8 +163,11 @@ mod tests {
                 a: i32
             }
         };
-        let struct_tokens = expand_es_fluent(struct_input).to_string();
-        assert!(struct_tokens.contains("compile_error"));
+        let struct_tokens = pretty_file_tokens(expand_es_fluent(struct_input));
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_errors_for_bad_struct_attribute",
+            struct_tokens
+        );
     }
 
     #[test]
@@ -210,6 +225,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_emits_field_level_tuple_arg_name() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
@@ -217,11 +233,12 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(tokens.contains("\"value\""));
+        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!("expand_es_fluent_emits_field_level_tuple_arg_name", tokens);
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
@@ -229,12 +246,15 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(tokens.contains("\"f1\""));
-        assert!(tokens.contains("\"f2\""));
+        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override",
+            tokens
+        );
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_uses_explicit_domain_override_for_enum_lookup() {
         let enum_input: syn::DeriveInput = parse_quote! {
             #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang")]
@@ -244,13 +264,15 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(tokens.contains("localize_in_domain"));
-        assert!(tokens.contains("\"es-fluent-lang\""));
-        assert!(tokens.contains("es-fluent-lang-en"));
+        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_uses_explicit_domain_override_for_enum_lookup",
+            tokens
+        );
     }
 
     #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_handles_tuple_variant_with_all_fields_skipped() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
@@ -258,7 +280,27 @@ mod tests {
             }
         };
 
-        let tokens = expand_es_fluent(enum_input).to_string();
-        assert!(!tokens.contains("__es_fluent_arg_keys"));
+        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_handles_tuple_variant_with_all_fields_skipped",
+            tokens
+        );
+    }
+
+    #[test]
+    #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
+    fn expand_es_fluent_delegates_skipped_single_field_variant() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network(NetworkError),
+            }
+        };
+
+        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        assert_snapshot!(
+            "expand_es_fluent_delegates_skipped_single_field_variant",
+            tokens
+        );
     }
 }

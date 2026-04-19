@@ -5,8 +5,8 @@ use es_fluent_manager_core::{
     ModuleData, ModuleRegistrationKind, ModuleResourceSpec, ResourceKey, StaticModuleDescriptor,
 };
 use fluent_bundle::FluentValue;
+use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use unic_langid::{LanguageIdentifier, langid};
 
@@ -158,7 +158,7 @@ impl I18nModule for SelectiveFallbackModule {
 impl Localizer for SelectiveFallbackLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
         if lang == &langid!("en") {
-            *self.selected.write().expect("lock poisoned") = Some(lang.clone());
+            *self.selected.write() = Some(lang.clone());
             Ok(())
         } else {
             Err(LocalizationError::LanguageNotSupported(lang.clone()))
@@ -171,7 +171,7 @@ impl Localizer for SelectiveFallbackLocalizer {
         _args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         (id == "selected-language")
-            .then(|| self.selected.read().expect("lock poisoned").clone())
+            .then(|| self.selected.read().clone())
             .flatten()
             .map(|lang| lang.to_string())
     }

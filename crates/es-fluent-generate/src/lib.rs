@@ -34,7 +34,7 @@ pub(crate) use merge::{
 pub(crate) use model::{OwnedTypeInfo, OwnedVariant};
 
 /// The mode to use when parsing Fluent files.
-#[derive(Clone, Debug, Default, strum::Display, PartialEq, ValueEnum)]
+#[derive(Clone, Debug, Default, strum::Display, Eq, PartialEq, ValueEnum)]
 #[strum(serialize_all = "snake_case")]
 pub enum FluentParseMode {
     /// Overwrite existing translations.

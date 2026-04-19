@@ -3,15 +3,39 @@ use super::exec::RunnerCrate;
 use super::monolithic::MonolithicRunner;
 use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
-use crate::generation::cache::{
-    MetadataCache, RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
+use crate::generation::cache::{MetadataCache, RunnerCache, compute_crate_inputs_hash};
+use crate::test_fixtures::{
+    FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner,
+    install_fake_runner_with_cache, runner_binary_mtime, save_runner_cache,
+    toml_helpers::{
+        i18n_config, insert_section, package_manifest as package_manifest_toml, string_value,
+        table, write_toml,
+    },
+    write_file,
 };
-use crate::test_fixtures::{FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner};
 use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
-use std::fs;
-use std::io::Write;
+use fs_err as fs;
 use std::path::Path;
-use std::time::SystemTime;
+use toml::Value;
+
+fn package_manifest(name: &str) -> Value {
+    package_manifest_with_version(name, "0.1.0")
+}
+
+fn package_manifest_with_version(name: &str, version: &str) -> Value {
+    package_manifest_toml(name, version)
+}
+
+fn toml_string(value: &Value) -> String {
+    toml::to_string(value).expect("serialize TOML fixture")
+}
+
+fn cargo_build_config(target_dir: &str) -> Value {
+    Value::Table(table([(
+        "build",
+        Value::Table(table([("target-dir", string_value(target_dir))])),
+    )]))
+}
 
 fn create_workspace_fixture(
     crate_name: &str,
@@ -19,30 +43,19 @@ fn create_workspace_fixture(
 ) -> (tempfile::TempDir, WorkspaceInfo) {
     let temp = tempfile::tempdir().expect("tempdir");
 
-    std::fs::write(
-        temp.path().join("Cargo.toml"),
-        format!(
-            r#"[package]
-name = "{crate_name}"
-version = "0.1.0"
-edition = "2024"
-"#
-        ),
-    )
-    .expect("write Cargo.toml");
+    write_toml(
+        &temp.path().join("Cargo.toml"),
+        &package_manifest(crate_name),
+    );
 
     let src_dir = temp.path().join("src");
-    std::fs::create_dir_all(&src_dir).expect("create src");
+    fs::create_dir_all(&src_dir).expect("create src");
     if has_lib_rs {
-        std::fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
+        write_file(&src_dir.join("lib.rs"), "pub struct Demo;\n");
     }
 
     let i18n_config_path = temp.path().join("i18n.toml");
-    std::fs::write(
-        &i18n_config_path,
-        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-    )
-    .expect("write i18n.toml");
+    write_toml(&i18n_config_path, &i18n_config("en", "i18n"));
 
     let krate = CrateInfo {
         name: crate_name.to_string(),
@@ -71,9 +84,57 @@ fn crate_inputs_hash(krate: &CrateInfo) -> String {
     )
 }
 
+fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<String, String> {
+    workspace
+        .crates
+        .iter()
+        .map(|krate| (krate.name.clone(), crate_inputs_hash(krate)))
+        .collect()
+}
+
+fn ensure_runner_dirs(runner: &MonolithicRunner<'_>) {
+    fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
+        .expect("create binary dir");
+    fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
+}
+
+fn install_cached_runner(
+    runner: &MonolithicRunner<'_>,
+    workspace: &WorkspaceInfo,
+    behavior: &FakeRunnerBehavior,
+) -> u64 {
+    ensure_runner_dirs(runner);
+    install_fake_runner_with_cache(
+        &runner.binary_path,
+        &runner.temp_store,
+        &workspace.root_dir,
+        behavior,
+        CLI_VERSION,
+        workspace_crate_hashes(workspace),
+    )
+}
+
+fn write_cached_runner(
+    runner: &MonolithicRunner<'_>,
+    workspace: &WorkspaceInfo,
+    runner_mtime: u64,
+    cli_version: &str,
+    crate_hashes: indexmap::IndexMap<String, String>,
+) {
+    ensure_runner_dirs(runner);
+    save_runner_cache(
+        &runner.temp_store,
+        &workspace.root_dir,
+        runner_mtime,
+        cli_version,
+        crate_hashes,
+    );
+}
+
 #[test]
 fn test_temp_crate_config_nonexistent_manifest() {
-    let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"));
+    let config = TempCrateConfig::from_manifest(Path::new("/nonexistent/Cargo.toml"))
+        .expect("load temp crate config");
     // With fallback, should find local es-fluent from CLI workspace
     // If running in CI or different environment, may still be crates.io
     assert!(matches!(
@@ -89,23 +150,22 @@ fn test_temp_crate_config_non_workspace_member() {
     let temp_dir = tempfile::tempdir().unwrap();
     let manifest_path = temp_dir.path().join("Cargo.toml");
 
-    let cargo_toml = r#"
-[package]
-name = "test-crate"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-es-fluent = { version = "*" }
-"#;
-    let mut file = fs::File::create(&manifest_path).unwrap();
-    file.write_all(cargo_toml.as_bytes()).unwrap();
+    let mut cargo_toml = package_manifest("test-crate");
+    insert_section(
+        &mut cargo_toml,
+        "dependencies",
+        Value::Table(table([(
+            "es-fluent",
+            Value::Table(table([("version", string_value("*"))])),
+        )])),
+    );
+    write_toml(&manifest_path, &cargo_toml);
 
     let src_dir = temp_dir.path().join("src");
     fs::create_dir_all(&src_dir).unwrap();
     fs::write(src_dir.join("lib.rs"), "").unwrap();
 
-    let config = TempCrateConfig::from_manifest(&manifest_path);
+    let config = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
     // With fallback, should find local es-fluent from CLI workspace
     assert!(matches!(
         config.es_fluent_dep,
@@ -120,17 +180,22 @@ fn temp_crate_config_extracts_manifest_overrides() {
     let temp_dir = tempfile::tempdir().unwrap();
     let manifest_path = temp_dir.path().join("Cargo.toml");
 
-    let cargo_toml = r#"
-[package]
-name = "override-test"
-version = "0.1.0"
-edition = "2024"
-
-[replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "15d8660748b508b3525d3403e5d172f1a557bfa5" }
-"#;
-    let mut file = fs::File::create(&manifest_path).unwrap();
-    file.write_all(cargo_toml.as_bytes()).unwrap();
+    let mut cargo_toml = package_manifest("override-test");
+    insert_section(
+        &mut cargo_toml,
+        "replace",
+        Value::Table(table([(
+            "https://github.com/zed-industries/zed#gpui@0.2.2",
+            Value::Table(table([
+                ("git", string_value("https://github.com/zed-industries/zed")),
+                (
+                    "rev",
+                    string_value("15d8660748b508b3525d3403e5d172f1a557bfa5"),
+                ),
+            ])),
+        )])),
+    );
+    write_toml(&manifest_path, &cargo_toml);
 
     let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path);
     let rendered = toml::to_string(&toml::Value::Table(overrides)).expect("serialize overrides");
@@ -146,19 +211,11 @@ edition = "2024"
 fn temp_crate_config_uses_valid_cached_metadata() {
     let temp = tempfile::tempdir().expect("tempdir");
     let manifest_path = temp.path().join("Cargo.toml");
-    std::fs::write(
-        &manifest_path,
-        r#"[package]
-name = "cached"
-version = "0.1.0"
-edition = "2024"
-"#,
-    )
-    .expect("write Cargo.toml");
-    std::fs::write(temp.path().join("Cargo.lock"), "lock").expect("write Cargo.lock");
+    write_toml(&manifest_path, &package_manifest("cached"));
+    write_file(&temp.path().join("Cargo.lock"), "lock");
 
     let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
-    std::fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
+    fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
     MetadataCache {
         cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
         es_fluent_dep: cargo_manifest::Dependency::Detailed(cargo_manifest::DependencyDetail {
@@ -176,7 +233,7 @@ edition = "2024"
     .save(temp_dir.base_dir())
     .expect("save metadata cache");
 
-    let config = TempCrateConfig::from_manifest(&manifest_path);
+    let config = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
     match &config.es_fluent_dep {
         cargo_manifest::Dependency::Detailed(detail) => {
             assert_eq!(detail.path.as_deref(), Some("/tmp/es"));
@@ -196,18 +253,10 @@ edition = "2024"
 fn temp_crate_config_writes_metadata_cache_when_lock_exists() {
     let temp = tempfile::tempdir().expect("tempdir");
     let manifest_path = temp.path().join("Cargo.toml");
-    std::fs::write(
-        &manifest_path,
-        r#"[package]
-name = "cache-write"
-version = "0.1.0"
-edition = "2024"
-"#,
-    )
-    .expect("write Cargo.toml");
-    std::fs::write(temp.path().join("Cargo.lock"), "lock-content").expect("write lock");
+    write_toml(&manifest_path, &package_manifest("cache-write"));
+    write_file(&temp.path().join("Cargo.lock"), "lock-content");
 
-    let _ = TempCrateConfig::from_manifest(&manifest_path);
+    let _ = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
     let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let cache = MetadataCache::load(temp_dir.base_dir());
     assert!(cache.is_some(), "metadata cache should be written");
@@ -222,10 +271,10 @@ fn runner_crate_writes_manifest_and_config_files() {
     assert_eq!(manifest, temp.path().join("Cargo.toml"));
 
     runner
-        .write_cargo_toml("[package]\nname = \"runner\"\nversion = \"0.1.0\"\n")
+        .write_cargo_toml(&toml_string(&package_manifest("runner")))
         .expect("write Cargo.toml");
     runner
-        .write_cargo_config("[build]\ntarget-dir = \"../target\"\n")
+        .write_cargo_config(&toml_string(&cargo_build_config("../target")))
         .expect("write config.toml");
 
     assert!(temp.path().join("Cargo.toml").exists());
@@ -246,10 +295,10 @@ fn prepare_monolithic_runner_crate_writes_expected_files() {
 #[test]
 fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
     let (temp, workspace) = create_workspace_fixture("windows-paths", true);
-    std::fs::write(temp.path().join("Cargo.lock"), "lock").expect("write Cargo.lock");
+    write_file(&temp.path().join("Cargo.lock"), "lock");
 
     let temp_dir = RunnerMetadataStore::temp_for_workspace(temp.path());
-    std::fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
+    fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
     MetadataCache {
         cargo_lock_hash: MetadataCache::hash_cargo_lock(temp.path()).expect("hash lock"),
         es_fluent_dep: cargo_manifest::Dependency::Detailed(cargo_manifest::DependencyDetail {
@@ -270,7 +319,7 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
     let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
 
     let manifest =
-        std::fs::read_to_string(runner_dir.join("Cargo.toml")).expect("read runner Cargo.toml");
+        fs::read_to_string(runner_dir.join("Cargo.toml")).expect("read runner Cargo.toml");
     assert!(
         manifest.contains(r#"path = 'C:\work\es-fluent'"#),
         "runner manifest did not preserve a TOML-safe es-fluent path: {manifest}"
@@ -297,8 +346,8 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
         Some(r"C:\work\es-fluent-cli-helpers")
     );
 
-    let cargo_config = std::fs::read_to_string(runner_dir.join(".cargo/config.toml"))
-        .expect("read runner config.toml");
+    let cargo_config =
+        fs::read_to_string(runner_dir.join(".cargo/config.toml")).expect("read runner config.toml");
     assert!(
         cargo_config.contains(r#"target-dir = 'C:\work\target'"#),
         "runner config did not preserve a TOML-safe target dir: {cargo_config}"
@@ -317,38 +366,16 @@ fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
 fn monolithic_runner_staleness_detects_hash_changes() {
     let (_temp, workspace) = create_workspace_fixture("stale-check", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-
-    install_fake_runner(
-        &runner.binary_path,
+    install_cached_runner(
+        &runner,
+        &workspace,
         &FakeRunnerBehavior::stdout("monolithic-runner\n"),
     );
 
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-
-    let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
-
     assert!(!runner.is_stale(), "cache should mark runner as fresh");
 
-    std::fs::write(krate.src_dir.join("lib.rs"), "pub struct Changed;\n").expect("rewrite src");
+    let krate = &workspace.crates[0];
+    write_file(&krate.src_dir.join("lib.rs"), "pub struct Changed;\n");
     assert!(runner.is_stale(), "content change should mark runner stale");
 }
 
@@ -356,31 +383,8 @@ fn monolithic_runner_staleness_detects_hash_changes() {
 fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
     let (_temp, workspace) = create_workspace_fixture("fast-path", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::echo_args());
-
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::echo_args());
     let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
 
     let request = RunnerRequest::Generate {
         crate_name: krate.name.clone(),
@@ -402,31 +406,8 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
 fn run_monolithic_fast_path_reports_binary_failure() {
     let (_temp, workspace) = create_workspace_fixture("fast-fail", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::failing("boom\n"));
-
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::failing("boom\n"));
     let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
 
     let request = RunnerRequest::Generate {
         crate_name: krate.name.clone(),
@@ -447,25 +428,19 @@ fn run_monolithic_fast_path_reports_binary_failure() {
 #[test]
 fn run_cargo_helpers_execute_simple_temp_crate() {
     let temp = tempfile::tempdir().expect("tempdir");
-    std::fs::create_dir_all(temp.path().join("src")).expect("create src");
-    std::fs::write(
-        temp.path().join("Cargo.toml"),
-        r#"[package]
-name = "runner-test"
-version = "0.1.0"
-edition = "2024"
-"#,
-    )
-    .expect("write Cargo.toml");
-    std::fs::write(
-        temp.path().join("src/main.rs"),
+    fs::create_dir_all(temp.path().join("src")).expect("create src");
+    write_toml(
+        &temp.path().join("Cargo.toml"),
+        &package_manifest("runner-test"),
+    );
+    write_file(
+        &temp.path().join("src/main.rs"),
         r#"fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     println!("{}", args.join(" "));
 }
 "#,
-    )
-    .expect("write main.rs");
+    );
 
     let output = run_cargo(temp.path(), None, &["hello".to_string()]).expect("run cargo");
     assert!(output.contains("hello"));
@@ -508,41 +483,14 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
     // No binary metadata available -> stale.
     assert!(runner.is_stale());
 
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+    let mtime = install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-
-    let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes: crate_hashes.clone(),
-        runner_mtime: mtime,
-        cli_version: "0.0.0".to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save old-version cache");
+    let mut crate_hashes = workspace_crate_hashes(&workspace);
+    write_cached_runner(&runner, &workspace, mtime, "0.0.0", crate_hashes.clone());
     assert!(runner.is_stale(), "version mismatch should be stale");
 
     crate_hashes.insert("removed-crate".to_string(), "abc".to_string());
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save removed-crate cache");
+    write_cached_runner(&runner, &workspace, mtime, CLI_VERSION, crate_hashes);
     assert!(runner.is_stale(), "removed crate should be stale");
 }
 
@@ -550,42 +498,18 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
 fn monolithic_runner_staleness_detects_workspace_manifest_changes() {
     let (_temp, workspace) = create_workspace_fixture("manifest-stale", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-    let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
-
-    std::fs::write(
-        workspace.root_dir.join("Cargo.toml"),
-        r#"[package]
-name = "manifest-stale"
-version = "0.1.0"
-edition = "2024"
-
-[patch.crates-io]
-serde = "1"
-"#,
-    )
-    .expect("rewrite Cargo.toml");
+    let mut manifest = package_manifest("manifest-stale");
+    insert_section(
+        &mut manifest,
+        "patch",
+        Value::Table(table([(
+            "crates-io",
+            Value::Table(table([("serde", string_value("1"))])),
+        )])),
+    );
+    write_toml(&workspace.root_dir.join("Cargo.toml"), &manifest);
 
     assert!(
         runner.is_stale(),
@@ -597,38 +521,13 @@ serde = "1"
 fn monolithic_runner_staleness_detects_crate_manifest_changes() {
     let (_temp, workspace) = create_workspace_fixture("crate-manifest-stale", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
     let krate = &workspace.crates[0];
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), crate_inputs_hash(krate));
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
-
-    std::fs::write(
-        krate.manifest_dir.join("Cargo.toml"),
-        r#"[package]
-name = "crate-manifest-stale"
-version = "0.2.0"
-edition = "2024"
-"#,
-    )
-    .expect("rewrite crate manifest");
+    write_toml(
+        &krate.manifest_dir.join("Cargo.toml"),
+        &package_manifest_with_version("crate-manifest-stale", "0.2.0"),
+    );
 
     assert!(
         runner.is_stale(),
@@ -640,34 +539,13 @@ edition = "2024"
 fn monolithic_runner_staleness_detects_build_script_changes() {
     let (_temp, workspace) = create_workspace_fixture("build-script-stale", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
     let krate = &workspace.crates[0];
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), crate_inputs_hash(krate));
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
-
-    std::fs::write(
-        krate.manifest_dir.join("build.rs"),
+    write_file(
+        &krate.manifest_dir.join("build.rs"),
         "fn main() { println!(\"cargo:rerun-if-changed=build.rs\"); }\n",
-    )
-    .expect("write build.rs");
+    );
 
     assert!(
         runner.is_stale(),
@@ -678,34 +556,12 @@ fn monolithic_runner_staleness_detects_build_script_changes() {
 #[test]
 fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
     let (_temp, workspace) = create_workspace_fixture("lockfile-stale", true);
-    std::fs::write(workspace.root_dir.join("Cargo.lock"), "version = 4\n").expect("write lock");
+    write_file(&workspace.root_dir.join("Cargo.lock"), "version = 4\n");
 
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
+    install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-    let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
-
-    std::fs::write(workspace.root_dir.join("Cargo.lock"), "version = 5\n").expect("rewrite lock");
+    write_file(&workspace.root_dir.join("Cargo.lock"), "version = 5\n");
 
     assert!(
         runner.is_stale(),
@@ -717,29 +573,15 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
 fn monolithic_runner_staleness_rebuilds_when_mtime_changes() {
     let (_temp, workspace) = create_workspace_fixture("mtime-refresh", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
-    install_fake_runner(&runner.binary_path, &FakeRunnerBehavior::stdout("ok\n"));
-
-    let current_mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-    let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: current_mtime.saturating_sub(1),
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save stale-mtime cache");
+    let current_mtime =
+        install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
+    write_cached_runner(
+        &runner,
+        &workspace,
+        current_mtime.saturating_sub(1),
+        CLI_VERSION,
+        workspace_crate_hashes(&workspace),
+    );
 
     assert!(runner.is_stale(), "mtime mismatch should force a rebuild");
     let cached = RunnerCache::load(runner.temp_store.base_dir()).expect("load cached runner");
@@ -753,8 +595,7 @@ fn monolithic_runner_staleness_rebuilds_when_mtime_changes() {
 #[test]
 fn prepare_monolithic_runner_crate_copies_workspace_lock_file() {
     let (_temp, workspace) = create_workspace_fixture("lock-copy", true);
-    std::fs::write(workspace.root_dir.join("Cargo.lock"), "workspace-lock")
-        .expect("write workspace lock");
+    write_file(&workspace.root_dir.join("Cargo.lock"), "workspace-lock");
 
     let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
     assert!(runner_dir.join("Cargo.lock").exists());
@@ -763,22 +604,26 @@ fn prepare_monolithic_runner_crate_copies_workspace_lock_file() {
 #[test]
 fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
     let (_temp, workspace) = create_workspace_fixture("manifest-overrides", true);
-    std::fs::write(
-            workspace.root_dir.join("Cargo.toml"),
-            r#"[package]
-name = "manifest-overrides"
-version = "0.1.0"
-edition = "2024"
-
-[replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "15d8660748b508b3525d3403e5d172f1a557bfa5" }
-"#,
-        )
-        .expect("write manifest with overrides");
+    let mut manifest = package_manifest("manifest-overrides");
+    insert_section(
+        &mut manifest,
+        "replace",
+        Value::Table(table([(
+            "https://github.com/zed-industries/zed#gpui@0.2.2",
+            Value::Table(table([
+                ("git", string_value("https://github.com/zed-industries/zed")),
+                (
+                    "rev",
+                    string_value("15d8660748b508b3525d3403e5d172f1a557bfa5"),
+                ),
+            ])),
+        )])),
+    );
+    write_toml(&workspace.root_dir.join("Cargo.toml"), &manifest);
 
     let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
     let runner_manifest =
-        std::fs::read_to_string(runner_dir.join("Cargo.toml")).expect("read runner Cargo.toml");
+        fs::read_to_string(runner_dir.join("Cargo.toml")).expect("read runner Cargo.toml");
 
     assert!(
         runner_manifest.contains("[replace.\"https://github.com/zed-industries/zed#gpui@0.2.2\"]"),
@@ -794,34 +639,22 @@ edition = "2024"
 fn run_monolithic_fast_path_surfaces_execution_errors() {
     let (_temp, workspace) = create_workspace_fixture("fast-exec-error", true);
     let runner = MonolithicRunner::new(&workspace);
-    std::fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
-        .expect("create binary dir");
-    std::fs::create_dir_all(runner.temp_store.base_dir()).expect("create temp dir");
+    ensure_runner_dirs(&runner);
 
-    std::fs::write(&runner.binary_path, "not executable").expect("write non-executable file");
+    write_file(&runner.binary_path, "not executable");
 
-    let mtime = std::fs::metadata(&runner.binary_path)
-        .and_then(|m| m.modified())
-        .expect("runner mtime")
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("mtime duration")
-        .as_secs();
-    let krate = &workspace.crates[0];
-    let hash = crate_inputs_hash(krate);
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
-    RunnerCache {
-        crate_hashes,
-        runner_mtime: mtime,
-        cli_version: CLI_VERSION.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(&workspace.root_dir),
-    }
-    .save(runner.temp_store.base_dir())
-    .expect("save cache");
+    let runner_mtime = runner_binary_mtime(&runner.binary_path);
+    write_cached_runner(
+        &runner,
+        &workspace,
+        runner_mtime,
+        CLI_VERSION,
+        workspace_crate_hashes(&workspace),
+    );
 
     let request = RunnerRequest::Generate {
-        crate_name: krate.name.clone(),
-        i18n_toml_path: krate.i18n_config_path.display().to_string(),
+        crate_name: workspace.crates[0].name.clone(),
+        i18n_toml_path: workspace.crates[0].i18n_config_path.display().to_string(),
         mode: RunnerParseMode::Conservative,
         dry_run: false,
     };
@@ -835,29 +668,25 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
 fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     let (_temp, workspace) = create_workspace_fixture("slow-path", true);
     let runner_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
-    std::fs::create_dir_all(runner_dir.base_dir().join("src")).expect("create runner src");
-    std::fs::write(
-        runner_dir.base_dir().join("Cargo.toml"),
-        r#"[package]
-name = "dummy-runner"
-version = "0.1.0"
-edition = "2024"
-
-[[bin]]
-name = "es-fluent-runner"
-path = "src/main.rs"
-"#,
-    )
-    .expect("write runner Cargo.toml");
-    std::fs::write(
-        runner_dir.base_dir().join("src/main.rs"),
+    fs::create_dir_all(runner_dir.base_dir().join("src")).expect("create runner src");
+    let mut manifest = package_manifest("dummy-runner");
+    insert_section(
+        &mut manifest,
+        "bin",
+        Value::Array(vec![Value::Table(table([
+            ("name", string_value("es-fluent-runner")),
+            ("path", string_value("src/main.rs")),
+        ]))]),
+    );
+    write_toml(&runner_dir.base_dir().join("Cargo.toml"), &manifest);
+    write_file(
+        &runner_dir.base_dir().join("src/main.rs"),
         r#"fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     println!("{}", args.join(" "));
 }
 "#,
-    )
-    .expect("write runner main.rs");
+    );
 
     let binary_path = fake_runner_binary_path(&workspace.target_dir);
     install_fake_runner(

@@ -1,0 +1,10 @@
+---
+source: crates/es-fluent-derive/src/macros/ir.rs
+expression: rendered
+---
+Self::Hello => {
+    write!(
+        f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"), "hello",
+        None)
+    )
+}

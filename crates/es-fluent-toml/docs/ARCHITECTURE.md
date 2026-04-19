@@ -60,13 +60,13 @@ namespaces = ["ui", "errors", "messages"]
 ## Key Responsibilities
 
 1. **Path Resolution**:
-   It resolves `assets_dir` relative to the `i18n.toml` location (usually the workspace root), ensuring that CLI tools and build scripts (proc-macros) see the same path regardless of their Current Working Directory.
+   It resolves `assets_dir` relative to the `i18n.toml` location, ensuring that CLI tools and build scripts (proc-macros) see the same path regardless of their Current Working Directory.
 
 1. **Language Discovery**:
    It scans the `assets_dir` to find all subdirectories that correspond to valid BCP-47 language codes. This allows the ecosystem to auto-discover available languages without manual registration. Languages are sorted alphabetically and deduplicated.
 
 1. **Validation**:
-   It ensures that paths exist and that language codes are spec-compliant. Region, script, and variant subtags are preserved as long as `unic-langid` accepts them. Non-UTF8 directory names are also rejected with a clear error message.
+   It ensures that paths exist and that language codes are spec-compliant and canonical. Locale directory names and `fallback_language` must round-trip through `unic-langid` without casing or separator changes (for example `en-US`, not `en-us`). Region, script, and variant subtags are preserved as long as `unic-langid` accepts them. Non-UTF8 directory names are also rejected with a clear error message.
 
 1. **Namespace Policy (Optional)**:
    If `namespaces` is provided, downstream tooling can use it to validate `#[fluent(namespace = "...")]` usage and keep output file layout consistent.

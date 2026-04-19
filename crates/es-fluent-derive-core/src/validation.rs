@@ -105,7 +105,7 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
                             "`#[fluent(arg_name = \"{}\")]` cannot be used on a skipped field",
                             name
                         ),
-                        variant_name: variant_name.clone(),
+                        variant_name,
                         span: variant_span,
                     });
                 }
@@ -113,14 +113,14 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
                     return Err(EsFluentCoreError::VariantError {
                         message: "`#[fluent(arg_name = \"...\")]` on fields cannot be empty"
                             .to_string(),
-                        variant_name: variant_name.clone(),
+                        variant_name,
                         span: variant_span,
                     });
                 }
                 if !explicit_seen.insert(name.clone()) {
                     return Err(EsFluentCoreError::VariantError {
                         message: format!("duplicate field arg_name '{}' in variant fields", name),
-                        variant_name: variant_name.clone(),
+                        variant_name,
                         span: variant_span,
                     });
                 }
@@ -151,7 +151,7 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
                             "duplicate resolved argument name '{}' after applying #[fluent(arg_name = \"...\")]",
                             resolved_name
                         ),
-                        variant_name: variant_name.clone(),
+                        variant_name,
                         span: variant_span,
                     });
                 }

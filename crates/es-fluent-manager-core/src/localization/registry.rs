@@ -96,7 +96,7 @@ fn validate_single_module_data(data: &'static ModuleData, errors: &mut Vec<Modul
 ///
 /// For exact duplicates (`name` + `domain`), runtime-localizer registrations are
 /// preferred over metadata-only registrations.
-pub fn filter_module_registry(
+pub(crate) fn normalize_module_registry(
     modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
 ) -> Vec<&'static dyn I18nModuleRegistration> {
     let modules = modules.into_iter().collect::<Vec<_>>();
@@ -132,9 +132,10 @@ pub fn filter_module_registry(
             {
                 if existing_data != data {
                     tracing::warn!(
-                        "Replacing metadata-only i18n module '{}' with runtime-localizer registration despite mismatched metadata",
+                        "Skipping runtime-localizer registration for i18n module '{}' because it conflicts with existing metadata-only registration",
                         data.name
                     );
+                    continue;
                 }
                 tracing::warn!(
                     "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
@@ -169,9 +170,10 @@ pub fn filter_module_registry(
                 {
                     if existing_data != data {
                         tracing::warn!(
-                            "Replacing metadata-only i18n module '{}' with runtime-localizer registration despite mismatched metadata",
+                            "Skipping runtime-localizer registration for i18n module '{}' because it conflicts with existing metadata-only registration",
                             data.name
                         );
+                        continue;
                     }
                     tracing::warn!(
                         "Replacing metadata-only i18n module '{}' with runtime-localizer registration",
@@ -289,7 +291,7 @@ pub fn try_filter_module_registry(
     }
 
     if errors.is_empty() {
-        Ok(filter_module_registry(modules))
+        Ok(normalize_module_registry(modules))
     } else {
         Err(errors)
     }

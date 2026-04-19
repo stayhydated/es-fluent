@@ -1,0 +1,7 @@
+---
+source: crates/es-fluent-lang-macro/src/lib.rs
+expression: pretty_tokens(&generic_enum)
+---
+::core::compile_error! {
+    "#[es_fluent_language] does not support generic enums"
+}

@@ -15,9 +15,13 @@ readme = "README.md"
 es-fluent-shared = { workspace = true }
 fluent-bundle = { workspace = true }
 fluent-fallback = { workspace = true }
+futures = { workspace = true }
+icu_locale = { workspace = true }
 intl-memoizer = { workspace = true }
 inventory = { workspace = true }
+parking_lot = { workspace = true }
 rust-embed = { workspace = true }
+rustc-hash = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 

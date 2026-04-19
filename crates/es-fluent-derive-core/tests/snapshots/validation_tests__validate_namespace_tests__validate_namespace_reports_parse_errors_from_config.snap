@@ -1,0 +1,11 @@
+---
+source: crates/es-fluent-derive-core/tests/validation_tests.rs
+expression: "normalize_temp_paths(&err.to_string(), temp.path())"
+---
+Attribute error: failed to read i18n.toml while validating namespace 'ui': Failed to parse configuration file: TOML parse error at line 1, column 13
+  |
+1 | not = [valid
+  |             ^
+unclosed array, expected `]`
+
+help: fix the i18n.toml configuration or remove it to skip namespace allowlist validation

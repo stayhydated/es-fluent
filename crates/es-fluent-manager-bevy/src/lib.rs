@@ -35,6 +35,9 @@ pub use plugin::*;
 pub use registration::*;
 pub use systems::*;
 
+pub(crate) use assets::{BundleBuildFailures, I18nDomainBundles};
+pub(crate) use locale::{LanguageSelection, PendingLanguageChange};
+
 #[cfg(test)]
 mod tests;
 

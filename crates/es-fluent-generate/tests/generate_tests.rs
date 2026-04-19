@@ -6,8 +6,14 @@ use common::{
 };
 use es_fluent_generate::{FluentParseMode, generate};
 use fixtures::{EMPTY_GROUP, EMPTY_GROUPS_SIMILAR, ORPHAN_GROUPS, RELOCATE_GROUPS};
-use std::fs;
+use fs_err as fs;
+use insta::assert_snapshot;
+use std::path::Path;
 use tempfile::TempDir;
+
+fn read_ftl(path: &Path) -> String {
+    fs::read_to_string(path).expect("read ftl")
+}
 
 #[test]
 fn test_generate_empty_items() {
@@ -30,6 +36,7 @@ fn test_generate_empty_items() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_with_items() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -52,12 +59,12 @@ fn test_generate_with_items() {
     let ftl_file_path = i18n_path.join("test_crate.ftl");
     assert!(ftl_file_path.exists());
 
-    let content = fs::read_to_string(ftl_file_path).unwrap();
-    assert!(content.contains("TestEnum"));
-    assert!(content.contains("Variant1"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!("generate_with_items", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_aggressive_mode() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -81,13 +88,12 @@ fn test_generate_aggressive_mode() {
     );
     assert!(result.is_ok());
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-    assert!(!content.contains("existing-message"));
-    assert!(content.contains("TestEnum"));
-    assert!(content.contains("Variant1"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!("generate_aggressive_mode", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_conservative_mode_preserves_existing() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -111,13 +117,12 @@ fn test_generate_conservative_mode_preserves_existing() {
     );
     assert!(result.is_ok());
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-    assert!(content.contains("existing-message"));
-    assert!(content.contains("TestEnum"));
-    assert!(content.contains("Variant1"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!("generate_conservative_mode_preserves_existing", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_inserts_variants_into_empty_group() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -146,14 +151,13 @@ fn test_generate_inserts_variants_into_empty_group() {
     );
     assert!(result.is_ok());
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-
-    assert!(content.contains("country_label_variants-Canada"));
-    assert!(content.contains("country_label_variants-USA"));
+    let content = read_ftl(&ftl_file_path);
     assert_eq!(content.matches("## CountryLabelVariants").count(), 1);
+    assert_snapshot!("generate_inserts_variants_into_empty_group", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_relocates_late_group_keys_without_duplicates() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -188,7 +192,7 @@ fn test_generate_relocates_late_group_keys_without_duplicates() {
     )
     .unwrap();
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
+    let content = read_ftl(&ftl_file_path);
 
     assert_eq!(content.matches("group_a-A1").count(), 1);
     let group_a_pos = content.find("## GroupA").expect("GroupA missing");
@@ -196,9 +200,14 @@ fn test_generate_relocates_late_group_keys_without_duplicates() {
     let key_pos = content.find("group_a-A1").expect("Relocated key missing");
     assert!(group_a_pos < key_pos, "Key should be after GroupA");
     assert!(key_pos < group_b_pos, "Key should be before GroupB");
+    assert_snapshot!(
+        "generate_relocates_late_group_keys_without_duplicates",
+        content
+    );
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_relocates_keys_between_similar_group_names() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -231,7 +240,7 @@ fn test_generate_relocates_keys_between_similar_group_names() {
     )
     .unwrap();
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
+    let content = read_ftl(&ftl_file_path);
 
     let variants_group_pos = content
         .find("## EmptyStructVariants\n")
@@ -247,11 +256,14 @@ fn test_generate_relocates_keys_between_similar_group_names() {
         variants_group_pos < variants_key_pos && variants_key_pos < empty_group_pos,
         "variants key should be under EmptyStructVariants group"
     );
-    assert!(content.contains("empty_struct_this"));
-    assert!(content.contains("empty_struct = Empty Struct"));
+    assert_snapshot!(
+        "generate_relocates_keys_between_similar_group_names",
+        content
+    );
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_clean_mode_removes_orphans() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -279,18 +291,12 @@ fn test_generate_clean_mode_removes_orphans() {
     );
     assert!(result.is_ok());
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-
-    // Should NOT contain orphan content
-    assert!(!content.contains("## OrphanGroup"));
-    assert!(!content.contains("what-Hi"));
-    assert!(!content.contains("awdawd"));
-
-    // Should contain existing content that is still valid
-    assert!(content.contains("## ExistingGroup"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!("generate_clean_mode_removes_orphans", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_this_types_sorted_first() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -317,7 +323,7 @@ fn test_this_types_sorted_first() {
     assert!(result.is_ok());
 
     let ftl_file_path = i18n_path.join("test_crate.ftl");
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
+    let content = read_ftl(&ftl_file_path);
 
     // BananaThis (is_this=true) should come before Apple and Banana
     let banana_this_pos = content.find("## BananaThis").expect("BananaThis missing");
@@ -334,9 +340,11 @@ fn test_this_types_sorted_first() {
     );
     // Apple should come before Banana alphabetically
     assert!(apple_pos < banana_pos, "Apple should come before Banana");
+    assert_snapshot!("this_types_sorted_first", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_this_variants_sorted_first_within_group() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -362,7 +370,7 @@ fn test_this_variants_sorted_first_within_group() {
     assert!(result.is_ok());
 
     let ftl_file_path = i18n_path.join("test_crate.ftl");
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
+    let content = read_ftl(&ftl_file_path);
 
     // The "this" variant (fruit) should come first, then Apple, then Banana
     let this_pos = content
@@ -382,9 +390,11 @@ fn test_this_variants_sorted_first_within_group() {
         "This variant should come before Banana"
     );
     assert!(apple_pos < banana_pos, "Apple should come before Banana");
+    assert_snapshot!("this_variants_sorted_first_within_group", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_with_namespace_creates_subdirectory() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -409,12 +419,12 @@ fn test_generate_with_namespace_creates_subdirectory() {
     let ftl_file_path = i18n_path.join("test_crate").join("ui.ftl");
     assert!(ftl_file_path.exists(), "Namespaced file should be created");
 
-    let content = fs::read_to_string(&ftl_file_path).unwrap();
-    assert!(content.contains("UiButton"));
-    assert!(content.contains("Click"));
+    let content = read_ftl(&ftl_file_path);
+    assert_snapshot!("generate_with_namespace_creates_subdirectory", content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_mixed_namespaced_and_non_namespaced() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -445,19 +455,24 @@ fn test_generate_mixed_namespaced_and_non_namespaced() {
     // Non-namespaced should go to {i18n_path}/{crate_name}.ftl
     let regular_path = i18n_path.join("test_crate.ftl");
     assert!(regular_path.exists(), "Non-namespaced file should exist");
-    let regular_content = fs::read_to_string(&regular_path).unwrap();
-    assert!(regular_content.contains("GlobalError"));
-    assert!(!regular_content.contains("UiError"));
+    let regular_content = read_ftl(&regular_path);
+    assert_snapshot!(
+        "generate_mixed_namespaced_and_non_namespaced_main",
+        regular_content
+    );
 
     // Namespaced should go to {i18n_path}/{crate_name}/{namespace}.ftl
     let namespaced_path = i18n_path.join("test_crate").join("ui.ftl");
     assert!(namespaced_path.exists(), "Namespaced file should exist");
-    let namespaced_content = fs::read_to_string(&namespaced_path).unwrap();
-    assert!(namespaced_content.contains("UiError"));
-    assert!(!namespaced_content.contains("GlobalError"));
+    let namespaced_content = read_ftl(&namespaced_path);
+    assert_snapshot!(
+        "generate_mixed_namespaced_and_non_namespaced_ui",
+        namespaced_content
+    );
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_multiple_namespaces() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -488,17 +503,18 @@ fn test_generate_multiple_namespaces() {
     // Check ui namespace
     let ui_path = i18n_path.join("test_crate").join("ui.ftl");
     assert!(ui_path.exists());
-    let ui_content = fs::read_to_string(&ui_path).unwrap();
-    assert!(ui_content.contains("Button"));
+    let ui_content = read_ftl(&ui_path);
+    assert_snapshot!("generate_multiple_namespaces_ui", ui_content);
 
     // Check errors namespace
     let errors_path = i18n_path.join("test_crate").join("errors.ftl");
     assert!(errors_path.exists());
-    let errors_content = fs::read_to_string(&errors_path).unwrap();
-    assert!(errors_content.contains("ApiError"));
+    let errors_content = read_ftl(&errors_path);
+    assert_snapshot!("generate_multiple_namespaces_errors", errors_content);
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn test_generate_nested_namespace_creates_parent_dirs() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
@@ -528,6 +544,6 @@ fn test_generate_nested_namespace_creates_parent_dirs() {
         "Nested namespace file should be created with parent dirs"
     );
 
-    let content = fs::read_to_string(&nested_path).unwrap();
-    assert!(content.contains("FormError"));
+    let content = read_ftl(&nested_path);
+    assert_snapshot!("generate_nested_namespace_creates_parent_dirs", content);
 }

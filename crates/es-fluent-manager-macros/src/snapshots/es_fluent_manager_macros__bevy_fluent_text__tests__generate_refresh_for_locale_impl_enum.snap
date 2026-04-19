@@ -1,0 +1,22 @@
+---
+source: crates/es-fluent-manager-macros/src/bevy_fluent_text.rs
+expression: pretty_tokens(enum_tokens)
+---
+impl ::es_fluent_manager_bevy::RefreshForLocale for Example {
+    fn refresh_for_locale(
+        &mut self,
+        lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier,
+    ) {
+        match self {
+            Self::A { current_language, fallback_language, count: _ } => {
+                if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
+                    *current_language = value;
+                }
+                if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
+                    *fallback_language = value;
+                }
+            }
+            _ => {}
+        }
+    }
+}

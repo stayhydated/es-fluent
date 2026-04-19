@@ -55,7 +55,7 @@ impl WorkspaceCrates {
         header();
 
         if self.crates.is_empty() {
-            ui::Ui::print_discovered(&[]);
+            ui::Ui::print_no_crates_found();
             return false;
         }
 

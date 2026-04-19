@@ -174,14 +174,16 @@ fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed
         .collect()
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::{process_enum, process_struct};
     use crate::macros::utils::inherited_fluent_namespace;
+    use crate::snapshot_support::pretty_file_tokens;
     use darling::FromDeriveInput as _;
     use es_fluent_derive_core::options::{
         r#enum::EnumVariantsOpts, r#struct::StructVariantsOpts, this::ThisOpts,
     };
+    use insta::assert_snapshot;
     use syn::parse_quote;
 
     #[test]
@@ -199,15 +201,12 @@ mod tests {
         let this_opts = ThisOpts::from_derive_input(&input).ok();
         let fluent_namespace = inherited_fluent_namespace(&input).expect("parent namespace");
 
-        let tokens =
-            process_struct(&opts, this_opts.as_ref(), fluent_namespace.as_ref()).to_string();
-        assert!(tokens.contains("pub enum LoginFormLabelVariants"));
-        assert!(tokens.contains("pub enum LoginFormPlaceholderVariants"));
-        assert!(tokens.contains("__es_fluent_inventory_login_form_label_variants"));
-        assert!(
-            tokens
-                .contains("impl From < & LoginFormLabelVariants > for :: es_fluent :: FluentValue")
-        );
+        let tokens = pretty_file_tokens(process_struct(
+            &opts,
+            this_opts.as_ref(),
+            fluent_namespace.as_ref(),
+        ));
+        assert_snapshot!("process_struct_emits_keyed_generated_enums", tokens);
     }
 
     #[test]
@@ -225,11 +224,12 @@ mod tests {
         let this_opts = ThisOpts::from_derive_input(&input).ok();
         let fluent_namespace = inherited_fluent_namespace(&input).expect("parent namespace");
 
-        let tokens = process_enum(&opts, this_opts.as_ref(), fluent_namespace.as_ref()).to_string();
-        assert!(tokens.contains("pub enum StatusVariants"));
-        assert!(tokens.contains("impl :: es_fluent :: ThisFtl for StatusVariants"));
-        assert!(tokens.contains("status_variants_this"));
-        assert!(tokens.contains("__es_fluent_this_inventory_status_variants"));
+        let tokens = pretty_file_tokens(process_enum(
+            &opts,
+            this_opts.as_ref(),
+            fluent_namespace.as_ref(),
+        ));
+        assert_snapshot!("process_enum_emits_variants_this_registration", tokens);
     }
 
     #[test]
@@ -247,10 +247,14 @@ mod tests {
         let this_opts = ThisOpts::from_derive_input(&input).ok();
         let fluent_namespace = inherited_fluent_namespace(&input).expect("parent namespace");
 
-        let tokens =
-            process_struct(&opts, this_opts.as_ref(), fluent_namespace.as_ref()).to_string();
-        assert!(tokens.contains("parent_ns"));
-        assert!(!tokens.contains("variant_ns"));
-        assert!(!tokens.contains("this_ns"));
+        let tokens = pretty_file_tokens(process_struct(
+            &opts,
+            this_opts.as_ref(),
+            fluent_namespace.as_ref(),
+        ));
+        assert_snapshot!(
+            "process_variants_prefers_parent_namespace_over_variants_and_this_namespaces",
+            tokens
+        );
     }
 }

@@ -19,10 +19,10 @@ integrations.
 - `FluentManager::new_with_discovered_modules()` and
   `FluentManager::try_new_with_discovered_modules()`: strict discovery helpers
   that fail fast on invalid metadata or repeated registrations of the same kind
-- `FluentManager::best_effort_with_discovered_modules()`: legacy lenient
-  discovery that logs and skips conflicts
 - `Localizer`: runtime formatter interface used by managers
 - `EmbeddedAssets` and `EmbeddedI18nModule`: reusable support for embedded assets
+- `BundleBuildError`: structured diagnostics for embedded locale switches that
+  fail while assembling a Fluent bundle
 - `ModuleData`, `I18nModuleDescriptor`, and resource-plan helpers for asset-driven
   managers such as Bevy
 
@@ -47,12 +47,4 @@ Strict discovery is now the default constructor behavior:
 use es_fluent_manager_core::FluentManager;
 
 let manager = FluentManager::new_with_discovered_modules();
-```
-
-If you intentionally want the legacy lenient behavior, opt in explicitly:
-
-```rust
-use es_fluent_manager_core::FluentManager;
-
-let manager = FluentManager::best_effort_with_discovered_modules();
 ```

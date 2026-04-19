@@ -49,12 +49,31 @@ pub struct Greeting<'a> {
     pub gender: &'a GenderChoice,
 }
 
+#[derive(EsFluent)]
+pub enum NetworkError {
+    ApiUnavailable,
+}
+
+#[derive(EsFluent)]
+pub enum TransactionError {
+    #[fluent(skip)]
+    Network(NetworkError),
+}
+
 // #[derive(EsFluentVariants)]
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormVariants {
     pub username: String,
     pub password: String,
+}
+
+// Enums are supported too.
+#[derive(EsFluentVariants)]
+pub enum SettingsTab {
+    General,
+    Notifications,
+    Privacy,
 }
 
 // #[derive(EsFluentThis)] - origin only

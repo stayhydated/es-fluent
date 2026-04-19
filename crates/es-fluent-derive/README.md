@@ -9,8 +9,6 @@ This crate is the engine that transforms your Rust structs and enums into Fluent
 
 All macros provided by this crate are fully independent and composable. You can use them individually or together on the same type depending on your needs.
 
-Internally, the derive entrypoints share common namespace resolution and token-emission helpers, so the struct, enum, `This`, and `Variants` expansions only carry the message-shape-specific logic.
-
 ## Features
 
 ### `#[derive(EsFluent)]`
@@ -53,6 +51,35 @@ pub struct UserProfile<'a> {
 Argument naming attributes:
 
 - `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+
+Skipped single-field enum variants:
+
+`#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
+key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+transparent wrapper enums.
+
+```rs
+use es_fluent::{EsFluent, ToFluentString};
+
+#[derive(EsFluent)]
+pub enum NetworkError {
+    ApiUnavailable,
+}
+
+#[derive(EsFluent)]
+pub enum TransactionError {
+    #[fluent(skip)]
+    Network(NetworkError),
+}
+
+let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+```
+
+```ftl
+## NetworkError
+
+network_error-ApiUnavailable = API is unavailable
+```
 
 #### Namespaces (optional)
 
@@ -109,7 +136,9 @@ pub struct UserProfile<'a> {
 
 ### `#[derive(EsFluentVariants)]`
 
-Generates key-value pair enums for struct fields. This is perfect for generating UI labels, placeholders, or descriptions for a form object.
+Generates key-value pair enums for struct fields or enum variants. This is
+useful for generating UI labels, placeholders, or descriptions for a form
+object, and it can also expose enum variants as localizable keys.
 
 ```rs
 use es_fluent::EsFluentVariants;
@@ -127,11 +156,26 @@ pub struct LoginForm {
 // LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
 
 // usage: LoginFormLabelVariants::Username.to_fluent_string()
+
+#[derive(EsFluentVariants)]
+pub enum SettingsTab {
+    General,
+    Notifications,
+    Privacy,
+}
+
+// Generates enum -> keys:
+// SettingsTabVariants::{General, Notifications, Privacy}
+//     -> (settings_tab_variants-{variant})
+
+// usage: SettingsTabVariants::Notifications.to_fluent_string()
 ```
 
 ### `#[derive(EsFluentThis)]`
 
-Generates a helper implementation of the `ThisFtl` trait and registers the type's name as a key. This is similar to `EsFluentVariants` (which registers fields), but for the parent type itself.
+Generates a helper implementation of the `ThisFtl` trait and registers the
+type's name as a key. This is similar to `EsFluentVariants` (which registers
+field- or variant-derived keys), but for the parent type itself.
 
 - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
 

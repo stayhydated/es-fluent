@@ -3,6 +3,8 @@
 use proc_macro_error2::proc_macro_error;
 
 mod macros;
+#[cfg(test)]
+mod snapshot_support;
 
 /// Turns an enum or struct into a localizable message.
 ///

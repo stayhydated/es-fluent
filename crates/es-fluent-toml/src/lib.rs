@@ -5,10 +5,12 @@ mod language;
 
 use language::parse_language_entry;
 
+use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use fs_err::{self as fs, DirEntry};
+use path_slash::PathExt as _;
 use serde::{Deserialize, Serialize};
-use std::fs::DirEntry;
+use std::env;
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 use thiserror::Error;
 use unic_langid::{LanguageIdentifier, LanguageIdentifierError};
 
@@ -32,6 +34,14 @@ pub enum I18nConfigError {
         #[source]
         source: LanguageIdentifierError,
     },
+    /// Encountered a non-canonical locale directory name.
+    #[error("Locale directory '{name}' must use canonical BCP-47 casing '{canonical}'")]
+    NonCanonicalLanguageIdentifier {
+        /// The locale directory name found on disk.
+        name: String,
+        /// The canonical locale directory name expected by the runtime.
+        canonical: String,
+    },
     /// Encountered an invalid fallback language identifier.
     #[error("Invalid fallback language identifier '{name}'")]
     InvalidFallbackLanguageIdentifier {
@@ -40,6 +50,14 @@ pub enum I18nConfigError {
         /// The parsing error produced by `unic-langid`.
         #[source]
         source: LanguageIdentifierError,
+    },
+    /// Encountered a non-canonical fallback language identifier.
+    #[error("Fallback language '{name}' must use canonical BCP-47 casing '{canonical}'")]
+    NonCanonicalFallbackLanguageIdentifier {
+        /// The configured fallback language string.
+        name: String,
+        /// The canonical fallback language string expected by the runtime.
+        canonical: String,
     },
 }
 
@@ -200,6 +218,35 @@ impl ResolvedI18nLayout {
 }
 
 impl I18nConfig {
+    fn validate_resolved_assets_dir(assets_path: &Path) -> Result<(), I18nConfigError> {
+        let display_path = assets_path.to_slash_lossy();
+
+        if !assets_path.exists() {
+            return Err(I18nConfigError::ReadError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("Assets directory '{display_path}' does not exist"),
+            )));
+        }
+
+        if !assets_path.is_dir() {
+            return Err(I18nConfigError::ReadError(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Assets path '{display_path}' is not a directory"),
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn validated_assets_dir_from_base(
+        &self,
+        base_dir: Option<&Path>,
+    ) -> Result<PathBuf, I18nConfigError> {
+        let assets_path = self.assets_dir_from_base(base_dir)?;
+        Self::validate_resolved_assets_dir(&assets_path)?;
+        Ok(assets_path)
+    }
+
     /// Reads the configuration from a path.
     pub fn read_from_path<P: AsRef<Path>>(path: P) -> Result<Self, I18nConfigError> {
         let path = path.as_ref();
@@ -210,7 +257,9 @@ impl I18nConfig {
 
         let content = fs::read_to_string(path)?;
 
-        let config: I18nConfig = toml::from_str(&content)?;
+        let mut config: I18nConfig = toml::from_str(&content)?;
+        config.fallback_language =
+            parse_fallback_language_identifier(&config.fallback_language)?.to_string();
 
         Ok(config)
     }
@@ -253,17 +302,7 @@ impl I18nConfig {
 
     /// Returns the configured fallback language as a `LanguageIdentifier`.
     pub fn fallback_language_identifier(&self) -> Result<LanguageIdentifier, I18nConfigError> {
-        let lang = self
-            .fallback_language
-            .parse::<LanguageIdentifier>()
-            .map_err(
-                |source| I18nConfigError::InvalidFallbackLanguageIdentifier {
-                    name: self.fallback_language.clone(),
-                    source,
-                },
-            )?;
-
-        Ok(lang)
+        parse_fallback_language_identifier(&self.fallback_language)
     }
 
     /// Returns the languages available under the assets directory.
@@ -282,7 +321,7 @@ impl I18nConfig {
         &self,
         base_dir: Option<&Path>,
     ) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
-        let assets_path = self.assets_dir_from_base(base_dir)?;
+        let assets_path = self.validated_assets_dir_from_base(base_dir)?;
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
 
         let mut languages: Vec<(String, LanguageIdentifier)> = collect_language_entries(entries)?
@@ -305,7 +344,7 @@ impl I18nConfig {
         &self,
         base_dir: Option<&Path>,
     ) -> Result<Vec<String>, I18nConfigError> {
-        let assets_path = self.assets_dir_from_base(base_dir)?;
+        let assets_path = self.validated_assets_dir_from_base(base_dir)?;
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
 
         let mut locales = collect_language_entries(entries)?
@@ -320,25 +359,7 @@ impl I18nConfig {
     /// Validates the assets directory.
     pub fn validate_assets_dir(&self) -> Result<(), I18nConfigError> {
         let assets_path = self.assets_dir_from_manifest()?;
-
-        if !assets_path.exists() {
-            return Err(I18nConfigError::ReadError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!(
-                    "Assets directory '{}' does not exist",
-                    assets_path.display()
-                ),
-            )));
-        }
-
-        if !assets_path.is_dir() {
-            return Err(I18nConfigError::ReadError(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!("Assets path '{}' is not a directory", assets_path.display()),
-            )));
-        }
-
-        Ok(())
+        Self::validate_resolved_assets_dir(&assets_path)
     }
 
     /// Returns the fallback language identifier.
@@ -366,6 +387,23 @@ impl I18nConfig {
         let assets_dir = config.assets_dir_from_base(Some(manifest_dir))?;
         Ok(assets_dir.join(&config.fallback_language))
     }
+}
+
+fn parse_fallback_language_identifier(value: &str) -> Result<LanguageIdentifier, I18nConfigError> {
+    parse_canonical_language_identifier(value).map_err(|err| match err {
+        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+            I18nConfigError::InvalidFallbackLanguageIdentifier {
+                name: value.to_string(),
+                source,
+            }
+        },
+        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+            I18nConfigError::NonCanonicalFallbackLanguageIdentifier {
+                name: value.to_string(),
+                canonical,
+            }
+        },
+    })
 }
 
 fn collect_language_entries(

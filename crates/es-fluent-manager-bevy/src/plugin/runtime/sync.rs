@@ -1,65 +1,113 @@
 use super::super::state::update_global_bundle;
-use crate::{I18nAssets, I18nBundle, I18nResource, LocaleChangedEvent};
+use super::locale::apply_selected_language;
+use crate::{
+    ActiveLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
+    PendingLanguageChange,
+};
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::RequestRedraw;
 use unic_langid::LanguageIdentifier;
 
 fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Option<usize> {
     i18n_bundle
-        .0
         .get(lang)
         .map(|bundle| std::sync::Arc::as_ptr(bundle) as *const () as usize)
 }
 
+#[derive(SystemParam)]
+pub(crate) struct SyncGlobalStateParams<'w, 's> {
+    i18n_bundle: Res<'w, I18nBundle>,
+    i18n_domain_bundles: Res<'w, I18nDomainBundles>,
+    i18n_resource: ResMut<'w, I18nResource>,
+    active_language_id: ResMut<'w, ActiveLanguageId>,
+    pending_language_change: ResMut<'w, PendingLanguageChange>,
+    locale_changed_events: MessageWriter<'w, LocaleChangedEvent>,
+    redraw_events: MessageWriter<'w, RequestRedraw>,
+    last_current_bundle: Local<'s, Option<(LanguageIdentifier, LanguageIdentifier, Option<usize>)>>,
+}
+
 #[doc(hidden)]
-pub(crate) fn sync_global_state(
-    i18n_bundle: Res<I18nBundle>,
-    i18n_assets: Res<I18nAssets>,
-    i18n_resource: Res<I18nResource>,
-    mut locale_changed_events: MessageWriter<LocaleChangedEvent>,
-    mut redraw_events: MessageWriter<RequestRedraw>,
-    mut last_current_bundle: Local<Option<(LanguageIdentifier, Option<usize>)>>,
-) {
-    let current_lang = i18n_resource.current_language().clone();
-    let current_bundle_id = current_bundle_id(&i18n_bundle, &current_lang);
+pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
+    let current_lang = params.i18n_resource.active_language().clone();
+    let current_resolved_lang = params.i18n_resource.resolved_language().clone();
+    let current_bundle_ptr_id = current_bundle_id(&params.i18n_bundle, &current_resolved_lang);
+    let current_bundle_present = current_bundle_ptr_id.is_some();
     let locale_switched = matches!(
-        last_current_bundle.as_ref(),
-        Some((previous_lang, _)) if previous_lang != &current_lang
+        params.last_current_bundle.as_ref(),
+        Some((previous_lang, previous_resolved_lang, _))
+            if previous_lang != &current_lang
+                || previous_resolved_lang != &current_resolved_lang
     );
     let current_bundle_changed = !matches!(
-        last_current_bundle.as_ref(),
-        Some((previous_lang, previous_bundle_id))
-            if previous_lang == &current_lang && previous_bundle_id == &current_bundle_id
+        params.last_current_bundle.as_ref(),
+        Some((previous_lang, previous_resolved_lang, previous_bundle_id))
+            if previous_lang == &current_lang
+                && previous_resolved_lang == &current_resolved_lang
+                && previous_bundle_id == &current_bundle_ptr_id
     );
 
-    if i18n_bundle.is_changed() {
-        update_global_bundle((*i18n_bundle).clone());
+    if params.i18n_bundle.is_changed() || params.i18n_domain_bundles.is_changed() {
+        update_global_bundle(
+            (*params.i18n_bundle).clone(),
+            (*params.i18n_domain_bundles).clone(),
+        );
 
-        if !locale_switched
-            && current_bundle_changed
-            && i18n_assets.is_language_loaded(&current_lang)
-        {
+        if let Some(pending_language) = params.pending_language_change.0.clone() {
+            let pending_bundle_id =
+                current_bundle_id(&params.i18n_bundle, &pending_language.resolved);
+            if pending_bundle_id.is_some() {
+                let published = apply_selected_language(
+                    &pending_language,
+                    &mut params.i18n_resource,
+                    &mut params.active_language_id,
+                    &mut params.locale_changed_events,
+                );
+                params.pending_language_change.0 = None;
+                if published {
+                    params.redraw_events.write(RequestRedraw);
+                    *params.last_current_bundle = Some((
+                        pending_language.requested,
+                        pending_language.resolved,
+                        pending_bundle_id,
+                    ));
+                } else {
+                    *params.last_current_bundle =
+                        Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
+                }
+                return;
+            }
+        }
+
+        if !locale_switched && current_bundle_changed && current_bundle_present {
             debug!("I18n bundle ready for current language: {}", current_lang);
-            // Re-emit the active locale once its bundle becomes available or changes,
+            // Re-emit the active locale only after an accepted bundle exists for it,
             // so `RefreshForLocale` registrations refresh after async loads complete
-            // and current-locale hot reloads.
-            locale_changed_events.write(LocaleChangedEvent(current_lang.clone()));
+            // and current-locale hot reloads, but not after rejected rebuilds.
+            params
+                .locale_changed_events
+                .write(LocaleChangedEvent(current_lang.clone()));
             // Request a redraw so that UI updates even when using WinitSettings::desktop_app()
-            redraw_events.write(RequestRedraw);
+            params.redraw_events.write(RequestRedraw);
         }
     }
 
-    *last_current_bundle = Some((current_lang, current_bundle_id));
+    *params.last_current_bundle =
+        Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_support::lock_bevy_global_state;
-    use crate::{FluentText, FluentTextRegistration, RefreshForLocale, ToFluentString};
+    use crate::{
+        ActiveLanguageId, BundleBuildFailures, FluentText, FluentTextRegistration, I18nAssets,
+        PendingLanguageChange, RefreshForLocale, RequestedLanguageId, ToFluentString,
+    };
     use bevy::ecs::message::Messages;
     use es_fluent_manager_core::ResourceKey;
     use fluent_bundle::FluentResource;
+    use std::collections::HashMap;
     use std::sync::Arc;
     use unic_langid::{LanguageIdentifier, langid};
 
@@ -90,7 +138,11 @@ mod tests {
         app.add_message::<RequestRedraw>();
         app.insert_resource(i18n_assets);
         app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(lang.clone()));
+        app.insert_resource(RequestedLanguageId(lang.clone()));
+        app.insert_resource(ActiveLanguageId(lang.clone()));
+        app.insert_resource(PendingLanguageChange::default());
         app.register_fluent_text_from_locale::<RefreshableMessage>();
         app.add_systems(Update, sync_global_state);
 
@@ -125,11 +177,12 @@ mod tests {
             .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
 
         let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
-        bundle.add_resource(resource).expect("add resource");
-        app.world_mut()
-            .resource_mut::<I18nBundle>()
-            .0
-            .insert(lang.clone(), Arc::new(bundle));
+        bundle.add_resource(resource.clone()).expect("add resource");
+        app.world_mut().resource_mut::<I18nBundle>().insert(
+            lang.clone(),
+            Arc::new(bundle),
+            vec![resource],
+        );
 
         app.update();
 
@@ -157,6 +210,83 @@ mod tests {
     }
 
     #[test]
+    fn sync_global_state_does_not_re_emit_locale_changed_when_current_bundle_is_missing() {
+        let _guard = lock_bevy_global_state();
+        let lang = langid!("en");
+        let mut app = App::new();
+        let mut i18n_assets = I18nAssets::new();
+        i18n_assets.add_asset(lang.clone(), "app".to_string(), Handle::default());
+        i18n_assets.loaded_resources.insert(
+            (lang.clone(), ResourceKey::new("app")),
+            Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("ftl")),
+        );
+
+        app.add_message::<LocaleChangedEvent>();
+        app.add_message::<RequestRedraw>();
+        app.insert_resource(i18n_assets);
+        app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nDomainBundles::default());
+        app.insert_resource(BundleBuildFailures(HashMap::from([(
+            lang.clone(),
+            vec!["resource 'app': duplicate message id 'hello'".to_string()],
+        )])));
+        app.insert_resource(I18nResource::new(lang.clone()));
+        app.insert_resource(RequestedLanguageId(lang.clone()));
+        app.insert_resource(ActiveLanguageId(lang.clone()));
+        app.insert_resource(PendingLanguageChange::default());
+        app.add_systems(Update, sync_global_state);
+        app.add_systems(
+            PostUpdate,
+            crate::update_values_on_locale_change::<RefreshableMessage>,
+        );
+
+        let entity = app
+            .world_mut()
+            .spawn(FluentText::new(RefreshableMessage("initial".to_string())))
+            .id();
+
+        let mut locale_cursor = {
+            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+            messages.get_cursor_current()
+        };
+        let mut redraw_cursor = {
+            let messages = app.world().resource::<Messages<RequestRedraw>>();
+            messages.get_cursor_current()
+        };
+
+        app.update();
+
+        assert!(
+            !app.world()
+                .resource::<I18nBundle>()
+                .bundles
+                .contains_key(&lang),
+            "a recorded build failure must not look like a ready bundle"
+        );
+
+        let locale_changes = {
+            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
+            locale_cursor
+                .read(&messages)
+                .map(|message| message.0.clone())
+                .collect::<Vec<_>>()
+        };
+        assert!(locale_changes.is_empty());
+
+        let redraw_count = {
+            let messages = app.world().resource::<Messages<RequestRedraw>>();
+            redraw_cursor.read(&messages).count()
+        };
+        assert_eq!(redraw_count, 0);
+
+        let fluent_text = app
+            .world()
+            .get::<FluentText<RefreshableMessage>>(entity)
+            .expect("fluent text");
+        assert_eq!(fluent_text.value.0, "initial");
+    }
+
+    #[test]
     fn sync_global_state_ignores_unrelated_bundle_changes() {
         let _guard = lock_bevy_global_state();
         let current_lang = langid!("en");
@@ -170,7 +300,11 @@ mod tests {
         app.add_message::<RequestRedraw>();
         app.insert_resource(i18n_assets);
         app.insert_resource(I18nBundle::default());
+        app.insert_resource(I18nDomainBundles::default());
         app.insert_resource(I18nResource::new(current_lang.clone()));
+        app.insert_resource(RequestedLanguageId(current_lang.clone()));
+        app.insert_resource(ActiveLanguageId(current_lang.clone()));
+        app.insert_resource(PendingLanguageChange::default());
         app.add_systems(Update, sync_global_state);
 
         let current_resource =
@@ -186,12 +320,13 @@ mod tests {
         let mut current_bundle =
             fluent_bundle::bundle::FluentBundle::new_concurrent(vec![current_lang.clone()]);
         current_bundle
-            .add_resource(current_resource)
+            .add_resource(current_resource.clone())
             .expect("add resource");
-        app.world_mut()
-            .resource_mut::<I18nBundle>()
-            .0
-            .insert(current_lang.clone(), Arc::new(current_bundle));
+        app.world_mut().resource_mut::<I18nBundle>().insert(
+            current_lang.clone(),
+            Arc::new(current_bundle),
+            vec![current_resource],
+        );
 
         let mut locale_cursor = {
             let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
@@ -232,12 +367,13 @@ mod tests {
         let mut other_bundle =
             fluent_bundle::bundle::FluentBundle::new_concurrent(vec![other_lang.clone()]);
         other_bundle
-            .add_resource(other_resource)
+            .add_resource(other_resource.clone())
             .expect("add resource");
-        app.world_mut()
-            .resource_mut::<I18nBundle>()
-            .0
-            .insert(other_lang.clone(), Arc::new(other_bundle));
+        app.world_mut().resource_mut::<I18nBundle>().insert(
+            other_lang.clone(),
+            Arc::new(other_bundle),
+            vec![other_resource],
+        );
 
         app.update();
 

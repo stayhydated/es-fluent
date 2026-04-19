@@ -3,10 +3,10 @@ use super::loaded::validate_loaded_ftl_files;
 use super::*;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
+use crate::test_fixtures::toml_helpers::{i18n_config, write_toml};
+use fs_err as fs;
 use indexmap::IndexMap;
-use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
 use tempfile::tempdir;
 
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
@@ -17,9 +17,8 @@ fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) 
     }
 }
 
-fn env_lock() -> &'static Mutex<()> {
-    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(()))
+fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {
+    temp_env::with_var("FORCE_HYPERLINK", Some(value), f)
 }
 
 #[test]
@@ -96,11 +95,7 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
 fn validate_crate_reports_missing_main_file_as_missing_key() {
     let temp = tempdir().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();
-    fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-    )
-    .unwrap();
+    write_toml(&temp.path().join("i18n.toml"), &i18n_config("en", "i18n"));
 
     let inventory_path =
         es_fluent_runner::RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
@@ -140,72 +135,73 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
-    let _env_guard = env_lock().lock().unwrap();
-    unsafe {
-        std::env::set_var("FORCE_HYPERLINK", "1");
-    }
+    with_force_hyperlink("1", || {
+        let temp = tempdir().unwrap();
+        let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+        fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+        fs::write(&ftl_path, "hello = Hello\nbye = Bye\nraw = Raw\n").unwrap();
 
-    let temp = tempdir().unwrap();
-    let ftl_path = temp.path().join("i18n/en/test-app.ftl");
-    fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
-    fs::write(&ftl_path, "hello = Hello\nbye = Bye\nraw = Raw\n").unwrap();
+        let resource =
+            fluent_syntax::parser::parse("hello = Hello\nbye = Bye\nraw = Raw\n".to_string())
+                .unwrap();
+        let loaded_files = vec![LoadedFtlFile {
+            abs_path: ftl_path,
+            relative_path: PathBuf::from("test-app.ftl"),
+            resource,
+            keys: ["hello".to_string(), "bye".to_string(), "raw".to_string()]
+                .into_iter()
+                .collect(),
+        }];
 
-    let resource =
-        fluent_syntax::parser::parse("hello = Hello\nbye = Bye\nraw = Raw\n".to_string()).unwrap();
-    let loaded_files = vec![LoadedFtlFile {
-        abs_path: ftl_path,
-        relative_path: PathBuf::from("test-app.ftl"),
-        resource,
-        keys: ["hello".to_string(), "bye".to_string(), "raw".to_string()]
-            .into_iter()
-            .collect(),
-    }];
+        let mut expected_keys = IndexMap::new();
+        let absolute_source = temp
+            .path()
+            .join("src/lib.rs")
+            .to_str()
+            .expect("utf-8 test path")
+            .to_string();
+        expected_keys.insert(
+            "hello".to_string(),
+            key_info(&["name"], Some(&absolute_source), Some(7)),
+        );
+        expected_keys.insert(
+            "bye".to_string(),
+            key_info(&["who"], Some("src/lib.rs"), None),
+        );
+        expected_keys.insert("raw".to_string(), key_info(&["value"], None, None));
 
-    let mut expected_keys = IndexMap::new();
-    expected_keys.insert(
-        "hello".to_string(),
-        key_info(
-            &["name"],
-            Some(temp.path().join("src/lib.rs").to_string_lossy().as_ref()),
-            Some(7),
-        ),
-    );
-    expected_keys.insert(
-        "bye".to_string(),
-        key_info(&["who"], Some("src/lib.rs"), None),
-    );
-    expected_keys.insert("raw".to_string(), key_info(&["value"], None, None));
+        let ctx = ValidationContext {
+            expected_keys: &expected_keys,
+            workspace_root: temp.path(),
+            manifest_dir: temp.path(),
+        };
 
-    let ctx = ValidationContext {
-        expected_keys: &expected_keys,
-        workspace_root: temp.path(),
-        manifest_dir: temp.path(),
-    };
+        let issues = validate_loaded_ftl_files(&ctx, loaded_files, "en");
 
-    let issues = validate_loaded_ftl_files(&ctx, loaded_files, "en");
-
-    assert!(issues.iter().any(|issue| {
-        matches!(
-            issue,
-            ValidationIssue::MissingVariable(warning)
-                if warning.key == "hello" && warning.help.contains("src/lib.rs:7")
-        )
-    }));
-    assert!(issues.iter().any(|issue| {
-        matches!(
-            issue,
-            ValidationIssue::MissingVariable(warning)
-                if warning.key == "bye" && warning.help.contains("declared in")
-        )
-    }));
-    assert!(issues.iter().any(|issue| {
-        matches!(
-            issue,
-            ValidationIssue::MissingVariable(warning)
-                if warning.key == "raw" && warning.help.contains("Rust code")
-        )
-    }));
+        assert!(issues.iter().any(|issue| {
+            matches!(
+                issue,
+                ValidationIssue::MissingVariable(warning)
+                    if warning.key == "hello" && warning.help.contains("src/lib.rs:7")
+            )
+        }));
+        assert!(issues.iter().any(|issue| {
+            matches!(
+                issue,
+                ValidationIssue::MissingVariable(warning)
+                    if warning.key == "bye" && warning.help.contains("declared in")
+            )
+        }));
+        assert!(issues.iter().any(|issue| {
+            matches!(
+                issue,
+                ValidationIssue::MissingVariable(warning)
+                    if warning.key == "raw" && warning.help.contains("Rust code")
+            )
+        }));
+    });
 }
 
 #[test]
@@ -234,11 +230,7 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).unwrap();
     fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").unwrap();
-    fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
-    )
-    .unwrap();
+    write_toml(&temp.path().join("i18n.toml"), &i18n_config("en", "i18n"));
 
     let broken_dir = temp.path().join("i18n/en/test-crate");
     fs::create_dir_all(broken_dir.parent().unwrap()).unwrap();

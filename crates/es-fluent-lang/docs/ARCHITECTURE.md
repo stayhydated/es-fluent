@@ -15,10 +15,9 @@ This document details the architecture of the `es-fluent-lang` crate, which prov
 ```mermaid
 flowchart TD
     subgraph CRATE["es-fluent-lang"]
-        RES["Embedded .ftl Resource(s)"]
+        ICU["ICU4X Display Names"]
         LOC["Localizer Implementation"]
         MOD["I18nModule Implementation"]
-        BUILD["build.rs (localized-langs change tracking)"]
     end
 
     subgraph MACRO["es-fluent-lang-macro"]
@@ -30,8 +29,7 @@ flowchart TD
         APP["User Application"]
     end
 
-    RES -->|bundled into| LOC
-    BUILD --> RES
+    ICU --> LOC
     LOC -->|creates| MOD
     MOD -->|registers via inventory| MGR
     APP -->|calls| MGR
@@ -41,13 +39,17 @@ flowchart TD
 
 ## Features
 
-### Embedded Translations
+### ICU4X-Backed Display Names
 
-By default, the crate embeds the single `es-fluent-lang.ftl` autonym file (language names in their native scripts, e.g., "English", "Français", "日本語"). When the `localized-langs` feature is enabled, it uses per-locale translation files under `i18n/<locale>/es-fluent-lang.ftl`, allowing language names to be localized to the current UI language (e.g., displaying "English", "Spanish", "Japanese" when viewing in English).
+The localizer formats language labels directly from ICU4X display-name data at runtime.
 
-These resources are regenerated from ICU4X data with `cargo xtask generate-lang-names`.
+By default, it formats autonyms (language names in their own script, such as `français` or `日本語`). When the `localized-langs` feature is enabled, it formats those same language identifiers in the currently selected UI language instead.
 
-The localizer resolves fallback locales (e.g., `zh-CN` -> `zh`) so regioned languages still receive language-name translations when only a base locale is present.
+The localizer delegates locale fallback to the shared manager-core path, which
+uses ICU4X locale fallback data to walk a CLDR-backed parent chain. That means
+language-name display locales can resolve parent locales (for example, `zh-CN`
+-> `zh`) without treating fallback as a separate best-fit locale negotiation
+step.
 
 ### Manager Integration
 
@@ -64,8 +66,6 @@ inventory::submit! {
 ### Bevy Support
 
 When the optional `bevy` feature is enabled, it reuses the same standard `I18nModuleRegistration` path as other managers. Bevy fallback localization comes directly from the module localizer.
-
-`build.rs` remains only to track locale-folder changes (including deletions) for `localized-langs` builds.
 
 ## Macro
 

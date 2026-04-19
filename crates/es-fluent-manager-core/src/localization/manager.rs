@@ -1,45 +1,22 @@
 use super::{
     I18nModuleRegistration, LanguageSelectionPolicy, Localizer, ModuleDiscoveryError,
-    ModuleRegistrationKind, filter_module_registry, try_filter_module_registry,
+    ModuleRegistrationKind, try_filter_module_registry,
 };
 use crate::asset_localization::ModuleData;
 use fluent_bundle::FluentValue;
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::io;
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use unic_langid::LanguageIdentifier;
 
 type ManagedLocalizer = (&'static ModuleData, Box<dyn Localizer>);
+const MAX_DIAGNOSTIC_LANGUAGES: usize = 6;
 
 /// A manager for Fluent translations.
 #[derive(Default)]
 pub struct FluentManager {
     pub(super) modules: Vec<&'static dyn I18nModuleRegistration>,
     pub(super) localizers: RwLock<Vec<ManagedLocalizer>>,
-}
-
-fn read_localizers(
-    localizers: &RwLock<Vec<ManagedLocalizer>>,
-) -> RwLockReadGuard<'_, Vec<ManagedLocalizer>> {
-    match localizers.read() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("FluentManager localizer state lock poisoned while reading; recovering");
-            poisoned.into_inner()
-        },
-    }
-}
-
-fn write_localizers(
-    localizers: &RwLock<Vec<ManagedLocalizer>>,
-) -> RwLockWriteGuard<'_, Vec<ManagedLocalizer>> {
-    match localizers.write() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("FluentManager localizer state lock poisoned while writing; recovering");
-            poisoned.into_inner()
-        },
-    }
 }
 
 fn load_runtime_modules(
@@ -82,12 +59,70 @@ fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
         .join("\n")
 }
 
+pub(crate) fn format_module_names(modules: &[&'static ModuleData]) -> String {
+    if modules.is_empty() {
+        return "<none>".to_string();
+    }
+
+    modules
+        .iter()
+        .map(|data| data.name)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+pub(crate) fn format_supported_languages(languages: &[LanguageIdentifier]) -> String {
+    if languages.is_empty() {
+        return "none declared".to_string();
+    }
+
+    let mut formatted = languages
+        .iter()
+        .take(MAX_DIAGNOSTIC_LANGUAGES)
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+
+    if languages.len() > MAX_DIAGNOSTIC_LANGUAGES {
+        formatted.push(format!(
+            "+{} more",
+            languages.len() - MAX_DIAGNOSTIC_LANGUAGES
+        ));
+    }
+
+    formatted.join(", ")
+}
+
+pub(crate) fn format_module_support(data: &ModuleData) -> String {
+    if data.domain == data.name {
+        return format!(
+            "{} (supports: {})",
+            data.name,
+            format_supported_languages(data.supported_languages)
+        );
+    }
+
+    format!(
+        "{} (domain: {}, supports: {})",
+        data.name,
+        data.domain,
+        format_supported_languages(data.supported_languages)
+    )
+}
+
+pub(crate) fn format_module_support_list(modules: &[&'static ModuleData]) -> String {
+    if modules.is_empty() {
+        return "<none>".to_string();
+    }
+
+    modules
+        .iter()
+        .map(|data| format_module_support(data))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 impl FluentManager {
     /// Creates a new `FluentManager` with strict discovered-module validation.
-    ///
-    /// This constructor fails fast when discovery finds invalid metadata or
-    /// duplicate registrations. Use [`Self::best_effort_with_discovered_modules`]
-    /// if you want discovery conflicts to be logged and skipped instead.
     pub fn new_with_discovered_modules() -> Self {
         Self::try_new_with_discovered_modules().unwrap_or_else(|errors| {
             panic!(
@@ -97,28 +132,10 @@ impl FluentManager {
         })
     }
 
-    /// Creates a new `FluentManager` with lenient discovered-module validation.
-    ///
-    /// This keeps the legacy best-effort behavior: invalid metadata and
-    /// unresolvable duplicates are logged and skipped.
-    pub fn best_effort_with_discovered_modules() -> Self {
-        let discovered_modules = filter_module_registry(
-            inventory::iter::<&'static dyn I18nModuleRegistration>()
-                .copied()
-                .collect::<Vec<_>>(),
-        );
-
-        Self {
-            modules: load_runtime_modules(discovered_modules),
-            localizers: RwLock::default(),
-        }
-    }
-
     /// Creates a new `FluentManager` with strict registry validation.
     ///
-    /// Unlike [`Self::new_with_discovered_modules`], this returns an error when
-    /// discovery finds invalid module metadata or unresolvable duplicate
-    /// registrations.
+    /// This returns an error instead of panicking when discovery finds invalid
+    /// module metadata or unresolvable duplicate registrations.
     pub fn try_new_with_discovered_modules() -> Result<Self, Vec<ModuleDiscoveryError>> {
         let discovered_modules = try_filter_module_registry(
             inventory::iter::<&'static dyn I18nModuleRegistration>()
@@ -159,6 +176,7 @@ impl FluentManager {
         policy: LanguageSelectionPolicy,
     ) -> crate::localization::LocalizationErrorResult<()> {
         let mut next_localizers = Vec::with_capacity(self.modules.len());
+        let mut selected_modules = Vec::with_capacity(self.modules.len());
         let mut any_selected = false;
         let mut first_failure = None;
         let mut first_non_unsupported_failure = None;
@@ -175,7 +193,7 @@ impl FluentManager {
                     error
                 );
                 if first_non_unsupported_failure.is_none() {
-                    first_non_unsupported_failure = Some(error);
+                    first_non_unsupported_failure = Some((data, error));
                 }
                 continue;
             };
@@ -183,6 +201,7 @@ impl FluentManager {
             match localizer.select_language(lang) {
                 Ok(()) => {
                     any_selected = true;
+                    selected_modules.push(data);
                     next_localizers.push((data, localizer));
                 },
                 Err(error) => {
@@ -196,51 +215,59 @@ impl FluentManager {
                         &error,
                         crate::localization::LocalizationError::LanguageNotSupported(_)
                     ) {
-                        unsupported_modules.push(data.name);
+                        unsupported_modules.push(data);
                         if first_failure.is_none() {
                             first_failure = Some(error);
                         }
                     } else if first_non_unsupported_failure.is_none() {
-                        first_non_unsupported_failure = Some(error);
+                        first_non_unsupported_failure = Some((data, error));
                     }
                 },
             }
         }
 
-        if let Some(error) = first_non_unsupported_failure {
+        if let Some((module, error)) = first_non_unsupported_failure {
             tracing::warn!(
-                "Language selection for '{}' failed due to a runtime-localizer error; keeping the previous language active",
+                "Language selection for '{}' failed because module '{}' returned a runtime-localizer error: {}; keeping the previous language active",
                 lang,
+                module.name,
+                error,
             );
             return Err(error);
         }
 
-        if any_selected && first_failure.is_some() && policy == LanguageSelectionPolicy::Strict {
+        if any_selected
+            && policy == LanguageSelectionPolicy::Strict
+            && let Some(error) = first_failure
+        {
             tracing::warn!(
-                "Language selection for '{}' failed for at least one i18n module; keeping the previous language active",
-                lang
+                "Language selection for '{}' failed in strict mode; modules that accepted it: {}; modules that rejected it: {}; keeping the previous language active",
+                lang,
+                format_module_names(&selected_modules),
+                format_module_support_list(&unsupported_modules),
             );
-            return Err(first_failure.expect("selection failure should have been captured"));
+            return Err(error);
         }
 
         if !any_selected {
             tracing::warn!(
-                "No i18n modules support language '{}'; unsupported modules: {}",
+                "No i18n modules support language '{}'; modules checked: {}",
                 lang,
-                unsupported_modules.join(", ")
+                format_module_support_list(&unsupported_modules)
             );
             return Err(crate::localization::LocalizationError::LanguageNotSupported(lang.clone()));
         }
 
         if !unsupported_modules.is_empty() {
             tracing::warn!(
-                "Language '{}' is not supported by some i18n modules; continuing with: {}",
+                "Language '{}' is only partially supported; active modules: {}; skipped unsupported modules: {}",
                 lang,
-                unsupported_modules.join(", ")
+                format_module_names(&selected_modules),
+                format_module_support_list(&unsupported_modules),
             );
         }
 
-        *write_localizers(&self.localizers) = next_localizers;
+        *self.localizers.write() = next_localizers;
         Ok(())
     }
 
@@ -254,7 +281,7 @@ impl FluentManager {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        for (_, localizer) in read_localizers(&self.localizers).iter() {
+        for (_, localizer) in self.localizers.read().iter() {
             if let Some(message) = localizer.localize(id, args) {
                 return Some(message);
             }
@@ -269,7 +296,8 @@ impl FluentManager {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        read_localizers(&self.localizers)
+        self.localizers
+            .read()
             .iter()
             .find(|(data, _)| data.domain == domain)
             .and_then(|(_, localizer)| localizer.localize(id, args))

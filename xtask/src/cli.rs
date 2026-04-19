@@ -1,4 +1,3 @@
-use crate::commands::generate_lang_names::GenerateLangNamesArgs;
 use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
@@ -15,8 +14,6 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Generate language-name resources and supported_locales.rs from ICU4X data
-    GenerateLangNames(GenerateLangNamesArgs),
     /// Build mdBook documentation to web/public/book
     BuildBook,
     /// Build llms.txt from mdBook sources to web/public/llms.txt
@@ -25,6 +22,6 @@ pub enum Command {
     BuildWasmExamples,
     /// Generate the JSON schema for the wasm example manifest
     GenerateWasmExamplesSchema,
-    /// Verify built wasm examples include es-fluent-lang resources
+    /// Verify built wasm examples include their required markers
     VerifyWasmExamples,
 }

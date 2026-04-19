@@ -16,7 +16,7 @@ pub fn force_link() {
     es_fluent_lang::force_link();
 }
 
-#[derive(Clone, Copy, Debug, Default, EsFluent, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, EsFluent, PartialEq)]
 #[cfg_attr(
     feature = "bevy",
     derive(Component, es_fluent_manager_bevy::BevyFluentText)
@@ -32,7 +32,7 @@ pub enum ButtonState {
 impl gpui::Global for CurrentLanguage {}
 
 #[es_fluent_language]
-#[derive(Clone, Copy, Debug, EnumIter, EsFluent, PartialEq)]
+#[derive(Clone, Copy, Debug, EnumIter, Eq, EsFluent, PartialEq)]
 pub enum Languages {}
 
 impl Languages {

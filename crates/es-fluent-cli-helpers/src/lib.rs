@@ -8,10 +8,6 @@ use es_fluent_toml::ResolvedI18nLayout;
 #[cfg(test)]
 use std::path::Path;
 
-#[cfg(test)]
-pub(crate) static TEST_CWD_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
-    std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
-
 pub use cli::write_inventory_for_crate;
 pub use es_fluent_runner::{ExpectedKey, InventoryData};
 pub use generate::{EsFluentGenerator, FluentParseMode, GeneratorArgs, GeneratorError};
@@ -209,18 +205,22 @@ pub fn run() {
 }
 
 #[cfg(test)]
+#[serial_test::serial(process)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
 
     fn with_temp_cwd<T>(f: impl FnOnce(&Path) -> T) -> T {
-        let _guard = crate::TEST_CWD_LOCK.lock().expect("lock poisoned");
         let original = std::env::current_dir().expect("cwd");
         let temp = tempdir().expect("tempdir");
         std::env::set_current_dir(temp.path()).expect("set cwd");
-        let result = f(temp.path());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(temp.path())));
         std::env::set_current_dir(original).expect("restore cwd");
-        result
+
+        match result {
+            Ok(value) => value,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
     }
 
     fn write_basic_manifest(manifest_dir: &Path) {

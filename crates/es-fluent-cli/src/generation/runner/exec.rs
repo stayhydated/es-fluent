@@ -1,9 +1,10 @@
 use anyhow::{Context as _, Result, bail};
+use fs_err as fs;
+use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 #[cfg(test)]
 use std::process::Output;
-use std::{env, fs};
 
 pub(super) struct RunnerCrate<'a> {
     temp_dir: &'a Path,

@@ -10,7 +10,6 @@ version.workspace = true
 readme = "README.md"
 categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "i18n", "locale", "icu4x" ]
-build = "build.rs"
 
 [features]
 bevy = [  ]
@@ -22,13 +21,13 @@ macros = [ "dep:es-fluent-lang-macro" ]
 es-fluent-lang-macro = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 fluent-bundle = { workspace = true }
+icu_experimental = { workspace = true }
+icu_locale = { workspace = true }
 inventory = { workspace = true }
-rust-embed = { workspace = true }
+parking_lot = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
-
 [lints]
 workspace = true

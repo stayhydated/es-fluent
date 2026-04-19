@@ -2,10 +2,11 @@ use super::inventory::collect_type_infos;
 use super::*;
 use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use es_fluent_shared::meta::TypeKind;
+use fs_err as fs;
 use std::borrow::Cow;
 use std::path::Path;
-use std::sync::{LazyLock, Mutex};
 use tempfile::tempdir;
+use toml::Value;
 
 static EMPTY_VARIANTS: &[FtlVariant] = &[];
 static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
@@ -39,89 +40,63 @@ static CLEAN_INFO: FtlTypeInfo = FtlTypeInfo {
     module_path: "coverage_test_crate",
     namespace: None,
 };
-static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
 es_fluent::__inventory::submit! {
     es_fluent::registry::RegisteredFtlType(&CLEAN_INFO)
 }
 
 fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
-    let _guard = ENV_LOCK.lock().expect("lock poisoned");
-    let previous = std::env::var_os(key);
-
-    match value {
-        Some(value) => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::set_var(key, value) };
-        },
-        None => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::remove_var(key) };
-        },
-    }
-
-    let result = f();
-
-    match previous {
-        Some(previous) => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::set_var(key, previous) };
-        },
-        None => {
-            // SAFETY: tests serialize environment updates with a global lock.
-            unsafe { std::env::remove_var(key) };
-        },
-    }
-
-    result
+    temp_env::with_var(key, value, f)
 }
 
 fn with_env_vars<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
-    let _guard = ENV_LOCK.lock().expect("lock poisoned");
-    let previous: Vec<(String, Option<std::ffi::OsString>)> = vars
-        .iter()
-        .map(|(key, _)| ((*key).to_string(), std::env::var_os(key)))
-        .collect();
+    temp_env::with_vars(vars, f)
+}
 
-    for (key, value) in vars {
-        match value {
-            Some(value) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(key, value) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(key) };
-            },
-        }
+fn string_value(value: &str) -> Value {
+    Value::String(value.to_string())
+}
+
+fn table(
+    entries: impl IntoIterator<Item = (&'static str, Value)>,
+) -> toml::map::Map<String, Value> {
+    entries
+        .into_iter()
+        .map(|(key, value)| (key.to_string(), value))
+        .collect()
+}
+
+fn write_toml(path: &Path, value: &Value) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent directory");
     }
+    fs::write(
+        path,
+        toml::to_string(value).expect("serialize TOML fixture"),
+    )
+    .expect("write TOML fixture");
+}
 
-    let result = f();
-
-    for (key, value) in previous {
-        match value {
-            Some(value) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(&key, value) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(&key) };
-            },
-        }
+fn i18n_config(fallback_language: &str, assets_dir: &str, namespaces: &[&str]) -> Value {
+    let mut config = table([
+        ("fallback_language", string_value(fallback_language)),
+        ("assets_dir", string_value(assets_dir)),
+    ]);
+    if !namespaces.is_empty() {
+        config.insert(
+            "namespaces".to_string(),
+            Value::Array(namespaces.iter().copied().map(string_value).collect()),
+        );
     }
-
-    result
+    Value::Table(config)
 }
 
 fn write_basic_i18n_config(manifest_dir: &Path) {
-    std::fs::create_dir_all(manifest_dir.join("i18n/en-US")).expect("mkdir en-US");
-    std::fs::create_dir_all(manifest_dir.join("i18n/fr")).expect("mkdir fr");
-    std::fs::write(
-        manifest_dir.join("i18n.toml"),
-        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\nnamespaces = [\"ui\"]\n",
-    )
-    .expect("write i18n.toml");
+    fs::create_dir_all(manifest_dir.join("i18n/en-US")).expect("mkdir en-US");
+    fs::create_dir_all(manifest_dir.join("i18n/fr")).expect("mkdir fr");
+    write_toml(
+        &manifest_dir.join("i18n.toml"),
+        &i18n_config("en-US", "i18n", &["ui"]),
+    );
 }
 
 #[test]
@@ -157,6 +132,7 @@ fn resolve_helpers_use_overrides_and_config_defaults() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn resolve_helpers_can_load_defaults_from_manifest_environment() {
     let temp = tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
@@ -181,6 +157,7 @@ fn resolve_helpers_can_load_defaults_from_manifest_environment() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn resolve_manifest_dir_reports_missing_environment() {
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -242,13 +219,12 @@ fn resolve_clean_paths_supports_single_or_all_locales() {
 #[test]
 fn resolve_clean_paths_preserves_raw_locale_directory_names() {
     let temp = tempdir().expect("tempdir");
-    std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
-    std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
-    std::fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en-us\"\nassets_dir = \"i18n\"\n",
-    )
-    .expect("write i18n.toml");
+    fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
+    fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
+    write_toml(
+        &temp.path().join("i18n.toml"),
+        &i18n_config("en-US", "i18n", &[]),
+    );
 
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -270,8 +246,8 @@ fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
     write_basic_i18n_config(temp.path());
 
     let override_assets = temp.path().join("custom-assets");
-    std::fs::create_dir_all(override_assets.join("es-MX")).expect("mkdir es-MX");
-    std::fs::create_dir_all(override_assets.join("ja")).expect("mkdir ja");
+    fs::create_dir_all(override_assets.join("es-MX")).expect("mkdir es-MX");
+    fs::create_dir_all(override_assets.join("ja")).expect("mkdir ja");
 
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -291,14 +267,13 @@ fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
 #[test]
 fn resolve_clean_paths_tolerates_invalid_locale_directory_names() {
     let temp = tempdir().expect("tempdir");
-    std::fs::create_dir_all(temp.path().join("i18n/en-US")).expect("mkdir en-US");
-    std::fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
-    std::fs::create_dir_all(temp.path().join("i18n/not_a_locale")).expect("mkdir invalid");
-    std::fs::write(
-        temp.path().join("i18n.toml"),
-        "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
-    )
-    .expect("write i18n.toml");
+    fs::create_dir_all(temp.path().join("i18n/en-US")).expect("mkdir en-US");
+    fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
+    fs::create_dir_all(temp.path().join("i18n/not_a_locale")).expect("mkdir invalid");
+    write_toml(
+        &temp.path().join("i18n.toml"),
+        &i18n_config("en-US", "i18n", &[]),
+    );
 
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -380,7 +355,7 @@ fn clean_marks_changes_when_cleaner_rewrites_files() {
     write_basic_i18n_config(temp.path());
 
     let target_file = temp.path().join("i18n/en-US/coverage-test-crate.ftl");
-    std::fs::write(
+    fs::write(
         &target_file,
         "## GroupA\n\ngroup_a-Key1 = Keep\norphan-Old = stale value\n",
     )
@@ -396,6 +371,7 @@ fn clean_marks_changes_when_cleaner_rewrites_files() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn detect_crate_name_works_in_test_environment() {
     with_env_vars(
         &[
@@ -410,6 +386,7 @@ fn detect_crate_name_works_in_test_environment() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
     let temp = tempdir().expect("tempdir");
 
@@ -446,6 +423,7 @@ fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
 }
 
 #[test]
+#[serial_test::serial(process)]
 fn env_helpers_restore_unset_variables() {
     let key = format!("ES_FLUENT_TEST_UNSET_{}_A", std::process::id());
     with_env_var(&key, Some("value"), || {

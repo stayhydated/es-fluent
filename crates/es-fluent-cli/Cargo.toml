@@ -21,21 +21,25 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 askama = { workspace = true }
 blake3 = { workspace = true }
+camino = { workspace = true }
 cargo-manifest = { workspace = true }
 cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 colored = { workspace = true }
+crossbeam-channel = { workspace = true }
 crossterm = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-runner = { workspace = true }
 es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
+fs-err = { workspace = true }
 indexmap = { features = [ "serde" ], workspace = true }
 indicatif = { workspace = true }
 jiff = { workspace = true }
 miette = { features = [ "fancy" ], workspace = true }
 notify = { workspace = true }
-notify-debouncer-full = { workspace = true }
+notify-debouncer-full = { features = [ "crossbeam-channel" ], workspace = true }
+path-slash = { workspace = true }
 ratatui = { features = [ "crossterm" ], workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -48,8 +52,12 @@ treelog = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]
+assert_cmd = { workspace = true }
 assert_fs = { workspace = true }
-serde_json = { workspace = true }
+insta = { workspace = true }
+predicates = { workspace = true }
+serial_test = { workspace = true }
+temp-env = { workspace = true }
 tempfile.workspace = true
 
 

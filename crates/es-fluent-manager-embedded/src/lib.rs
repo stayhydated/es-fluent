@@ -10,7 +10,10 @@ use es_fluent::try_set_shared_context;
 use es_fluent_manager_core::FluentManager;
 
 #[doc(hidden)]
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock};
+use parking_lot::{Mutex, MutexGuard};
+
+#[doc(hidden)]
+use std::sync::{Arc, LazyLock, OnceLock};
 
 #[doc(hidden)]
 use unic_langid::LanguageIdentifier;
@@ -68,13 +71,7 @@ static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 static INIT_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 fn init_lock() -> MutexGuard<'static, ()> {
-    match INIT_LOCK.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("Embedded manager init lock poisoned; recovering");
-            poisoned.into_inner()
-        },
-    }
+    INIT_LOCK.lock()
 }
 
 fn build_manager(
@@ -95,16 +92,6 @@ fn select_initial_language(
     manager
         .select_language(initial_language)
         .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
-}
-
-fn build_best_effort_manager(
-    initial_language: Option<&LanguageIdentifier>,
-) -> Result<Arc<FluentManager>, EmbeddedInitError> {
-    let manager = FluentManager::best_effort_with_discovered_modules();
-    if let Some(initial_language) = initial_language {
-        select_initial_language(&manager, initial_language)?;
-    }
-    Ok(Arc::new(manager))
 }
 
 fn initialize_manager(manager: Arc<FluentManager>) -> Result<bool, EmbeddedInitError> {
@@ -183,10 +170,10 @@ fn init_manager(
 
 /// Initializes the embedded singleton `FluentManager`.
 ///
-/// This convenience entry point uses best-effort module discovery and logs
+/// This convenience entry point uses strict module discovery and logs
 /// initialization failures instead of returning them.
 pub fn init() {
-    if let Err(error) = init_manager(None, build_best_effort_manager) {
+    if let Err(error) = init_manager(None, build_manager) {
         tracing::error!("Failed to initialize embedded fluent manager: {}", error);
     }
 }
@@ -199,7 +186,7 @@ pub fn try_init() -> Result<(), EmbeddedInitError> {
 /// Initializes the embedded singleton `FluentManager` and selects the active
 /// language.
 ///
-/// This convenience entry point uses best-effort module discovery and logs
+/// This convenience entry point uses strict module discovery and logs
 /// initialization failures instead of returning them. It is equivalent to
 /// calling [`init()`] followed by [`select_language()`], except the language is
 /// selected before the manager is published as the global singleton. If
@@ -207,7 +194,7 @@ pub fn try_init() -> Result<(), EmbeddedInitError> {
 /// the live manager after the race is resolved.
 pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
     let lang = lang.into();
-    if let Err(error) = init_manager(Some(lang.clone()), build_best_effort_manager) {
+    if let Err(error) = init_manager(Some(lang.clone()), build_manager) {
         tracing::error!(
             "Failed to initialize embedded fluent manager with language '{}': {}",
             lang,
@@ -254,9 +241,10 @@ mod tests {
         I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
         ModuleData,
     };
+    use parking_lot::Mutex;
     use std::collections::HashMap;
     use std::sync::{
-        LazyLock, Mutex,
+        LazyLock,
         atomic::{AtomicUsize, Ordering},
     };
     use unic_langid::langid;
@@ -315,7 +303,7 @@ mod tests {
 
     #[test]
     fn build_manager_selects_initial_language_when_requested() {
-        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        let _guard = TEST_LOCK.lock();
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         let manager = build_manager(Some(&langid!("en-US")))
@@ -330,7 +318,7 @@ mod tests {
 
     #[test]
     fn build_manager_rejects_unselectable_initial_language() {
-        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        let _guard = TEST_LOCK.lock();
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         let err = match build_manager(Some(&langid!("zz"))) {
@@ -347,7 +335,7 @@ mod tests {
 
     #[test]
     fn init_and_select_language_cover_singleton_paths() {
-        let _guard = TEST_LOCK.lock().expect("lock poisoned");
+        let _guard = TEST_LOCK.lock();
         SELECT_CALLS.store(0, Ordering::Relaxed);
 
         // Exercise the pre-init error path.

@@ -15,7 +15,7 @@ es-fluent-manager-embedded = "*"
 
 ## Project Configuration
 
-Create an `i18n.toml` next to your workspace's root `Cargo.toml`:
+Create an `i18n.toml` next to your crate's `Cargo.toml`:
 
 ```toml
 # Default fallback language (required)

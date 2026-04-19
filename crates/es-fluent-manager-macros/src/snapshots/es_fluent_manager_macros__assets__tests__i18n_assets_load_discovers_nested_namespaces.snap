@@ -1,0 +1,25 @@
+---
+source: crates/es-fluent-manager-macros/src/assets.rs
+expression: assets
+---
+I18nAssets {
+    root_path: "<assets>",
+    languages: [
+        "fr",
+    ],
+    namespaces: [
+        "ui/button",
+    ],
+    resource_specs_by_language: [
+        (
+            "fr",
+            [
+                ResourceSpec {
+                    key: "my-crate/ui/button",
+                    locale_relative_path: "my-crate/ui/button.ftl",
+                    required: true,
+                },
+            ],
+        ),
+    ],
+}

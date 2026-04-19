@@ -1,16 +1,15 @@
-use super::ModuleRegistryMode;
 use super::runtime::{
     build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_global_state,
 };
 use super::state::{BevyI18nState, set_bevy_i18n_state};
 use crate::{
-    BevyFluentTextRegistration, CurrentLanguageId, FtlAsset, I18nAssets, I18nResource,
-    LocaleChangeEvent, LocaleChangedEvent,
+    ActiveLanguageId, BevyFluentTextRegistration, FtlAsset, I18nAssets, I18nResource,
+    LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange, RequestedLanguageId,
 };
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    FluentManager, I18nModuleRegistration, ModuleDiscoveryError, filter_module_registry,
-    resolve_ready_locale, try_filter_module_registry,
+    FluentManager, I18nModuleRegistration, ModuleDiscoveryError, resolve_ready_locale,
+    try_filter_module_registry,
 };
 use std::{collections::HashSet, sync::Arc};
 use unic_langid::LanguageIdentifier;
@@ -21,16 +20,11 @@ pub(super) struct ModuleDiscovery {
     pub(super) languages: HashSet<LanguageIdentifier>,
 }
 
-pub(super) fn discover_modules(
-    module_registry_mode: ModuleRegistryMode,
-) -> Result<ModuleDiscovery, Vec<ModuleDiscoveryError>> {
+pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryError>> {
     let discovered = inventory::iter::<&'static dyn I18nModuleRegistration>()
         .copied()
         .collect::<Vec<_>>();
-    let modules = match module_registry_mode {
-        ModuleRegistryMode::Lenient => filter_module_registry(discovered),
-        ModuleRegistryMode::ErrorIfConflicted => try_filter_module_registry(discovered)?,
-    };
+    let modules = try_filter_module_registry(discovered)?;
     let mut domains = HashSet::new();
     let mut languages = HashSet::new();
 
@@ -76,30 +70,27 @@ pub(super) fn resolve_initial_language(
 }
 
 pub(super) fn initialize_global_state(
+    requested_language: &LanguageIdentifier,
     resolved_language: &LanguageIdentifier,
-    module_registry_mode: ModuleRegistryMode,
 ) -> Result<I18nResource, String> {
-    let fallback_manager = match module_registry_mode {
-        ModuleRegistryMode::Lenient => {
-            Arc::new(FluentManager::best_effort_with_discovered_modules())
-        },
-        ModuleRegistryMode::ErrorIfConflicted => Arc::new(
-            FluentManager::try_new_with_discovered_modules()
-                .map_err(format_module_discovery_errors)?,
-        ),
-    };
+    let fallback_manager = Arc::new(
+        FluentManager::try_new_with_discovered_modules().map_err(format_module_discovery_errors)?,
+    );
     fallback_manager
-        .select_language(resolved_language)
+        .select_language(requested_language)
         .map_err(|error| {
             format!(
                 "fallback manager rejected initial language '{}': {}",
-                resolved_language, error
+                requested_language, error
             )
         })?;
     set_bevy_i18n_state(
-        BevyI18nState::new(resolved_language.clone()).with_fallback_manager(fallback_manager),
+        BevyI18nState::new(requested_language.clone()).with_fallback_manager(fallback_manager),
     );
-    Ok(I18nResource::new(resolved_language.clone()))
+    Ok(I18nResource::new_with_resolved_language(
+        requested_language.clone(),
+        resolved_language.clone(),
+    ))
 }
 
 fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
@@ -162,11 +153,14 @@ pub(super) fn configure_app(
     app: &mut App,
     i18n_assets: I18nAssets,
     i18n_resource: I18nResource,
-    resolved_language: LanguageIdentifier,
+    requested_language: LanguageIdentifier,
 ) {
+    let active_language = i18n_resource.active_language().clone();
     app.insert_resource(i18n_assets)
         .insert_resource(i18n_resource)
-        .insert_resource(CurrentLanguageId(resolved_language))
+        .insert_resource(RequestedLanguageId(requested_language))
+        .insert_resource(ActiveLanguageId(active_language))
+        .insert_resource(PendingLanguageChange::default())
         .add_message::<LocaleChangeEvent>()
         .add_message::<LocaleChangedEvent>()
         .add_systems(

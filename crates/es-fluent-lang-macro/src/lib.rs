@@ -7,45 +7,17 @@ use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{Fields, ItemEnum, LitStr, Variant, parse_quote, spanned::Spanned as _};
 
-mod supported_locales;
-
-struct SupportedLanguageSet {
-    keys: std::collections::HashSet<&'static str>,
-}
-
-impl SupportedLanguageSet {
-    fn new() -> Self {
-        Self {
-            keys: supported_locales::SUPPORTED_LANGUAGE_KEYS
-                .iter()
-                .copied()
-                .collect(),
-        }
-    }
-
-    fn resolve_supported_key(&self, lang: &unic_langid::LanguageIdentifier) -> Option<String> {
-        es_fluent_manager_core::locale_candidates(lang)
-            .into_iter()
-            .map(|candidate| candidate.to_string())
-            .find(|key| self.keys.contains(key.as_str()))
-    }
-
-    fn contains(&self, lang: &unic_langid::LanguageIdentifier) -> bool {
-        self.resolve_supported_key(lang).is_some()
-    }
-}
-
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
 /// Which generates variants for each language in the i18n folder structure.
 ///
 /// By default, this macro:
-/// - Links to the bundled `es-fluent-lang.ftl` file for language name translations
+/// - Links to the built-in `es-fluent-lang` runtime for language name formatting
 /// - Does NOT register the enum with inventory (since it's a language selector, not a translatable item)
 ///
 /// Use `#[es_fluent_language(custom)]` to:
-/// - NOT link to the bundled `es-fluent-lang.ftl` file (you provide your own translations)
+/// - NOT link to the built-in `es-fluent-lang` runtime (you provide your own translations)
 /// - Register the enum with inventory (so it appears in generated FTL files)
-/// - Allow locale folders that are not present in the bundled supported-language table
+/// - Make your FTL files the source of truth for language labels
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn es_fluent_language(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -155,36 +127,12 @@ fn expand_es_fluent_language(
     language_entries.sort_by(|a, b| a.0.cmp(&b.0));
     language_entries.dedup_by(|a, b| a.0 == b.0);
 
-    let supported_languages = SupportedLanguageSet::new();
-
-    if !custom_mode {
-        let unsupported_languages: Vec<_> = language_entries
-            .iter()
-            .filter_map(|(canonical, language)| {
-                if supported_languages.contains(language) {
-                    None
-                } else {
-                    Some(canonical.clone())
-                }
-            })
-            .collect();
-
-        if !unsupported_languages.is_empty() {
-            let formatted = unsupported_languages.join(", ");
-            return syn::Error::new(
-                enum_span,
-                format!("unsupported languages in assets: {formatted}."),
-            )
-            .to_compile_error();
-        }
-    }
-
     let mut variant_idents = Vec::with_capacity(language_entries.len());
     let mut language_literals = Vec::with_capacity(language_entries.len());
     let mut fallback_variant_ident = None;
 
-    // In default mode: use bundled es-fluent-lang.ftl and skip inventory registration
-    // In custom mode: don't add resource attribute (user provides translations) and register with inventory
+    // In default mode: use the built-in es-fluent-lang runtime and skip inventory registration.
+    // In custom mode: don't add the resource attribute (user provides translations) and register with inventory.
     if custom_mode {
         // No resource attribute - user provides their own translations
         // No skip_inventory - enum will be registered with inventory
@@ -196,16 +144,9 @@ fn expand_es_fluent_language(
 
     input_enum.variants.clear();
 
-    for (canonical, language) in &language_entries {
+    for (canonical, _language) in &language_entries {
         let variant_name = canonical.replace('-', "_").to_upper_camel_case();
-        let fluent_key = if custom_mode {
-            canonical.clone()
-        } else {
-            // Map region/script variants to the nearest bundled key (e.g. fr-FR -> fr).
-            supported_languages
-                .resolve_supported_key(language)
-                .unwrap_or_else(|| canonical.clone())
-        };
+        let fluent_key = canonical.clone();
 
         let variant_ident = syn::Ident::new(&variant_name, Span::call_site());
         let literal = LitStr::new(canonical, Span::call_site());
@@ -351,31 +292,22 @@ fn expand_es_fluent_language(
     expanded
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::expand_es_fluent_language;
-    use std::sync::{LazyLock, Mutex};
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+    use insta::assert_snapshot;
+    use path_slash::PathExt as _;
+    use std::path::Path;
+    use tempfile::TempDir;
 
     fn with_manifest_dir<T>(
         manifest_toml: Option<&str>,
         locale_dirs: &[&str],
-        f: impl FnOnce() -> T,
+        f: impl FnOnce(&Path) -> T,
     ) -> T {
-        let _guard = ENV_LOCK.lock().expect("lock poisoned");
-        let previous = std::env::var_os("CARGO_MANIFEST_DIR");
-
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock should be after unix epoch")
-            .as_nanos();
-        let manifest_dir = std::env::temp_dir().join(format!(
-            "es-fluent-lang-macro-test-{pid}-{unique}",
-            pid = std::process::id()
-        ));
-        std::fs::create_dir_all(&manifest_dir).expect("create temp manifest dir");
+        let temp_dir = TempDir::new().expect("create temp manifest dir");
+        let manifest_dir = temp_dir.path();
 
         if let Some(manifest_toml) = manifest_toml {
             std::fs::write(manifest_dir.join("i18n.toml"), manifest_toml).expect("write i18n.toml");
@@ -386,22 +318,11 @@ mod tests {
                 .expect("create locale dir");
         }
 
-        // SAFETY: tests serialize environment updates with a global lock.
-        unsafe { std::env::set_var("CARGO_MANIFEST_DIR", &manifest_dir) };
-
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-
-        match previous {
-            Some(previous) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var("CARGO_MANIFEST_DIR", previous) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var("CARGO_MANIFEST_DIR") };
-            },
-        }
-        let _ = std::fs::remove_dir_all(&manifest_dir);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), || {
+                f(&manifest_dir)
+            })
+        }));
 
         match result {
             Ok(value) => value,
@@ -409,50 +330,86 @@ mod tests {
         }
     }
 
-    fn run_macro(attr: &str, item: &str) -> String {
+    fn run_macro(attr: &str, item: &str) -> proc_macro2::TokenStream {
         let attr_tokens = if attr.trim().is_empty() {
             proc_macro2::TokenStream::new()
         } else {
             attr.parse().expect("parse attribute tokens")
         };
         let item_tokens: proc_macro2::TokenStream = item.parse().expect("parse item tokens");
-        expand_es_fluent_language(attr_tokens, item_tokens).to_string()
+        expand_es_fluent_language(attr_tokens, item_tokens)
+    }
+
+    fn pretty_tokens(tokens: &proc_macro2::TokenStream) -> String {
+        let file: syn::File =
+            syn::parse2(tokens.clone()).expect("generated tokens should parse as a Rust file");
+        prettyplease::unparse(&file).trim().to_string()
+    }
+
+    fn normalize_output(tokens: &proc_macro2::TokenStream, manifest_dir: &Path) -> String {
+        let manifest = manifest_dir.to_slash_lossy();
+        let manifest_escaped = manifest.replace('\\', "\\\\");
+        let i18n = manifest_dir.join("i18n.toml");
+        let i18n = i18n.to_slash_lossy();
+        let i18n_escaped = i18n.replace('\\', "\\\\");
+        let output = pretty_tokens(tokens);
+
+        output
+            .replace(i18n.as_ref(), "<manifest-dir>/i18n.toml")
+            .replace(i18n_escaped.as_str(), "<manifest-dir>/i18n.toml")
+            .replace(manifest.as_ref(), "<manifest-dir>")
+            .replace(manifest_escaped.as_str(), "<manifest-dir>")
     }
 
     #[test]
     fn macro_rejects_invalid_attribute_arguments_and_input_shapes() {
         let invalid_attr = run_macro("bad", "enum Languages {}");
-        assert!(invalid_attr.contains("only accepts `custom`"));
+        assert_snapshot!(
+            "macro_rejects_invalid_attribute_arguments",
+            pretty_tokens(&invalid_attr)
+        );
 
         let generic_enum = run_macro("", "enum Languages<T> {}");
-        assert!(generic_enum.contains("does not support generic enums"));
+        assert_snapshot!("macro_rejects_generic_enums", pretty_tokens(&generic_enum));
 
         let enum_with_variants = run_macro("", "enum Languages { En }");
-        assert!(enum_with_variants.contains("expects an enum without variants"));
+        assert_snapshot!(
+            "macro_rejects_enums_with_variants",
+            pretty_tokens(&enum_with_variants)
+        );
     }
 
     #[test]
     fn macro_reports_configuration_and_language_discovery_errors() {
-        with_manifest_dir(None, &[], || {
+        with_manifest_dir(None, &[], |manifest_dir| {
             let output = run_macro("", "enum MissingConfig {}");
-            assert!(output.contains("failed to read i18n configuration"));
+            assert_snapshot!(
+                "macro_reports_missing_configuration",
+                normalize_output(&output, manifest_dir)
+            );
         });
 
         with_manifest_dir(
             Some("fallback_language = \"en-US\"\nassets_dir = \"missing\"\n"),
             &[],
-            || {
+            |manifest_dir| {
                 let output = run_macro("", "enum MissingAssets {}");
-                assert!(output.contains("failed to collect available languages"));
+                assert_snapshot!(
+                    "macro_reports_missing_assets_directory",
+                    normalize_output(&output, manifest_dir)
+                );
             },
         );
 
         with_manifest_dir(
             Some("fallback_language = \"not-a-lang\"\nassets_dir = \"i18n\"\n"),
             &["en"],
-            || {
+            |manifest_dir| {
                 let output = run_macro("", "enum BadFallback {}");
-                assert!(output.contains("failed to parse fallback language"));
+                assert_snapshot!(
+                    "macro_reports_invalid_fallback_configuration",
+                    normalize_output(&output, manifest_dir)
+                );
             },
         );
     }
@@ -462,63 +419,60 @@ mod tests {
         with_manifest_dir(
             Some("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n"),
             &["fr"],
-            || {
+            |_| {
                 let default_mode = run_macro("", "enum Languages {}");
-                assert!(default_mode.contains("resource = \"es-fluent-lang\""));
-                assert!(default_mode.contains("domain = \"es-fluent-lang\""));
-                assert!(default_mode.contains("Fr"));
-                assert!(default_mode.contains("EnUs"));
-                assert!(default_mode.contains("key = \"en\""));
-                assert!(!default_mode.contains("key = \"en-US\""));
-                assert!(default_mode.contains(":: es_fluent_lang :: force_link"));
-                assert!(default_mode.contains("# [used]"));
+                assert_snapshot!(
+                    "macro_adds_missing_fallback_default_mode",
+                    pretty_tokens(&default_mode)
+                );
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
-                assert!(!custom_mode.contains("resource = \"es-fluent-lang\""));
-                assert!(!custom_mode.contains("domain = \"es-fluent-lang\""));
-                assert!(custom_mode.contains("enum CustomLanguages"));
-                assert!(custom_mode.contains("key = \"en-US\""));
-                assert!(!custom_mode.contains(":: es_fluent_lang :: force_link"));
+                assert_snapshot!(
+                    "macro_adds_missing_fallback_custom_mode",
+                    pretty_tokens(&custom_mode)
+                );
             },
         );
     }
 
     #[test]
-    fn macro_uses_supported_lookup_keys_for_default_mode() {
+    fn macro_uses_exact_locale_keys_in_both_modes() {
         with_manifest_dir(
             Some("fallback_language = \"en\"\nassets_dir = \"i18n\"\n"),
             &["fr-FR", "zh-CN"],
-            || {
+            |_| {
                 let default_mode = run_macro("", "enum Languages {}");
-                assert!(default_mode.contains("FrFr"));
-                assert!(default_mode.contains("ZhCn"));
-                assert!(default_mode.contains("key = \"fr\""));
-                assert!(default_mode.contains("key = \"zh\""));
-                assert!(!default_mode.contains("key = \"fr-FR\""));
-                assert!(!default_mode.contains("key = \"zh-CN\""));
-                assert!(default_mode.contains("\"fr-FR\" => Ok"));
-                assert!(default_mode.contains("\"zh-CN\" => Ok"));
+                assert_snapshot!(
+                    "macro_uses_exact_locale_keys_default_mode",
+                    pretty_tokens(&default_mode)
+                );
 
                 let custom_mode = run_macro("custom", "enum CustomLanguages {}");
-                assert!(custom_mode.contains("key = \"fr-FR\""));
-                assert!(custom_mode.contains("key = \"zh-CN\""));
+                assert_snapshot!(
+                    "macro_uses_exact_locale_keys_custom_mode",
+                    pretty_tokens(&custom_mode)
+                );
             },
         );
     }
 
     #[test]
-    fn macro_rejects_unsupported_languages() {
+    fn macro_accepts_valid_unlocalized_languages() {
         with_manifest_dir(
             Some("fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n"),
             &["zz"],
-            || {
-                let output = run_macro("", "enum Unsupported {}");
-                assert!(output.contains("unsupported languages in assets"));
-                assert!(output.contains("zz"));
+            |_| {
+                let output = run_macro("", "enum Languages {}");
+                assert_snapshot!(
+                    "macro_accepts_valid_unlocalized_languages_default_mode",
+                    pretty_tokens(&output)
+                );
 
-                let custom_output = run_macro("custom", "enum CustomUnsupported {}");
-                assert!(!custom_output.contains("unsupported languages in assets"));
-                assert!(custom_output.contains("key = \"zz\""));
+                let custom_output = run_macro("custom", "enum CustomLanguages {}");
+                assert_snapshot!(
+                    "macro_accepts_valid_unlocalized_languages_custom_mode",
+                    pretty_tokens(&custom_output)
+                );
             },
         );
     }

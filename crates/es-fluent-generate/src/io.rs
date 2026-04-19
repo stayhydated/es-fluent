@@ -1,6 +1,7 @@
 use es_fluent_shared::EsFluentResult;
 use fluent_syntax::ast;
-use std::{fs, path::Path};
+use fs_err as fs;
+use std::path::Path;
 
 /// Print a colored line-by-line diff between old and new content.
 pub(crate) fn print_diff(old: &str, new: &str) {

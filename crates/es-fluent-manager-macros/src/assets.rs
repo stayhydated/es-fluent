@@ -1,3 +1,5 @@
+use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use path_slash::PathExt as _;
 use quote::quote;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -5,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Debug)]
 pub(crate) struct I18nAssets {
     pub(crate) root_path: PathBuf,
     pub(crate) languages: Vec<String>,
@@ -121,6 +124,25 @@ fn discover_namespaces(namespace_root: &Path) -> syn::Result<BTreeSet<String>> {
     Ok(namespaces)
 }
 
+fn canonical_locale_dir_name(path: &Path, raw_name: &str) -> syn::Result<String> {
+    let display_path = path.to_slash_lossy();
+
+    parse_canonical_language_identifier(raw_name)
+        .map(|language| language.to_string())
+        .map_err(|error| match error {
+            CanonicalLanguageIdentifierError::Invalid { source, .. } => macro_error(format!(
+                "Locale directory '{}' under \"{}\" is not a valid BCP-47 identifier: {}",
+                raw_name, display_path, source
+            )),
+            CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+                macro_error(format!(
+                    "Locale directory '{}' under \"{}\" must use canonical BCP-47 form '{}'",
+                    raw_name, display_path, canonical
+                ))
+            },
+        })
+}
+
 impl I18nAssets {
     pub(crate) fn load(crate_name: &str) -> syn::Result<Self> {
         let config = match es_fluent_toml::I18nConfig::read_from_manifest_dir() {
@@ -163,8 +185,8 @@ impl I18nAssets {
         })?;
 
         let mut namespaces = BTreeSet::new();
+        let mut languages_with_base_file = BTreeSet::new();
         let mut discovered_languages = BTreeSet::new();
-        let mut base_file_languages = BTreeSet::new();
         let mut namespaces_by_language: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
         for entry in entries {
@@ -178,6 +200,7 @@ impl I18nAssets {
             if path.is_dir()
                 && let Some(lang_code) = path.file_name().and_then(|s| s.to_str())
             {
+                let canonical_lang = canonical_locale_dir_name(&path, lang_code)?;
                 // Check for main FTL file (e.g., bevy-example.ftl)
                 let ftl_file_name = format!("{}.ftl", crate_name);
                 let ftl_path = path.join(&ftl_file_name);
@@ -195,17 +218,16 @@ impl I18nAssets {
                 };
 
                 if has_main_file || !discovered_namespaces.is_empty() {
-                    discovered_languages.insert(lang_code.to_string());
+                    discovered_languages.insert(canonical_lang.clone());
                 }
                 if has_main_file {
-                    base_file_languages.insert(lang_code.to_string());
+                    languages_with_base_file.insert(canonical_lang.clone());
                 }
-
                 if !discovered_namespaces.is_empty() {
                     for namespace in discovered_namespaces {
                         namespaces.insert(namespace.clone());
                         namespaces_by_language
-                            .entry(lang_code.to_string())
+                            .entry(canonical_lang.clone())
                             .or_default()
                             .insert(namespace);
                     }
@@ -229,9 +251,6 @@ impl I18nAssets {
         let mut resource_specs_by_language = Vec::with_capacity(languages.len());
 
         for lang in &languages {
-            let lang_path = i18n_root_path.join(lang);
-            let base_path = lang_path.join(format!("{}.ftl", crate_name));
-
             let mut specs = Vec::new();
             if namespaces.is_empty() {
                 specs.push(ResourceSpec {
@@ -240,14 +259,13 @@ impl I18nAssets {
                     required: true,
                 });
             } else {
-                if base_file_languages.contains(lang) && base_path.is_file() {
+                if languages_with_base_file.contains(lang) {
                     specs.push(ResourceSpec {
                         key: crate_name.to_string(),
                         locale_relative_path: format!("{crate_name}.ftl"),
                         required: false,
                     });
                 }
-
                 for namespace in namespaces_by_language
                     .get(lang)
                     .into_iter()
@@ -317,44 +335,38 @@ impl I18nAssets {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
+#[serial_test::serial(manifest)]
 mod tests {
     use super::*;
+    use insta::{assert_debug_snapshot, assert_snapshot};
     use quote::quote;
-    use std::sync::{LazyLock, Mutex};
     use tempfile::tempdir;
 
-    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
     fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
-        let _guard = ENV_LOCK.lock().expect("lock poisoned");
-        let previous = std::env::var(key).ok();
+        temp_env::with_var(key, value, f)
+    }
 
-        match value {
-            Some(value) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(key, value) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(key) };
-            },
-        }
+    fn snapshot_assets(mut assets: I18nAssets) -> I18nAssets {
+        assets.root_path = std::path::PathBuf::from("<assets>");
+        assets
+    }
 
-        let result = f();
+    fn normalize_temp_paths(text: &str, manifest_dir: &std::path::Path) -> String {
+        let manifest = manifest_dir.to_string_lossy();
+        let manifest_escaped = manifest.replace('\\', "\\\\");
+        let manifest_slash = manifest_dir.to_slash_lossy();
+        let config_path = manifest_dir.join("i18n.toml");
+        let config = config_path.to_string_lossy();
+        let config_escaped = config.replace('\\', "\\\\");
+        let config_slash = config_path.to_slash_lossy();
 
-        match previous {
-            Some(previous) => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::set_var(key, previous) };
-            },
-            None => {
-                // SAFETY: tests serialize environment updates with a global lock.
-                unsafe { std::env::remove_var(key) };
-            },
-        }
-
-        result
+        text.replace(config.as_ref(), "<manifest-dir>/i18n.toml")
+            .replace(config_escaped.as_str(), "<manifest-dir>/i18n.toml")
+            .replace(config_slash.as_ref(), "<manifest-dir>/i18n.toml")
+            .replace(manifest.as_ref(), "<manifest-dir>")
+            .replace(manifest_escaped.as_str(), "<manifest-dir>")
+            .replace(manifest_slash.as_ref(), "<manifest-dir>")
     }
 
     fn write_manifest(manifest_dir: &std::path::Path, assets_dir: &str) {
@@ -379,7 +391,7 @@ mod tests {
 
         with_env_var("CARGO_PKG_NAME", None, || {
             let err = current_crate_name().expect_err("missing env should fail");
-            assert!(err.to_string().contains("CARGO_PKG_NAME must be set"));
+            assert_snapshot!("current_crate_name_reports_missing_env", err.to_string());
         });
     }
 
@@ -400,30 +412,10 @@ mod tests {
         .expect("write");
 
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
-            let assets = I18nAssets::load("my-crate").expect("load assets");
-            assert_eq!(assets.root_path, temp.path().join("i18n"));
-
-            let mut languages = assets.languages.clone();
-            languages.sort();
-            assert_eq!(languages, vec!["fr".to_string()]);
-
-            let mut namespaces = assets.namespaces.clone();
-            namespaces.sort();
-            assert_eq!(namespaces, vec!["ui".to_string()]);
-
-            let fr_specs = assets
-                .resource_specs_by_language
-                .iter()
-                .find(|(lang, _)| lang == "fr")
-                .map(|(_, specs)| specs)
-                .expect("fr specs");
-            assert_eq!(
-                fr_specs,
-                &vec![ResourceSpec {
-                    key: "my-crate/ui".to_string(),
-                    locale_relative_path: "my-crate/ui.ftl".to_string(),
-                    required: true,
-                }]
+            let assets = snapshot_assets(I18nAssets::load("my-crate").expect("load assets"));
+            assert_debug_snapshot!(
+                "i18n_assets_load_discovers_languages_and_namespaces",
+                assets
             );
 
             assert_eq!(
@@ -451,27 +443,25 @@ mod tests {
         .expect("write");
 
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
-            let assets = I18nAssets::load("my-crate").expect("load assets");
+            let assets = snapshot_assets(I18nAssets::load("my-crate").expect("load assets"));
+            assert_debug_snapshot!("i18n_assets_load_discovers_nested_namespaces", assets);
+        });
+    }
 
-            let mut languages = assets.languages.clone();
-            languages.sort();
-            assert_eq!(languages, vec!["fr".to_string()]);
+    #[test]
+    fn i18n_assets_load_keeps_base_files_optional_for_namespaced_locales() {
+        let temp = tempdir().expect("tempdir");
+        write_manifest(temp.path(), "i18n");
 
-            assert_eq!(assets.namespaces, vec!["ui/button".to_string()]);
+        std::fs::create_dir_all(temp.path().join("i18n/en/my-crate")).expect("mkdir en crate");
+        std::fs::write(temp.path().join("i18n/en/my-crate.ftl"), "hello = Base").expect("write");
+        std::fs::write(temp.path().join("i18n/en/my-crate/ui.ftl"), "title = UI").expect("write");
 
-            let fr_specs = assets
-                .resource_specs_by_language
-                .iter()
-                .find(|(lang, _)| lang == "fr")
-                .map(|(_, specs)| specs)
-                .expect("fr specs");
-            assert_eq!(
-                fr_specs,
-                &vec![ResourceSpec {
-                    key: "my-crate/ui/button".to_string(),
-                    locale_relative_path: "my-crate/ui/button.ftl".to_string(),
-                    required: true,
-                }]
+        with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
+            let assets = snapshot_assets(I18nAssets::load("my-crate").expect("load assets"));
+            assert_debug_snapshot!(
+                "i18n_assets_load_keeps_base_files_optional_for_namespaced_locales",
+                assets
             );
         });
     }
@@ -483,7 +473,10 @@ mod tests {
             let err = I18nAssets::load("my-crate")
                 .err()
                 .expect("missing config should fail");
-            assert!(err.to_string().contains("No i18n.toml"));
+            assert_snapshot!(
+                "i18n_assets_load_reports_missing_configuration",
+                normalize_temp_paths(&err.to_string(), missing_temp.path())
+            );
         });
 
         let invalid_temp = tempdir().expect("tempdir");
@@ -492,9 +485,29 @@ mod tests {
             let err = I18nAssets::load("my-crate")
                 .err()
                 .expect("invalid assets should fail");
-            assert!(
-                err.to_string()
-                    .contains("Assets directory validation failed")
+            assert_snapshot!(
+                "i18n_assets_load_reports_invalid_assets_directory",
+                normalize_temp_paths(&err.to_string(), invalid_temp.path())
+            );
+        });
+    }
+
+    #[test]
+    fn i18n_assets_load_rejects_noncanonical_locale_directories() {
+        let temp = tempdir().expect("tempdir");
+        write_manifest(temp.path(), "i18n");
+
+        std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
+        std::fs::write(temp.path().join("i18n/en-us/my-crate.ftl"), "hello = Hello")
+            .expect("write");
+
+        with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
+            let err = I18nAssets::load("my-crate")
+                .err()
+                .expect("noncanonical locale dir should fail");
+            assert_snapshot!(
+                "i18n_assets_load_rejects_noncanonical_locale_directories",
+                normalize_temp_paths(&err.to_string(), temp.path())
             );
         });
     }

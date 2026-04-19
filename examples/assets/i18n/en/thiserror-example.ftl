@@ -6,7 +6,7 @@ locked_reason-Suspended = Suspended { $until }
 
 ## NetworkError
 
-network_error-ApiUnavailable = Api Unavailable
+network_error-ApiUnavailable = API is unavailable
 
 ## NotFoundReason
 

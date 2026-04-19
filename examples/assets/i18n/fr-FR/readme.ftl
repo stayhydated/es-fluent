@@ -14,7 +14,12 @@ gender_choice-Other = Autre
 
 ## Greeting
 
-greeting = Salutations { $name } { $gender }
+greeting =
+    { $gender ->
+        [male] Bienvenue M. { $name }
+        [female] Bienvenue Mme { $name }
+       *[other] Bienvenue { $name }
+    }
 
 ## LoginError
 
@@ -44,6 +49,16 @@ login_form_variants_description_variants-username = Nom d'utilisateur
 
 login_form_variants_label_variants-password = Mot de passe
 login_form_variants_label_variants-username = Nom d'utilisateur
+
+## NetworkError
+
+network_error-ApiUnavailable = API indisponible
+
+## SettingsTabVariants
+
+settings_tab_variants-General = Général
+settings_tab_variants-Notifications = Notifications
+settings_tab_variants-Privacy = Confidentialité
 
 ## WelcomeMessage
 

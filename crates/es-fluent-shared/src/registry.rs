@@ -64,8 +64,10 @@ mod tests {
     fn file_namespace_uses_stem() {
         let manifest_dir = test_manifest_dir();
         let file_path = manifest_dir.join("src").join("lib.rs");
-        let namespace =
-            NamespaceRule::File.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
+        let namespace = NamespaceRule::File.resolve(
+            file_path.to_str().expect("utf-8 test path"),
+            Some(&manifest_dir),
+        );
         assert_eq!(namespace, "lib");
     }
 
@@ -73,8 +75,10 @@ mod tests {
     fn file_relative_strips_manifest_and_src() {
         let manifest_dir = test_manifest_dir();
         let file_path = manifest_dir.join("src").join("ui").join("button.rs");
-        let namespace =
-            NamespaceRule::FileRelative.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
+        let namespace = NamespaceRule::FileRelative.resolve(
+            file_path.to_str().expect("utf-8 test path"),
+            Some(&manifest_dir),
+        );
         assert_eq!(namespace, "ui/button");
     }
 
@@ -86,8 +90,10 @@ mod tests {
         } else {
             PathBuf::from("/other/src/lib.rs")
         };
-        let namespace =
-            NamespaceRule::FileRelative.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
+        let namespace = NamespaceRule::FileRelative.resolve(
+            file_path.to_str().expect("utf-8 test path"),
+            Some(&manifest_dir),
+        );
         assert_eq!(namespace, "lib");
     }
 
@@ -99,8 +105,10 @@ mod tests {
             .join("ui")
             .join("forms")
             .join("button.rs");
-        let namespace =
-            NamespaceRule::Folder.resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
+        let namespace = NamespaceRule::Folder.resolve(
+            file_path.to_str().expect("utf-8 test path"),
+            Some(&manifest_dir),
+        );
         assert_eq!(namespace, "forms");
     }
 
@@ -112,8 +120,10 @@ mod tests {
             .join("ui")
             .join("forms")
             .join("button.rs");
-        let namespace = NamespaceRule::FolderRelative
-            .resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
+        let namespace = NamespaceRule::FolderRelative.resolve(
+            file_path.to_str().expect("utf-8 test path"),
+            Some(&manifest_dir),
+        );
         assert_eq!(namespace, "ui/forms");
     }
 
@@ -121,8 +131,10 @@ mod tests {
     fn folder_relative_keeps_src_for_root_module() {
         let manifest_dir = test_manifest_dir();
         let file_path = manifest_dir.join("src").join("lib.rs");
-        let namespace = NamespaceRule::FolderRelative
-            .resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
+        let namespace = NamespaceRule::FolderRelative.resolve(
+            file_path.to_str().expect("utf-8 test path"),
+            Some(&manifest_dir),
+        );
         assert_eq!(namespace, "src");
     }
 
@@ -134,8 +146,10 @@ mod tests {
         } else {
             PathBuf::from("/other/src/lib.rs")
         };
-        let namespace = NamespaceRule::FolderRelative
-            .resolve(&file_path.to_string_lossy(), Some(&manifest_dir));
+        let namespace = NamespaceRule::FolderRelative.resolve(
+            file_path.to_str().expect("utf-8 test path"),
+            Some(&manifest_dir),
+        );
         assert_eq!(namespace, "src");
     }
 }

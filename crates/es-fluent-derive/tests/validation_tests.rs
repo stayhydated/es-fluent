@@ -7,6 +7,7 @@ use es_fluent_derive_core::validation::{validate_enum, validate_struct};
 use syn::{DeriveInput, parse_quote};
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn validate_struct_multiple_defaults_produces_expected_error_message() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
@@ -28,6 +29,7 @@ fn validate_struct_multiple_defaults_produces_expected_error_message() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn validate_struct_multiple_defaults_tuple_struct_produces_expected_error_message() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
@@ -86,6 +88,7 @@ fn validate_struct_single_default_succeeds() {
 }
 
 #[test]
+#[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
 fn validate_struct_skip_and_default_conflict_produces_error() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]

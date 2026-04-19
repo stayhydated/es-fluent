@@ -1,2 +1,1 @@
-hello = Hello main
-welcome = Welcome, { $name }!
+base-only = Hello main

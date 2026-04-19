@@ -9,7 +9,7 @@ use crate::generation::cache::{
     RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
 };
 #[cfg(test)]
-use std::fs;
+use fs_err as fs;
 #[cfg(test)]
 use std::path::{Path, PathBuf};
 #[cfg(test)]
@@ -123,6 +123,79 @@ pub fn create_workspace_with_locales(locales: &[(&str, &str)]) -> tempfile::Temp
     }
 
     temp
+}
+
+#[cfg(test)]
+pub fn write_file(path: &Path, contents: &str) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("create parent directory");
+    }
+    fs::write(path, contents).expect("write file");
+}
+
+#[cfg(test)]
+pub mod toml_helpers {
+    use super::write_file;
+    use std::path::Path;
+    use toml::Value;
+
+    pub fn string_value(value: &str) -> Value {
+        Value::String(value.to_string())
+    }
+
+    pub fn table(
+        entries: impl IntoIterator<Item = (&'static str, Value)>,
+    ) -> toml::map::Map<String, Value> {
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect()
+    }
+
+    pub fn write_toml(path: &Path, value: &Value) {
+        write_file(
+            path,
+            &toml::to_string(value).expect("serialize TOML fixture"),
+        );
+    }
+
+    pub fn insert_section(document: &mut Value, key: &str, value: Value) {
+        document
+            .as_table_mut()
+            .expect("TOML document table")
+            .insert(key.to_string(), value);
+    }
+
+    pub fn package_manifest(name: &str, version: &str) -> Value {
+        Value::Table(table([(
+            "package",
+            Value::Table(table([
+                ("name", string_value(name)),
+                ("version", string_value(version)),
+                ("edition", string_value("2024")),
+            ])),
+        )]))
+    }
+
+    pub fn workspace_manifest(members: &[&str]) -> Value {
+        Value::Table(table([(
+            "workspace",
+            Value::Table(table([
+                (
+                    "members",
+                    Value::Array(members.iter().copied().map(string_value).collect()),
+                ),
+                ("resolver", string_value("2")),
+            ])),
+        )]))
+    }
+
+    pub fn i18n_config(fallback_language: &str, assets_dir: &str) -> Value {
+        Value::Table(table([
+            ("fallback_language", string_value(fallback_language)),
+            ("assets_dir", string_value(assets_dir)),
+        ]))
+    }
 }
 
 #[cfg(test)]
@@ -243,30 +316,70 @@ pub fn install_fake_runner(binary_path: &Path, behavior: &FakeRunnerBehavior) {
 }
 
 #[cfg(test)]
-pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunnerBehavior) {
-    let binary_path = fake_runner_binary_path(&temp.path().join("target"));
-    install_fake_runner(&binary_path, &behavior);
-
-    let src_dir = temp.path().join("src");
-    let i18n_toml = temp.path().join("i18n.toml");
-    let hash = compute_crate_inputs_hash(temp.path(), &src_dir, Some(&i18n_toml));
-    let mtime = fs::metadata(&binary_path)
-        .and_then(|m| m.modified())
+pub fn runner_binary_mtime(binary_path: &Path) -> u64 {
+    fs::metadata(binary_path)
+        .and_then(|metadata| metadata.modified())
         .expect("runner mtime")
         .duration_since(SystemTime::UNIX_EPOCH)
         .expect("mtime duration")
-        .as_secs();
+        .as_secs()
+}
 
-    let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
+#[cfg(test)]
+pub fn save_runner_cache(
+    temp_store: &es_fluent_runner::RunnerMetadataStore,
+    workspace_root: &Path,
+    runner_mtime: u64,
+    cli_version: &str,
+    crate_hashes: indexmap::IndexMap<String, String>,
+) {
     fs::create_dir_all(temp_store.base_dir()).expect("create temp dir");
-    let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert("test-app".to_string(), hash);
     RunnerCache {
         crate_hashes,
-        runner_mtime: mtime,
-        cli_version: env!("CARGO_PKG_VERSION").to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(temp.path()),
+        runner_mtime,
+        cli_version: cli_version.to_string(),
+        workspace_inputs_hash: compute_workspace_inputs_hash(workspace_root),
     }
     .save(temp_store.base_dir())
     .expect("save runner cache");
+}
+
+#[cfg(test)]
+pub fn install_fake_runner_with_cache(
+    binary_path: &Path,
+    temp_store: &es_fluent_runner::RunnerMetadataStore,
+    workspace_root: &Path,
+    behavior: &FakeRunnerBehavior,
+    cli_version: &str,
+    crate_hashes: indexmap::IndexMap<String, String>,
+) -> u64 {
+    install_fake_runner(binary_path, behavior);
+    let runner_mtime = runner_binary_mtime(binary_path);
+    save_runner_cache(
+        temp_store,
+        workspace_root,
+        runner_mtime,
+        cli_version,
+        crate_hashes,
+    );
+    runner_mtime
+}
+
+#[cfg(test)]
+pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunnerBehavior) {
+    let binary_path = fake_runner_binary_path(&temp.path().join("target"));
+    let src_dir = temp.path().join("src");
+    let i18n_toml = temp.path().join("i18n.toml");
+    let hash = compute_crate_inputs_hash(temp.path(), &src_dir, Some(&i18n_toml));
+    let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
+    let mut crate_hashes = indexmap::IndexMap::new();
+    crate_hashes.insert("test-app".to_string(), hash);
+    install_fake_runner_with_cache(
+        &binary_path,
+        &temp_store,
+        temp.path(),
+        &behavior,
+        env!("CARGO_PKG_VERSION"),
+        crate_hashes,
+    );
 }

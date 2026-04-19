@@ -27,7 +27,8 @@ pub use unic_langid;
 use arc_swap::ArcSwap;
 use es_fluent_manager_core::FluentManager;
 use es_fluent_shared::EsFluentError;
-use std::sync::{Arc, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use parking_lot::RwLock;
+use std::sync::{Arc, OnceLock};
 
 #[cfg(feature = "build")]
 pub mod build {
@@ -41,35 +42,20 @@ pub use traits::{EsFluentChoice, FluentDisplay, ThisFtl, ToFluentString};
 static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
 
 #[doc(hidden)]
-type CustomLocalizer = dyn for<'a> Fn(&str, Option<&std::collections::HashMap<&str, FluentValue<'a>>>) -> Option<String>
+type DomainAwareCustomLocalizer = dyn for<'a> Fn(
+        Option<&str>,
+        &str,
+        Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String>
     + Send
     + Sync;
 
 #[doc(hidden)]
-static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<CustomLocalizer>>>> = OnceLock::new();
+static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<DomainAwareCustomLocalizer>>>> =
+    OnceLock::new();
 
-fn custom_localizer_slot() -> &'static RwLock<Option<Arc<CustomLocalizer>>> {
+fn custom_localizer_slot() -> &'static RwLock<Option<Arc<DomainAwareCustomLocalizer>>> {
     CUSTOM_LOCALIZER.get_or_init(|| RwLock::new(None))
-}
-
-fn read_custom_localizer_slot() -> RwLockReadGuard<'static, Option<Arc<CustomLocalizer>>> {
-    match custom_localizer_slot().read() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("custom localizer lock poisoned while reading; recovering");
-            poisoned.into_inner()
-        },
-    }
-}
-
-fn write_custom_localizer_slot() -> RwLockWriteGuard<'static, Option<Arc<CustomLocalizer>>> {
-    match custom_localizer_slot().write() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            tracing::warn!("custom localizer lock poisoned while writing; recovering");
-            poisoned.into_inner()
-        },
-    }
 }
 
 fn try_custom_localizer<'a>(
@@ -78,8 +64,19 @@ fn try_custom_localizer<'a>(
 ) -> Option<String> {
     CUSTOM_LOCALIZER
         .get()
-        .and_then(|_| read_custom_localizer_slot().clone())
-        .and_then(|custom_localizer| custom_localizer(id, args))
+        .and_then(|slot| slot.read().clone())
+        .and_then(|custom_localizer| custom_localizer(None, id, args))
+}
+
+fn try_custom_localizer_in_domain<'a>(
+    domain: &str,
+    id: &str,
+    args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+) -> Option<String> {
+    CUSTOM_LOCALIZER
+        .get()
+        .and_then(|slot| slot.read().clone())
+        .and_then(|custom_localizer| custom_localizer(Some(domain), id, args))
 }
 
 #[derive(Debug)]
@@ -164,19 +161,15 @@ pub fn try_set_shared_context(manager: Arc<FluentManager>) -> Result<(), GlobalL
         .map_err(|_| GlobalLocalizationError::ContextAlreadyInitialized)
 }
 
-/// Sets a custom localizer function.
+/// Sets a domain-aware custom localizer function.
 ///
-/// The custom localizer will be called before the global context's `localize`
-/// method. If the custom localizer returns `Some(message)`, the message will be
-/// returned. Otherwise, the global context will be used.
-///
-/// # Panics
-///
-/// This function will panic if the custom localizer has already been set.
+/// The callback receives `None` for plain [`localize`] requests and
+/// `Some(domain)` for [`localize_in_domain`] requests.
 #[doc(hidden)]
-pub fn set_custom_localizer<F>(localizer: F)
+pub fn set_custom_localizer_with_domain<F>(localizer: F)
 where
     F: for<'a> Fn(
+            Option<&str>,
             &str,
             Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
         ) -> Option<String>
@@ -184,13 +177,15 @@ where
         + Sync
         + 'static,
 {
-    try_set_custom_localizer(localizer).expect("Failed to set custom localizer");
+    try_set_custom_localizer_with_domain(localizer)
+        .expect("Failed to set domain-aware custom localizer");
 }
 
 #[doc(hidden)]
-pub fn try_set_custom_localizer<F>(localizer: F) -> Result<(), GlobalLocalizationError>
+pub fn try_set_custom_localizer_with_domain<F>(localizer: F) -> Result<(), GlobalLocalizationError>
 where
     F: for<'a> Fn(
+            Option<&str>,
             &str,
             Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
         ) -> Option<String>
@@ -198,7 +193,7 @@ where
         + Sync
         + 'static,
 {
-    let mut slot = write_custom_localizer_slot();
+    let mut slot = custom_localizer_slot().write();
     if slot.is_some() {
         return Err(GlobalLocalizationError::CustomLocalizerAlreadyInitialized);
     }
@@ -206,14 +201,12 @@ where
     Ok(())
 }
 
-/// Replaces the custom localizer function.
-///
-/// This is intended for integrations that deliberately own the process-global
-/// localization hook and need to refresh or reinstall it.
+/// Replaces the custom localizer with a domain-aware callback.
 #[doc(hidden)]
-pub fn replace_custom_localizer<F>(localizer: F)
+pub fn replace_custom_localizer_with_domain<F>(localizer: F)
 where
     F: for<'a> Fn(
+            Option<&str>,
             &str,
             Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
         ) -> Option<String>
@@ -221,7 +214,7 @@ where
         + Sync
         + 'static,
 {
-    *write_custom_localizer_slot() = Some(Arc::new(localizer));
+    *custom_localizer_slot().write() = Some(Arc::new(localizer));
 }
 
 /// Selects a language for all localizers in the global context.
@@ -264,15 +257,16 @@ pub fn localize<'a>(
 
 /// Localizes a message by its ID within the given domain.
 ///
-/// This first consults the process-global custom localizer, then performs an
-/// explicit domain-scoped lookup against the shared context.
+/// This first consults any installed custom localizer, then performs an
+/// explicit domain-scoped lookup against the shared context. Custom
+/// localizers receive `Some(domain)` for domain-scoped requests.
 #[doc(hidden)]
 pub fn localize_in_domain<'a>(
     domain: &str,
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
-    if let Some(message) = try_custom_localizer(id, args) {
+    if let Some(message) = try_custom_localizer_in_domain(domain, id, args) {
         return message;
     }
 

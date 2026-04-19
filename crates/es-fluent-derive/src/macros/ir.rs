@@ -116,9 +116,11 @@ impl GeneratedUnitEnumVariant {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::{FluentArgument, GeneratedUnitEnumVariant, LocalizeCallSpec};
+    use crate::snapshot_support::{pretty_block_tokens, pretty_match_arm_tokens};
+    use insta::assert_snapshot;
     use quote::quote;
     use syn::parse_quote;
 
@@ -133,10 +135,11 @@ mod tests {
             }],
         };
 
-        let rendered = call.write_expr().to_string();
-        assert!(rendered.contains(":: es_fluent :: localize_in_domain"));
-        assert!(rendered.contains("env ! (\"CARGO_PKG_NAME\")"));
-        assert!(rendered.contains("welcome_message"));
+        let rendered = pretty_block_tokens(call.write_expr());
+        assert_snapshot!(
+            "localize_call_spec_routes_through_the_current_crate_domain",
+            rendered
+        );
     }
 
     #[test]
@@ -147,11 +150,11 @@ mod tests {
             arguments: Vec::new(),
         };
 
-        let rendered = call.write_expr().to_string();
-        assert!(rendered.contains(":: es_fluent :: localize_in_domain"));
-        assert!(rendered.contains("\"es-fluent-lang\""));
-        assert!(rendered.contains("es-fluent-lang-en"));
-        assert!(!rendered.contains("env ! (\"CARGO_PKG_NAME\")"));
+        let rendered = pretty_block_tokens(call.write_expr());
+        assert_snapshot!(
+            "localize_call_spec_uses_explicit_domain_override_when_present",
+            rendered
+        );
     }
 
     #[test]
@@ -162,9 +165,10 @@ mod tests {
             ftl_key: "hello".to_string(),
         };
 
-        let rendered = variant.display_match_arm().to_string();
-        assert!(rendered.contains(":: es_fluent :: localize_in_domain"));
-        assert!(rendered.contains("env ! (\"CARGO_PKG_NAME\")"));
-        assert!(rendered.contains("hello"));
+        let rendered = pretty_match_arm_tokens(variant.display_match_arm());
+        assert_snapshot!(
+            "unit_enum_variant_display_arm_routes_through_the_current_crate_domain",
+            rendered
+        );
     }
 }

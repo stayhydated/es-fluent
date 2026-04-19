@@ -42,7 +42,7 @@ cargo es-fluent generate
 This will:
 
 1. Scan your `src/` directory.
-1. Update `i18n/en-US/{your_crate}.ftl` (and `i18n/en-US/{your_crate}/{namespace}.ftl` for namespaced types).
+1. Update `assets_dir/en-US/{your_crate}.ftl` (and `assets_dir/en-US/{your_crate}/{namespace}.ftl` for namespaced types).
    - **New items**: Added as new messages.
    - **Changed items**: Variables updated (e.g. if you added a field).
    - **Existing translations**: Preserved untouched.
@@ -140,6 +140,18 @@ cargo es-fluent sync
 Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.
 
 The `sync` command properly handles namespaced FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.
+
+### Tree
+
+Inspect the discovered FTL file layout and message IDs for a crate:
+
+```sh
+cargo es-fluent tree
+```
+
+Use `--all` to show all locales instead of just the fallback language. Use
+`--attributes` to include message and term attributes, and `--variables` to
+list the Fluent variables referenced by each entry.
 
 ## CI/CD Integration
 

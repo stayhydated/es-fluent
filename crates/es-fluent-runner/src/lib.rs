@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+use fs_err as fs;
 use std::path::{Path, PathBuf};
 
 mod error;
@@ -95,7 +96,7 @@ impl RunnerMetadataStore {
 
     pub fn ensure_metadata_dir(&self, crate_name: &str) -> Result<PathBuf, RunnerIoError> {
         let metadata_dir = self.metadata_dir_path(crate_name);
-        std::fs::create_dir_all(&metadata_dir)?;
+        fs::create_dir_all(&metadata_dir)?;
         Ok(metadata_dir)
     }
 
@@ -114,12 +115,12 @@ impl RunnerMetadataStore {
     ) -> Result<(), RunnerIoError> {
         self.ensure_metadata_dir(crate_name)?;
         let json = serde_json::to_string(result)?;
-        std::fs::write(self.result_path(crate_name), json)?;
+        fs::write(self.result_path(crate_name), json)?;
         Ok(())
     }
 
     pub fn read_result(&self, crate_name: &str) -> Result<RunnerResult, RunnerIoError> {
-        let content = std::fs::read_to_string(self.result_path(crate_name))?;
+        let content = fs::read_to_string(self.result_path(crate_name))?;
         Ok(serde_json::from_str(&content)?)
     }
 
@@ -136,12 +137,12 @@ impl RunnerMetadataStore {
     ) -> Result<(), RunnerIoError> {
         self.ensure_metadata_dir(crate_name)?;
         let json = serde_json::to_string(inventory)?;
-        std::fs::write(self.inventory_path(crate_name), json)?;
+        fs::write(self.inventory_path(crate_name), json)?;
         Ok(())
     }
 
     pub fn read_inventory(&self, crate_name: &str) -> Result<InventoryData, RunnerIoError> {
-        let content = std::fs::read_to_string(self.inventory_path(crate_name))?;
+        let content = fs::read_to_string(self.inventory_path(crate_name))?;
         Ok(serde_json::from_str(&content)?)
     }
 }
@@ -154,7 +155,7 @@ pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>, RunnerIoError> 
         return Ok(locales);
     }
 
-    for entry in std::fs::read_dir(assets_dir)? {
+    for entry in fs::read_dir(assets_dir)? {
         let entry = entry?;
         if entry.file_type()?.is_dir()
             && let Some(name) = entry.file_name().to_str()

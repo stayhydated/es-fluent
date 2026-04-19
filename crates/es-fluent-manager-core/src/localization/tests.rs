@@ -1,10 +1,12 @@
 use super::*;
 use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
+use crate::localization::manager::{format_module_support, format_supported_languages};
 use fluent_bundle::FluentResource;
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::io;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
 use unic_langid::langid;
 
 static EXPLICIT_RUNTIME_CREATE_CALLS: AtomicUsize = AtomicUsize::new(0);
@@ -86,6 +88,21 @@ static FILTER_DUP_LANGUAGE_DATA: ModuleData = ModuleData {
     name: "filter-dup-language",
     domain: "filter-dup-language",
     supported_languages: &[langid!("en"), langid!("en")],
+    namespaces: &[],
+};
+static DIAGNOSTIC_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
+    langid!("en"),
+    langid!("fr"),
+    langid!("de"),
+    langid!("es"),
+    langid!("it"),
+    langid!("ja"),
+    langid!("zh"),
+];
+static DIAGNOSTIC_MODULE_DATA: ModuleData = ModuleData {
+    name: "diagnostic-module",
+    domain: "diagnostic-domain",
+    supported_languages: DIAGNOSTIC_SUPPORTED_LANGUAGES,
     namespaces: &[],
 };
 static FILTER_DESCRIPTOR: StaticModuleDescriptor = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
@@ -183,7 +200,7 @@ impl StatefulSuccessLocalizer {
 
 impl Localizer for StatefulSuccessLocalizer {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        *self.selected.write().expect("lock poisoned") = Some(lang.to_string());
+        *self.selected.write() = Some(lang.to_string());
         Ok(())
     }
 
@@ -193,7 +210,7 @@ impl Localizer for StatefulSuccessLocalizer {
         _args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         (id == "selected-language")
-            .then(|| self.selected.read().expect("lock poisoned").clone())
+            .then(|| self.selected.read().clone())
             .flatten()
     }
 }
@@ -400,6 +417,38 @@ fn manager_try_new_with_discovered_modules_succeeds_for_clean_inventory() {
 }
 
 #[test]
+fn registration_runtime_support_defaults_match_registration_kind() {
+    let metadata_only = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
+    assert_eq!(
+        metadata_only.registration_kind(),
+        ModuleRegistrationKind::MetadataOnly
+    );
+    assert!(!metadata_only.supports_runtime_localization());
+    assert!(metadata_only.create_localizer().is_none());
+    assert_eq!(
+        metadata_only.resource_plan_for_language(&langid!("en")),
+        None
+    );
+
+    let runtime_module = &MODULE_OK as &dyn I18nModuleRegistration;
+    assert_eq!(
+        runtime_module.registration_kind(),
+        ModuleRegistrationKind::RuntimeLocalizer
+    );
+    assert!(runtime_module.supports_runtime_localization());
+    assert!(runtime_module.create_localizer().is_some());
+    assert_eq!(
+        runtime_module.resource_plan_for_language(&langid!("en")),
+        None
+    );
+
+    EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
+    assert!(EXPLICIT_RUNTIME_REGISTRATION.supports_runtime_localization());
+    assert!(EXPLICIT_RUNTIME_REGISTRATION.create_localizer().is_some());
+    assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 1);
+}
+
+#[test]
 fn manager_localize_returns_first_matching_message() {
     let manager = FluentManager {
         modules: Vec::new(),
@@ -486,6 +535,30 @@ fn manager_keeps_previous_localizers_when_strict_selection_fails() {
 }
 
 #[test]
+fn format_supported_languages_truncates_long_lists_for_diagnostics() {
+    assert_eq!(
+        format_supported_languages(DIAGNOSTIC_SUPPORTED_LANGUAGES),
+        "en, fr, de, es, it, ja, +1 more"
+    );
+}
+
+#[test]
+fn format_module_support_includes_domain_when_it_differs() {
+    assert_eq!(
+        format_module_support(&DIAGNOSTIC_MODULE_DATA),
+        "diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
+    );
+}
+
+#[test]
+fn format_module_support_reports_missing_declared_languages() {
+    assert_eq!(
+        format_module_support(&MODULE_ERR_DATA),
+        "module-err (supports: none declared)"
+    );
+}
+
+#[test]
 fn build_sync_bundle_reports_resource_add_errors() {
     let lang = langid!("en-US");
     let first = Arc::new(FluentResource::try_new("hello = first".to_string()).expect("valid ftl"));
@@ -494,6 +567,7 @@ fn build_sync_bundle_reports_resource_add_errors() {
 
     let (bundle, add_errors) = build_sync_bundle(&lang, vec![first, duplicate]);
     assert!(!add_errors.is_empty());
+    assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
 
     let (localized, _format_errors) =
         localize_with_bundle(&bundle, "hello", None).expect("message should exist");
@@ -501,8 +575,8 @@ fn build_sync_bundle_reports_resource_add_errors() {
 }
 
 #[test]
-fn filter_module_registry_skips_duplicate_name_and_domain() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_skips_duplicate_name_and_domain() {
+    let filtered = normalize_module_registry([
         &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_DUP_NAME_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_DUP_DOMAIN_DESCRIPTOR as &dyn I18nModuleRegistration,
@@ -513,8 +587,8 @@ fn filter_module_registry_skips_duplicate_name_and_domain() {
 }
 
 #[test]
-fn filter_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
+    let filtered = normalize_module_registry([
         &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
     ]);
@@ -524,8 +598,20 @@ fn filter_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity
 }
 
 #[test]
-fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_keeps_metadata_only_registration_when_runtime_metadata_conflicts() {
+    let filtered = normalize_module_registry([
+        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
+        &FILTER_RUNTIME_MISMATCH_MODULE as &dyn I18nModuleRegistration,
+    ]);
+
+    assert_eq!(filtered.len(), 1);
+    assert!(filtered[0].create_localizer().is_none());
+    assert_eq!(filtered[0].data(), &FILTER_EXACT_DUP_DATA);
+}
+
+#[test]
+fn normalize_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
+    let filtered = normalize_module_registry([
         &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
         &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
     ]);
@@ -535,19 +621,19 @@ fn filter_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follow
 }
 
 #[test]
-fn filter_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
+fn normalize_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
     EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
 
     let filtered =
-        filter_module_registry([&EXPLICIT_RUNTIME_REGISTRATION as &dyn I18nModuleRegistration]);
+        normalize_module_registry([&EXPLICIT_RUNTIME_REGISTRATION as &dyn I18nModuleRegistration]);
 
     assert_eq!(filtered.len(), 1);
     assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 0);
 }
 
 #[test]
-fn filter_module_registry_skips_entries_with_invalid_metadata() {
-    let filtered = filter_module_registry([
+fn normalize_module_registry_skips_entries_with_invalid_metadata() {
+    let filtered = normalize_module_registry([
         &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_INVALID_NAMESPACE_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_DUP_LANGUAGE_DESCRIPTOR as &dyn I18nModuleRegistration,

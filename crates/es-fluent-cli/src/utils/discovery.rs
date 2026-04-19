@@ -97,20 +97,17 @@ mod tests {
     use std::fs;
     use tempfile::tempdir;
 
-    use crate::test_fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS, WORKSPACE_CARGO_TOML};
+    use crate::test_fixtures::{LIB_RS, WORKSPACE_CARGO_TOML, create_test_crate_workspace};
 
-    fn create_single_crate_workspace(with_i18n: bool) -> tempfile::TempDir {
+    fn create_workspace_without_i18n_toml() -> tempfile::TempDir {
         let temp = tempdir().expect("tempdir");
         fs::create_dir_all(temp.path().join("src")).expect("create src");
-        fs::write(temp.path().join("Cargo.toml"), CARGO_TOML).expect("write Cargo.toml");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            crate::test_fixtures::CARGO_TOML,
+        )
+        .expect("write Cargo.toml");
         fs::write(temp.path().join("src/lib.rs"), LIB_RS).expect("write lib.rs");
-
-        if with_i18n {
-            fs::write(temp.path().join("i18n.toml"), I18N_TOML).expect("write i18n.toml");
-            fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n/en");
-            fs::write(temp.path().join("i18n/en/test-app.ftl"), HELLO_FTL).expect("write ftl");
-        }
-
         temp
     }
 
@@ -130,7 +127,7 @@ mod tests {
 
     #[test]
     fn discover_workspace_finds_i18n_enabled_crate() {
-        let temp = create_single_crate_workspace(true);
+        let temp = create_test_crate_workspace();
         let ws = discover_workspace(temp.path()).expect("discover workspace");
 
         assert_eq!(ws.crates.len(), 1);
@@ -142,7 +139,7 @@ mod tests {
 
     #[test]
     fn discover_crates_ignores_crates_without_i18n_toml() {
-        let temp = create_single_crate_workspace(false);
+        let temp = create_workspace_without_i18n_toml();
         let crates = discover_crates(temp.path()).expect("discover crates");
         assert!(crates.is_empty());
     }
@@ -173,7 +170,7 @@ mod tests {
 
     #[test]
     fn discover_workspace_errors_for_invalid_i18n_toml() {
-        let temp = create_single_crate_workspace(true);
+        let temp = create_test_crate_workspace();
         fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write invalid i18n");
 
         let err = discover_workspace(temp.path())

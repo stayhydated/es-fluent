@@ -69,6 +69,7 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
 }
 
 #[cfg(test)]
+#[serial_test::serial(process)]
 mod tests {
     use super::*;
     use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType};
@@ -128,13 +129,16 @@ mod tests {
     }
 
     fn with_temp_cwd<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
-        let _guard = crate::TEST_CWD_LOCK.lock().expect("lock poisoned");
         let original = std::env::current_dir().expect("cwd");
         let temp = tempdir().expect("tempdir");
         std::env::set_current_dir(temp.path()).expect("set cwd");
-        let result = f(temp.path());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(temp.path())));
         std::env::set_current_dir(original).expect("restore cwd");
-        result
+
+        match result {
+            Ok(value) => value,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
     }
 
     #[test]

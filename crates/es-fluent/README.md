@@ -17,8 +17,6 @@ This framework gives you:
 - [Language Enum Generation](../es-fluent-lang/README.md)
 - Integration via a [embedded singleton manager](../es-fluent-manager-embedded/README.md) or [es-fluent-manager-bevy](../es-fluent-manager-bevy/README.md) for [bevy](https://bevy.org/)
 
-Internally, runtime-safe shared metadata and registry helpers now live in `es-fluent-shared`, while build-time attribute parsing stays in `es-fluent-derive-core`. The proc-macro crate, `es-fluent-derive`, now keeps shared namespace resolution and token-emission helpers in one place so each derive entrypoint only handles its type-specific message shape.
-
 ## Examples
 
 - [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
@@ -47,19 +45,20 @@ es-fluent-manager-embedded = "*"
 es-fluent-manager-bevy = "*"
 ```
 
-If you want startup to fail fast on duplicate or invalid module registrations,
-build the runtime through `es-fluent-manager-core::FluentManager::new_with_discovered_modules()`
-and install it with `es_fluent::try_set_context(...)`. The embedded manager
-keeps its convenience best-effort startup by default:
+`es_fluent_manager_embedded::init_with_language(...)` is the simplest startup
+path. If you want initialization errors back instead of log-only behavior, use
+`es-fluent-manager-embedded::try_init_with_language(...)`:
 
 ```ignore
 es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 ```
 
-If you want the embedded manager itself to fail fast before publishing the
-singleton, use `es-fluent-manager-embedded::try_init_with_language(...)`. The
-Bevy plugin still exposes lenient vs strict registry behavior through
-`es-fluent-manager-bevy::ModuleRegistryMode`.
+For custom runtime integrations, use
+`es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
+The Bevy plugin uses the same strict discovery model and exposes both
+`RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
+requested locale from the currently published one. Failed locale switches keep
+the last ready locale active.
 
 ## Project configuration
 
@@ -185,9 +184,8 @@ pub enum StatusVariants { Active, Inactive }
 - Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
 When namespaces are used, namespace files are treated as the canonical split
-for that locale, but manager macros only require the namespace files that
-actually exist for each locale. `{crate}.ftl` remains optional for backwards
-compatibility, which makes staged namespace rollout practical.
+for that locale, and `{crate}.ftl` can still participate as an optional base
+resource for non-namespaced messages.
 
 ### Namespace Values
 
@@ -245,6 +243,35 @@ Argument naming attributes:
 
 - `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 
+Skipped single-field enum variants:
+
+`#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
+key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+transparent wrapper enums.
+
+```rs
+use es_fluent::{EsFluent, ToFluentString};
+
+#[derive(EsFluent)]
+pub enum NetworkError {
+    ApiUnavailable,
+}
+
+#[derive(EsFluent)]
+pub enum TransactionError {
+    #[fluent(skip)]
+    Network(NetworkError),
+}
+
+let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+```
+
+```ftl
+## NetworkError
+
+network_error-ApiUnavailable = API is unavailable
+```
+
 ### `#[derive(EsFluentChoice)]`
 
 Allows an enum to be used _inside_ another message as a selector (e.g., for gender or status).
@@ -274,7 +301,9 @@ let _ = greeting.to_fluent_string();
 
 ### `#[derive(EsFluentVariants)]`
 
-Generates key-value pair enums for struct fields. This is perfect for generating UI labels, placeholders, or descriptions for a form object.
+Generates key-value pair enums for struct fields or enum variants. This is
+useful for generating UI labels, placeholders, or descriptions for a form
+object, and it can also expose enum variants as localizable keys.
 
 ```rs
 use es_fluent::EsFluentVariants;
@@ -292,11 +321,26 @@ pub struct LoginFormVariants {
 
 use es_fluent::ToFluentString;
 let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+
+#[derive(EsFluentVariants)]
+pub enum SettingsTab {
+    General,
+    Notifications,
+    Privacy,
+}
+
+// Generates enum -> keys:
+// SettingsTabVariants::{General, Notifications, Privacy}
+//     -> (settings_tab_variants-{variant})
+
+let _ = SettingsTabVariants::Notifications.to_fluent_string();
 ```
 
 ### `#[derive(EsFluentThis)]`
 
-Generates a helper implementation of the `ThisFtl` trait and registers the type's name as a key. This is similar to `EsFluentVariants` (which registers fields), but for the parent type itself.
+Generates a helper implementation of the `ThisFtl` trait and registers the
+type's name as a key. This is similar to `EsFluentVariants` (which registers
+field- or variant-derived keys), but for the parent type itself.
 
 - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
 

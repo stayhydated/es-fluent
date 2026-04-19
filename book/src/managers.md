@@ -15,9 +15,9 @@ Bundles your translations directly into the binary and exposes a global singleto
 
 ### Features
 
-- **Embedded Assets**: Compiles your FTL files into the binary (using `rust-embed` under the hood).
+- **Embedded Assets**: Compiles your FTL files into the binary.
 - **Global Access**: Once initialized, you can call `to_fluent_string()` anywhere in your code without passing context around.
-- **Thread Safe**: Uses `OnceLock` and atomic swaps for safe concurrent access.
+- **Thread Safe**: Safe to use from multiple threads after initialization.
 
 ### Quick Start
 
@@ -63,25 +63,21 @@ es_fluent_manager_embedded::select_language(Languages::Fr)
     .expect("manager initialized and locale is available");
 ```
 
-`select_language(...)` returns an error if initialization was skipped or if no
-discovered module can serve the requested locale. When some modules support the
-requested locale and others do not, the default switch keeps the supporting
-modules active.
+`select_language(...)` returns an error if initialization was skipped, if no
+discovered module can serve the requested locale, or if a supported locale's
+resources would build a broken Fluent bundle (for example duplicate message
+definitions across loaded files). When some modules support the requested
+locale and others do not, the default switch keeps the supporting modules
+active. Failed switches keep the previous ready locale active.
 
-For larger apps that want explicit control over the shared context, manager-core
-is strict by default:
+For custom runtime integrations, `es-fluent-manager-core` exposes the same
+strict discovery behavior through
+`FluentManager::try_new_with_discovered_modules()`. Most applications should
+prefer a concrete manager crate instead of wiring the shared context manually.
 
-```rust
-use es_fluent::try_set_context;
-use es_fluent_manager_core::FluentManager;
-
-let manager = FluentManager::new_with_discovered_modules();
-try_set_context(manager).expect("global context should only be installed once");
-```
-
-The embedded manager keeps the convenience best-effort startup path by default.
-If you want it to fail fast before the singleton is published, use the fallible
-strict entry points instead:
+The embedded manager also uses strict discovery. `init_with_language(...)`
+logs initialization errors, while the fallible entry points return them before
+the singleton is published:
 
 ```rust
 es_fluent_manager_embedded::try_init_with_language(Languages::Fr)
@@ -103,7 +99,7 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localizer hook or fail fast when another integration already installed one.
+- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localization bridge or fail fast when another integration already installed one.
 
 ### Quick Start
 
@@ -136,8 +132,7 @@ fn main() {
 `I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
 inside Bevy, but it now defaults to
 `GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
-another integration already owns the process-global `es_fluent::localize`
-hook.
+another integration already owns the process-global localization bridge.
 
 If your Bevy app intentionally owns that hook and should override any previous
 registration, opt in explicitly:
@@ -151,17 +146,14 @@ App::new().add_plugins(
 );
 ```
 
-If you want plugin startup to fail on duplicate or invalid i18n module
-registrations, opt into strict registry validation as well:
+Plugin startup also uses strict module discovery, so invalid or duplicate i18n
+module registrations fail the app boot instead of being normalized silently.
+Failed hot reloads or locale switches keep the last accepted locale active
+instead of publishing a broken update.
 
-```rust
-use es_fluent_manager_bevy::{I18nPlugin, ModuleRegistryMode};
-
-App::new().add_plugins(
-    I18nPlugin::with_language(langid!("en-US"))
-        .with_module_registry_mode(ModuleRegistryMode::ErrorIfConflicted),
-);
-```
+Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
+to read the currently published locale. `LocaleChangedEvent` refers to
+`ActiveLanguageId`, not merely the latest request.
 
 #### 3. Define Localizable Components (Recommended)
 
@@ -169,6 +161,8 @@ Prefer the `BevyFluentText` derive macro. It auto-registers your type with `I18n
 
 If a field depends on the active locale (like the `Languages` enum from [Language Enum](language_enum.md)), mark it with `#[locale]`. The macro will generate `RefreshForLocale` and register the locale-aware systems for you.
 `#[locale]` is supported on named struct fields and named enum variant fields, and you can mark more than one named field in the same variant when they all need refresh behavior.
+
+`RefreshForLocale` receives the originally requested locale, not the fallback resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware fields still refresh with `en-GB`.
 
 ```rust
 use bevy::prelude::Component;
