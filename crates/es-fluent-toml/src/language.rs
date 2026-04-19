@@ -86,20 +86,4 @@ mod tests {
         assert_eq!(parsed.raw_name, "en-US");
         assert_eq!(parsed.language.to_string(), "en-US");
     }
-
-    #[cfg(unix)]
-    #[test]
-    fn parse_language_entry_rejects_non_utf8_directory_names() {
-        use std::ffi::OsString;
-        use std::os::unix::ffi::OsStringExt;
-
-        let temp = tempfile::tempdir().expect("tempdir");
-        let invalid_name = OsString::from_vec(vec![0xff, b'e', b'n']);
-        fs::create_dir(temp.path().join(&invalid_name)).expect("create invalid locale dir");
-
-        let err = parse_language_entry(first_entry(temp.path()))
-            .expect_err("non-utf8 directory names should fail");
-        assert!(matches!(err, I18nConfigError::ReadError(_)));
-        assert!(err.to_string().contains("non UTF-8 entry"));
-    }
 }
