@@ -272,7 +272,9 @@ let _ = greeting.to_fluent_string();
 
 ### `#[derive(EsFluentVariants)]`
 
-Generates key-value pair enums for struct fields. This is perfect for generating UI labels, placeholders, or descriptions for a form object.
+Generates key-value pair enums for struct fields or enum variants. This is
+useful for generating UI labels, placeholders, or descriptions for a form
+object, and it can also expose enum variants as localizable keys.
 
 ```rs
 use es_fluent::EsFluentVariants;
@@ -290,11 +292,26 @@ pub struct LoginFormVariants {
 
 use es_fluent::ToFluentString;
 let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+
+#[derive(EsFluentVariants)]
+pub enum SettingsTab {
+    General,
+    Notifications,
+    Privacy,
+}
+
+// Generates enum -> keys:
+// SettingsTabVariants::{General, Notifications, Privacy}
+//     -> (settings_tab_variants-{variant})
+
+let _ = SettingsTabVariants::Notifications.to_fluent_string();
 ```
 
 ### `#[derive(EsFluentThis)]`
 
-Generates a helper implementation of the `ThisFtl` trait and registers the type's name as a key. This is similar to `EsFluentVariants` (which registers fields), but for the parent type itself.
+Generates a helper implementation of the `ThisFtl` trait and registers the
+type's name as a key. This is similar to `EsFluentVariants` (which registers
+field- or variant-derived keys), but for the parent type itself.
 
 - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
 

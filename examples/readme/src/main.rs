@@ -47,6 +47,10 @@ fn run(locale: Languages) {
         "LoginFormVariants Username Label: {}",
         LoginFormVariantsLabelVariants::Username.to_fluent_string()
     );
+    println!(
+        "SettingsTab Notifications: {}",
+        SettingsTabVariants::Notifications.to_fluent_string()
+    );
 
     println!("\n=== Type-level Keys (This) ===");
     println!("GenderThisOnly: {}", GenderThisOnly::this_ftl());

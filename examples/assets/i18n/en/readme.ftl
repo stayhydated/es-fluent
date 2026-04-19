@@ -45,6 +45,12 @@ login_form_variants_description_variants-username = Username
 login_form_variants_label_variants-password = Password
 login_form_variants_label_variants-username = Username
 
+## SettingsTabVariants
+
+settings_tab_variants-General = General
+settings_tab_variants-Notifications = Notifications
+settings_tab_variants-Privacy = Privacy
+
 ## WelcomeMessage
 
 welcome_message = Welcome Message { $name } { $count }

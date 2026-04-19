@@ -102,7 +102,10 @@ let _ = greeting.to_fluent_string();
 
 ## Generating Variants
 
-`EsFluentVariants` generates key-value pair enums for struct fields. This is useful for generating UI labels, placeholders, or descriptions for a form object — one enum per key.
+`EsFluentVariants` generates key-value pair enums for struct fields or enum
+variants. This is useful for generating UI labels, placeholders, or
+descriptions for a form object, and it can also expose enum variants as
+localizable keys.
 
 ```rust
 use es_fluent::EsFluentVariants;
@@ -132,6 +135,33 @@ login_form_variants_description_variants-username = Username
 ```rust
 use es_fluent::ToFluentString;
 let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+```
+
+Enums are supported too. In that case, the derive generates a single
+`...Variants` enum over the original variants:
+
+```rust
+use es_fluent::EsFluentVariants;
+
+#[derive(EsFluentVariants)]
+pub enum SettingsTab {
+    General,
+    Notifications,
+    Privacy,
+}
+```
+
+```ftl
+## SettingsTabVariants
+
+settings_tab_variants-General = General
+settings_tab_variants-Notifications = Notifications
+settings_tab_variants-Privacy = Privacy
+```
+
+```rust
+use es_fluent::ToFluentString;
+let _ = SettingsTabVariants::Notifications.to_fluent_string();
 ```
 
 ## Type-level Keys (This)

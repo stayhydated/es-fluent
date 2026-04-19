@@ -57,6 +57,14 @@ pub struct LoginFormVariants {
     pub password: String,
 }
 
+// Enums are supported too.
+#[derive(EsFluentVariants)]
+pub enum SettingsTab {
+    General,
+    Notifications,
+    Privacy,
+}
+
 // #[derive(EsFluentThis)] - origin only
 use es_fluent::EsFluentThis;
 #[derive(EsFluentThis)]
