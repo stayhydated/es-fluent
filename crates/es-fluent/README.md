@@ -184,8 +184,8 @@ pub enum StatusVariants { Active, Inactive }
 - Namespaced: `assets_dir/{locale}/{crate}/{namespace}.ftl`
 
 When namespaces are used, namespace files are treated as the canonical split
-for that locale. Once namespaces are declared, the canonical locale files are
-the configured `assets_dir/{locale}/{crate}/{namespace}.ftl` entries.
+for that locale, and `{crate}.ftl` can still participate as an optional base
+resource for non-namespaced messages.
 
 ### Namespace Values
 

@@ -576,6 +576,10 @@ mod tests {
                 .is_some_and(|value| value.contains("Mark"))
         );
         assert_eq!(
+            localizer.localize("base-only", None),
+            Some("Hello main".to_string())
+        );
+        assert_eq!(
             localizer.localize("ui-title", None),
             Some("UI Title".to_string())
         );

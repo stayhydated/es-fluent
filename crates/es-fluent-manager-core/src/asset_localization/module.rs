@@ -231,9 +231,20 @@ mod tests {
             .map(|spec| spec.locale_relative_path.as_str())
             .collect();
 
-        assert_eq!(keys, vec!["demo-domain/ui", "demo-domain/errors"]);
-        assert_eq!(paths, vec!["demo-domain/ui.ftl", "demo-domain/errors.ftl"]);
-        assert!(plan.iter().all(|spec| spec.required));
+        assert_eq!(
+            keys,
+            vec!["demo-domain", "demo-domain/ui", "demo-domain/errors"]
+        );
+        assert_eq!(
+            paths,
+            vec![
+                "demo-domain.ftl",
+                "demo-domain/ui.ftl",
+                "demo-domain/errors.ftl",
+            ]
+        );
+        assert!(!plan[0].required);
+        assert!(plan[1..].iter().all(|spec| spec.required));
     }
 
     #[test]

@@ -14,7 +14,11 @@ gender_choice-Other = 其他
 
 ## Greeting
 
-greeting = 问候 { $name } { $gender }
+greeting = { $gender ->
+    [male] 欢迎您，{ $name }先生
+    [female] 欢迎您，{ $name }女士
+   *[other] 欢迎您，{ $name }
+}
 
 ## LoginError
 

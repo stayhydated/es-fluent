@@ -14,7 +14,11 @@ gender_choice-Other = Autre
 
 ## Greeting
 
-greeting = Salutations { $name } { $gender }
+greeting = { $gender ->
+    [male] Bienvenue M. { $name }
+    [female] Bienvenue Mme { $name }
+   *[other] Bienvenue { $name }
+}
 
 ## LoginError
 

@@ -10,8 +10,7 @@ fn main() {
 
 fn run(locale: Languages) {
     i18n::change_locale(locale).unwrap();
-    // Escaping the typical macro generation checks, we can test and print
-    // what string paths each type evaluates to:
+    println!("=== Locale: {locale:?} ===");
     println!("=== Deriving Messages ===");
     println!(
         "InvalidPassword: {}",
