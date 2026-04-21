@@ -1,18 +1,28 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import DemoCard from "@/components/DemoCard.astro";
+import {
+  getWasmExamples,
+  wasmExampleHref,
+  wasmExampleTitle,
+} from "@/wasm-examples";
+
+const examples = await getWasmExamples();
 ---
 
 <Layout title="es-fluent - Demos">
   <div class="max-w-3xl mx-auto px-8 py-12">
     <h1 class="text-4xl font-bold text-primary mb-8 glow-primary">Demos</h1>
 
-    <DemoCard href="/bevy-example/" title="Bevy Example">
-      <p class="description">
-        Interactive UI demo showcasing es-fluent i18n integration with with <a href="https://bevy.org/">Bevy</a>
-      </p>
-    </DemoCard>
-
+    {
+      examples.map((example) => (
+        <DemoCard href={wasmExampleHref(example)} title={wasmExampleTitle(example)}>
+          <p class="description">
+            Interactive wasm demo built from <code>{example.crate_dir}</code>.
+          </p>
+        </DemoCard>
+      ))
+    }
   </div>
 </Layout>
 
@@ -22,13 +32,7 @@ import DemoCard from "@/components/DemoCard.astro";
     color: var(--color-text-muted);
   }
 
-  .description a {
-    color: var(--color-secondary);
-    font-weight: 600;
-    text-decoration: none;
-  }
-
-  .description a:hover {
-    text-decoration: underline;
+  .description code {
+    font-family: monospace;
   }
 </style>

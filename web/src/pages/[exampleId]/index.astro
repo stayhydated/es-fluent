@@ -1,0 +1,33 @@
+---
+import WasmExampleLayout from "@/layouts/WasmExampleLayout.astro";
+import WasmLoader from "@/components/WasmLoader.astro";
+import { displayNameFromBaseUrl } from "@/util";
+import {
+  getWasmExamples,
+  wasmExampleModuleUrl,
+  wasmExampleTitle,
+  type WasmExample,
+} from "@/wasm-examples";
+
+interface Props {
+  example: WasmExample;
+}
+
+export async function getStaticPaths() {
+  const examples = await getWasmExamples();
+
+  return examples.map((example) => ({
+    params: { exampleId: example.id },
+    props: { example },
+  }));
+}
+
+const baseUrl = import.meta.env.BASE_URL;
+const displayName = displayNameFromBaseUrl();
+const { example } = Astro.props;
+const title = wasmExampleTitle(example);
+---
+
+<WasmExampleLayout title={`${title} - ${displayName}`}>
+  <WasmLoader moduleUrl={wasmExampleModuleUrl(baseUrl, example)} />
+</WasmExampleLayout>
