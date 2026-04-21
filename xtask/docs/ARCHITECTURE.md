@@ -10,7 +10,8 @@
 - `build-llms-txt`: concatenates mdBook sources into `web/public/llms.txt` for LLM consumption.
 - `build-wasm-examples`: builds wasm examples declared in `web/wasm-examples.json`.
 - `generate-wasm-examples-schema`: writes `web/wasm-examples.schema.json` from Rust manifest types.
-- `verify-wasm-examples`: verifies that declared wasm example outputs still embed their required markers.
+- `verify-wasm-examples`: verifies that declared wasm example outputs exist.
+- `verify-wasm-markers`: verifies repo-specific wasm binary marker invariants that are enforced in CI.
 
 ### build-book
 
@@ -30,4 +31,8 @@
 
 ### verify-wasm-examples
 
-- `xtask/src/commands/verify_wasm_examples.rs`: loads `web/wasm-examples.json`, asserts each declared module and wasm output exists, and checks the declared marker strings inside the wasm bytes.
+- `xtask/src/commands/verify_wasm_examples.rs`: loads `web/wasm-examples.json` and asserts each declared module and wasm output exists.
+
+### verify-wasm-markers
+
+- `xtask/src/commands/verify_wasm_markers.rs`: checks repo-specific wasm binary markers independently from the shared manifest schema so CI-only invariants do not leak into `web/wasm-examples.json`.

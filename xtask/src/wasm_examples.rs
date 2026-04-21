@@ -31,7 +31,6 @@ pub struct WasmExample {
     pub wasm_pack_args: Vec<String>,
     #[serde(default)]
     pub copy: Vec<CopyPath>,
-    pub required_markers: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
@@ -152,10 +151,6 @@ fn validate_example(
 
     if example.out_name.trim().is_empty() {
         bail!("out_name for '{}' must not be empty", example.id);
-    }
-
-    if example.required_markers.is_empty() {
-        bail!("'{}' must declare at least one required marker", example.id);
     }
 
     for copy_path in &example.copy {

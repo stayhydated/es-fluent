@@ -1,16 +1,17 @@
 ---
-import Layout from "@/layouts/Layout.astro";
-import DemoCard from "@/components/DemoCard.astro";
+import Layout from "@stayhydated/astro-wasm-site/layouts/Layout.astro";
+import DemoCard from "@stayhydated/astro-wasm-site/components/DemoCard.astro";
 import {
   getWasmExamples,
   wasmExampleHref,
   wasmExampleTitle,
-} from "@/wasm-examples";
-
+} from "@stayhydated/astro-wasm-site/wasm-examples";
+import Navigation from "../components/Navigation.astro";
 const examples = await getWasmExamples();
 ---
 
 <Layout title="es-fluent - Demos">
+  <Navigation slot="navigation" />
   <div class="max-w-3xl mx-auto px-8 py-12">
     <h1 class="text-4xl font-bold text-primary mb-8 glow-primary">Demos</h1>
 

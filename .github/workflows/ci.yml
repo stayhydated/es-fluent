@@ -96,6 +96,34 @@ jobs:
       - name: Lint code
         run: cargo clippy --workspace --all-features
 
+  wasm-markers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Setup mold
+        uses: rui314/setup-mold@v1
+
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build declared wasm examples
+        run: cargo xtask build-wasm-examples
+
+      - name: Verify wasm markers
+        run: cargo xtask verify-wasm-markers
+
   machete:
     runs-on: ubuntu-latest
 

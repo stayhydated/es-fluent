@@ -14,7 +14,10 @@
     }
   },
   "additionalProperties": false,
-  "required": ["$schema", "examples"],
+  "required": [
+    "$schema",
+    "examples"
+  ],
   "$defs": {
     "CopyPath": {
       "type": "object",
@@ -27,7 +30,10 @@
         }
       },
       "additionalProperties": false,
-      "required": ["source", "destination"]
+      "required": [
+        "source",
+        "destination"
+      ]
     },
     "WasmExample": {
       "type": "object",
@@ -51,12 +57,6 @@
         "out_name": {
           "type": "string"
         },
-        "required_markers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "wasm_pack_args": {
           "type": "array",
           "default": [],
@@ -66,7 +66,12 @@
         }
       },
       "additionalProperties": false,
-      "required": ["id", "crate_dir", "out_dir", "out_name", "required_markers"]
+      "required": [
+        "id",
+        "crate_dir",
+        "out_dir",
+        "out_name"
+      ]
     }
   }
 }

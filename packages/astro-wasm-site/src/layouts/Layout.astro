@@ -1,6 +1,5 @@
 ---
-import "@/styles/global.css";
-import Navigation from "@/components/Navigation.astro";
+import "../styles/global.css";
 
 interface Props {
   title: string;
@@ -22,7 +21,7 @@ const { title, fullscreen = false } = Astro.props;
       ? "h-full w-full overflow-hidden bg-bg m-0 p-0"
       : "bg-bg text-text min-h-screen font-sans"}
   >
-    {!fullscreen && <Navigation />}
+    {!fullscreen && <slot name="navigation" />}
     <slot />
   </body>
 </html>

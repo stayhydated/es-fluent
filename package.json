@@ -2,7 +2,8 @@
   "name": "es-fluent",
   "private": true,
   "workspaces": [
-    "web"
+    "web",
+    "packages/*"
   ],
   "scripts": {
     "build": "turbo build",
@@ -14,7 +15,8 @@
     "fmt": "oxfmt",
     "generate:wasm-examples-schema": "cargo xtask generate-wasm-examples-schema",
     "lint": "oxlint",
-    "verify:wasm": "cargo xtask verify-wasm-examples"
+    "verify:wasm": "cargo xtask verify-wasm-examples",
+    "verify:wasm-markers": "cargo xtask verify-wasm-markers"
   },
   "devDependencies": {
     "oxfmt": "^0.41.0",

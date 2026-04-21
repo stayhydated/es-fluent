@@ -9,6 +9,7 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@stayhydated/astro-wasm-site": "workspace:*",
     "@astrojs/mdx": "^5.0.2",
     "@astrojs/sitemap": "3.7.1",
     "astro": "6.0.8",

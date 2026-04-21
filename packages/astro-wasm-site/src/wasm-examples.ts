@@ -12,7 +12,6 @@ export interface WasmExample {
   id: string;
   out_dir: string;
   out_name: string;
-  required_markers: string[];
   wasm_pack_args: string[];
 }
 
@@ -20,16 +19,19 @@ interface WasmExamplesManifest {
   examples: WasmExample[];
 }
 
-const manifestPath = path.resolve(process.cwd(), "wasm-examples.json");
-
-export async function getWasmExamples(): Promise<WasmExample[]> {
-  const manifest = await loadWasmExamplesManifest();
-  return manifest.examples;
+interface GetWasmExamplesOptions {
+  manifestPath?: string;
 }
 
-export async function getWasmExampleById(id: string): Promise<WasmExample | undefined> {
-  const examples = await getWasmExamples();
-  return examples.find((example) => example.id === id);
+export function defaultWasmExamplesManifestPath(cwd = process.cwd()): string {
+  return path.resolve(cwd, "wasm-examples.json");
+}
+
+export async function getWasmExamples(
+  options: GetWasmExamplesOptions = {},
+): Promise<WasmExample[]> {
+  const manifest = await loadWasmExamplesManifest(options);
+  return manifest.examples;
 }
 
 export function wasmExampleTitle(example: WasmExample): string {
@@ -50,7 +52,10 @@ export function wasmExampleModuleUrl(baseUrl: string, example: WasmExample): str
   return `${normalizedBaseUrl}/${publicDirName}/${example.out_name}.js`;
 }
 
-async function loadWasmExamplesManifest(): Promise<WasmExamplesManifest> {
+async function loadWasmExamplesManifest(
+  options: GetWasmExamplesOptions,
+): Promise<WasmExamplesManifest> {
+  const manifestPath = options.manifestPath ?? defaultWasmExamplesManifestPath();
   const content = await readFile(manifestPath, "utf8");
   return JSON.parse(content) as WasmExamplesManifest;
 }

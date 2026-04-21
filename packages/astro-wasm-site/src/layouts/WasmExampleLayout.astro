@@ -1,20 +1,26 @@
 ---
-import Layout from "@/layouts/Layout.astro";
+import { withBaseUrl } from "../site";
+import Layout from "./Layout.astro";
 
 interface Props {
   title: string;
+  backHref?: string;
+  backLabel?: string;
 }
 
-const { title } = Astro.props;
-const baseUrl = import.meta.env.BASE_URL;
+const {
+  title,
+  backHref = withBaseUrl(import.meta.env.BASE_URL, "/demos"),
+  backLabel = "Back to Demos",
+} = Astro.props;
 ---
 
 <Layout title={title} fullscreen>
   <a
-    href={`${baseUrl}/demos`}
+    href={backHref}
     class="fixed top-4 left-4 px-4 py-2 bg-bg-card/90 text-primary no-underline rounded font-sans text-sm z-1000 border border-primary/30 hover:border-primary btn-primary"
   >
-    &larr; Back to Demos
+    &larr; {backLabel}
   </a>
 
   <slot />

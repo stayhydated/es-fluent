@@ -1,0 +1,24 @@
+{
+  "name": "@stayhydated/astro-wasm-site",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./components/DemoCard.astro": "./src/components/DemoCard.astro",
+    "./components/WasmLoader.astro": "./src/components/WasmLoader.astro",
+    "./layouts/Layout.astro": "./src/layouts/Layout.astro",
+    "./layouts/WasmExampleLayout.astro": "./src/layouts/WasmExampleLayout.astro",
+    "./remark/rewrite-links": "./src/remark/rewrite-links.ts",
+    "./site": "./src/site.ts",
+    "./styles/global.css": "./src/styles/global.css",
+    "./wasm-examples": "./src/wasm-examples.ts"
+  },
+  "peerDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "astro": "6.0.8",
+    "tailwindcss": "^4.2.2",
+    "unist-util-visit": "^5.1.0",
+    "mdast": "^3.0.0",
+    "@types/mdast": "^4.0.4"
+  }
+}

@@ -22,6 +22,8 @@ pub enum Command {
     BuildWasmExamples,
     /// Generate the JSON schema for the wasm example manifest
     GenerateWasmExamplesSchema,
-    /// Verify built wasm examples include their required markers
+    /// Verify built wasm examples declared in the manifest exist
     VerifyWasmExamples,
+    /// Verify repo-specific wasm marker invariants used by CI
+    VerifyWasmMarkers,
 }

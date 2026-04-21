@@ -2,7 +2,13 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": {
-      "dependsOn": ["^build", "//#verify:wasm", "//#build:book", "//#build:llms-txt"],
+      "dependsOn": [
+        "^build",
+        "//#verify:wasm",
+        "//#verify:wasm-markers",
+        "//#build:book",
+        "//#build:llms-txt"
+      ],
       "outputs": ["dist/**", ".astro/**"]
     },
     "//#build:wasm": {
@@ -26,6 +32,16 @@
         "Cargo.lock",
         "xtask/**",
         "web/wasm-examples.json",
+        "web/public/*-example/**"
+      ]
+    },
+    "//#verify:wasm-markers": {
+      "cache": true,
+      "dependsOn": ["//#build:wasm"],
+      "inputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "xtask/**",
         "web/public/*-example/**"
       ]
     },

@@ -41,8 +41,16 @@ cargo xtask generate-wasm-examples-schema
 ### `verify-wasm-examples`
 
 Verifies that the declared wasm example outputs from `web/wasm-examples.json`
-exist and contain their required markers.
+exist.
 
 ```bash
 cargo xtask verify-wasm-examples
+```
+
+### `verify-wasm-markers`
+
+Verifies repo-specific wasm binary marker invariants used in CI.
+
+```bash
+cargo xtask verify-wasm-markers
 ```

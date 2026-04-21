@@ -16,5 +16,6 @@ fn main() -> anyhow::Result<()> {
         Command::BuildWasmExamples => commands::build_wasm_examples::run(),
         Command::GenerateWasmExamplesSchema => commands::generate_wasm_examples_schema::run(),
         Command::VerifyWasmExamples => commands::verify_wasm_examples::run(),
+        Command::VerifyWasmMarkers => commands::verify_wasm_markers::run(),
     }
 }

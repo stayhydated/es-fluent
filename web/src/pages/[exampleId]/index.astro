@@ -1,13 +1,13 @@
 ---
-import WasmExampleLayout from "@/layouts/WasmExampleLayout.astro";
-import WasmLoader from "@/components/WasmLoader.astro";
-import { displayNameFromBaseUrl } from "@/util";
+import WasmExampleLayout from "@stayhydated/astro-wasm-site/layouts/WasmExampleLayout.astro";
+import WasmLoader from "@stayhydated/astro-wasm-site/components/WasmLoader.astro";
 import {
   getWasmExamples,
   wasmExampleModuleUrl,
   wasmExampleTitle,
   type WasmExample,
-} from "@/wasm-examples";
+} from "@stayhydated/astro-wasm-site/wasm-examples";
+import { displayNameFromBaseUrl } from "@stayhydated/astro-wasm-site/site";
 
 interface Props {
   example: WasmExample;
@@ -23,7 +23,7 @@ export async function getStaticPaths() {
 }
 
 const baseUrl = import.meta.env.BASE_URL;
-const displayName = displayNameFromBaseUrl();
+const displayName = displayNameFromBaseUrl(baseUrl);
 const { example } = Astro.props;
 const title = wasmExampleTitle(example);
 ---
