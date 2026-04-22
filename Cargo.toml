@@ -56,13 +56,13 @@ crossbeam-channel = "0.5"
 crossterm = "0.29"
 darling = "0.23"
 derive_more = "2.1"
-dioxus-core = "0.7.4"
-dioxus-core-macro = "0.7.4"
-dioxus = { version = "0.7.4", default-features = false }
-dioxus-html = "0.7.4"
-dioxus-hooks = "0.7.4"
-dioxus-signals = "0.7.4"
-dioxus-ssr = { version = "0.7.4", default-features = false }
+dioxus-core = "0.7.6"
+dioxus-core-macro = "0.7.6"
+dioxus = { version = "0.7.6", default-features = false }
+dioxus-html = "0.7.6"
+dioxus-hooks = "0.7.6"
+dioxus-signals = "0.7.6"
+dioxus-ssr = { version = "0.7.6", default-features = false }
 es-fluent = { path = "crates/es-fluent", version = "0.15.0" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.15.0" }
 es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.15.0" }

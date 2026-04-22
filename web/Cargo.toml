@@ -18,15 +18,17 @@ web = [
 
 [dependencies]
 anyhow = { workspace = true }
-dioxus = { workspace = true, optional = true }
+dioxus = { workspace = true, optional = true, features = ["router"] }
 dioxus-core = { workspace = true }
 dioxus-core-macro = { workspace = true }
 dioxus-html = { workspace = true }
 dioxus-signals = { workspace = true }
 dioxus-ssr = { workspace = true }
 es-fluent = { features = ["derive"], workspace = true }
+es-fluent-lang = { features = ["localized-langs"], workspace = true }
 es-fluent-manager-dioxus = { features = ["macros", "ssr"], workspace = true }
 rust-embed = { workspace = true, features = ["debug-embed"] }
+strum = { features = ["derive"], workspace = true }
 unic-langid = { workspace = true }
 walkdir = { workspace = true }
 web-sys = { workspace = true, features = ["Location", "Window"], optional = true }
