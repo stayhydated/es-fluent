@@ -7,36 +7,84 @@ use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
 
 #[derive(Clone)]
+struct ReactiveContext<TState, TTracked> {
+    state: TState,
+    tracked: Signal<TTracked>,
+}
+
+impl<TState, TTracked> ReactiveContext<TState, TTracked>
+where
+    TTracked: Clone + 'static,
+{
+    fn state(&self) -> &TState {
+        &self.state
+    }
+
+    fn current(&self) -> TTracked {
+        self.tracked.read().clone()
+    }
+
+    fn peek(&self) -> TTracked {
+        self.tracked.peek().clone()
+    }
+
+    fn update(&self, value: TTracked) {
+        let mut tracked = self.tracked;
+        *tracked.write() = value;
+    }
+}
+
+fn use_provide_reactive_context<TState, TTracked>(
+    state: TState,
+    tracked_init: impl Fn(&TState) -> TTracked + 'static,
+) -> ReactiveContext<TState, TTracked>
+where
+    TState: Clone + 'static,
+    TTracked: Clone + 'static,
+{
+    use_context_provider(move || ReactiveContext {
+        tracked: Signal::new(tracked_init(&state)),
+        state,
+    })
+}
+
+fn use_reactive_context<TState, TTracked>() -> ReactiveContext<TState, TTracked>
+where
+    TState: Clone + 'static,
+    TTracked: Clone + 'static,
+{
+    use_context::<ReactiveContext<TState, TTracked>>()
+}
+
+#[derive(Clone)]
 pub struct DioxusI18n {
-    managed: ManagedI18n,
-    active_language: Signal<LanguageIdentifier>,
+    reactive: ReactiveContext<ManagedI18n, LanguageIdentifier>,
 }
 
 impl DioxusI18n {
     pub fn managed(&self) -> &ManagedI18n {
-        &self.managed
+        self.reactive.state()
     }
 
     pub fn active_language(&self) -> LanguageIdentifier {
-        self.active_language.read().clone()
+        self.reactive.current()
     }
 
     pub fn peek_language(&self) -> LanguageIdentifier {
-        self.active_language.peek().clone()
+        self.reactive.peek()
     }
 
     pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
-        self.managed.select_language(lang)?;
-        let mut active_language = self.active_language;
-        *active_language.write() = self.managed.active_language();
+        self.managed().select_language(lang)?;
+        self.reactive.update(self.managed().active_language());
         Ok(())
     }
 
     pub fn localize<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
-        let _ = self.active_language();
+        let _ = self.reactive.current();
         value.to_fluent_string()
     }
 
@@ -45,8 +93,8 @@ impl DioxusI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> String {
-        let _ = self.active_language();
-        self.managed.localize(id, args)
+        let _ = self.reactive.current();
+        self.managed().localize(id, args)
     }
 
     pub fn localize_in_domain<'a>(
@@ -55,8 +103,8 @@ impl DioxusI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> String {
-        let _ = self.active_language();
-        self.managed.localize_in_domain(domain, id, args)
+        let _ = self.reactive.current();
+        self.managed().localize_in_domain(domain, id, args)
     }
 }
 
@@ -92,19 +140,15 @@ pub fn use_provide_i18n_with_mode(managed: ManagedI18n, mode: GlobalLocalizerMod
         panic!("failed to initialize Dioxus i18n bridge: {error}");
     }
 
-    let active_language = use_context_provider({
-        let managed = managed.clone();
-        move || Signal::new(managed.active_language())
-    });
-
-    use_context_provider(move || DioxusI18n {
-        managed,
-        active_language,
-    })
+    DioxusI18n {
+        reactive: use_provide_reactive_context(managed, ManagedI18n::active_language),
+    }
 }
 
 pub fn use_i18n() -> DioxusI18n {
-    use_context::<DioxusI18n>()
+    DioxusI18n {
+        reactive: use_reactive_context(),
+    }
 }
 
 pub fn use_localized<T: ToFluentString + ?Sized>(value: &T) -> String {

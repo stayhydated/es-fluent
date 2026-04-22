@@ -76,9 +76,13 @@ The `web`, `desktop`, and `mobile` surfaces all reuse the same hook-based
 runtime:
 
 - `use_init_i18n(...)` builds `ManagedI18n`, installs the custom localizer, and
-  provides a Dioxus context.
-- `DioxusI18n` mirrors the active locale into a Dioxus `Signal`, so render code
-  can subscribe to locale changes.
+  provides a generic Dioxus reactive context around it.
+- The client runtime uses one reusable internal pattern: a context value that
+  stores framework state plus a tracked `Signal` snapshot derived from that
+  state.
+- `DioxusI18n` is a thin wrapper over that generic reactive context, with the
+  active locale mirrored into a Dioxus `Signal` so render code can subscribe to
+  locale changes.
 - `localize(...)` and `use_localized(...)` intentionally read that signal before
   delegating to `es-fluent`, which is what makes locale changes rerender the UI.
 
