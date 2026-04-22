@@ -15,11 +15,12 @@ This framework gives you:
 - Derives to turn enums/structs into Fluent message IDs and arguments.
 - A [cli](crates/es-fluent-cli/README.md) to generate ftl files skeleton and other utilities.
 - [Language Enum Generation](crates/es-fluent-lang/README.md)
-- Integration via a [embedded singleton manager](crates/es-fluent-manager-embedded/README.md) or [es-fluent-manager-bevy](crates/es-fluent-manager-bevy/README.md) for [bevy](https://bevy.org/)
+- Integration via the [embedded singleton manager](crates/es-fluent-manager-embedded/README.md), the experimental [Dioxus manager](crates/es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](crates/es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
 
 ## Examples
 
 - [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
+- [dioxus](https://github.com/stayhydated/es-fluent/tree/master/examples/dioxus-example)
 - [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
 
 ## Used in
@@ -41,6 +42,9 @@ unic-langid = "*"
 # If you want to register modules with the embedded singleton and localize at runtime:
 es-fluent-manager-embedded = "*"
 
+# For Dioxus apps: pair it with your chosen Dioxus 0.7.5 renderer feature
+es-fluent-manager-dioxus = { version = "*", features = ["desktop"] }
+
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
 es-fluent-manager-bevy = "*"
 ```
@@ -55,6 +59,8 @@ es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 
 For custom runtime integrations, use
 `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
+For Dioxus, `es-fluent-manager-dioxus` provides hook-based client helpers for
+web/desktop/mobile plus a separate synchronous SSR wrapper.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep
@@ -80,11 +86,11 @@ namespaces = ["ui", "errors", "messages"]
 
 ## Incremental builds for locale assets
 
-If your crate uses the embedded or Bevy manager macros, they discover locales at
-compile time by scanning `assets_dir`. To ensure locale folder/file renames
-(for example `fr` to `fr-FR`) trigger rebuilds, enable the `build` feature of
-`es-fluent` in build dependencies and call the tracking helper from `build.rs`.
-Crates that only use the derive macros do not need this setup.
+If your crate uses the embedded, Dioxus, or Bevy manager macros, they discover
+locales at compile time by scanning `assets_dir`. To ensure locale folder/file
+renames (for example `fr` to `fr-FR`) trigger rebuilds, enable the `build`
+feature of `es-fluent` in build dependencies and call the tracking helper from
+`build.rs`. Crates that only use the derive macros do not need this setup.
 
 ```toml
 [build-dependencies]

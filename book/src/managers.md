@@ -1,10 +1,13 @@
 # Runtime Managers
 
-`es-fluent` is agnostic about how you load translations at runtime. The ecosystem provides two ready-made manager crates so you don't have to build your own asset pipeline.
+`es-fluent` is agnostic about how you load translations at runtime. The
+ecosystem provides three ready-made manager crates so you don't have to build
+your own asset pipeline.
 
 | Manager                      | Best for                 | How it works                             |
 | ---------------------------- | ------------------------ | ---------------------------------------- |
 | `es-fluent-manager-embedded` | CLIs, TUIs, desktop apps | Compiles FTL files into the binary       |
+| `es-fluent-manager-dioxus`   | Dioxus apps              | Uses embedded assets plus Dioxus hooks   |
 | `es-fluent-manager-bevy`     | Bevy games and apps      | Loads FTL files via Bevy's `AssetServer` |
 
 ---
@@ -87,6 +90,105 @@ es_fluent_manager_embedded::try_init_with_language(Languages::Fr)
 Both `init_with_language(...)` and `try_init_with_language(...)` only publish
 the embedded singleton after the requested language has been selected
 successfully.
+
+---
+
+## Dioxus Manager (`es-fluent-manager-dioxus`)
+
+Experimental Dioxus integration for `es-fluent`.
+
+The Dioxus manager is split by rendering model:
+
+- `web`, `desktop`, and `mobile` share the same client-side hook/runtime layer.
+- `desktop` and `mobile` intentionally share one core because Dioxus 0.7.5
+  routes both through the same underlying desktop/mobile renderer family.
+- `ssr` is separate and wraps synchronous `dioxus::ssr` rendering with a
+  request-scoped localization bridge.
+
+### Features
+
+- **Embedded Assets**: Uses the same compile-time locale discovery flow as the embedded manager.
+- **Reactive Locale State**: `use_init_i18n(...)` exposes locale changes through Dioxus signals so render code can rerun when the language changes.
+- **Derived Type Support**: `#[derive(EsFluent)]` values still format through `es-fluent`; use the Dioxus helper APIs to subscribe render output to locale changes.
+- **Separate SSR Surface**: `SsrI18n` owns its own request-scoped render context instead of pretending SSR behaves like a client app.
+
+### Quick Start
+
+#### 1. Add Dependencies
+
+```toml
+[dependencies]
+dioxus = { version = "0.7.5", features = ["desktop"] }
+es-fluent = { version = "*", features = ["derive"] }
+es-fluent-manager-dioxus = { version = "*", features = ["desktop"] }
+unic-langid = "*"
+```
+
+#### 2. Define the Module
+
+In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+
+```rust
+// a i18n.toml file must exist in the root of the crate
+es_fluent_manager_dioxus::define_i18n_module!();
+```
+
+#### 3. Initialize in the Root Component
+
+```rust
+use dioxus::prelude::*;
+use es_fluent::EsFluent;
+use es_fluent_manager_dioxus::desktop::use_init_i18n;
+use unic_langid::langid;
+
+#[derive(EsFluent)]
+enum UiMessage {
+    Hello,
+}
+
+fn app() -> Element {
+    let i18n = use_init_i18n(langid!("en-US"));
+
+    rsx! {
+        button {
+            onclick: move |_| {
+                i18n.select_language(langid!("fr"))
+                    .expect("locale switch should succeed");
+            },
+            "{i18n.localize(&UiMessage::Hello)}"
+        }
+    }
+}
+```
+
+Use `i18n.localize(...)` or `use_localized(...)` in render code when you want
+locale changes to rerender the current component. Plain
+`to_fluent_string()` still formats correctly after initialization, but it does
+not subscribe the component to locale changes by itself.
+
+### SSR
+
+The `ssr` feature is separate because there is no long-lived client signal:
+
+```rust
+use dioxus::prelude::*;
+use es_fluent_manager_dioxus::ssr::SsrI18n;
+use unic_langid::langid;
+
+fn app() -> Element {
+    rsx! { div { "hello" } }
+}
+
+let mut vdom = VirtualDom::new(app);
+vdom.rebuild_in_place();
+
+let i18n = SsrI18n::try_new_with_discovered_modules(langid!("en-US"))
+    .expect("ssr i18n should initialize");
+let html = i18n.render(&vdom);
+```
+
+`SsrI18n` currently targets synchronous `dioxus::ssr` rendering helpers. It
+does not yet wrap the higher-level `dioxus-server` fullstack router pipeline.
 
 ---
 

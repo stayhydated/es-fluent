@@ -15,12 +15,14 @@ members = [
   "crates/es-fluent-manager-macros",
   "crates/es-fluent-manager-embedded",
   "crates/es-fluent-manager-bevy",
+  "crates/es-fluent-manager-dioxus",
   "examples/first-example",
   "examples/thiserror-example",
   "examples/example-shared-lib",
   "examples/feature-gated-example",
   "examples/bevy-example",
   "examples/gpui-example",
+  "examples/dioxus-example",
   "examples/readme",
   "xtask",
 ]
@@ -53,6 +55,12 @@ crossbeam-channel = "0.5"
 crossterm = "0.29"
 darling = "0.23"
 derive_more = "2.1"
+dioxus-core = "0.7.4"
+dioxus-core-macro = "0.7.4"
+dioxus-html = "0.7.4"
+dioxus-hooks = "0.7.4"
+dioxus-signals = "0.7.4"
+dioxus-ssr = { version = "0.7.4", default-features = false }
 es-fluent = { path = "crates/es-fluent", version = "0.15.0" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.15.0" }
 es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.15.0" }
@@ -61,6 +69,7 @@ es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.15.0" }
 es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.15.0" }
 es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.18.12" }
 es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.15.0" }
+es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.7.0" }
 es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.15.0" }
 es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.15.0" }
 es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.15.0" }

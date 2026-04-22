@@ -8,7 +8,7 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy")]
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[cfg(any(feature = "embedded", feature = "gpui"))]
+#[cfg(any(feature = "dioxus", feature = "embedded", feature = "gpui"))]
 es_fluent_manager_embedded::define_i18n_module!();
 
 /// Force the linker to include this crate and its dependencies.

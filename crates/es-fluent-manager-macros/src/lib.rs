@@ -31,6 +31,19 @@ pub fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
     module_macros::define_bevy_i18n_module(input)
 }
 
+/// Defines a Dioxus i18n module.
+///
+/// This macro will:
+///
+/// 1.  Read the `i18n.toml` configuration file.
+/// 2.  Discover the available languages in the `i18n` directory.
+/// 3.  Generate a `RustEmbed` struct for the i18n assets.
+/// 4.  Generate an embedded runtime registration for Dioxus integrations.
+#[proc_macro]
+pub fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {
+    module_macros::define_dioxus_i18n_module(input)
+}
+
 /// Registers a type for use with `FluentText<T>` in Bevy.
 ///
 /// This derive macro auto-registers the type with `I18nPlugin` so you don't need

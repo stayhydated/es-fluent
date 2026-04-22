@@ -177,6 +177,9 @@ Additional rules:
 - `examples/bevy-example`
   Bevy integration example using `es-fluent-manager-bevy`.
 
+- `examples/dioxus-example`
+  Dioxus integration example showing the shared client hook runtime plus SSR.
+
 - `examples/gpui-example`
   GPUI integration example using `es-fluent-manager-embedded`.
 

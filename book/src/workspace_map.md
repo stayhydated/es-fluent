@@ -16,7 +16,8 @@ Install the CLI separately:
 cargo install es-fluent-cli --locked
 ```
 
-Swap `es-fluent-manager-embedded` for `es-fluent-manager-bevy` in Bevy apps.
+Swap `es-fluent-manager-embedded` for `es-fluent-manager-dioxus` in Dioxus
+apps, or for `es-fluent-manager-bevy` in Bevy apps.
 
 ## Crates You Usually Use
 
@@ -24,6 +25,7 @@ Swap `es-fluent-manager-embedded` for `es-fluent-manager-bevy` in Bevy apps.
 | ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `es-fluent`                  | Derives, traits, and the public localization facade                           | [Getting Started](getting_started.md), [Deriving Messages](deriving_messages.md), [Namespaces & File Splitting](namespaces.md) |
 | `es-fluent-manager-embedded` | Embedded-runtime apps, CLIs, TUIs, desktop apps                               | [Runtime Managers](managers.md)                                                                                                |
+| `es-fluent-manager-dioxus`   | Dioxus apps using hook-based locale state on web/desktop/mobile plus SSR      | [Runtime Managers](managers.md)                                                                                                |
 | `es-fluent-manager-bevy`     | Bevy integration, reactive localized UI, asset loading                        | [Runtime Managers](managers.md)                                                                                                |
 | `es-fluent-lang`             | Type-safe locale enum generation and localized language names                 | [Language Enum](language_enum.md)                                                                                              |
 | `es-fluent-cli`              | Generating, checking, cleaning, syncing, formatting, and inspecting FTL files | [CLI Tooling](cli.md)                                                                                                          |

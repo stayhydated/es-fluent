@@ -1,6 +1,6 @@
 # Incremental Builds
 
-If your crate uses the embedded or Bevy manager macros, they discover locales at compile time by scanning your `assets_dir`. By default, Cargo doesn't know about these files, so changes like renaming a locale folder (e.g., `fr` → `fr-FR`) won't trigger a rebuild.
+If your crate uses the embedded, Dioxus, or Bevy manager macros, they discover locales at compile time by scanning your `assets_dir`. By default, Cargo doesn't know about these files, so changes like renaming a locale folder (e.g., `fr` → `fr-FR`) won't trigger a rebuild.
 
 The `build` feature adds a `build.rs` helper that emits `cargo:rerun-if-changed` directives for your locale assets, ensuring Cargo rebuilds when translations change. Crates that only use the derive macros do not need this setup.
 

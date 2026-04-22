@@ -1,0 +1,46 @@
+[package]
+name = "es-fluent-manager-dioxus"
+description = """
+es-fluent manager for Dioxus
+"""
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version = "0.7.0"
+readme = "README.md"
+categories = [ "localization", "internationalization" ]
+keywords = [ "fluent", "i18n", "locale", "dioxus" ]
+
+[features]
+default = [ "macros" ]
+macros = [ "dep:es-fluent-manager-macros" ]
+desktop = [ "dioxus-common" ]
+mobile = [ "dioxus-common" ]
+ssr = [ "dioxus-common", "dep:dioxus-ssr" ]
+web = [ "dioxus-common" ]
+
+dioxus-common = [
+  "dep:dioxus-core",
+  "dep:dioxus-hooks",
+  "dep:dioxus-signals",
+]
+
+[dependencies]
+dioxus-core = { optional = true, workspace = true }
+dioxus-hooks = { optional = true, workspace = true }
+dioxus-signals = { optional = true, workspace = true }
+dioxus-ssr = { optional = true, workspace = true }
+es-fluent = { workspace = true }
+es-fluent-manager-core = { workspace = true }
+es-fluent-manager-macros = { optional = true, workspace = true }
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+unic-langid = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
+
+[lints]
+workspace = true

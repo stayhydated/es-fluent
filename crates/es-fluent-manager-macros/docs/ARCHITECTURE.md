@@ -20,6 +20,19 @@ Used by `es-fluent-manager-embedded`.
      `{lang}/{crate}/**/*.ftl` namespace files for namespaced modules.
    - `inventory::submit!` block to register the module.
 
+### `define_dioxus_i18n_module!`
+
+Used by `es-fluent-manager-dioxus`.
+
+1. **Scans**: The configured `assets_dir` from `i18n.toml`.
+1. **Generates**:
+   - The same `RustEmbed`-backed module registration shape used by the embedded
+     manager.
+   - Static `ModuleData` listing supported languages from canonical locale
+     files.
+   - `inventory::submit!` block to register an embedded runtime localizer for
+     Dioxus client and SSR integrations.
+
 ### `define_bevy_i18n_module!`
 
 Used by `es-fluent-manager-bevy`.

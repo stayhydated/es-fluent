@@ -28,5 +28,6 @@ bevy = [
   "es-fluent-lang/bevy",
   "es-fluent-manager-bevy/macros",
 ]
+dioxus = [ "dep:es-fluent-manager-embedded" ]
 embedded = [ "dep:es-fluent-manager-embedded" ]
 gpui = [ "dep:gpui", "dep:es-fluent-manager-embedded" ]

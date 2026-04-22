@@ -29,6 +29,7 @@ flowchart TD
 
     subgraph BACKEND["Backends"]
         EMBED["es-fluent-manager-embedded"]
+        DIOXUS["es-fluent-manager-dioxus"]
         BEVY["es-fluent-manager-bevy"]
     end
 
@@ -43,6 +44,7 @@ flowchart TD
     CUSTOM -.->|fallback| CTX
     CTX --> MGR
     EMBED -->|initializes| CTX
+    DIOXUS -->|installs custom localizer| CUSTOM
     BEVY -->|initializes| CTX
     TRAIT --> API
 ```

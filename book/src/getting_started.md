@@ -11,6 +11,9 @@ unic-langid = "*"
 
 # For simple apps and CLIs:
 es-fluent-manager-embedded = "*"
+
+# For Dioxus apps:
+# es-fluent-manager-dioxus = { version = "*", features = ["desktop"] }
 ```
 
 ## Project Configuration

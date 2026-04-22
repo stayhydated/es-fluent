@@ -35,6 +35,17 @@ impl ManagerPaths {
             module_data_suffix: "BEVY_I18N_MODULE_DATA",
         }
     }
+
+    fn dioxus() -> Self {
+        Self {
+            manager_core_path: quote! { ::es_fluent_manager_dioxus::__manager_core },
+            langid_path: quote! { ::es_fluent_manager_dioxus::__unic_langid },
+            inventory_path: quote! { ::es_fluent_manager_dioxus::__inventory },
+            rust_embed_path: quote! { ::es_fluent_manager_dioxus::__rust_embed },
+            rust_embed_attr_path: "::es_fluent_manager_dioxus::__rust_embed",
+            module_data_suffix: "DIOXUS_I18N_MODULE_DATA",
+        }
+    }
 }
 
 type ModuleTokenGenerator = fn(
@@ -97,6 +108,10 @@ pub(crate) fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
 
 pub(crate) fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
     expand_define_i18n_module(ManagerPaths::bevy(), generate_bevy_tokens)
+}
+
+pub(crate) fn define_dioxus_i18n_module(_input: TokenStream) -> TokenStream {
+    expand_define_i18n_module(ManagerPaths::dioxus(), generate_embedded_tokens)
 }
 
 fn generate_embedded_tokens(
