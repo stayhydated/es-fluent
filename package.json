@@ -10,7 +10,6 @@
     "build:llms-txt": "cargo run -p xtask -- build-llms-txt",
     "build:wasm": "env -u RUSTC_WRAPPER cargo xtask build-wasm-examples",
     "build:web": "turbo run build --filter=web",
-    "dev": "turbo dev",
     "fmt": "oxfmt",
     "generate:wasm-examples-schema": "cargo xtask generate-wasm-examples-schema",
     "lint": "oxlint",

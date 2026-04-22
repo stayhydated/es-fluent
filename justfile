@@ -36,4 +36,4 @@ book:
 
 web:
     bun run build
-    bun run dev
+    dx serve

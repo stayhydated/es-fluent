@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build Astro site
+      - name: Build web site
         run: bun run build:web
 
       - name: Setup Pages

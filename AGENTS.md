@@ -188,7 +188,7 @@ Additional rules:
 
 - `web`
   Audience: **User-facing**
-  Role: Astro-based GitHub Pages site hosting WASM demos and the mdBook.
+  Role: Dioxus-rendered GitHub Pages site hosting WASM demos and the mdBook.
 
 - `book`
   Audience: **User-facing**

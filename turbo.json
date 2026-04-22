@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build", "//#verify:wasm", "//#build:book", "//#build:llms-txt"],
-      "outputs": ["dist/**", ".astro/**"]
+      "outputs": ["dist/**"]
     },
     "//#build:wasm": {
       "cache": true,
