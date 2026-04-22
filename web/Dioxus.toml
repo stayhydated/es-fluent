@@ -1,21 +1,21 @@
 [application]
+asset_dir = "public"
 name = "es-fluent"
 out_dir = "dist"
-asset_dir = "public"
 
 [web.app]
-title = "es-fluent"
 base_path = "es-fluent"
+title = "es-fluent"
 
 [web.watcher]
-reload_html = true
 index_on_404 = true
-watch_path = ["src", "public", "assets"]
+reload_html = true
+watch_path = [ "src", "public", "assets" ]
 
 [web.resource]
-style = []
-script = []
+script = [  ]
+style = [  ]
 
 [web.resource.dev]
-style = []
-script = []
+script = [  ]
+style = [  ]

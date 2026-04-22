@@ -1,7 +1,6 @@
 use crate::components::PageLink;
-use crate::site::constants::BEVY_BOOTSTRAP;
 use crate::site::i18n::{SiteLanguage, SiteMessage};
-use crate::site::routing::PageKind;
+use crate::site::routing::{PageKind, SiteRoute, site_root_prefix};
 use dioxus_core::Element;
 use dioxus_core_macro::{Props, component, rsx};
 #[allow(unused_imports)]
@@ -10,6 +9,9 @@ use es_fluent::ToFluentString as _;
 
 #[component]
 pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
+    let page_output_dir = SiteRoute::new(locale, PageKind::Bevy).output_dir();
+    let demo_src = format!("{}bevy-example/app/", site_root_prefix(&page_output_dir));
+
     rsx! {
         div { class: "fullscreen-demo",
             PageLink {
@@ -18,18 +20,11 @@ pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
                 class: "back-pill".to_string(),
                 label: SiteMessage::BackToDemos.to_fluent_string(),
             }
-            div { class: "loader-stage",
-                div { class: "loader-card", id: "bevy-loader", "data-state": "loading",
-                    div { class: "loader-kicker", "{SiteMessage::BevyPageTitle.to_fluent_string()}" }
-                    h1 { class: "loader-title", "{SiteMessage::BevyTitle.to_fluent_string()}" }
-                    p { class: "loader-copy", "{SiteMessage::BevyLead.to_fluent_string()}" }
-                    p { class: "status-line", "data-state": "loading", "{SiteMessage::BevyLoading.to_fluent_string()}" }
-                    p { class: "status-line", "data-state": "error", "{SiteMessage::BevyError.to_fluent_string()}" }
-                }
-            }
-            script {
-                r#type: "module",
-                dangerous_inner_html: "{BEVY_BOOTSTRAP}"
+            iframe {
+                class: "fullscreen-demo-frame",
+                src: demo_src,
+                title: SiteMessage::BevyTitle.to_fluent_string(),
+                allowfullscreen: true,
             }
         }
     }

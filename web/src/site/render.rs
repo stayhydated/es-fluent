@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use crate::pages::route_content;
 use crate::site::constants::SITE_URL;
 use crate::site::i18n::{SiteLanguage, SiteMessage};

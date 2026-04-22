@@ -14,14 +14,10 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Build the Trunk-hosted Bevy demo into web/public/bevy-example/app
+    BuildBevyDemo,
     /// Build mdBook documentation to web/public/book
     BuildBook,
     /// Build llms.txt from mdBook sources to web/public/llms.txt
     BuildLlmsTxt,
-    /// Build declared wasm examples from the central manifest
-    BuildWasmExamples,
-    /// Generate the JSON schema for the wasm example manifest
-    GenerateWasmExamplesSchema,
-    /// Verify built wasm examples include their required markers
-    VerifyWasmExamples,
 }

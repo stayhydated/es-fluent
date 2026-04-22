@@ -12,8 +12,8 @@ pub(crate) fn DevErrorPage(route: SiteRoute, message: String) -> Element {
             PageHeader { locale: route.locale, current_page: route.page }
             main { class: "stack",
                 section { class: "section-panel",
-                    h1 { class: "section-title", "Dioxus web startup failed" }
-                    p { class: "section-lead", "The client runtime could not initialize the localized app." }
+                    h1 { class: "section-title", "Localized route failed" }
+                    p { class: "section-lead", "The page could not initialize its Dioxus i18n context." }
                     pre { code { "{message}" } }
                 }
             }

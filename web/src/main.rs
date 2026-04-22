@@ -1,6 +1,6 @@
 #[cfg(feature = "web")]
 fn main() {
-    dioxus::launch(web::DevApp);
+    dioxus::launch(web::App);
 }
 
 #[cfg(not(feature = "web"))]

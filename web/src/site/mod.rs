@@ -1,4 +1,3 @@
-#[cfg(feature = "web")]
 pub(crate) mod app;
 pub(crate) mod build;
 pub(crate) mod constants;

@@ -9,8 +9,4 @@ anyhow = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 mdbook-driver = { workspace = true }
 path-slash = { workspace = true }
-schemars = { features = [ "derive" ], workspace = true }
-serde = { features = [ "derive" ], workspace = true }
-serde_json = { workspace = true }
 tempfile = { workspace = true }
-walkdir = { workspace = true }

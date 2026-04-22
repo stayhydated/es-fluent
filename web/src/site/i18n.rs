@@ -33,7 +33,6 @@ impl SiteLanguage {
         (!self.is_default()).then(|| self.lang().language.to_string())
     }
 
-    #[cfg(any(feature = "web", test))]
     pub(crate) fn from_route_slug(slug: &str) -> Option<Self> {
         Self::all().find(|locale| locale.route_slug().as_deref() == Some(slug))
     }
@@ -92,8 +91,6 @@ pub(crate) enum SiteMessage {
     DemoDocsAction,
     BevyTitle,
     BevyLead,
-    BevyLoading,
-    BevyError,
     BackToDemos,
     FooterLabel,
     FooterBody,

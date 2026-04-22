@@ -66,12 +66,6 @@ pub fn run() {
         .run();
 }
 
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen::prelude::wasm_bindgen(start)]
-pub fn wasm_main() {
-    run();
-}
-
 fn locale_change_system(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut locale_change_events: MessageWriter<LocaleChangeEvent>,

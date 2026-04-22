@@ -9,7 +9,6 @@ use dioxus_core_macro::rsx;
 #[allow(unused_imports)]
 use dioxus_html as dioxus_elements;
 
-#[cfg(feature = "web")]
 pub(crate) use error::DevErrorPage;
 
 pub(crate) fn route_content(route: SiteRoute) -> Element {

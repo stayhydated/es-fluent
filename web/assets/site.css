@@ -433,6 +433,16 @@ pre {
   overflow: hidden;
 }
 
+.fullscreen-demo-frame {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  display: block;
+  background: #050b14;
+}
+
 .fullscreen-demo canvas,
 .fullscreen-demo body > canvas {
   position: fixed;

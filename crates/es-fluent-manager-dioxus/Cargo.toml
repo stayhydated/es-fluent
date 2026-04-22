@@ -15,17 +15,13 @@ keywords = [ "fluent", "i18n", "locale", "dioxus" ]
 
 [features]
 default = [ "macros" ]
-macros = [ "dep:es-fluent-manager-macros" ]
 desktop = [ "dioxus-common" ]
+macros = [ "dep:es-fluent-manager-macros" ]
 mobile = [ "dioxus-common" ]
 ssr = [ "dioxus-common", "dep:dioxus-ssr" ]
 web = [ "dioxus-common" ]
 
-dioxus-common = [
-  "dep:dioxus-core",
-  "dep:dioxus-hooks",
-  "dep:dioxus-signals",
-]
+dioxus-common = [ "dep:dioxus-core", "dep:dioxus-hooks", "dep:dioxus-signals" ]
 
 [dependencies]
 dioxus-core = { optional = true, workspace = true }

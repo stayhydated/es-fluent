@@ -2,15 +2,17 @@ mod components;
 mod pages;
 mod site;
 
-#[cfg(feature = "web")]
-pub use site::app::DevApp;
+pub use site::app::App;
 pub use site::build::{build_site, run};
 
 #[cfg(test)]
 mod tests {
     use crate::site::i18n::SiteLanguage;
     use crate::site::render::render_page;
-    use crate::site::routing::{PageKind, SiteRoute, site_root_prefix, site_route_from_path};
+    use crate::site::routing::{
+        PageKind, SiteRoute, site_root_prefix, site_route_from_path,
+        site_route_from_path_with_base_path,
+    };
     use serial_test::serial;
 
     #[test]
@@ -19,8 +21,8 @@ mod tests {
         let html =
             render_page(SiteLanguage::EnUs, PageKind::Home, "./").expect("page should render");
         assert!(html.contains("Ship localized Rust UIs without drifting out of sync."));
-        assert!(html.contains("href=\"/es-fluent/demos/\""));
-        assert!(html.contains("href=\"/es-fluent/book/\""));
+        assert!(html.contains("href=\"/demos/\""));
+        assert!(html.contains("href=\"/book/\""));
     }
 
     #[test]
@@ -29,8 +31,20 @@ mod tests {
         let html =
             render_page(SiteLanguage::FrFr, PageKind::Demos, "../../").expect("page should render");
         assert!(html.contains("Démos navigateur et pistes d’intégration"));
-        assert!(html.contains("href=\"/es-fluent/fr/bevy-example/\""));
+        assert!(html.contains("href=\"/fr/bevy-example/\""));
         assert!(html.contains("Ouvrir la source"));
+    }
+
+    #[test]
+    #[serial]
+    fn renders_bevy_pages_with_relative_demo_bundle_paths() {
+        let english =
+            render_page(SiteLanguage::EnUs, PageKind::Bevy, "../").expect("page should render");
+        assert!(english.contains("src=\"../bevy-example/app/\""));
+
+        let french =
+            render_page(SiteLanguage::FrFr, PageKind::Bevy, "../../").expect("page should render");
+        assert!(french.contains("src=\"../../bevy-example/app/\""));
     }
 
     #[test]
@@ -43,7 +57,7 @@ mod tests {
     #[test]
     fn parses_site_routes() {
         assert_eq!(
-            site_route_from_path("/es-fluent/fr/demos/"),
+            site_route_from_path_with_base_path("/your_repo/fr/demos/", Some("your_repo")),
             SiteRoute::new(SiteLanguage::FrFr, PageKind::Demos)
         );
         assert_eq!(

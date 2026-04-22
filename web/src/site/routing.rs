@@ -1,27 +1,18 @@
-#[cfg(feature = "web")]
 use crate::pages::{DevErrorPage, route_content};
 use crate::site::i18n::{SiteLanguage, SiteMessage};
-#[cfg(feature = "web")]
-use dioxus::prelude::{Routable, VNode};
-#[cfg(feature = "web")]
+use dioxus::cli_config;
+use dioxus::prelude::{Meta, Routable, Title, VNode};
 use dioxus::router as dioxus_router;
-#[cfg(feature = "web")]
 use dioxus_core::Element;
-#[cfg(feature = "web")]
 use dioxus_core::use_hook;
-#[cfg(feature = "web")]
 use dioxus_core_macro::{Props, component, rsx};
-#[cfg(feature = "web")]
+#[allow(unused_imports)]
+use dioxus_html as dioxus_elements;
+use es_fluent::ToFluentString as _;
 use es_fluent_manager_dioxus::ManagedI18n;
-#[cfg(feature = "web")]
-use es_fluent_manager_dioxus::{GlobalLocalizerMode, web::use_provide_i18n_with_mode};
-#[cfg(feature = "web")]
+use es_fluent_manager_dioxus::{GlobalLocalizerMode, use_provide_i18n_with_mode};
 use std::fmt::{self, Display};
-#[cfg(feature = "web")]
 use std::str::FromStr;
-
-#[cfg(test)]
-const SITE_BASE_PATH_SEGMENT: &str = "es-fluent";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PageKind {
@@ -59,6 +50,7 @@ impl PageKind {
         }
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn is_fullscreen(self) -> bool {
         matches!(self, Self::Bevy)
     }
@@ -80,14 +72,24 @@ impl SiteRoute {
     }
 }
 
-pub(crate) fn app_base_href() -> &'static str {
-    "/es-fluent/"
+pub(crate) fn app_base_href() -> String {
+    match cli_config::base_path() {
+        Some(base_path) => {
+            let base_path = base_path.trim_matches('/');
+            if base_path.is_empty() {
+                "/".to_string()
+            } else {
+                format!("/{base_path}/")
+            }
+        },
+        None => "/".to_string(),
+    }
 }
 
 pub(crate) fn page_href(locale: SiteLanguage, page: PageKind) -> String {
     let relative = relative_path(locale, page);
     if relative.is_empty() {
-        app_base_href().to_string()
+        app_base_href()
     } else {
         format!("{}{relative}/", app_base_href())
     }
@@ -106,18 +108,15 @@ pub(crate) fn site_root_prefix(output_dir: &str) -> String {
     "../".repeat(depth)
 }
 
-#[cfg(feature = "web")]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LocaleSegment(SiteLanguage);
 
-#[cfg(feature = "web")]
 impl LocaleSegment {
     fn language(&self) -> SiteLanguage {
         self.0
     }
 }
 
-#[cfg(feature = "web")]
 impl Display for LocaleSegment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0.route_slug() {
@@ -127,7 +126,6 @@ impl Display for LocaleSegment {
     }
 }
 
-#[cfg(feature = "web")]
 impl FromStr for LocaleSegment {
     type Err = String;
 
@@ -138,7 +136,6 @@ impl FromStr for LocaleSegment {
     }
 }
 
-#[cfg(feature = "web")]
 #[derive(Clone, Debug, PartialEq, Routable)]
 #[rustfmt::skip]
 pub(crate) enum AppRoute {
@@ -156,40 +153,19 @@ pub(crate) enum AppRoute {
     LocalizedBevy { locale: LocaleSegment },
 }
 
-#[cfg(feature = "web")]
-impl AppRoute {
-    fn from_site_route(route: SiteRoute) -> Self {
-        match (route.locale.is_default(), route.page) {
-            (true, PageKind::Home) => Self::Home {},
-            (true, PageKind::Demos) => Self::Demos {},
-            (true, PageKind::Bevy) => Self::Bevy {},
-            (false, PageKind::Home) => Self::LocalizedHome {
-                locale: LocaleSegment(route.locale),
-            },
-            (false, PageKind::Demos) => Self::LocalizedDemos {
-                locale: LocaleSegment(route.locale),
-            },
-            (false, PageKind::Bevy) => Self::LocalizedBevy {
-                locale: LocaleSegment(route.locale),
-            },
-        }
-    }
-}
-
-#[cfg(feature = "web")]
-pub(crate) fn page_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
-    AppRoute::from_site_route(SiteRoute::new(locale, page))
+#[cfg(test)]
+pub(crate) fn site_route_from_path(path: &str) -> SiteRoute {
+    site_route_from_path_with_base_path(path, None)
 }
 
 #[cfg(test)]
-pub(crate) fn site_route_from_path(path: &str) -> SiteRoute {
-    let segments = path
-        .split('/')
-        .filter(|segment| !segment.is_empty())
-        .filter(|segment| *segment != SITE_BASE_PATH_SEGMENT)
-        .collect::<Vec<_>>();
+pub(crate) fn site_route_from_path_with_base_path(
+    path: &str,
+    base_path: Option<&str>,
+) -> SiteRoute {
+    let segments = normalized_path_segments(path, base_path);
 
-    let (locale, page_segments) = match segments.split_first() {
+    let (locale, page_segments) = match segments.as_slice().split_first() {
         Some((first, rest)) => match SiteLanguage::from_route_slug(first) {
             Some(locale) => (locale, rest),
             None => (SiteLanguage::default(), segments.as_slice()),
@@ -198,6 +174,30 @@ pub(crate) fn site_route_from_path(path: &str) -> SiteRoute {
     };
 
     SiteRoute::new(locale, page_from_segments(page_segments))
+}
+
+#[cfg(test)]
+fn normalized_path_segments<'a>(path: &'a str, base_path: Option<&str>) -> Vec<&'a str> {
+    let segments = path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+
+    let base_path_segments = base_path
+        .into_iter()
+        .flat_map(|base_path| base_path.trim_matches('/').split('/'))
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+
+    if base_path_segments.is_empty()
+        || !segments
+            .as_slice()
+            .starts_with(base_path_segments.as_slice())
+    {
+        segments
+    } else {
+        segments[base_path_segments.len()..].to_vec()
+    }
 }
 
 #[cfg(test)]
@@ -225,7 +225,6 @@ fn relative_path(locale: SiteLanguage, page: PageKind) -> String {
     segments.join("/")
 }
 
-#[cfg(feature = "web")]
 fn route_element(route: SiteRoute) -> Element {
     let init_result = use_hook(|| {
         ManagedI18n::try_new_with_discovered_modules(route.locale.lang()).map_err(|error| {
@@ -240,7 +239,21 @@ fn route_element(route: SiteRoute) -> Element {
         Ok(managed) => {
             let _i18n =
                 use_provide_i18n_with_mode(managed.clone(), GlobalLocalizerMode::ReplaceExisting);
-            route_content(route)
+            let title = format!(
+                "{} | {}",
+                SiteMessage::SiteName.to_fluent_string(),
+                route.page.title_message().to_fluent_string()
+            );
+            let description = route.page.description_message().to_fluent_string();
+
+            rsx! {
+                Title { "{title}" }
+                Meta {
+                    name: "description",
+                    content: description,
+                }
+                {route_content(route)}
+            }
         },
         Err(error) => rsx!(DevErrorPage {
             route,
@@ -249,37 +262,31 @@ fn route_element(route: SiteRoute) -> Element {
     }
 }
 
-#[cfg(feature = "web")]
 #[component]
 fn HomeRoute() -> Element {
     route_element(SiteRoute::new(SiteLanguage::default(), PageKind::Home))
 }
 
-#[cfg(feature = "web")]
 #[component]
 fn DemosRoute() -> Element {
     route_element(SiteRoute::new(SiteLanguage::default(), PageKind::Demos))
 }
 
-#[cfg(feature = "web")]
 #[component]
 fn BevyRoute() -> Element {
     route_element(SiteRoute::new(SiteLanguage::default(), PageKind::Bevy))
 }
 
-#[cfg(feature = "web")]
 #[component]
 fn LocalizedHomeRoute(locale: LocaleSegment) -> Element {
     route_element(SiteRoute::new(locale.language(), PageKind::Home))
 }
 
-#[cfg(feature = "web")]
 #[component]
 fn LocalizedDemosRoute(locale: LocaleSegment) -> Element {
     route_element(SiteRoute::new(locale.language(), PageKind::Demos))
 }
 
-#[cfg(feature = "web")]
 #[component]
 fn LocalizedBevyRoute(locale: LocaleSegment) -> Element {
     route_element(SiteRoute::new(locale.language(), PageKind::Bevy))

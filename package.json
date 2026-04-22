@@ -6,14 +6,12 @@
   ],
   "scripts": {
     "build": "turbo build",
+    "build:bevy-demo": "env -u RUSTC_WRAPPER cargo xtask build-bevy-demo",
     "build:book": "cargo run -p xtask -- build-book",
     "build:llms-txt": "cargo run -p xtask -- build-llms-txt",
-    "build:wasm": "env -u RUSTC_WRAPPER cargo xtask build-wasm-examples",
     "build:web": "turbo run build --filter=web",
     "fmt": "oxfmt",
-    "generate:wasm-examples-schema": "cargo xtask generate-wasm-examples-schema",
-    "lint": "oxlint",
-    "verify:wasm": "cargo xtask verify-wasm-examples"
+    "lint": "oxlint"
   },
   "devDependencies": {
     "oxfmt": "^0.41.0",
