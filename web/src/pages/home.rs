@@ -1,5 +1,4 @@
 use crate::components::{FeatureCard, FooterPanel, PageHeader, PageLink};
-use crate::site::constants::{CRATES_URL, INSTALL_SNIPPET, README_URL};
 use crate::site::i18n::{SiteLanguage, SiteMessage};
 use crate::site::routing::{PageKind, book_href};
 use dioxus_core::Element;
@@ -44,23 +43,6 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
                                 strong { "{SiteMessage::HeroPanelThreeTitle.to_fluent_string()}" }
                                 span { class: "feature-copy", "{SiteMessage::HeroPanelThreeBody.to_fluent_string()}" }
                             }
-                        }
-                    }
-                }
-                section { class: "grid columns-2",
-                    article { class: "code-panel",
-                        div { class: "panel-label", "{SiteMessage::InstallTitle.to_fluent_string()}" }
-                        p { class: "section-lead", "{SiteMessage::InstallLead.to_fluent_string()}" }
-                        pre { code { "{INSTALL_SNIPPET}" } }
-                        p { class: "feature-copy", "{SiteMessage::InstallNote.to_fluent_string()}" }
-                    }
-                    article { class: "section-panel",
-                        h2 { class: "section-title", "{SiteMessage::LinksTitle.to_fluent_string()}" }
-                        p { class: "section-lead", "{SiteMessage::LinksLead.to_fluent_string()}" }
-                        ul { class: "inline-links",
-                            li { a { class: "button-link secondary", href: book_href(), "{SiteMessage::LinksBook.to_fluent_string()}" } }
-                            li { a { class: "button-link secondary", href: README_URL, target: "_blank", rel: "noreferrer", "{SiteMessage::LinksReadme.to_fluent_string()}" } }
-                            li { a { class: "button-link secondary", href: CRATES_URL, target: "_blank", rel: "noreferrer", "{SiteMessage::LinksCrates.to_fluent_string()}" } }
                         }
                     }
                 }

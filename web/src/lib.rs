@@ -23,6 +23,7 @@ mod tests {
         assert!(html.contains("Ship localized Rust UIs without drifting out of sync."));
         assert!(html.contains("href=\"/demos/\""));
         assert!(html.contains("href=\"/book/\""));
+        assert!(html.contains("href=\"https://crates.io/crates/es-fluent-manager-dioxus\""));
     }
 
     #[test]
@@ -30,9 +31,9 @@ mod tests {
     fn renders_french_demos_page() {
         let html =
             render_page(SiteLanguage::FrFr, PageKind::Demos, "../../").expect("page should render");
-        assert!(html.contains("Démos navigateur et pistes d’intégration"));
         assert!(html.contains("href=\"/fr/bevy-example/\""));
-        assert!(html.contains("Ouvrir la source"));
+        assert!(html.contains("Lancer la démo"));
+        assert!(!html.contains("Démo navigateur en direct"));
     }
 
     #[test]

@@ -45,7 +45,7 @@ impl PageKind {
     pub(crate) fn description_message(self) -> SiteMessage {
         match self {
             Self::Home => SiteMessage::HeroBody,
-            Self::Demos => SiteMessage::DemosLead,
+            Self::Demos => SiteMessage::DemoBevyBody,
             Self::Bevy => SiteMessage::BevyLead,
         }
     }

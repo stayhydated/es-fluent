@@ -1,5 +1,5 @@
 use crate::components::PageLink;
-use crate::site::constants::{CRATES_URL, README_URL};
+use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteLanguage, SiteMessage};
 use crate::site::routing::{PageKind, book_href, page_href};
 use dioxus_core::Element;
@@ -83,15 +83,20 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
 #[component]
 pub(crate) fn FooterPanel() -> Element {
     rsx! {
-        footer { class: "footer-panel",
-            div {
-                div { class: "footer-label", "{SiteMessage::FooterLabel.to_fluent_string()}" }
-                p { class: "footer-copy", "{SiteMessage::FooterBody.to_fluent_string()}" }
-            }
-            ul { class: "footer-links",
-                li { a { class: "text-link", href: book_href(), "{SiteMessage::LinksBook.to_fluent_string()}" } }
-                li { a { class: "text-link", href: README_URL, target: "_blank", rel: "noreferrer", "{SiteMessage::LinksReadme.to_fluent_string()}" } }
-                li { a { class: "text-link", href: CRATES_URL, target: "_blank", rel: "noreferrer", "{SiteMessage::LinksCrates.to_fluent_string()}" } }
+        footer { class: "site-footer",
+            p { class: "footer-copy",
+                span { class: "footer-label", "{SiteMessage::FooterLabel.to_fluent_string()}" }
+                span { class: "footer-text",
+                    "{SiteMessage::FooterBodyPrefix.to_fluent_string()} "
+                    a {
+                        class: "footer-link",
+                        href: ES_FLUENT_MANAGER_DIOXUS_CRATES_URL,
+                        target: "_blank",
+                        rel: "noreferrer",
+                        "{SiteMessage::FooterBodyLinkLabel.to_fluent_string()}"
+                    }
+                    "."
+                }
             }
         }
     }

@@ -12,26 +12,3 @@ pub(crate) fn FeatureCard(title: String, body: String) -> Element {
         }
     }
 }
-
-#[component]
-pub(crate) fn DemoCard(
-    label: String,
-    title: String,
-    body: String,
-    action: String,
-    href: String,
-    external: bool,
-) -> Element {
-    rsx! {
-        a {
-            class: "demo-card",
-            href,
-            target: external.then_some("_blank"),
-            rel: external.then_some("noreferrer"),
-            div { class: "card-label", "{label}" }
-            h2 { "{title}" }
-            p { class: "card-copy", "{body}" }
-            span { class: "card-link", "{action}" }
-        }
-    }
-}
