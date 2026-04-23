@@ -1,5 +1,5 @@
 use crate::components::PageLink;
-use crate::site::i18n::{SiteLanguage, SiteMessage};
+use crate::site::i18n::{BevyPageMessage, SiteLanguage};
 use crate::site::routing::{PageKind, SiteRoute, site_root_prefix};
 use dioxus_core::Element;
 use dioxus_core_macro::{Props, component, rsx};
@@ -18,12 +18,12 @@ pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
                 locale,
                 page: PageKind::Demos,
                 class: "back-pill".to_string(),
-                label: SiteMessage::BackToDemos.to_fluent_string(),
+                label: BevyPageMessage::BackToDemos.to_fluent_string(),
             }
             iframe {
                 class: "fullscreen-demo-frame",
                 src: demo_src,
-                title: SiteMessage::BevyTitle.to_fluent_string(),
+                title: BevyPageMessage::Title.to_fluent_string(),
                 allowfullscreen: true,
             }
         }

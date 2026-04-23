@@ -1,40 +1,60 @@
-site_message-BackToDemos = Back to demos
-site_message-BevyLead = The fullscreen Bevy scene is served as a Trunk-built wasm app from inside the docs site.
-site_message-BevyPageTitle = Bevy Example
-site_message-BevyTitle = Bevy example
-site_message-DemoBevyAction = Launch demo
-site_message-DemoBevyBody = Open the browser-hosted demo and inspect how locale-aware UI is wired into the Bevy manager.
-site_message-DemoBevyLabel = Live wasm
-site_message-DemoBevyTitle = Bevy example
-site_message-DemosPageTitle = Demos
-site_message-FeatureLead = es-fluent keeps Rust types, FTL resources, and runtime integrations aligned around the same message model.
-site_message-FeatureOneBody = Derives define message ids, arguments, and generated FTL skeletons from your Rust types.
-site_message-FeatureOneTitle = Message definitions
-site_message-FeatureThreeBody = Reuse the same localized message types across embedded apps, Bevy systems, and Dioxus components.
-site_message-FeatureThreeTitle = Runtime integrations
-site_message-FeatureTitle = Core workflow
-site_message-FeatureTwoBody = `cargo es-fluent` validates locale files, syncs generated entries, and catches drift in CI.
-site_message-FeatureTwoTitle = CLI and validation
-site_message-FooterBodyLinkLabel = es-fluent-manager-dioxus
-site_message-FooterBodyPrefix = Built with Dioxus and localized through
-site_message-FooterLabel = Site stack
-site_message-HeroBody = Define Fluent messages from Rust types, validate locale assets in CI, and reuse the same message model across embedded, Bevy, and Dioxus runtimes.
-site_message-HeroEyebrow = Type-safe Project Fluent for Rust
-site_message-HeroPanelLabel = Supported integrations
-site_message-HeroPanelOneBody = Embedded locale assets.
-site_message-HeroPanelOneTitle = Embedded
-site_message-HeroPanelThreeBody = Hook-based locale state.
-site_message-HeroPanelThreeTitle = Dioxus
-site_message-HeroPanelTwoBody = ECS-aware locale state.
-site_message-HeroPanelTwoTitle = Bevy
-site_message-HeroPrimary = Read the book
-site_message-HeroSecondary = Browse demos
-site_message-HeroTitle = Rust localization with compile-time alignment
-site_message-HomePageTitle = Home
-site_message-LocaleLabel = Locale
-site_message-NavDemos = Demos
-site_message-NavDocs = Book
-site_message-NavHome = Home
-site_message-NavSource = Source
-site_message-PageKicker = Rust localization
-site_message-SiteName = es-fluent
+## Shared site chrome
+
+site_chrome_message-PageKicker = Rust localization
+site_chrome_message-SiteName = es-fluent
+site_chrome_message-NavHome = Home
+site_chrome_message-NavDemos = Demos
+site_chrome_message-NavDocs = Book
+site_chrome_message-NavSource = Source
+site_chrome_message-LocaleLabel = Locale
+
+## Home page hero
+
+home_hero_message-Eyebrow = Type-safe Project Fluent for Rust
+home_hero_message-Title = Rust localization with compile-time alignment
+home_hero_message-Body = Define Fluent messages from Rust types, validate locale assets in CI, and reuse the same message model across embedded, Bevy, and Dioxus runtimes.
+home_hero_message-PrimaryAction = Read the book
+home_hero_message-SecondaryAction = Browse demos
+home_hero_message-PanelLabel = Supported integrations
+home_hero_message-PanelOneTitle = Embedded
+home_hero_message-PanelOneBody = Embedded locale assets.
+home_hero_message-PanelTwoTitle = Bevy
+home_hero_message-PanelTwoBody = ECS-aware locale state.
+home_hero_message-PanelThreeTitle = Dioxus
+home_hero_message-PanelThreeBody = Hook-based locale state.
+
+## Home page workflow section
+
+home_workflow_message-Title = Core workflow
+home_workflow_message-Lead = es-fluent keeps Rust types, FTL resources, and runtime integrations aligned around the same message model.
+home_workflow_message-OneTitle = Message definitions
+home_workflow_message-OneBody = Derives define message ids, arguments, and generated FTL skeletons from your Rust types.
+home_workflow_message-TwoTitle = CLI and validation
+home_workflow_message-TwoBody = `cargo es-fluent` validates locale files, syncs generated entries, and catches drift in CI.
+home_workflow_message-ThreeTitle = Runtime integrations
+home_workflow_message-ThreeBody = Reuse the same localized message types across embedded apps, Bevy systems, and Dioxus components.
+
+## Demos page
+
+demos_page_message-BevyLabel = Live wasm
+demos_page_message-BevyTitle = Bevy example
+demos_page_message-BevyBody = Open the browser-hosted demo and inspect how locale-aware UI is wired into the Bevy manager.
+demos_page_message-BevyAction = Launch demo
+
+## Bevy page
+
+bevy_page_message-Title = Bevy example
+bevy_page_message-Lead = The fullscreen Bevy scene is served as a Trunk-built wasm app from inside the docs site.
+bevy_page_message-BackToDemos = Back to demos
+
+## Footer
+
+site_footer_message-Label = Site stack
+site_footer_message-BodyPrefix = Built with Dioxus and localized through
+site_footer_message-BodyLinkLabel = es-fluent-manager-dioxus
+
+## Page metadata
+
+page_metadata_message-HomeTitle = Home
+page_metadata_message-DemosTitle = Demos
+page_metadata_message-BevyTitle = Bevy Example

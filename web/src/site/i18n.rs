@@ -39,7 +39,7 @@ impl SiteLanguage {
 }
 
 #[derive(Clone, Copy, Debug, EsFluent)]
-pub(crate) enum SiteMessage {
+pub(crate) enum SiteChromeMessage {
     PageKicker,
     SiteName,
     NavHome,
@@ -47,37 +47,61 @@ pub(crate) enum SiteMessage {
     NavDocs,
     NavSource,
     LocaleLabel,
-    HeroEyebrow,
-    HeroTitle,
-    HeroBody,
-    HeroPrimary,
-    HeroSecondary,
-    HeroPanelLabel,
-    HeroPanelOneTitle,
-    HeroPanelOneBody,
-    HeroPanelTwoTitle,
-    HeroPanelTwoBody,
-    HeroPanelThreeTitle,
-    HeroPanelThreeBody,
-    FeatureTitle,
-    FeatureLead,
-    FeatureOneTitle,
-    FeatureOneBody,
-    FeatureTwoTitle,
-    FeatureTwoBody,
-    FeatureThreeTitle,
-    FeatureThreeBody,
-    DemoBevyLabel,
-    DemoBevyTitle,
-    DemoBevyBody,
-    DemoBevyAction,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum HomeHeroMessage {
+    Eyebrow,
+    Title,
+    Body,
+    PrimaryAction,
+    SecondaryAction,
+    PanelLabel,
+    PanelOneTitle,
+    PanelOneBody,
+    PanelTwoTitle,
+    PanelTwoBody,
+    PanelThreeTitle,
+    PanelThreeBody,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum HomeWorkflowMessage {
+    Title,
+    Lead,
+    OneTitle,
+    OneBody,
+    TwoTitle,
+    TwoBody,
+    ThreeTitle,
+    ThreeBody,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum DemosPageMessage {
+    BevyLabel,
     BevyTitle,
-    BevyLead,
+    BevyBody,
+    BevyAction,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum BevyPageMessage {
+    Title,
+    Lead,
     BackToDemos,
-    FooterLabel,
-    FooterBodyPrefix,
-    FooterBodyLinkLabel,
-    HomePageTitle,
-    DemosPageTitle,
-    BevyPageTitle,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum SiteFooterMessage {
+    Label,
+    BodyPrefix,
+    BodyLinkLabel,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum PageMetadataMessage {
+    HomeTitle,
+    DemosTitle,
+    BevyTitle,
 }

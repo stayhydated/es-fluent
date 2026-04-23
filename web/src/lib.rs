@@ -20,7 +20,9 @@ mod tests {
     fn renders_english_home_page() {
         let html =
             render_page(SiteLanguage::EnUs, PageKind::Home, "./").expect("page should render");
-        assert!(html.contains("Ship localized Rust UIs without drifting out of sync."));
+        assert!(html.contains(
+            "Define Fluent messages from Rust types, validate locale assets in CI, and reuse the same message model across embedded, Bevy, and Dioxus runtimes."
+        ));
         assert!(html.contains("href=\"/demos/\""));
         assert!(html.contains("href=\"/book/\""));
         assert!(html.contains("href=\"https://crates.io/crates/es-fluent-manager-dioxus\""));

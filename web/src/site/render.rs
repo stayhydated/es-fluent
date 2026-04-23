@@ -2,7 +2,7 @@
 
 use crate::pages::route_content;
 use crate::site::constants::SITE_URL;
-use crate::site::i18n::{SiteLanguage, SiteMessage};
+use crate::site::i18n::{SiteChromeMessage, SiteLanguage};
 use crate::site::routing::{PageKind, SiteRoute};
 use anyhow::{Context, Result};
 use es_fluent::ToFluentString as _;
@@ -20,11 +20,11 @@ pub(crate) fn render_page(locale: SiteLanguage, page: PageKind, site_root: &str)
     let title = i18n.with_manager(|| {
         format!(
             "{} | {}",
-            SiteMessage::SiteName.to_fluent_string(),
-            page.title_message().to_fluent_string()
+            SiteChromeMessage::SiteName.to_fluent_string(),
+            page.title()
         )
     });
-    let description = i18n.with_manager(|| page.description_message().to_fluent_string());
+    let description = i18n.with_manager(|| page.description());
     let body = i18n.render_element(route_content(route));
 
     Ok(render_document(

@@ -1,5 +1,8 @@
 use crate::pages::{DevErrorPage, route_content};
-use crate::site::i18n::{SiteLanguage, SiteMessage};
+use crate::site::i18n::{
+    BevyPageMessage, DemosPageMessage, HomeHeroMessage, PageMetadataMessage, SiteChromeMessage,
+    SiteLanguage,
+};
 use dioxus::cli_config;
 use dioxus::prelude::{Meta, Routable, Title, VNode};
 use dioxus::router as dioxus_router;
@@ -34,19 +37,19 @@ impl PageKind {
         }
     }
 
-    pub(crate) fn title_message(self) -> SiteMessage {
+    pub(crate) fn title(self) -> String {
         match self {
-            Self::Home => SiteMessage::HomePageTitle,
-            Self::Demos => SiteMessage::DemosPageTitle,
-            Self::Bevy => SiteMessage::BevyPageTitle,
+            Self::Home => PageMetadataMessage::HomeTitle.to_fluent_string(),
+            Self::Demos => PageMetadataMessage::DemosTitle.to_fluent_string(),
+            Self::Bevy => PageMetadataMessage::BevyTitle.to_fluent_string(),
         }
     }
 
-    pub(crate) fn description_message(self) -> SiteMessage {
+    pub(crate) fn description(self) -> String {
         match self {
-            Self::Home => SiteMessage::HeroBody,
-            Self::Demos => SiteMessage::DemoBevyBody,
-            Self::Bevy => SiteMessage::BevyLead,
+            Self::Home => HomeHeroMessage::Body.to_fluent_string(),
+            Self::Demos => DemosPageMessage::BevyBody.to_fluent_string(),
+            Self::Bevy => BevyPageMessage::Lead.to_fluent_string(),
         }
     }
 
@@ -241,10 +244,10 @@ fn route_element(route: SiteRoute) -> Element {
                 use_provide_i18n_with_mode(managed.clone(), GlobalLocalizerMode::ReplaceExisting);
             let title = format!(
                 "{} | {}",
-                SiteMessage::SiteName.to_fluent_string(),
-                route.page.title_message().to_fluent_string()
+                SiteChromeMessage::SiteName.to_fluent_string(),
+                route.page.title()
             );
-            let description = route.page.description_message().to_fluent_string();
+            let description = route.page.description();
 
             rsx! {
                 Title { "{title}" }

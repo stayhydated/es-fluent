@@ -1,5 +1,5 @@
 use crate::components::{FooterPanel, PageCardLink, PageHeader};
-use crate::site::i18n::{SiteLanguage, SiteMessage};
+use crate::site::i18n::{DemosPageMessage, SiteLanguage};
 use crate::site::routing::PageKind;
 use dioxus_core::Element;
 use dioxus_core_macro::{Props, component, rsx};
@@ -17,10 +17,10 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
                     PageCardLink {
                         locale,
                         page: PageKind::Bevy,
-                        label: SiteMessage::DemoBevyLabel.to_fluent_string(),
-                        title: SiteMessage::DemoBevyTitle.to_fluent_string(),
-                        body: SiteMessage::DemoBevyBody.to_fluent_string(),
-                        action: SiteMessage::DemoBevyAction.to_fluent_string(),
+                        label: DemosPageMessage::BevyLabel.to_fluent_string(),
+                        title: DemosPageMessage::BevyTitle.to_fluent_string(),
+                        body: DemosPageMessage::BevyBody.to_fluent_string(),
+                        action: DemosPageMessage::BevyAction.to_fluent_string(),
                     }
                 }
             }
