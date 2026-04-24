@@ -1,7 +1,7 @@
 use crate::{GlobalLocalizerMode, ManagedI18n};
 use dioxus_core::use_hook;
 use dioxus_hooks::{use_context, use_context_provider};
-use dioxus_signals::{ReadableExt, Signal, WritableExt};
+use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
 use es_fluent::{FluentValue, GlobalLocalizationError, ToFluentString};
 use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
@@ -118,7 +118,7 @@ pub fn use_init_i18n_with_mode<L: Into<LanguageIdentifier>>(
 ) -> DioxusI18n {
     let initial_language = initial_language.into();
     let managed = use_hook(move || ManagedI18n::new_with_discovered_modules(initial_language));
-    use_provide_i18n_with_mode(managed.clone(), mode)
+    use_provide_i18n_with_mode(managed, mode)
 }
 
 pub fn use_provide_i18n(managed: ManagedI18n) -> DioxusI18n {

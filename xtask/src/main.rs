@@ -9,9 +9,9 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::BuildBevyDemo => commands::build_bevy_demo::run(),
-        Command::BuildBook => commands::build_book::run(),
-        Command::BuildLlmsTxt => commands::build_llms_txt::run(),
-        Command::BuildWeb => commands::build_web::run(),
+        Command::BevyDemo => commands::build_bevy_demo::run(),
+        Command::Book => commands::build_book::run(),
+        Command::LlmsTxt => commands::build_llms_txt::run(),
+        Command::Web => commands::build_web::run(),
     }
 }

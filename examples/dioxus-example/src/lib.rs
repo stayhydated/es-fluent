@@ -3,7 +3,7 @@ use dioxus_core_macro::{Props, component, rsx};
 use dioxus_hooks::use_signal;
 #[allow(unused_imports)]
 use dioxus_html as dioxus_elements;
-use dioxus_signals::WritableExt;
+use dioxus_signals::WritableExt as _;
 use es_fluent::{EsFluent, ToFluentString as _};
 use es_fluent_manager_dioxus::{
     GlobalLocalizerMode,

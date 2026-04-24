@@ -79,10 +79,14 @@ pub(crate) enum HomeWorkflowMessage {
 
 #[derive(Clone, Copy, Debug, EsFluent)]
 pub(crate) enum DemosPageMessage {
-    BevyLabel,
-    BevyTitle,
-    BevyBody,
-    BevyAction,
+    #[fluent(key = "BevyLabel")]
+    Label,
+    #[fluent(key = "BevyTitle")]
+    Title,
+    #[fluent(key = "BevyBody")]
+    Body,
+    #[fluent(key = "BevyAction")]
+    Action,
 }
 
 #[derive(Clone, Copy, Debug, EsFluent)]
@@ -101,7 +105,10 @@ pub(crate) enum SiteFooterMessage {
 
 #[derive(Clone, Copy, Debug, EsFluent)]
 pub(crate) enum PageMetadataMessage {
-    HomeTitle,
-    DemosTitle,
-    BevyTitle,
+    #[fluent(key = "HomeTitle")]
+    Home,
+    #[fluent(key = "DemosTitle")]
+    Demos,
+    #[fluent(key = "BevyTitle")]
+    Bevy,
 }

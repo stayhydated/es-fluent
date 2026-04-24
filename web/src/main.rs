@@ -8,7 +8,7 @@ fn main() {
         web::cleanup_generated_route_cache(public_dir())
             .expect("failed to clear generated route cache");
         let app_router = Router::new().serve_dioxus_application(cfg.clone(), web::App);
-        let app_router = with_base_path(app_router, cfg.clone());
+        let app_router = with_base_path(app_router, cfg);
 
         let mut static_routes_router = Router::new();
         for func in ServerFunction::collect() {

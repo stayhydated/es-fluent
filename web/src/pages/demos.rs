@@ -14,10 +14,10 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
                     PageCardLink {
                         locale,
                         page: PageKind::Bevy,
-                        label: DemosPageMessage::BevyLabel.to_fluent_string(),
-                        title: DemosPageMessage::BevyTitle.to_fluent_string(),
+                        label: DemosPageMessage::Label.to_fluent_string(),
+                        title: DemosPageMessage::Title.to_fluent_string(),
                         body: "",
-                        action: DemosPageMessage::BevyAction.to_fluent_string(),
+                        action: DemosPageMessage::Action.to_fluent_string(),
                     }
                 }
             }

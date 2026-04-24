@@ -49,16 +49,16 @@ impl PageKind {
 
     pub(crate) fn title(self) -> String {
         match self {
-            Self::Home => PageMetadataMessage::HomeTitle.to_fluent_string(),
-            Self::Demos => PageMetadataMessage::DemosTitle.to_fluent_string(),
-            Self::Bevy => PageMetadataMessage::BevyTitle.to_fluent_string(),
+            Self::Home => PageMetadataMessage::Home.to_fluent_string(),
+            Self::Demos => PageMetadataMessage::Demos.to_fluent_string(),
+            Self::Bevy => PageMetadataMessage::Bevy.to_fluent_string(),
         }
     }
 
     pub(crate) fn description(self) -> String {
         match self {
             Self::Home => HomeHeroMessage::Body.to_fluent_string(),
-            Self::Demos => DemosPageMessage::BevyBody.to_fluent_string(),
+            Self::Demos => DemosPageMessage::Body.to_fluent_string(),
             Self::Bevy => BevyPageMessage::Lead.to_fluent_string(),
         }
     }
