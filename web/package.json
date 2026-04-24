@@ -2,7 +2,7 @@
   "name": "web",
   "version": "0.0.1",
   "scripts": {
-    "build": "cargo run -p xtask -- build-web",
+    "build": "cargo xtask web",
     "preview": "bun run preview.ts"
   },
   "devDependencies": {
