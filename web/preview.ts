@@ -4,7 +4,7 @@ import { extname, join, normalize } from "node:path";
 const distDir = join(import.meta.dir, "dist");
 const basePath = "/es-fluent";
 const host = process.env.HOST ?? "127.0.0.1";
-const port = Number(process.env.PORT ?? "4173");
+const port = Number(process.env.PORT ?? "8081");
 
 if (!existsSync(distDir)) {
   console.error(`Missing build output at ${distDir}`);
