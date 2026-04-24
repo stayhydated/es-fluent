@@ -2,10 +2,7 @@ use crate::components::PageLink;
 use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, book_href, page_href};
-use dioxus_core::Element;
-use dioxus_core_macro::{Props, component, rsx};
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
+use dioxus::prelude::*;
 use es_fluent::ToFluentString as _;
 
 #[component]

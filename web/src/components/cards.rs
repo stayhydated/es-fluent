@@ -1,7 +1,4 @@
-use dioxus_core::Element;
-use dioxus_core_macro::{Props, component, rsx};
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
+use dioxus::prelude::*;
 
 #[component]
 pub(crate) fn FeatureCard(title: String, body: String, style: String) -> Element {

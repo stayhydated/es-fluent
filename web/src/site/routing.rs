@@ -4,14 +4,8 @@ use crate::site::i18n::{
     SiteLanguage,
 };
 use dioxus::cli_config;
-use dioxus::prelude::server;
-use dioxus::prelude::{Meta, Routable, ServerFnError, Title, VNode, use_context_provider};
+use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
-use dioxus_core::Element;
-use dioxus_core::use_hook;
-use dioxus_core_macro::{Props, component, rsx};
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
 use dioxus_motion::prelude::{
     AnimatableRoute, AnimatedOutlet, TransitionVariant, TransitionVariantResolver,
 };

@@ -1,10 +1,6 @@
 use crate::site::i18n::SiteLanguage;
 use crate::site::routing::{PageKind, app_route, page_href};
-use dioxus::prelude::{Link, try_router};
-use dioxus_core::Element;
-use dioxus_core_macro::{Props, component, rsx};
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
+use dioxus::prelude::*;
 
 #[component]
 pub(crate) fn PageLink(

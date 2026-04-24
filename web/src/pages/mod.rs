@@ -4,10 +4,7 @@ mod error;
 mod home;
 
 use crate::site::routing::{PageKind, SiteRoute};
-use dioxus_core::Element;
-use dioxus_core_macro::rsx;
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
+use dioxus::prelude::*;
 
 pub(crate) use error::DevErrorPage;
 
