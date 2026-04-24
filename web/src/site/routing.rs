@@ -5,13 +5,16 @@ use crate::site::i18n::{
 };
 use dioxus::cli_config;
 use dioxus::prelude::server;
-use dioxus::prelude::{Meta, Routable, ServerFnError, Title, VNode};
+use dioxus::prelude::{Meta, Routable, ServerFnError, Title, VNode, use_context_provider};
 use dioxus::router as dioxus_router;
 use dioxus_core::Element;
 use dioxus_core::use_hook;
 use dioxus_core_macro::{Props, component, rsx};
 #[allow(unused_imports)]
 use dioxus_html as dioxus_elements;
+use dioxus_motion::prelude::{
+    AnimatableRoute, AnimatedOutlet, TransitionVariant, TransitionVariantResolver,
+};
 use es_fluent::ToFluentString as _;
 use es_fluent_manager_dioxus::ManagedI18n;
 use es_fluent_manager_dioxus::{GlobalLocalizerMode, use_provide_i18n_with_mode};
@@ -19,6 +22,7 @@ use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
 use std::path::Path;
+use std::rc::Rc;
 use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,6 +42,14 @@ impl PageKind {
             Self::Home => "",
             Self::Demos => "demos",
             Self::Bevy => "bevy-example",
+        }
+    }
+
+    fn navigation_rank(self) -> u8 {
+        match self {
+            Self::Home => 0,
+            Self::Demos => 1,
+            Self::Bevy => 2,
         }
     }
 
@@ -163,6 +175,7 @@ impl FromStr for LocaleSegment {
 #[derive(Clone, Debug, PartialEq, Routable)]
 #[rustfmt::skip]
 pub(crate) enum AppRoute {
+    #[layout(AnimatedRouteOutlet)]
     #[route("/", HomeRoute)]
     Home {},
     #[route("/demos/", DemosRoute)]
@@ -175,6 +188,82 @@ pub(crate) enum AppRoute {
     LocalizedDemos { locale: LocaleSegment },
     #[route("/:locale/bevy-example/", LocalizedBevyRoute)]
     LocalizedBevy { locale: LocaleSegment },
+}
+
+impl AppRoute {
+    fn site_route(&self) -> SiteRoute {
+        match self {
+            Self::Home {} => SiteRoute::new(SiteLanguage::default(), PageKind::Home),
+            Self::Demos {} => SiteRoute::new(SiteLanguage::default(), PageKind::Demos),
+            Self::Bevy {} => SiteRoute::new(SiteLanguage::default(), PageKind::Bevy),
+            Self::LocalizedHome { locale } => SiteRoute::new(locale.language(), PageKind::Home),
+            Self::LocalizedDemos { locale } => SiteRoute::new(locale.language(), PageKind::Demos),
+            Self::LocalizedBevy { locale } => SiteRoute::new(locale.language(), PageKind::Bevy),
+        }
+    }
+}
+
+impl AnimatableRoute for AppRoute {
+    fn get_transition(&self) -> TransitionVariant {
+        match self.site_route().page {
+            PageKind::Home => TransitionVariant::Fade,
+            PageKind::Demos => TransitionVariant::SlideLeftFade,
+            PageKind::Bevy => TransitionVariant::ZoomIn,
+        }
+    }
+
+    fn get_component(&self) -> Element {
+        route_element(self.site_route())
+    }
+
+    fn get_layout_depth(&self) -> usize {
+        1
+    }
+}
+
+pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
+    match (locale.route_slug(), page) {
+        (None, PageKind::Home) => AppRoute::Home {},
+        (None, PageKind::Demos) => AppRoute::Demos {},
+        (None, PageKind::Bevy) => AppRoute::Bevy {},
+        (Some(_), PageKind::Home) => AppRoute::LocalizedHome {
+            locale: LocaleSegment(locale),
+        },
+        (Some(_), PageKind::Demos) => AppRoute::LocalizedDemos {
+            locale: LocaleSegment(locale),
+        },
+        (Some(_), PageKind::Bevy) => AppRoute::LocalizedBevy {
+            locale: LocaleSegment(locale),
+        },
+    }
+}
+
+#[component]
+fn AnimatedRouteOutlet() -> Element {
+    use_context_provider::<TransitionVariantResolver<AppRoute>>(|| {
+        Rc::new(resolve_route_transition)
+    });
+
+    rsx! {
+        div { class: "page-transition-frame",
+            AnimatedOutlet::<AppRoute> {}
+        }
+    }
+}
+
+fn resolve_route_transition(from: &AppRoute, to: &AppRoute) -> TransitionVariant {
+    let from = from.site_route();
+    let to = to.site_route();
+
+    if from.locale != to.locale {
+        return TransitionVariant::Fade;
+    }
+
+    match from.page.navigation_rank().cmp(&to.page.navigation_rank()) {
+        std::cmp::Ordering::Less => TransitionVariant::SlideLeftFade,
+        std::cmp::Ordering::Greater => TransitionVariant::SlideRightFade,
+        std::cmp::Ordering::Equal => TransitionVariant::Fade,
+    }
 }
 
 #[cfg(test)]

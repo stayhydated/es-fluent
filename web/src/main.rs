@@ -4,9 +4,9 @@ fn main() {
         use dioxus_server::axum::Router;
         use dioxus_server::{DioxusRouterExt as _, FullstackState, ServerFunction};
 
+        let cfg = serve_config();
         web::cleanup_generated_route_cache(public_dir())
             .expect("failed to clear generated route cache");
-        let cfg = serve_config();
         let app_router = Router::new().serve_dioxus_application(cfg.clone(), web::App);
         let app_router = with_base_path(app_router, cfg.clone());
 
@@ -34,6 +34,10 @@ fn main() {}
 
 #[cfg(feature = "server")]
 fn public_dir() -> std::path::PathBuf {
+    if let Ok(path) = std::env::var("DIOXUS_PUBLIC_PATH") {
+        return path.into();
+    }
+
     std::env::current_exe()
         .expect("server binary path should be available")
         .parent()

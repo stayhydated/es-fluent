@@ -1,5 +1,6 @@
 use crate::site::i18n::SiteLanguage;
-use crate::site::routing::{PageKind, page_href};
+use crate::site::routing::{PageKind, app_route, page_href};
+use dioxus::prelude::{Link, try_router};
 use dioxus_core::Element;
 use dioxus_core_macro::{Props, component, rsx};
 #[allow(unused_imports)]
@@ -12,11 +13,21 @@ pub(crate) fn PageLink(
     class: String,
     label: String,
 ) -> Element {
-    rsx! {
-        a {
-            class,
-            href: page_href(locale, page),
-            "{label}"
+    if try_router().is_some() {
+        rsx! {
+            Link {
+                class,
+                to: app_route(locale, page),
+                "{label}"
+            }
+        }
+    } else {
+        rsx! {
+            a {
+                class,
+                href: page_href(locale, page),
+                "{label}"
+            }
         }
     }
 }
@@ -30,14 +41,27 @@ pub(crate) fn PageCardLink(
     body: String,
     action: String,
 ) -> Element {
-    rsx! {
-        a {
-            class: "demo-card",
-            href: page_href(locale, page),
-            div { class: "card-label", "{label}" }
-            h2 { "{title}" }
-            p { class: "card-copy", "{body}" }
-            span { class: "card-link", "{action}" }
+    if try_router().is_some() {
+        rsx! {
+            Link {
+                class: "demo-card",
+                to: app_route(locale, page),
+                div { class: "card-label", "{label}" }
+                h2 { "{title}" }
+                p { class: "card-copy", "{body}" }
+                span { class: "card-link", "{action}" }
+            }
+        }
+    } else {
+        rsx! {
+            a {
+                class: "demo-card",
+                href: page_href(locale, page),
+                div { class: "card-label", "{label}" }
+                h2 { "{title}" }
+                p { class: "card-copy", "{body}" }
+                span { class: "card-link", "{action}" }
+            }
         }
     }
 }

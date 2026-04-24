@@ -62,6 +62,7 @@ dioxus-core-macro = "0.7"
 dioxus-fullstack = { default-features = false, version = "0.7" }
 dioxus-hooks = "0.7"
 dioxus-html = "0.7"
+dioxus-motion = { default-features = false, version = "0.3.5" }
 dioxus-server = { default-features = false, version = "0.7" }
 dioxus-signals = "0.7"
 dioxus-ssr = { default-features = false, version = "0.7" }
