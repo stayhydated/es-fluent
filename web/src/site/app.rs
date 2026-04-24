@@ -1,12 +1,10 @@
 use crate::site::routing::AppRoute;
-use dioxus::prelude::*;
-
-const SITE_CSS: &str = include_str!("../../assets/site.css");
+use dioxus::{document, prelude::*};
 
 #[component]
 pub fn App() -> Element {
     rsx! {
-        style { "{SITE_CSS}" }
+        document::Stylesheet { href: asset!("/assets/site.css") }
         Router::<AppRoute> {}
     }
 }
