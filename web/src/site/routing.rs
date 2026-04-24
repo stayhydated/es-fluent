@@ -4,7 +4,8 @@ use crate::site::i18n::{
     SiteLanguage,
 };
 use dioxus::cli_config;
-use dioxus::prelude::{Meta, Routable, Title, VNode};
+use dioxus::prelude::server;
+use dioxus::prelude::{Meta, Routable, ServerFnError, Title, VNode};
 use dioxus::router as dioxus_router;
 use dioxus_core::Element;
 use dioxus_core::use_hook;
@@ -52,11 +53,6 @@ impl PageKind {
             Self::Bevy => BevyPageMessage::Lead.to_fluent_string(),
         }
     }
-
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn is_fullscreen(self) -> bool {
-        matches!(self, Self::Bevy)
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,6 +69,28 @@ impl SiteRoute {
     pub(crate) fn output_dir(self) -> String {
         relative_path(self.locale, self.page)
     }
+
+    pub(crate) fn path(self) -> String {
+        let relative = self.output_dir();
+
+        if relative.is_empty() {
+            "/".to_string()
+        } else {
+            format!("/{relative}/")
+        }
+    }
+}
+
+pub(crate) fn all_routes() -> Vec<SiteRoute> {
+    let mut routes = Vec::new();
+
+    for locale in SiteLanguage::all() {
+        for page in PageKind::all() {
+            routes.push(SiteRoute::new(locale, page));
+        }
+    }
+
+    routes
 }
 
 pub(crate) fn app_base_href() -> String {
@@ -263,6 +281,14 @@ fn route_element(route: SiteRoute) -> Element {
             message: error.clone(),
         }),
     }
+}
+
+#[server(endpoint = "static_routes")]
+async fn static_routes() -> Result<Vec<String>, ServerFnError> {
+    Ok(all_routes()
+        .into_iter()
+        .map(|route| page_href(route.locale, route.page))
+        .collect())
 }
 
 #[component]

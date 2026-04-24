@@ -1,23 +1,28 @@
-use crate::site::i18n::SiteLanguage;
-use crate::site::render::{render_page, render_sitemap};
-use crate::site::routing::{PageKind, SiteRoute, site_root_prefix};
-use anyhow::{Context, Result, bail};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+
+use anyhow::{bail, Context};
 use walkdir::WalkDir;
 
-pub fn run() -> Result<()> {
-    match std::env::args().nth(1).as_deref() {
-        None | Some("build") => build_site(),
-        Some(other) => bail!("unsupported command: {other}"),
-    }
+use crate::util::workspace_root;
+
+const BUNDLE_DIR: &str = "web/.dx-bundle";
+const DIST_DIR: &str = "web/dist";
+const BEVY_DEMO_DIR: &str = "web/public/bevy-demo";
+const BOOK_DIR: &str = "web/public/book";
+const LLMS_FULL_TXT: &str = "web/public/llms-full.txt";
+const LLMS_TXT: &str = "web/public/llms.txt";
+const ROOT_NOJEKYLL: &str = "web/public/.nojekyll";
+
+pub fn run() -> anyhow::Result<()> {
+    run_from_workspace_root(&workspace_root()?)
 }
 
-pub fn build_site() -> Result<()> {
-    let web_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let dist_dir = web_dir.join("dist");
-    let bundle_dir = web_dir.join(".dx-bundle");
+fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
+    let web_dir = workspace_root.join("web");
+    let bundle_dir = workspace_root.join(BUNDLE_DIR);
+    let dist_dir = workspace_root.join(DIST_DIR);
 
     if bundle_dir.exists() {
         fs::remove_dir_all(&bundle_dir)
@@ -26,13 +31,13 @@ pub fn build_site() -> Result<()> {
 
     let status = Command::new("dx")
         .current_dir(&web_dir)
-        .args(["bundle", "--platform", "web", "--out-dir"])
+        .args(["bundle", "--platform", "web", "--ssg", "--out-dir"])
         .arg(&bundle_dir)
         .status()
-        .context("failed to run `dx bundle --web` for the docs site")?;
+        .context("failed to run `dx bundle --platform web --ssg` for the docs site")?;
 
     if !status.success() {
-        bail!("`dx bundle --web` failed with status {status}");
+        bail!("`dx bundle --platform web --ssg` failed with status {status}");
     }
 
     let bundled_public = bundle_dir.join("public");
@@ -51,30 +56,23 @@ pub fn build_site() -> Result<()> {
         .with_context(|| format!("failed to create {}", dist_dir.display()))?;
 
     copy_directory(&bundled_public, &dist_dir)?;
-    fs::copy(web_dir.join("assets/site.css"), dist_dir.join("site.css")).with_context(|| {
-        format!(
-            "failed to copy {} to {}",
-            web_dir.join("assets/site.css").display(),
-            dist_dir.join("site.css").display()
-        )
-    })?;
-
-    for route in render_routes() {
-        let output_dir = route.output_dir();
-        let page_dir = dist_dir.join(&output_dir);
-        fs::create_dir_all(&page_dir)
-            .with_context(|| format!("failed to create {}", page_dir.display()))?;
-        let page_html = render_page(route.locale, route.page, &site_root_prefix(&output_dir))?;
-        fs::write(page_dir.join("index.html"), page_html).with_context(|| {
-            format!("failed to write {}", page_dir.join("index.html").display())
-        })?;
-    }
-
-    let home_404 = render_page(SiteLanguage::default(), PageKind::Home, "./")?;
-    fs::write(dist_dir.join("404.html"), home_404)
+    copy_directory(&workspace_root.join(BOOK_DIR), &dist_dir.join("book"))?;
+    copy_directory(
+        &workspace_root.join(BEVY_DEMO_DIR),
+        &dist_dir.join("bevy-demo"),
+    )?;
+    copy_file_if_present(
+        &workspace_root.join(ROOT_NOJEKYLL),
+        &dist_dir.join(".nojekyll"),
+    )?;
+    copy_file_if_present(&workspace_root.join(LLMS_TXT), &dist_dir.join("llms.txt"))?;
+    copy_file_if_present(
+        &workspace_root.join(LLMS_FULL_TXT),
+        &dist_dir.join("llms-full.txt"),
+    )?;
+    fs::copy(dist_dir.join("index.html"), dist_dir.join("404.html"))
         .with_context(|| format!("failed to write {}", dist_dir.join("404.html").display()))?;
-
-    fs::write(dist_dir.join("sitemap.xml"), render_sitemap())
+    fs::write(dist_dir.join("sitemap.xml"), web::sitemap_xml())
         .with_context(|| format!("failed to write {}", dist_dir.join("sitemap.xml").display()))?;
 
     fs::remove_dir_all(&bundle_dir)
@@ -83,17 +81,28 @@ pub fn build_site() -> Result<()> {
     Ok(())
 }
 
-fn render_routes() -> Vec<SiteRoute> {
-    let mut routes = Vec::new();
-    for locale in SiteLanguage::all() {
-        for page in PageKind::all() {
-            routes.push(SiteRoute::new(locale, page));
-        }
+fn copy_file_if_present(source: &Path, destination: &Path) -> anyhow::Result<()> {
+    if !source.is_file() {
+        return Ok(());
     }
-    routes
+
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    fs::copy(source, destination).with_context(|| {
+        format!(
+            "failed to copy {} to {}",
+            source.display(),
+            destination.display()
+        )
+    })?;
+
+    Ok(())
 }
 
-fn copy_directory(source: &Path, destination: &Path) -> Result<()> {
+fn copy_directory(source: &Path, destination: &Path) -> anyhow::Result<()> {
     if !source.exists() {
         return Ok(());
     }

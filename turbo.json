@@ -15,7 +15,7 @@
         "examples/bevy-example/**",
         "examples/assets/**"
       ],
-      "outputs": ["web/public/bevy-example/**"]
+      "outputs": ["web/public/bevy-demo/**"]
     },
     "//#build:book": {
       "cache": true,

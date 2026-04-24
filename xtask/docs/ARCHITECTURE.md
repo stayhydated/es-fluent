@@ -6,13 +6,14 @@
 
 ## CLI commands
 
-- `build-bevy-demo`: builds the Trunk-hosted Bevy demo into `web/public/bevy-example/app`.
+- `build-bevy-demo`: builds the Trunk-hosted Bevy demo into `web/public/bevy-demo`.
 - `build-book`: builds mdBook documentation to `web/public/book`.
 - `build-llms-txt`: concatenates mdBook sources into `web/public/llms.txt` for LLM consumption.
+- `build-web`: bundles the Dioxus site for GitHub Pages into `web/dist`.
 
 ### build-bevy-demo
 
-- `xtask/src/commands/build_bevy_demo.rs`: runs `trunk build` for `examples/bevy-example`, writes the bundle to `web/public/bevy-example/app`, disables Trunk SRI metadata so the Dioxus dev server can serve the generated JS without hash mismatches, validates that the output contains a wasm artifact with the expected language marker, and writes a local `.gitignore` for the generated directory.
+- `xtask/src/commands/build_bevy_demo.rs`: runs `trunk build` for `examples/bevy-example`, writes the bundle to `web/public/bevy-demo`, disables Trunk SRI metadata so the Dioxus dev server can serve the generated JS without hash mismatches, validates that the output contains a wasm artifact with the expected language marker, and writes a local `.gitignore` for the generated directory.
 
 ### build-book
 
@@ -21,3 +22,7 @@
 ### build-llms-txt
 
 - `xtask/src/commands/build_llms_txt.rs`: loads the mdBook, skips draft chapters, writes a linked chapter index to `llms.txt`, and writes the expanded chapter content to `llms-full.txt`.
+
+### build-web
+
+- `xtask/src/commands/build_web.rs`: runs `dx bundle --platform web --ssg` into a temporary bundle directory, copies the generated `public` tree into `web/dist`, restores the stable root copies of `book/`, `bevy-demo/`, `llms.txt`, `llms-full.txt`, and `.nojekyll` that GitHub Pages and the site expect, overwrites `404.html` from `index.html` for router fallback, and writes a fresh sitemap from the `web` crate route list.

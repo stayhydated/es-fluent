@@ -6,7 +6,7 @@ Internal task runner for repository maintenance tasks.
 
 ### `build-bevy-demo`
 
-Builds the Trunk-hosted Bevy demo into `web/public/bevy-example/app`.
+Builds the Trunk-hosted Bevy demo into `web/public/bevy-demo`.
 
 ```bash
 cargo xtask build-bevy-demo
@@ -27,4 +27,12 @@ mdBook sources.
 
 ```bash
 cargo xtask build-llms-txt
+```
+
+### `build-web`
+
+Builds the Dioxus site for GitHub Pages into `web/dist`.
+
+```bash
+cargo xtask build-web
 ```

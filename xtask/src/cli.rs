@@ -14,10 +14,12 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Build the Trunk-hosted Bevy demo into web/public/bevy-example/app
+    /// Build the Trunk-hosted Bevy demo into web/public/bevy-demo
     BuildBevyDemo,
     /// Build mdBook documentation to web/public/book
     BuildBook,
     /// Build llms.txt from mdBook sources to web/public/llms.txt
     BuildLlmsTxt,
+    /// Build the Dioxus site into web/dist for GitHub Pages
+    BuildWeb,
 }

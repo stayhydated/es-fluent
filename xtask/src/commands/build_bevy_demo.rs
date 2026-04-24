@@ -5,8 +5,8 @@ use anyhow::{bail, Context};
 use crate::util::workspace_root;
 
 const EXAMPLE_DIR: &str = "examples/bevy-example";
-const OUTPUT_ROOT: &str = "web/public/bevy-example";
-const OUTPUT_DIR: &str = "web/public/bevy-example/app";
+const OUTPUT_ROOT: &str = "web/public/bevy-demo";
+const OUTPUT_DIR: &str = "web/public/bevy-demo";
 const REQUIRED_MARKER: &str = "es-fluent-lang-en";
 
 pub fn run() -> anyhow::Result<()> {

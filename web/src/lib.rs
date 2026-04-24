@@ -3,12 +3,15 @@ mod pages;
 mod site;
 
 pub use site::app::App;
-pub use site::build::{build_site, run};
+
+pub fn sitemap_xml() -> String {
+    site::render::render_sitemap()
+}
 
 #[cfg(test)]
 mod tests {
     use crate::site::i18n::SiteLanguage;
-    use crate::site::render::render_page;
+    use crate::site::render::render_route_body;
     use crate::site::routing::{
         PageKind, SiteRoute, site_root_prefix, site_route_from_path,
         site_route_from_path_with_base_path,
@@ -18,8 +21,8 @@ mod tests {
     #[test]
     #[serial]
     fn renders_english_home_page() {
-        let html =
-            render_page(SiteLanguage::EnUs, PageKind::Home, "./").expect("page should render");
+        let html = render_route_body(SiteRoute::new(SiteLanguage::EnUs, PageKind::Home))
+            .expect("page should render");
         assert!(html.contains(
             "Define Fluent messages from Rust types, validate locale assets in CI, and reuse the same message model across embedded, Bevy, and Dioxus runtimes."
         ));
@@ -31,8 +34,8 @@ mod tests {
     #[test]
     #[serial]
     fn renders_french_demos_page() {
-        let html =
-            render_page(SiteLanguage::FrFr, PageKind::Demos, "../../").expect("page should render");
+        let html = render_route_body(SiteRoute::new(SiteLanguage::FrFr, PageKind::Demos))
+            .expect("page should render");
         assert!(html.contains("href=\"/fr/bevy-example/\""));
         assert!(html.contains("Lancer la démo"));
         assert!(!html.contains("Démo navigateur en direct"));
@@ -41,13 +44,13 @@ mod tests {
     #[test]
     #[serial]
     fn renders_bevy_pages_with_relative_demo_bundle_paths() {
-        let english =
-            render_page(SiteLanguage::EnUs, PageKind::Bevy, "../").expect("page should render");
-        assert!(english.contains("src=\"../bevy-example/app/\""));
+        let english = render_route_body(SiteRoute::new(SiteLanguage::EnUs, PageKind::Bevy))
+            .expect("page should render");
+        assert!(english.contains("src=\"../bevy-demo/\""));
 
-        let french =
-            render_page(SiteLanguage::FrFr, PageKind::Bevy, "../../").expect("page should render");
-        assert!(french.contains("src=\"../../bevy-example/app/\""));
+        let french = render_route_body(SiteRoute::new(SiteLanguage::FrFr, PageKind::Bevy))
+            .expect("page should render");
+        assert!(french.contains("src=\"../../bevy-demo/\""));
     }
 
     #[test]

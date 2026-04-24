@@ -2,6 +2,11 @@
   "name": "web",
   "version": "0.0.1",
   "scripts": {
-    "build": "cargo run -p web -- build"
+    "build": "cargo run -p xtask -- build-web",
+    "preview": "bun run preview.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.13",
+    "@types/node": "^25.6.0"
   }
 }

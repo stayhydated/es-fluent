@@ -10,7 +10,7 @@ use es_fluent::ToFluentString as _;
 #[component]
 pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
     let page_output_dir = SiteRoute::new(locale, PageKind::Bevy).output_dir();
-    let demo_src = format!("{}bevy-example/app/", site_root_prefix(&page_output_dir));
+    let demo_src = format!("{}bevy-demo/", site_root_prefix(&page_output_dir));
 
     rsx! {
         div { class: "fullscreen-demo",

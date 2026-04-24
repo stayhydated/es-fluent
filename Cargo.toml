@@ -59,8 +59,10 @@ derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7.6" }
 dioxus-core = "0.7.6"
 dioxus-core-macro = "0.7.6"
+dioxus-fullstack = { default-features = false, version = "0.7.6" }
 dioxus-hooks = "0.7.6"
 dioxus-html = "0.7.6"
+dioxus-server = { default-features = false, version = "0.7.6" }
 dioxus-signals = "0.7.6"
 dioxus-ssr = { default-features = false, version = "0.7.6" }
 es-fluent = { path = "crates/es-fluent", version = "0.15.0" }
@@ -134,6 +136,7 @@ tracing = "0.1"
 treelog = "0.0.6"
 unic-langid = "0.9"
 walkdir = "2.5"
+web = { path = "web" }
 web-sys = "0.3"
 
 [replace]
