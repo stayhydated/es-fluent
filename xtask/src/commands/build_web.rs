@@ -11,6 +11,7 @@ const BUNDLE_DIR: &str = "web/.dx-bundle";
 const DIST_DIR: &str = "web/dist";
 const DX_RELEASE_PUBLIC_DIR: &str = "target/dx/web/release/web/public";
 const BEVY_DEMO_DIR: &str = "web/public/bevy-demo";
+const ASSETS_DIR: &str = "web/assets";
 const BOOK_DIR: &str = "web/public/book";
 const LLMS_FULL_TXT: &str = "web/public/llms-full.txt";
 const LLMS_TXT: &str = "web/public/llms.txt";
@@ -65,6 +66,7 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
         .with_context(|| format!("failed to create {}", dist_dir.display()))?;
 
     copy_directory(&bundled_public, &dist_dir)?;
+    copy_directory(&workspace_root.join(ASSETS_DIR), &dist_dir.join("assets"))?;
     copy_directory(&workspace_root.join(BOOK_DIR), &dist_dir.join("book"))?;
     copy_directory(
         &workspace_root.join(BEVY_DEMO_DIR),
