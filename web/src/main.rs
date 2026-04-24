@@ -4,6 +4,8 @@ fn main() {
         use dioxus_server::axum::Router;
         use dioxus_server::{DioxusRouterExt as _, FullstackState, ServerFunction};
 
+        web::cleanup_generated_route_cache(public_dir())
+            .expect("failed to clear generated route cache");
         let cfg = serve_config();
         let app_router = Router::new().serve_dioxus_application(cfg.clone(), web::App);
         let app_router = with_base_path(app_router, cfg.clone());

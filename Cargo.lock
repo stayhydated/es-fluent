@@ -13818,6 +13818,7 @@ dependencies = [
  "rust-embed",
  "serial_test",
  "strum",
+ "tempfile",
  "unic-langid",
 ]
 

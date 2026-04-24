@@ -9,6 +9,7 @@ use crate::util::workspace_root;
 
 const BUNDLE_DIR: &str = "web/.dx-bundle";
 const DIST_DIR: &str = "web/dist";
+const DX_RELEASE_PUBLIC_DIR: &str = "target/dx/web/release/web/public";
 const BEVY_DEMO_DIR: &str = "web/public/bevy-demo";
 const BOOK_DIR: &str = "web/public/book";
 const LLMS_FULL_TXT: &str = "web/public/llms-full.txt";
@@ -23,11 +24,19 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
     let web_dir = workspace_root.join("web");
     let bundle_dir = workspace_root.join(BUNDLE_DIR);
     let dist_dir = workspace_root.join(DIST_DIR);
+    let dx_release_public_dir = workspace_root.join(DX_RELEASE_PUBLIC_DIR);
 
     if bundle_dir.exists() {
         fs::remove_dir_all(&bundle_dir)
             .with_context(|| format!("failed to remove {}", bundle_dir.display()))?;
     }
+
+    web::cleanup_generated_route_cache(&dx_release_public_dir).with_context(|| {
+        format!(
+            "failed to clear generated route cache at {}",
+            dx_release_public_dir.display()
+        )
+    })?;
 
     let status = Command::new("dx")
         .current_dir(&web_dir)

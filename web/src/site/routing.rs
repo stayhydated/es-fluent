@@ -15,7 +15,10 @@ use dioxus_html as dioxus_elements;
 use es_fluent::ToFluentString as _;
 use es_fluent_manager_dioxus::ManagedI18n;
 use es_fluent_manager_dioxus::{GlobalLocalizerMode, use_provide_i18n_with_mode};
+use std::collections::HashSet;
 use std::fmt::{self, Display};
+use std::fs;
+use std::path::Path;
 use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -244,6 +247,87 @@ fn relative_path(locale: SiteLanguage, page: PageKind) -> String {
     }
 
     segments.join("/")
+}
+
+pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
+    if !public_dir.exists() {
+        return Ok(());
+    }
+
+    remove_file_if_exists(&public_dir.join("index.html"))?;
+    remove_file_if_exists(&public_dir.join("404.html"))?;
+
+    let generated_top_level_dirs = all_routes()
+        .into_iter()
+        .filter_map(|route| {
+            route
+                .output_dir()
+                .split('/')
+                .next()
+                .filter(|segment| !segment.is_empty())
+                .map(str::to_string)
+        })
+        .collect::<HashSet<_>>();
+
+    for dir in &generated_top_level_dirs {
+        remove_dir_if_exists(&public_dir.join(dir))?;
+    }
+
+    for entry in fs::read_dir(public_dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if generated_top_level_dirs.contains(name.as_ref()) || is_static_public_dir(name.as_ref()) {
+            continue;
+        }
+
+        if directory_contains_generated_html(&entry.path())? {
+            fs::remove_dir_all(entry.path())?;
+        }
+    }
+
+    Ok(())
+}
+
+fn remove_file_if_exists(path: &Path) -> std::io::Result<()> {
+    if path.is_file() {
+        fs::remove_file(path)?;
+    }
+
+    Ok(())
+}
+
+fn remove_dir_if_exists(path: &Path) -> std::io::Result<()> {
+    if path.is_dir() {
+        fs::remove_dir_all(path)?;
+    }
+
+    Ok(())
+}
+
+fn is_static_public_dir(name: &str) -> bool {
+    matches!(name, "assets" | "bevy-demo" | "book" | "wasm")
+}
+
+fn directory_contains_generated_html(dir: &Path) -> std::io::Result<bool> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if entry.file_type()?.is_dir() {
+            if directory_contains_generated_html(&path)? {
+                return Ok(true);
+            }
+        } else if path.file_name().and_then(|name| name.to_str()) == Some("index.html") {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 fn route_element(route: SiteRoute) -> Element {

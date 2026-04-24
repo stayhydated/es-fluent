@@ -7,7 +7,6 @@ bevy_page_message-Title = Bevy example
 ## Demos page
 
 demos_page_message-BevyAction = Launch demo
-demos_page_message-BevyBody = Open the browser-hosted demo and inspect how locale-aware UI is wired into the Bevy manager.
 demos_page_message-BevyLabel = Live wasm
 demos_page_message-BevyTitle = Bevy example
 

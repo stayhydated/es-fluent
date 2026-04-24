@@ -32,6 +32,7 @@ es-fluent = { features = [ "build" ], workspace = true }
 [dev-dependencies]
 anyhow = { workspace = true }
 serial_test = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

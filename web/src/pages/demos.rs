@@ -19,7 +19,7 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
                         page: PageKind::Bevy,
                         label: DemosPageMessage::BevyLabel.to_fluent_string(),
                         title: DemosPageMessage::BevyTitle.to_fluent_string(),
-                        body: DemosPageMessage::BevyBody.to_fluent_string(),
+                        body: "",
                         action: DemosPageMessage::BevyAction.to_fluent_string(),
                     }
                 }
