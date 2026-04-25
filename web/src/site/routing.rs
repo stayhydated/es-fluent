@@ -261,17 +261,15 @@ fn LocaleAwareAnimatedOutlet() -> Element {
     use_effect(move || {
         let current_route = use_route::<AppRoute>();
         if animated_router.peek().target_route() != &current_route {
-            animated_router
-                .write()
-                .set_target_route(current_route.clone());
+            animated_router.write().set_target_route(current_route);
         }
     });
 
     use_effect(move || {
-        if let AnimatedRouterContext::FromTo(from, to) = animated_router() {
-            if is_locale_only_route_change(&from, &to) {
-                animated_router.write().settle();
-            }
+        if let AnimatedRouterContext::FromTo(from, to) = animated_router()
+            && is_locale_only_route_change(&from, &to)
+        {
+            animated_router.write().settle();
         }
     });
 

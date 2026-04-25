@@ -84,13 +84,32 @@ want locale changes to trigger rerenders. Plain `to_fluent_string()` still
 formats correctly after initialization, but it does not subscribe the component
 to locale changes on its own.
 
+`initial_language` is read once for the lifetime of the root component. If a
+parent prop should drive the locale after startup, call
+`i18n.select_language(...)` from an event handler or effect. Selection is
+best-effort by default: `active_language()` is the requested UI language, even
+when some modules do not support it and are skipped. Use
+`select_language_strict(...)` when every discovered module must accept the
+locale.
+
+The rendering-friendly lookup helpers return the message id when a translation
+is missing. Use `try_localize_id(...)`, `try_localize_in_domain(...)`, or the
+matching `ManagedI18n` methods when tests or strict application code need to
+distinguish a missing message from a translated value.
+
+The `use_init_i18n(...)` and `use_provide_i18n(...)` helpers panic on setup
+failure for concise examples. Applications that want to render an initialization
+error can use `use_try_init_i18n(...)` or `use_try_provide_i18n_with_mode(...)`
+and handle the returned `DioxusInitError`.
+
 Client hooks install an `es-fluent` process-global custom localizer so derived
 types can keep using `to_fluent_string()`. Treat that bridge as a singleton:
-do not run multiple Dioxus roots with different managers in the same process
-unless one owner intentionally controls replacement. Use
-`GlobalLocalizerMode::ReplaceExisting` only in controlled examples, tests, or
-single-owner applications; libraries should keep the default
-`ErrorIfAlreadySet` behavior.
+the default `GlobalLocalizerMode::ErrorIfAlreadySet` mode rejects a second
+distinct client owner and also rejects switching between the client and SSR
+bridges. `GlobalLocalizerMode::ReuseIfSameOwner` is available for explicit
+same-owner reuse, and `GlobalLocalizerMode::ReplaceExisting` is the only mode
+that changes bridge ownership. Use replacement only in controlled examples,
+tests, or single-owner applications.
 
 ## SSR
 
@@ -129,3 +148,8 @@ The default SSR constructor installs the thread-local global bridge
 idempotently, so request-scoped `SsrI18n` values can be created repeatedly.
 Applications may also call `SsrI18n::install_global_localizer(...)` once during
 startup before constructing per-request managers.
+
+When client and SSR features are enabled in the same binary, only one bridge may
+own the process-global custom localizer at a time. A second owner receives
+`DioxusGlobalLocalizerError::OwnerConflict` unless it uses
+`GlobalLocalizerMode::ReplaceExisting` deliberately.

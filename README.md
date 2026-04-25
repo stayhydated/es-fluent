@@ -60,7 +60,9 @@ es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 For custom runtime integrations, use
 `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
 For Dioxus, `es-fluent-manager-dioxus` provides hook-based client helpers for
-web/desktop/mobile plus a separate synchronous SSR wrapper.
+web/desktop/mobile plus a separate synchronous SSR wrapper; its client and SSR
+global localizer bridges enforce single-owner semantics unless replacement is
+explicit.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep

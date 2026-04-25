@@ -1,4 +1,7 @@
-use crate::{DioxusInitError, GlobalLocalizerMode, ManagedI18n};
+use crate::{
+    BridgeOwner, DioxusGlobalLocalizerError, DioxusInitError, GlobalLocalizerMode, ManagedI18n,
+    active_bridge_owner, global_bridge_install_lock,
+};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
 use es_fluent::{
@@ -8,16 +11,12 @@ use es_fluent::{
 use es_fluent_manager_core::FluentManager;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 thread_local! {
     static CURRENT_MANAGER_STACK: RefCell<Vec<Arc<FluentManager>>> = const { RefCell::new(Vec::new()) };
 }
-
-static THREAD_LOCAL_BRIDGE_INSTALLED: AtomicBool = AtomicBool::new(false);
-static THREAD_LOCAL_BRIDGE_INSTALL_LOCK: Mutex<()> = Mutex::new(());
 
 pub struct SsrI18n {
     managed: ManagedI18n,
@@ -40,14 +39,14 @@ impl SsrI18n {
         mode: GlobalLocalizerMode,
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::try_new_with_discovered_modules(lang)?;
-        install_global_localizer(mode).map_err(DioxusInitError::GlobalLocalizer)?;
+        install_global_localizer(mode).map_err(DioxusInitError::global_localizer)?;
 
         Ok(Self { managed })
     }
 
     pub fn install_global_localizer(
         mode: GlobalLocalizerMode,
-    ) -> Result<(), GlobalLocalizationError> {
+    ) -> Result<(), DioxusGlobalLocalizerError> {
         install_global_localizer(mode)
     }
 
@@ -114,21 +113,31 @@ impl Drop for CurrentManagerScope {
     }
 }
 
-pub fn install_global_localizer(mode: GlobalLocalizerMode) -> Result<(), GlobalLocalizationError> {
-    if THREAD_LOCAL_BRIDGE_INSTALLED.load(Ordering::Acquire) {
-        return Ok(());
-    }
+pub fn install_global_localizer(
+    mode: GlobalLocalizerMode,
+) -> Result<(), DioxusGlobalLocalizerError> {
+    let _guard = global_bridge_install_lock();
+    let requested_owner = BridgeOwner::Ssr;
+    let mut owner = active_bridge_owner().write();
 
-    let _guard = THREAD_LOCAL_BRIDGE_INSTALL_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-
-    if THREAD_LOCAL_BRIDGE_INSTALLED.load(Ordering::Acquire) {
-        return Ok(());
+    match *owner {
+        Some(active_owner)
+            if active_owner == requested_owner && mode != GlobalLocalizerMode::ReplaceExisting =>
+        {
+            return Ok(());
+        },
+        Some(active_owner) if mode != GlobalLocalizerMode::ReplaceExisting => {
+            return Err(DioxusGlobalLocalizerError::owner_conflict(
+                active_owner,
+                requested_owner,
+                mode,
+            ));
+        },
+        _ => {},
     }
 
     install_thread_local_bridge(mode)?;
-    THREAD_LOCAL_BRIDGE_INSTALLED.store(true, Ordering::Release);
+    *owner = Some(requested_owner);
     Ok(())
 }
 
@@ -144,7 +153,9 @@ fn install_thread_local_bridge(mode: GlobalLocalizerMode) -> Result<(), GlobalLo
         };
 
     match mode {
-        GlobalLocalizerMode::ErrorIfAlreadySet => try_set_custom_localizer_with_domain(bridge),
+        GlobalLocalizerMode::ErrorIfAlreadySet | GlobalLocalizerMode::ReuseIfSameOwner => {
+            try_set_custom_localizer_with_domain(bridge)
+        },
         GlobalLocalizerMode::ReplaceExisting => {
             tracing::debug!(
                 "replacing the process-global Fluent custom localizer with the Dioxus SSR bridge"
