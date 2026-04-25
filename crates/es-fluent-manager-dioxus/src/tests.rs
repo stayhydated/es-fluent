@@ -111,7 +111,7 @@ mod ssr_tests {
     use super::*;
     use crate::GlobalLocalizerMode;
     use crate::ssr::SsrI18n;
-    use es_fluent::ToFluentString;
+    use es_fluent::ToFluentString as _;
     use serial_test::serial;
 
     #[test]
@@ -127,5 +127,71 @@ mod ssr_tests {
             i18n.with_manager(|| TestMessage.to_fluent_string()),
             "Bonjour"
         );
+    }
+
+    #[test]
+    #[serial]
+    fn ssr_i18n_default_constructor_can_be_used_for_repeated_requests() {
+        SsrI18n::install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+            .expect("ssr bridge should install during startup");
+        SsrI18n::try_new_with_discovered_modules(langid!("en-US"))
+            .expect("first ssr request should initialize");
+        SsrI18n::try_new_with_discovered_modules(langid!("fr"))
+            .expect("second ssr request should reuse the installed bridge");
+    }
+}
+
+#[cfg(all(
+    any(feature = "desktop", feature = "mobile", feature = "web"),
+    feature = "ssr"
+))]
+mod client_tests {
+    use super::*;
+    use crate::{GlobalLocalizerMode, use_init_i18n_with_mode};
+    use dioxus_core::{Element, VirtualDom};
+    use dioxus_core_macro::rsx;
+    #[allow(unused_imports)]
+    use dioxus_html as dioxus_elements;
+    use serial_test::serial;
+    use std::cell::RefCell;
+
+    thread_local! {
+        static CAPTURED_I18N: RefCell<Option<crate::DioxusI18n>> = const { RefCell::new(None) };
+    }
+
+    #[allow(non_snake_case)]
+    fn ReactiveMessage() -> Element {
+        let i18n = use_init_i18n_with_mode(langid!("en-US"), GlobalLocalizerMode::ReplaceExisting);
+        CAPTURED_I18N.with(|slot| {
+            *slot.borrow_mut() = Some(i18n.clone());
+        });
+        let message = i18n.localize(&TestMessage);
+
+        rsx! {
+            div { "{message}" }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn dioxus_i18n_localize_rerenders_after_language_selection() {
+        CAPTURED_I18N.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
+
+        let mut dom = VirtualDom::new(ReactiveMessage);
+        dom.rebuild_in_place();
+        assert!(dioxus_ssr::render(&dom).contains("Hello"));
+
+        let i18n = CAPTURED_I18N.with(|slot| {
+            slot.borrow()
+                .clone()
+                .expect("component should capture the Dioxus i18n handle")
+        });
+        i18n.select_language(langid!("fr"))
+            .expect("language switch should succeed");
+
+        dom.render_immediate_to_vec();
+        assert!(dioxus_ssr::render(&dom).contains("Bonjour"));
     }
 }

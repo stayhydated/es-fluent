@@ -100,7 +100,7 @@ Experimental Dioxus integration for `es-fluent`.
 The Dioxus manager is split by rendering model:
 
 - `web`, `desktop`, and `mobile` share the same client-side hook/runtime layer.
-- `desktop` and `mobile` intentionally share one core because Dioxus 0.7.5
+- `desktop` and `mobile` intentionally share one core because Dioxus 0.7
   routes both through the same underlying desktop/mobile renderer family.
 - `ssr` is separate and wraps synchronous `dioxus::ssr` rendering with a
   request-scoped localization bridge.
@@ -118,7 +118,7 @@ The Dioxus manager is split by rendering model:
 
 ```toml
 [dependencies]
-dioxus = { version = "0.7.5", features = ["desktop"] }
+dioxus = { version = "0.7", features = ["desktop"] }
 es-fluent = { version = "*", features = ["derive"] }
 es-fluent-manager-dioxus = { version = "*", features = ["desktop"] }
 unic-langid = "*"
@@ -166,6 +166,15 @@ locale changes to rerender the current component. Plain
 `to_fluent_string()` still formats correctly after initialization, but it does
 not subscribe the component to locale changes by itself.
 
+The client hook bridge installs an `es-fluent` process-global custom localizer
+so derived values can still use `to_fluent_string()`. Treat that bridge as a
+singleton. Multiple client features can be enabled together, but multiple
+roots with different managers in one process should only replace the global
+localizer when a single owner controls that process.
+Use `GlobalLocalizerMode::ReplaceExisting` only in controlled examples, tests,
+or single-owner applications. Libraries should keep the default
+`ErrorIfAlreadySet` mode.
+
 ### SSR
 
 The `ssr` feature is separate because there is no long-lived client signal:
@@ -180,15 +189,22 @@ fn app() -> Element {
 }
 
 let mut vdom = VirtualDom::new(app);
-vdom.rebuild_in_place();
-
 let i18n = SsrI18n::try_new_with_discovered_modules(langid!("en-US"))
     .expect("ssr i18n should initialize");
+
+i18n.with_manager(|| {
+    vdom.rebuild_in_place();
+});
+
 let html = i18n.render(&vdom);
 ```
 
 `SsrI18n` currently targets synchronous `dioxus::ssr` rendering helpers. It
 does not yet wrap the higher-level `dioxus-server` fullstack router pipeline.
+The default constructor installs the thread-local bridge idempotently, so SSR
+servers can construct request-scoped `SsrI18n` values repeatedly. If you prefer
+an explicit startup step, call `SsrI18n::install_global_localizer(...)` once
+before serving requests.
 
 ---
 

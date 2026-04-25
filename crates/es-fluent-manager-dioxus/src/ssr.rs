@@ -8,12 +8,16 @@ use es_fluent::{
 use es_fluent_manager_core::FluentManager;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use unic_langid::LanguageIdentifier;
 
 thread_local! {
     static CURRENT_MANAGER_STACK: RefCell<Vec<Arc<FluentManager>>> = const { RefCell::new(Vec::new()) };
 }
+
+static THREAD_LOCAL_BRIDGE_INSTALLED: AtomicBool = AtomicBool::new(false);
+static THREAD_LOCAL_BRIDGE_INSTALL_LOCK: Mutex<()> = Mutex::new(());
 
 pub struct SsrI18n {
     managed: ManagedI18n,
@@ -35,11 +39,16 @@ impl SsrI18n {
         lang: L,
         mode: GlobalLocalizerMode,
     ) -> Result<Self, DioxusInitError> {
-        install_thread_local_bridge(mode).map_err(DioxusInitError::GlobalLocalizer)?;
+        let managed = ManagedI18n::try_new_with_discovered_modules(lang)?;
+        install_global_localizer(mode).map_err(DioxusInitError::GlobalLocalizer)?;
 
-        Ok(Self {
-            managed: ManagedI18n::try_new_with_discovered_modules(lang)?,
-        })
+        Ok(Self { managed })
+    }
+
+    pub fn install_global_localizer(
+        mode: GlobalLocalizerMode,
+    ) -> Result<(), GlobalLocalizationError> {
+        install_global_localizer(mode)
     }
 
     pub fn managed(&self) -> &ManagedI18n {
@@ -79,21 +88,48 @@ impl SsrI18n {
     }
 }
 
-struct CurrentManagerScope;
+struct CurrentManagerScope {
+    manager: Arc<FluentManager>,
+}
 
 impl CurrentManagerScope {
     fn new(manager: Arc<FluentManager>) -> Self {
-        CURRENT_MANAGER_STACK.with(|stack| stack.borrow_mut().push(manager));
-        Self
+        CURRENT_MANAGER_STACK.with(|stack| stack.borrow_mut().push(Arc::clone(&manager)));
+        Self { manager }
     }
 }
 
 impl Drop for CurrentManagerScope {
     fn drop(&mut self) {
         CURRENT_MANAGER_STACK.with(|stack| {
-            stack.borrow_mut().pop();
+            let popped = stack.borrow_mut().pop();
+            debug_assert!(popped.is_some(), "SSR manager stack underflow");
+            if let Some(popped) = popped {
+                debug_assert!(
+                    Arc::ptr_eq(&popped, &self.manager),
+                    "SSR manager stack popped a different manager than this scope pushed"
+                );
+            }
         });
     }
+}
+
+pub fn install_global_localizer(mode: GlobalLocalizerMode) -> Result<(), GlobalLocalizationError> {
+    if THREAD_LOCAL_BRIDGE_INSTALLED.load(Ordering::Acquire) {
+        return Ok(());
+    }
+
+    let _guard = THREAD_LOCAL_BRIDGE_INSTALL_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    if THREAD_LOCAL_BRIDGE_INSTALLED.load(Ordering::Acquire) {
+        return Ok(());
+    }
+
+    install_thread_local_bridge(mode)?;
+    THREAD_LOCAL_BRIDGE_INSTALLED.store(true, Ordering::Release);
+    Ok(())
 }
 
 fn install_thread_local_bridge(mode: GlobalLocalizerMode) -> Result<(), GlobalLocalizationError> {
@@ -110,6 +146,9 @@ fn install_thread_local_bridge(mode: GlobalLocalizerMode) -> Result<(), GlobalLo
     match mode {
         GlobalLocalizerMode::ErrorIfAlreadySet => try_set_custom_localizer_with_domain(bridge),
         GlobalLocalizerMode::ReplaceExisting => {
+            tracing::debug!(
+                "replacing the process-global Fluent custom localizer with the Dioxus SSR bridge"
+            );
             replace_custom_localizer_with_domain(bridge);
             Ok(())
         },

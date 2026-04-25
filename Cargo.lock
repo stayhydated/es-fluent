@@ -5099,7 +5099,9 @@ name = "es-fluent-manager-dioxus"
 version = "0.7.0"
 dependencies = [
  "dioxus-core",
+ "dioxus-core-macro",
  "dioxus-hooks",
+ "dioxus-html",
  "dioxus-signals",
  "dioxus-ssr",
  "es-fluent",

@@ -1,7 +1,7 @@
 # es-fluent-manager-dioxus Architecture
 
 This document details the architecture of the `es-fluent-manager-dioxus`
-crate, which integrates `es-fluent` with Dioxus 0.7.5.
+crate, which integrates `es-fluent` with Dioxus 0.7.
 
 ## Overview
 
@@ -12,13 +12,13 @@ has identical runtime needs:
   assets, a Dioxus hook/context bridge, and a process-global `es-fluent`
   custom localizer.
 - `desktop` and `mobile` intentionally share the same client implementation
-  because Dioxus 0.7.5 routes both through `dioxus-desktop`.
+  because Dioxus 0.7 routes both through `dioxus-desktop`.
 - `ssr` is separate and uses a request-scoped thread-local bridge around
   synchronous `dioxus::ssr` rendering instead of a long-lived client signal.
 
-Within this workspace, the implementation depends on the same 0.7.4
+Within this workspace, the implementation depends on the same 0.7
 `dioxus-core`/`dioxus-hooks`/`dioxus-signals`/`dioxus-ssr` subcrates that sit
-under Dioxus 0.7.5, instead of depending on the `dioxus` umbrella crate
+under Dioxus 0.7, instead of depending on the `dioxus` umbrella crate
 directly. That avoids the current workspace resolver conflict between
 `dioxus-desktop`'s `cocoa ^0.26.1` requirement and the existing GPUI pin to
 `cocoa =0.26.0`.
@@ -88,6 +88,9 @@ runtime:
 
 Plain `to_fluent_string()` still works once the bridge is installed, but it does
 not subscribe the current component to locale changes by itself.
+The bridge is process-global, so multiple client roots with different managers
+can conflict if one owner replaces it after another root has subscribed to its
+own local signal.
 
 ### SSR Bridge
 
@@ -96,8 +99,9 @@ signal and the process may render multiple requests concurrently.
 
 The SSR module therefore:
 
-- installs a single custom localizer bridge that looks up the current manager
-  from thread-local state,
+- installs a custom localizer bridge that looks up the current manager from
+  thread-local state, using an idempotent default path so repeated request
+  constructors do not fail after the first request,
 - pushes the active `ManagedI18n` manager onto that thread-local stack for the
   duration of one render call,
 - runs synchronous `dioxus::ssr` rendering while derived `es-fluent` calls
