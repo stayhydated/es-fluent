@@ -116,6 +116,10 @@ The Dioxus manager is split by rendering model:
 
 #### 1. Add Dependencies
 
+The default feature only enables `define_i18n_module!`; enable exactly one of
+`web`, `desktop`, `mobile`, or `ssr` for runtime integration. Mixed client/SSR
+feature sets are mainly for examples and tests.
+
 ```toml
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] }
@@ -155,26 +159,28 @@ fn app() -> Element {
                 i18n.select_language(langid!("fr"))
                     .expect("locale switch should succeed");
             },
-            "{i18n.localize(&UiMessage::Hello)}"
+            "{i18n.localize_global_fluent(&UiMessage::Hello)}"
         }
     }
 }
 ```
 
-Use `i18n.localize(...)` or `use_localized(...)` in render code when you want
-locale changes to rerender the current component. These helpers read the Dioxus
-signal before delegating to the process-global `ToFluentString` path, so they
-are reactive but not strictly context-bound if another owner later calls
-`GlobalLocalizerMode::ReplaceExisting`. `localize_id(...)` and
-`localize_in_domain(...)` perform direct lookups through this `DioxusI18n`
-handle. Plain `to_fluent_string()` still formats correctly after
-initialization, but it does not subscribe the component to locale changes by
-itself.
+Prefer `localize_id(...)`, `try_localize_id(...)`, `localize_in_domain(...)`,
+and `try_localize_in_domain(...)` when a lookup must go directly through the
+current `DioxusI18n` context.
+
+Use `i18n.localize_global_fluent(...)` or `use_global_localized(...)` in render
+code when you want locale changes to rerender `#[derive(EsFluent)]` values.
+These helpers read the Dioxus signal before delegating to the process-global
+`ToFluentString` path, so they are reactive but not context-bound if another
+owner later calls `GlobalLocalizerMode::ReplaceExisting`. Plain
+`to_fluent_string()` still formats correctly after initialization, but it does
+not subscribe the component to locale changes by itself.
 
 `initial_language` is only read once. For prop-driven locale changes, call
 `i18n.select_language(...)` from an event handler or effect. Selection is
-best-effort by default, so `active_language()` means the requested UI language;
-modules that do not support that locale are skipped. Use
+best-effort by default, so `requested_language()` records the requested UI
+language; modules that do not support that locale are skipped. Use
 `select_language_strict(...)` when every discovered module must accept the
 locale.
 
@@ -204,13 +210,20 @@ owner and rejects switching between the client and SSR bridges.
 `GlobalLocalizerMode::ReuseIfSameOwner` is available for explicit same-owner
 reuse. `GlobalLocalizerMode::ReplaceExisting` is the only mode that changes
 bridge ownership, and should be reserved for controlled examples, tests, or
-single-owner applications.
+single-owner applications. The bridge has no teardown/restore API; tests and
+mixed client/SSR examples should run serially and use `ReplaceExisting`
+deliberately when they need deterministic ownership.
+
+Manual client setup must call
+`ManagedI18n::install_client_global_localizer(...)`. SSR uses
+`SsrI18n::install_global_localizer(...)` instead so derived formatting resolves
+through the synchronous request-scoped bridge.
 
 While the Dioxus bridge owns the global localizer, missing Dioxus messages fall
 back to their message id instead of falling through to an unrelated global
 `es-fluent` context. `ManagedI18n::manager()` is available as an integration
 escape hatch, but using it to select languages bypasses the tracked
-`active_language()`/`requested_language()` value and Dioxus rerender signal.
+`requested_language()` value and Dioxus rerender signal.
 
 ### SSR
 
@@ -241,7 +254,11 @@ before serving requests.
 Use `rebuild_and_render(...)` for the common path where localization can happen
 during the Dioxus rebuild pass. The lower-level `render(&VirtualDom)` method
 only scopes the final SSR serialization step and assumes the virtual DOM was
-already rebuilt inside `with_manager(...)`.
+already rebuilt inside `with_sync_manager(...)`.
+
+Do not hold `with_sync_manager(...)` scopes across `.await`, spawned tasks,
+streaming render callbacks, or fullstack server boundaries. The manager scope is
+thread-local and synchronous.
 
 When client and SSR features are enabled in the same binary, only one bridge may
 own the process-global custom localizer at a time. A second owner receives

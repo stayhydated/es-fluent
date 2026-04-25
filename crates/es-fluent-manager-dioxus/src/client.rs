@@ -66,12 +66,8 @@ impl DioxusI18n {
         self.reactive.state()
     }
 
-    pub fn active_language(&self) -> LanguageIdentifier {
-        self.reactive.current()
-    }
-
     pub fn requested_language(&self) -> LanguageIdentifier {
-        self.active_language()
+        self.reactive.current()
     }
 
     pub fn peek_language(&self) -> LanguageIdentifier {
@@ -83,7 +79,7 @@ impl DioxusI18n {
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
         self.managed().select_language(lang)?;
-        self.reactive.update(self.managed().active_language());
+        self.reactive.update(self.managed().requested_language());
         Ok(())
     }
 
@@ -92,7 +88,7 @@ impl DioxusI18n {
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
         self.managed().select_language_strict(lang)?;
-        self.reactive.update(self.managed().active_language());
+        self.reactive.update(self.managed().requested_language());
         Ok(())
     }
 
@@ -110,11 +106,6 @@ impl DioxusI18n {
     pub fn localize_global_fluent<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
         let _ = self.reactive.current();
         value.to_fluent_string()
-    }
-
-    /// Alias for [`Self::localize_global_fluent`].
-    pub fn localize<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
-        self.localize_global_fluent(value)
     }
 
     pub fn localize_id<'a>(
@@ -202,13 +193,13 @@ pub fn use_try_provide_i18n_with_mode(
 ) -> Result<DioxusI18n, DioxusInitError> {
     let install_result = use_hook({
         let managed = managed.clone();
-        move || managed.install_global_localizer(mode)
+        move || managed.install_client_global_localizer(mode)
     });
 
     install_result.map_err(DioxusInitError::global_localizer)?;
 
     Ok(DioxusI18n {
-        reactive: use_provide_reactive_context(managed, ManagedI18n::active_language),
+        reactive: use_provide_reactive_context(managed, ManagedI18n::requested_language),
     })
 }
 
@@ -218,6 +209,6 @@ pub fn use_i18n() -> DioxusI18n {
     }
 }
 
-pub fn use_localized<T: ToFluentString + ?Sized>(value: &T) -> String {
-    use_i18n().localize(value)
+pub fn use_global_localized<T: ToFluentString + ?Sized>(value: &T) -> String {
+    use_i18n().localize_global_fluent(value)
 }

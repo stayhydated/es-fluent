@@ -135,7 +135,7 @@ fn managed_i18n_selects_and_localizes() {
     let i18n = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
         .expect("managed dioxus i18n should initialize");
 
-    assert_eq!(i18n.active_language(), langid!("en-US"));
+    assert_eq!(i18n.requested_language(), langid!("en-US"));
     assert_eq!(
         i18n.localize_in_domain("dioxus-test-module", "hello", None),
         "Hello"
@@ -144,7 +144,7 @@ fn managed_i18n_selects_and_localizes() {
     i18n.select_language(langid!("fr"))
         .expect("language switch should succeed");
 
-    assert_eq!(i18n.active_language(), langid!("fr"));
+    assert_eq!(i18n.requested_language(), langid!("fr"));
     assert_eq!(
         i18n.localize_in_domain("dioxus-test-module", "hello", None),
         "Bonjour"
@@ -161,7 +161,7 @@ fn managed_i18n_manager_escape_hatch_can_desync_tracked_language() {
         .select_language(&langid!("fr"))
         .expect("direct manager language switch should succeed");
 
-    assert_eq!(i18n.active_language(), langid!("en-US"));
+    assert_eq!(i18n.requested_language(), langid!("en-US"));
     assert_eq!(
         i18n.localize_in_domain("dioxus-test-module", "hello", None),
         "Bonjour"
@@ -182,11 +182,11 @@ fn managed_i18n_exposes_strict_selection_and_optional_lookup() {
         i18n.select_language_strict(langid!("fr")).is_err(),
         "strict selection should reject locales unsupported by any module"
     );
-    assert_eq!(i18n.active_language(), langid!("en-US"));
+    assert_eq!(i18n.requested_language(), langid!("en-US"));
 
     i18n.select_language(langid!("fr"))
         .expect("best-effort selection should keep modules that support fr");
-    assert_eq!(i18n.active_language(), langid!("fr"));
+    assert_eq!(i18n.requested_language(), langid!("fr"));
     assert_eq!(
         i18n.try_localize_in_domain("dioxus-partial-module", "partial", None),
         None
@@ -197,6 +197,7 @@ fn managed_i18n_exposes_strict_selection_and_optional_lookup() {
     );
 }
 
+#[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
 #[test]
 #[serial]
 fn client_global_bridge_rejects_second_distinct_owner_by_default() {
@@ -206,13 +207,13 @@ fn client_global_bridge_rejects_second_distinct_owner_by_default() {
     let first = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
         .expect("first managed dioxus i18n should initialize");
     first
-        .install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+        .install_client_global_localizer(GlobalLocalizerMode::ReplaceExisting)
         .expect("first bridge owner should install");
 
     let second = ManagedI18n::try_new_with_discovered_modules(langid!("fr"))
         .expect("second managed dioxus i18n should initialize");
     let error = second
-        .install_global_localizer(GlobalLocalizerMode::ErrorIfAlreadySet)
+        .install_client_global_localizer(GlobalLocalizerMode::ErrorIfAlreadySet)
         .expect_err("second distinct bridge owner should be rejected by default");
 
     assert!(matches!(
@@ -231,11 +232,12 @@ fn client_global_bridge_rejects_second_distinct_owner_by_default() {
     assert_eq!(TestMessage.to_fluent_string(), "Hello");
 
     second
-        .install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+        .install_client_global_localizer(GlobalLocalizerMode::ReplaceExisting)
         .expect("explicit replacement should transfer bridge ownership");
     assert_eq!(TestMessage.to_fluent_string(), "Bonjour");
 }
 
+#[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
 #[test]
 #[serial]
 fn client_global_bridge_reuses_same_owner() {
@@ -243,15 +245,16 @@ fn client_global_bridge_reuses_same_owner() {
 
     let i18n = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
         .expect("managed dioxus i18n should initialize");
-    i18n.install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+    i18n.install_client_global_localizer(GlobalLocalizerMode::ReplaceExisting)
         .expect("bridge owner should install");
 
-    i18n.install_global_localizer(GlobalLocalizerMode::ErrorIfAlreadySet)
+    i18n.install_client_global_localizer(GlobalLocalizerMode::ErrorIfAlreadySet)
         .expect("same owner should be accepted by the default mode");
-    i18n.install_global_localizer(GlobalLocalizerMode::ReuseIfSameOwner)
+    i18n.install_client_global_localizer(GlobalLocalizerMode::ReuseIfSameOwner)
         .expect("same owner should be accepted by explicit reuse mode");
 }
 
+#[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
 #[test]
 #[serial]
 fn dioxus_bridge_missing_message_does_not_fall_back_to_global_context() {
@@ -261,7 +264,7 @@ fn dioxus_bridge_missing_message_does_not_fall_back_to_global_context() {
 
     let i18n = ManagedI18n::try_new_with_discovered_modules(langid!("fr"))
         .expect("managed dioxus i18n should initialize");
-    i18n.install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+    i18n.install_client_global_localizer(GlobalLocalizerMode::ReplaceExisting)
         .expect("Dioxus client bridge should install");
 
     assert_eq!(
@@ -273,9 +276,12 @@ fn dioxus_bridge_missing_message_does_not_fall_back_to_global_context() {
 #[cfg(feature = "ssr")]
 mod ssr_tests {
     use super::*;
+    use crate::GlobalLocalizerMode;
+    #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
     use crate::bridge::current_client_bridge_manager;
     use crate::ssr::SsrI18n;
-    use crate::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, GlobalLocalizerMode};
+    #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
+    use crate::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner};
     use dioxus_core::{Element, VirtualDom};
     use dioxus_core_macro::rsx;
     #[allow(unused_imports)]
@@ -302,7 +308,7 @@ mod ssr_tests {
         .expect("ssr dioxus i18n should initialize");
 
         assert_eq!(
-            i18n.with_manager(|| TestMessage.to_fluent_string()),
+            i18n.with_sync_manager(|| TestMessage.to_fluent_string()),
             "Bonjour"
         );
     }
@@ -333,13 +339,14 @@ mod ssr_tests {
             .expect("second ssr request should reuse the installed bridge");
     }
 
+    #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
     #[test]
     #[serial]
     fn ssr_default_install_rejects_active_client_bridge() {
         let client = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
             .expect("managed dioxus i18n should initialize");
         client
-            .install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+            .install_client_global_localizer(GlobalLocalizerMode::ReplaceExisting)
             .expect("client bridge should install");
 
         let error = SsrI18n::install_global_localizer(GlobalLocalizerMode::ErrorIfAlreadySet)
@@ -355,13 +362,14 @@ mod ssr_tests {
         ));
     }
 
+    #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
     #[test]
     #[serial]
     fn ssr_replace_existing_clears_previous_client_bridge_manager() {
         let client = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
             .expect("managed dioxus i18n should initialize");
         client
-            .install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+            .install_client_global_localizer(GlobalLocalizerMode::ReplaceExisting)
             .expect("client bridge should install");
 
         assert!(current_client_bridge_manager().is_some());
@@ -372,6 +380,7 @@ mod ssr_tests {
         assert!(current_client_bridge_manager().is_none());
     }
 
+    #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
     #[test]
     #[serial]
     fn client_default_install_rejects_active_ssr_bridge() {
@@ -381,7 +390,7 @@ mod ssr_tests {
         let client = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
             .expect("managed dioxus i18n should initialize");
         let error = client
-            .install_global_localizer(GlobalLocalizerMode::ErrorIfAlreadySet)
+            .install_client_global_localizer(GlobalLocalizerMode::ErrorIfAlreadySet)
             .expect_err("client bridge should not replace an active SSR bridge by default");
 
         assert!(matches!(
@@ -421,7 +430,7 @@ mod client_tests {
         CAPTURED_I18N.with(|slot| {
             *slot.borrow_mut() = Some(i18n.clone());
         });
-        let message = i18n.localize(&TestMessage);
+        let message = i18n.localize_global_fluent(&TestMessage);
 
         rsx! {
             div { "{message}" }
@@ -430,7 +439,7 @@ mod client_tests {
 
     #[test]
     #[serial]
-    fn dioxus_i18n_localize_rerenders_after_language_selection() {
+    fn dioxus_i18n_global_fluent_localize_rerenders_after_language_selection() {
         CAPTURED_I18N.with(|slot| {
             *slot.borrow_mut() = None;
         });
@@ -453,7 +462,7 @@ mod client_tests {
 
     #[test]
     #[serial]
-    fn dioxus_i18n_localize_uses_current_global_fluent_owner_after_replacement() {
+    fn dioxus_i18n_global_fluent_localize_uses_current_owner_after_replacement() {
         CAPTURED_I18N.with(|slot| {
             *slot.borrow_mut() = None;
         });
@@ -469,14 +478,14 @@ mod client_tests {
         let replacement = ManagedI18n::try_new_with_discovered_modules(langid!("fr"))
             .expect("replacement manager should initialize");
         replacement
-            .install_global_localizer(GlobalLocalizerMode::ReplaceExisting)
+            .install_client_global_localizer(GlobalLocalizerMode::ReplaceExisting)
             .expect("replacement bridge owner should install");
 
-        assert_eq!(i18n.active_language(), langid!("en-US"));
+        assert_eq!(i18n.requested_language(), langid!("en-US"));
         assert_eq!(
             i18n.localize_in_domain("dioxus-test-module", "hello", None),
             "Hello"
         );
-        assert_eq!(i18n.localize(&TestMessage), "Bonjour");
+        assert_eq!(i18n.localize_global_fluent(&TestMessage), "Bonjour");
     }
 }

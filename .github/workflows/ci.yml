@@ -70,8 +70,8 @@ jobs:
         include:
           - name: no-default
             command: cargo test -p es-fluent-manager-dioxus --no-default-features
-          - name: default
-            command: cargo test -p es-fluent-manager-dioxus
+          - name: macros
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features macros
           - name: desktop
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop
           - name: web
@@ -82,6 +82,8 @@ jobs:
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
           - name: desktop-ssr
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop,ssr
+          - name: desktop-ssr-macros
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop,ssr,macros
           - name: all-features
             command: cargo test -p es-fluent-manager-dioxus --all-features
           - name: clippy

@@ -12,7 +12,7 @@ unic-langid = "0.9"
 # For simple apps and CLIs:
 es-fluent-manager-embedded = "0.15"
 
-# For Dioxus apps:
+# For Dioxus apps: enable exactly one runtime feature; default only enables macros
 # es-fluent-manager-dioxus = { version = "0.7", features = ["desktop"] }
 ```
 

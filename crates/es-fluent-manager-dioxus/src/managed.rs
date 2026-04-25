@@ -1,6 +1,6 @@
-use crate::{
-    DioxusGlobalLocalizerError, DioxusInitError, GlobalLocalizerMode, bridge::install_client_bridge,
-};
+use crate::DioxusInitError;
+#[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
+use crate::{DioxusGlobalLocalizerError, GlobalLocalizerMode, bridge::install_client_bridge};
 use es_fluent::{FluentValue, GlobalLocalizationError};
 use es_fluent_manager_core::FluentManager;
 use parking_lot::RwLock;
@@ -11,7 +11,7 @@ use unic_langid::LanguageIdentifier;
 #[derive(Clone)]
 pub struct ManagedI18n {
     manager: Arc<FluentManager>,
-    active_language: Arc<RwLock<LanguageIdentifier>>,
+    requested_language: Arc<RwLock<LanguageIdentifier>>,
 }
 
 impl ManagedI18n {
@@ -33,7 +33,7 @@ impl ManagedI18n {
 
         Ok(Self {
             manager: Arc::new(manager),
-            active_language: Arc::new(RwLock::new(lang)),
+            requested_language: Arc::new(RwLock::new(lang)),
         })
     }
 
@@ -41,7 +41,7 @@ impl ManagedI18n {
     ///
     /// Do not use this to switch languages in Dioxus UI code. `FluentManager`
     /// has interior mutable language state, so calling selection methods on the
-    /// returned manager bypasses `ManagedI18n::active_language()` and any
+    /// returned manager bypasses `ManagedI18n::requested_language()` and any
     /// Dioxus signal held by `DioxusI18n`. Use `select_language(...)` or
     /// `select_language_strict(...)` when the tracked language should remain
     /// synchronized.
@@ -49,12 +49,13 @@ impl ManagedI18n {
         Arc::clone(&self.manager)
     }
 
+    /// Returns the requested UI language.
+    ///
+    /// Selection is best-effort by default. This value records the language the
+    /// application requested, not proof that every discovered module supports
+    /// that locale.
     pub fn requested_language(&self) -> LanguageIdentifier {
-        self.active_language()
-    }
-
-    pub fn active_language(&self) -> LanguageIdentifier {
-        self.active_language.read().clone()
+        self.requested_language.read().clone()
     }
 
     pub fn select_language<L: Into<LanguageIdentifier>>(
@@ -65,7 +66,7 @@ impl ManagedI18n {
         self.manager
             .select_language(&lang)
             .map_err(GlobalLocalizationError::from)?;
-        *self.active_language.write() = lang;
+        *self.requested_language.write() = lang;
         Ok(())
     }
 
@@ -77,11 +78,17 @@ impl ManagedI18n {
         self.manager
             .select_language_strict(&lang)
             .map_err(GlobalLocalizationError::from)?;
-        *self.active_language.write() = lang;
+        *self.requested_language.write() = lang;
         Ok(())
     }
 
-    pub fn install_global_localizer(
+    /// Installs this manager as the client-side process-global Fluent localizer.
+    ///
+    /// This is only available for Dioxus client renderers. SSR must use
+    /// `SsrI18n::install_global_localizer(...)` so localization is resolved
+    /// through the synchronous request-scoped thread-local bridge.
+    #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
+    pub fn install_client_global_localizer(
         &self,
         mode: GlobalLocalizerMode,
     ) -> Result<(), DioxusGlobalLocalizerError> {

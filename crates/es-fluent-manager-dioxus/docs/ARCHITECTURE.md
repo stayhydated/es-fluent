@@ -68,14 +68,14 @@ flowchart TD
 This is the framework-agnostic state holder.
 
 - Builds a strict `FluentManager` from discovered modules.
-- Selects the active language.
+- Selects the requested UI language.
 - Exposes direct message lookup helpers.
-- Installs the process-global `es-fluent` custom localizer bridge when a
-  frontend runtime wants derived `to_fluent_string()` calls to work.
+- Under client renderer features, installs the process-global `es-fluent`
+  custom localizer bridge through `install_client_global_localizer(...)`.
 
 Language selection through `select_language(...)` uses the core manager's
 best-effort policy: if at least one module accepts a locale, modules that report
-`LanguageNotSupported` are skipped. `active_language()` therefore records the
+`LanguageNotSupported` are skipped. `requested_language()` therefore records the
 requested UI language, not a guarantee that every module can localize in that
 language. `select_language_strict(...)` exposes the core strict policy for code
 that requires all modules to accept the same locale.
@@ -88,7 +88,7 @@ tests.
 `manager()` intentionally exposes the underlying `Arc<FluentManager>` as an
 escape hatch. It is not part of the tracked language path: direct calls to
 `FluentManager::select_language(...)` can change lookup results without updating
-`ManagedI18n::active_language()` or a Dioxus signal.
+`ManagedI18n::requested_language()` or a Dioxus signal.
 
 ### Client Hook Bridge
 
@@ -104,13 +104,14 @@ runtime:
   stores framework state plus a tracked `Signal` snapshot derived from that
   state.
 - `DioxusI18n` is a thin wrapper over that generic reactive context, with the
-  active locale mirrored into a Dioxus `Signal` so render code can subscribe to
-  locale changes.
-- `localize(...)` and `use_localized(...)` intentionally read that signal before
-  delegating to the process-global `es-fluent` `ToFluentString` path, which is
-  what makes locale changes rerender the UI. These helpers are reactive but not
-  context-bound after an explicit `ReplaceExisting`; direct ID/domain helpers
-  use the `ManagedI18n` stored in the Dioxus context.
+  requested locale mirrored into a Dioxus `Signal` so render code can subscribe
+  to locale changes.
+- `localize_global_fluent(...)` and `use_global_localized(...)` intentionally
+  read that signal before delegating to the process-global `es-fluent`
+  `ToFluentString` path, which is what makes locale changes rerender the UI.
+  These helpers are reactive but not context-bound after an explicit
+  `ReplaceExisting`; direct ID/domain helpers use the `ManagedI18n` stored in
+  the Dioxus context.
 
 Plain `to_fluent_string()` still works once the bridge is installed, but it does
 not subscribe the current component to locale changes by itself.
@@ -122,7 +123,9 @@ can reinstall or reuse the bridge without becoming a distinct owner.
 `ErrorIfAlreadySet` and `ReuseIfSameOwner` reject distinct owners;
 `ReplaceExisting` is the only mode that transfers ownership. When SSR replaces a
 client bridge, the retained client manager is dropped from the installed bridge
-state.
+state. There is no teardown/restore API for the process-global custom localizer;
+tests and mixed client/SSR examples must use serial execution and explicit
+`ReplaceExisting` calls when they need deterministic ownership.
 
 While a Dioxus bridge owns the process-global localizer, lookup misses are
 authoritative: the bridge returns the message id instead of `None`, preventing
@@ -149,7 +152,11 @@ The SSR module therefore:
 often happens during the Dioxus rebuild pass. The lower-level
 `render(&VirtualDom)` and `pre_render(&VirtualDom)` methods only scope the final
 serialization step and assume the caller already rebuilt the `VirtualDom` inside
-`with_manager(...)`.
+`with_sync_manager(...)`.
+
+The thread-local manager scope is synchronous. Do not hold
+`with_sync_manager(...)` scopes across `.await`, spawned tasks, streaming render
+callbacks, or fullstack server boundaries.
 
 This keeps SSR separate from the client lifecycle while still reusing the same
 module discovery and language-selection logic.

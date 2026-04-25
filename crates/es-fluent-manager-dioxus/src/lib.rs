@@ -33,8 +33,8 @@ pub use managed::ManagedI18n;
 
 #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
 pub use client::{
-    DioxusI18n, use_i18n, use_init_i18n, use_init_i18n_with_mode, use_localized, use_provide_i18n,
-    use_provide_i18n_with_mode, use_try_init_i18n, use_try_init_i18n_with_mode,
+    DioxusI18n, use_global_localized, use_i18n, use_init_i18n, use_init_i18n_with_mode,
+    use_provide_i18n, use_provide_i18n_with_mode, use_try_init_i18n, use_try_init_i18n_with_mode,
     use_try_provide_i18n, use_try_provide_i18n_with_mode,
 };
 
@@ -42,8 +42,8 @@ pub use client::{
 pub mod desktop {
     pub use crate::{
         DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, DioxusI18n, DioxusInitError,
-        GlobalLocalizerMode, ManagedI18n, use_i18n, use_init_i18n, use_init_i18n_with_mode,
-        use_localized, use_provide_i18n, use_provide_i18n_with_mode, use_try_init_i18n,
+        GlobalLocalizerMode, ManagedI18n, use_global_localized, use_i18n, use_init_i18n,
+        use_init_i18n_with_mode, use_provide_i18n, use_provide_i18n_with_mode, use_try_init_i18n,
         use_try_init_i18n_with_mode, use_try_provide_i18n, use_try_provide_i18n_with_mode,
     };
 }
@@ -52,8 +52,8 @@ pub mod desktop {
 pub mod mobile {
     pub use crate::{
         DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, DioxusI18n, DioxusInitError,
-        GlobalLocalizerMode, ManagedI18n, use_i18n, use_init_i18n, use_init_i18n_with_mode,
-        use_localized, use_provide_i18n, use_provide_i18n_with_mode, use_try_init_i18n,
+        GlobalLocalizerMode, ManagedI18n, use_global_localized, use_i18n, use_init_i18n,
+        use_init_i18n_with_mode, use_provide_i18n, use_provide_i18n_with_mode, use_try_init_i18n,
         use_try_init_i18n_with_mode, use_try_provide_i18n, use_try_provide_i18n_with_mode,
     };
 }
@@ -62,8 +62,8 @@ pub mod mobile {
 pub mod web {
     pub use crate::{
         DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, DioxusI18n, DioxusInitError,
-        GlobalLocalizerMode, ManagedI18n, use_i18n, use_init_i18n, use_init_i18n_with_mode,
-        use_localized, use_provide_i18n, use_provide_i18n_with_mode, use_try_init_i18n,
+        GlobalLocalizerMode, ManagedI18n, use_global_localized, use_i18n, use_init_i18n,
+        use_init_i18n_with_mode, use_provide_i18n, use_provide_i18n_with_mode, use_try_init_i18n,
         use_try_init_i18n_with_mode, use_try_provide_i18n, use_try_provide_i18n_with_mode,
     };
 }

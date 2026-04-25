@@ -7,7 +7,7 @@ use dioxus_signals::WritableExt as _;
 use es_fluent::{EsFluent, ToFluentString as _};
 use es_fluent_manager_dioxus::{
     GlobalLocalizerMode,
-    desktop::{use_init_i18n_with_mode, use_localized},
+    desktop::{use_global_localized, use_init_i18n_with_mode},
     ssr::SsrI18n,
 };
 use example_shared_lib::{ButtonState, Languages};
@@ -94,7 +94,8 @@ fn ClientPreview(initial_language: Languages) -> Element {
     let i18n = use_init_i18n_with_mode(initial_language, GlobalLocalizerMode::ReplaceExisting);
     let mut is_hovered = use_signal(|| false);
 
-    let current_language = Languages::try_from(&i18n.active_language()).unwrap_or(initial_language);
+    let current_language =
+        Languages::try_from(&i18n.requested_language()).unwrap_or(initial_language);
     let button_state = if is_hovered() {
         ButtonState::Hovered
     } else {
@@ -102,13 +103,14 @@ fn ClientPreview(initial_language: Languages) -> Element {
     };
     let next_language = current_language.next();
 
-    let heading = i18n.localize(&DioxusScreenMessages::ClientHeading);
-    let summary = i18n.localize(&DioxusScreenMessages::ClientSummary {
+    let heading = i18n.localize_global_fluent(&DioxusScreenMessages::ClientHeading);
+    let summary = i18n.localize_global_fluent(&DioxusScreenMessages::ClientSummary {
         current_language,
         button_state,
     });
-    let button_label = i18n.localize(&DioxusScreenMessages::ClientButtonLabel { next_language });
-    let runtime_note = i18n.localize(&DioxusScreenMessages::RuntimeSplitNote);
+    let button_label =
+        i18n.localize_global_fluent(&DioxusScreenMessages::ClientButtonLabel { next_language });
+    let runtime_note = i18n.localize_global_fluent(&DioxusScreenMessages::RuntimeSplitNote);
 
     rsx! {
         section {
@@ -134,11 +136,11 @@ fn ClientPreview(initial_language: Languages) -> Element {
 
 #[component]
 fn ClientSharedValues(current_language: Languages, button_state: ButtonState) -> Element {
-    let shared_heading = use_localized(&DioxusScreenMessages::SharedTypesHeading);
+    let shared_heading = use_global_localized(&DioxusScreenMessages::SharedTypesHeading);
     let shared_language =
-        use_localized(&DioxusScreenMessages::SharedLanguageValue { current_language });
+        use_global_localized(&DioxusScreenMessages::SharedLanguageValue { current_language });
     let shared_button_state =
-        use_localized(&DioxusScreenMessages::SharedButtonStateValue { button_state });
+        use_global_localized(&DioxusScreenMessages::SharedButtonStateValue { button_state });
 
     rsx! {
         div {

@@ -42,7 +42,8 @@ unic-langid = "0.9"
 # If you want to register modules with the embedded singleton and localize at runtime:
 es-fluent-manager-embedded = "0.15"
 
-# For Dioxus apps: pair it with your chosen Dioxus 0.7 renderer feature
+# For Dioxus apps: enable exactly one runtime feature.
+# The default feature only enables define_i18n_module!.
 es-fluent-manager-dioxus = { version = "0.7", features = ["desktop"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
