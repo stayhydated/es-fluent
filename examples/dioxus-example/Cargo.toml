@@ -14,7 +14,7 @@ dioxus-html = { workspace = true }
 dioxus-signals = { workspace = true }
 dioxus-ssr = { workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-manager-dioxus = { features = [ "desktop", "ssr", "macros" ], workspace = true }
+es-fluent-manager-dioxus = { features = [ "client", "ssr", "macros" ], workspace = true }
 example-shared-lib = { features = [ "dioxus" ], path = "../example-shared-lib" }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }

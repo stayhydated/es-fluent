@@ -1,6 +1,6 @@
 use crate::{
     DioxusGlobalLocalizerError, DioxusInitError, GlobalBridgePolicy, ManagedI18n,
-    bridge::install_ssr_bridge,
+    bridge::{install_ssr_bridge, install_ssr_bridge_scoped},
 };
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
@@ -18,10 +18,10 @@ thread_local! {
 /// Request-scoped Dioxus SSR localization state.
 ///
 /// `SsrI18n` is synchronous by design. Do not hold
-/// [`SsrI18n::with_sync_manager`] scopes across `.await`, spawned tasks,
-/// streaming callbacks, or higher-level fullstack server boundaries. The active
-/// manager is stored in thread-local state and is only valid for the synchronous
-/// render call that owns the scope.
+/// [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`, spawned
+/// tasks, streaming callbacks, or higher-level fullstack server boundaries. The
+/// active manager is stored in thread-local state and is only valid for the
+/// synchronous render call that owns the scope.
 pub struct SsrI18n {
     managed: ManagedI18n,
 }
@@ -43,15 +43,21 @@ impl SsrI18n {
         policy: GlobalBridgePolicy,
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::try_new_with_discovered_modules(lang)?;
-        install_global_bridge(policy).map_err(DioxusInitError::global_localizer)?;
+        install_process_global_bridge(policy).map_err(DioxusInitError::global_localizer)?;
 
         Ok(Self { managed })
     }
 
-    pub fn install_global_bridge(
+    pub fn install_process_global_bridge(
         policy: GlobalBridgePolicy,
     ) -> Result<(), DioxusGlobalLocalizerError> {
-        install_global_bridge(policy)
+        self::install_process_global_bridge(policy)
+    }
+
+    pub fn install_process_global_bridge_scoped(
+        policy: GlobalBridgePolicy,
+    ) -> Result<crate::DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError> {
+        self::install_process_global_bridge_scoped(policy)
     }
 
     pub fn managed(&self) -> &ManagedI18n {
@@ -81,13 +87,9 @@ impl SsrI18n {
     /// Do not keep this scope alive across `.await`, spawned tasks, streaming
     /// callbacks, or fullstack server boundaries. The manager stack is
     /// thread-local and is only safe for synchronous SSR work.
-    pub fn with_sync_manager<R>(&self, f: impl FnOnce() -> R) -> R {
+    pub fn with_sync_thread_local_manager<R>(&self, f: impl FnOnce() -> R) -> R {
         let _scope = CurrentManagerScope::new(self.managed.raw_manager_untracked());
         f()
-    }
-
-    pub fn with_scope<R>(&self, f: impl FnOnce() -> R) -> R {
-        self.with_sync_manager(f)
     }
 
     /// Rebuilds the virtual DOM and serializes it while this request's manager
@@ -97,7 +99,7 @@ impl SsrI18n {
     /// `to_fluent_string()` usually localize during the Dioxus rebuild pass, so
     /// both rebuilding and rendering need the request-scoped manager.
     pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
-        self.with_sync_manager(|| {
+        self.with_sync_thread_local_manager(|| {
             dom.rebuild_in_place();
             dioxus_ssr::render(dom)
         })
@@ -106,7 +108,7 @@ impl SsrI18n {
     /// Rebuilds the virtual DOM and pre-renders it while this request's manager
     /// is installed.
     pub fn rebuild_and_pre_render(&self, dom: &mut VirtualDom) -> String {
-        self.with_sync_manager(|| {
+        self.with_sync_thread_local_manager(|| {
             dom.rebuild_in_place();
             dioxus_ssr::pre_render(dom)
         })
@@ -117,28 +119,24 @@ impl SsrI18n {
     ///
     /// If localization happens during the rebuild pass, call
     /// [`Self::rebuild_and_render`] or rebuild inside
-    /// [`Self::with_sync_manager`]
+    /// [`Self::with_sync_thread_local_manager`]
     /// before using this lower-level method.
     pub fn render(&self, dom: &VirtualDom) -> String {
-        self.with_sync_manager(|| dioxus_ssr::render(dom))
-    }
-
-    pub fn render_scoped(&self, dom: &VirtualDom) -> String {
-        self.render(dom)
+        self.with_sync_thread_local_manager(|| dioxus_ssr::render(dom))
     }
 
     /// Pre-renders an already rebuilt virtual DOM while this request's manager
     /// is installed.
     pub fn pre_render(&self, dom: &VirtualDom) -> String {
-        self.with_sync_manager(|| dioxus_ssr::pre_render(dom))
+        self.with_sync_thread_local_manager(|| dioxus_ssr::pre_render(dom))
     }
 
     pub fn render_with(&self, renderer: &mut Renderer, dom: &VirtualDom) -> String {
-        self.with_sync_manager(|| renderer.render(dom))
+        self.with_sync_thread_local_manager(|| renderer.render(dom))
     }
 
     pub fn render_element(&self, element: Element) -> String {
-        self.with_sync_manager(|| dioxus_ssr::render_element(element))
+        self.with_sync_thread_local_manager(|| dioxus_ssr::render_element(element))
     }
 }
 
@@ -167,8 +165,62 @@ impl Drop for CurrentManagerScope {
     }
 }
 
-pub fn install_global_bridge(policy: GlobalBridgePolicy) -> Result<(), DioxusGlobalLocalizerError> {
+pub fn install_process_global_bridge(
+    policy: GlobalBridgePolicy,
+) -> Result<(), DioxusGlobalLocalizerError> {
     install_ssr_bridge(
+        policy,
+        move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+            CURRENT_MANAGER_STACK.with(|stack| {
+                let manager = match stack.borrow().last() {
+                    Some(manager) => Arc::clone(manager),
+                    None => {
+                        match domain {
+                            Some(domain) => {
+                                tracing::error!(
+                                    domain,
+                                    message_id = id,
+                                    "SSR Fluent localization used outside an SsrI18n scope"
+                                );
+                            },
+                            None => {
+                                tracing::error!(
+                                    message_id = id,
+                                    "SSR Fluent localization used outside an SsrI18n scope"
+                                );
+                            },
+                        }
+                        return Some(id.to_string());
+                    },
+                };
+                let message = match domain {
+                    Some(domain) => manager.localize_in_domain(domain, id, args),
+                    None => manager.localize(id, args),
+                };
+
+                match message {
+                    Some(message) => Some(message),
+                    None => {
+                        match domain {
+                            Some(domain) => {
+                                tracing::warn!(domain, message_id = id, "missing Fluent message");
+                            },
+                            None => {
+                                tracing::warn!(message_id = id, "missing Fluent message");
+                            },
+                        }
+                        Some(id.to_string())
+                    },
+                }
+            })
+        },
+    )
+}
+
+pub fn install_process_global_bridge_scoped(
+    policy: GlobalBridgePolicy,
+) -> Result<crate::DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError> {
+    install_ssr_bridge_scoped(
         policy,
         move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
             CURRENT_MANAGER_STACK.with(|stack| {

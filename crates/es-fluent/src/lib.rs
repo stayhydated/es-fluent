@@ -57,6 +57,12 @@ type DomainAwareCustomLocalizer = dyn for<'a> Fn(
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct CustomLocalizerGeneration(u64);
 
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct CustomLocalizerSnapshot {
+    entry: Option<Arc<DomainAwareCustomLocalizerEntry>>,
+}
+
 struct DomainAwareCustomLocalizerEntry {
     generation: CustomLocalizerGeneration,
     localizer: Arc<DomainAwareCustomLocalizer>,
@@ -102,6 +108,20 @@ pub fn current_custom_localizer_generation() -> Option<CustomLocalizerGeneration
     CUSTOM_LOCALIZER
         .get()
         .and_then(|slot| slot.read().as_ref().map(|entry| entry.generation))
+}
+
+#[doc(hidden)]
+pub fn custom_localizer_snapshot() -> CustomLocalizerSnapshot {
+    CustomLocalizerSnapshot {
+        entry: CUSTOM_LOCALIZER
+            .get()
+            .and_then(|slot| slot.read().as_ref().cloned()),
+    }
+}
+
+#[doc(hidden)]
+pub fn restore_custom_localizer_snapshot(snapshot: CustomLocalizerSnapshot) {
+    *custom_localizer_slot().write() = snapshot.entry;
 }
 
 #[derive(Debug)]

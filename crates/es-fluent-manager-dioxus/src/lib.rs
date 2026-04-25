@@ -27,45 +27,18 @@ pub mod ssr;
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_dioxus_i18n_module as define_i18n_module;
 
-pub use bridge::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, GlobalBridgePolicy};
+pub use bridge::{
+    DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner,
+    GlobalBridgePolicy,
+};
 pub use error::{DioxusInitError, ModuleDiscoveryErrors};
 pub use managed::ManagedI18n;
 
 #[cfg(feature = "client")]
 pub use client::{
-    DioxusI18n, GlobalBridgeLocalizationExt, I18nProviderConfig, try_use_i18n,
-    use_global_bridge_localized, use_i18n, use_i18n_provider_once, use_provide_i18n_once,
+    DioxusI18n, I18nProviderConfig, ProcessGlobalLocalizationExt, try_use_i18n, use_i18n,
+    use_i18n_provider_once, use_process_global_localized, use_provide_initial_i18n,
 };
-
-#[cfg(feature = "desktop")]
-pub mod desktop {
-    pub use crate::{
-        DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, DioxusI18n, DioxusInitError,
-        GlobalBridgeLocalizationExt, GlobalBridgePolicy, I18nProviderConfig, ManagedI18n,
-        ModuleDiscoveryErrors, try_use_i18n, use_global_bridge_localized, use_i18n,
-        use_i18n_provider_once, use_provide_i18n_once,
-    };
-}
-
-#[cfg(feature = "mobile")]
-pub mod mobile {
-    pub use crate::{
-        DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, DioxusI18n, DioxusInitError,
-        GlobalBridgeLocalizationExt, GlobalBridgePolicy, I18nProviderConfig, ManagedI18n,
-        ModuleDiscoveryErrors, try_use_i18n, use_global_bridge_localized, use_i18n,
-        use_i18n_provider_once, use_provide_i18n_once,
-    };
-}
-
-#[cfg(feature = "web")]
-pub mod web {
-    pub use crate::{
-        DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, DioxusI18n, DioxusInitError,
-        GlobalBridgeLocalizationExt, GlobalBridgePolicy, I18nProviderConfig, ManagedI18n,
-        ModuleDiscoveryErrors, try_use_i18n, use_global_bridge_localized, use_i18n,
-        use_i18n_provider_once, use_provide_i18n_once,
-    };
-}
 
 #[cfg(test)]
 mod tests;

@@ -8,11 +8,9 @@ which integrates `es-fluent` with Dioxus 0.7.
 The crate is split by rendering model instead of pretending every Dioxus target
 has identical runtime needs:
 
-- `client`, `web`, `desktop`, and `mobile` share a client runtime built around
-  embedded assets, a Dioxus hook/context bridge, and an optional process-global
-  `es-fluent` custom localizer.
-- `desktop` and `mobile` intentionally share the same client implementation
-  because Dioxus 0.7 routes both through `dioxus-desktop`.
+- `client` is the shared runtime for Dioxus web, desktop, and mobile renderers.
+  It is built around embedded assets, a Dioxus hook/context bridge, and an
+  optional process-global `es-fluent` custom localizer.
 - `ssr` is separate and uses a request-scoped thread-local bridge around
   synchronous `dioxus::ssr` rendering instead of a long-lived client signal.
 
@@ -32,7 +30,7 @@ flowchart TD
         EMBED["define_i18n_module! / EmbeddedI18nModule"]
     end
 
-    subgraph CLIENT["Client Platforms"]
+    subgraph CLIENT["Client Runtime"]
         HOOK["use_i18n_provider_once / use_i18n"]
         SIGNAL["Signal<LanguageIdentifier>"]
         GLOBAL["Optional process-global custom localizer"]
@@ -71,7 +69,7 @@ This is the framework-agnostic state holder.
 - Exposes direct message lookup helpers.
 - Under the `client` renderer feature, can install the process-global
   `es-fluent` custom localizer bridge through
-  `install_client_global_bridge(...)`.
+  `install_client_process_global_bridge(...)`.
 
 Language selection through `select_language(...)` uses the core manager's
 best-effort policy: if at least one module accepts a locale, modules that report
@@ -92,12 +90,11 @@ results without updating `ManagedI18n::requested_language()` or a Dioxus signal.
 
 ### Client Hook Bridge
 
-The `client`, `web`, `desktop`, and `mobile` surfaces all reuse the same
-hook-based runtime:
+The `client` surface provides the hook-based runtime:
 
 - `use_i18n_provider_once(...)` builds `ManagedI18n`, optionally installs the
   custom localizer, and provides a generic Dioxus reactive context around it.
-- `use_provide_i18n_once(...)` accepts a prebuilt `ManagedI18n` as a first-render
+- `use_provide_initial_i18n(...)` accepts a prebuilt `ManagedI18n` as a first-render
   value; later prop replacement is ignored by design.
 - `try_use_i18n()` exposes optional context access, while `use_i18n()` keeps the
   fail-fast path for components that require a provider.
@@ -107,8 +104,8 @@ hook-based runtime:
 - `DioxusI18n` is a thin wrapper over that generic reactive context, with the
   requested locale mirrored into a Dioxus `Signal` so render code can subscribe
   to locale changes.
-- `GlobalBridgeLocalizationExt::localize_via_global(...)` and
-  `use_global_bridge_localized(...)` intentionally read that signal before
+- `ProcessGlobalLocalizationExt::localize_via_process_global(...)` and
+  `use_process_global_localized(...)` intentionally read that signal before
   delegating to the process-global `es-fluent` `ToFluentString` path. These
   helpers are reactive but not context-bound after an explicit
   `ReplaceExisting`; direct ID/domain helpers use the `ManagedI18n` stored in
@@ -122,6 +119,12 @@ The bridge is process-global and optional. `GlobalBridgePolicy::Disabled` keeps
 Dioxus localization context-bound. `InstallOnce` installs only if the current
 process-global localizer is empty or still the same Dioxus owner generation.
 `ReplaceExisting` deliberately replaces the process-global callback.
+
+Scoped bridge guards snapshot the previously installed process-global custom
+localizer and the Dioxus owner metadata. Dropping the guard restores that
+snapshot only if the guarded bridge generation is still active; if another
+owner replaced the bridge, drop clears only stale Dioxus metadata for the
+guarded generation.
 
 A single internal `InstalledBridge` state stores the active owner, any retained
 client manager, and the generation token returned by `es-fluent` when the custom
@@ -158,10 +161,10 @@ The SSR module therefore:
 often happens during the Dioxus rebuild pass. The lower-level
 `render(&VirtualDom)` and `pre_render(&VirtualDom)` methods only scope the final
 serialization step and assume the caller already rebuilt the `VirtualDom` inside
-`with_sync_manager(...)` or `with_scope(...)`.
+`with_sync_thread_local_manager(...)`.
 
 The thread-local manager scope is synchronous. Do not hold
-`with_sync_manager(...)` scopes across `.await`, spawned tasks, streaming render
+`with_sync_thread_local_manager(...)` scopes across `.await`, spawned tasks, streaming render
 callbacks, or fullstack server boundaries.
 
 This keeps SSR separate from the client lifecycle while still reusing the same

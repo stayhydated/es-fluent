@@ -85,6 +85,7 @@ static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<dyn Fn(...) -> Option<String
 
 - **Registration**: `set_custom_localizer_with_domain` remains fail-fast for convenience, while `try_set_custom_localizer_with_domain` gives integrations a non-panicking path.
 - **Domain-aware override**: `set_custom_localizer_with_domain` and `replace_custom_localizer_with_domain` let integrations participate in both `localize()` and `localize_in_domain()`.
+- **Snapshot/restore**: `custom_localizer_snapshot` and `restore_custom_localizer_snapshot` are hidden integration hooks for scoped owners that need to restore a prior process-global localizer after tests or mixed-runtime examples.
 - **Priority**: The global localization helpers first check the custom
   localizer. If it returns `Some(string)`, that result is used.
 - **Domain context**: `localize_in_domain()` passes the requested domain to the

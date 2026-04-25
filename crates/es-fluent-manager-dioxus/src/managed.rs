@@ -1,6 +1,9 @@
 use crate::DioxusInitError;
 #[cfg(feature = "client")]
-use crate::{DioxusGlobalLocalizerError, GlobalBridgePolicy, bridge::install_client_bridge};
+use crate::{
+    DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError, GlobalBridgePolicy,
+    bridge::{install_client_bridge, install_client_bridge_scoped},
+};
 use es_fluent::{FluentValue, GlobalLocalizationError};
 use es_fluent_manager_core::FluentManager;
 use parking_lot::RwLock;
@@ -13,6 +16,15 @@ pub struct ManagedI18n {
     manager: Arc<FluentManager>,
     requested_language: Arc<RwLock<LanguageIdentifier>>,
 }
+
+impl PartialEq for ManagedI18n {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.manager, &other.manager)
+            && Arc::ptr_eq(&self.requested_language, &other.requested_language)
+    }
+}
+
+impl Eq for ManagedI18n {}
 
 impl ManagedI18n {
     pub fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(lang: L) -> Self {
@@ -88,11 +100,22 @@ impl ManagedI18n {
     /// `SsrI18n::install_global_localizer(...)` so localization is resolved
     /// through the synchronous request-scoped thread-local bridge.
     #[cfg(feature = "client")]
-    pub fn install_client_global_bridge(
+    pub fn install_client_process_global_bridge(
         &self,
         policy: GlobalBridgePolicy,
     ) -> Result<(), DioxusGlobalLocalizerError> {
         install_client_bridge(Arc::clone(&self.manager), policy)
+    }
+
+    /// Installs this manager as the client-side process-global Fluent localizer
+    /// and restores the previous process-global localizer when the returned
+    /// guard is dropped, unless another owner replaced it first.
+    #[cfg(feature = "client")]
+    pub fn install_client_process_global_bridge_scoped(
+        &self,
+        policy: GlobalBridgePolicy,
+    ) -> Result<DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError> {
+        install_client_bridge_scoped(Arc::clone(&self.manager), policy)
     }
 
     pub fn try_localize<'a>(

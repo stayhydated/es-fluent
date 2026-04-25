@@ -7,53 +7,65 @@ use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
 
 #[derive(Clone)]
-struct ReactiveContext<TState, TTracked> {
-    state: TState,
-    tracked: Signal<TTracked>,
+enum I18nContextState {
+    Ready(ManagedI18n),
+    Failed(DioxusInitError),
 }
 
-impl<TState, TTracked> ReactiveContext<TState, TTracked>
-where
-    TTracked: Clone + 'static,
-{
-    fn state(&self) -> &TState {
-        &self.state
+impl I18nContextState {
+    fn requested_language_or(&self, fallback: &LanguageIdentifier) -> LanguageIdentifier {
+        match self {
+            Self::Ready(managed) => managed.requested_language(),
+            Self::Failed(_) => fallback.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct I18nContext {
+    state: I18nContextState,
+    tracked: Signal<LanguageIdentifier>,
+}
+
+impl I18nContext {
+    fn managed(&self) -> &ManagedI18n {
+        match &self.state {
+            I18nContextState::Ready(managed) => managed,
+            I18nContextState::Failed(_) => {
+                unreachable!("DioxusI18n is only constructed for a ready i18n context")
+            },
+        }
     }
 
-    fn current(&self) -> TTracked {
+    fn into_i18n(self) -> Result<DioxusI18n, DioxusInitError> {
+        match &self.state {
+            I18nContextState::Ready(_) => Ok(DioxusI18n { context: self }),
+            I18nContextState::Failed(error) => Err(error.clone()),
+        }
+    }
+
+    fn current(&self) -> LanguageIdentifier {
         self.tracked.read().clone()
     }
 
-    fn peek(&self) -> TTracked {
+    fn peek(&self) -> LanguageIdentifier {
         self.tracked.peek().clone()
     }
 
-    fn update(&self, value: TTracked) {
+    fn update(&self, value: LanguageIdentifier) {
         let mut tracked = self.tracked;
         *tracked.write() = value;
     }
 }
 
-fn provide_reactive_context_once<TState, TTracked>(
-    state: TState,
-    tracked_init: impl Fn(&TState) -> TTracked + 'static,
-) -> ReactiveContext<TState, TTracked>
-where
-    TState: Clone + 'static,
-    TTracked: Clone + 'static,
-{
-    use_context_provider(move || ReactiveContext {
-        tracked: Signal::new(tracked_init(&state)),
+fn provide_i18n_context_once(
+    state: I18nContextState,
+    fallback_language: LanguageIdentifier,
+) -> I18nContext {
+    use_context_provider(move || I18nContext {
+        tracked: Signal::new(state.requested_language_or(&fallback_language)),
         state,
     })
-}
-
-fn try_use_reactive_context<TState, TTracked>() -> Option<ReactiveContext<TState, TTracked>>
-where
-    TState: Clone + 'static,
-    TTracked: Clone + 'static,
-{
-    try_use_context::<ReactiveContext<TState, TTracked>>()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -78,20 +90,20 @@ impl I18nProviderConfig {
 
 #[derive(Clone)]
 pub struct DioxusI18n {
-    reactive: ReactiveContext<ManagedI18n, LanguageIdentifier>,
+    context: I18nContext,
 }
 
 impl DioxusI18n {
     pub fn managed(&self) -> &ManagedI18n {
-        self.reactive.state()
+        self.context.managed()
     }
 
     pub fn requested_language(&self) -> LanguageIdentifier {
-        self.reactive.current()
+        self.context.current()
     }
 
     pub fn peek_requested_language(&self) -> LanguageIdentifier {
-        self.reactive.peek()
+        self.context.peek()
     }
 
     pub fn select_language<L: Into<LanguageIdentifier>>(
@@ -99,7 +111,7 @@ impl DioxusI18n {
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
         self.managed().select_language(lang)?;
-        self.reactive.update(self.managed().requested_language());
+        self.context.update(self.managed().requested_language());
         Ok(())
     }
 
@@ -108,7 +120,7 @@ impl DioxusI18n {
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
         self.managed().select_language_strict(lang)?;
-        self.reactive.update(self.managed().requested_language());
+        self.context.update(self.managed().requested_language());
         Ok(())
     }
 
@@ -117,7 +129,7 @@ impl DioxusI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> String {
-        let _ = self.reactive.current();
+        let _ = self.context.current();
         self.managed().localize(id, args)
     }
 
@@ -126,7 +138,7 @@ impl DioxusI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let _ = self.reactive.current();
+        let _ = self.context.current();
         self.managed().try_localize(id, args)
     }
 
@@ -136,7 +148,7 @@ impl DioxusI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> String {
-        let _ = self.reactive.current();
+        let _ = self.context.current();
         self.managed().localize_in_domain(domain, id, args)
     }
 
@@ -146,57 +158,77 @@ impl DioxusI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let _ = self.reactive.current();
         self.managed().try_localize_in_domain(domain, id, args)
     }
 }
 
-pub trait GlobalBridgeLocalizationExt {
-    fn localize_via_global<T: ToFluentString + ?Sized>(&self, value: &T) -> String;
+pub trait ProcessGlobalLocalizationExt {
+    fn localize_via_process_global<T: ToFluentString + ?Sized>(&self, value: &T) -> String;
 }
 
-impl GlobalBridgeLocalizationExt for DioxusI18n {
-    fn localize_via_global<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
-        let _ = self.reactive.current();
+impl ProcessGlobalLocalizationExt for DioxusI18n {
+    fn localize_via_process_global<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
+        let _ = self.context.current();
         value.to_fluent_string()
     }
 }
 
 pub fn use_i18n_provider_once(config: I18nProviderConfig) -> Result<DioxusI18n, DioxusInitError> {
-    let managed = use_hook({
-        let initial_language = config.initial_language.clone();
-        move || ManagedI18n::try_new_with_discovered_modules(initial_language)
+    let initial_language = config.initial_language.clone();
+    let state = use_hook({
+        let initial_language = initial_language.clone();
+        move || match ManagedI18n::try_new_with_discovered_modules(initial_language) {
+            Ok(managed) => I18nContextState::Ready(managed),
+            Err(error) => I18nContextState::Failed(error),
+        }
     });
 
-    use_provide_i18n_once(managed?, config.global_bridge)
+    use_i18n_context_once(state, initial_language, config.global_bridge)
 }
 
-pub fn use_provide_i18n_once(
+pub fn use_provide_initial_i18n(
     managed: ManagedI18n,
     global_bridge: GlobalBridgePolicy,
 ) -> Result<DioxusI18n, DioxusInitError> {
-    let managed = use_hook({ move || managed });
+    let fallback_language = managed.requested_language();
+    use_i18n_context_once(
+        I18nContextState::Ready(managed),
+        fallback_language,
+        global_bridge,
+    )
+}
+
+fn use_i18n_context_once(
+    state: I18nContextState,
+    fallback_language: LanguageIdentifier,
+    global_bridge: GlobalBridgePolicy,
+) -> Result<DioxusI18n, DioxusInitError> {
+    let state = use_hook(move || state);
 
     let install_result = use_hook({
-        let managed = managed.clone();
-        move || managed.install_client_global_bridge(global_bridge)
+        let state = state.clone();
+        move || match &state {
+            I18nContextState::Ready(managed) => {
+                managed.install_client_process_global_bridge(global_bridge)
+            },
+            I18nContextState::Failed(_) => Ok(()),
+        }
     });
 
-    install_result.map_err(DioxusInitError::global_localizer)?;
+    let context = provide_i18n_context_once(state, fallback_language);
 
-    Ok(DioxusI18n {
-        reactive: provide_reactive_context_once(managed, ManagedI18n::requested_language),
-    })
+    install_result.map_err(DioxusInitError::global_localizer)?;
+    context.into_i18n()
 }
 
 pub fn try_use_i18n() -> Option<DioxusI18n> {
-    try_use_reactive_context().map(|reactive| DioxusI18n { reactive })
+    try_use_context::<I18nContext>().and_then(|context| context.into_i18n().ok())
 }
 
 pub fn use_i18n() -> DioxusI18n {
     try_use_i18n().expect("missing DioxusI18n provider")
 }
 
-pub fn use_global_bridge_localized<T: ToFluentString + ?Sized>(value: &T) -> String {
-    use_i18n().localize_via_global(value)
+pub fn use_process_global_localized<T: ToFluentString + ?Sized>(value: &T) -> String {
+    use_i18n().localize_via_process_global(value)
 }

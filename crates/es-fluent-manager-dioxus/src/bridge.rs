@@ -1,6 +1,7 @@
 use es_fluent::{
-    CustomLocalizerGeneration, FluentValue, GlobalLocalizationError,
-    current_custom_localizer_generation, replace_custom_localizer_with_domain_and_generation,
+    CustomLocalizerGeneration, CustomLocalizerSnapshot, FluentValue, GlobalLocalizationError,
+    current_custom_localizer_generation, custom_localizer_snapshot,
+    replace_custom_localizer_with_domain_and_generation, restore_custom_localizer_snapshot,
     try_set_custom_localizer_with_domain_and_generation,
 };
 use es_fluent_manager_core::FluentManager;
@@ -113,6 +114,7 @@ impl BridgeOwner {
     }
 }
 
+#[derive(Clone)]
 enum InstalledBridge {
     Client {
         owner_id: usize,
@@ -150,6 +152,57 @@ impl InstalledBridge {
 static GLOBAL_BRIDGE_INSTALL_LOCK: Mutex<()> = Mutex::new(());
 static INSTALLED_BRIDGE: OnceLock<RwLock<Option<InstalledBridge>>> = OnceLock::new();
 
+pub struct DioxusGlobalBridgeGuard {
+    generation: Option<CustomLocalizerGeneration>,
+    previous_bridge: Option<InstalledBridge>,
+    previous_localizer: Option<CustomLocalizerSnapshot>,
+}
+
+impl DioxusGlobalBridgeGuard {
+    fn inactive() -> Self {
+        Self {
+            generation: None,
+            previous_bridge: None,
+            previous_localizer: None,
+        }
+    }
+
+    fn new(
+        previous_localizer: CustomLocalizerSnapshot,
+        previous_bridge: Option<InstalledBridge>,
+        generation: CustomLocalizerGeneration,
+    ) -> Self {
+        Self {
+            generation: Some(generation),
+            previous_bridge,
+            previous_localizer: Some(previous_localizer),
+        }
+    }
+}
+
+impl Drop for DioxusGlobalBridgeGuard {
+    fn drop(&mut self) {
+        let Some(generation) = self.generation else {
+            return;
+        };
+
+        let _guard = global_bridge_install_lock();
+        let mut bridge = installed_bridge().write();
+
+        if current_custom_localizer_generation() == Some(generation) {
+            if let Some(previous_localizer) = self.previous_localizer.take() {
+                restore_custom_localizer_snapshot(previous_localizer);
+            }
+            *bridge = self.previous_bridge.take();
+        } else if bridge
+            .as_ref()
+            .is_some_and(|bridge| bridge.generation() == generation)
+        {
+            *bridge = None;
+        }
+    }
+}
+
 pub(crate) fn global_bridge_install_lock() -> MutexGuard<'static, ()> {
     GLOBAL_BRIDGE_INSTALL_LOCK
         .lock()
@@ -158,6 +211,15 @@ pub(crate) fn global_bridge_install_lock() -> MutexGuard<'static, ()> {
 
 fn installed_bridge() -> &'static RwLock<Option<InstalledBridge>> {
     INSTALLED_BRIDGE.get_or_init(|| RwLock::new(None))
+}
+
+fn discard_stale_bridge(bridge: &mut Option<InstalledBridge>) {
+    if bridge
+        .as_ref()
+        .is_some_and(|bridge| !bridge.is_current_custom_localizer())
+    {
+        *bridge = None;
+    }
 }
 
 pub(crate) fn current_client_bridge_manager() -> Option<Arc<FluentManager>> {
@@ -184,21 +246,50 @@ pub(crate) fn install_client_bridge(
     }
 
     let _guard = global_bridge_install_lock();
-    let requested_owner = BridgeOwner::Client(Arc::as_ptr(&manager) as usize);
+    let mut bridge = installed_bridge().write();
+    install_client_bridge_locked(&mut bridge, manager, policy).map(|_| ())
+}
+
+pub(crate) fn install_client_bridge_scoped(
+    manager: Arc<FluentManager>,
+    policy: GlobalBridgePolicy,
+) -> Result<DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError> {
+    if policy == GlobalBridgePolicy::Disabled {
+        return Ok(DioxusGlobalBridgeGuard::inactive());
+    }
+
+    let _guard = global_bridge_install_lock();
     let mut bridge = installed_bridge().write();
 
-    if bridge
-        .as_ref()
-        .is_some_and(|bridge| !bridge.is_current_custom_localizer())
-    {
-        *bridge = None;
-    }
+    discard_stale_bridge(&mut bridge);
+    let previous_bridge = bridge.clone();
+    let previous_localizer = custom_localizer_snapshot();
+
+    let generation = install_client_bridge_locked(&mut bridge, manager, policy)?;
+    Ok(DioxusGlobalBridgeGuard::new(
+        previous_localizer,
+        previous_bridge,
+        generation,
+    ))
+}
+
+fn install_client_bridge_locked(
+    bridge: &mut Option<InstalledBridge>,
+    manager: Arc<FluentManager>,
+    policy: GlobalBridgePolicy,
+) -> Result<CustomLocalizerGeneration, DioxusGlobalLocalizerError> {
+    let requested_owner = BridgeOwner::Client(Arc::as_ptr(&manager) as usize);
+
+    discard_stale_bridge(bridge);
 
     match bridge.as_ref().map(InstalledBridge::owner) {
         Some(active_owner)
             if active_owner == requested_owner && policy == GlobalBridgePolicy::InstallOnce =>
         {
-            return Ok(());
+            return Ok(bridge
+                .as_ref()
+                .expect("active bridge should exist")
+                .generation());
         },
         Some(active_owner) if policy == GlobalBridgePolicy::InstallOnce => {
             return Err(DioxusGlobalLocalizerError::owner_conflict(
@@ -216,7 +307,7 @@ pub(crate) fn install_client_bridge(
         manager,
         generation,
     });
-    Ok(())
+    Ok(generation)
 }
 
 #[cfg(feature = "ssr")]
@@ -235,21 +326,64 @@ where
     }
 
     let _guard = global_bridge_install_lock();
-    let requested_owner = BridgeOwner::Ssr;
+    let mut bridge = installed_bridge().write();
+    install_ssr_bridge_locked(&mut bridge, policy, callback).map(|_| ())
+}
+
+#[cfg(feature = "ssr")]
+pub(crate) fn install_ssr_bridge_scoped<F>(
+    policy: GlobalBridgePolicy,
+    callback: F,
+) -> Result<DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError>
+where
+    F: for<'a> Fn(Option<&str>, &str, Option<&HashMap<&str, FluentValue<'a>>>) -> Option<String>
+        + Send
+        + Sync
+        + 'static,
+{
+    if policy == GlobalBridgePolicy::Disabled {
+        return Ok(DioxusGlobalBridgeGuard::inactive());
+    }
+
+    let _guard = global_bridge_install_lock();
     let mut bridge = installed_bridge().write();
 
-    if bridge
-        .as_ref()
-        .is_some_and(|bridge| !bridge.is_current_custom_localizer())
-    {
-        *bridge = None;
-    }
+    discard_stale_bridge(&mut bridge);
+    let previous_bridge = bridge.clone();
+    let previous_localizer = custom_localizer_snapshot();
+
+    let generation = install_ssr_bridge_locked(&mut bridge, policy, callback)?;
+    Ok(DioxusGlobalBridgeGuard::new(
+        previous_localizer,
+        previous_bridge,
+        generation,
+    ))
+}
+
+#[cfg(feature = "ssr")]
+fn install_ssr_bridge_locked<F>(
+    bridge: &mut Option<InstalledBridge>,
+    policy: GlobalBridgePolicy,
+    callback: F,
+) -> Result<CustomLocalizerGeneration, DioxusGlobalLocalizerError>
+where
+    F: for<'a> Fn(Option<&str>, &str, Option<&HashMap<&str, FluentValue<'a>>>) -> Option<String>
+        + Send
+        + Sync
+        + 'static,
+{
+    let requested_owner = BridgeOwner::Ssr;
+
+    discard_stale_bridge(bridge);
 
     match bridge.as_ref().map(InstalledBridge::owner) {
         Some(active_owner)
             if active_owner == requested_owner && policy == GlobalBridgePolicy::InstallOnce =>
         {
-            return Ok(());
+            return Ok(bridge
+                .as_ref()
+                .expect("active bridge should exist")
+                .generation());
         },
         Some(active_owner) if policy == GlobalBridgePolicy::InstallOnce => {
             return Err(DioxusGlobalLocalizerError::owner_conflict(
@@ -263,7 +397,7 @@ where
 
     let generation = install_custom_localizer(policy, callback)?;
     *bridge = Some(InstalledBridge::Ssr { generation });
-    Ok(())
+    Ok(generation)
 }
 
 fn install_client_bridge_callback(

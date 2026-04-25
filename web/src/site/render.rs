@@ -15,11 +15,10 @@ use es_fluent_manager_dioxus::{GlobalBridgePolicy, ssr::SsrI18n};
 
 #[cfg(test)]
 pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
-    let i18n = SsrI18n::try_new_with_discovered_modules_and_policy(
-        route.locale.lang(),
-        GlobalBridgePolicy::ReplaceExisting,
-    )
-    .context("failed to initialize the Dioxus SSR localizer")?;
+    let _guard = SsrI18n::install_process_global_bridge_scoped(GlobalBridgePolicy::InstallOnce)
+        .context("failed to install the Dioxus SSR process-global localizer")?;
+    let i18n = SsrI18n::try_new_with_discovered_modules(route.locale.lang())
+        .context("failed to initialize the Dioxus SSR localizer")?;
 
     Ok(i18n.render_element(route_content(route)))
 }

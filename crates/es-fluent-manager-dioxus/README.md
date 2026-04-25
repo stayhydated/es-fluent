@@ -8,10 +8,9 @@ Experimental [Dioxus](https://dioxuslabs.com/) integration for `es-fluent`.
 This crate provides a Dioxus-oriented runtime layer on top of
 `es-fluent-manager-core`:
 
-- `client`, `web`, `desktop`, and `mobile` use the same embedded-asset discovery
-  flow and expose hook-based locale management for reactive UI updates.
-- `desktop` and `mobile` intentionally share the same client runtime because
-  Dioxus 0.7 routes both through `dioxus-desktop`.
+- `client` uses the same embedded-asset discovery flow and exposes hook-based
+  locale management for reactive UI updates on Dioxus web, desktop, and mobile
+  renderers.
 - `ssr` is separate and wraps synchronous `dioxus::ssr` rendering with a
   request-scoped localization bridge instead of a long-lived client context.
 
@@ -34,25 +33,21 @@ Most non-Dioxus applications should use a different manager instead:
 ## Client Platforms
 
 The default features enable `define_i18n_module!` and the generic `client` hook
-runtime. Platform features are aliases for `client`; use them when they make
-your Dioxus target clearer. Enable `ssr` for server rendering. Mixed client/SSR
-feature sets are supported for examples and tests, but normal applications
-should choose one bridge owner per process.
+runtime. Enable `ssr` for server rendering. Mixed client/SSR feature sets are
+supported for examples and tests, but normal applications should choose one
+bridge owner per process.
 
-| Feature   | Runtime surface                                        |
-| --------- | ------------------------------------------------------ |
-| `client`  | Shared Dioxus client hook runtime                      |
-| `desktop` | Client hooks for Dioxus desktop/mobile-style rendering |
-| `web`     | Client hooks for Dioxus web rendering                  |
-| `mobile`  | Client hooks for Dioxus mobile rendering               |
-| `ssr`     | Synchronous request-scoped SSR rendering               |
-| `macros`  | Re-exports `define_i18n_module!` only                  |
+| Feature  | Runtime surface                          |
+| -------- | ---------------------------------------- |
+| `client` | Shared Dioxus client hook runtime        |
+| `ssr`    | Synchronous request-scoped SSR rendering |
+| `macros` | Re-exports `define_i18n_module!` only    |
 
 ```toml
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] }
 es-fluent = { version = "0.15", features = ["derive"] }
-es-fluent-manager-dioxus = { version = "0.7", features = ["desktop"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 unic-langid = "0.9"
 ```
 
@@ -67,8 +62,8 @@ Then initialize the Dioxus provider in your root component:
 ```ignore
 use dioxus::prelude::*;
 use es_fluent::EsFluent;
-use es_fluent_manager_dioxus::desktop::{
-    GlobalBridgeLocalizationExt, GlobalBridgePolicy, I18nProviderConfig,
+use es_fluent_manager_dioxus::{
+    GlobalBridgePolicy, I18nProviderConfig, ProcessGlobalLocalizationExt,
     use_i18n_provider_once,
 };
 use unic_langid::langid;
@@ -81,7 +76,7 @@ enum UiMessage {
 fn app() -> Element {
     let i18n = use_i18n_provider_once(
         I18nProviderConfig::new(langid!("en-US"))
-            .with_global_bridge(GlobalBridgePolicy::ReplaceExisting),
+            .with_global_bridge(GlobalBridgePolicy::InstallOnce),
     )
     .expect("i18n should initialize");
 
@@ -95,7 +90,7 @@ fn app() -> Element {
                 };
                 i18n.select_language(next).expect("locale switch should succeed");
             },
-            "{i18n.localize_via_global(&UiMessage::Hello)}"
+            "{i18n.localize_via_process_global(&UiMessage::Hello)}"
         }
     }
 }
@@ -114,8 +109,8 @@ Prefer `localize_id(...)`, `try_localize_id(...)`, `localize_in_domain(...)`,
 and `try_localize_in_domain(...)` when a lookup must go directly through the
 current `DioxusI18n` context.
 
-Use `GlobalBridgeLocalizationExt::localize_via_global(...)` or
-`use_global_bridge_localized(...)` inside render code only when you explicitly
+Use `ProcessGlobalLocalizationExt::localize_via_process_global(...)` or
+`use_process_global_localized(...)` inside render code only when you explicitly
 install a `GlobalBridgePolicy`. These helpers read the Dioxus signal before
 delegating to the process-global `ToFluentString` path, so they are reactive but
 not context-bound if another owner later calls
@@ -136,7 +131,7 @@ is missing. Use `try_localize_id(...)`, `try_localize_in_domain(...)`, or the
 matching `ManagedI18n` methods when tests or strict application code need to
 distinguish a missing message from a translated value.
 
-`use_i18n_provider_once(...)` and `use_provide_i18n_once(...)` return
+`use_i18n_provider_once(...)` and `use_provide_initial_i18n(...)` return
 `Result<DioxusI18n, DioxusInitError>` so applications can render or report
 initialization failures. The provided `ManagedI18n` is a first-render value; do
 not replace it through props. Call `select_language(...)` on the returned
@@ -157,14 +152,16 @@ types can keep using `to_fluent_string()`, but only when you opt in with
 `GlobalBridgePolicy::Disabled` is the context-only path. `InstallOnce` rejects a
 distinct Dioxus owner and also rejects switching between the client and SSR
 bridges. `ReplaceExisting` is the only policy that changes bridge ownership.
-Use replacement only in controlled examples, tests, or single-owner
-applications. The bridge has no teardown/restore API; tests and mixed client/SSR
-examples should run serially and use `ReplaceExisting` deliberately when they
-need deterministic ownership.
+Use replacement only in serial tests or tightly controlled single-owner
+applications. Tests and mixed client/SSR examples can use
+`ManagedI18n::install_client_process_global_bridge_scoped(...)` or
+`SsrI18n::install_process_global_bridge_scoped(...)` to restore the previous
+process-global localizer when the guard drops.
 
-Manual client setup must call `ManagedI18n::install_client_global_bridge(...)`.
-Do not use a client bridge for SSR. SSR uses `SsrI18n::install_global_bridge(...)`
-so `ToFluentString` resolves through the synchronous request-scoped manager.
+Manual client setup must call
+`ManagedI18n::install_client_process_global_bridge(...)`. Do not use a client
+bridge for SSR. SSR uses `SsrI18n::install_process_global_bridge(...)` so
+`ToFluentString` resolves through the synchronous request-scoped manager.
 
 While the Dioxus bridge owns the global localizer, missing Dioxus messages fall
 back to their message id instead of falling through to an unrelated global
@@ -203,16 +200,16 @@ let html = i18n.rebuild_and_render(&mut vdom);
 does not yet wrap the higher-level `dioxus-server` fullstack router pipeline.
 The default SSR constructor installs the thread-local global bridge
 idempotently, so request-scoped `SsrI18n` values can be created repeatedly.
-Applications may also call `SsrI18n::install_global_bridge(...)` once during
+Applications may also call `SsrI18n::install_process_global_bridge(...)` once during
 startup before constructing per-request managers.
 Use `rebuild_and_render(...)` for the common path where localization can happen
 during the Dioxus rebuild pass. The lower-level `render(&VirtualDom)` method
 only scopes the final SSR serialization step and assumes the virtual DOM was
-already rebuilt inside `with_sync_manager(...)` or `with_scope(...)`.
+already rebuilt inside `with_sync_thread_local_manager(...)`.
 
-Do not hold `with_sync_manager(...)` or `with_scope(...)` scopes across
-`.await`, spawned tasks, streaming render callbacks, or fullstack server
-boundaries. The manager scope is thread-local and synchronous. If SSR
+Do not hold `with_sync_thread_local_manager(...)` scopes across `.await`,
+spawned tasks, streaming render callbacks, or fullstack server boundaries. The
+manager scope is thread-local and synchronous. If SSR
 localization is called outside an `SsrI18n` scope, the bridge returns the
 message id instead of falling back to unrelated global localization state.
 

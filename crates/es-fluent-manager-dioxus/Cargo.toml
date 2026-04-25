@@ -16,11 +16,8 @@ keywords = [ "fluent", "i18n", "locale", "dioxus" ]
 [features]
 client = [ "dep:dioxus-core", "dep:dioxus-hooks", "dep:dioxus-signals" ]
 default = [ "macros", "client" ]
-desktop = [ "client" ]
 macros = [ "dep:es-fluent-manager-macros" ]
-mobile = [ "client" ]
 ssr = [ "dep:dioxus-core", "dep:dioxus-ssr" ]
-web = [ "client" ]
 
 [dependencies]
 dioxus-core = { optional = true, workspace = true }

@@ -6,12 +6,8 @@ use dioxus_html as dioxus_elements;
 use dioxus_signals::WritableExt as _;
 use es_fluent::{EsFluent, ToFluentString as _};
 use es_fluent_manager_dioxus::{
-    GlobalBridgePolicy,
-    desktop::{
-        GlobalBridgeLocalizationExt as _, I18nProviderConfig, use_global_bridge_localized,
-        use_i18n_provider_once,
-    },
-    ssr::SsrI18n,
+    GlobalBridgePolicy, ManagedI18n, ProcessGlobalLocalizationExt as _, ssr::SsrI18n,
+    use_process_global_localized, use_provide_initial_i18n,
 };
 use example_shared_lib::{ButtonState, Languages};
 use strum::IntoEnumIterator as _;
@@ -72,8 +68,18 @@ pub fn render_showcase() -> String {
 pub fn render_client_preview(initial_language: Languages) -> String {
     example_shared_lib::force_link();
 
-    let mut dom =
-        VirtualDom::new_with_props(ClientPreview, ClientPreviewProps { initial_language });
+    let managed = ManagedI18n::try_new_with_discovered_modules(initial_language)
+        .expect("Dioxus client example manager should initialize");
+    let _guard = managed
+        .install_client_process_global_bridge_scoped(GlobalBridgePolicy::InstallOnce)
+        .expect("Dioxus client example bridge should install");
+    let mut dom = VirtualDom::new_with_props(
+        ClientPreview,
+        ClientPreviewProps {
+            initial_language,
+            managed,
+        },
+    );
     dom.rebuild_in_place();
     dioxus_ssr::render(&dom)
 }
@@ -81,11 +87,10 @@ pub fn render_client_preview(initial_language: Languages) -> String {
 pub fn render_ssr_preview(initial_language: Languages) -> String {
     example_shared_lib::force_link();
 
-    let i18n = SsrI18n::try_new_with_discovered_modules_and_policy(
-        initial_language,
-        GlobalBridgePolicy::ReplaceExisting,
-    )
-    .expect("Dioxus SSR example should initialize");
+    let _guard = SsrI18n::install_process_global_bridge_scoped(GlobalBridgePolicy::InstallOnce)
+        .expect("Dioxus SSR example bridge should install");
+    let i18n = SsrI18n::try_new_with_discovered_modules(initial_language)
+        .expect("Dioxus SSR example should initialize");
 
     let mut dom = VirtualDom::new_with_props(SsrPreview, SsrPreviewProps { initial_language });
 
@@ -93,12 +98,9 @@ pub fn render_ssr_preview(initial_language: Languages) -> String {
 }
 
 #[component]
-fn ClientPreview(initial_language: Languages) -> Element {
-    let i18n = use_i18n_provider_once(
-        I18nProviderConfig::new(initial_language)
-            .with_global_bridge(GlobalBridgePolicy::ReplaceExisting),
-    )
-    .expect("Dioxus client example should initialize");
+fn ClientPreview(initial_language: Languages, managed: ManagedI18n) -> Element {
+    let i18n = use_provide_initial_i18n(managed, GlobalBridgePolicy::InstallOnce)
+        .expect("Dioxus client example should initialize");
     let mut is_hovered = use_signal(|| false);
 
     let current_language =
@@ -110,14 +112,14 @@ fn ClientPreview(initial_language: Languages) -> Element {
     };
     let next_language = current_language.next();
 
-    let heading = i18n.localize_via_global(&DioxusScreenMessages::ClientHeading);
-    let summary = i18n.localize_via_global(&DioxusScreenMessages::ClientSummary {
+    let heading = i18n.localize_via_process_global(&DioxusScreenMessages::ClientHeading);
+    let summary = i18n.localize_via_process_global(&DioxusScreenMessages::ClientSummary {
         current_language,
         button_state,
     });
-    let button_label =
-        i18n.localize_via_global(&DioxusScreenMessages::ClientButtonLabel { next_language });
-    let runtime_note = i18n.localize_via_global(&DioxusScreenMessages::RuntimeSplitNote);
+    let button_label = i18n
+        .localize_via_process_global(&DioxusScreenMessages::ClientButtonLabel { next_language });
+    let runtime_note = i18n.localize_via_process_global(&DioxusScreenMessages::RuntimeSplitNote);
 
     rsx! {
         section {
@@ -143,12 +145,15 @@ fn ClientPreview(initial_language: Languages) -> Element {
 
 #[component]
 fn ClientSharedValues(current_language: Languages, button_state: ButtonState) -> Element {
-    let shared_heading = use_global_bridge_localized(&DioxusScreenMessages::SharedTypesHeading);
-    let shared_language = use_global_bridge_localized(&DioxusScreenMessages::SharedLanguageValue {
-        current_language,
-    });
+    let shared_heading = use_process_global_localized(&DioxusScreenMessages::SharedTypesHeading);
+    let shared_language =
+        use_process_global_localized(&DioxusScreenMessages::SharedLanguageValue {
+            current_language,
+        });
     let shared_button_state =
-        use_global_bridge_localized(&DioxusScreenMessages::SharedButtonStateValue { button_state });
+        use_process_global_localized(&DioxusScreenMessages::SharedButtonStateValue {
+            button_state,
+        });
 
     rsx! {
         div {
