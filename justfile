@@ -20,16 +20,13 @@ test:
     cargo test --workspace --all-features --all-targets
 
 dioxus-manager-feature-matrix:
-    cargo test -p es-fluent-manager-dioxus --no-default-features
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features macros
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features web
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features mobile
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop,ssr
-    cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop,ssr,macros
-    cargo test -p es-fluent-manager-dioxus --all-features
-    cargo clippy -p es-fluent-manager-dioxus --all-targets --all-features -- -D warnings
+    cargo check -p es-fluent-manager-dioxus --no-default-features
+    cargo check -p es-fluent-manager-dioxus --no-default-features --features client
+    cargo check -p es-fluent-manager-dioxus --no-default-features --features ssr
+    cargo check -p es-fluent-manager-dioxus --no-default-features --features client,ssr
+    cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
+    cargo test -p es-fluent-manager-dioxus --doc --no-default-features --features client,ssr
+    cargo clippy -p es-fluent-manager-dioxus --no-default-features --features client,ssr --all-targets -- -D warnings
 
 cov:
     cargo llvm-cov --workspace --all-features --all-targets

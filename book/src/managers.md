@@ -4,11 +4,11 @@
 ecosystem provides three ready-made manager crates so you don't have to build
 your own asset pipeline.
 
-| Manager                      | Best for                 | How it works                             |
-| ---------------------------- | ------------------------ | ---------------------------------------- |
-| `es-fluent-manager-embedded` | CLIs, TUIs, desktop apps | Compiles FTL files into the binary       |
-| `es-fluent-manager-dioxus`   | Dioxus apps              | Uses embedded assets plus Dioxus hooks   |
-| `es-fluent-manager-bevy`     | Bevy games and apps      | Loads FTL files via Bevy's `AssetServer` |
+| Manager                      | Best for                 | How it works                                                 |
+| ---------------------------- | ------------------------ | ------------------------------------------------------------ |
+| `es-fluent-manager-embedded` | CLIs, TUIs, desktop apps | Compiles FTL files into the binary                           |
+| `es-fluent-manager-dioxus`   | Dioxus apps              | Uses embedded assets plus Dioxus hooks or request-scoped SSR |
+| `es-fluent-manager-bevy`     | Bevy games and apps      | Loads FTL files via Bevy's `AssetServer`                     |
 
 ---
 
@@ -97,7 +97,7 @@ successfully.
 
 Experimental Dioxus integration for `es-fluent`.
 
-Choose one runtime surface:
+Enable the runtime surfaces your crate actually uses:
 
 ```toml
 # Client apps
@@ -108,6 +108,9 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 ```
 
 The crate has no default runtime feature. The `define_i18n_module!` macro is always available.
+
+- `client`: Dioxus hook/context runtime for interactive rendering.
+- `ssr`: synchronous Dioxus SSR runtime with request-scoped localization.
 
 ### Client Quick Start
 
@@ -133,9 +136,11 @@ fn app() -> Element {
 }
 ```
 
-Client apps localize through the `DioxusI18n` context returned by `use_init_i18n(...)`, `use_try_init_i18n(...)`, `use_provide_i18n(...)`, or `use_try_provide_i18n(...)`. Use `localize(...)`, `try_localize(...)`, `localize_in_domain(...)`, and `try_localize_in_domain(...)` for rendering. Locale switches should use `try_select_language(...)` or `try_select_language_strict(...)` when failures need to be handled.
+Client apps localize through the `DioxusI18n` context returned by `use_init_i18n(...)`, `use_try_init_i18n(...)`, `use_provide_i18n(...)`, or `use_try_provide_i18n(...)`. Use `localize(...)`, `try_localize(...)`, `localize_in_domain(...)`, and `try_localize_in_domain(...)` for rendering. `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback. Locale switches should use `try_select_language(...)` or `try_select_language_strict(...)` when failures need to be handled.
 
-The client runtime installs the `es-fluent` custom localizer bridge strictly and idempotently for the same Dioxus runtime. It rejects a different active client or SSR owner instead of exposing replacement modes.
+The client runtime installs the `es-fluent` custom localizer bridge automatically when a ready `ManagedI18n` context is provided. Reinstalling the same client manager is idempotent. A different active client owner is rejected, and client/SSR ownership conflicts intentionally. There is no public bridge policy, replacement mode, disabled mode, or scoped bridge API.
+
+If `use_try_init_i18n(...)` fails, it still provides a failed context to keep hook order stable, but `try_use_i18n()` returns `None` and no `DioxusI18n` is usable by children.
 
 ### SSR Quick Start
 

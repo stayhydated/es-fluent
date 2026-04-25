@@ -17,7 +17,8 @@ cargo install es-fluent-cli --locked
 ```
 
 Swap `es-fluent-manager-embedded` for `es-fluent-manager-dioxus` in Dioxus
-apps with `client` or `ssr`, or for `es-fluent-manager-bevy` in Bevy apps.
+apps by enabling `client`, `ssr`, or both surfaces as needed. Use
+`es-fluent-manager-bevy` in Bevy apps.
 
 ## Crates You Usually Use
 

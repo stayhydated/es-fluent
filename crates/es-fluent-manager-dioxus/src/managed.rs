@@ -46,6 +46,7 @@ impl ManagedI18n {
         })
     }
 
+    #[cfg(feature = "ssr")]
     pub(crate) fn manager(&self) -> &Arc<FluentManager> {
         &self.manager
     }

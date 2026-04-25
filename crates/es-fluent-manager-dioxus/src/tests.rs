@@ -234,6 +234,39 @@ fn client_global_bridge_is_idempotent_for_same_owner() {
 #[cfg(feature = "client")]
 #[test]
 #[serial]
+fn client_global_bridge_discards_stale_metadata_after_external_replacement() {
+    use es_fluent::ToFluentString as _;
+
+    reset_global_bridge_for_tests();
+
+    let first = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+        .expect("first managed dioxus i18n should initialize");
+    first
+        .install_client_process_global_bridge()
+        .expect("first bridge owner should install");
+
+    es_fluent::replace_custom_localizer_with_domain_and_generation(
+        |_domain: Option<&str>,
+         id: &str,
+         _args: Option<&HashMap<&str, es_fluent::FluentValue<'_>>>| {
+            Some(format!("external-{id}"))
+        },
+    );
+
+    assert_eq!(TestMessage.to_fluent_string(), "external-hello");
+
+    let second = ManagedI18n::try_new_with_discovered_modules(langid!("fr"))
+        .expect("second managed dioxus i18n should initialize");
+    second
+        .install_client_process_global_bridge()
+        .expect("stale client bridge metadata should be discarded");
+
+    assert_eq!(TestMessage.to_fluent_string(), "Bonjour");
+}
+
+#[cfg(feature = "client")]
+#[test]
+#[serial]
 fn dioxus_bridge_missing_message_does_not_fall_back_to_global_context() {
     reset_global_bridge_for_tests();
     install_test_global_context();
@@ -459,6 +492,19 @@ mod client_tests {
     }
 
     #[allow(non_snake_case)]
+    fn FailedInitMessage() -> Element {
+        let message = match crate::use_try_init_i18n(langid!("de-DE")) {
+            Ok(_) => "ready",
+            Err(_) if crate::try_use_i18n().is_some() => "failed-present",
+            Err(_) => "failed-missing",
+        };
+
+        rsx! {
+            div { "{message}" }
+        }
+    }
+
+    #[allow(non_snake_case)]
     fn ProviderReplacementMessage() -> Element {
         let use_replacement = dioxus_hooks::use_signal(|| false);
         CAPTURED_PROVIDER_SWITCH.with(|slot| {
@@ -514,6 +560,17 @@ mod client_tests {
         dom.rebuild_in_place();
 
         assert!(dioxus_ssr::render(&dom).contains("missing"));
+    }
+
+    #[test]
+    #[serial]
+    fn failed_try_init_i18n_context_is_not_usable_by_children() {
+        reset_global_bridge_for_tests();
+
+        let mut dom = VirtualDom::new(FailedInitMessage);
+        dom.rebuild_in_place();
+
+        assert!(dioxus_ssr::render(&dom).contains("failed-missing"));
     }
 
     #[test]

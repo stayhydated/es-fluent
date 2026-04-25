@@ -56,7 +56,7 @@ impl DioxusInitError {
         Self::LanguageSelection(Arc::new(error))
     }
 
-    #[cfg(any(feature = "client", feature = "ssr"))]
+    #[cfg(feature = "client")]
     pub(crate) fn global_localizer(error: DioxusGlobalLocalizerError) -> Self {
         Self::GlobalLocalizer(Arc::new(error))
     }

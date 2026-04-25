@@ -12,8 +12,9 @@ unic-langid = "0.9"
 # For simple apps and CLIs:
 es-fluent-manager-embedded = "0.15"
 
-# For Dioxus apps: choose `client` for hook-based UI or `ssr` for server rendering.
+# For Dioxus apps, enable only the runtime surface you use.
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 ```
 
 ## Project Configuration
