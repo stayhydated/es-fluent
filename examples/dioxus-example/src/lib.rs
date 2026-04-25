@@ -86,13 +86,7 @@ pub fn render_ssr_preview(initial_language: Languages) -> String {
 
     let mut dom = VirtualDom::new_with_props(SsrPreview, SsrPreviewProps { initial_language });
 
-    // The SSR component localizes during the Dioxus render pass, so rebuild the tree
-    // while the request-scoped manager is installed.
-    i18n.with_manager(|| {
-        dom.rebuild_in_place();
-    });
-
-    i18n.render(&dom)
+    i18n.rebuild_and_render(&mut dom)
 }
 
 #[component]
@@ -128,8 +122,9 @@ fn ClientPreview(initial_language: Languages) -> Element {
                 r#type: "button",
                 onclick: move |_| {
                     is_hovered.set(!is_hovered());
-                    i18n.select_language(next_language)
-                        .expect("example locale switch should succeed");
+                    if let Err(error) = i18n.select_language(next_language) {
+                        eprintln!("example locale switch failed: {error}");
+                    }
                 },
                 "{button_label}"
             }

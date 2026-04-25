@@ -6,14 +6,14 @@ Add `es-fluent` with `derive` support and a runtime manager:
 
 ```toml
 [dependencies]
-es-fluent = { version = "*", features = ["derive"] }
-unic-langid = "*"
+es-fluent = { version = "0.15", features = ["derive"] }
+unic-langid = "0.9"
 
 # For simple apps and CLIs:
-es-fluent-manager-embedded = "*"
+es-fluent-manager-embedded = "0.15"
 
 # For Dioxus apps:
-# es-fluent-manager-dioxus = { version = "*", features = ["desktop"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["desktop"] }
 ```
 
 ## Project Configuration

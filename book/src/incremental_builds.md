@@ -10,7 +10,7 @@ Add `es-fluent` to your **build dependencies**:
 
 ```toml
 [build-dependencies]
-es-fluent = { version = "*", features = ["build"] }
+es-fluent = { version = "0.15", features = ["build"] }
 ```
 
 Call the tracking helper from `build.rs`:

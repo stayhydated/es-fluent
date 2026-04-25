@@ -85,6 +85,11 @@ message id on misses. `try_localize(...)` and `try_localize_in_domain(...)`
 preserve the core manager's `Option<String>` result for strict callers and
 tests.
 
+`manager()` intentionally exposes the underlying `Arc<FluentManager>` as an
+escape hatch. It is not part of the tracked language path: direct calls to
+`FluentManager::select_language(...)` can change lookup results without updating
+`ManagedI18n::active_language()` or a Dioxus signal.
+
 ### Client Hook Bridge
 
 The `web`, `desktop`, and `mobile` surfaces all reuse the same hook-based
@@ -102,16 +107,27 @@ runtime:
   active locale mirrored into a Dioxus `Signal` so render code can subscribe to
   locale changes.
 - `localize(...)` and `use_localized(...)` intentionally read that signal before
-  delegating to `es-fluent`, which is what makes locale changes rerender the UI.
+  delegating to the process-global `es-fluent` `ToFluentString` path, which is
+  what makes locale changes rerender the UI. These helpers are reactive but not
+  context-bound after an explicit `ReplaceExisting`; direct ID/domain helpers
+  use the `ManagedI18n` stored in the Dioxus context.
 
 Plain `to_fluent_string()` still works once the bridge is installed, but it does
 not subscribe the current component to locale changes by itself.
-The bridge is process-global. A Dioxus-level owner slot tracks whether the
-client bridge or SSR bridge currently owns that custom localizer. Client owners
-are identified by the `Arc<FluentManager>` inside `ManagedI18n`, so clones of
-the same manager can reinstall or reuse the bridge without becoming a distinct
-owner. `ErrorIfAlreadySet` and `ReuseIfSameOwner` reject distinct owners;
-`ReplaceExisting` is the only mode that transfers ownership.
+The bridge is process-global. A single internal `InstalledBridge` state stores
+both the active owner and any retained client manager, so ownership changes and
+manager retention are updated under the same lock. Client owners are identified
+by the `Arc<FluentManager>` inside `ManagedI18n`, so clones of the same manager
+can reinstall or reuse the bridge without becoming a distinct owner.
+`ErrorIfAlreadySet` and `ReuseIfSameOwner` reject distinct owners;
+`ReplaceExisting` is the only mode that transfers ownership. When SSR replaces a
+client bridge, the retained client manager is dropped from the installed bridge
+state.
+
+While a Dioxus bridge owns the process-global localizer, lookup misses are
+authoritative: the bridge returns the message id instead of `None`, preventing
+an unrelated global `es-fluent` context from masking missing Dioxus
+translations.
 
 ### SSR Bridge
 
@@ -128,6 +144,12 @@ The SSR module therefore:
   duration of one render call,
 - runs synchronous `dioxus::ssr` rendering while derived `es-fluent` calls
   resolve through that request-scoped manager.
+
+`rebuild_and_render(...)` is the safe SSR convenience path because localization
+often happens during the Dioxus rebuild pass. The lower-level
+`render(&VirtualDom)` and `pre_render(&VirtualDom)` methods only scope the final
+serialization step and assume the caller already rebuilt the `VirtualDom` inside
+`with_manager(...)`.
 
 This keeps SSR separate from the client lifecycle while still reusing the same
 module discovery and language-selection logic.

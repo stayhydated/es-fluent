@@ -36,17 +36,17 @@ Add the crate with the `derive` feature to access the procedural macros:
 
 ```toml
 [dependencies]
-es-fluent = { version = "*", features = ["derive"] }
-unic-langid = "*"
+es-fluent = { version = "0.15", features = ["derive"] }
+unic-langid = "0.9"
 
 # If you want to register modules with the embedded singleton and localize at runtime:
-es-fluent-manager-embedded = "*"
+es-fluent-manager-embedded = "0.15"
 
 # For Dioxus apps: pair it with your chosen Dioxus 0.7 renderer feature
-es-fluent-manager-dioxus = { version = "*", features = ["desktop"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["desktop"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
-es-fluent-manager-bevy = "*"
+es-fluent-manager-bevy = "0.18"
 ```
 
 `es_fluent_manager_embedded::init_with_language(...)` is the simplest startup
@@ -96,7 +96,7 @@ feature of `es-fluent` in build dependencies and call the tracking helper from
 
 ```toml
 [build-dependencies]
-es-fluent = { version = "*", features = ["build"] }
+es-fluent = { version = "0.15", features = ["build"] }
 ```
 
 ```rs

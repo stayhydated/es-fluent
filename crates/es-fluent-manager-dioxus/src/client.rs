@@ -70,6 +70,10 @@ impl DioxusI18n {
         self.reactive.current()
     }
 
+    pub fn requested_language(&self) -> LanguageIdentifier {
+        self.active_language()
+    }
+
     pub fn peek_language(&self) -> LanguageIdentifier {
         self.reactive.peek()
     }
@@ -92,9 +96,25 @@ impl DioxusI18n {
         Ok(())
     }
 
-    pub fn localize<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
+    /// Localizes an `es-fluent` derived value through the process-global
+    /// `ToFluentString` path while subscribing this component to locale changes.
+    ///
+    /// This is reactive, but it is not context-bound: formatting still uses the
+    /// current process-global `es-fluent` custom localizer. In normal
+    /// single-owner Dioxus apps that localizer points at this context's
+    /// `ManagedI18n`. In tests, examples, mixed client/SSR binaries, or code
+    /// using `GlobalLocalizerMode::ReplaceExisting`, another owner can replace
+    /// the global localizer. Use `localize_id(...)` or
+    /// `localize_in_domain(...)` when the lookup must go directly through this
+    /// `DioxusI18n` handle.
+    pub fn localize_global_fluent<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
         let _ = self.reactive.current();
         value.to_fluent_string()
+    }
+
+    /// Alias for [`Self::localize_global_fluent`].
+    pub fn localize<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
+        self.localize_global_fluent(value)
     }
 
     pub fn localize_id<'a>(

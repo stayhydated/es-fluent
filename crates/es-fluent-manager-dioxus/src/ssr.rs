@@ -1,13 +1,10 @@
 use crate::{
-    BridgeOwner, DioxusGlobalLocalizerError, DioxusInitError, GlobalLocalizerMode, ManagedI18n,
-    active_bridge_owner, global_bridge_install_lock,
+    DioxusGlobalLocalizerError, DioxusInitError, GlobalLocalizerMode, ManagedI18n,
+    bridge::install_ssr_bridge,
 };
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
-use es_fluent::{
-    FluentValue, GlobalLocalizationError, replace_custom_localizer_with_domain,
-    try_set_custom_localizer_with_domain,
-};
+use es_fluent::{FluentValue, GlobalLocalizationError};
 use es_fluent_manager_core::FluentManager;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -58,6 +55,10 @@ impl SsrI18n {
         self.managed.active_language()
     }
 
+    pub fn requested_language(&self) -> LanguageIdentifier {
+        self.active_language()
+    }
+
     pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
@@ -65,15 +66,52 @@ impl SsrI18n {
         self.managed.select_language(lang)
     }
 
+    pub fn select_language_strict<L: Into<LanguageIdentifier>>(
+        &self,
+        lang: L,
+    ) -> Result<(), GlobalLocalizationError> {
+        self.managed.select_language_strict(lang)
+    }
+
     pub fn with_manager<R>(&self, f: impl FnOnce() -> R) -> R {
         let _scope = CurrentManagerScope::new(self.managed.manager());
         f()
     }
 
+    /// Rebuilds the virtual DOM and serializes it while this request's manager
+    /// is installed.
+    ///
+    /// Use this for the common SSR path. Components that call
+    /// `to_fluent_string()` usually localize during the Dioxus rebuild pass, so
+    /// both rebuilding and rendering need the request-scoped manager.
+    pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
+        self.with_manager(|| {
+            dom.rebuild_in_place();
+            dioxus_ssr::render(dom)
+        })
+    }
+
+    /// Rebuilds the virtual DOM and pre-renders it while this request's manager
+    /// is installed.
+    pub fn rebuild_and_pre_render(&self, dom: &mut VirtualDom) -> String {
+        self.with_manager(|| {
+            dom.rebuild_in_place();
+            dioxus_ssr::pre_render(dom)
+        })
+    }
+
+    /// Serializes an already rebuilt virtual DOM while this request's manager is
+    /// installed.
+    ///
+    /// If localization happens during the rebuild pass, call
+    /// [`Self::rebuild_and_render`] or rebuild inside [`Self::with_manager`]
+    /// before using this lower-level method.
     pub fn render(&self, dom: &VirtualDom) -> String {
         self.with_manager(|| dioxus_ssr::render(dom))
     }
 
+    /// Pre-renders an already rebuilt virtual DOM while this request's manager
+    /// is installed.
     pub fn pre_render(&self, dom: &VirtualDom) -> String {
         self.with_manager(|| dioxus_ssr::pre_render(dom))
     }
@@ -116,52 +154,31 @@ impl Drop for CurrentManagerScope {
 pub fn install_global_localizer(
     mode: GlobalLocalizerMode,
 ) -> Result<(), DioxusGlobalLocalizerError> {
-    let _guard = global_bridge_install_lock();
-    let requested_owner = BridgeOwner::Ssr;
-    let mut owner = active_bridge_owner().write();
-
-    match *owner {
-        Some(active_owner)
-            if active_owner == requested_owner && mode != GlobalLocalizerMode::ReplaceExisting =>
-        {
-            return Ok(());
-        },
-        Some(active_owner) if mode != GlobalLocalizerMode::ReplaceExisting => {
-            return Err(DioxusGlobalLocalizerError::owner_conflict(
-                active_owner,
-                requested_owner,
-                mode,
-            ));
-        },
-        _ => {},
-    }
-
-    install_thread_local_bridge(mode)?;
-    *owner = Some(requested_owner);
-    Ok(())
-}
-
-fn install_thread_local_bridge(mode: GlobalLocalizerMode) -> Result<(), GlobalLocalizationError> {
-    let bridge =
+    install_ssr_bridge(
+        mode,
         move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
             CURRENT_MANAGER_STACK.with(|stack| {
-                stack.borrow().last().and_then(|manager| match domain {
+                let manager = Arc::clone(stack.borrow().last()?);
+                let message = match domain {
                     Some(domain) => manager.localize_in_domain(domain, id, args),
                     None => manager.localize(id, args),
-                })
-            })
-        };
+                };
 
-    match mode {
-        GlobalLocalizerMode::ErrorIfAlreadySet | GlobalLocalizerMode::ReuseIfSameOwner => {
-            try_set_custom_localizer_with_domain(bridge)
+                match message {
+                    Some(message) => Some(message),
+                    None => {
+                        match domain {
+                            Some(domain) => {
+                                tracing::warn!(domain, message_id = id, "missing Fluent message");
+                            },
+                            None => {
+                                tracing::warn!(message_id = id, "missing Fluent message");
+                            },
+                        }
+                        Some(id.to_string())
+                    },
+                }
+            })
         },
-        GlobalLocalizerMode::ReplaceExisting => {
-            tracing::debug!(
-                "replacing the process-global Fluent custom localizer with the Dioxus SSR bridge"
-            );
-            replace_custom_localizer_with_domain(bridge);
-            Ok(())
-        },
-    }
+    )
 }

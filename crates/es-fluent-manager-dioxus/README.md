@@ -36,9 +36,9 @@ features is redundant but harmless because they all use the same hook runtime.
 ```toml
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] }
-es-fluent = { version = "*", features = ["derive"] }
-es-fluent-manager-dioxus = { version = "*", features = ["desktop"] }
-unic-langid = "*"
+es-fluent = { version = "0.15", features = ["derive"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["desktop"] }
+unic-langid = "0.9"
 ```
 
 Register your locale assets once:
@@ -80,9 +80,14 @@ fn app() -> Element {
 ```
 
 Use `i18n.localize(...)` or `use_localized(...)` inside render code when you
-want locale changes to trigger rerenders. Plain `to_fluent_string()` still
-formats correctly after initialization, but it does not subscribe the component
-to locale changes on its own.
+want locale changes to trigger rerenders. These helpers read the Dioxus signal
+before delegating to the process-global `ToFluentString` path, so they are
+reactive but not strictly context-bound if another owner later calls
+`GlobalLocalizerMode::ReplaceExisting`. `localize_id(...)` and
+`localize_in_domain(...)` perform direct lookups through this `DioxusI18n`
+handle. Plain `to_fluent_string()` still formats correctly after
+initialization, but it does not subscribe the component to locale changes on its
+own.
 
 `initial_language` is read once for the lifetime of the root component. If a
 parent prop should drive the locale after startup, call
@@ -102,6 +107,15 @@ failure for concise examples. Applications that want to render an initialization
 error can use `use_try_init_i18n(...)` or `use_try_provide_i18n_with_mode(...)`
 and handle the returned `DioxusInitError`.
 
+For production event handlers, prefer handling locale switch failures instead
+of panicking:
+
+```ignore
+if let Err(error) = i18n.select_language(next) {
+    eprintln!("locale switch failed: {error}");
+}
+```
+
 Client hooks install an `es-fluent` process-global custom localizer so derived
 types can keep using `to_fluent_string()`. Treat that bridge as a singleton:
 the default `GlobalLocalizerMode::ErrorIfAlreadySet` mode rejects a second
@@ -111,6 +125,12 @@ same-owner reuse, and `GlobalLocalizerMode::ReplaceExisting` is the only mode
 that changes bridge ownership. Use replacement only in controlled examples,
 tests, or single-owner applications.
 
+While the Dioxus bridge owns the global localizer, missing Dioxus messages fall
+back to their message id instead of falling through to an unrelated global
+`es-fluent` context. `ManagedI18n::manager()` is available as an integration
+escape hatch, but using it to select languages bypasses the tracked
+`active_language()`/`requested_language()` value and Dioxus rerender signal.
+
 ## SSR
 
 The `ssr` feature is separate because server-side rendering needs request-scoped
@@ -119,7 +139,7 @@ manager ownership rather than a client-side signal.
 ```toml
 [dependencies]
 dioxus = { version = "0.7", default-features = false, features = ["ssr"] }
-es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 ```
 
 ```ignore
@@ -135,11 +155,7 @@ let mut vdom = VirtualDom::new(app);
 let i18n = SsrI18n::try_new_with_discovered_modules(langid!("en-US"))
     .expect("ssr i18n should initialize");
 
-i18n.with_manager(|| {
-    vdom.rebuild_in_place();
-});
-
-let html = i18n.render(&vdom);
+let html = i18n.rebuild_and_render(&mut vdom);
 ```
 
 `SsrI18n` currently targets synchronous `dioxus::ssr` rendering helpers. It
@@ -148,6 +164,10 @@ The default SSR constructor installs the thread-local global bridge
 idempotently, so request-scoped `SsrI18n` values can be created repeatedly.
 Applications may also call `SsrI18n::install_global_localizer(...)` once during
 startup before constructing per-request managers.
+Use `rebuild_and_render(...)` for the common path where localization can happen
+during the Dioxus rebuild pass. The lower-level `render(&VirtualDom)` method
+only scopes the final SSR serialization step and assumes the virtual DOM was
+already rebuilt inside `with_manager(...)`.
 
 When client and SSR features are enabled in the same binary, only one bridge may
 own the process-global custom localizer at a time. A second owner receives

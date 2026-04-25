@@ -61,6 +61,51 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --all-features
 
+  dioxus-manager-feature-matrix:
+    name: dioxus manager (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: no-default
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features
+          - name: default
+            command: cargo test -p es-fluent-manager-dioxus
+          - name: desktop
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop
+          - name: web
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features web
+          - name: mobile
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features mobile
+          - name: ssr
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
+          - name: desktop-ssr
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop,ssr
+          - name: all-features
+            command: cargo test -p es-fluent-manager-dioxus --all-features
+          - name: clippy
+            command: cargo clippy -p es-fluent-manager-dioxus --all-targets --all-features -- -D warnings
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Setup mold
+        uses: rui314/setup-mold@v1
+
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+
+      - name: Run check
+        run: ${{ matrix.command }}
+
   fmt:
     runs-on: ubuntu-latest
 

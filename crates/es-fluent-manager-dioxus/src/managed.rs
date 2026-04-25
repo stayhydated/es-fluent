@@ -1,18 +1,12 @@
 use crate::{
-    BridgeOwner, DioxusGlobalLocalizerError, DioxusInitError, GlobalLocalizerMode,
-    active_bridge_owner, global_bridge_install_lock,
+    DioxusGlobalLocalizerError, DioxusInitError, GlobalLocalizerMode, bridge::install_client_bridge,
 };
-use es_fluent::{
-    FluentValue, GlobalLocalizationError, replace_custom_localizer_with_domain,
-    try_set_custom_localizer_with_domain,
-};
+use es_fluent::{FluentValue, GlobalLocalizationError};
 use es_fluent_manager_core::FluentManager;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
-
-static ACTIVE_BRIDGE_MANAGER: OnceLock<RwLock<Option<Arc<FluentManager>>>> = OnceLock::new();
 
 #[derive(Clone)]
 pub struct ManagedI18n {
@@ -43,8 +37,20 @@ impl ManagedI18n {
         })
     }
 
+    /// Returns the underlying manager as an escape hatch for integrations.
+    ///
+    /// Do not use this to switch languages in Dioxus UI code. `FluentManager`
+    /// has interior mutable language state, so calling selection methods on the
+    /// returned manager bypasses `ManagedI18n::active_language()` and any
+    /// Dioxus signal held by `DioxusI18n`. Use `select_language(...)` or
+    /// `select_language_strict(...)` when the tracked language should remain
+    /// synchronized.
     pub fn manager(&self) -> Arc<FluentManager> {
         Arc::clone(&self.manager)
+    }
+
+    pub fn requested_language(&self) -> LanguageIdentifier {
+        self.active_language()
     }
 
     pub fn active_language(&self) -> LanguageIdentifier {
@@ -79,7 +85,7 @@ impl ManagedI18n {
         &self,
         mode: GlobalLocalizerMode,
     ) -> Result<(), DioxusGlobalLocalizerError> {
-        install_manager_bridge(Arc::clone(&self.manager), mode)
+        install_client_bridge(Arc::clone(&self.manager), mode)
     }
 
     pub fn try_localize<'a>(
@@ -122,72 +128,5 @@ impl ManagedI18n {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         self.manager.localize_in_domain(domain, id, args)
-    }
-}
-
-pub(crate) fn install_manager_bridge(
-    manager: Arc<FluentManager>,
-    mode: GlobalLocalizerMode,
-) -> Result<(), DioxusGlobalLocalizerError> {
-    let _guard = global_bridge_install_lock();
-    let requested_owner = BridgeOwner::Client(Arc::as_ptr(&manager) as usize);
-    let mut owner = active_bridge_owner().write();
-
-    match *owner {
-        Some(active_owner)
-            if active_owner == requested_owner && mode != GlobalLocalizerMode::ReplaceExisting =>
-        {
-            *active_bridge_manager().write() = Some(manager);
-            return Ok(());
-        },
-        Some(active_owner) if mode != GlobalLocalizerMode::ReplaceExisting => {
-            return Err(DioxusGlobalLocalizerError::owner_conflict(
-                active_owner,
-                requested_owner,
-                mode,
-            ));
-        },
-        _ => {},
-    }
-
-    let previous_manager = active_bridge_manager().read().clone();
-    *active_bridge_manager().write() = Some(Arc::clone(&manager));
-
-    if let Err(error) = install_manager_bridge_callback(mode) {
-        *active_bridge_manager().write() = previous_manager;
-        return Err(error.into());
-    }
-
-    *owner = Some(requested_owner);
-    Ok(())
-}
-
-fn active_bridge_manager() -> &'static RwLock<Option<Arc<FluentManager>>> {
-    ACTIVE_BRIDGE_MANAGER.get_or_init(|| RwLock::new(None))
-}
-
-fn install_manager_bridge_callback(
-    mode: GlobalLocalizerMode,
-) -> Result<(), GlobalLocalizationError> {
-    let bridge =
-        move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-            let manager = active_bridge_manager().read().clone();
-            manager.and_then(|manager| match domain {
-                Some(domain) => manager.localize_in_domain(domain, id, args),
-                None => manager.localize(id, args),
-            })
-        };
-
-    match mode {
-        GlobalLocalizerMode::ErrorIfAlreadySet | GlobalLocalizerMode::ReuseIfSameOwner => {
-            try_set_custom_localizer_with_domain(bridge)
-        },
-        GlobalLocalizerMode::ReplaceExisting => {
-            tracing::debug!(
-                "replacing the process-global Fluent custom localizer with the Dioxus i18n manager"
-            );
-            replace_custom_localizer_with_domain(bridge);
-            Ok(())
-        },
     }
 }

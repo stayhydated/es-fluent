@@ -27,7 +27,6 @@ pub mod ssr;
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_dioxus_i18n_module as define_i18n_module;
 
-pub(crate) use bridge::{BridgeOwner, active_bridge_owner, global_bridge_install_lock};
 pub use bridge::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, GlobalLocalizerMode};
 pub use error::DioxusInitError;
 pub use managed::ManagedI18n;
