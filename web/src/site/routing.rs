@@ -6,23 +6,12 @@ use crate::site::i18n::{
 use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
-use dioxus::router::{OutletContext, use_outlet_context};
-use dioxus_motion::animations::core::AnimationMode;
-use dioxus_motion::prelude::{
-    AnimatableRoute, AnimationConfig, AnimationManager as _, Spring, TransitionVariant,
-    TransitionVariantResolver, Tween, use_motion,
-};
-use dioxus_motion::transitions::page_transitions::{
-    AnimatedRouterContext, PageTransitionAnimation,
-};
 use es_fluent::ToFluentString as _;
 use es_fluent_manager_dioxus::{GlobalBridgePolicy, I18nProviderConfig, use_i18n_provider_once};
 use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
-use std::marker::PhantomData;
 use std::path::Path;
-use std::rc::Rc;
 use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -42,14 +31,6 @@ impl PageKind {
             Self::Home => "",
             Self::Demos => "demos",
             Self::Bevy => "bevy-example",
-        }
-    }
-
-    fn navigation_rank(self) -> u8 {
-        match self {
-            Self::Home => 0,
-            Self::Demos => 1,
-            Self::Bevy => 2,
         }
     }
 
@@ -175,7 +156,6 @@ impl FromStr for LocaleSegment {
 #[derive(Clone, Debug, PartialEq, Routable)]
 #[rustfmt::skip]
 pub(crate) enum AppRoute {
-    #[layout(AnimatedRouteOutlet)]
     #[route("/", HomeRoute)]
     Home {},
     #[route("/demos/", DemosRoute)]
@@ -203,24 +183,6 @@ impl AppRoute {
     }
 }
 
-impl AnimatableRoute for AppRoute {
-    fn get_transition(&self) -> TransitionVariant {
-        match self.site_route().page {
-            PageKind::Home => TransitionVariant::Fade,
-            PageKind::Demos => TransitionVariant::SlideLeftFade,
-            PageKind::Bevy => TransitionVariant::ZoomIn,
-        }
-    }
-
-    fn get_component(&self) -> Element {
-        route_element(self.site_route())
-    }
-
-    fn get_layout_depth(&self) -> usize {
-        1
-    }
-}
-
 pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
     match (locale.route_slug(), page) {
         (None, PageKind::Home) => AppRoute::Home {},
@@ -235,182 +197,6 @@ pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
         (Some(_), PageKind::Bevy) => AppRoute::LocalizedBevy {
             locale: LocaleSegment(locale),
         },
-    }
-}
-
-#[component]
-fn AnimatedRouteOutlet() -> Element {
-    use_context_provider::<TransitionVariantResolver<AppRoute>>(|| {
-        Rc::new(resolve_route_transition)
-    });
-
-    rsx! {
-        div { class: "page-transition-frame",
-            LocaleAwareAnimatedOutlet {}
-        }
-    }
-}
-
-#[component]
-fn LocaleAwareAnimatedOutlet() -> Element {
-    let route = use_route::<AppRoute>();
-    let mut animated_router = use_store(|| AnimatedRouterContext::Settled(route.clone()));
-    use_context_provider(move || animated_router);
-
-    use_effect(move || {
-        let current_route = use_route::<AppRoute>();
-        if animated_router.peek().target_route() != &current_route {
-            animated_router.write().set_target_route(current_route);
-        }
-    });
-
-    use_effect(move || {
-        if let AnimatedRouterContext::FromTo(from, to) = animated_router()
-            && is_locale_only_route_change(&from, &to)
-        {
-            animated_router.write().settle();
-        }
-    });
-
-    let outlet: OutletContext<AppRoute> = use_outlet_context();
-    let from_route = match animated_router() {
-        AnimatedRouterContext::FromTo(from, to) => Some((from, to)),
-        AnimatedRouterContext::Settled(_) => None,
-    };
-
-    let Some((from, to)) = from_route else {
-        return rsx! {
-            Outlet::<AppRoute> {}
-        };
-    };
-
-    // Locale switches keep the same page. Animating them mounts the destination
-    // once inside the transition and again after settle, replaying reveal motion.
-    if is_locale_only_route_change(&from, &to) {
-        return rsx! {
-            Outlet::<AppRoute> {}
-        };
-    }
-
-    let from_depth = from.get_layout_depth();
-    let to_depth = to.get_layout_depth();
-    let current_level = outlet.level();
-    let involves_root = from_depth == 1 || to_depth == 1;
-    let is_same_depth_and_matching_level = from_depth == to_depth && current_level == to_depth;
-
-    if involves_root || is_same_depth_and_matching_level {
-        rsx! {
-            FromRouteToCurrent {
-                route_type: PhantomData::<AppRoute>,
-                from,
-                to,
-            }
-        }
-    } else {
-        rsx! {
-            Outlet::<AppRoute> {}
-        }
-    }
-}
-
-#[component]
-fn FromRouteToCurrent(route_type: PhantomData<AppRoute>, from: AppRoute, to: AppRoute) -> Element {
-    let mut animated_router = use_context::<Store<AnimatedRouterContext<AppRoute>>>();
-    let resolver = try_use_context::<TransitionVariantResolver<AppRoute>>();
-    let transition_variant =
-        resolver.map_or_else(|| to.get_transition(), |resolver| resolver(&from, &to));
-    let config = transition_variant.get_config();
-    let mut from_anim = use_motion(PageTransitionAnimation::from_exit_start(&config));
-    let mut to_anim = use_motion(PageTransitionAnimation::from_enter_start(&config));
-    let default_spring = use_store(default_transition_spring);
-    let tween_store = try_use_context::<Store<Tween>>();
-    let spring_store = try_use_context::<Store<Spring>>();
-
-    use_effect(move || {
-        let mode = resolve_transition_mode(tween_store, spring_store, default_spring);
-        let animation_config = AnimationConfig::new(mode);
-
-        from_anim.animate_to(
-            PageTransitionAnimation::from_exit_end(&config),
-            animation_config.clone(),
-        );
-        to_anim.animate_to(
-            PageTransitionAnimation::from_enter_end(&config),
-            animation_config,
-        );
-    });
-
-    use_effect(move || {
-        if !from_anim.is_running() && !to_anim.is_running() {
-            animated_router.write().settle();
-        }
-    });
-
-    let from_val = from_anim.get_value();
-    let to_val = to_anim.get_value();
-
-    rsx! {
-        div {
-            class: "route-container",
-            style: "position: relative; overflow-visible; perspective: 1000px;",
-            div {
-                class: "route-content from",
-                style: format!(
-                    "transform: translate3d({}% , {}%, 0) scale({}); opacity: {}; will-change: transform, opacity; backface-visibility: hidden; -webkit-backface-visibility: hidden; contain: layout style;",
-                    from_val.x, from_val.y, from_val.scale, from_val.opacity
-                ),
-                {from.render(from.get_layout_depth() + 1)}
-            }
-            div {
-                class: "route-content to",
-                style: format!(
-                    "transform: translate3d({}% , {}%, 0) scale({}); opacity: {}; will-change: transform, opacity; backface-visibility: hidden; -webkit-backface-visibility: hidden;",
-                    to_val.x, to_val.y, to_val.scale, to_val.opacity
-                ),
-                Outlet::<AppRoute> {}
-            }
-        }
-    }
-}
-
-fn is_locale_only_route_change(from: &AppRoute, to: &AppRoute) -> bool {
-    let from = from.site_route();
-    let to = to.site_route();
-
-    from.page == to.page && from.locale != to.locale
-}
-
-fn default_transition_spring() -> Spring {
-    Spring {
-        stiffness: 160.0,
-        damping: 25.0,
-        mass: 1.0,
-        velocity: 0.0,
-    }
-}
-
-fn resolve_transition_mode(
-    tween_store: Option<Store<Tween>>,
-    spring_store: Option<Store<Spring>>,
-    default_spring: Store<Spring>,
-) -> AnimationMode {
-    tween_store
-        .map(|tween| AnimationMode::Tween(tween()))
-        .unwrap_or_else(|| AnimationMode::Spring(spring_store.unwrap_or(default_spring)()))
-}
-
-fn resolve_route_transition(from: &AppRoute, to: &AppRoute) -> TransitionVariant {
-    let from = from.site_route();
-    let to = to.site_route();
-
-    if from.locale != to.locale {
-        return TransitionVariant::Fade;
-    }
-
-    match from.page.navigation_rank().cmp(&to.page.navigation_rank()) {
-        std::cmp::Ordering::Less => TransitionVariant::SlideLeftFade,
-        std::cmp::Ordering::Greater => TransitionVariant::SlideRightFade,
-        std::cmp::Ordering::Equal => TransitionVariant::Fade,
     }
 }
 

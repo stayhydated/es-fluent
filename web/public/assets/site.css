@@ -65,7 +65,6 @@ pre {
   padding: 1.25rem 0 4rem;
 }
 
-.page-transition-frame,
 .route-container {
   min-height: 100vh;
 }
@@ -590,8 +589,7 @@ pre {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .motion-reveal,
-  .route-content {
+  .motion-reveal {
     --motion-opacity: 1 !important;
     --motion-scale: 1 !important;
     --motion-y: 0px !important;
