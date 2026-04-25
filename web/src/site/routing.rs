@@ -170,19 +170,6 @@ pub(crate) enum AppRoute {
     LocalizedBevy { locale: LocaleSegment },
 }
 
-impl AppRoute {
-    fn site_route(&self) -> SiteRoute {
-        match self {
-            Self::Home {} => SiteRoute::new(SiteLanguage::default(), PageKind::Home),
-            Self::Demos {} => SiteRoute::new(SiteLanguage::default(), PageKind::Demos),
-            Self::Bevy {} => SiteRoute::new(SiteLanguage::default(), PageKind::Bevy),
-            Self::LocalizedHome { locale } => SiteRoute::new(locale.language(), PageKind::Home),
-            Self::LocalizedDemos { locale } => SiteRoute::new(locale.language(), PageKind::Demos),
-            Self::LocalizedBevy { locale } => SiteRoute::new(locale.language(), PageKind::Bevy),
-        }
-    }
-}
-
 pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
     match (locale.route_slug(), page) {
         (None, PageKind::Home) => AppRoute::Home {},
