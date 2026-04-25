@@ -1,6 +1,7 @@
 use es_fluent::{
-    FluentValue, GlobalLocalizationError, replace_custom_localizer_with_domain,
-    try_set_custom_localizer_with_domain,
+    CustomLocalizerGeneration, FluentValue, GlobalLocalizationError,
+    current_custom_localizer_generation, replace_custom_localizer_with_domain_and_generation,
+    try_set_custom_localizer_with_domain_and_generation,
 };
 use es_fluent_manager_core::FluentManager;
 use parking_lot::RwLock;
@@ -8,11 +9,11 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum GlobalLocalizerMode {
+pub enum GlobalBridgePolicy {
+    Disabled,
     #[default]
-    ErrorIfAlreadySet,
+    InstallOnce,
     ReplaceExisting,
-    ReuseIfSameOwner,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,7 +27,7 @@ pub enum DioxusGlobalLocalizerError {
     OwnerConflict {
         active: DioxusGlobalLocalizerOwner,
         requested: DioxusGlobalLocalizerOwner,
-        mode: GlobalLocalizerMode,
+        policy: GlobalBridgePolicy,
     },
     Global(Arc<GlobalLocalizationError>),
 }
@@ -35,12 +36,12 @@ impl DioxusGlobalLocalizerError {
     pub(crate) fn owner_conflict(
         active: BridgeOwner,
         requested: BridgeOwner,
-        mode: GlobalLocalizerMode,
+        policy: GlobalBridgePolicy,
     ) -> Self {
         Self::OwnerConflict {
             active: active.public_owner(),
             requested: requested.public_owner(),
-            mode,
+            policy,
         }
     }
 }
@@ -51,20 +52,20 @@ impl std::fmt::Display for DioxusGlobalLocalizerError {
             Self::OwnerConflict {
                 active: DioxusGlobalLocalizerOwner::Client,
                 requested: DioxusGlobalLocalizerOwner::Client,
-                mode,
+                policy,
             } => write!(
                 f,
                 "a different Dioxus client manager already owns the global Fluent localizer; \
-                 requested the client bridge with {mode:?}",
+                 requested the client bridge with {policy:?}",
             ),
             Self::OwnerConflict {
                 active,
                 requested,
-                mode,
+                policy,
             } => write!(
                 f,
                 "the Dioxus global Fluent localizer is already owned by the {active} bridge; \
-                 requested the {requested} bridge with {mode:?}",
+                 requested the {requested} bridge with {policy:?}",
             ),
             Self::Global(error) => write!(f, "{error}"),
         }
@@ -116,9 +117,12 @@ enum InstalledBridge {
     Client {
         owner_id: usize,
         manager: Arc<FluentManager>,
+        generation: CustomLocalizerGeneration,
     },
     #[cfg(feature = "ssr")]
-    Ssr,
+    Ssr {
+        generation: CustomLocalizerGeneration,
+    },
 }
 
 impl InstalledBridge {
@@ -126,8 +130,20 @@ impl InstalledBridge {
         match self {
             Self::Client { owner_id, .. } => BridgeOwner::Client(*owner_id),
             #[cfg(feature = "ssr")]
-            Self::Ssr => BridgeOwner::Ssr,
+            Self::Ssr { .. } => BridgeOwner::Ssr,
         }
+    }
+
+    fn generation(&self) -> CustomLocalizerGeneration {
+        match self {
+            Self::Client { generation, .. } => *generation,
+            #[cfg(feature = "ssr")]
+            Self::Ssr { generation } => *generation,
+        }
+    }
+
+    fn is_current_custom_localizer(&self) -> bool {
+        current_custom_localizer_generation() == Some(self.generation())
     }
 }
 
@@ -146,9 +162,14 @@ fn installed_bridge() -> &'static RwLock<Option<InstalledBridge>> {
 
 pub(crate) fn current_client_bridge_manager() -> Option<Arc<FluentManager>> {
     match installed_bridge().read().as_ref() {
-        Some(InstalledBridge::Client { manager, .. }) => Some(Arc::clone(manager)),
+        Some(bridge @ InstalledBridge::Client { manager, .. })
+            if bridge.is_current_custom_localizer() =>
+        {
+            Some(Arc::clone(manager))
+        },
+        Some(InstalledBridge::Client { .. }) => None,
         #[cfg(feature = "ssr")]
-        Some(InstalledBridge::Ssr) | None => None,
+        Some(InstalledBridge::Ssr { .. }) | None => None,
         #[cfg(not(feature = "ssr"))]
         None => None,
     }
@@ -156,43 +177,51 @@ pub(crate) fn current_client_bridge_manager() -> Option<Arc<FluentManager>> {
 
 pub(crate) fn install_client_bridge(
     manager: Arc<FluentManager>,
-    mode: GlobalLocalizerMode,
+    policy: GlobalBridgePolicy,
 ) -> Result<(), DioxusGlobalLocalizerError> {
+    if policy == GlobalBridgePolicy::Disabled {
+        return Ok(());
+    }
+
     let _guard = global_bridge_install_lock();
     let requested_owner = BridgeOwner::Client(Arc::as_ptr(&manager) as usize);
     let mut bridge = installed_bridge().write();
 
+    if bridge
+        .as_ref()
+        .is_some_and(|bridge| !bridge.is_current_custom_localizer())
+    {
+        *bridge = None;
+    }
+
     match bridge.as_ref().map(InstalledBridge::owner) {
         Some(active_owner)
-            if active_owner == requested_owner && mode != GlobalLocalizerMode::ReplaceExisting =>
+            if active_owner == requested_owner && policy == GlobalBridgePolicy::InstallOnce =>
         {
-            *bridge = Some(InstalledBridge::Client {
-                owner_id: Arc::as_ptr(&manager) as usize,
-                manager,
-            });
             return Ok(());
         },
-        Some(active_owner) if mode != GlobalLocalizerMode::ReplaceExisting => {
+        Some(active_owner) if policy == GlobalBridgePolicy::InstallOnce => {
             return Err(DioxusGlobalLocalizerError::owner_conflict(
                 active_owner,
                 requested_owner,
-                mode,
+                policy,
             ));
         },
         _ => {},
     }
 
-    install_client_bridge_callback(mode)?;
+    let generation = install_client_bridge_callback(policy)?;
     *bridge = Some(InstalledBridge::Client {
         owner_id: Arc::as_ptr(&manager) as usize,
         manager,
+        generation,
     });
     Ok(())
 }
 
 #[cfg(feature = "ssr")]
 pub(crate) fn install_ssr_bridge<F>(
-    mode: GlobalLocalizerMode,
+    policy: GlobalBridgePolicy,
     callback: F,
 ) -> Result<(), DioxusGlobalLocalizerError>
 where
@@ -201,36 +230,47 @@ where
         + Sync
         + 'static,
 {
+    if policy == GlobalBridgePolicy::Disabled {
+        return Ok(());
+    }
+
     let _guard = global_bridge_install_lock();
     let requested_owner = BridgeOwner::Ssr;
     let mut bridge = installed_bridge().write();
 
+    if bridge
+        .as_ref()
+        .is_some_and(|bridge| !bridge.is_current_custom_localizer())
+    {
+        *bridge = None;
+    }
+
     match bridge.as_ref().map(InstalledBridge::owner) {
         Some(active_owner)
-            if active_owner == requested_owner && mode != GlobalLocalizerMode::ReplaceExisting =>
+            if active_owner == requested_owner && policy == GlobalBridgePolicy::InstallOnce =>
         {
             return Ok(());
         },
-        Some(active_owner) if mode != GlobalLocalizerMode::ReplaceExisting => {
+        Some(active_owner) if policy == GlobalBridgePolicy::InstallOnce => {
             return Err(DioxusGlobalLocalizerError::owner_conflict(
                 active_owner,
                 requested_owner,
-                mode,
+                policy,
             ));
         },
         _ => {},
     }
 
-    install_custom_localizer(mode, callback)?;
-    *bridge = Some(InstalledBridge::Ssr);
+    let generation = install_custom_localizer(policy, callback)?;
+    *bridge = Some(InstalledBridge::Ssr { generation });
     Ok(())
 }
 
 fn install_client_bridge_callback(
-    mode: GlobalLocalizerMode,
-) -> Result<(), GlobalLocalizationError> {
+    policy: GlobalBridgePolicy,
+) -> Result<CustomLocalizerGeneration, GlobalLocalizationError> {
     install_custom_localizer(
-        mode,
+        policy,
         move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
             let manager = current_client_bridge_manager()?;
             let message = match domain {
@@ -257,23 +297,27 @@ fn install_client_bridge_callback(
 }
 
 pub(crate) fn install_custom_localizer<F>(
-    mode: GlobalLocalizerMode,
+    policy: GlobalBridgePolicy,
     callback: F,
-) -> Result<(), GlobalLocalizationError>
+) -> Result<CustomLocalizerGeneration, GlobalLocalizationError>
 where
     F: for<'a> Fn(Option<&str>, &str, Option<&HashMap<&str, FluentValue<'a>>>) -> Option<String>
         + Send
         + Sync
         + 'static,
 {
-    match mode {
-        GlobalLocalizerMode::ErrorIfAlreadySet | GlobalLocalizerMode::ReuseIfSameOwner => {
-            try_set_custom_localizer_with_domain(callback)
+    match policy {
+        GlobalBridgePolicy::Disabled => {
+            unreachable!("disabled global bridge policy is handled before installation")
         },
-        GlobalLocalizerMode::ReplaceExisting => {
+        GlobalBridgePolicy::InstallOnce => {
+            try_set_custom_localizer_with_domain_and_generation(callback)
+        },
+        GlobalBridgePolicy::ReplaceExisting => {
             tracing::debug!("replacing the process-global Fluent custom localizer with Dioxus");
-            replace_custom_localizer_with_domain(callback);
-            Ok(())
+            Ok(replace_custom_localizer_with_domain_and_generation(
+                callback,
+            ))
         },
     }
 }

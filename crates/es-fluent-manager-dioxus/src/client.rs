@@ -1,6 +1,6 @@
-use crate::{DioxusInitError, GlobalLocalizerMode, ManagedI18n};
+use crate::{DioxusInitError, GlobalBridgePolicy, ManagedI18n};
 use dioxus_core::use_hook;
-use dioxus_hooks::{use_context, use_context_provider};
+use dioxus_hooks::{try_use_context, use_context_provider};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
 use es_fluent::{FluentValue, GlobalLocalizationError, ToFluentString};
 use std::collections::HashMap;
@@ -34,7 +34,7 @@ where
     }
 }
 
-fn use_provide_reactive_context<TState, TTracked>(
+fn provide_reactive_context_once<TState, TTracked>(
     state: TState,
     tracked_init: impl Fn(&TState) -> TTracked + 'static,
 ) -> ReactiveContext<TState, TTracked>
@@ -48,12 +48,32 @@ where
     })
 }
 
-fn use_reactive_context<TState, TTracked>() -> ReactiveContext<TState, TTracked>
+fn try_use_reactive_context<TState, TTracked>() -> Option<ReactiveContext<TState, TTracked>>
 where
     TState: Clone + 'static,
     TTracked: Clone + 'static,
 {
-    use_context::<ReactiveContext<TState, TTracked>>()
+    try_use_context::<ReactiveContext<TState, TTracked>>()
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct I18nProviderConfig {
+    pub initial_language: LanguageIdentifier,
+    pub global_bridge: GlobalBridgePolicy,
+}
+
+impl I18nProviderConfig {
+    pub fn new<L: Into<LanguageIdentifier>>(initial_language: L) -> Self {
+        Self {
+            initial_language: initial_language.into(),
+            global_bridge: GlobalBridgePolicy::Disabled,
+        }
+    }
+
+    pub fn with_global_bridge(mut self, global_bridge: GlobalBridgePolicy) -> Self {
+        self.global_bridge = global_bridge;
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -70,7 +90,7 @@ impl DioxusI18n {
         self.reactive.current()
     }
 
-    pub fn peek_language(&self) -> LanguageIdentifier {
+    pub fn peek_requested_language(&self) -> LanguageIdentifier {
         self.reactive.peek()
     }
 
@@ -90,22 +110,6 @@ impl DioxusI18n {
         self.managed().select_language_strict(lang)?;
         self.reactive.update(self.managed().requested_language());
         Ok(())
-    }
-
-    /// Localizes an `es-fluent` derived value through the process-global
-    /// `ToFluentString` path while subscribing this component to locale changes.
-    ///
-    /// This is reactive, but it is not context-bound: formatting still uses the
-    /// current process-global `es-fluent` custom localizer. In normal
-    /// single-owner Dioxus apps that localizer points at this context's
-    /// `ManagedI18n`. In tests, examples, mixed client/SSR binaries, or code
-    /// using `GlobalLocalizerMode::ReplaceExisting`, another owner can replace
-    /// the global localizer. Use `localize_id(...)` or
-    /// `localize_in_domain(...)` when the lookup must go directly through this
-    /// `DioxusI18n` handle.
-    pub fn localize_global_fluent<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
-        let _ = self.reactive.current();
-        value.to_fluent_string()
     }
 
     pub fn localize_id<'a>(
@@ -147,68 +151,52 @@ impl DioxusI18n {
     }
 }
 
-pub fn use_init_i18n<L: Into<LanguageIdentifier>>(initial_language: L) -> DioxusI18n {
-    use_init_i18n_with_mode(initial_language, GlobalLocalizerMode::ErrorIfAlreadySet)
+pub trait GlobalBridgeLocalizationExt {
+    fn localize_via_global<T: ToFluentString + ?Sized>(&self, value: &T) -> String;
 }
 
-pub fn use_init_i18n_with_mode<L: Into<LanguageIdentifier>>(
-    initial_language: L,
-    mode: GlobalLocalizerMode,
-) -> DioxusI18n {
-    use_try_init_i18n_with_mode(initial_language, mode)
-        .unwrap_or_else(|error| panic!("failed to initialize Dioxus i18n manager: {error}"))
+impl GlobalBridgeLocalizationExt for DioxusI18n {
+    fn localize_via_global<T: ToFluentString + ?Sized>(&self, value: &T) -> String {
+        let _ = self.reactive.current();
+        value.to_fluent_string()
+    }
 }
 
-pub fn use_try_init_i18n<L: Into<LanguageIdentifier>>(
-    initial_language: L,
-) -> Result<DioxusI18n, DioxusInitError> {
-    use_try_init_i18n_with_mode(initial_language, GlobalLocalizerMode::ErrorIfAlreadySet)
+pub fn use_i18n_provider_once(config: I18nProviderConfig) -> Result<DioxusI18n, DioxusInitError> {
+    let managed = use_hook({
+        let initial_language = config.initial_language.clone();
+        move || ManagedI18n::try_new_with_discovered_modules(initial_language)
+    });
+
+    use_provide_i18n_once(managed?, config.global_bridge)
 }
 
-pub fn use_try_init_i18n_with_mode<L: Into<LanguageIdentifier>>(
-    initial_language: L,
-    mode: GlobalLocalizerMode,
-) -> Result<DioxusI18n, DioxusInitError> {
-    let initial_language = initial_language.into();
-    let managed = use_hook(move || ManagedI18n::try_new_with_discovered_modules(initial_language));
-    use_try_provide_i18n_with_mode(managed?, mode)
-}
-
-pub fn use_provide_i18n(managed: ManagedI18n) -> DioxusI18n {
-    use_provide_i18n_with_mode(managed, GlobalLocalizerMode::ErrorIfAlreadySet)
-}
-
-pub fn use_provide_i18n_with_mode(managed: ManagedI18n, mode: GlobalLocalizerMode) -> DioxusI18n {
-    use_try_provide_i18n_with_mode(managed, mode)
-        .unwrap_or_else(|error| panic!("failed to initialize Dioxus i18n bridge: {error}"))
-}
-
-pub fn use_try_provide_i18n(managed: ManagedI18n) -> Result<DioxusI18n, DioxusInitError> {
-    use_try_provide_i18n_with_mode(managed, GlobalLocalizerMode::ErrorIfAlreadySet)
-}
-
-pub fn use_try_provide_i18n_with_mode(
+pub fn use_provide_i18n_once(
     managed: ManagedI18n,
-    mode: GlobalLocalizerMode,
+    global_bridge: GlobalBridgePolicy,
 ) -> Result<DioxusI18n, DioxusInitError> {
+    let managed = use_hook({ move || managed });
+
     let install_result = use_hook({
         let managed = managed.clone();
-        move || managed.install_client_global_localizer(mode)
+        move || managed.install_client_global_bridge(global_bridge)
     });
 
     install_result.map_err(DioxusInitError::global_localizer)?;
 
     Ok(DioxusI18n {
-        reactive: use_provide_reactive_context(managed, ManagedI18n::requested_language),
+        reactive: provide_reactive_context_once(managed, ManagedI18n::requested_language),
     })
 }
 
-pub fn use_i18n() -> DioxusI18n {
-    DioxusI18n {
-        reactive: use_reactive_context(),
-    }
+pub fn try_use_i18n() -> Option<DioxusI18n> {
+    try_use_reactive_context().map(|reactive| DioxusI18n { reactive })
 }
 
-pub fn use_global_localized<T: ToFluentString + ?Sized>(value: &T) -> String {
-    use_i18n().localize_global_fluent(value)
+pub fn use_i18n() -> DioxusI18n {
+    try_use_i18n().expect("missing DioxusI18n provider")
+}
+
+pub fn use_global_bridge_localized<T: ToFluentString + ?Sized>(value: &T) -> String {
+    use_i18n().localize_via_global(value)
 }

@@ -14,14 +14,13 @@ categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "i18n", "locale", "dioxus" ]
 
 [features]
-default = [ "macros" ]
-desktop = [ "dioxus-common" ]
+client = [ "dep:dioxus-core", "dep:dioxus-hooks", "dep:dioxus-signals" ]
+default = [ "macros", "client" ]
+desktop = [ "client" ]
 macros = [ "dep:es-fluent-manager-macros" ]
-mobile = [ "dioxus-common" ]
+mobile = [ "client" ]
 ssr = [ "dep:dioxus-core", "dep:dioxus-ssr" ]
-web = [ "dioxus-common" ]
-
-dioxus-common = [ "dep:dioxus-core", "dep:dioxus-hooks", "dep:dioxus-signals" ]
+web = [ "client" ]
 
 [dependencies]
 dioxus-core = { optional = true, workspace = true }
@@ -39,6 +38,7 @@ unic-langid = { workspace = true }
 dioxus-core-macro = { workspace = true }
 dioxus-html = { workspace = true }
 dioxus-signals = { workspace = true }
+dioxus-ssr = { workspace = true }
 serial_test = { workspace = true }
 
 [lints]

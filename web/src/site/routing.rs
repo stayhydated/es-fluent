@@ -17,7 +17,7 @@ use dioxus_motion::transitions::page_transitions::{
 };
 use es_fluent::ToFluentString as _;
 use es_fluent_manager_dioxus::ManagedI18n;
-use es_fluent_manager_dioxus::{GlobalLocalizerMode, use_provide_i18n_with_mode};
+use es_fluent_manager_dioxus::{GlobalBridgePolicy, use_provide_i18n_once};
 use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
@@ -580,8 +580,8 @@ fn route_element(route: SiteRoute) -> Element {
 
     match init_result.as_ref() {
         Ok(managed) => {
-            let _i18n =
-                use_provide_i18n_with_mode(managed.clone(), GlobalLocalizerMode::ReplaceExisting);
+            let _i18n = use_provide_i18n_once(managed.clone(), GlobalBridgePolicy::ReplaceExisting)
+                .expect("site i18n should initialize");
             let title = format!(
                 "{} | {}",
                 SiteChromeMessage::SiteName.to_fluent_string(),

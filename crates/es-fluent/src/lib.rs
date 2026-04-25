@@ -28,7 +28,10 @@ use arc_swap::ArcSwap;
 use es_fluent_manager_core::FluentManager;
 use es_fluent_shared::EsFluentError;
 use parking_lot::RwLock;
-use std::sync::{Arc, OnceLock};
+use std::sync::{
+    Arc, OnceLock,
+    atomic::{AtomicU64, Ordering},
+};
 
 #[cfg(feature = "build")]
 pub mod build {
@@ -51,10 +54,25 @@ type DomainAwareCustomLocalizer = dyn for<'a> Fn(
     + Sync;
 
 #[doc(hidden)]
-static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<DomainAwareCustomLocalizer>>>> =
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CustomLocalizerGeneration(u64);
+
+struct DomainAwareCustomLocalizerEntry {
+    generation: CustomLocalizerGeneration,
+    localizer: Arc<DomainAwareCustomLocalizer>,
+}
+
+#[doc(hidden)]
+static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<DomainAwareCustomLocalizerEntry>>>> =
     OnceLock::new();
 
-fn custom_localizer_slot() -> &'static RwLock<Option<Arc<DomainAwareCustomLocalizer>>> {
+static CUSTOM_LOCALIZER_GENERATION: AtomicU64 = AtomicU64::new(1);
+
+fn next_custom_localizer_generation() -> CustomLocalizerGeneration {
+    CustomLocalizerGeneration(CUSTOM_LOCALIZER_GENERATION.fetch_add(1, Ordering::Relaxed))
+}
+
+fn custom_localizer_slot() -> &'static RwLock<Option<Arc<DomainAwareCustomLocalizerEntry>>> {
     CUSTOM_LOCALIZER.get_or_init(|| RwLock::new(None))
 }
 
@@ -65,7 +83,7 @@ fn try_custom_localizer<'a>(
     CUSTOM_LOCALIZER
         .get()
         .and_then(|slot| slot.read().clone())
-        .and_then(|custom_localizer| custom_localizer(None, id, args))
+        .and_then(|entry| (entry.localizer)(None, id, args))
 }
 
 fn try_custom_localizer_in_domain<'a>(
@@ -76,7 +94,14 @@ fn try_custom_localizer_in_domain<'a>(
     CUSTOM_LOCALIZER
         .get()
         .and_then(|slot| slot.read().clone())
-        .and_then(|custom_localizer| custom_localizer(Some(domain), id, args))
+        .and_then(|entry| (entry.localizer)(Some(domain), id, args))
+}
+
+#[doc(hidden)]
+pub fn current_custom_localizer_generation() -> Option<CustomLocalizerGeneration> {
+    CUSTOM_LOCALIZER
+        .get()
+        .and_then(|slot| slot.read().as_ref().map(|entry| entry.generation))
 }
 
 #[derive(Debug)]
@@ -193,12 +218,33 @@ where
         + Sync
         + 'static,
 {
+    try_set_custom_localizer_with_domain_and_generation(localizer).map(|_| ())
+}
+
+#[doc(hidden)]
+pub fn try_set_custom_localizer_with_domain_and_generation<F>(
+    localizer: F,
+) -> Result<CustomLocalizerGeneration, GlobalLocalizationError>
+where
+    F: for<'a> Fn(
+            Option<&str>,
+            &str,
+            Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String>
+        + Send
+        + Sync
+        + 'static,
+{
     let mut slot = custom_localizer_slot().write();
     if slot.is_some() {
         return Err(GlobalLocalizationError::CustomLocalizerAlreadyInitialized);
     }
-    *slot = Some(Arc::new(localizer));
-    Ok(())
+    let generation = next_custom_localizer_generation();
+    *slot = Some(Arc::new(DomainAwareCustomLocalizerEntry {
+        generation,
+        localizer: Arc::new(localizer),
+    }));
+    Ok(generation)
 }
 
 /// Replaces the custom localizer with a domain-aware callback.
@@ -214,7 +260,29 @@ where
         + Sync
         + 'static,
 {
-    *custom_localizer_slot().write() = Some(Arc::new(localizer));
+    replace_custom_localizer_with_domain_and_generation(localizer);
+}
+
+#[doc(hidden)]
+pub fn replace_custom_localizer_with_domain_and_generation<F>(
+    localizer: F,
+) -> CustomLocalizerGeneration
+where
+    F: for<'a> Fn(
+            Option<&str>,
+            &str,
+            Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String>
+        + Send
+        + Sync
+        + 'static,
+{
+    let generation = next_custom_localizer_generation();
+    *custom_localizer_slot().write() = Some(Arc::new(DomainAwareCustomLocalizerEntry {
+        generation,
+        localizer: Arc::new(localizer),
+    }));
+    generation
 }
 
 /// Selects a language for all localizers in the global context.

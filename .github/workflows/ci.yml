@@ -72,6 +72,8 @@ jobs:
             command: cargo test -p es-fluent-manager-dioxus --no-default-features
           - name: macros
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features macros
+          - name: client
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client
           - name: desktop
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop
           - name: web
@@ -80,10 +82,10 @@ jobs:
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features mobile
           - name: ssr
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
-          - name: desktop-ssr
-            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop,ssr
-          - name: desktop-ssr-macros
-            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features desktop,ssr,macros
+          - name: web-ssr
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features web,ssr
+          - name: web-ssr-macros
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features web,ssr,macros
           - name: all-features
             command: cargo test -p es-fluent-manager-dioxus --all-features
           - name: clippy

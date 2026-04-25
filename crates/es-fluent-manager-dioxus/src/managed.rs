@@ -1,6 +1,6 @@
 use crate::DioxusInitError;
-#[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
-use crate::{DioxusGlobalLocalizerError, GlobalLocalizerMode, bridge::install_client_bridge};
+#[cfg(feature = "client")]
+use crate::{DioxusGlobalLocalizerError, GlobalBridgePolicy, bridge::install_client_bridge};
 use es_fluent::{FluentValue, GlobalLocalizationError};
 use es_fluent_manager_core::FluentManager;
 use parking_lot::RwLock;
@@ -37,7 +37,7 @@ impl ManagedI18n {
         })
     }
 
-    /// Returns the underlying manager as an escape hatch for integrations.
+    /// Returns the underlying manager as an explicit escape hatch for integrations.
     ///
     /// Do not use this to switch languages in Dioxus UI code. `FluentManager`
     /// has interior mutable language state, so calling selection methods on the
@@ -45,7 +45,7 @@ impl ManagedI18n {
     /// Dioxus signal held by `DioxusI18n`. Use `select_language(...)` or
     /// `select_language_strict(...)` when the tracked language should remain
     /// synchronized.
-    pub fn manager(&self) -> Arc<FluentManager> {
+    pub fn raw_manager_untracked(&self) -> Arc<FluentManager> {
         Arc::clone(&self.manager)
     }
 
@@ -87,12 +87,12 @@ impl ManagedI18n {
     /// This is only available for Dioxus client renderers. SSR must use
     /// `SsrI18n::install_global_localizer(...)` so localization is resolved
     /// through the synchronous request-scoped thread-local bridge.
-    #[cfg(any(feature = "desktop", feature = "mobile", feature = "web"))]
-    pub fn install_client_global_localizer(
+    #[cfg(feature = "client")]
+    pub fn install_client_global_bridge(
         &self,
-        mode: GlobalLocalizerMode,
+        policy: GlobalBridgePolicy,
     ) -> Result<(), DioxusGlobalLocalizerError> {
-        install_client_bridge(Arc::clone(&self.manager), mode)
+        install_client_bridge(Arc::clone(&self.manager), policy)
     }
 
     pub fn try_localize<'a>(

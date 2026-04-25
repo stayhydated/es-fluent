@@ -1,5 +1,5 @@
 use crate::{
-    DioxusGlobalLocalizerError, DioxusInitError, GlobalLocalizerMode, ManagedI18n,
+    DioxusGlobalLocalizerError, DioxusInitError, GlobalBridgePolicy, ManagedI18n,
     bridge::install_ssr_bridge,
 };
 use dioxus_core::{Element, VirtualDom};
@@ -35,23 +35,23 @@ impl SsrI18n {
     pub fn try_new_with_discovered_modules<L: Into<LanguageIdentifier>>(
         lang: L,
     ) -> Result<Self, DioxusInitError> {
-        Self::try_new_with_discovered_modules_and_mode(lang, GlobalLocalizerMode::ErrorIfAlreadySet)
+        Self::try_new_with_discovered_modules_and_policy(lang, GlobalBridgePolicy::InstallOnce)
     }
 
-    pub fn try_new_with_discovered_modules_and_mode<L: Into<LanguageIdentifier>>(
+    pub fn try_new_with_discovered_modules_and_policy<L: Into<LanguageIdentifier>>(
         lang: L,
-        mode: GlobalLocalizerMode,
+        policy: GlobalBridgePolicy,
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::try_new_with_discovered_modules(lang)?;
-        install_global_localizer(mode).map_err(DioxusInitError::global_localizer)?;
+        install_global_bridge(policy).map_err(DioxusInitError::global_localizer)?;
 
         Ok(Self { managed })
     }
 
-    pub fn install_global_localizer(
-        mode: GlobalLocalizerMode,
+    pub fn install_global_bridge(
+        policy: GlobalBridgePolicy,
     ) -> Result<(), DioxusGlobalLocalizerError> {
-        install_global_localizer(mode)
+        install_global_bridge(policy)
     }
 
     pub fn managed(&self) -> &ManagedI18n {
@@ -82,8 +82,12 @@ impl SsrI18n {
     /// callbacks, or fullstack server boundaries. The manager stack is
     /// thread-local and is only safe for synchronous SSR work.
     pub fn with_sync_manager<R>(&self, f: impl FnOnce() -> R) -> R {
-        let _scope = CurrentManagerScope::new(self.managed.manager());
+        let _scope = CurrentManagerScope::new(self.managed.raw_manager_untracked());
         f()
+    }
+
+    pub fn with_scope<R>(&self, f: impl FnOnce() -> R) -> R {
+        self.with_sync_manager(f)
     }
 
     /// Rebuilds the virtual DOM and serializes it while this request's manager
@@ -119,6 +123,10 @@ impl SsrI18n {
         self.with_sync_manager(|| dioxus_ssr::render(dom))
     }
 
+    pub fn render_scoped(&self, dom: &VirtualDom) -> String {
+        self.render(dom)
+    }
+
     /// Pre-renders an already rebuilt virtual DOM while this request's manager
     /// is installed.
     pub fn pre_render(&self, dom: &VirtualDom) -> String {
@@ -148,26 +156,43 @@ impl CurrentManagerScope {
 impl Drop for CurrentManagerScope {
     fn drop(&mut self) {
         CURRENT_MANAGER_STACK.with(|stack| {
-            let popped = stack.borrow_mut().pop();
-            debug_assert!(popped.is_some(), "SSR manager stack underflow");
-            if let Some(popped) = popped {
-                debug_assert!(
-                    Arc::ptr_eq(&popped, &self.manager),
-                    "SSR manager stack popped a different manager than this scope pushed"
-                );
+            let mut stack = stack.borrow_mut();
+            let popped = stack.pop();
+
+            if !matches!(popped, Some(manager) if Arc::ptr_eq(&manager, &self.manager)) {
+                tracing::error!("SSR i18n manager stack corruption detected");
+                stack.clear();
             }
         });
     }
 }
 
-pub fn install_global_localizer(
-    mode: GlobalLocalizerMode,
-) -> Result<(), DioxusGlobalLocalizerError> {
+pub fn install_global_bridge(policy: GlobalBridgePolicy) -> Result<(), DioxusGlobalLocalizerError> {
     install_ssr_bridge(
-        mode,
+        policy,
         move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
             CURRENT_MANAGER_STACK.with(|stack| {
-                let manager = Arc::clone(stack.borrow().last()?);
+                let manager = match stack.borrow().last() {
+                    Some(manager) => Arc::clone(manager),
+                    None => {
+                        match domain {
+                            Some(domain) => {
+                                tracing::error!(
+                                    domain,
+                                    message_id = id,
+                                    "SSR Fluent localization used outside an SsrI18n scope"
+                                );
+                            },
+                            None => {
+                                tracing::error!(
+                                    message_id = id,
+                                    "SSR Fluent localization used outside an SsrI18n scope"
+                                );
+                            },
+                        }
+                        return Some(id.to_string());
+                    },
+                };
                 let message = match domain {
                     Some(domain) => manager.localize_in_domain(domain, id, args),
                     None => manager.localize(id, args),
