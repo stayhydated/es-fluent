@@ -1,9 +1,6 @@
 use crate::DioxusInitError;
 #[cfg(feature = "client")]
-use crate::{
-    DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError, GlobalBridgePolicy,
-    bridge::{install_client_bridge, install_client_bridge_scoped},
-};
+use crate::{DioxusGlobalLocalizerError, bridge::install_client_bridge};
 use es_fluent::{FluentValue, GlobalLocalizationError};
 use es_fluent_manager_core::FluentManager;
 use parking_lot::RwLock;
@@ -49,28 +46,20 @@ impl ManagedI18n {
         })
     }
 
-    /// Returns the underlying manager as an explicit escape hatch for integrations.
-    ///
-    /// Do not use this to switch languages in Dioxus UI code. `FluentManager`
-    /// has interior mutable language state, so calling selection methods on the
-    /// returned manager bypasses `ManagedI18n::requested_language()` and any
-    /// Dioxus signal held by `DioxusI18n`. Use `select_language(...)` or
-    /// `select_language_strict(...)` when the tracked language should remain
-    /// synchronized.
-    pub fn raw_manager_untracked(&self) -> Arc<FluentManager> {
-        Arc::clone(&self.manager)
+    pub(crate) fn manager(&self) -> &Arc<FluentManager> {
+        &self.manager
     }
 
-    /// Returns the requested UI language.
-    ///
-    /// Selection is best-effort by default. This value records the language the
-    /// application requested, not proof that every discovered module supports
-    /// that locale.
     pub fn requested_language(&self) -> LanguageIdentifier {
         self.requested_language.read().clone()
     }
 
-    pub fn select_language<L: Into<LanguageIdentifier>>(
+    pub fn select_language<L: Into<LanguageIdentifier>>(&self, lang: L) {
+        self.try_select_language(lang)
+            .unwrap_or_else(|error| panic!("failed to select Dioxus i18n language: {error}"));
+    }
+
+    pub fn try_select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
@@ -82,7 +71,14 @@ impl ManagedI18n {
         Ok(())
     }
 
-    pub fn select_language_strict<L: Into<LanguageIdentifier>>(
+    pub fn select_language_strict<L: Into<LanguageIdentifier>>(&self, lang: L) {
+        self.try_select_language_strict(lang)
+            .unwrap_or_else(|error| {
+                panic!("failed to strictly select Dioxus i18n language: {error}")
+            });
+    }
+
+    pub fn try_select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
@@ -94,39 +90,25 @@ impl ManagedI18n {
         Ok(())
     }
 
-    /// Installs this manager as the client-side process-global Fluent localizer.
-    ///
-    /// This is only available for Dioxus client renderers. SSR must use
-    /// `SsrI18n::install_global_localizer(...)` so localization is resolved
-    /// through the synchronous request-scoped thread-local bridge.
     #[cfg(feature = "client")]
-    pub fn install_client_process_global_bridge(
-        &self,
-        policy: GlobalBridgePolicy,
-    ) -> Result<(), DioxusGlobalLocalizerError> {
-        install_client_bridge(Arc::clone(&self.manager), policy)
-    }
-
-    /// Installs this manager as the client-side process-global Fluent localizer
-    /// and restores the previous process-global localizer when the returned
-    /// guard is dropped, unless another owner replaced it first.
-    #[cfg(feature = "client")]
-    pub fn install_client_process_global_bridge_scoped(
-        &self,
-        policy: GlobalBridgePolicy,
-    ) -> Result<DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError> {
-        install_client_bridge_scoped(Arc::clone(&self.manager), policy)
+    pub fn install_client_process_global_bridge(&self) -> Result<(), DioxusGlobalLocalizerError> {
+        install_client_bridge(Arc::clone(&self.manager))
     }
 
     pub fn try_localize<'a>(
         &self,
-        id: &str,
+        id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        self.manager.localize(id, args)
+        self.manager.localize(id.as_ref(), args)
     }
 
-    pub fn localize<'a>(&self, id: &str, args: Option<&HashMap<&str, FluentValue<'a>>>) -> String {
+    pub fn localize<'a>(
+        &self,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        let id = id.as_ref();
         match self.try_localize(id, args) {
             Some(value) => value,
             None => {
@@ -138,10 +120,12 @@ impl ManagedI18n {
 
     pub fn localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> String {
+        let domain = domain.as_ref();
+        let id = id.as_ref();
         match self.try_localize_in_domain(domain, id, args) {
             Some(value) => value,
             None => {
@@ -153,10 +137,11 @@ impl ManagedI18n {
 
     pub fn try_localize_in_domain<'a>(
         &self,
-        domain: &str,
-        id: &str,
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        self.manager.localize_in_domain(domain, id, args)
+        self.manager
+            .localize_in_domain(domain.as_ref(), id.as_ref(), args)
     }
 }

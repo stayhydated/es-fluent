@@ -11,13 +11,14 @@ use crate::site::routing::SiteRoute;
 #[cfg(test)]
 use anyhow::{Context, Result};
 #[cfg(test)]
-use es_fluent_manager_dioxus::{GlobalBridgePolicy, ssr::SsrI18n};
+use es_fluent_manager_dioxus::ssr::SsrI18nRuntime;
 
 #[cfg(test)]
 pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
-    let _guard = SsrI18n::install_process_global_bridge_scoped(GlobalBridgePolicy::InstallOnce)
+    let runtime = SsrI18nRuntime::install()
         .context("failed to install the Dioxus SSR process-global localizer")?;
-    let i18n = SsrI18n::try_new_with_discovered_modules(route.locale.lang())
+    let i18n = runtime
+        .request(route.locale.lang())
         .context("failed to initialize the Dioxus SSR localizer")?;
 
     Ok(i18n.render_element(route_content(route)))

@@ -1,5 +1,5 @@
 [package]
-name = "dioxus-example"
+name = "dioxus-client-example"
 version.workspace = true
 rust-version.workspace = true
 edition.workspace = true
@@ -14,7 +14,7 @@ dioxus-html = { workspace = true }
 dioxus-signals = { workspace = true }
 dioxus-ssr = { workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
-es-fluent-manager-dioxus = { features = [ "client", "ssr", "macros" ], workspace = true }
+es-fluent-manager-dioxus = { features = [ "client" ], workspace = true }
 example-shared-lib = { features = [ "dioxus" ], path = "../example-shared-lib" }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }

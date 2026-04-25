@@ -12,7 +12,7 @@ unic-langid = "0.9"
 # For simple apps and CLIs:
 es-fluent-manager-embedded = "0.15"
 
-# For Dioxus apps: `client` covers web, desktop, and mobile renderers
+# For Dioxus apps: choose `client` for hook-based UI or `ssr` for server rendering.
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 ```
 

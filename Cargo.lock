@@ -3957,6 +3957,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "dioxus-client-example"
+version = "0.15.0"
+dependencies = [
+ "dioxus-core",
+ "dioxus-core-macro",
+ "dioxus-hooks",
+ "dioxus-html",
+ "dioxus-signals",
+ "dioxus-ssr",
+ "es-fluent",
+ "es-fluent-manager-dioxus",
+ "example-shared-lib",
+ "serial_test",
+ "strum",
+ "unic-langid",
+]
+
+[[package]]
 name = "dioxus-config-macro"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4061,24 +4079,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
-]
-
-[[package]]
-name = "dioxus-example"
-version = "0.15.0"
-dependencies = [
- "dioxus-core",
- "dioxus-core-macro",
- "dioxus-hooks",
- "dioxus-html",
- "dioxus-signals",
- "dioxus-ssr",
- "es-fluent",
- "es-fluent-manager-dioxus",
- "example-shared-lib",
- "serial_test",
- "strum",
- "unic-langid",
 ]
 
 [[package]]
@@ -4479,6 +4479,23 @@ dependencies = [
  "dioxus-core",
  "dioxus-core-types",
  "rustc-hash 2.1.2",
+]
+
+[[package]]
+name = "dioxus-ssr-example"
+version = "0.15.0"
+dependencies = [
+ "dioxus-core",
+ "dioxus-core-macro",
+ "dioxus-html",
+ "dioxus-signals",
+ "dioxus-ssr",
+ "es-fluent",
+ "es-fluent-manager-dioxus",
+ "example-shared-lib",
+ "serial_test",
+ "strum",
+ "unic-langid",
 ]
 
 [[package]]

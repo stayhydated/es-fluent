@@ -1,7 +1,4 @@
-use crate::{
-    DioxusGlobalLocalizerError, DioxusInitError, GlobalBridgePolicy, ManagedI18n,
-    bridge::{install_ssr_bridge, install_ssr_bridge_scoped},
-};
+use crate::{DioxusGlobalLocalizerError, DioxusInitError, ManagedI18n, bridge::install_ssr_bridge};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
 use es_fluent::{FluentValue, GlobalLocalizationError};
@@ -15,49 +12,40 @@ thread_local! {
     static CURRENT_MANAGER_STACK: RefCell<Vec<Arc<FluentManager>>> = const { RefCell::new(Vec::new()) };
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SsrI18nRuntime;
+
+impl SsrI18nRuntime {
+    pub fn install() -> Result<Self, DioxusGlobalLocalizerError> {
+        install_process_global_bridge()?;
+        Ok(Self)
+    }
+
+    pub fn request<L: Into<LanguageIdentifier>>(
+        &self,
+        language: L,
+    ) -> Result<SsrI18n, DioxusInitError> {
+        SsrI18n::try_new_with_discovered_modules(language)
+    }
+}
+
 /// Request-scoped Dioxus SSR localization state.
 ///
-/// `SsrI18n` is synchronous by design. Do not hold
-/// [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`, spawned
-/// tasks, streaming callbacks, or higher-level fullstack server boundaries. The
-/// active manager is stored in thread-local state and is only valid for the
-/// synchronous render call that owns the scope.
+/// Construct this through [`SsrI18nRuntime::request`] after installing the SSR
+/// runtime once during process startup. `SsrI18n` is synchronous by design. Do
+/// not hold [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`,
+/// spawned tasks, streaming callbacks, or higher-level fullstack server
+/// boundaries.
 pub struct SsrI18n {
     managed: ManagedI18n,
 }
 
 impl SsrI18n {
-    pub fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(lang: L) -> Self {
-        Self::try_new_with_discovered_modules(lang)
-            .unwrap_or_else(|error| panic!("failed to initialize Dioxus SSR i18n manager: {error}"))
-    }
-
-    pub fn try_new_with_discovered_modules<L: Into<LanguageIdentifier>>(
+    fn try_new_with_discovered_modules<L: Into<LanguageIdentifier>>(
         lang: L,
-    ) -> Result<Self, DioxusInitError> {
-        Self::try_new_with_discovered_modules_and_policy(lang, GlobalBridgePolicy::InstallOnce)
-    }
-
-    pub fn try_new_with_discovered_modules_and_policy<L: Into<LanguageIdentifier>>(
-        lang: L,
-        policy: GlobalBridgePolicy,
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::try_new_with_discovered_modules(lang)?;
-        install_process_global_bridge(policy).map_err(DioxusInitError::global_localizer)?;
-
         Ok(Self { managed })
-    }
-
-    pub fn install_process_global_bridge(
-        policy: GlobalBridgePolicy,
-    ) -> Result<(), DioxusGlobalLocalizerError> {
-        self::install_process_global_bridge(policy)
-    }
-
-    pub fn install_process_global_bridge_scoped(
-        policy: GlobalBridgePolicy,
-    ) -> Result<crate::DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError> {
-        self::install_process_global_bridge_scoped(policy)
     }
 
     pub fn managed(&self) -> &ManagedI18n {
@@ -68,36 +56,36 @@ impl SsrI18n {
         self.managed.requested_language()
     }
 
-    pub fn select_language<L: Into<LanguageIdentifier>>(
-        &self,
-        lang: L,
-    ) -> Result<(), GlobalLocalizationError> {
-        self.managed.select_language(lang)
+    pub fn select_language<L: Into<LanguageIdentifier>>(&self, lang: L) {
+        self.managed.select_language(lang);
     }
 
-    pub fn select_language_strict<L: Into<LanguageIdentifier>>(
+    pub fn try_select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
-        self.managed.select_language_strict(lang)
+        self.managed.try_select_language(lang)
+    }
+
+    pub fn select_language_strict<L: Into<LanguageIdentifier>>(&self, lang: L) {
+        self.managed.select_language_strict(lang);
+    }
+
+    pub fn try_select_language_strict<L: Into<LanguageIdentifier>>(
+        &self,
+        lang: L,
+    ) -> Result<(), GlobalLocalizationError> {
+        self.managed.try_select_language_strict(lang)
     }
 
     /// Runs a synchronous callback while this request's manager is installed.
-    ///
-    /// Do not keep this scope alive across `.await`, spawned tasks, streaming
-    /// callbacks, or fullstack server boundaries. The manager stack is
-    /// thread-local and is only safe for synchronous SSR work.
     pub fn with_sync_thread_local_manager<R>(&self, f: impl FnOnce() -> R) -> R {
-        let _scope = CurrentManagerScope::new(self.managed.raw_manager_untracked());
+        let _scope = CurrentManagerScope::new(Arc::clone(self.managed.manager()));
         f()
     }
 
     /// Rebuilds the virtual DOM and serializes it while this request's manager
     /// is installed.
-    ///
-    /// Use this for the common SSR path. Components that call
-    /// `to_fluent_string()` usually localize during the Dioxus rebuild pass, so
-    /// both rebuilding and rendering need the request-scoped manager.
     pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
         self.with_sync_thread_local_manager(|| {
             dom.rebuild_in_place();
@@ -116,11 +104,6 @@ impl SsrI18n {
 
     /// Serializes an already rebuilt virtual DOM while this request's manager is
     /// installed.
-    ///
-    /// If localization happens during the rebuild pass, call
-    /// [`Self::rebuild_and_render`] or rebuild inside
-    /// [`Self::with_sync_thread_local_manager`]
-    /// before using this lower-level method.
     pub fn render(&self, dom: &VirtualDom) -> String {
         self.with_sync_thread_local_manager(|| dioxus_ssr::render(dom))
     }
@@ -165,106 +148,50 @@ impl Drop for CurrentManagerScope {
     }
 }
 
-pub fn install_process_global_bridge(
-    policy: GlobalBridgePolicy,
-) -> Result<(), DioxusGlobalLocalizerError> {
-    install_ssr_bridge(
-        policy,
-        move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-            CURRENT_MANAGER_STACK.with(|stack| {
-                let manager = match stack.borrow().last() {
-                    Some(manager) => Arc::clone(manager),
-                    None => {
-                        match domain {
-                            Some(domain) => {
-                                tracing::error!(
-                                    domain,
-                                    message_id = id,
-                                    "SSR Fluent localization used outside an SsrI18n scope"
-                                );
-                            },
-                            None => {
-                                tracing::error!(
-                                    message_id = id,
-                                    "SSR Fluent localization used outside an SsrI18n scope"
-                                );
-                            },
-                        }
-                        return Some(id.to_string());
-                    },
-                };
-                let message = match domain {
-                    Some(domain) => manager.localize_in_domain(domain, id, args),
-                    None => manager.localize(id, args),
-                };
-
-                match message {
-                    Some(message) => Some(message),
-                    None => {
-                        match domain {
-                            Some(domain) => {
-                                tracing::warn!(domain, message_id = id, "missing Fluent message");
-                            },
-                            None => {
-                                tracing::warn!(message_id = id, "missing Fluent message");
-                            },
-                        }
-                        Some(id.to_string())
-                    },
-                }
-            })
-        },
-    )
+fn install_process_global_bridge() -> Result<(), DioxusGlobalLocalizerError> {
+    install_ssr_bridge(localize_current_ssr_manager)
 }
 
-pub fn install_process_global_bridge_scoped(
-    policy: GlobalBridgePolicy,
-) -> Result<crate::DioxusGlobalBridgeGuard, DioxusGlobalLocalizerError> {
-    install_ssr_bridge_scoped(
-        policy,
-        move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-            CURRENT_MANAGER_STACK.with(|stack| {
-                let manager = match stack.borrow().last() {
-                    Some(manager) => Arc::clone(manager),
-                    None => {
-                        match domain {
-                            Some(domain) => {
-                                tracing::error!(
-                                    domain,
-                                    message_id = id,
-                                    "SSR Fluent localization used outside an SsrI18n scope"
-                                );
-                            },
-                            None => {
-                                tracing::error!(
-                                    message_id = id,
-                                    "SSR Fluent localization used outside an SsrI18n scope"
-                                );
-                            },
-                        }
-                        return Some(id.to_string());
-                    },
-                };
-                let message = match domain {
-                    Some(domain) => manager.localize_in_domain(domain, id, args),
-                    None => manager.localize(id, args),
-                };
-
-                match message {
-                    Some(message) => Some(message),
-                    None => {
-                        match domain {
-                            Some(domain) => {
-                                tracing::warn!(domain, message_id = id, "missing Fluent message");
-                            },
-                            None => {
-                                tracing::warn!(message_id = id, "missing Fluent message");
-                            },
-                        }
-                        Some(id.to_string())
-                    },
+fn localize_current_ssr_manager<'a>(
+    domain: Option<&str>,
+    id: &str,
+    args: Option<&HashMap<&str, FluentValue<'a>>>,
+) -> Option<String> {
+    CURRENT_MANAGER_STACK.with(|stack| {
+        let manager = match stack.borrow().last() {
+            Some(manager) => Arc::clone(manager),
+            None => {
+                match domain {
+                    Some(domain) => tracing::error!(
+                        domain,
+                        message_id = id,
+                        "SSR Fluent localization used outside an SsrI18n scope"
+                    ),
+                    None => tracing::error!(
+                        message_id = id,
+                        "SSR Fluent localization used outside an SsrI18n scope"
+                    ),
                 }
-            })
-        },
-    )
+                return Some(id.to_string());
+            },
+        };
+
+        let message = match domain {
+            Some(domain) => manager.localize_in_domain(domain, id, args),
+            None => manager.localize(id, args),
+        };
+
+        match message {
+            Some(message) => Some(message),
+            None => {
+                match domain {
+                    Some(domain) => {
+                        tracing::warn!(domain, message_id = id, "missing Fluent message")
+                    },
+                    None => tracing::warn!(message_id = id, "missing Fluent message"),
+                }
+                Some(id.to_string())
+            },
+        }
+    })
 }

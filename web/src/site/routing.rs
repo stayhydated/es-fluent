@@ -7,7 +7,7 @@ use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent::ToFluentString as _;
-use es_fluent_manager_dioxus::{GlobalBridgePolicy, I18nProviderConfig, use_i18n_provider_once};
+use es_fluent_manager_dioxus::use_i18n;
 use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
@@ -354,16 +354,20 @@ fn directory_contains_generated_html(dir: &Path) -> std::io::Result<bool> {
 }
 
 fn route_element(route: SiteRoute) -> Element {
-    let i18n_result = use_i18n_provider_once(
-        I18nProviderConfig::new(route.locale.lang())
-            .with_global_bridge(GlobalBridgePolicy::ReplaceExisting),
-    )
-    .map_err(|error| {
-        format!(
-            "failed to initialize localized route '{}': {error}",
-            route.locale.html_lang()
-        )
-    });
+    let i18n = use_i18n();
+    let route_language = route.locale.lang();
+    let i18n_result = if i18n.peek_requested_language() == route_language {
+        Ok(i18n)
+    } else {
+        i18n.try_select_language(route_language)
+            .map(|()| i18n)
+            .map_err(|error| {
+                format!(
+                    "failed to select localized route '{}': {error}",
+                    route.locale.html_lang()
+                )
+            })
+    };
 
     match i18n_result {
         Ok(_i18n) => {
