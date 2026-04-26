@@ -74,6 +74,7 @@ fn render_ssr_preview_with_runtime(
     let mut dom = VirtualDom::new_with_props(SsrPreview, SsrPreviewProps { initial_language });
 
     i18n.rebuild_and_render(&mut dom)
+        .expect("Dioxus SSR bridge should remain installed")
 }
 
 #[component]

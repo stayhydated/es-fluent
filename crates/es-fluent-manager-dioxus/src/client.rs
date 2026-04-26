@@ -4,11 +4,12 @@ use dioxus_hooks::{try_use_context, use_context_provider};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
 use es_fluent::{FluentValue, GlobalLocalizationError};
 use std::collections::HashMap;
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
 #[derive(Clone)]
 enum I18nContextState {
-    Ready(ManagedI18n),
+    Ready(Arc<ManagedI18n>),
     Failed(DioxusInitError),
 }
 
@@ -30,7 +31,7 @@ struct I18nContext {
 impl I18nContext {
     fn managed(&self) -> &ManagedI18n {
         match &self.state {
-            I18nContextState::Ready(managed) => managed,
+            I18nContextState::Ready(managed) => managed.as_ref(),
             I18nContextState::Failed(_) => {
                 unreachable!("DioxusI18n is only constructed for a ready i18n context")
             },
@@ -151,7 +152,7 @@ where
     let state = use_hook({
         let initial_language = initial_language.clone();
         move || match ManagedI18n::new_with_discovered_modules(initial_language) {
-            Ok(managed) => I18nContextState::Ready(managed),
+            Ok(managed) => I18nContextState::Ready(Arc::new(managed)),
             Err(error) => I18nContextState::Failed(error),
         }
     });
@@ -161,7 +162,10 @@ where
 
 pub fn use_provide_i18n(managed: ManagedI18n) -> Result<DioxusI18n, DioxusInitError> {
     let fallback_language = managed.requested_language();
-    use_i18n_context_once(I18nContextState::Ready(managed), fallback_language)
+    use_i18n_context_once(
+        I18nContextState::Ready(Arc::new(managed)),
+        fallback_language,
+    )
 }
 
 fn use_i18n_context_once(

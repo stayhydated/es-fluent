@@ -123,11 +123,11 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
     let i18n = runtime.request(langid!("en-US"))?;
 
     let mut dom = VirtualDom::new(app);
-    Ok(i18n.rebuild_and_render(&mut dom))
+    Ok(i18n.rebuild_and_render(&mut dom)?)
 }
 ```
 
-`SsrI18n` scopes localization to the synchronous render call through a thread-local manager stack. Do not hold `with_sync_thread_local_manager(...)` across `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries.
+`SsrI18n` scopes localization to the synchronous render call through a thread-local manager stack. Render and scope methods revalidate that the SSR bridge still owns the global custom localizer before pushing request state. Do not hold `with_sync_thread_local_manager(...)` across `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries.
 
 `SsrI18n` values are constructed through `SsrI18nRuntime::request(...)`, which revalidates that the SSR bridge still owns the global custom localizer before creating request state.
 

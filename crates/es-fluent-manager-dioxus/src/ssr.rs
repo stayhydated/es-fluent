@@ -34,7 +34,7 @@ impl SsrI18nRuntime {
 ///
 /// Construct this through [`SsrI18nRuntime::request`] after installing the SSR
 /// runtime once during process startup. `SsrI18n` is synchronous by design. Do
-/// not hold [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`,
+/// do not hold [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`,
 /// spawned tasks, streaming callbacks, or higher-level fullstack server
 /// boundaries.
 pub struct SsrI18n {
@@ -72,14 +72,21 @@ impl SsrI18n {
     }
 
     /// Runs a synchronous callback while this request's manager is installed.
-    pub fn with_sync_thread_local_manager<R>(&self, f: impl FnOnce() -> R) -> R {
+    pub fn with_sync_thread_local_manager<R>(
+        &self,
+        f: impl FnOnce() -> R,
+    ) -> Result<R, DioxusGlobalLocalizerError> {
+        install_process_global_bridge()?;
         let _scope = CurrentManagerScope::new(Arc::clone(self.managed.manager()));
-        f()
+        Ok(f())
     }
 
     /// Rebuilds the virtual DOM and serializes it while this request's manager
     /// is installed.
-    pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
+    pub fn rebuild_and_render(
+        &self,
+        dom: &mut VirtualDom,
+    ) -> Result<String, DioxusGlobalLocalizerError> {
         self.with_sync_thread_local_manager(|| {
             dom.rebuild_in_place();
             dioxus_ssr::render(dom)
@@ -88,7 +95,10 @@ impl SsrI18n {
 
     /// Rebuilds the virtual DOM and pre-renders it while this request's manager
     /// is installed.
-    pub fn rebuild_and_pre_render(&self, dom: &mut VirtualDom) -> String {
+    pub fn rebuild_and_pre_render(
+        &self,
+        dom: &mut VirtualDom,
+    ) -> Result<String, DioxusGlobalLocalizerError> {
         self.with_sync_thread_local_manager(|| {
             dom.rebuild_in_place();
             dioxus_ssr::pre_render(dom)
@@ -97,21 +107,25 @@ impl SsrI18n {
 
     /// Serializes an already rebuilt virtual DOM while this request's manager is
     /// installed.
-    pub fn render(&self, dom: &VirtualDom) -> String {
+    pub fn render(&self, dom: &VirtualDom) -> Result<String, DioxusGlobalLocalizerError> {
         self.with_sync_thread_local_manager(|| dioxus_ssr::render(dom))
     }
 
     /// Pre-renders an already rebuilt virtual DOM while this request's manager
     /// is installed.
-    pub fn pre_render(&self, dom: &VirtualDom) -> String {
+    pub fn pre_render(&self, dom: &VirtualDom) -> Result<String, DioxusGlobalLocalizerError> {
         self.with_sync_thread_local_manager(|| dioxus_ssr::pre_render(dom))
     }
 
-    pub fn render_with(&self, renderer: &mut Renderer, dom: &VirtualDom) -> String {
+    pub fn render_with(
+        &self,
+        renderer: &mut Renderer,
+        dom: &VirtualDom,
+    ) -> Result<String, DioxusGlobalLocalizerError> {
         self.with_sync_thread_local_manager(|| renderer.render(dom))
     }
 
-    pub fn render_element(&self, element: Element) -> String {
+    pub fn render_element(&self, element: Element) -> Result<String, DioxusGlobalLocalizerError> {
         self.with_sync_thread_local_manager(|| dioxus_ssr::render_element(element))
     }
 }

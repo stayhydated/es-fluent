@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
-#[derive(Clone)]
 pub struct ManagedI18n {
     manager: Arc<FluentManager>,
     requested_language: Arc<RwLock<LanguageIdentifier>>,

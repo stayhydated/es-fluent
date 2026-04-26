@@ -165,12 +165,14 @@ let i18n = runtime
     .expect("ssr i18n should initialize");
 
 let mut vdom = VirtualDom::new(app);
-let html = i18n.rebuild_and_render(&mut vdom);
+let html = i18n
+    .rebuild_and_render(&mut vdom)
+    .expect("ssr bridge should remain installed");
 ```
 
-SSR separates process setup from request state. Install `SsrI18nRuntime` once, then create one `SsrI18n` per request. The request object scopes localization to synchronous Dioxus SSR rendering through a thread-local manager stack.
+SSR separates process setup from request state. Install `SsrI18nRuntime` once, then create one `SsrI18n` per request. The request object scopes localization to synchronous Dioxus SSR rendering through a thread-local manager stack and revalidates bridge ownership before render.
 
-Do not hold `with_sync_thread_local_manager(...)` scopes across `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries. If SSR localization runs while the bridge is installed but no request scope is active, the bridge logs and returns the message id instead of falling through to unrelated global localization state.
+Do not hold `with_sync_thread_local_manager(...)` scopes across `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries. If SSR localization runs while the bridge is installed but no request scope is active, the bridge marks the lookup as missing instead of falling through to unrelated global localization state.
 
 ---
 

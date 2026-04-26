@@ -21,7 +21,8 @@ pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
         .request(route.locale.lang())
         .context("failed to initialize the Dioxus SSR localizer")?;
 
-    Ok(i18n.render_element(route_content(route)))
+    i18n.render_element(route_content(route))
+        .context("failed to render route with the Dioxus SSR localizer")
 }
 
 pub(crate) fn render_sitemap() -> String {

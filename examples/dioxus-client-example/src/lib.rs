@@ -5,7 +5,7 @@ use dioxus_hooks::use_signal;
 use dioxus_html as dioxus_elements;
 use dioxus_signals::WritableExt as _;
 use es_fluent::{EsFluent, FluentValue};
-use es_fluent_manager_dioxus::{ManagedI18n, use_i18n, use_provide_i18n};
+use es_fluent_manager_dioxus::{use_i18n, use_init_i18n};
 use example_shared_lib::{ButtonState, Languages};
 use std::collections::HashMap;
 use strum::IntoEnumIterator as _;
@@ -72,22 +72,15 @@ pub fn render_showcase() -> String {
 pub fn render_client_preview(initial_language: Languages) -> String {
     example_shared_lib::force_link();
 
-    let managed = ManagedI18n::new_with_discovered_modules(initial_language)
-        .expect("Dioxus client example manager should initialize");
-    let mut dom = VirtualDom::new_with_props(
-        ClientPreview,
-        ClientPreviewProps {
-            initial_language,
-            managed,
-        },
-    );
+    let mut dom =
+        VirtualDom::new_with_props(ClientPreview, ClientPreviewProps { initial_language });
     dom.rebuild_in_place();
     dioxus_ssr::render(&dom)
 }
 
 #[component]
-fn ClientPreview(initial_language: Languages, managed: ManagedI18n) -> Element {
-    let i18n = match use_provide_i18n(managed) {
+fn ClientPreview(initial_language: Languages) -> Element {
+    let i18n = match use_init_i18n(initial_language) {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { section { "Failed to initialize i18n: {error}" } },
     };

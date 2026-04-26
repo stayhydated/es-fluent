@@ -320,7 +320,8 @@ mod ssr_tests {
             .expect("ssr dioxus i18n should initialize");
 
         assert_eq!(
-            i18n.with_sync_thread_local_manager(|| TestMessage.to_fluent_string()),
+            i18n.with_sync_thread_local_manager(|| TestMessage.to_fluent_string())
+                .expect("SSR bridge should remain installed"),
             "Bonjour"
         );
     }
@@ -335,7 +336,9 @@ mod ssr_tests {
             .expect("ssr dioxus i18n should initialize");
         let mut dom = VirtualDom::new(SsrLocalizedMessage);
 
-        let html = i18n.rebuild_and_render(&mut dom);
+        let html = i18n
+            .rebuild_and_render(&mut dom)
+            .expect("SSR bridge should remain installed");
 
         assert!(html.contains("Bonjour"));
     }
@@ -387,6 +390,36 @@ mod ssr_tests {
 
     #[test]
     #[serial]
+    fn ssr_render_revalidates_external_replacement() {
+        reset_global_bridge_for_tests();
+        let runtime = SsrI18nRuntime::install().expect("ssr runtime should install");
+        let i18n = runtime
+            .request(langid!("en-US"))
+            .expect("ssr dioxus i18n should initialize");
+        let mut dom = VirtualDom::new(SsrLocalizedMessage);
+
+        es_fluent::replace_custom_localizer_with_domain_and_generation(
+            |_domain: Option<&str>,
+             id: &str,
+             _args: Option<&HashMap<&str, es_fluent::FluentValue<'_>>>| {
+                Some(format!("external-{id}"))
+            },
+        );
+
+        let error = i18n
+            .rebuild_and_render(&mut dom)
+            .expect_err("SSR render should reject external bridge replacement");
+
+        assert!(matches!(
+            error,
+            DioxusGlobalLocalizerError::ExternalReplacement {
+                owner: DioxusGlobalLocalizerOwner::Ssr,
+            }
+        ));
+    }
+
+    #[test]
+    #[serial]
     fn ssr_bridge_without_scope_returns_id_instead_of_falling_back_to_global_context() {
         reset_global_bridge_for_tests();
         install_test_global_context();
@@ -414,9 +447,11 @@ mod ssr_tests {
             assert_eq!(TestMessage.to_fluent_string(), "Hello");
             fr.with_sync_thread_local_manager(|| {
                 assert_eq!(TestMessage.to_fluent_string(), "Bonjour");
-            });
+            })
+            .expect("inner SSR bridge should remain installed");
             assert_eq!(TestMessage.to_fluent_string(), "Hello");
-        });
+        })
+        .expect("outer SSR bridge should remain installed");
     }
 
     #[test]
@@ -429,7 +464,7 @@ mod ssr_tests {
             .expect("ssr dioxus i18n should initialize");
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            i18n.with_sync_thread_local_manager(|| panic!("test panic inside SSR scope"));
+            let _ = i18n.with_sync_thread_local_manager(|| panic!("test panic inside SSR scope"));
         }));
 
         assert!(result.is_err());
