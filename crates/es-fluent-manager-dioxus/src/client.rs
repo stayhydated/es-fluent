@@ -74,7 +74,7 @@ pub struct DioxusI18n {
 }
 
 impl DioxusI18n {
-    pub fn managed(&self) -> &ManagedI18n {
+    fn managed(&self) -> &ManagedI18n {
         self.context.managed()
     }
 
@@ -168,19 +168,15 @@ fn use_i18n_context_once(
     state: I18nContextState,
     fallback_language: LanguageIdentifier,
 ) -> Result<DioxusI18n, DioxusInitError> {
-    let state = use_hook(move || state);
-
-    let install_result = use_hook({
-        let state = state.clone();
-        move || match &state {
-            I18nContextState::Ready(managed) => managed.install_client_process_global_bridge(),
-            I18nContextState::Failed(_) => Ok(()),
-        }
+    let state = use_hook(move || match state {
+        I18nContextState::Ready(managed) => match managed.install_client_process_global_bridge() {
+            Ok(()) => I18nContextState::Ready(managed),
+            Err(error) => I18nContextState::Failed(DioxusInitError::global_localizer(error)),
+        },
+        failed @ I18nContextState::Failed(_) => failed,
     });
 
     let context = provide_i18n_context_once(state, fallback_language);
-
-    install_result.map_err(DioxusInitError::global_localizer)?;
     context.into_i18n()
 }
 

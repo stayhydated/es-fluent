@@ -19,7 +19,7 @@ check:
 test:
     cargo test --workspace --all-features --all-targets
 
-dioxus-manager-feature-matrix:
+test-dioxus-manager-feature-matrix:
     cargo check -p es-fluent-manager-dioxus --no-default-features
     cargo check -p es-fluent-manager-dioxus --no-default-features --features client
     cargo check -p es-fluent-manager-dioxus --no-default-features --features ssr
@@ -37,7 +37,7 @@ test-publish:
 test-docs:
     cargo doc --workspace --all-features --no-deps --open
 
-ci: fmt check clippy test dioxus-manager-feature-matrix cov
+ci: fmt check clippy test test-dioxus-manager-feature-matrix cov
     cargo machete
 
 book:

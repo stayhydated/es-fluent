@@ -25,6 +25,7 @@ impl SsrI18nRuntime {
         &self,
         language: L,
     ) -> Result<SsrI18n, DioxusInitError> {
+        install_process_global_bridge().map_err(DioxusInitError::global_localizer)?;
         SsrI18n::new_with_discovered_modules(language)
     }
 }
@@ -41,7 +42,7 @@ pub struct SsrI18n {
 }
 
 impl SsrI18n {
-    pub fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(
+    pub(crate) fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(
         lang: L,
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::new_with_discovered_modules(lang)?;

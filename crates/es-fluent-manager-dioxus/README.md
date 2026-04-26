@@ -129,4 +129,6 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
 
 `SsrI18n` scopes localization to the synchronous render call through a thread-local manager stack. Do not hold `with_sync_thread_local_manager(...)` across `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries.
 
+`SsrI18n` values are constructed through `SsrI18nRuntime::request(...)`, which revalidates that the SSR bridge still owns the global custom localizer before creating request state.
+
 If SSR localization is called while the SSR bridge is installed but no request scope is active, the bridge marks the lookup as missing and prevents fallthrough to unrelated global localization state. The string-returning `es-fluent` global helpers still render their normal message-id fallback.

@@ -75,7 +75,9 @@ impl ManagedI18n {
     }
 
     #[cfg(feature = "client")]
-    pub fn install_client_process_global_bridge(&self) -> Result<(), DioxusGlobalLocalizerError> {
+    pub(crate) fn install_client_process_global_bridge(
+        &self,
+    ) -> Result<(), DioxusGlobalLocalizerError> {
         install_client_bridge(Arc::clone(&self.manager))
     }
 

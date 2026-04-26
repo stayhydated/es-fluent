@@ -42,7 +42,7 @@ The client runtime is rooted by `use_init_i18n(...)` or `use_provide_i18n(...)`.
 The hook stores `ManagedI18n` in Dioxus context and mirrors the requested language into a `Signal<LanguageIdentifier>` so render code subscribes to locale changes.
 Hook initialization is one-shot because it is stored through `use_hook`; later prop changes do not replace the context owner.
 
-`DioxusI18n` lookup methods always resolve through the `ManagedI18n` stored in the Dioxus context. Stale handles cannot route typed formatting through a newer global owner.
+`DioxusI18n` lookup and language-selection methods always resolve through the `ManagedI18n` stored in the Dioxus context. The raw `ManagedI18n` is not exposed from `DioxusI18n` so callers cannot bypass the signal update that makes language changes visible to render code.
 
 The client hook installs the `es-fluent` custom localizer bridge strictly:
 
@@ -60,7 +60,7 @@ SSR has two lifecycles:
 1. process startup installs `SsrI18nRuntime` and the global custom localizer bridge;
 2. each request creates an `SsrI18n` with its own `ManagedI18n`.
 
-`SsrI18n` construction does not mutate process-global state. During rendering, `SsrI18n` pushes its manager onto a thread-local stack, rebuilds or renders synchronously, then pops the manager on scope drop.
+`SsrI18n` construction is private to `SsrI18nRuntime::request`, which revalidates the bridge before creating request state. During rendering, `SsrI18n` pushes its manager onto a thread-local stack, rebuilds or renders synchronously, then pops the manager on scope drop.
 
 The SSR bridge callback reads the current manager from that stack. Missing messages are reported as handled misses with a warning. Calls outside an active request scope are also reported as handled misses with an error log, so incorrect SSR paths cannot silently fall through to another global localizer.
 

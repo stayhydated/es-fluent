@@ -293,8 +293,7 @@ fn dioxus_bridge_missing_message_does_not_fall_back_to_global_context() {
 mod ssr_tests {
     use super::*;
     use crate::ssr::SsrI18nRuntime;
-    #[cfg(feature = "client")]
-    use crate::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner};
+    use crate::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, DioxusInitError};
     use dioxus_core::{Element, VirtualDom};
     use dioxus_core_macro::rsx;
     #[allow(unused_imports)]
@@ -353,6 +352,37 @@ mod ssr_tests {
         runtime
             .request(langid!("fr"))
             .expect("second ssr request should initialize");
+    }
+
+    #[test]
+    #[serial]
+    fn ssr_request_revalidates_external_replacement() {
+        reset_global_bridge_for_tests();
+        let runtime = SsrI18nRuntime::install().expect("ssr runtime should install");
+
+        es_fluent::replace_custom_localizer_with_domain_and_generation(
+            |_domain: Option<&str>,
+             id: &str,
+             _args: Option<&HashMap<&str, es_fluent::FluentValue<'_>>>| {
+                Some(format!("external-{id}"))
+            },
+        );
+
+        let error = match runtime.request(langid!("en-US")) {
+            Ok(_) => panic!("SSR request should reject external bridge replacement"),
+            Err(error) => error,
+        };
+
+        assert!(matches!(
+            error,
+            DioxusInitError::GlobalLocalizer(error)
+                if matches!(
+                    error.as_ref(),
+                    DioxusGlobalLocalizerError::ExternalReplacement {
+                        owner: DioxusGlobalLocalizerOwner::Ssr,
+                    }
+                )
+        ));
     }
 
     #[test]
@@ -519,6 +549,23 @@ mod client_tests {
         }
     }
 
+    #[cfg(feature = "ssr")]
+    #[allow(non_snake_case)]
+    fn BridgeInstallFailedMessage() -> Element {
+        let init = crate::use_init_i18n(langid!("en-US"));
+        let child = crate::use_i18n_optional();
+        let message = match (init, child) {
+            (Ok(_), _) => "ready",
+            (Err(_), Err(_)) => "failed-present",
+            (Err(_), Ok(None)) => "failed-missing",
+            (Err(_), Ok(Some(_))) => "unexpected-ready",
+        };
+
+        rsx! {
+            div { "{message}" }
+        }
+    }
+
     #[allow(non_snake_case)]
     fn ProviderReplacementMessage() -> Element {
         let use_replacement = dioxus_hooks::use_signal(|| false);
@@ -588,6 +635,19 @@ mod client_tests {
         reset_global_bridge_for_tests();
 
         let mut dom = VirtualDom::new(FailedInitMessage);
+        dom.rebuild_in_place();
+
+        assert!(dioxus_ssr::render(&dom).contains("failed-present"));
+    }
+
+    #[cfg(feature = "ssr")]
+    #[test]
+    #[serial]
+    fn bridge_install_failure_context_error_is_visible_to_children() {
+        reset_global_bridge_for_tests();
+        crate::ssr::SsrI18nRuntime::install().expect("SSR bridge should install");
+
+        let mut dom = VirtualDom::new(BridgeInstallFailedMessage);
         dom.rebuild_in_place();
 
         assert!(dioxus_ssr::render(&dom).contains("failed-present"));
