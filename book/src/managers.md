@@ -142,11 +142,11 @@ fn app() -> Element {
 }
 ```
 
-Client apps localize through the `DioxusI18n` context returned by `use_init_i18n(...)` or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize(...)` and `localize_in_domain(...)` for optional lookup, or the explicit `localize_or_id(...)` and `localize_in_domain_or_id(...)` helpers when rendering message IDs on misses is intended. `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`.
+Client apps localize through the `DioxusI18n` context returned by `use_init_i18n(...)` or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize(...)` and `localize_in_domain(...)` for optional lookup, or the explicit `localize_or_id(...)` and `localize_in_domain_or_id(...)` helpers when rendering message IDs on misses is intended. `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with the manager state.
 
 The client runtime installs the `es-fluent` custom localizer bridge automatically when a ready `ManagedI18n` context is provided. Reinstalling the same client manager is idempotent. A different active client owner is rejected, client/SSR ownership conflicts intentionally, and external custom-localizer replacement is reported as an error. There is no public bridge policy, replacement mode, disabled mode, or scoped bridge API.
 
-If `use_init_i18n(...)` fails, it still provides a failed context to keep hook order stable. Descendants can call `use_i18n_optional()` to distinguish a missing provider from a failed provider.
+If `use_init_i18n(...)` or `use_provide_i18n(...)` cannot initialize or install the client bridge, it still provides a failed context to keep hook order stable. Descendants can call `use_i18n_optional()` to distinguish a missing provider from a failed provider. `ManagedI18n` equality is identity equality over the shared manager and requested-language state, not semantic equality over modules or locale values.
 
 ### SSR Quick Start
 
@@ -173,6 +173,12 @@ let html = i18n
 SSR separates process setup from request state. Install `SsrI18nRuntime` once, then create one `SsrI18n` per request. The request object scopes localization to synchronous Dioxus SSR rendering through a thread-local manager stack and revalidates bridge ownership before render.
 
 Do not hold `with_sync_thread_local_manager(...)` scopes across `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries. If SSR localization runs while the bridge is installed but no request scope is active, the bridge marks the lookup as missing instead of falling through to unrelated global localization state.
+
+### Process-Global Bridge Lifecycle
+
+The Dioxus client and SSR runtimes install an `es-fluent` custom localizer in process-global state. Treat that bridge as an application-lifetime resource: install one Dioxus bridge owner per process, do not mix client and SSR bridge ownership in the same process, and handle owner-conflict or external-replacement errors explicitly.
+
+Reinstalling the same client manager or SSR runtime is idempotent. Installing a different client manager, crossing client/SSR ownership, or replacing the global localizer externally is reported as an error. There is no public uninstall or reset API outside crate tests, so hot reload, test harnesses, and multi-root apps can legitimately hit these owner checks.
 
 ---
 

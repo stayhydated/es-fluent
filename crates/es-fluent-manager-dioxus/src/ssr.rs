@@ -12,13 +12,19 @@ thread_local! {
     static CURRENT_MANAGER_STACK: RefCell<Vec<Arc<FluentManager>>> = const { RefCell::new(Vec::new()) };
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct SsrI18nRuntime;
+/// Installed SSR localization runtime.
+///
+/// Construct this with [`SsrI18nRuntime::install`]. The private field keeps
+/// request state tied to an installed, revalidated process-global bridge.
+#[derive(Clone, Copy, Debug)]
+pub struct SsrI18nRuntime {
+    _private: (),
+}
 
 impl SsrI18nRuntime {
     pub fn install() -> Result<Self, DioxusGlobalLocalizerError> {
         install_process_global_bridge()?;
-        Ok(Self)
+        Ok(Self { _private: () })
     }
 
     pub fn request<L: Into<LanguageIdentifier>>(

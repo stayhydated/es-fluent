@@ -42,11 +42,8 @@ es_fluent_manager_dioxus::define_i18n_module!();
 
 Initialize the Dioxus runtime in the root component and localize through the returned context:
 
-```rust,no_run
-use dioxus_core::Element;
-use dioxus_core_macro::rsx;
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
+```rs
+use dioxus::prelude::*;
 use es_fluent_manager_dioxus::use_init_i18n;
 use unic_langid::langid;
 
@@ -75,6 +72,8 @@ fn app() -> Element {
 
 Use `use_provide_i18n(...)` when a caller has already constructed a `ManagedI18n`. Both hooks return `Result` so components can render initialization or bridge-installation failures. Hook initialization is one-shot; changing the initial language or provided manager after the first render does not replace the installed context.
 
+After a `ManagedI18n` is handed to the Dioxus provider, route locale switches through `DioxusI18n::select_language(...)` or `DioxusI18n::select_language_strict(...)` so the Dioxus signal is updated with the manager state. `ManagedI18n` equality is identity equality over the shared manager and requested-language state, not semantic equality over modules or locale values.
+
 Client localization is context-bound through `DioxusI18n`:
 
 - `localize(...)` returns `Option<String>` from the current `ManagedI18n`.
@@ -94,7 +93,7 @@ The client runtime installs the `es-fluent` custom localizer bridge automaticall
 - External replacement of the global custom localizer is reported as `DioxusGlobalLocalizerError::ExternalReplacement`.
 - There is no public bridge policy, replacement mode, disabled mode, or scoped bridge API.
 
-If `use_init_i18n(...)` fails, it still provides a failed context to keep hook order stable. Descendants can call `use_i18n_optional()` to distinguish a missing provider from a failed provider.
+If `use_init_i18n(...)` or `use_provide_i18n(...)` cannot initialize or install the client bridge, it still provides a failed context to keep hook order stable. Descendants can call `use_i18n_optional()` to distinguish a missing provider from a failed provider.
 
 ## SSR
 
@@ -106,11 +105,8 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 Install the SSR runtime once during startup, then create request-scoped `SsrI18n` values from it:
 
-```rust,no_run
-use dioxus_core::{Element, VirtualDom};
-use dioxus_core_macro::rsx;
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
+```rs
+use dioxus::prelude::*;
 use es_fluent_manager_dioxus::ssr::SsrI18nRuntime;
 use unic_langid::langid;
 
@@ -132,3 +128,14 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
 `SsrI18n` values are constructed through `SsrI18nRuntime::request(...)`, which revalidates that the SSR bridge still owns the global custom localizer before creating request state.
 
 If SSR localization is called while the SSR bridge is installed but no request scope is active, the bridge marks the lookup as missing and prevents fallthrough to unrelated global localization state. The string-returning `es-fluent` global helpers still render their normal message-id fallback.
+
+## Process-global bridge lifecycle
+
+The Dioxus client and SSR runtimes install an `es-fluent` custom localizer in process-global state. Treat that bridge as an application-lifetime resource:
+
+- Install one Dioxus bridge owner per process.
+- Client and SSR bridge ownership are mutually exclusive in the same process.
+- Reinstalling the same client manager or SSR runtime is idempotent.
+- Installing a different client manager, crossing client/SSR ownership, or replacing the global localizer externally is reported as an error.
+- There is no public uninstall or reset API outside crate tests.
+- Hot reload, test harnesses, and multi-root apps can hit these owner checks; handle the returned `Result` rather than assuming bridge installation always succeeds.

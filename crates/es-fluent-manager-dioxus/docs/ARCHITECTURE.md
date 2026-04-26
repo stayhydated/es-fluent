@@ -53,6 +53,8 @@ The client hook installs the `es-fluent` custom localizer bridge strictly:
 
 The bridge stores the active client `Arc<FluentManager>` and compares same-owner checks with `Arc::ptr_eq`, not raw pointer IDs.
 
+`ManagedI18n` implements `PartialEq` and `Eq` with the same identity model: values are equal only when they share the exact manager and requested-language state.
+
 ## SSR runtime
 
 SSR has two lifecycles:
@@ -60,7 +62,7 @@ SSR has two lifecycles:
 1. process startup installs `SsrI18nRuntime` and the global custom localizer bridge;
 2. each request creates an `SsrI18n` with its own `ManagedI18n`.
 
-`SsrI18n` construction is private to `SsrI18nRuntime::request`, which revalidates the bridge before creating request state. During rendering, `SsrI18n` revalidates bridge ownership, pushes its manager onto a thread-local stack, rebuilds or renders synchronously, then pops the manager on scope drop.
+`SsrI18nRuntime` is a non-default-constructible token returned by `SsrI18nRuntime::install`, so request state cannot be created through direct runtime construction. `SsrI18n` construction is private to `SsrI18nRuntime::request`, which revalidates the bridge before creating request state. During rendering, `SsrI18n` revalidates bridge ownership, pushes its manager onto a thread-local stack, rebuilds or renders synchronously, then pops the manager on scope drop.
 
 The SSR bridge callback reads the current manager from that stack. Missing messages are reported as handled misses with a warning. Calls outside an active request scope are also reported as handled misses with an error log, so incorrect SSR paths cannot silently fall through to another global localizer.
 

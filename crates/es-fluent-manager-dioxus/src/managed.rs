@@ -8,6 +8,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
+/// Dioxus-owned localization manager.
+///
+/// Equality is identity equality: two values compare equal only when they share
+/// the same internal manager and requested-language state, not when they merely
+/// contain equivalent modules or requested languages.
 pub struct ManagedI18n {
     manager: Arc<FluentManager>,
     requested_language: Arc<RwLock<LanguageIdentifier>>,
