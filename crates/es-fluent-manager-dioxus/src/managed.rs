@@ -108,6 +108,15 @@ impl ManagedI18n {
         }
     }
 
+    pub fn localize_or_id_silent<'a>(
+        &self,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        let id = id.as_ref();
+        self.localize(id, args).unwrap_or_else(|| id.to_string())
+    }
+
     pub fn localize_in_domain<'a>(
         &self,
         domain: impl AsRef<str>,
@@ -133,5 +142,17 @@ impl ManagedI18n {
                 id.to_string()
             },
         }
+    }
+
+    pub fn localize_in_domain_or_id_silent<'a>(
+        &self,
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        let domain = domain.as_ref();
+        let id = id.as_ref();
+        self.localize_in_domain(domain, id, args)
+            .unwrap_or_else(|| id.to_string())
     }
 }

@@ -25,15 +25,19 @@ pub mod client;
 #[cfg(feature = "ssr")]
 pub mod ssr;
 
-pub use bridge::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner};
+pub use bridge::{
+    DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, current_dioxus_global_localizer_owner,
+    is_dioxus_bridge_current,
+};
 pub use error::{DioxusInitError, ModuleDiscoveryErrors};
 pub use managed::ManagedI18n;
 
 #[cfg(feature = "client")]
 pub use client::{
-    DioxusClientBridgeMode, DioxusI18n, I18nProvider, consume_i18n, try_consume_i18n, try_use_i18n,
-    try_use_i18n_subscription, use_i18n, use_i18n_optional, use_i18n_subscription, use_init_i18n,
-    use_init_i18n_with_bridge_mode, use_provide_i18n, use_provide_i18n_with_bridge_mode,
+    DioxusClientBridgeMode, DioxusI18n, I18nProvider, I18nProviderStrict, consume_i18n,
+    try_consume_i18n, try_use_i18n, try_use_i18n_subscription, use_i18n, use_i18n_optional,
+    use_i18n_subscription, use_init_i18n, use_init_i18n_with_bridge_mode, use_provide_i18n,
+    use_provide_i18n_with_bridge_mode,
 };
 
 #[cfg(test)]

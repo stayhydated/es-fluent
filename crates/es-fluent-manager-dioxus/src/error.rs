@@ -12,6 +12,19 @@ impl ModuleDiscoveryErrors {
     pub fn as_slice(&self) -> &[ModuleDiscoveryError] {
         &self.errors
     }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, ModuleDiscoveryError> {
+        self.errors.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a ModuleDiscoveryErrors {
+    type Item = &'a ModuleDiscoveryError;
+    type IntoIter = std::slice::Iter<'a, ModuleDiscoveryError>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 impl From<Vec<ModuleDiscoveryError>> for ModuleDiscoveryErrors {

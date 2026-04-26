@@ -167,6 +167,24 @@ fn installed_bridge() -> &'static RwLock<Option<InstalledBridge>> {
 }
 
 #[cfg(any(feature = "client", feature = "ssr"))]
+pub fn current_dioxus_global_localizer_owner() -> Option<DioxusGlobalLocalizerOwner> {
+    installed_bridge()
+        .read()
+        .as_ref()
+        .filter(|bridge| bridge.is_current_custom_localizer())
+        .map(InstalledBridge::owner)
+}
+
+#[cfg(not(any(feature = "client", feature = "ssr")))]
+pub fn current_dioxus_global_localizer_owner() -> Option<DioxusGlobalLocalizerOwner> {
+    None
+}
+
+pub fn is_dioxus_bridge_current() -> bool {
+    current_dioxus_global_localizer_owner().is_some()
+}
+
+#[cfg(any(feature = "client", feature = "ssr"))]
 fn reject_stale_bridge(bridge: &Option<InstalledBridge>) -> Result<(), DioxusGlobalLocalizerError> {
     if let Some(active) = bridge.as_ref()
         && !active.is_current_custom_localizer()

@@ -40,7 +40,7 @@ impl SsrI18nRuntime {
 ///
 /// Construct this through [`SsrI18nRuntime::request`] after installing the SSR
 /// runtime once during process startup. `SsrI18n` is synchronous by design. Do
-/// do not hold [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`,
+/// not hold [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`,
 /// spawned tasks, streaming callbacks, or higher-level fullstack server
 /// boundaries.
 pub struct SsrI18n {
@@ -55,6 +55,12 @@ impl SsrI18n {
         Ok(Self { managed })
     }
 
+    /// Returns the request-scoped manager.
+    ///
+    /// SSR exposes this because each `SsrI18n` is already request-local. The
+    /// client `DioxusI18n` handle intentionally does not expose `ManagedI18n`,
+    /// because direct client language changes would bypass the Dioxus signal
+    /// that drives rerendering.
     pub fn managed(&self) -> &ManagedI18n {
         &self.managed
     }

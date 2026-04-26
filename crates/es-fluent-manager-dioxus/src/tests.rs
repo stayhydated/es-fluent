@@ -220,12 +220,20 @@ fn client_global_bridge_rejects_second_distinct_owner() {
 #[test]
 #[serial]
 fn client_global_bridge_is_idempotent_for_same_owner() {
+    use crate::DioxusGlobalLocalizerOwner;
+
     reset_global_bridge_for_tests();
 
     let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
         .expect("managed dioxus i18n should initialize");
     i18n.install_client_process_global_bridge()
         .expect("bridge owner should install");
+
+    assert_eq!(
+        crate::current_dioxus_global_localizer_owner(),
+        Some(DioxusGlobalLocalizerOwner::Client)
+    );
+    assert!(crate::is_dioxus_bridge_current());
 
     i18n.install_client_process_global_bridge()
         .expect("same owner should be accepted");
@@ -523,7 +531,10 @@ mod ssr_tests {
 #[cfg(feature = "client")]
 mod client_tests {
     use super::*;
-    use crate::{use_i18n_optional, use_init_i18n, use_provide_i18n};
+    use crate::{
+        DioxusClientBridgeMode, use_i18n_optional, use_init_i18n, use_init_i18n_with_bridge_mode,
+        use_provide_i18n,
+    };
     use dioxus_core::{Element, VirtualDom};
     use dioxus_core_macro::rsx;
     #[allow(unused_imports)]
@@ -535,6 +546,7 @@ mod client_tests {
     thread_local! {
         static CAPTURED_I18N: RefCell<Option<crate::DioxusI18n>> = const { RefCell::new(None) };
         static CAPTURED_PROVIDER_SWITCH: RefCell<Option<Signal<bool>>> = const { RefCell::new(None) };
+        static CAPTURED_BRIDGE_MODE_SWITCH: RefCell<Option<Signal<bool>>> = const { RefCell::new(None) };
     }
 
     #[allow(non_snake_case)]
@@ -631,6 +643,71 @@ mod client_tests {
         }
     }
 
+    #[allow(non_snake_case)]
+    fn DisabledBridgeMessage() -> Element {
+        let i18n =
+            match use_init_i18n_with_bridge_mode(langid!("fr"), DioxusClientBridgeMode::Disabled) {
+                Ok(i18n) => i18n,
+                Err(error) => return rsx! { div { "failed: {error}" } },
+            };
+        let direct = i18n
+            .localize_in_domain("dioxus-test-module", "hello", None)
+            .expect("test message should localize through the Dioxus context");
+        let typed = i18n.to_fluent_string_via_global_bridge(&TestMessage);
+        let message = format!("{direct}|{typed}");
+
+        rsx! {
+            div { "{message}" }
+        }
+    }
+
+    #[cfg(feature = "ssr")]
+    #[allow(non_snake_case)]
+    fn BestEffortBridgeConflictMessage() -> Element {
+        let i18n =
+            match use_init_i18n_with_bridge_mode(langid!("fr"), DioxusClientBridgeMode::BestEffort)
+            {
+                Ok(i18n) => i18n,
+                Err(error) => return rsx! { div { "failed: {error}" } },
+            };
+        let direct = i18n
+            .localize_in_domain("dioxus-test-module", "hello", None)
+            .expect("test message should localize through the Dioxus context");
+        let typed = i18n.to_fluent_string_via_global_bridge(&TestMessage);
+        let message = format!("{direct}|{typed}");
+
+        rsx! {
+            div { "{message}" }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn BridgeModeReplacementMessage() -> Element {
+        let use_strict_bridge = dioxus_hooks::use_signal(|| false);
+        CAPTURED_BRIDGE_MODE_SWITCH.with(|slot| {
+            *slot.borrow_mut() = Some(use_strict_bridge);
+        });
+
+        let bridge_mode = if use_strict_bridge() {
+            DioxusClientBridgeMode::Strict
+        } else {
+            DioxusClientBridgeMode::Disabled
+        };
+        let i18n = match use_init_i18n_with_bridge_mode(langid!("fr"), bridge_mode) {
+            Ok(i18n) => i18n,
+            Err(error) => return rsx! { div { "failed: {error}" } },
+        };
+        let direct = i18n
+            .localize_in_domain("dioxus-test-module", "hello", None)
+            .expect("test message should localize through the Dioxus context");
+        let typed = i18n.to_fluent_string_via_global_bridge(&TestMessage);
+        let message = format!("{direct}|{typed}|{:?}", i18n.bridge_mode());
+
+        rsx! {
+            div { "{message}" }
+        }
+    }
+
     #[test]
     #[serial]
     fn dioxus_i18n_context_bound_localize_rerenders_after_language_selection() {
@@ -675,6 +752,33 @@ mod client_tests {
         assert!(dioxus_ssr::render(&dom).contains("failed-present"));
     }
 
+    #[test]
+    #[serial]
+    fn disabled_bridge_mode_leaves_typed_messages_on_the_global_localizer() {
+        reset_global_bridge_for_tests();
+        install_test_global_context();
+
+        let mut dom = VirtualDom::new(DisabledBridgeMessage);
+        dom.rebuild_in_place();
+
+        let html = dioxus_ssr::render(&dom);
+        assert!(html.contains("Bonjour|Hello"));
+    }
+
+    #[cfg(feature = "ssr")]
+    #[test]
+    #[serial]
+    fn best_effort_bridge_failure_keeps_direct_context_lookup() {
+        reset_global_bridge_for_tests();
+        crate::ssr::SsrI18nRuntime::install().expect("SSR bridge should install");
+
+        let mut dom = VirtualDom::new(BestEffortBridgeConflictMessage);
+        dom.rebuild_in_place();
+
+        let html = dioxus_ssr::render(&dom);
+        assert!(html.contains("Bonjour|hello"));
+    }
+
     #[cfg(feature = "ssr")]
     #[test]
     #[serial]
@@ -686,6 +790,30 @@ mod client_tests {
         dom.rebuild_in_place();
 
         assert!(dioxus_ssr::render(&dom).contains("failed-present"));
+    }
+
+    #[test]
+    #[serial]
+    fn bridge_mode_prop_change_after_first_render_does_not_reinstall_bridge() {
+        reset_global_bridge_for_tests();
+        install_test_global_context();
+        CAPTURED_BRIDGE_MODE_SWITCH.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
+
+        let mut dom = VirtualDom::new(BridgeModeReplacementMessage);
+        dom.rebuild_in_place();
+        assert!(dioxus_ssr::render(&dom).contains("Bonjour|Hello|Disabled"));
+
+        CAPTURED_BRIDGE_MODE_SWITCH.with(|slot| {
+            let mut switch = slot
+                .borrow()
+                .expect("component should capture the bridge mode switch signal");
+            switch.set(true);
+        });
+
+        dom.render_immediate_to_vec();
+        assert!(dioxus_ssr::render(&dom).contains("Bonjour|Hello|Disabled"));
     }
 
     #[test]

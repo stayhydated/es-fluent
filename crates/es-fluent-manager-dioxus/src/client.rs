@@ -1,5 +1,5 @@
 use crate::{DioxusInitError, ManagedI18n};
-use dioxus_core::{Element, try_consume_context, use_hook};
+use dioxus_core::{Element, VNode, try_consume_context, use_hook};
 use dioxus_core_macro::{Props, component};
 use dioxus_hooks::{try_use_context, use_context_provider};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
@@ -159,6 +159,15 @@ impl DioxusI18n {
         self.managed().localize_or_id(id, args)
     }
 
+    pub fn localize_or_id_silent<'a>(
+        &self,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        let _ = self.context.current();
+        self.managed().localize_or_id_silent(id, args)
+    }
+
     pub fn localize_in_domain<'a>(
         &self,
         domain: impl AsRef<str>,
@@ -179,12 +188,43 @@ impl DioxusI18n {
         self.managed().localize_in_domain_or_id(domain, id, args)
     }
 
-    pub fn to_fluent_string<T>(&self, message: &T) -> String
+    pub fn localize_in_domain_or_id_silent<'a>(
+        &self,
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        let _ = self.context.current();
+        self.managed()
+            .localize_in_domain_or_id_silent(domain, id, args)
+    }
+
+    /// Subscribes the current component to Dioxus locale changes, then delegates
+    /// typed-message formatting to `es-fluent`'s process-global localizer.
+    ///
+    /// This is not a context-bound lookup. In `DioxusClientBridgeMode::Disabled`,
+    /// after `BestEffort` bridge installation failure, or after another
+    /// integration replaces the global localizer, this can return text that does
+    /// not match the `ManagedI18n` stored in this Dioxus context. Use
+    /// [`DioxusI18n::localize`] or [`DioxusI18n::localize_in_domain`] for direct
+    /// context-bound lookup.
+    pub fn to_fluent_string_via_global_bridge<T>(&self, message: &T) -> String
     where
         T: ToFluentString + ?Sized,
     {
         let _ = self.context.current();
         message.to_fluent_string()
+    }
+
+    #[deprecated(
+        since = "0.7.0",
+        note = "use to_fluent_string_via_global_bridge to make global-localizer delegation explicit"
+    )]
+    pub fn to_fluent_string<T>(&self, message: &T) -> String
+    where
+        T: ToFluentString + ?Sized,
+    {
+        self.to_fluent_string_via_global_bridge(message)
     }
 }
 
@@ -195,8 +235,32 @@ pub fn I18nProvider(
     #[props(default)] bridge_mode: DioxusClientBridgeMode,
     children: Element,
 ) -> Element {
-    let _ = use_init_i18n_with_bridge_mode(initial_language, bridge_mode);
+    if let Err(error) = use_init_i18n_with_bridge_mode(initial_language, bridge_mode) {
+        tracing::error!(
+            error = %error,
+            "Dioxus i18n provider initialization failed; rendering children with failed i18n context"
+        );
+    }
     children
+}
+
+#[allow(non_snake_case)]
+#[component]
+pub fn I18nProviderStrict(
+    initial_language: LanguageIdentifier,
+    #[props(default)] bridge_mode: DioxusClientBridgeMode,
+    children: Element,
+) -> Element {
+    match use_init_i18n_with_bridge_mode(initial_language, bridge_mode) {
+        Ok(_) => children,
+        Err(error) => {
+            tracing::error!(
+                error = %error,
+                "Dioxus i18n provider initialization failed; rendering no children"
+            );
+            VNode::empty()
+        },
+    }
 }
 
 pub fn use_init_i18n<L>(initial_language: L) -> Result<DioxusI18n, DioxusInitError>
