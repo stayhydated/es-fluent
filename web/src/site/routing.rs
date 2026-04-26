@@ -365,7 +365,8 @@ fn route_element(route: SiteRoute) -> Element {
     };
 
     match i18n_result {
-        Ok(_i18n) => {
+        Ok(i18n) => {
+            let _ = i18n.requested_language();
             let title = format!(
                 "{} | {}",
                 SiteChromeMessage::SiteName.to_fluent_string(),

@@ -45,6 +45,7 @@ es-fluent-manager-embedded = "0.15"
 
 # For Dioxus apps, enable only the runtime surface you use.
 es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+es-fluent-manager-dioxus-derive = "0.7" # optional #[i18n_subscription] macro
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
@@ -61,7 +62,7 @@ es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 
 For custom runtime integrations, use
 `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
-For Dioxus, `es-fluent-manager-dioxus` provides hook-based client helpers behind the `client` feature and a synchronous request-scoped SSR runtime behind the `ssr` feature. The process-global bridge installs strictly and never replaces a different active owner.
+For Dioxus, `es-fluent-manager-dioxus` provides a provider component, hook-based client helpers, typed message rendering, and signal-backed locale state behind the `client` feature. Its `ssr` feature provides a synchronous request-scoped SSR runtime. The client process-global bridge is strict by default for typed `ToFluentString` rendering, with best-effort and disabled modes available for apps that keep localization explicitly context-bound.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep

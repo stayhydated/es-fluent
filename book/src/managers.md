@@ -102,6 +102,7 @@ Enable the runtime surfaces your crate actually uses:
 ```toml
 # Client apps
 es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+es-fluent-manager-dioxus-derive = "0.7"
 
 # SSR
 es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
@@ -109,25 +110,41 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 The crate has no default runtime feature. The `define_i18n_module!` macro is always available.
 
-- `client`: Dioxus hook/context runtime for interactive rendering.
+- `client`: Dioxus provider, hook/context runtime, and signal-backed locale state for interactive rendering.
 - `ssr`: synchronous Dioxus SSR runtime with request-scoped localization.
 
 ### Client Quick Start
 
 ```rust
 use dioxus::prelude::*;
-use es_fluent_manager_dioxus::use_init_i18n;
+use es_fluent::{EsFluent, ToFluentString as _};
+use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
+use es_fluent_manager_dioxus_derive::i18n_subscription;
 use unic_langid::langid;
 
 fn app() -> Element {
-    let i18n = match use_init_i18n(langid!("en-US")) {
+    rsx! {
+        I18nProvider {
+            initial_language: langid!("en-US"),
+            LocaleButton {}
+        }
+    }
+}
+
+#[derive(Clone, Copy, EsFluent)]
+#[fluent(namespace = "ui")]
+enum UiMessage {
+    Hello,
+}
+
+#[i18n_subscription]
+#[component]
+fn LocaleButton() -> Element {
+    let i18n = match use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { "Failed to initialize i18n: {error}" },
     };
-    let label = match i18n.localize_in_domain(env!("CARGO_PKG_NAME"), "ui-hello", None) {
-        Some(label) => label,
-        None => return rsx! { "Missing message: ui-hello" },
-    };
+    let label = UiMessage::Hello.to_fluent_string();
 
     rsx! {
         button {
@@ -142,11 +159,11 @@ fn app() -> Element {
 }
 ```
 
-Client apps localize through the `DioxusI18n` context returned by `use_init_i18n(...)` or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize(...)` and `localize_in_domain(...)` for optional lookup, or the explicit `localize_or_id(...)` and `localize_in_domain_or_id(...)` helpers when rendering message IDs on misses is intended. `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with the manager state.
+Client apps localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Add `#[i18n_subscription]` from `es-fluent-manager-dioxus-derive` to components that render direct `message.to_fluent_string()` calls, call `use_i18n_subscription()` manually when an attribute macro is not appropriate, use `DioxusI18n::to_fluent_string(...)` when passing the context handle explicitly is clearer, use `localize(...)` and `localize_in_domain(...)` for optional lookup, or use the explicit `localize_or_id(...)` and `localize_in_domain_or_id(...)` helpers when rendering message IDs on misses is intended. `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with the manager state.
 
-The client runtime installs the `es-fluent` custom localizer bridge automatically when a ready `ManagedI18n` context is provided. Reinstalling the same client manager is idempotent. A different active client owner is rejected, client/SSR ownership conflicts intentionally, and external custom-localizer replacement is reported as an error. There is no public bridge policy, replacement mode, disabled mode, or scoped bridge API.
+The client runtime installs the `es-fluent` custom localizer bridge automatically when a ready `ManagedI18n` context is provided. Reinstalling the same client manager is idempotent. A different active client owner is rejected, client/SSR ownership conflicts intentionally, and external custom-localizer replacement is reported as an error. `DioxusClientBridgeMode::Strict` is the default and is the right choice for typed `message.to_fluent_string()` rendering. `BestEffort` keeps context-bound lookup available when the process-global bridge conflicts, and `Disabled` skips bridge installation when every lookup goes through explicit `DioxusI18n` methods.
 
-If `use_init_i18n(...)` or `use_provide_i18n(...)` cannot initialize or install the client bridge, it still provides a failed context to keep hook order stable. Descendants can call `use_i18n_optional()` to distinguish a missing provider from a failed provider. `ManagedI18n` equality is identity equality over the shared manager and requested-language state, not semantic equality over modules or locale values.
+If `use_init_i18n(...)` or `use_provide_i18n(...)` cannot initialize or install the client bridge, it still provides a failed context to keep hook order stable. Descendants can call `try_use_i18n()` or the compatibility alias `use_i18n_optional()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active. `ManagedI18n` equality is identity equality over the shared manager and requested-language state, not semantic equality over modules or locale values.
 
 ### SSR Quick Start
 
@@ -176,9 +193,9 @@ Do not hold `with_sync_thread_local_manager(...)` scopes across `.await`, spawne
 
 ### Process-Global Bridge Lifecycle
 
-The Dioxus client and SSR runtimes install an `es-fluent` custom localizer in process-global state. Treat that bridge as an application-lifetime resource: install one Dioxus bridge owner per process, do not mix client and SSR bridge ownership in the same process, and handle owner-conflict or external-replacement errors explicitly.
+The Dioxus client and SSR runtimes can install an `es-fluent` custom localizer in process-global state. Treat that bridge as an application-lifetime resource: install one Dioxus bridge owner per process, do not mix client and SSR bridge ownership in the same process, and handle owner-conflict or external-replacement errors explicitly.
 
-Reinstalling the same client manager or SSR runtime is idempotent. Installing a different client manager, crossing client/SSR ownership, or replacing the global localizer externally is reported as an error. There is no public uninstall or reset API outside crate tests, so hot reload, test harnesses, and multi-root apps can legitimately hit these owner checks.
+Reinstalling the same client manager or SSR runtime is idempotent. Installing a different client manager, crossing client/SSR ownership, or replacing the global localizer externally is reported as an error in strict mode. There is no public uninstall or reset API outside crate tests, so hot reload, test harnesses, and multi-root apps can legitimately hit these owner checks. Client-only apps that do not call typed `ToFluentString` localization can opt out with `DioxusClientBridgeMode::Disabled`.
 
 ---
 

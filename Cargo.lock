@@ -3960,14 +3960,10 @@ dependencies = [
 name = "dioxus-client-example"
 version = "0.15.0"
 dependencies = [
- "dioxus-core",
- "dioxus-core-macro",
- "dioxus-hooks",
- "dioxus-html",
- "dioxus-signals",
- "dioxus-ssr",
+ "dioxus",
  "es-fluent",
  "es-fluent-manager-dioxus",
+ "es-fluent-manager-dioxus-derive",
  "example-shared-lib",
  "serial_test",
  "strum",
@@ -4485,11 +4481,7 @@ dependencies = [
 name = "dioxus-ssr-example"
 version = "0.15.0"
 dependencies = [
- "dioxus-core",
- "dioxus-core-macro",
- "dioxus-html",
- "dioxus-signals",
- "dioxus-ssr",
+ "dioxus",
  "es-fluent",
  "es-fluent-manager-dioxus",
  "example-shared-lib",
@@ -5128,6 +5120,15 @@ dependencies = [
  "serial_test",
  "tracing",
  "unic-langid",
+]
+
+[[package]]
+name = "es-fluent-manager-dioxus-derive"
+version = "0.7.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -13905,6 +13906,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-lang",
  "es-fluent-manager-dioxus",
+ "es-fluent-manager-dioxus-derive",
  "rust-embed",
  "serial_test",
  "strum",

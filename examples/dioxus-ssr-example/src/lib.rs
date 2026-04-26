@@ -1,7 +1,4 @@
-use dioxus_core::{Element, VirtualDom};
-use dioxus_core_macro::{Props, component, rsx};
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
+use dioxus::prelude::*;
 use es_fluent::{EsFluent, ToFluentString as _};
 use es_fluent_manager_dioxus::ssr::SsrI18nRuntime;
 use example_shared_lib::{ButtonState, Languages};

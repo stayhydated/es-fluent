@@ -3,7 +3,9 @@ use crate::site::i18n::{HomeHeroMessage, HomeWorkflowMessage, SiteLanguage};
 use crate::site::routing::{PageKind, book_href};
 use dioxus::prelude::*;
 use es_fluent::ToFluentString as _;
+use es_fluent_manager_dioxus_derive::i18n_subscription;
 
+#[i18n_subscription]
 #[component]
 pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
     let hero_style = use_reveal_style(0, 24.0);

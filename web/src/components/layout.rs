@@ -4,7 +4,9 @@ use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, book_href, page_href};
 use dioxus::prelude::*;
 use es_fluent::ToFluentString as _;
+use es_fluent_manager_dioxus_derive::i18n_subscription;
 
+#[i18n_subscription]
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
     rsx! {
@@ -60,6 +62,7 @@ fn ExternalNavLink(href: String, label: String) -> Element {
     }
 }
 
+#[i18n_subscription]
 #[component]
 fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
     rsx! {
@@ -77,6 +80,7 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
     }
 }
 
+#[i18n_subscription]
 #[component]
 pub(crate) fn FooterPanel() -> Element {
     rsx! {

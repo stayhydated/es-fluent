@@ -1,26 +1,12 @@
-use dioxus_core::{Element, VirtualDom};
-use dioxus_core_macro::{Props, component, rsx};
-use dioxus_hooks::use_signal;
-#[allow(unused_imports)]
-use dioxus_html as dioxus_elements;
-use dioxus_signals::WritableExt as _;
-use es_fluent::{EsFluent, FluentValue};
-use es_fluent_manager_dioxus::{use_i18n, use_init_i18n};
+use dioxus::prelude::*;
+use es_fluent::{EsFluent, ToFluentString as _};
+use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
+use es_fluent_manager_dioxus_derive::i18n_subscription;
 use example_shared_lib::{ButtonState, Languages};
-use std::collections::HashMap;
 use strum::IntoEnumIterator as _;
 use unic_langid::LanguageIdentifier;
 
 es_fluent_manager_dioxus::define_i18n_module!();
-
-const DOMAIN: &str = env!("CARGO_PKG_NAME");
-const CLIENT_HEADING: &str = "dioxus_screen_messages-ClientHeading";
-const CLIENT_SUMMARY: &str = "dioxus_screen_messages-ClientSummary";
-const CLIENT_BUTTON_LABEL: &str = "dioxus_screen_messages-ClientButtonLabel";
-const RUNTIME_SPLIT_NOTE: &str = "dioxus_screen_messages-RuntimeSplitNote";
-const SHARED_TYPES_HEADING: &str = "dioxus_screen_messages-SharedTypesHeading";
-const SHARED_LANGUAGE_VALUE: &str = "dioxus_screen_messages-SharedLanguageValue";
-const SHARED_BUTTON_STATE_VALUE: &str = "dioxus_screen_messages-SharedButtonStateValue";
 
 #[derive(Clone, Copy, Debug, EsFluent)]
 #[fluent(namespace = "ui")]
@@ -75,12 +61,23 @@ pub fn render_client_preview(initial_language: Languages) -> String {
     let mut dom =
         VirtualDom::new_with_props(ClientPreview, ClientPreviewProps { initial_language });
     dom.rebuild_in_place();
-    dioxus_ssr::render(&dom)
+    dioxus::ssr::render(&dom)
 }
 
 #[component]
 fn ClientPreview(initial_language: Languages) -> Element {
-    let i18n = match use_init_i18n(initial_language) {
+    rsx! {
+        I18nProvider {
+            initial_language: LanguageIdentifier::from(initial_language),
+            ClientPreviewBody { initial_language }
+        }
+    }
+}
+
+#[i18n_subscription]
+#[component]
+fn ClientPreviewBody(initial_language: Languages) -> Element {
+    let i18n = match use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { section { "Failed to initialize i18n: {error}" } },
     };
@@ -95,16 +92,14 @@ fn ClientPreview(initial_language: Languages) -> Element {
     };
     let next_language = current_language.next();
 
-    let heading = i18n.localize_in_domain_or_id(DOMAIN, CLIENT_HEADING, None);
-    let summary_args = fluent_args([
-        ("current_language", language_tag(current_language)),
-        ("button_state", format!("{button_state:?}")),
-    ]);
-    let summary = i18n.localize_in_domain_or_id(DOMAIN, CLIENT_SUMMARY, Some(&summary_args));
-    let button_args = fluent_args([("next_language", language_tag(next_language))]);
-    let button_label =
-        i18n.localize_in_domain_or_id(DOMAIN, CLIENT_BUTTON_LABEL, Some(&button_args));
-    let runtime_note = i18n.localize_in_domain_or_id(DOMAIN, RUNTIME_SPLIT_NOTE, None);
+    let heading = DioxusScreenMessages::ClientHeading.to_fluent_string();
+    let summary = DioxusScreenMessages::ClientSummary {
+        current_language,
+        button_state,
+    }
+    .to_fluent_string();
+    let button_label = DioxusScreenMessages::ClientButtonLabel { next_language }.to_fluent_string();
+    let runtime_note = DioxusScreenMessages::RuntimeSplitNote.to_fluent_string();
 
     rsx! {
         section {
@@ -128,19 +123,18 @@ fn ClientPreview(initial_language: Languages) -> Element {
     }
 }
 
+#[i18n_subscription]
 #[component]
 fn ClientSharedValues(current_language: Languages, button_state: ButtonState) -> Element {
-    let i18n = match use_i18n() {
+    match use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { "Failed to read i18n context: {error}" } },
     };
-    let shared_heading = i18n.localize_in_domain_or_id(DOMAIN, SHARED_TYPES_HEADING, None);
-    let language_args = fluent_args([("current_language", language_tag(current_language))]);
+    let shared_heading = DioxusScreenMessages::SharedTypesHeading.to_fluent_string();
     let shared_language =
-        i18n.localize_in_domain_or_id(DOMAIN, SHARED_LANGUAGE_VALUE, Some(&language_args));
-    let button_args = fluent_args([("button_state", format!("{button_state:?}"))]);
+        DioxusScreenMessages::SharedLanguageValue { current_language }.to_fluent_string();
     let shared_button_state =
-        i18n.localize_in_domain_or_id(DOMAIN, SHARED_BUTTON_STATE_VALUE, Some(&button_args));
+        DioxusScreenMessages::SharedButtonStateValue { button_state }.to_fluent_string();
 
     rsx! {
         div {
@@ -152,15 +146,6 @@ fn ClientSharedValues(current_language: Languages, button_state: ButtonState) ->
             }
         }
     }
-}
-
-fn fluent_args<const N: usize>(
-    items: [(&'static str, String); N],
-) -> HashMap<&'static str, FluentValue<'static>> {
-    items
-        .into_iter()
-        .map(|(key, value)| (key, FluentValue::from(value)))
-        .collect()
 }
 
 fn language_tag(language: Languages) -> String {

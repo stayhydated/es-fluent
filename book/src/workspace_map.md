@@ -22,23 +22,24 @@ apps by enabling `client`, `ssr`, or both surfaces as needed. Use
 
 ## Crates You Usually Use
 
-| Crate                        | Use it for                                                                    | Covered in this book                                                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `es-fluent`                  | Derives, traits, and the public localization facade                           | [Getting Started](getting_started.md), [Deriving Messages](deriving_messages.md), [Namespaces & File Splitting](namespaces.md) |
-| `es-fluent-manager-embedded` | Embedded-runtime apps, CLIs, TUIs, desktop apps                               | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-manager-dioxus`   | Dioxus apps using hook-based client locale state or request-scoped SSR        | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-manager-bevy`     | Bevy integration, reactive localized UI, asset loading                        | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-lang`             | Type-safe locale enum generation and localized language names                 | [Language Enum](language_enum.md)                                                                                              |
-| `es-fluent-cli`              | Generating, checking, cleaning, syncing, formatting, and inspecting FTL files | [CLI Tooling](cli.md)                                                                                                          |
+| Crate                        | Use it for                                                                      | Covered in this book                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `es-fluent`                  | Derives, traits, and the public localization facade                             | [Getting Started](getting_started.md), [Deriving Messages](deriving_messages.md), [Namespaces & File Splitting](namespaces.md) |
+| `es-fluent-manager-embedded` | Embedded-runtime apps, CLIs, TUIs, desktop apps                                 | [Runtime Managers](managers.md)                                                                                                |
+| `es-fluent-manager-dioxus`   | Dioxus apps using provider/hook-based client locale state or request-scoped SSR | [Runtime Managers](managers.md)                                                                                                |
+| `es-fluent-manager-bevy`     | Bevy integration, reactive localized UI, asset loading                          | [Runtime Managers](managers.md)                                                                                                |
+| `es-fluent-lang`             | Type-safe locale enum generation and localized language names                   | [Language Enum](language_enum.md)                                                                                              |
+| `es-fluent-cli`              | Generating, checking, cleaning, syncing, formatting, and inspecting FTL files   | [CLI Tooling](cli.md)                                                                                                          |
 
 ## Public Support Crates
 
-| Crate                      | Role                                                         |
-| -------------------------- | ------------------------------------------------------------ |
-| `es-fluent-derive`         | Proc-macro implementation re-exported by `es-fluent`         |
-| `es-fluent-lang-macro`     | Implementation crate behind `#[es_fluent_language]`          |
-| `es-fluent-manager-core`   | Shared runtime traits, module registration, fallback logic   |
-| `es-fluent-manager-macros` | Compile-time module registration and `BevyFluentText` derive |
+| Crate                             | Role                                                         |
+| --------------------------------- | ------------------------------------------------------------ |
+| `es-fluent-derive`                | Proc-macro implementation re-exported by `es-fluent`         |
+| `es-fluent-lang-macro`            | Implementation crate behind `#[es_fluent_language]`          |
+| `es-fluent-manager-core`          | Shared runtime traits, module registration, fallback logic   |
+| `es-fluent-manager-dioxus-derive` | Attribute macros for Dioxus i18n subscription ergonomics     |
+| `es-fluent-manager-macros`        | Compile-time module registration and `BevyFluentText` derive |
 
 ## Internal Workspace Crates
 
