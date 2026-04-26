@@ -86,30 +86,20 @@ impl DioxusI18n {
         self.context.peek()
     }
 
-    pub fn select_language<L: Into<LanguageIdentifier>>(&self, lang: L) {
-        self.managed().select_language(lang);
-        self.context.update(self.managed().requested_language());
-    }
-
-    pub fn try_select_language<L: Into<LanguageIdentifier>>(
+    pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
-        self.managed().try_select_language(lang)?;
+        self.managed().select_language(lang)?;
         self.context.update(self.managed().requested_language());
         Ok(())
     }
 
-    pub fn select_language_strict<L: Into<LanguageIdentifier>>(&self, lang: L) {
-        self.managed().select_language_strict(lang);
-        self.context.update(self.managed().requested_language());
-    }
-
-    pub fn try_select_language_strict<L: Into<LanguageIdentifier>>(
+    pub fn select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
-        self.managed().try_select_language_strict(lang)?;
+        self.managed().select_language_strict(lang)?;
         self.context.update(self.managed().requested_language());
         Ok(())
     }
@@ -118,18 +108,18 @@ impl DioxusI18n {
         &self,
         id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
+    ) -> Option<String> {
         let _ = self.context.current();
         self.managed().localize(id, args)
     }
 
-    pub fn try_localize<'a>(
+    pub fn localize_or_id<'a>(
         &self,
         id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
+    ) -> String {
         let _ = self.context.current();
-        self.managed().try_localize(id, args)
+        self.managed().localize_or_id(id, args)
     }
 
     pub fn localize_in_domain<'a>(
@@ -137,38 +127,30 @@ impl DioxusI18n {
         domain: impl AsRef<str>,
         id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
+    ) -> Option<String> {
         let _ = self.context.current();
         self.managed().localize_in_domain(domain, id, args)
     }
 
-    pub fn try_localize_in_domain<'a>(
+    pub fn localize_in_domain_or_id<'a>(
         &self,
         domain: impl AsRef<str>,
         id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
+    ) -> String {
         let _ = self.context.current();
-        self.managed().try_localize_in_domain(domain, id, args)
+        self.managed().localize_in_domain_or_id(domain, id, args)
     }
 }
 
-pub fn use_init_i18n<L>(initial_language: L) -> DioxusI18n
-where
-    L: Into<LanguageIdentifier> + 'static,
-{
-    use_try_init_i18n(initial_language)
-        .unwrap_or_else(|error| panic!("failed to initialize Dioxus i18n: {error}"))
-}
-
-pub fn use_try_init_i18n<L>(initial_language: L) -> Result<DioxusI18n, DioxusInitError>
+pub fn use_init_i18n<L>(initial_language: L) -> Result<DioxusI18n, DioxusInitError>
 where
     L: Into<LanguageIdentifier> + 'static,
 {
     let initial_language = initial_language.into();
     let state = use_hook({
         let initial_language = initial_language.clone();
-        move || match ManagedI18n::try_new_with_discovered_modules(initial_language) {
+        move || match ManagedI18n::new_with_discovered_modules(initial_language) {
             Ok(managed) => I18nContextState::Ready(managed),
             Err(error) => I18nContextState::Failed(error),
         }
@@ -177,12 +159,7 @@ where
     use_i18n_context_once(state, initial_language)
 }
 
-pub fn use_provide_i18n(managed: ManagedI18n) -> DioxusI18n {
-    use_try_provide_i18n(managed)
-        .unwrap_or_else(|error| panic!("failed to provide Dioxus i18n: {error}"))
-}
-
-pub fn use_try_provide_i18n(managed: ManagedI18n) -> Result<DioxusI18n, DioxusInitError> {
+pub fn use_provide_i18n(managed: ManagedI18n) -> Result<DioxusI18n, DioxusInitError> {
     let fallback_language = managed.requested_language();
     use_i18n_context_once(I18nContextState::Ready(managed), fallback_language)
 }
@@ -207,10 +184,13 @@ fn use_i18n_context_once(
     context.into_i18n()
 }
 
-pub fn try_use_i18n() -> Option<DioxusI18n> {
-    try_use_context::<I18nContext>().and_then(|context| context.into_i18n().ok())
+pub fn use_i18n_optional() -> Result<Option<DioxusI18n>, DioxusInitError> {
+    match try_use_context::<I18nContext>() {
+        Some(context) => context.into_i18n().map(Some),
+        None => Ok(None),
+    }
 }
 
-pub fn use_i18n() -> DioxusI18n {
-    try_use_i18n().expect("missing DioxusI18n provider")
+pub fn use_i18n() -> Result<DioxusI18n, DioxusInitError> {
+    use_i18n_optional()?.ok_or_else(DioxusInitError::missing_context)
 }

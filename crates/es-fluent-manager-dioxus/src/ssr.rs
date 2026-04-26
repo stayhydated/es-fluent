@@ -1,7 +1,7 @@
 use crate::{DioxusGlobalLocalizerError, DioxusInitError, ManagedI18n, bridge::install_ssr_bridge};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
-use es_fluent::{FluentValue, GlobalLocalizationError};
+use es_fluent::{CustomLocalizerLookup, FluentValue, GlobalLocalizationError};
 use es_fluent_manager_core::FluentManager;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -25,7 +25,7 @@ impl SsrI18nRuntime {
         &self,
         language: L,
     ) -> Result<SsrI18n, DioxusInitError> {
-        SsrI18n::try_new_with_discovered_modules(language)
+        SsrI18n::new_with_discovered_modules(language)
     }
 }
 
@@ -41,10 +41,10 @@ pub struct SsrI18n {
 }
 
 impl SsrI18n {
-    fn try_new_with_discovered_modules<L: Into<LanguageIdentifier>>(
+    pub fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(
         lang: L,
     ) -> Result<Self, DioxusInitError> {
-        let managed = ManagedI18n::try_new_with_discovered_modules(lang)?;
+        let managed = ManagedI18n::new_with_discovered_modules(lang)?;
         Ok(Self { managed })
     }
 
@@ -56,26 +56,18 @@ impl SsrI18n {
         self.managed.requested_language()
     }
 
-    pub fn select_language<L: Into<LanguageIdentifier>>(&self, lang: L) {
-        self.managed.select_language(lang);
-    }
-
-    pub fn try_select_language<L: Into<LanguageIdentifier>>(
+    pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
-        self.managed.try_select_language(lang)
+        self.managed.select_language(lang)
     }
 
-    pub fn select_language_strict<L: Into<LanguageIdentifier>>(&self, lang: L) {
-        self.managed.select_language_strict(lang);
-    }
-
-    pub fn try_select_language_strict<L: Into<LanguageIdentifier>>(
+    pub fn select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
-        self.managed.try_select_language_strict(lang)
+        self.managed.select_language_strict(lang)
     }
 
     /// Runs a synchronous callback while this request's manager is installed.
@@ -149,14 +141,14 @@ impl Drop for CurrentManagerScope {
 }
 
 fn install_process_global_bridge() -> Result<(), DioxusGlobalLocalizerError> {
-    install_ssr_bridge(localize_current_ssr_manager)
+    install_ssr_bridge()
 }
 
-fn localize_current_ssr_manager<'a>(
+pub(crate) fn localize_current_ssr_manager<'a>(
     domain: Option<&str>,
     id: &str,
     args: Option<&HashMap<&str, FluentValue<'a>>>,
-) -> Option<String> {
+) -> CustomLocalizerLookup {
     CURRENT_MANAGER_STACK.with(|stack| {
         let manager = match stack.borrow().last() {
             Some(manager) => Arc::clone(manager),
@@ -172,7 +164,7 @@ fn localize_current_ssr_manager<'a>(
                         "SSR Fluent localization used outside an SsrI18n scope"
                     ),
                 }
-                return Some(id.to_string());
+                return CustomLocalizerLookup::Missing;
             },
         };
 
@@ -182,7 +174,7 @@ fn localize_current_ssr_manager<'a>(
         };
 
         match message {
-            Some(message) => Some(message),
+            Some(message) => CustomLocalizerLookup::Found(message),
             None => {
                 match domain {
                     Some(domain) => {
@@ -190,7 +182,7 @@ fn localize_current_ssr_manager<'a>(
                     },
                     None => tracing::warn!(message_id = id, "missing Fluent message"),
                 }
-                Some(id.to_string())
+                CustomLocalizerLookup::Missing
             },
         }
     })

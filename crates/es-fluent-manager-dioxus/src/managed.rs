@@ -24,12 +24,7 @@ impl PartialEq for ManagedI18n {
 impl Eq for ManagedI18n {}
 
 impl ManagedI18n {
-    pub fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(lang: L) -> Self {
-        Self::try_new_with_discovered_modules(lang)
-            .unwrap_or_else(|error| panic!("failed to initialize Dioxus i18n manager: {error}"))
-    }
-
-    pub fn try_new_with_discovered_modules<L: Into<LanguageIdentifier>>(
+    pub fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(
         lang: L,
     ) -> Result<Self, DioxusInitError> {
         let lang = lang.into();
@@ -55,12 +50,7 @@ impl ManagedI18n {
         self.requested_language.read().clone()
     }
 
-    pub fn select_language<L: Into<LanguageIdentifier>>(&self, lang: L) {
-        self.try_select_language(lang)
-            .unwrap_or_else(|error| panic!("failed to select Dioxus i18n language: {error}"));
-    }
-
-    pub fn try_select_language<L: Into<LanguageIdentifier>>(
+    pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
@@ -72,14 +62,7 @@ impl ManagedI18n {
         Ok(())
     }
 
-    pub fn select_language_strict<L: Into<LanguageIdentifier>>(&self, lang: L) {
-        self.try_select_language_strict(lang)
-            .unwrap_or_else(|error| {
-                panic!("failed to strictly select Dioxus i18n language: {error}")
-            });
-    }
-
-    pub fn try_select_language_strict<L: Into<LanguageIdentifier>>(
+    pub fn select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
     ) -> Result<(), GlobalLocalizationError> {
@@ -96,7 +79,7 @@ impl ManagedI18n {
         install_client_bridge(Arc::clone(&self.manager))
     }
 
-    pub fn try_localize<'a>(
+    pub fn localize<'a>(
         &self,
         id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
@@ -104,13 +87,13 @@ impl ManagedI18n {
         self.manager.localize(id.as_ref(), args)
     }
 
-    pub fn localize<'a>(
+    pub fn localize_or_id<'a>(
         &self,
         id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> String {
         let id = id.as_ref();
-        match self.try_localize(id, args) {
+        match self.localize(id, args) {
             Some(value) => value,
             None => {
                 tracing::warn!(message_id = id, "missing Fluent message");
@@ -124,25 +107,25 @@ impl ManagedI18n {
         domain: impl AsRef<str>,
         id: impl AsRef<str>,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.manager
+            .localize_in_domain(domain.as_ref(), id.as_ref(), args)
+    }
+
+    pub fn localize_in_domain_or_id<'a>(
+        &self,
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> String {
         let domain = domain.as_ref();
         let id = id.as_ref();
-        match self.try_localize_in_domain(domain, id, args) {
+        match self.localize_in_domain(domain, id, args) {
             Some(value) => value,
             None => {
                 tracing::warn!(domain, message_id = id, "missing Fluent message");
                 id.to_string()
             },
         }
-    }
-
-    pub fn try_localize_in_domain<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        self.manager
-            .localize_in_domain(domain.as_ref(), id.as_ref(), args)
     }
 }

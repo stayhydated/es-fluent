@@ -24,7 +24,7 @@ impl From<Vec<ModuleDiscoveryError>> for ModuleDiscoveryErrors {
 
 impl std::fmt::Display for ModuleDiscoveryErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("failed strict i18n module discovery")?;
+        f.write_str("failed to discover i18n modules")?;
         for error in self.errors.iter() {
             write!(f, "\n- {error}")?;
         }
@@ -45,6 +45,7 @@ pub enum DioxusInitError {
     ModuleDiscovery(ModuleDiscoveryErrors),
     LanguageSelection(Arc<GlobalLocalizationError>),
     GlobalLocalizer(Arc<DioxusGlobalLocalizerError>),
+    MissingContext,
 }
 
 impl DioxusInitError {
@@ -60,6 +61,11 @@ impl DioxusInitError {
     pub(crate) fn global_localizer(error: DioxusGlobalLocalizerError) -> Self {
         Self::GlobalLocalizer(Arc::new(error))
     }
+
+    #[cfg(feature = "client")]
+    pub(crate) fn missing_context() -> Self {
+        Self::MissingContext
+    }
 }
 
 impl std::fmt::Display for DioxusInitError {
@@ -70,6 +76,7 @@ impl std::fmt::Display for DioxusInitError {
                 write!(f, "failed to select the requested language: {error}")
             },
             Self::GlobalLocalizer(error) => write!(f, "{error}"),
+            Self::MissingContext => f.write_str("missing Dioxus i18n provider"),
         }
     }
 }
@@ -80,6 +87,7 @@ impl std::error::Error for DioxusInitError {
             Self::ModuleDiscovery(errors) => Some(errors),
             Self::LanguageSelection(error) => Some(error.as_ref()),
             Self::GlobalLocalizer(error) => Some(error.as_ref()),
+            Self::MissingContext => None,
         }
     }
 }

@@ -137,50 +137,50 @@ fn reset_global_bridge_for_tests() {
 #[test]
 #[serial]
 fn managed_i18n_selects_and_localizes() {
-    let i18n = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+    let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
         .expect("managed dioxus i18n should initialize");
 
     assert_eq!(i18n.requested_language(), langid!("en-US"));
     assert_eq!(
         i18n.localize_in_domain("dioxus-test-module", "hello", None),
-        "Hello"
+        Some("Hello".to_string())
     );
 
-    i18n.try_select_language(langid!("fr"))
+    i18n.select_language(langid!("fr"))
         .expect("language switch should succeed");
 
     assert_eq!(i18n.requested_language(), langid!("fr"));
     assert_eq!(
         i18n.localize_in_domain("dioxus-test-module", "hello", None),
-        "Bonjour"
+        Some("Bonjour".to_string())
     );
 }
 
 #[test]
 #[serial]
 fn managed_i18n_exposes_strict_selection_and_optional_lookup() {
-    let i18n = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+    let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
         .expect("managed dioxus i18n should initialize");
 
     assert_eq!(
-        i18n.try_localize_in_domain("dioxus-partial-module", "partial", None),
+        i18n.localize_in_domain("dioxus-partial-module", "partial", None),
         Some("Partial".to_string())
     );
     assert!(
-        i18n.try_select_language_strict(langid!("fr")).is_err(),
+        i18n.select_language_strict(langid!("fr")).is_err(),
         "strict selection should reject locales unsupported by any module"
     );
     assert_eq!(i18n.requested_language(), langid!("en-US"));
 
-    i18n.try_select_language(langid!("fr"))
+    i18n.select_language(langid!("fr"))
         .expect("best-effort selection should keep modules that support fr");
     assert_eq!(i18n.requested_language(), langid!("fr"));
     assert_eq!(
-        i18n.try_localize_in_domain("dioxus-partial-module", "partial", None),
+        i18n.localize_in_domain("dioxus-partial-module", "partial", None),
         None
     );
     assert_eq!(
-        i18n.localize_in_domain("dioxus-partial-module", "partial", None),
+        i18n.localize_in_domain_or_id("dioxus-partial-module", "partial", None),
         "partial"
     );
 }
@@ -194,13 +194,13 @@ fn client_global_bridge_rejects_second_distinct_owner() {
 
     reset_global_bridge_for_tests();
 
-    let first = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+    let first = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
         .expect("first managed dioxus i18n should initialize");
     first
         .install_client_process_global_bridge()
         .expect("first bridge owner should install");
 
-    let second = ManagedI18n::try_new_with_discovered_modules(langid!("fr"))
+    let second = ManagedI18n::new_with_discovered_modules(langid!("fr"))
         .expect("second managed dioxus i18n should initialize");
     let error = second
         .install_client_process_global_bridge()
@@ -222,7 +222,7 @@ fn client_global_bridge_rejects_second_distinct_owner() {
 fn client_global_bridge_is_idempotent_for_same_owner() {
     reset_global_bridge_for_tests();
 
-    let i18n = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+    let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
         .expect("managed dioxus i18n should initialize");
     i18n.install_client_process_global_bridge()
         .expect("bridge owner should install");
@@ -234,12 +234,13 @@ fn client_global_bridge_is_idempotent_for_same_owner() {
 #[cfg(feature = "client")]
 #[test]
 #[serial]
-fn client_global_bridge_discards_stale_metadata_after_external_replacement() {
+fn client_global_bridge_rejects_external_replacement() {
+    use crate::{DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner};
     use es_fluent::ToFluentString as _;
 
     reset_global_bridge_for_tests();
 
-    let first = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+    let first = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
         .expect("first managed dioxus i18n should initialize");
     first
         .install_client_process_global_bridge()
@@ -255,13 +256,19 @@ fn client_global_bridge_discards_stale_metadata_after_external_replacement() {
 
     assert_eq!(TestMessage.to_fluent_string(), "external-hello");
 
-    let second = ManagedI18n::try_new_with_discovered_modules(langid!("fr"))
+    let second = ManagedI18n::new_with_discovered_modules(langid!("fr"))
         .expect("second managed dioxus i18n should initialize");
-    second
+    let error = second
         .install_client_process_global_bridge()
-        .expect("stale client bridge metadata should be discarded");
+        .expect_err("external custom localizer replacement should be explicit");
 
-    assert_eq!(TestMessage.to_fluent_string(), "Bonjour");
+    assert!(matches!(
+        error,
+        DioxusGlobalLocalizerError::ExternalReplacement {
+            owner: DioxusGlobalLocalizerOwner::Client,
+        }
+    ));
+    assert_eq!(TestMessage.to_fluent_string(), "external-hello");
 }
 
 #[cfg(feature = "client")]
@@ -271,7 +278,7 @@ fn dioxus_bridge_missing_message_does_not_fall_back_to_global_context() {
     reset_global_bridge_for_tests();
     install_test_global_context();
 
-    let i18n = ManagedI18n::try_new_with_discovered_modules(langid!("fr"))
+    let i18n = ManagedI18n::new_with_discovered_modules(langid!("fr"))
         .expect("managed dioxus i18n should initialize");
     i18n.install_client_process_global_bridge()
         .expect("Dioxus client bridge should install");
@@ -407,7 +414,7 @@ mod ssr_tests {
     #[serial]
     fn ssr_install_rejects_active_client_bridge() {
         reset_global_bridge_for_tests();
-        let client = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+        let client = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
             .expect("managed dioxus i18n should initialize");
         client
             .install_client_process_global_bridge()
@@ -432,7 +439,7 @@ mod ssr_tests {
         reset_global_bridge_for_tests();
         SsrI18nRuntime::install().expect("SSR bridge should install");
 
-        let client = ManagedI18n::try_new_with_discovered_modules(langid!("en-US"))
+        let client = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
             .expect("managed dioxus i18n should initialize");
         let error = client
             .install_client_process_global_bridge()
@@ -451,7 +458,7 @@ mod ssr_tests {
 #[cfg(feature = "client")]
 mod client_tests {
     use super::*;
-    use crate::{use_init_i18n, use_provide_i18n};
+    use crate::{use_i18n_optional, use_init_i18n, use_provide_i18n};
     use dioxus_core::{Element, VirtualDom};
     use dioxus_core_macro::rsx;
     #[allow(unused_imports)]
@@ -467,11 +474,16 @@ mod client_tests {
 
     #[allow(non_snake_case)]
     fn ReactiveMessage() -> Element {
-        let i18n = use_init_i18n(langid!("en-US"));
+        let i18n = match use_init_i18n(langid!("en-US")) {
+            Ok(i18n) => i18n,
+            Err(error) => return rsx! { div { "failed: {error}" } },
+        };
         CAPTURED_I18N.with(|slot| {
             *slot.borrow_mut() = Some(i18n.clone());
         });
-        let message = i18n.localize_in_domain("dioxus-test-module", "hello", None);
+        let message = i18n
+            .localize_in_domain("dioxus-test-module", "hello", None)
+            .expect("test message should localize");
 
         rsx! {
             div { "{message}" }
@@ -480,10 +492,10 @@ mod client_tests {
 
     #[allow(non_snake_case)]
     fn OptionalI18nMessage() -> Element {
-        let message = if crate::try_use_i18n().is_some() {
-            "present"
-        } else {
-            "missing"
+        let message = match use_i18n_optional() {
+            Ok(Some(_)) => "present",
+            Ok(None) => "missing",
+            Err(_) => "failed",
         };
 
         rsx! {
@@ -493,10 +505,13 @@ mod client_tests {
 
     #[allow(non_snake_case)]
     fn FailedInitMessage() -> Element {
-        let message = match crate::use_try_init_i18n(langid!("de-DE")) {
-            Ok(_) => "ready",
-            Err(_) if crate::try_use_i18n().is_some() => "failed-present",
-            Err(_) => "failed-missing",
+        let init = crate::use_init_i18n(langid!("de-DE"));
+        let child = crate::use_i18n_optional();
+        let message = match (init, child) {
+            (Ok(_), _) => "ready",
+            (Err(_), Err(_)) => "failed-present",
+            (Err(_), Ok(None)) => "failed-missing",
+            (Err(_), Ok(Some(_))) => "unexpected-ready",
         };
 
         rsx! {
@@ -516,13 +531,18 @@ mod client_tests {
         } else {
             langid!("en-US")
         };
-        let managed = ManagedI18n::try_new_with_discovered_modules(lang)
+        let managed = ManagedI18n::new_with_discovered_modules(lang)
             .expect("managed dioxus i18n should initialize");
-        let i18n = use_provide_i18n(managed);
+        let i18n = match use_provide_i18n(managed) {
+            Ok(i18n) => i18n,
+            Err(error) => return rsx! { div { "failed: {error}" } },
+        };
         CAPTURED_I18N.with(|slot| {
             *slot.borrow_mut() = Some(i18n.clone());
         });
-        let message = i18n.localize_in_domain("dioxus-test-module", "hello", None);
+        let message = i18n
+            .localize_in_domain("dioxus-test-module", "hello", None)
+            .expect("test message should localize");
 
         rsx! {
             div { "{message}" }
@@ -546,7 +566,7 @@ mod client_tests {
                 .clone()
                 .expect("component should capture the Dioxus i18n handle")
         });
-        i18n.try_select_language(langid!("fr"))
+        i18n.select_language(langid!("fr"))
             .expect("language switch should succeed");
 
         dom.render_immediate_to_vec();
@@ -555,7 +575,7 @@ mod client_tests {
 
     #[test]
     #[serial]
-    fn try_use_i18n_returns_none_without_provider() {
+    fn use_i18n_optional_returns_none_without_provider() {
         let mut dom = VirtualDom::new(OptionalI18nMessage);
         dom.rebuild_in_place();
 
@@ -564,13 +584,13 @@ mod client_tests {
 
     #[test]
     #[serial]
-    fn failed_try_init_i18n_context_is_not_usable_by_children() {
+    fn failed_init_i18n_context_error_is_visible_to_children() {
         reset_global_bridge_for_tests();
 
         let mut dom = VirtualDom::new(FailedInitMessage);
         dom.rebuild_in_place();
 
-        assert!(dioxus_ssr::render(&dom).contains("failed-missing"));
+        assert!(dioxus_ssr::render(&dom).contains("failed-present"));
     }
 
     #[test]

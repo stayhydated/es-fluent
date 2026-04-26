@@ -49,13 +49,29 @@ type DomainAwareCustomLocalizer = dyn for<'a> Fn(
         Option<&str>,
         &str,
         Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String>
+    ) -> CustomLocalizerLookup
     + Send
     + Sync;
 
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct CustomLocalizerGeneration(u64);
+
+#[doc(hidden)]
+pub enum CustomLocalizerLookup {
+    Continue,
+    Missing,
+    Found(String),
+}
+
+impl CustomLocalizerLookup {
+    fn from_optional(message: Option<String>) -> Self {
+        match message {
+            Some(message) => Self::Found(message),
+            None => Self::Continue,
+        }
+    }
+}
 
 #[doc(hidden)]
 #[derive(Clone)]
@@ -85,22 +101,26 @@ fn custom_localizer_slot() -> &'static RwLock<Option<Arc<DomainAwareCustomLocali
 fn try_custom_localizer<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
-) -> Option<String> {
+) -> CustomLocalizerLookup {
     CUSTOM_LOCALIZER
         .get()
         .and_then(|slot| slot.read().clone())
-        .and_then(|entry| (entry.localizer)(None, id, args))
+        .map_or(CustomLocalizerLookup::Continue, |entry| {
+            (entry.localizer)(None, id, args)
+        })
 }
 
 fn try_custom_localizer_in_domain<'a>(
     domain: &str,
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
-) -> Option<String> {
+) -> CustomLocalizerLookup {
     CUSTOM_LOCALIZER
         .get()
         .and_then(|slot| slot.read().clone())
-        .and_then(|entry| (entry.localizer)(Some(domain), id, args))
+        .map_or(CustomLocalizerLookup::Continue, |entry| {
+            (entry.localizer)(Some(domain), id, args)
+        })
 }
 
 #[doc(hidden)]
@@ -255,6 +275,25 @@ where
         + Sync
         + 'static,
 {
+    try_set_custom_localizer_lookup_with_domain_and_generation(move |domain, id, args| {
+        CustomLocalizerLookup::from_optional(localizer(domain, id, args))
+    })
+}
+
+#[doc(hidden)]
+pub fn try_set_custom_localizer_lookup_with_domain_and_generation<F>(
+    localizer: F,
+) -> Result<CustomLocalizerGeneration, GlobalLocalizationError>
+where
+    F: for<'a> Fn(
+            Option<&str>,
+            &str,
+            Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+        ) -> CustomLocalizerLookup
+        + Send
+        + Sync
+        + 'static,
+{
     let mut slot = custom_localizer_slot().write();
     if slot.is_some() {
         return Err(GlobalLocalizationError::CustomLocalizerAlreadyInitialized);
@@ -297,6 +336,25 @@ where
         + Sync
         + 'static,
 {
+    replace_custom_localizer_lookup_with_domain_and_generation(move |domain, id, args| {
+        CustomLocalizerLookup::from_optional(localizer(domain, id, args))
+    })
+}
+
+#[doc(hidden)]
+pub fn replace_custom_localizer_lookup_with_domain_and_generation<F>(
+    localizer: F,
+) -> CustomLocalizerGeneration
+where
+    F: for<'a> Fn(
+            Option<&str>,
+            &str,
+            Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
+        ) -> CustomLocalizerLookup
+        + Send
+        + Sync
+        + 'static,
+{
     let generation = next_custom_localizer_generation();
     *custom_localizer_slot().write() = Some(Arc::new(DomainAwareCustomLocalizerEntry {
         generation,
@@ -329,8 +387,13 @@ pub fn localize<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
-    if let Some(message) = try_custom_localizer(id, args) {
-        return message;
+    match try_custom_localizer(id, args) {
+        CustomLocalizerLookup::Found(message) => return message,
+        CustomLocalizerLookup::Missing => {
+            tracing::warn!("Translation for '{}' not found or context not set.", id);
+            return id.to_string();
+        },
+        CustomLocalizerLookup::Continue => {},
     }
 
     if let Some(context) = CONTEXT.get()
@@ -354,8 +417,17 @@ pub fn localize_in_domain<'a>(
     id: &str,
     args: Option<&std::collections::HashMap<&str, FluentValue<'a>>>,
 ) -> String {
-    if let Some(message) = try_custom_localizer_in_domain(domain, id, args) {
-        return message;
+    match try_custom_localizer_in_domain(domain, id, args) {
+        CustomLocalizerLookup::Found(message) => return message,
+        CustomLocalizerLookup::Missing => {
+            tracing::warn!(
+                "Translation for '{}' in domain '{}' not found or context not set.",
+                id,
+                domain
+            );
+            return id.to_string();
+        },
+        CustomLocalizerLookup::Continue => {},
     }
 
     if let Some(context) = CONTEXT.get()

@@ -6,11 +6,21 @@ use es_fluent_manager_dioxus::use_init_i18n;
 
 #[component]
 pub fn App() -> Element {
-    let _i18n = use_init_i18n(SiteLanguage::default().lang());
+    let i18n_result = use_init_i18n(SiteLanguage::default().lang());
     let stylesheet_href = format!("{}assets/site.css", app_base_href());
 
-    rsx! {
-        document::Stylesheet { href: stylesheet_href }
-        Router::<AppRoute> {}
+    match i18n_result {
+        Ok(_i18n) => rsx! {
+            document::Stylesheet { href: stylesheet_href }
+            Router::<AppRoute> {}
+        },
+        Err(error) => rsx! {
+            document::Stylesheet { href: stylesheet_href }
+            main {
+                class: "dev-error",
+                h1 { "Failed to initialize localization" }
+                pre { "{error}" }
+            }
+        },
     }
 }

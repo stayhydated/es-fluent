@@ -1,20 +1,19 @@
 use es_fluent::GlobalLocalizationError;
 #[cfg(any(feature = "client", feature = "ssr"))]
+use es_fluent::try_set_custom_localizer_lookup_with_domain_and_generation;
+#[cfg(any(feature = "client", feature = "ssr"))]
 use es_fluent::{CustomLocalizerGeneration, current_custom_localizer_generation};
+#[cfg(feature = "client")]
+use es_fluent::{CustomLocalizerLookup, FluentValue};
 #[cfg(all(test, any(feature = "client", feature = "ssr")))]
 use es_fluent::{
     CustomLocalizerSnapshot, custom_localizer_snapshot, restore_custom_localizer_snapshot,
-};
-#[cfg(any(feature = "client", feature = "ssr"))]
-use es_fluent::{
-    FluentValue, replace_custom_localizer_with_domain_and_generation,
-    try_set_custom_localizer_with_domain_and_generation,
 };
 #[cfg(feature = "client")]
 use es_fluent_manager_core::FluentManager;
 #[cfg(any(feature = "client", feature = "ssr"))]
 use parking_lot::RwLock;
-#[cfg(any(feature = "client", feature = "ssr"))]
+#[cfg(feature = "client")]
 use std::collections::HashMap;
 use std::sync::Arc;
 #[cfg(any(feature = "client", feature = "ssr"))]
@@ -32,6 +31,9 @@ pub enum DioxusGlobalLocalizerError {
         active: DioxusGlobalLocalizerOwner,
         requested: DioxusGlobalLocalizerOwner,
     },
+    ExternalReplacement {
+        owner: DioxusGlobalLocalizerOwner,
+    },
     Global(Arc<GlobalLocalizationError>),
 }
 
@@ -42,6 +44,11 @@ impl DioxusGlobalLocalizerError {
         requested: DioxusGlobalLocalizerOwner,
     ) -> Self {
         Self::OwnerConflict { active, requested }
+    }
+
+    #[cfg(any(feature = "client", feature = "ssr"))]
+    fn external_replacement(owner: DioxusGlobalLocalizerOwner) -> Self {
+        Self::ExternalReplacement { owner }
     }
 }
 
@@ -58,6 +65,10 @@ impl std::fmt::Display for DioxusGlobalLocalizerError {
                 f,
                 "the Dioxus global Fluent localizer is already owned by the {active} bridge; requested the {requested} bridge",
             ),
+            Self::ExternalReplacement { owner } => write!(
+                f,
+                "the Dioxus {owner} bridge no longer owns the global Fluent localizer",
+            ),
             Self::Global(error) => write!(f, "{error}"),
         }
     }
@@ -67,6 +78,7 @@ impl std::error::Error for DioxusGlobalLocalizerError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::OwnerConflict { .. } => None,
+            Self::ExternalReplacement { .. } => None,
             Self::Global(error) => Some(error.as_ref()),
         }
     }
@@ -155,16 +167,16 @@ fn installed_bridge() -> &'static RwLock<Option<InstalledBridge>> {
 }
 
 #[cfg(any(feature = "client", feature = "ssr"))]
-fn discard_stale_bridge(bridge: &mut Option<InstalledBridge>) -> bool {
-    let is_stale = bridge
-        .as_ref()
-        .is_some_and(|bridge| !bridge.is_current_custom_localizer());
-
-    if is_stale {
-        *bridge = None;
+fn reject_stale_bridge(bridge: &Option<InstalledBridge>) -> Result<(), DioxusGlobalLocalizerError> {
+    if let Some(active) = bridge.as_ref()
+        && !active.is_current_custom_localizer()
+    {
+        return Err(DioxusGlobalLocalizerError::external_replacement(
+            active.owner(),
+        ));
     }
 
-    is_stale
+    Ok(())
 }
 
 #[cfg(all(test, any(feature = "client", feature = "ssr")))]
@@ -191,7 +203,7 @@ fn install_client_bridge_locked(
     bridge: &mut Option<InstalledBridge>,
     manager: Arc<FluentManager>,
 ) -> Result<CustomLocalizerGeneration, DioxusGlobalLocalizerError> {
-    let had_stale_bridge = discard_stale_bridge(bridge);
+    reject_stale_bridge(bridge)?;
 
     match bridge.as_ref() {
         Some(active) if active.is_same_client_manager(&manager) => return Ok(active.generation()),
@@ -209,11 +221,7 @@ fn install_client_bridge_locked(
         move |domain: Option<&str>, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
             localize_with_manager(&callback_manager, domain, id, args)
         };
-    let generation = if had_stale_bridge {
-        replace_custom_localizer_with_domain_and_generation(localizer)
-    } else {
-        try_set_custom_localizer_with_domain_and_generation(localizer)?
-    };
+    let generation = try_set_custom_localizer_lookup_with_domain_and_generation(localizer)?;
 
     *bridge = Some(InstalledBridge::Client {
         manager,
@@ -223,30 +231,17 @@ fn install_client_bridge_locked(
 }
 
 #[cfg(feature = "ssr")]
-pub(crate) fn install_ssr_bridge<F>(callback: F) -> Result<(), DioxusGlobalLocalizerError>
-where
-    F: for<'a> Fn(Option<&str>, &str, Option<&HashMap<&str, FluentValue<'a>>>) -> Option<String>
-        + Send
-        + Sync
-        + 'static,
-{
+pub(crate) fn install_ssr_bridge() -> Result<(), DioxusGlobalLocalizerError> {
     let _guard = global_bridge_install_lock();
     let mut bridge = installed_bridge().write();
-    install_ssr_bridge_locked(&mut bridge, callback).map(|_| ())
+    install_ssr_bridge_locked(&mut bridge).map(|_| ())
 }
 
 #[cfg(feature = "ssr")]
-fn install_ssr_bridge_locked<F>(
+fn install_ssr_bridge_locked(
     bridge: &mut Option<InstalledBridge>,
-    callback: F,
-) -> Result<CustomLocalizerGeneration, DioxusGlobalLocalizerError>
-where
-    F: for<'a> Fn(Option<&str>, &str, Option<&HashMap<&str, FluentValue<'a>>>) -> Option<String>
-        + Send
-        + Sync
-        + 'static,
-{
-    let had_stale_bridge = discard_stale_bridge(bridge);
+) -> Result<CustomLocalizerGeneration, DioxusGlobalLocalizerError> {
+    reject_stale_bridge(bridge)?;
 
     match bridge.as_ref() {
         Some(active) if active.owner() == DioxusGlobalLocalizerOwner::Ssr => {
@@ -261,11 +256,9 @@ where
         None => {},
     }
 
-    let generation = if had_stale_bridge {
-        replace_custom_localizer_with_domain_and_generation(callback)
-    } else {
-        try_set_custom_localizer_with_domain_and_generation(callback)?
-    };
+    let generation = try_set_custom_localizer_lookup_with_domain_and_generation(
+        crate::ssr::localize_current_ssr_manager,
+    )?;
     *bridge = Some(InstalledBridge::Ssr { generation });
     Ok(generation)
 }
@@ -276,20 +269,20 @@ fn localize_with_manager<'a>(
     domain: Option<&str>,
     id: &str,
     args: Option<&HashMap<&str, FluentValue<'a>>>,
-) -> Option<String> {
+) -> CustomLocalizerLookup {
     let message = match domain {
         Some(domain) => manager.localize_in_domain(domain, id, args),
         None => manager.localize(id, args),
     };
 
     match message {
-        Some(message) => Some(message),
+        Some(message) => CustomLocalizerLookup::Found(message),
         None => {
             match domain {
                 Some(domain) => tracing::warn!(domain, message_id = id, "missing Fluent message"),
                 None => tracing::warn!(message_id = id, "missing Fluent message"),
             }
-            Some(id.to_string())
+            CustomLocalizerLookup::Missing
         },
     }
 }

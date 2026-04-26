@@ -30,10 +30,7 @@ pub use error::{DioxusInitError, ModuleDiscoveryErrors};
 pub use managed::ManagedI18n;
 
 #[cfg(feature = "client")]
-pub use client::{
-    DioxusI18n, try_use_i18n, use_i18n, use_init_i18n, use_provide_i18n, use_try_init_i18n,
-    use_try_provide_i18n,
-};
+pub use client::{DioxusI18n, use_i18n, use_i18n_optional, use_init_i18n, use_provide_i18n};
 
 #[cfg(test)]
 mod tests;

@@ -341,12 +341,20 @@ fn directory_contains_generated_html(dir: &Path) -> std::io::Result<bool> {
 }
 
 fn route_element(route: SiteRoute) -> Element {
-    let i18n = use_i18n();
+    let i18n = match use_i18n() {
+        Ok(i18n) => i18n,
+        Err(error) => {
+            return rsx!(DevErrorPage {
+                route,
+                message: format!("failed to access localization context: {error}"),
+            });
+        },
+    };
     let route_language = route.locale.lang();
     let i18n_result = if i18n.peek_requested_language() == route_language {
         Ok(i18n)
     } else {
-        i18n.try_select_language(route_language)
+        i18n.select_language(route_language)
             .map(|()| i18n)
             .map_err(|error| {
                 format!(

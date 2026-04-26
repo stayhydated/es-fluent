@@ -120,13 +120,19 @@ use es_fluent_manager_dioxus::use_init_i18n;
 use unic_langid::langid;
 
 fn app() -> Element {
-    let i18n = use_init_i18n(langid!("en-US"));
-    let label = i18n.localize_in_domain(env!("CARGO_PKG_NAME"), "ui-hello", None);
+    let i18n = match use_init_i18n(langid!("en-US")) {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { "Failed to initialize i18n: {error}" },
+    };
+    let label = match i18n.localize_in_domain(env!("CARGO_PKG_NAME"), "ui-hello", None) {
+        Some(label) => label,
+        None => return rsx! { "Missing message: ui-hello" },
+    };
 
     rsx! {
         button {
             onclick: move |_| {
-                if let Err(error) = i18n.try_select_language(langid!("fr")) {
+                if let Err(error) = i18n.select_language(langid!("fr")) {
                     eprintln!("locale switch failed: {error}");
                 }
             },
@@ -136,11 +142,11 @@ fn app() -> Element {
 }
 ```
 
-Client apps localize through the `DioxusI18n` context returned by `use_init_i18n(...)`, `use_try_init_i18n(...)`, `use_provide_i18n(...)`, or `use_try_provide_i18n(...)`. Use `localize(...)`, `try_localize(...)`, `localize_in_domain(...)`, and `try_localize_in_domain(...)` for rendering. `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback. Locale switches should use `try_select_language(...)` or `try_select_language_strict(...)` when failures need to be handled.
+Client apps localize through the `DioxusI18n` context returned by `use_init_i18n(...)` or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize(...)` and `localize_in_domain(...)` for optional lookup, or the explicit `localize_or_id(...)` and `localize_in_domain_or_id(...)` helpers when rendering message IDs on misses is intended. `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`.
 
-The client runtime installs the `es-fluent` custom localizer bridge automatically when a ready `ManagedI18n` context is provided. Reinstalling the same client manager is idempotent. A different active client owner is rejected, and client/SSR ownership conflicts intentionally. There is no public bridge policy, replacement mode, disabled mode, or scoped bridge API.
+The client runtime installs the `es-fluent` custom localizer bridge automatically when a ready `ManagedI18n` context is provided. Reinstalling the same client manager is idempotent. A different active client owner is rejected, client/SSR ownership conflicts intentionally, and external custom-localizer replacement is reported as an error. There is no public bridge policy, replacement mode, disabled mode, or scoped bridge API.
 
-If `use_try_init_i18n(...)` fails, it still provides a failed context to keep hook order stable, but `try_use_i18n()` returns `None` and no `DioxusI18n` is usable by children.
+If `use_init_i18n(...)` fails, it still provides a failed context to keep hook order stable. Descendants can call `use_i18n_optional()` to distinguish a missing provider from a failed provider.
 
 ### SSR Quick Start
 

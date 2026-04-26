@@ -72,7 +72,7 @@ pub fn render_showcase() -> String {
 pub fn render_client_preview(initial_language: Languages) -> String {
     example_shared_lib::force_link();
 
-    let managed = ManagedI18n::try_new_with_discovered_modules(initial_language)
+    let managed = ManagedI18n::new_with_discovered_modules(initial_language)
         .expect("Dioxus client example manager should initialize");
     let mut dom = VirtualDom::new_with_props(
         ClientPreview,
@@ -87,7 +87,10 @@ pub fn render_client_preview(initial_language: Languages) -> String {
 
 #[component]
 fn ClientPreview(initial_language: Languages, managed: ManagedI18n) -> Element {
-    let i18n = use_provide_i18n(managed);
+    let i18n = match use_provide_i18n(managed) {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { section { "Failed to initialize i18n: {error}" } },
+    };
     let mut is_hovered = use_signal(|| false);
 
     let current_language =
@@ -99,15 +102,16 @@ fn ClientPreview(initial_language: Languages, managed: ManagedI18n) -> Element {
     };
     let next_language = current_language.next();
 
-    let heading = i18n.localize_in_domain(DOMAIN, CLIENT_HEADING, None);
+    let heading = i18n.localize_in_domain_or_id(DOMAIN, CLIENT_HEADING, None);
     let summary_args = fluent_args([
         ("current_language", language_tag(current_language)),
         ("button_state", format!("{button_state:?}")),
     ]);
-    let summary = i18n.localize_in_domain(DOMAIN, CLIENT_SUMMARY, Some(&summary_args));
+    let summary = i18n.localize_in_domain_or_id(DOMAIN, CLIENT_SUMMARY, Some(&summary_args));
     let button_args = fluent_args([("next_language", language_tag(next_language))]);
-    let button_label = i18n.localize_in_domain(DOMAIN, CLIENT_BUTTON_LABEL, Some(&button_args));
-    let runtime_note = i18n.localize_in_domain(DOMAIN, RUNTIME_SPLIT_NOTE, None);
+    let button_label =
+        i18n.localize_in_domain_or_id(DOMAIN, CLIENT_BUTTON_LABEL, Some(&button_args));
+    let runtime_note = i18n.localize_in_domain_or_id(DOMAIN, RUNTIME_SPLIT_NOTE, None);
 
     rsx! {
         section {
@@ -121,7 +125,7 @@ fn ClientPreview(initial_language: Languages, managed: ManagedI18n) -> Element {
                 r#type: "button",
                 onclick: move |_| {
                     is_hovered.set(!is_hovered());
-                    if let Err(error) = i18n.try_select_language(next_language) {
+                    if let Err(error) = i18n.select_language(next_language) {
                         eprintln!("example locale switch failed: {error}");
                     }
                 },
@@ -133,14 +137,17 @@ fn ClientPreview(initial_language: Languages, managed: ManagedI18n) -> Element {
 
 #[component]
 fn ClientSharedValues(current_language: Languages, button_state: ButtonState) -> Element {
-    let i18n = use_i18n();
-    let shared_heading = i18n.localize_in_domain(DOMAIN, SHARED_TYPES_HEADING, None);
+    let i18n = match use_i18n() {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { div { "Failed to read i18n context: {error}" } },
+    };
+    let shared_heading = i18n.localize_in_domain_or_id(DOMAIN, SHARED_TYPES_HEADING, None);
     let language_args = fluent_args([("current_language", language_tag(current_language))]);
     let shared_language =
-        i18n.localize_in_domain(DOMAIN, SHARED_LANGUAGE_VALUE, Some(&language_args));
+        i18n.localize_in_domain_or_id(DOMAIN, SHARED_LANGUAGE_VALUE, Some(&language_args));
     let button_args = fluent_args([("button_state", format!("{button_state:?}"))]);
     let shared_button_state =
-        i18n.localize_in_domain(DOMAIN, SHARED_BUTTON_STATE_VALUE, Some(&button_args));
+        i18n.localize_in_domain_or_id(DOMAIN, SHARED_BUTTON_STATE_VALUE, Some(&button_args));
 
     rsx! {
         div {

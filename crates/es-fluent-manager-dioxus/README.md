@@ -51,13 +51,19 @@ use es_fluent_manager_dioxus::use_init_i18n;
 use unic_langid::langid;
 
 fn app() -> Element {
-    let i18n = use_init_i18n(langid!("en-US"));
-    let label = i18n.localize_in_domain(env!("CARGO_PKG_NAME"), "ui-hello", None);
+    let i18n = match use_init_i18n(langid!("en-US")) {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { "Failed to initialize i18n: {error}" },
+    };
+    let label = match i18n.localize_in_domain(env!("CARGO_PKG_NAME"), "ui-hello", None) {
+        Some(label) => label,
+        None => return rsx! { "Missing message: ui-hello" },
+    };
 
     rsx! {
         button {
             onclick: move |_| {
-                if let Err(error) = i18n.try_select_language(langid!("fr")) {
+                if let Err(error) = i18n.select_language(langid!("fr")) {
                     eprintln!("locale switch failed: {error}");
                 }
             },
@@ -67,26 +73,28 @@ fn app() -> Element {
 }
 ```
 
-Use `use_try_init_i18n(...)` when the component should render initialization errors instead of panicking. Use `use_provide_i18n(...)` or `use_try_provide_i18n(...)` when a caller has already constructed a `ManagedI18n`.
+Use `use_provide_i18n(...)` when a caller has already constructed a `ManagedI18n`. Both hooks return `Result` so components can render initialization or bridge-installation failures. Hook initialization is one-shot; changing the initial language or provided manager after the first render does not replace the installed context.
 
 Client localization is context-bound through `DioxusI18n`:
 
-- `localize(...)` and `try_localize(...)` use the current `ManagedI18n`.
-- `localize_in_domain(...)` and `try_localize_in_domain(...)` use the current `ManagedI18n` plus an explicit domain.
+- `localize(...)` returns `Option<String>` from the current `ManagedI18n`.
+- `localize_in_domain(...)` returns `Option<String>` from the current `ManagedI18n` plus an explicit domain.
+- `localize_or_id(...)` and `localize_in_domain_or_id(...)` are explicit fallback helpers for UIs that intentionally render message IDs on misses.
 - `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback.
-- `try_select_language(...)` records the requested language and updates the Dioxus signal used by render code.
-- `try_select_language_strict(...)` requires every discovered module to support the requested locale.
+- `select_language(...)` records the requested language and updates the Dioxus signal used by render code.
+- `select_language_strict(...)` requires every discovered module to support the requested locale.
 
-Prefer the fallible language-selection methods in UI event handlers so render code can decide how to surface failures.
+Language-selection methods are fallible so UI event handlers can decide how to surface failures.
 
 The client runtime installs the `es-fluent` custom localizer bridge automatically when a ready `ManagedI18n` context is provided. The bridge is strict:
 
 - Reinstalling the same client manager is idempotent.
 - A second distinct client owner is rejected with `DioxusGlobalLocalizerError::OwnerConflict`.
 - SSR and client ownership conflict intentionally.
+- External replacement of the global custom localizer is reported as `DioxusGlobalLocalizerError::ExternalReplacement`.
 - There is no public bridge policy, replacement mode, disabled mode, or scoped bridge API.
 
-If `use_try_init_i18n(...)` fails, it still provides a failed context to keep hook order stable, but `try_use_i18n()` returns `None` and no `DioxusI18n` is usable by children.
+If `use_init_i18n(...)` fails, it still provides a failed context to keep hook order stable. Descendants can call `use_i18n_optional()` to distinguish a missing provider from a failed provider.
 
 ## SSR
 
@@ -121,4 +129,4 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
 
 `SsrI18n` scopes localization to the synchronous render call through a thread-local manager stack. Do not hold `with_sync_thread_local_manager(...)` across `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries.
 
-If SSR localization is called while the SSR bridge is installed but no request scope is active, the bridge logs and returns the message id. That makes incorrect render paths visible instead of silently falling through to unrelated global localization state.
+If SSR localization is called while the SSR bridge is installed but no request scope is active, the bridge marks the lookup as missing and prevents fallthrough to unrelated global localization state. The string-returning `es-fluent` global helpers still render their normal message-id fallback.
