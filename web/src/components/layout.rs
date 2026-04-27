@@ -3,19 +3,28 @@ use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, book_href, page_href};
 use dioxus::prelude::*;
-use es_fluent::ToFluentString as _;
-use es_fluent_manager_dioxus_derive::i18n_subscription;
+use es_fluent_manager_dioxus::use_i18n;
 
-#[i18n_subscription]
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
+    let i18n = match use_i18n() {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { header { class: "page-header", "failed: {error}" } },
+    };
+    let page_kicker = i18n.localize_message(&SiteChromeMessage::PageKicker);
+    let site_name = i18n.localize_message(&SiteChromeMessage::SiteName);
+    let nav_home = i18n.localize_message(&SiteChromeMessage::NavHome);
+    let nav_demos = i18n.localize_message(&SiteChromeMessage::NavDemos);
+    let nav_docs = i18n.localize_message(&SiteChromeMessage::NavDocs);
+    let nav_source = i18n.localize_message(&SiteChromeMessage::NavSource);
+
     rsx! {
         header { class: "page-header",
             a { class: "brand", href: page_href(locale, PageKind::Home),
                     span { class: "brand-mark", "EF" }
                     span { class: "brand-copy",
-                        span { class: "brand-kicker", "{SiteChromeMessage::PageKicker.to_fluent_string()}" }
-                        span { class: "brand-title", "{SiteChromeMessage::SiteName.to_fluent_string()}" }
+                        span { class: "brand-kicker", "{page_kicker}" }
+                        span { class: "brand-title", "{site_name}" }
                     }
                 }
                 div { class: "header-cluster",
@@ -24,21 +33,21 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
                         locale,
                         page: PageKind::Home,
                         class: if current_page == PageKind::Home { " nav-link is-active".to_string() } else { " nav-link".to_string() },
-                        label: SiteChromeMessage::NavHome.to_fluent_string(),
+                        label: nav_home,
                     }
                     PageLink {
                         locale,
                         page: PageKind::Demos,
                         class: if current_page == PageKind::Demos || current_page == PageKind::Bevy { " nav-link is-active".to_string() } else { " nav-link".to_string() },
-                        label: SiteChromeMessage::NavDemos.to_fluent_string(),
+                        label: nav_demos,
                     }
                     ExternalNavLink {
                         href: book_href(),
-                        label: SiteChromeMessage::NavDocs.to_fluent_string(),
+                        label: nav_docs,
                     }
                     ExternalNavLink {
                         href: "https://github.com/stayhydated/es-fluent".to_string(),
-                        label: SiteChromeMessage::NavSource.to_fluent_string(),
+                        label: nav_source,
                     }
                 }
                 LocaleSwitcher { locale, current_page }
@@ -62,39 +71,57 @@ fn ExternalNavLink(href: String, label: String) -> Element {
     }
 }
 
-#[i18n_subscription]
 #[component]
 fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
+    let i18n = match use_i18n() {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { div { class: "locale-switcher", "failed: {error}" } },
+    };
+    let locale_label = i18n.localize_message(&SiteChromeMessage::LocaleLabel);
+    let language_links = SiteLanguage::all()
+        .map(|candidate| {
+            let label = i18n.localize_message(&candidate);
+            (candidate, label)
+        })
+        .collect::<Vec<_>>();
+
     rsx! {
         div { class: "locale-switcher",
-            span { class: "locale-label", "{SiteChromeMessage::LocaleLabel.to_fluent_string()}" }
-            for candidate in SiteLanguage::all() {
+            span { class: "locale-label", "{locale_label}" }
+            for (candidate, label) in language_links {
                 PageLink {
                     locale: candidate,
                     page: current_page,
                     class: if candidate == locale { "locale-link is-active".to_string() } else { "locale-link".to_string() },
-                    label: candidate.display_label(),
+                    label,
                 }
             }
         }
     }
 }
 
-#[i18n_subscription]
 #[component]
 pub(crate) fn FooterPanel() -> Element {
+    let i18n = match use_i18n() {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { footer { class: "site-footer", "failed: {error}" } },
+    };
+    let label = i18n.localize_message(&SiteFooterMessage::Label);
+    let body_prefix = i18n.localize_message(&SiteFooterMessage::BodyPrefix);
+    let body_link_label = i18n.localize_message(&SiteFooterMessage::BodyLinkLabel);
+
     rsx! {
         footer { class: "site-footer",
             p { class: "footer-copy",
-                span { class: "footer-label", "{SiteFooterMessage::Label.to_fluent_string()}" }
+                span { class: "footer-label", "{label}" }
                 span { class: "footer-text",
-                    "{SiteFooterMessage::BodyPrefix.to_fluent_string()} "
+                    "{body_prefix} "
                     a {
                         class: "footer-link",
                         href: ES_FLUENT_MANAGER_DIOXUS_CRATES_URL,
                         target: "_blank",
                         rel: "noreferrer",
-                        "{SiteFooterMessage::BodyLinkLabel.to_fluent_string()}"
+                        "{body_link_label}"
                     }
                     "."
                 }

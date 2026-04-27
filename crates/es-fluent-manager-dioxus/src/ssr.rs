@@ -1,66 +1,49 @@
-use crate::{DioxusGlobalLocalizerError, DioxusInitError, ManagedI18n, bridge::install_ssr_bridge};
+use crate::{DioxusInitError, ManagedI18n, ModuleDiscoveryErrors};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
-use es_fluent::{CustomLocalizerLookup, FluentValue, GlobalLocalizationError};
-use es_fluent_manager_core::FluentManager;
-use std::cell::RefCell;
+use es_fluent::{FluentMessage, FluentValue, GlobalLocalizationError};
+use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use unic_langid::LanguageIdentifier;
 
-thread_local! {
-    static CURRENT_MANAGER_STACK: RefCell<Vec<Arc<FluentManager>>> = const { RefCell::new(Vec::new()) };
-}
-
-/// Installed SSR localization runtime.
+/// SSR localization runtime with cached module discovery.
 ///
-/// Construct this with [`SsrI18nRuntime::install`]. The private field keeps
-/// request state tied to an installed, revalidated process-global bridge.
-#[derive(Clone, Copy, Debug)]
+/// Construct this once during process startup, then create one [`SsrI18n`] per
+/// request. The request object owns its own manager state, so locale selection is
+/// isolated without relying on process-global localization hooks.
+#[derive(Clone, Debug, Default)]
 pub struct SsrI18nRuntime {
-    _private: (),
+    modules: Arc<OnceLock<Result<DiscoveredI18nModules, ModuleDiscoveryErrors>>>,
 }
 
 impl SsrI18nRuntime {
-    pub fn install() -> Result<Self, DioxusGlobalLocalizerError> {
-        install_process_global_bridge()?;
-        Ok(Self { _private: () })
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn request<L: Into<LanguageIdentifier>>(
         &self,
         language: L,
     ) -> Result<SsrI18n, DioxusInitError> {
-        install_process_global_bridge().map_err(DioxusInitError::global_localizer)?;
-        SsrI18n::new_with_discovered_modules(language)
+        SsrI18n::new_with_cached_modules(cached_discovered_modules(&self.modules)?, language)
     }
 }
 
 /// Request-scoped Dioxus SSR localization state.
-///
-/// Construct this through [`SsrI18nRuntime::request`] after installing the SSR
-/// runtime once during process startup. `SsrI18n` is synchronous by design. Do
-/// not hold [`SsrI18n::with_sync_thread_local_manager`] scopes across `.await`,
-/// spawned tasks, streaming callbacks, or higher-level fullstack server
-/// boundaries.
 pub struct SsrI18n {
     managed: ManagedI18n,
 }
 
 impl SsrI18n {
-    pub(crate) fn new_with_discovered_modules<L: Into<LanguageIdentifier>>(
+    pub(crate) fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
+        modules: &DiscoveredI18nModules,
         lang: L,
     ) -> Result<Self, DioxusInitError> {
-        let managed = ManagedI18n::new_with_discovered_modules(lang)?;
+        let managed = ManagedI18n::new_with_cached_modules(modules, lang)?;
         Ok(Self { managed })
     }
 
-    /// Returns the request-scoped manager.
-    ///
-    /// SSR exposes this because each `SsrI18n` is already request-local. The
-    /// client `DioxusI18n` handle intentionally does not expose `ManagedI18n`,
-    /// because direct client language changes would bypass the Dioxus signal
-    /// that drives rerendering.
     pub fn managed(&self) -> &ManagedI18n {
         &self.managed
     }
@@ -83,134 +66,73 @@ impl SsrI18n {
         self.managed.select_language_strict(lang)
     }
 
-    /// Runs a synchronous callback while this request's manager is installed.
-    pub fn with_sync_thread_local_manager<R>(
+    pub fn localize<'a>(
         &self,
-        f: impl FnOnce() -> R,
-    ) -> Result<R, DioxusGlobalLocalizerError> {
-        install_process_global_bridge()?;
-        let _scope = CurrentManagerScope::new(Arc::clone(self.managed.manager()));
-        Ok(f())
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.managed.localize(id, args)
     }
 
-    /// Rebuilds the virtual DOM and serializes it while this request's manager
-    /// is installed.
-    pub fn rebuild_and_render(
+    pub fn localize_in_domain<'a>(
         &self,
-        dom: &mut VirtualDom,
-    ) -> Result<String, DioxusGlobalLocalizerError> {
-        self.with_sync_thread_local_manager(|| {
-            dom.rebuild_in_place();
-            dioxus_ssr::render(dom)
-        })
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.managed.localize_in_domain(domain, id, args)
     }
 
-    /// Rebuilds the virtual DOM and pre-renders it while this request's manager
-    /// is installed.
-    pub fn rebuild_and_pre_render(
-        &self,
-        dom: &mut VirtualDom,
-    ) -> Result<String, DioxusGlobalLocalizerError> {
-        self.with_sync_thread_local_manager(|| {
-            dom.rebuild_in_place();
-            dioxus_ssr::pre_render(dom)
-        })
+    pub fn localize_message<T>(&self, message: &T) -> String
+    where
+        T: FluentMessage + ?Sized,
+    {
+        self.managed.localize_message(message)
     }
 
-    /// Serializes an already rebuilt virtual DOM while this request's manager is
-    /// installed.
-    pub fn render(&self, dom: &VirtualDom) -> Result<String, DioxusGlobalLocalizerError> {
-        self.with_sync_thread_local_manager(|| dioxus_ssr::render(dom))
+    pub fn localize_message_silent<T>(&self, message: &T) -> String
+    where
+        T: FluentMessage + ?Sized,
+    {
+        self.managed.localize_message_silent(message)
     }
 
-    /// Pre-renders an already rebuilt virtual DOM while this request's manager
-    /// is installed.
-    pub fn pre_render(&self, dom: &VirtualDom) -> Result<String, DioxusGlobalLocalizerError> {
-        self.with_sync_thread_local_manager(|| dioxus_ssr::pre_render(dom))
+    pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
+        dom.rebuild_in_place();
+        dioxus_ssr::render(dom)
     }
 
-    pub fn render_with(
-        &self,
-        renderer: &mut Renderer,
-        dom: &VirtualDom,
-    ) -> Result<String, DioxusGlobalLocalizerError> {
-        self.with_sync_thread_local_manager(|| renderer.render(dom))
+    pub fn rebuild_and_pre_render(&self, dom: &mut VirtualDom) -> String {
+        dom.rebuild_in_place();
+        dioxus_ssr::pre_render(dom)
     }
 
-    pub fn render_element(&self, element: Element) -> Result<String, DioxusGlobalLocalizerError> {
-        self.with_sync_thread_local_manager(|| dioxus_ssr::render_element(element))
+    pub fn render(&self, dom: &VirtualDom) -> String {
+        dioxus_ssr::render(dom)
     }
-}
 
-struct CurrentManagerScope {
-    manager: Arc<FluentManager>,
-}
+    pub fn pre_render(&self, dom: &VirtualDom) -> String {
+        dioxus_ssr::pre_render(dom)
+    }
 
-impl CurrentManagerScope {
-    fn new(manager: Arc<FluentManager>) -> Self {
-        CURRENT_MANAGER_STACK.with(|stack| stack.borrow_mut().push(Arc::clone(&manager)));
-        Self { manager }
+    pub fn render_with(&self, renderer: &mut Renderer, dom: &VirtualDom) -> String {
+        renderer.render(dom)
+    }
+
+    pub fn render_element(&self, element: Element) -> String {
+        dioxus_ssr::render_element(element)
     }
 }
 
-impl Drop for CurrentManagerScope {
-    fn drop(&mut self) {
-        CURRENT_MANAGER_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            let popped = stack.pop();
+fn cached_discovered_modules(
+    modules: &OnceLock<Result<DiscoveredI18nModules, ModuleDiscoveryErrors>>,
+) -> Result<&DiscoveredI18nModules, DioxusInitError> {
+    let modules = modules.get_or_init(|| {
+        FluentManager::try_discover_runtime_modules().map_err(ModuleDiscoveryErrors::from)
+    });
 
-            if !matches!(popped, Some(manager) if Arc::ptr_eq(&manager, &self.manager)) {
-                tracing::error!("SSR i18n manager stack corruption detected");
-                stack.clear();
-            }
-        });
+    match modules {
+        Ok(modules) => Ok(modules),
+        Err(errors) => Err(DioxusInitError::ModuleDiscovery(errors.clone())),
     }
-}
-
-fn install_process_global_bridge() -> Result<(), DioxusGlobalLocalizerError> {
-    install_ssr_bridge()
-}
-
-pub(crate) fn localize_current_ssr_manager<'a>(
-    domain: Option<&str>,
-    id: &str,
-    args: Option<&HashMap<&str, FluentValue<'a>>>,
-) -> CustomLocalizerLookup {
-    CURRENT_MANAGER_STACK.with(|stack| {
-        let manager = match stack.borrow().last() {
-            Some(manager) => Arc::clone(manager),
-            None => {
-                match domain {
-                    Some(domain) => tracing::error!(
-                        domain,
-                        message_id = id,
-                        "SSR Fluent localization used outside an SsrI18n scope"
-                    ),
-                    None => tracing::error!(
-                        message_id = id,
-                        "SSR Fluent localization used outside an SsrI18n scope"
-                    ),
-                }
-                return CustomLocalizerLookup::Missing;
-            },
-        };
-
-        let message = match domain {
-            Some(domain) => manager.localize_in_domain(domain, id, args),
-            None => manager.localize(id, args),
-        };
-
-        match message {
-            Some(message) => CustomLocalizerLookup::Found(message),
-            None => {
-                match domain {
-                    Some(domain) => {
-                        tracing::warn!(domain, message_id = id, "missing Fluent message")
-                    },
-                    None => tracing::warn!(message_id = id, "missing Fluent message"),
-                }
-                CustomLocalizerLookup::Missing
-            },
-        }
-    })
 }

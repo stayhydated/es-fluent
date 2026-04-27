@@ -182,6 +182,29 @@ pub fn generate_fluent_display_impl(
     }
 }
 
+pub fn generate_fluent_message_impl(
+    ident: &syn::Ident,
+    generics: &syn::Generics,
+    body: TokenStream,
+) -> TokenStream {
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    quote! {
+        impl #impl_generics ::es_fluent::FluentMessage for #ident #ty_generics #where_clause {
+            fn to_fluent_string_with(
+                &self,
+                localize: &mut dyn for<'__es_fluent_message> FnMut(
+                    &str,
+                    &str,
+                    Option<&::std::collections::HashMap<&str, ::es_fluent::FluentValue<'__es_fluent_message>>>,
+                ) -> String,
+            ) -> String {
+                #body
+            }
+        }
+    }
+}
+
 pub fn generate_unit_enum_definition(
     ident: &syn::Ident,
     origin_ident: &syn::Ident,
@@ -257,12 +280,24 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
     let match_arms = variants
         .iter()
         .map(GeneratedUnitEnumVariant::display_match_arm);
+    let localize_with_match_arms = variants
+        .iter()
+        .map(GeneratedUnitEnumVariant::localize_with_match_arm);
     let display_impl = generate_fluent_display_impl(
         ident,
         &empty_generics,
         quote! {
             match self {
                 #(#match_arms),*
+            }
+        },
+    );
+    let message_impl = generate_fluent_message_impl(
+        ident,
+        &empty_generics,
+        quote! {
+            match self {
+                #(#localize_with_match_arms),*
             }
         },
     );
@@ -285,6 +320,7 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         #new_enum
 
         #display_impl
+        #message_impl
 
         #inventory_submit
 
@@ -299,13 +335,16 @@ pub fn emit_display_inventory_and_from_impls(
     ident: &syn::Ident,
     generics: &syn::Generics,
     display_body: TokenStream,
+    fluent_message_body: TokenStream,
     inventory_submit: TokenStream,
 ) -> TokenStream {
     let display_impl = generate_fluent_display_impl(ident, generics, display_body);
+    let message_impl = generate_fluent_message_impl(ident, generics, fluent_message_body);
     let from_impls = generate_from_impls(ident, generics);
 
     quote! {
         #display_impl
+        #message_impl
 
         #inventory_submit
 

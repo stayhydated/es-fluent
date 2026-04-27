@@ -6,8 +6,7 @@ use crate::site::i18n::{
 use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
-use es_fluent::ToFluentString as _;
-use es_fluent_manager_dioxus::use_i18n;
+use es_fluent_manager_dioxus::{DioxusI18n, use_i18n};
 use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
@@ -34,19 +33,19 @@ impl PageKind {
         }
     }
 
-    pub(crate) fn title(self) -> String {
+    pub(crate) fn title(self, i18n: &DioxusI18n) -> String {
         match self {
-            Self::Home => PageMetadataMessage::Home.to_fluent_string(),
-            Self::Demos => PageMetadataMessage::Demos.to_fluent_string(),
-            Self::Bevy => PageMetadataMessage::Bevy.to_fluent_string(),
+            Self::Home => i18n.localize_message(&PageMetadataMessage::Home),
+            Self::Demos => i18n.localize_message(&PageMetadataMessage::Demos),
+            Self::Bevy => i18n.localize_message(&PageMetadataMessage::Bevy),
         }
     }
 
-    pub(crate) fn description(self) -> String {
+    pub(crate) fn description(self, i18n: &DioxusI18n) -> String {
         match self {
-            Self::Home => HomeHeroMessage::Body.to_fluent_string(),
-            Self::Demos => DemosPageMessage::Body.to_fluent_string(),
-            Self::Bevy => BevyPageMessage::Lead.to_fluent_string(),
+            Self::Home => i18n.localize_message(&HomeHeroMessage::Body),
+            Self::Demos => i18n.localize_message(&DemosPageMessage::Body),
+            Self::Bevy => i18n.localize_message(&BevyPageMessage::Lead),
         }
     }
 }
@@ -369,10 +368,10 @@ fn route_element(route: SiteRoute) -> Element {
             let _ = i18n.requested_language();
             let title = format!(
                 "{} | {}",
-                SiteChromeMessage::SiteName.to_fluent_string(),
-                route.page.title()
+                i18n.localize_message(&SiteChromeMessage::SiteName),
+                route.page.title(&i18n)
             );
-            let description = route.page.description();
+            let description = route.page.description(&i18n);
 
             rsx! {
                 Title { "{title}" }

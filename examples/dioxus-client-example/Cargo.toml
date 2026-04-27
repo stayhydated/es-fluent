@@ -10,16 +10,12 @@ publish = false
 dioxus = { features = [ "html", "hooks", "macro", "signals", "ssr" ], workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-manager-dioxus = { features = [ "client" ], workspace = true }
-es-fluent-manager-dioxus-derive = { workspace = true }
 example-shared-lib = { features = [ "dioxus" ], path = "../example-shared-lib" }
 strum = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
 
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }
-
-[dev-dependencies]
-serial_test = { workspace = true }
 
 [lints]
 workspace = true

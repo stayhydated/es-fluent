@@ -21,10 +21,15 @@ test:
 
 test-dioxus-manager-feature-matrix:
     cargo check -p es-fluent-manager-dioxus --no-default-features
-    cargo check -p es-fluent-manager-dioxus --no-default-features --features client
-    cargo check -p es-fluent-manager-dioxus --no-default-features --features ssr
-    cargo check -p es-fluent-manager-dioxus --no-default-features --features client,ssr
+    cargo test -p es-fluent-manager-dioxus --no-default-features --features client
+    cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
     cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
+    cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
+    cargo check -p dioxus-client-example --target wasm32-unknown-unknown
+    cargo check -p dioxus-client-example
+    cargo check -p dioxus-ssr-example
+    cargo test -p dioxus-client-example
+    cargo test -p dioxus-ssr-example
     cargo test -p es-fluent-manager-dioxus --doc --no-default-features --features client,ssr
     cargo clippy -p es-fluent-manager-dioxus --no-default-features --features client,ssr --all-targets -- -D warnings
 

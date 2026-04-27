@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
+assertion_line: 255
 expression: tokens
 ---
 ///Variants of [`NamespaceHolder`].
@@ -15,6 +16,27 @@ impl ::es_fluent::FluentDisplay for NamespaceHolderVariants {
                     f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"),
                     "namespace_holder_variants-field", None)
                 )
+            }
+        }
+    }
+}
+impl ::es_fluent::FluentMessage for NamespaceHolderVariants {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
+        match self {
+            Self::Field => {
+                localize(env!("CARGO_PKG_NAME"), "namespace_holder_variants-field", None)
             }
         }
     }

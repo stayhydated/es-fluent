@@ -47,6 +47,32 @@ fn generate(opts: &StructOpts) -> TokenStream {
     }
     .write_expr();
 
+    let message_arguments: Vec<_> = indexed_fields
+        .iter()
+        .map(|(index, field_opt)| {
+            let field_access = if let Some(ident) = field_opt.ident() {
+                quote! { self.#ident }
+            } else {
+                let field_index = syn::Index::from(*index);
+                quote! { self.#field_index }
+            };
+
+            generate_field_argument(
+                *field_opt,
+                *index,
+                field_access.clone(),
+                quote! { &(#field_access) },
+            )
+        })
+        .collect();
+
+    let fluent_message_body = LocalizeCallSpec {
+        domain_override: None,
+        ftl_key: ftl_key.clone(),
+        arguments: message_arguments,
+    }
+    .localize_with_expr();
+
     // Generate inventory submission for all types
     // FTL metadata is purely structural (type name, field names)
     // and doesn't depend on generic type parameters
@@ -72,6 +98,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
         original_ident,
         opts.generics(),
         display_body,
+        fluent_message_body,
         inventory_submit,
     )
 }

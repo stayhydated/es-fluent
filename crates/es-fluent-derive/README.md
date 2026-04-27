@@ -18,6 +18,9 @@ Turns an enum or struct into a localizable message.
 - **Enums**: Each variant becomes a message ID (e.g., `MyEnum::Variant` -> `my_enum-Variant`).
 - **Structs**: The struct itself becomes the message ID (e.g., `MyStruct` -> `my_struct`).
 - **Fields**: Fields are automatically exposed as arguments to the Fluent message.
+- **Typed runtime lookup**: Generated types implement both `ToFluentString` for
+  the process-global runtime and `FluentMessage` for managers that provide an
+  explicit context, such as Dioxus.
 
 ```rs
 use es_fluent::EsFluent;

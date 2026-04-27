@@ -39,7 +39,15 @@ pub mod build {
 }
 
 mod traits;
-pub use traits::{EsFluentChoice, FluentDisplay, ThisFtl, ToFluentString};
+pub use traits::{EsFluentChoice, FluentDisplay, FluentMessage, ThisFtl, ToFluentString};
+
+#[doc(hidden)]
+pub mod __private {
+    pub use crate::traits::{
+        FluentArgumentValue, FluentMessageStringValue, IntoFluentArgumentValue,
+        IntoFluentMessageString,
+    };
+}
 
 #[doc(hidden)]
 static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
@@ -142,6 +150,20 @@ pub fn custom_localizer_snapshot() -> CustomLocalizerSnapshot {
 #[doc(hidden)]
 pub fn restore_custom_localizer_snapshot(snapshot: CustomLocalizerSnapshot) {
     *custom_localizer_slot().write() = snapshot.entry;
+}
+
+#[doc(hidden)]
+pub fn clear_custom_localizer_generation(generation: CustomLocalizerGeneration) -> bool {
+    let mut slot = custom_localizer_slot().write();
+    if slot
+        .as_ref()
+        .is_some_and(|entry| entry.generation == generation)
+    {
+        *slot = None;
+        true
+    } else {
+        false
+    }
 }
 
 #[derive(Debug)]

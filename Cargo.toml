@@ -16,7 +16,6 @@ members = [
   "crates/es-fluent-manager-embedded",
   "crates/es-fluent-manager-bevy",
   "crates/es-fluent-manager-dioxus",
-  "crates/es-fluent-manager-dioxus-derive",
   "examples/first-example",
   "examples/thiserror-example",
   "examples/example-shared-lib",
@@ -77,7 +76,6 @@ es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.15.0
 es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.18.12" }
 es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.15.0" }
 es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.7.0" }
-es-fluent-manager-dioxus-derive = { path = "crates/es-fluent-manager-dioxus-derive", version = "0.7.0" }
 es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.15.0" }
 es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.15.0" }
 es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.15.0" }
@@ -116,6 +114,7 @@ parking_lot = "0.12"
 path-slash = "0.2"
 predicates = "3.1"
 prettyplease = "0.2"
+proc-macro-crate = "3.4"
 proc-macro-error2 = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -138,6 +137,7 @@ throbber-widgets-tui = "0.10"
 toml = "1.0"
 tracing = "0.1"
 treelog = "0.0.6"
+trybuild = "1.0"
 unic-langid = "0.9"
 walkdir = "2.5"
 web = { path = "web" }

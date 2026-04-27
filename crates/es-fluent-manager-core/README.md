@@ -12,6 +12,8 @@ integrations.
 
 - `FluentManager`: central runtime entry point for selecting locales and formatting
   messages, with optional domain-scoped lookup via `localize_in_domain`
+- `DiscoveredI18nModules`: cached, validated module discovery for integrations
+  that need many request-local managers without repeating inventory validation
 - `LanguageSelectionPolicy` plus `FluentManager::select_language_strict()`: choose
   between best-effort locale switching and transactional switching
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts

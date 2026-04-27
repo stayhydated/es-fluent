@@ -15,7 +15,6 @@ pub use unic_langid as __unic_langid;
 pub use es_fluent::GlobalLocalizationError;
 pub use es_fluent_manager_macros::define_dioxus_i18n_module as define_i18n_module;
 
-mod bridge;
 mod error;
 mod managed;
 
@@ -25,23 +24,13 @@ pub mod client;
 #[cfg(feature = "ssr")]
 pub mod ssr;
 
-pub use bridge::{
-    DioxusGlobalLocalizerError, DioxusGlobalLocalizerOwner, current_dioxus_global_localizer_owner,
-    is_dioxus_bridge_current,
-};
 pub use error::{DioxusInitError, ModuleDiscoveryErrors};
 pub use managed::ManagedI18n;
 
 #[cfg(feature = "client")]
-#[doc(hidden)]
-pub use client::__log_i18n_subscription_error;
-
-#[cfg(feature = "client")]
 pub use client::{
-    DioxusClientBridgeMode, DioxusI18n, I18nProvider, I18nProviderStrict, consume_i18n,
-    try_consume_i18n, try_use_i18n, try_use_i18n_subscription, use_i18n, use_i18n_optional,
-    use_i18n_subscription, use_init_i18n, use_init_i18n_with_bridge_mode, use_provide_i18n,
-    use_provide_i18n_with_bridge_mode,
+    DioxusI18n, I18nProvider, I18nProviderStrict, consume_i18n, try_consume_i18n, try_use_i18n,
+    use_i18n, use_i18n_optional, use_init_i18n, use_provide_i18n,
 };
 
 #[cfg(test)]

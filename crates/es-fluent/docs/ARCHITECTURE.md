@@ -6,7 +6,7 @@ This document details the architecture of the `es-fluent` crate, which serves as
 
 `es-fluent` ties together the derive macros and manager components into a cohesive API. It provides:
 
-1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `EsFluentVariants`, `EsFluentThis`, `ToFluentString`, `ThisFtl`) and derive macros.
+1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `EsFluentVariants`, `EsFluentThis`, `ToFluentString`, `FluentMessage`, `ThisFtl`) and derive macros.
 1. **Registry Types**: `FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`, and inventory collection for FTL file generation (including optional namespaces).
 1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic derived localization calls.
 1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
@@ -22,7 +22,7 @@ flowchart TD
         API["Public API (Derive Macros)"]
         CTX["Global Context (OnceLock)"]
         CUSTOM["Custom Localizer (OnceLock)"]
-        TRAIT["Traits (ToFluentString, etc)"]
+        TRAIT["Traits (ToFluentString, FluentMessage, etc)"]
         INTERNAL["Internal localize() fn"]
         NS["Internal namespace helpers"]
     end
@@ -103,6 +103,10 @@ The primary trait for converting a type into a localized string.
 ### `FluentDisplay`
 
 A helper trait that `#[derive(EsFluent)]` implements. It handles the logic of looking up the correct key and passing arguments to the `localize` function.
+
+### `FluentMessage`
+
+A typed message trait that `#[derive(EsFluent)]` implements for explicit manager lookup. Managers such as Dioxus use it to render derived messages through component or request context without relying on the process-global context.
 
 ### `EsFluentChoice`
 

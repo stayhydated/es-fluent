@@ -1,4 +1,3 @@
-use crate::DioxusGlobalLocalizerError;
 use es_fluent::GlobalLocalizationError;
 use es_fluent_manager_core::ModuleDiscoveryError;
 use std::sync::Arc;
@@ -57,7 +56,6 @@ impl std::error::Error for ModuleDiscoveryErrors {
 pub enum DioxusInitError {
     ModuleDiscovery(ModuleDiscoveryErrors),
     LanguageSelection(Arc<GlobalLocalizationError>),
-    GlobalLocalizer(Arc<DioxusGlobalLocalizerError>),
     MissingContext,
 }
 
@@ -68,11 +66,6 @@ impl DioxusInitError {
 
     pub(crate) fn language_selection(error: GlobalLocalizationError) -> Self {
         Self::LanguageSelection(Arc::new(error))
-    }
-
-    #[cfg(any(feature = "client", feature = "ssr"))]
-    pub(crate) fn global_localizer(error: DioxusGlobalLocalizerError) -> Self {
-        Self::GlobalLocalizer(Arc::new(error))
     }
 
     #[cfg(feature = "client")]
@@ -88,7 +81,6 @@ impl std::fmt::Display for DioxusInitError {
             Self::LanguageSelection(error) => {
                 write!(f, "failed to select the requested language: {error}")
             },
-            Self::GlobalLocalizer(error) => write!(f, "{error}"),
             Self::MissingContext => f.write_str("missing Dioxus i18n provider"),
         }
     }
@@ -99,7 +91,6 @@ impl std::error::Error for DioxusInitError {
         match self {
             Self::ModuleDiscovery(errors) => Some(errors),
             Self::LanguageSelection(error) => Some(error.as_ref()),
-            Self::GlobalLocalizer(error) => Some(error.as_ref()),
             Self::MissingContext => None,
         }
     }

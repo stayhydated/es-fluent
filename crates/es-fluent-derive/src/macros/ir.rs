@@ -15,6 +15,21 @@ impl FluentArgument {
             args.insert(#key, ::std::convert::Into::into(#value_expr));
         }
     }
+
+    fn context_bound_insert_statement(&self) -> TokenStream {
+        let key = &self.key;
+        let value_expr = &self.value_expr;
+        quote! {
+            {
+                use ::es_fluent::__private::IntoFluentArgumentValue as _;
+                args.insert(
+                    #key,
+                    ::es_fluent::__private::FluentArgumentValue::new(#value_expr)
+                        .into_fluent_argument_value(localize),
+                );
+            }
+        }
+    }
 }
 
 pub(crate) struct LocalizeCallSpec {
@@ -24,6 +39,34 @@ pub(crate) struct LocalizeCallSpec {
 }
 
 impl LocalizeCallSpec {
+    pub(crate) fn localize_with_expr(&self) -> TokenStream {
+        let domain_expr = match self.domain_override.as_deref() {
+            Some(domain) => quote! { #domain },
+            None => quote! { env!("CARGO_PKG_NAME") },
+        };
+        let ftl_key = &self.ftl_key;
+
+        if self.arguments.is_empty() {
+            quote! {
+                localize(#domain_expr, #ftl_key, None)
+            }
+        } else {
+            let inserts: Vec<_> = self
+                .arguments
+                .iter()
+                .map(FluentArgument::context_bound_insert_statement)
+                .collect();
+
+            quote! {
+                {
+                    let mut args = ::std::collections::HashMap::new();
+                    #(#inserts)*
+                    localize(#domain_expr, #ftl_key, Some(&args))
+                }
+            }
+        }
+    }
+
     pub(crate) fn write_expr(&self) -> TokenStream {
         let domain_expr = match self.domain_override.as_deref() {
             Some(domain) => quote! { #domain },
@@ -103,6 +146,14 @@ impl GeneratedUnitEnumVariant {
                 "{}",
                 ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"), #ftl_key, None)
             )
+        }
+    }
+
+    pub(crate) fn localize_with_match_arm(&self) -> TokenStream {
+        let variant_ident = &self.ident;
+        let ftl_key = &self.ftl_key;
+        quote! {
+            Self::#variant_ident => localize(env!("CARGO_PKG_NAME"), #ftl_key, None)
         }
     }
 

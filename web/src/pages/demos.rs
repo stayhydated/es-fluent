@@ -2,13 +2,18 @@ use crate::components::{FooterPanel, PageCardLink, PageHeader, use_reveal_style}
 use crate::site::i18n::{DemosPageMessage, SiteLanguage};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
-use es_fluent::ToFluentString as _;
-use es_fluent_manager_dioxus_derive::i18n_subscription;
+use es_fluent_manager_dioxus::use_i18n;
 
-#[i18n_subscription]
 #[component]
 pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
     let demos_style = use_reveal_style(0, 24.0);
+    let i18n = match use_i18n() {
+        Ok(i18n) => i18n,
+        Err(error) => return rsx! { div { class: "page-shell", "failed: {error}" } },
+    };
+    let label = i18n.localize_message(&DemosPageMessage::Label);
+    let title = i18n.localize_message(&DemosPageMessage::Title);
+    let action = i18n.localize_message(&DemosPageMessage::Action);
 
     rsx! {
         div { class: "page-shell",
@@ -20,10 +25,10 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
                     PageCardLink {
                         locale,
                         page: PageKind::Bevy,
-                        label: DemosPageMessage::Label.to_fluent_string(),
-                        title: DemosPageMessage::Title.to_fluent_string(),
+                        label,
+                        title,
                         body: "",
-                        action: DemosPageMessage::Action.to_fluent_string(),
+                        action,
                     }
                 }
             }

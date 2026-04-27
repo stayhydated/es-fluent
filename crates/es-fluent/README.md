@@ -15,7 +15,7 @@ This framework gives you:
 - Derives to turn enums/structs into Fluent message IDs and arguments.
 - A [cli](../es-fluent-cli/README.md) to generate ftl files skeleton and other utilities.
 - [Language Enum Generation](../es-fluent-lang/README.md)
-- Integration via the [embedded singleton manager](../es-fluent-manager-embedded/README.md), the experimental [Dioxus manager](../es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](../es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
+- Integration via the [embedded singleton manager](../es-fluent-manager-embedded/README.md), the [Dioxus manager](../es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](../es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
 
 ## Examples
 
@@ -61,7 +61,7 @@ es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 
 For custom runtime integrations, use
 `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
-For Dioxus, `es-fluent-manager-dioxus` provides hook-based client helpers behind the `client` feature and a synchronous request-scoped SSR runtime behind the `ssr` feature. The process-global bridge installs strictly and never replaces a different active owner.
+For Dioxus, `es-fluent-manager-dioxus` provides hook-based client helpers behind the `client` feature and a request-scoped SSR runtime behind the `ssr` feature. Derived messages also implement `FluentMessage`, which lets Dioxus render typed messages through a component or request context without using process-global localization.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep

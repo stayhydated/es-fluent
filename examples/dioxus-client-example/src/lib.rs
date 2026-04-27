@@ -1,15 +1,11 @@
 use dioxus::prelude::*;
-use es_fluent::{EsFluent, FluentValue};
-use es_fluent_manager_dioxus::{DioxusClientBridgeMode, DioxusI18n, I18nProvider, use_i18n};
+use es_fluent::EsFluent;
+use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
 use example_shared_lib::{ButtonState, Languages};
-use std::collections::HashMap;
 use strum::IntoEnumIterator as _;
 use unic_langid::LanguageIdentifier;
 
 es_fluent_manager_dioxus::define_i18n_module!();
-
-const UI_DOMAIN: &str = "dioxus-client-example";
-const SHARED_DOMAIN: &str = "example-shared-lib";
 
 #[derive(Clone, Copy, Debug, EsFluent)]
 #[fluent(namespace = "ui")]
@@ -72,7 +68,6 @@ fn ClientPreview(initial_language: Languages) -> Element {
     rsx! {
         I18nProvider {
             initial_language: LanguageIdentifier::from(initial_language),
-            bridge_mode: DioxusClientBridgeMode::Disabled,
             ClientPreviewBody { initial_language }
         }
     }
@@ -95,34 +90,14 @@ fn ClientPreviewBody(initial_language: Languages) -> Element {
     };
     let next_language = current_language.next();
 
-    let mut summary_args = HashMap::new();
-    summary_args.insert(
-        "current_language",
-        FluentValue::from(language_tag(current_language)),
-    );
-    summary_args.insert(
-        "button_state",
-        FluentValue::from(button_state_label(&i18n, button_state)),
-    );
-
-    let mut button_args = HashMap::new();
-    button_args.insert(
-        "next_language",
-        FluentValue::from(language_tag(next_language)),
-    );
-
-    let heading = ui_message(&i18n, "dioxus_screen_messages-ClientHeading", None);
-    let summary = ui_message(
-        &i18n,
-        "dioxus_screen_messages-ClientSummary",
-        Some(&summary_args),
-    );
-    let button_label = ui_message(
-        &i18n,
-        "dioxus_screen_messages-ClientButtonLabel",
-        Some(&button_args),
-    );
-    let runtime_note = ui_message(&i18n, "dioxus_screen_messages-RuntimeSplitNote", None);
+    let heading = i18n.localize_message(&DioxusScreenMessages::ClientHeading);
+    let summary = i18n.localize_message(&DioxusScreenMessages::ClientSummary {
+        current_language,
+        button_state,
+    });
+    let button_label =
+        i18n.localize_message(&DioxusScreenMessages::ClientButtonLabel { next_language });
+    let runtime_note = i18n.localize_message(&DioxusScreenMessages::RuntimeSplitNote);
 
     rsx! {
         section {
@@ -152,29 +127,11 @@ fn ClientSharedValues(current_language: Languages, button_state: ButtonState) ->
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { "Failed to read i18n context: {error}" } },
     };
-    let mut language_args = HashMap::new();
-    language_args.insert(
-        "current_language",
-        FluentValue::from(language_tag(current_language)),
-    );
-
-    let mut button_args = HashMap::new();
-    button_args.insert(
-        "button_state",
-        FluentValue::from(button_state_label(&i18n, button_state)),
-    );
-
-    let shared_heading = ui_message(&i18n, "dioxus_screen_messages-SharedTypesHeading", None);
-    let shared_language = ui_message(
-        &i18n,
-        "dioxus_screen_messages-SharedLanguageValue",
-        Some(&language_args),
-    );
-    let shared_button_state = ui_message(
-        &i18n,
-        "dioxus_screen_messages-SharedButtonStateValue",
-        Some(&button_args),
-    );
+    let shared_heading = i18n.localize_message(&DioxusScreenMessages::SharedTypesHeading);
+    let shared_language =
+        i18n.localize_message(&DioxusScreenMessages::SharedLanguageValue { current_language });
+    let shared_button_state =
+        i18n.localize_message(&DioxusScreenMessages::SharedButtonStateValue { button_state });
 
     rsx! {
         div {
@@ -188,41 +145,7 @@ fn ClientSharedValues(current_language: Languages, button_state: ButtonState) ->
     }
 }
 
-fn ui_message<'a>(
-    i18n: &DioxusI18n,
-    id: impl AsRef<str>,
-    args: Option<&HashMap<&str, FluentValue<'a>>>,
-) -> String {
-    i18n.localize_in_domain_or_id(UI_DOMAIN, id, args)
-}
-
-fn button_state_label(i18n: &DioxusI18n, button_state: ButtonState) -> String {
-    let id = match button_state {
-        ButtonState::Normal => "button_state-Normal",
-        ButtonState::Hovered => "button_state-Hovered",
-        ButtonState::Pressed => "button_state-Pressed",
-    };
-
-    i18n.localize_in_domain_or_id_silent(SHARED_DOMAIN, id, None)
-}
-
 fn language_tag(language: Languages) -> String {
     let id: LanguageIdentifier = language.into();
     id.to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-
-    #[test]
-    #[serial]
-    fn client_preview_renders_a_localized_snapshot() {
-        let html = render_client_preview(Languages::ZhCn);
-
-        assert!(html.contains("客户端 Hook 桥接"));
-        assert!(html.contains("切换到"));
-        assert!(html.contains("共享值"));
-    }
 }

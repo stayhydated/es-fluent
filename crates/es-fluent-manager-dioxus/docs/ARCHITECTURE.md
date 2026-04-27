@@ -1,75 +1,31 @@
-# es-fluent-manager-dioxus Architecture
+# es-fluent-manager-dioxus architecture
 
-This document describes the internal boundaries of the Dioxus manager crate.
-User-facing setup lives in the crate README and the mdBook runtime manager page.
+`es-fluent-manager-dioxus` adapts the shared `FluentManager` runtime to Dioxus without using process-global localization hooks.
 
-## Overview
+## Runtime surfaces
 
-The crate has three layers:
+The crate has no default runtime feature.
 
-```text
-ManagedI18n
-  Safe language selection and lookup around FluentManager.
-
-client
-  Dioxus hooks and context-bound localization.
-
-ssr
-  One-time SSR bridge installation plus request-scoped rendering state.
-```
-
-The feature model mirrors those runtime boundaries:
-
-- `client` enables `dioxus-core`, `dioxus-hooks`, and `dioxus-signals`.
-- `ssr` enables `dioxus-core` and `dioxus-ssr`.
-- `define_i18n_module!` is exported unconditionally.
+- `client` enables provider and hook APIs for interactive Dioxus rendering.
+- `ssr` enables request-scoped server-side rendering helpers.
+- `define_i18n_module!` is always available for module registration.
 
 ## ManagedI18n
 
-`ManagedI18n` owns an `Arc<FluentManager>` and a tracked requested language.
-Public methods expose only safe operations:
+`ManagedI18n` owns an `Arc<FluentManager>` plus shared requested-language state. It is cloneable so SSR props and app-owned contexts can pass the same request manager through a component tree. Equality is identity equality over the shared manager and requested-language state.
 
-- best-effort and strict language selection;
-- requested language reads;
-- direct message lookup;
-- domain-scoped message lookup.
+Typed lookup is provided by `ManagedI18n::localize_message(...)`, which accepts `es_fluent::FluentMessage`. This keeps derive-generated message IDs and arguments while routing every lookup through the explicit manager.
 
-The raw manager is crate-private so public callers cannot change the manager's interior language state without updating the tracked requested language.
+## Client context
 
-## Client runtime
+Client initialization is one-shot because it is stored through `use_hook`; later `initial_language` or provided-manager changes do not replace the context owner. `DioxusI18n` wraps the context handle and is the only client path that updates the signal used for rerendering after language changes.
 
-The client runtime is rooted by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`.
-The hook stores `ManagedI18n` in Dioxus context and mirrors the requested language into a `Signal<LanguageIdentifier>` so render code subscribes to locale changes.
-Hook initialization is one-shot because it is stored through `use_hook`; later `initial_language`, provided manager, or `bridge_mode` changes do not replace the context owner or reinstall the bridge.
+`DioxusI18n::localize_message(...)` reads the tracked language signal before delegating to `ManagedI18n::localize_message(...)`. String-ID helpers follow the same signal-read pattern. Direct access to the raw `ManagedI18n` is intentionally not exposed from `DioxusI18n`, because direct client language changes would bypass the signal update that makes locale changes visible to render code.
 
-`DioxusI18n` lookup and language-selection methods always resolve through the `ManagedI18n` stored in the Dioxus context. The raw `ManagedI18n` is not exposed from `DioxusI18n`, and `ManagedI18n` is not publicly cloneable, so callers cannot retain a shared mutable handle that bypasses the signal update that makes language changes visible to render code. Typed `DioxusI18n::to_fluent_string_via_global_bridge(...)` reads the signal before delegating to `es-fluent`'s process-global `ToFluentString` path, so typed derived messages rerender after locale switches when the process-global bridge points at this Dioxus manager. It is not a direct context-bound lookup; `Disabled` bridge mode, `BestEffort` bridge failure, or external global-localizer replacement can make it disagree with the `DioxusI18n` context. `DioxusI18n::to_fluent_string(...)` remains as a deprecated alias with the same global semantics. `use_i18n_subscription()` and `try_use_i18n_subscription()` expose the same signal read as a hook-level subscription for components that want to keep direct `message.to_fluent_string()` call sites. The separate `es-fluent-manager-dioxus-derive` crate's `#[i18n_subscription]` attribute expands to the optional subscription hook call and logs error results through a hidden runtime helper.
-
-The client hook installs the `es-fluent` custom localizer bridge strictly:
-
-- installing the same manager again is idempotent;
-- installing a different client manager is rejected;
-- installing over an SSR bridge is rejected;
-- external replacement of the `es-fluent` custom localizer is rejected on the next Dioxus bridge operation.
-
-`DioxusClientBridgeMode` changes only the client bridge installation policy. `Strict` preserves the original behavior. `BestEffort` logs bridge installation failures and still provides context-bound lookup. `Disabled` skips bridge installation for apps that exclusively use explicit `DioxusI18n` lookup methods.
-
-The bridge stores the active client `Arc<FluentManager>` and compares same-owner checks with `Arc::ptr_eq`, not raw pointer IDs.
-
-Read-only diagnostics expose the current Dioxus owner and whether the recorded bridge still matches the active process-global custom localizer. There is intentionally no public reset API outside tests.
-
-`ManagedI18n` implements `PartialEq` and `Eq` with the same identity model: values are equal only when they share the exact manager and requested-language state.
+Failed initialization is represented as a provided failed context. This keeps hook order stable and lets descendants distinguish a missing provider from a failed provider through `try_use_i18n()` or `use_i18n_optional()`.
 
 ## SSR runtime
 
-SSR has two lifecycles:
+`SsrI18nRuntime` caches strict discovered-module validation. `SsrI18nRuntime::request(...)` creates fresh `ManagedI18n` state from that cache for each request, keeping language selection isolated between requests.
 
-1. process startup installs `SsrI18nRuntime` and the global custom localizer bridge;
-2. each request creates an `SsrI18n` with its own `ManagedI18n`.
-
-`SsrI18nRuntime` is a non-default-constructible token returned by `SsrI18nRuntime::install`, so request state cannot be created through direct runtime construction. `SsrI18n` construction is private to `SsrI18nRuntime::request`, which revalidates the bridge before creating request state. Each request currently performs module discovery and creates a fresh `ManagedI18n`; a future high-throughput SSR optimization could cache immutable discovered module or bundle data in `SsrI18nRuntime` while keeping request-local language state separate. During rendering, `SsrI18n` revalidates bridge ownership, pushes its manager onto a thread-local stack, rebuilds or renders synchronously, then pops the manager on scope drop.
-
-`SsrI18n::managed()` is public because the value is already request-scoped. This differs from the client runtime, where exposing the raw manager would let callers change language without updating the Dioxus signal.
-
-The SSR bridge callback reads the current manager from that stack. Missing messages are reported as handled misses with a warning. Calls outside an active request scope are also reported as handled misses with an error log, so incorrect SSR paths cannot silently fall through to another global localizer.
-
-The thread-local scope is synchronous only. It must not cross `.await`, spawned tasks, streaming callbacks, or fullstack server boundaries.
+SSR does not maintain a thread-local manager stack and does not install a process-global custom localizer. Components must receive a `ManagedI18n` explicitly, usually as a prop or through an app-owned context, and call `localize_message(...)` or explicit string-ID helpers.

@@ -17,8 +17,5 @@ unic-langid = { workspace = true }
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }
 
-[dev-dependencies]
-serial_test = { workspace = true }
-
 [lints]
 workspace = true

@@ -13,6 +13,29 @@ impl ::es_fluent::FluentDisplay for LoginError {
         }
     }
 }
+impl ::es_fluent::FluentMessage for LoginError {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
+        match self {
+            Self::Network(value) => {
+                use ::es_fluent::__private::IntoFluentMessageString as _;
+                ::es_fluent::__private::FluentMessageStringValue::new(value)
+                    .into_fluent_message_string(localize)
+            }
+        }
+    }
+}
 #[doc(hidden)]
 mod __es_fluent_inventory_login_error {
     use super::*;

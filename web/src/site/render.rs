@@ -11,18 +11,23 @@ use crate::site::routing::SiteRoute;
 #[cfg(test)]
 use anyhow::{Context, Result};
 #[cfg(test)]
-use es_fluent_manager_dioxus::ssr::SsrI18nRuntime;
+use dioxus::prelude::*;
+#[cfg(test)]
+use es_fluent_manager_dioxus::{I18nProvider, ssr::SsrI18nRuntime};
 
 #[cfg(test)]
 pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
-    let runtime = SsrI18nRuntime::install()
-        .context("failed to install the Dioxus SSR process-global localizer")?;
+    let runtime = SsrI18nRuntime::new();
     let i18n = runtime
         .request(route.locale.lang())
         .context("failed to initialize the Dioxus SSR localizer")?;
 
-    i18n.render_element(route_content(route))
-        .context("failed to render route with the Dioxus SSR localizer")
+    Ok(i18n.render_element(rsx! {
+        I18nProvider {
+            initial_language: route.locale.lang(),
+            {route_content(route)}
+        }
+    }))
 }
 
 pub(crate) fn render_sitemap() -> String {

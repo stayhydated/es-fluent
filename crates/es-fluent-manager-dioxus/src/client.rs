@@ -3,38 +3,10 @@ use dioxus_core::{Element, VNode, try_consume_context, use_hook};
 use dioxus_core_macro::{Props, component};
 use dioxus_hooks::{try_use_context, use_context_provider};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
-use es_fluent::{FluentValue, GlobalLocalizationError, ToFluentString};
+use es_fluent::{FluentMessage, FluentValue, GlobalLocalizationError};
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum DioxusClientBridgeMode {
-    #[default]
-    Strict,
-    BestEffort,
-    Disabled,
-}
-
-impl DioxusClientBridgeMode {
-    fn install(self, managed: &ManagedI18n) -> Result<(), DioxusInitError> {
-        match self {
-            Self::Strict => managed
-                .install_client_process_global_bridge()
-                .map_err(DioxusInitError::global_localizer),
-            Self::BestEffort => {
-                if let Err(error) = managed.install_client_process_global_bridge() {
-                    tracing::warn!(
-                        error = %error,
-                        "Dioxus client i18n context is ready, but the process-global Fluent bridge was not installed"
-                    );
-                }
-                Ok(())
-            },
-            Self::Disabled => Ok(()),
-        }
-    }
-}
 
 #[derive(Clone)]
 enum I18nContextState {
@@ -55,7 +27,6 @@ impl I18nContextState {
 struct I18nContext {
     state: I18nContextState,
     tracked: Signal<LanguageIdentifier>,
-    bridge_mode: DioxusClientBridgeMode,
 }
 
 impl I18nContext {
@@ -92,12 +63,10 @@ impl I18nContext {
 fn provide_i18n_context_once(
     state: I18nContextState,
     fallback_language: LanguageIdentifier,
-    bridge_mode: DioxusClientBridgeMode,
 ) -> I18nContext {
     use_context_provider(move || I18nContext {
         tracked: Signal::new(state.requested_language_or(&fallback_language)),
         state,
-        bridge_mode,
     })
 }
 
@@ -117,10 +86,6 @@ impl DioxusI18n {
 
     pub fn peek_requested_language(&self) -> LanguageIdentifier {
         self.context.peek()
-    }
-
-    pub fn bridge_mode(&self) -> DioxusClientBridgeMode {
-        self.context.bridge_mode
     }
 
     pub fn select_language<L: Into<LanguageIdentifier>>(
@@ -199,32 +164,20 @@ impl DioxusI18n {
             .localize_in_domain_or_id_silent(domain, id, args)
     }
 
-    /// Subscribes the current component to Dioxus locale changes, then delegates
-    /// typed-message formatting to `es-fluent`'s process-global localizer.
-    ///
-    /// This is not a context-bound lookup. In `DioxusClientBridgeMode::Disabled`,
-    /// after `BestEffort` bridge installation failure, or after another
-    /// integration replaces the global localizer, this can return text that does
-    /// not match the `ManagedI18n` stored in this Dioxus context. Use
-    /// [`DioxusI18n::localize`] or [`DioxusI18n::localize_in_domain`] for direct
-    /// context-bound lookup.
-    pub fn to_fluent_string_via_global_bridge<T>(&self, message: &T) -> String
+    pub fn localize_message<T>(&self, message: &T) -> String
     where
-        T: ToFluentString + ?Sized,
+        T: FluentMessage + ?Sized,
     {
         let _ = self.context.current();
-        message.to_fluent_string()
+        self.managed().localize_message(message)
     }
 
-    #[deprecated(
-        since = "0.7.0",
-        note = "use to_fluent_string_via_global_bridge to make global-localizer delegation explicit"
-    )]
-    pub fn to_fluent_string<T>(&self, message: &T) -> String
+    pub fn localize_message_silent<T>(&self, message: &T) -> String
     where
-        T: ToFluentString + ?Sized,
+        T: FluentMessage + ?Sized,
     {
-        self.to_fluent_string_via_global_bridge(message)
+        let _ = self.context.current();
+        self.managed().localize_message_silent(message)
     }
 }
 
@@ -232,11 +185,10 @@ impl DioxusI18n {
 #[component]
 pub fn I18nProvider(
     initial_language: LanguageIdentifier,
-    #[props(default)] bridge_mode: DioxusClientBridgeMode,
     #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
-    if let Err(error) = use_init_i18n_with_bridge_mode(initial_language, bridge_mode) {
+    if let Err(error) = use_init_i18n(initial_language) {
         tracing::error!(
             error = %error,
             "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children with failed i18n context"
@@ -252,11 +204,10 @@ pub fn I18nProvider(
 #[component]
 pub fn I18nProviderStrict(
     initial_language: LanguageIdentifier,
-    #[props(default)] bridge_mode: DioxusClientBridgeMode,
     #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
-    match use_init_i18n_with_bridge_mode(initial_language, bridge_mode) {
+    match use_init_i18n(initial_language) {
         Ok(_) => children,
         Err(error) => {
             tracing::error!(
@@ -275,16 +226,6 @@ pub fn use_init_i18n<L>(initial_language: L) -> Result<DioxusI18n, DioxusInitErr
 where
     L: Into<LanguageIdentifier> + 'static,
 {
-    use_init_i18n_with_bridge_mode(initial_language, DioxusClientBridgeMode::Strict)
-}
-
-pub fn use_init_i18n_with_bridge_mode<L>(
-    initial_language: L,
-    bridge_mode: DioxusClientBridgeMode,
-) -> Result<DioxusI18n, DioxusInitError>
-where
-    L: Into<LanguageIdentifier> + 'static,
-{
     let initial_language = initial_language.into();
     let state = use_hook({
         let initial_language = initial_language.clone();
@@ -294,39 +235,23 @@ where
         }
     });
 
-    use_i18n_context_once(state, initial_language, bridge_mode)
+    use_i18n_context_once(state, initial_language)
 }
 
 pub fn use_provide_i18n(managed: ManagedI18n) -> Result<DioxusI18n, DioxusInitError> {
-    use_provide_i18n_with_bridge_mode(managed, DioxusClientBridgeMode::Strict)
-}
-
-pub fn use_provide_i18n_with_bridge_mode(
-    managed: ManagedI18n,
-    bridge_mode: DioxusClientBridgeMode,
-) -> Result<DioxusI18n, DioxusInitError> {
     let fallback_language = managed.requested_language();
     use_i18n_context_once(
         I18nContextState::Ready(Arc::new(managed)),
         fallback_language,
-        bridge_mode,
     )
 }
 
 fn use_i18n_context_once(
     state: I18nContextState,
     fallback_language: LanguageIdentifier,
-    bridge_mode: DioxusClientBridgeMode,
 ) -> Result<DioxusI18n, DioxusInitError> {
-    let state = use_hook(move || match state {
-        I18nContextState::Ready(managed) => match bridge_mode.install(&managed) {
-            Ok(()) => I18nContextState::Ready(managed),
-            Err(error) => I18nContextState::Failed(error),
-        },
-        failed @ I18nContextState::Failed(_) => failed,
-    });
-
-    let context = provide_i18n_context_once(state, fallback_language, bridge_mode);
+    let state = use_hook(move || state);
+    let context = provide_i18n_context_once(state, fallback_language);
     context.into_i18n()
 }
 
@@ -343,30 +268,6 @@ pub fn use_i18n_optional() -> Result<Option<DioxusI18n>, DioxusInitError> {
 
 pub fn use_i18n() -> Result<DioxusI18n, DioxusInitError> {
     try_use_i18n()?.ok_or_else(DioxusInitError::missing_context)
-}
-
-pub fn try_use_i18n_subscription() -> Result<Option<DioxusI18n>, DioxusInitError> {
-    match try_use_i18n()? {
-        Some(i18n) => {
-            let _ = i18n.requested_language();
-            Ok(Some(i18n))
-        },
-        None => Ok(None),
-    }
-}
-
-#[doc(hidden)]
-pub fn __log_i18n_subscription_error(error: &DioxusInitError) {
-    tracing::warn!(
-        error = %error,
-        "Dioxus i18n subscription failed; direct ToFluentString rendering will not be subscribed to locale changes"
-    );
-}
-
-pub fn use_i18n_subscription() -> Result<DioxusI18n, DioxusInitError> {
-    let i18n = use_i18n()?;
-    let _ = i18n.requested_language();
-    Ok(i18n)
 }
 
 pub fn try_consume_i18n() -> Result<Option<DioxusI18n>, DioxusInitError> {

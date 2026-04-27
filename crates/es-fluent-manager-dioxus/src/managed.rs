@@ -1,8 +1,6 @@
 use crate::DioxusInitError;
-#[cfg(feature = "client")]
-use crate::{DioxusGlobalLocalizerError, bridge::install_client_bridge};
-use es_fluent::{FluentValue, GlobalLocalizationError};
-use es_fluent_manager_core::FluentManager;
+use es_fluent::{FluentMessage, FluentValue, GlobalLocalizationError};
+use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,6 +11,7 @@ use unic_langid::LanguageIdentifier;
 /// Equality is identity equality: two values compare equal only when they share
 /// the same internal manager and requested-language state, not when they merely
 /// contain equivalent modules or requested languages.
+#[derive(Clone)]
 pub struct ManagedI18n {
     manager: Arc<FluentManager>,
     requested_language: Arc<RwLock<LanguageIdentifier>>,
@@ -34,6 +33,22 @@ impl ManagedI18n {
         let lang = lang.into();
         let manager = FluentManager::try_new_with_discovered_modules()
             .map_err(DioxusInitError::module_discovery)?;
+        Self::from_manager(manager, lang)
+    }
+
+    pub fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
+        modules: &DiscoveredI18nModules,
+        lang: L,
+    ) -> Result<Self, DioxusInitError> {
+        let lang = lang.into();
+        let manager = FluentManager::from_discovered_modules(modules);
+        Self::from_manager(manager, lang)
+    }
+
+    fn from_manager(
+        manager: FluentManager,
+        lang: LanguageIdentifier,
+    ) -> Result<Self, DioxusInitError> {
         manager
             .select_language(&lang)
             .map_err(GlobalLocalizationError::from)
@@ -43,11 +58,6 @@ impl ManagedI18n {
             manager: Arc::new(manager),
             requested_language: Arc::new(RwLock::new(lang)),
         })
-    }
-
-    #[cfg(feature = "ssr")]
-    pub(crate) fn manager(&self) -> &Arc<FluentManager> {
-        &self.manager
     }
 
     pub fn requested_language(&self) -> LanguageIdentifier {
@@ -76,13 +86,6 @@ impl ManagedI18n {
             .map_err(GlobalLocalizationError::from)?;
         *self.requested_language.write() = lang;
         Ok(())
-    }
-
-    #[cfg(feature = "client")]
-    pub(crate) fn install_client_process_global_bridge(
-        &self,
-    ) -> Result<(), DioxusGlobalLocalizerError> {
-        install_client_bridge(Arc::clone(&self.manager))
     }
 
     pub fn localize<'a>(
@@ -154,5 +157,23 @@ impl ManagedI18n {
         let id = id.as_ref();
         self.localize_in_domain(domain, id, args)
             .unwrap_or_else(|| id.to_string())
+    }
+
+    pub fn localize_message<T>(&self, message: &T) -> String
+    where
+        T: FluentMessage + ?Sized,
+    {
+        message.to_fluent_string_with(&mut |domain, id, args| {
+            self.localize_in_domain_or_id(domain, id, args)
+        })
+    }
+
+    pub fn localize_message_silent<T>(&self, message: &T) -> String
+    where
+        T: FluentMessage + ?Sized,
+    {
+        message.to_fluent_string_with(&mut |domain, id, args| {
+            self.localize_in_domain_or_id_silent(domain, id, args)
+        })
     }
 }

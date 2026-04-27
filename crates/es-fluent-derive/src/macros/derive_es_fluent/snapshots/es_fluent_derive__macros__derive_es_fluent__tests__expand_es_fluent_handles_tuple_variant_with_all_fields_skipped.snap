@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+assertion_line: 284
 expression: tokens
 ---
 impl ::es_fluent::FluentDisplay for LoginError {
@@ -10,6 +11,27 @@ impl ::es_fluent::FluentDisplay for LoginError {
                     f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"),
                     "login_error-Something", None)
                 )
+            }
+        }
+    }
+}
+impl ::es_fluent::FluentMessage for LoginError {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
+        match self {
+            Self::Something(_, _) => {
+                localize(env!("CARGO_PKG_NAME"), "login_error-Something", None)
             }
         }
     }

@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
+assertion_line: 209
 expression: tokens
 ---
 ///`label` variants of [`LoginForm`].
@@ -23,6 +24,38 @@ impl ::es_fluent::FluentDisplay for LoginFormLabelVariants {
                 write!(
                     f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"),
                     "login_form_label_variants-password", None)
+                )
+            }
+        }
+    }
+}
+impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
+        match self {
+            Self::Username => {
+                localize(
+                    env!("CARGO_PKG_NAME"),
+                    "login_form_label_variants-username",
+                    None,
+                )
+            }
+            Self::Password => {
+                localize(
+                    env!("CARGO_PKG_NAME"),
+                    "login_form_label_variants-password",
+                    None,
                 )
             }
         }
@@ -95,6 +128,38 @@ impl ::es_fluent::FluentDisplay for LoginFormPlaceholderVariants {
                 write!(
                     f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"),
                     "login_form_placeholder_variants-password", None)
+                )
+            }
+        }
+    }
+}
+impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
+        match self {
+            Self::Username => {
+                localize(
+                    env!("CARGO_PKG_NAME"),
+                    "login_form_placeholder_variants-username",
+                    None,
+                )
+            }
+            Self::Password => {
+                localize(
+                    env!("CARGO_PKG_NAME"),
+                    "login_form_placeholder_variants-password",
+                    None,
                 )
             }
         }

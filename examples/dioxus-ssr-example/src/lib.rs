@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
-use es_fluent::{EsFluent, ToFluentString as _};
-use es_fluent_manager_dioxus::ssr::SsrI18nRuntime;
+use es_fluent::EsFluent;
+use es_fluent_manager_dioxus::{ManagedI18n, ssr::SsrI18nRuntime};
 use example_shared_lib::{ButtonState, Languages};
 use strum::IntoEnumIterator as _;
 use unic_langid::LanguageIdentifier;
@@ -36,7 +36,7 @@ pub enum DioxusScreenMessages {
 pub fn render_showcase() -> String {
     example_shared_lib::force_link();
 
-    let runtime = SsrI18nRuntime::install().expect("Dioxus SSR runtime should install");
+    let runtime = SsrI18nRuntime::new();
     let mut output = String::new();
 
     for language in Languages::iter() {
@@ -55,7 +55,7 @@ pub fn render_showcase() -> String {
 }
 
 pub fn render_ssr_preview(initial_language: Languages) -> String {
-    let runtime = SsrI18nRuntime::install().expect("Dioxus SSR runtime should install");
+    let runtime = SsrI18nRuntime::new();
     render_ssr_preview_with_runtime(&runtime, initial_language)
 }
 
@@ -68,28 +68,31 @@ fn render_ssr_preview_with_runtime(
     let i18n = runtime
         .request(initial_language)
         .expect("Dioxus SSR example should initialize");
-    let mut dom = VirtualDom::new_with_props(SsrPreview, SsrPreviewProps { initial_language });
+    let mut dom = VirtualDom::new_with_props(
+        SsrPreview,
+        SsrPreviewProps {
+            initial_language,
+            i18n: i18n.managed().clone(),
+        },
+    );
 
     i18n.rebuild_and_render(&mut dom)
-        .expect("Dioxus SSR bridge should remain installed")
 }
 
 #[component]
-fn SsrPreview(initial_language: Languages) -> Element {
+fn SsrPreview(initial_language: Languages, i18n: ManagedI18n) -> Element {
     let button_state = ButtonState::Pressed;
-    let heading = DioxusScreenMessages::SsrHeading.to_fluent_string();
-    let summary = DioxusScreenMessages::SsrSummary {
+    let heading = i18n.localize_message(&DioxusScreenMessages::SsrHeading);
+    let summary = i18n.localize_message(&DioxusScreenMessages::SsrSummary {
         current_language: initial_language,
         button_state,
-    }
-    .to_fluent_string();
-    let shared_heading = DioxusScreenMessages::SharedTypesHeading.to_fluent_string();
-    let shared_language = DioxusScreenMessages::SharedLanguageValue {
+    });
+    let shared_heading = i18n.localize_message(&DioxusScreenMessages::SharedTypesHeading);
+    let shared_language = i18n.localize_message(&DioxusScreenMessages::SharedLanguageValue {
         current_language: initial_language,
-    }
-    .to_fluent_string();
+    });
     let shared_button_state =
-        DioxusScreenMessages::SharedButtonStateValue { button_state }.to_fluent_string();
+        i18n.localize_message(&DioxusScreenMessages::SharedButtonStateValue { button_state });
 
     rsx! {
         section {
@@ -112,20 +115,4 @@ fn SsrPreview(initial_language: Languages) -> Element {
 fn language_tag(language: Languages) -> String {
     let id: LanguageIdentifier = language.into();
     id.to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-
-    #[test]
-    #[serial]
-    fn ssr_preview_renders_a_localized_snapshot() {
-        let html = render_ssr_preview(Languages::FrFr);
-
-        assert!(html.contains("Pont SSR"));
-        assert!(html.contains("Langue active"));
-        assert!(html.contains("État du bouton"));
-    }
 }

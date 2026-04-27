@@ -1,4 +1,4 @@
-use es_fluent::{EsFluent, ToFluentString as _};
+use es_fluent::EsFluent;
 use es_fluent_lang::{LanguageIdentifier, es_fluent_language};
 use strum::{EnumIter, IntoEnumIterator as _};
 
@@ -11,10 +11,6 @@ pub(crate) enum SiteLanguage {}
 impl SiteLanguage {
     pub(crate) fn all() -> impl Iterator<Item = Self> {
         Self::iter()
-    }
-
-    pub(crate) fn display_label(self) -> String {
-        self.to_fluent_string()
     }
 
     pub(crate) fn lang(self) -> LanguageIdentifier {

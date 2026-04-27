@@ -15,7 +15,7 @@ This framework gives you:
 - Derives to turn enums/structs into Fluent message IDs and arguments.
 - A [cli](crates/es-fluent-cli/README.md) to generate ftl files skeleton and other utilities.
 - [Language Enum Generation](crates/es-fluent-lang/README.md)
-- Integration via the [embedded singleton manager](crates/es-fluent-manager-embedded/README.md), the experimental [Dioxus manager](crates/es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](crates/es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
+- Integration via the [embedded singleton manager](crates/es-fluent-manager-embedded/README.md), the [Dioxus manager](crates/es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](crates/es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
 
 ## Examples
 
@@ -45,7 +45,6 @@ es-fluent-manager-embedded = "0.15"
 
 # For Dioxus apps, enable only the runtime surface you use.
 es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
-es-fluent-manager-dioxus-derive = "0.7" # optional #[i18n_subscription] macro
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
@@ -62,7 +61,7 @@ es_fluent_manager_embedded::init_with_language(langid!("en-US"));
 
 For custom runtime integrations, use
 `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
-For Dioxus, `es-fluent-manager-dioxus` provides a provider component, hook-based client helpers, context-bound localization, and signal-backed locale state behind the `client` feature. Its `ssr` feature provides a synchronous request-scoped SSR runtime. Prefer explicit `DioxusI18n::localize*` calls in client components. The process-global bridge is still available for direct typed `ToFluentString` rendering, but strict, best-effort, and disabled modes should be chosen deliberately because the bridge is process-wide.
+For Dioxus, `es-fluent-manager-dioxus` provides a provider component, hook-based client helpers, typed context-bound localization, and signal-backed locale state behind the `client` feature. Its `ssr` feature provides a request-scoped runtime. Dioxus code should use `DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or explicit `localize*` helpers; Dioxus does not use the process-global `ToFluentString` bridge.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep
