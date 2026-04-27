@@ -78,6 +78,16 @@ jobs:
             command: cargo check -p es-fluent-manager-dioxus --no-default-features --features client,ssr
           - name: client-ssr-test
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
+          - name: client-wasm-check
+            command: cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
+          - name: client-example-wasm-check
+            command: cargo check -p dioxus-client-example --target wasm32-unknown-unknown
+          - name: client-example-test
+            command: cargo test -p dioxus-client-example
+          - name: ssr-example-check
+            command: cargo check -p dioxus-ssr-example
+          - name: ssr-example-test
+            command: cargo test -p dioxus-ssr-example
           - name: doc-examples
             command: cargo test -p es-fluent-manager-dioxus --doc --no-default-features --features client,ssr
           - name: clippy
@@ -89,6 +99,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          targets: wasm32-unknown-unknown
 
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.9

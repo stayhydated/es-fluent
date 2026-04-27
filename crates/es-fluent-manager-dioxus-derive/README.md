@@ -31,10 +31,12 @@ fn Header() -> Element {
 }
 ```
 
-The macro only inserts:
+The macro inserts an optional subscription and logs failed subscription attempts:
 
 ```rs
-let _ = ::es_fluent_manager_dioxus::try_use_i18n_subscription();
+if let Err(error) = ::es_fluent_manager_dioxus::try_use_i18n_subscription() {
+    ::es_fluent_manager_dioxus::__log_i18n_subscription_error(&error);
+}
 ```
 
-It does not add `#[component]`, require a provider, change return types, or render error UI.
+Missing providers remain optional. Failed providers or failed context reads are logged by `es-fluent-manager-dioxus`. The macro does not add `#[component]`, require a provider, change return types, or render error UI.

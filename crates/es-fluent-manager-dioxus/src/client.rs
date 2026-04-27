@@ -233,13 +233,17 @@ impl DioxusI18n {
 pub fn I18nProvider(
     initial_language: LanguageIdentifier,
     #[props(default)] bridge_mode: DioxusClientBridgeMode,
+    #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
     if let Err(error) = use_init_i18n_with_bridge_mode(initial_language, bridge_mode) {
         tracing::error!(
             error = %error,
-            "Dioxus i18n provider initialization failed; rendering children with failed i18n context"
+            "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children with failed i18n context"
         );
+        if let Some(fallback) = fallback {
+            return fallback;
+        }
     }
     children
 }
@@ -249,6 +253,7 @@ pub fn I18nProvider(
 pub fn I18nProviderStrict(
     initial_language: LanguageIdentifier,
     #[props(default)] bridge_mode: DioxusClientBridgeMode,
+    #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
     match use_init_i18n_with_bridge_mode(initial_language, bridge_mode) {
@@ -256,9 +261,12 @@ pub fn I18nProviderStrict(
         Err(error) => {
             tracing::error!(
                 error = %error,
-                "Dioxus i18n provider initialization failed; rendering no children"
+                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering no children"
             );
-            VNode::empty()
+            match fallback {
+                Some(fallback) => fallback,
+                None => VNode::empty(),
+            }
         },
     }
 }
@@ -345,6 +353,14 @@ pub fn try_use_i18n_subscription() -> Result<Option<DioxusI18n>, DioxusInitError
         },
         None => Ok(None),
     }
+}
+
+#[doc(hidden)]
+pub fn __log_i18n_subscription_error(error: &DioxusInitError) {
+    tracing::warn!(
+        error = %error,
+        "Dioxus i18n subscription failed; direct ToFluentString rendering will not be subscribed to locale changes"
+    );
 }
 
 pub fn use_i18n_subscription() -> Result<DioxusI18n, DioxusInitError> {

@@ -33,6 +33,10 @@ pub use error::{DioxusInitError, ModuleDiscoveryErrors};
 pub use managed::ManagedI18n;
 
 #[cfg(feature = "client")]
+#[doc(hidden)]
+pub use client::__log_i18n_subscription_error;
+
+#[cfg(feature = "client")]
 pub use client::{
     DioxusClientBridgeMode, DioxusI18n, I18nProvider, I18nProviderStrict, consume_i18n,
     try_consume_i18n, try_use_i18n, try_use_i18n_subscription, use_i18n, use_i18n_optional,

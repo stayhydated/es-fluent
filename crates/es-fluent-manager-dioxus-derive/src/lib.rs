@@ -7,11 +7,16 @@ use syn::{ItemFn, parse_macro_input};
 /// Subscribes a Dioxus component to locale changes while preserving direct
 /// `message.to_fluent_string()` call sites.
 ///
-/// This macro only injects:
+/// This macro injects:
 ///
 /// ```ignore
-/// let _ = ::es_fluent_manager_dioxus::try_use_i18n_subscription();
+/// if let Err(error) = ::es_fluent_manager_dioxus::try_use_i18n_subscription() {
+///     ::es_fluent_manager_dioxus::__log_i18n_subscription_error(&error);
+/// }
 /// ```
+///
+/// Missing providers remain optional, but failed providers or failed context
+/// reads are logged by the runtime crate.
 ///
 /// Put it before Dioxus' `#[component]` attribute so this macro runs first and
 /// returns the component attribute unchanged.
@@ -33,7 +38,9 @@ pub fn i18n_subscription(attr: TokenStream, item: TokenStream) -> TokenStream {
     quote! {
         #(#attrs)*
         #vis #sig {
-            let _ = ::es_fluent_manager_dioxus::try_use_i18n_subscription();
+            if let Err(error) = ::es_fluent_manager_dioxus::try_use_i18n_subscription() {
+                ::es_fluent_manager_dioxus::__log_i18n_subscription_error(&error);
+            }
             #block
         }
     }
