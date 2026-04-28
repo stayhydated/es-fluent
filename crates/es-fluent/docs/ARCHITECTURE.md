@@ -14,8 +14,8 @@
 
 ## Runtime model
 
-The crate does not own runtime localization state. There is no core singleton,
-custom localizer hook, or hidden manager lookup path.
+The crate exposes traits and metadata, but runtime localization always flows
+through caller-provided contexts.
 
 Derived messages call a caller-provided closure:
 
@@ -30,9 +30,6 @@ Managers implement `FluentLocalizer` and decide where state lives:
 - `es-fluent-manager-embedded` stores state in an `EmbeddedI18n` handle.
 - `es-fluent-manager-dioxus` stores state in Dioxus component/request context.
 - `es-fluent-manager-bevy` stores state in Bevy resources.
-
-This removes cross-root, cross-request, and test leakage caused by process-wide
-lookup hooks.
 
 ## Generated-code contract
 
