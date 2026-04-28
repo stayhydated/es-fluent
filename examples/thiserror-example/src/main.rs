@@ -2,7 +2,6 @@ use thiserror_example::error;
 use thiserror_example::i18n;
 
 use error::TransactionError;
-use es_fluent::ToFluentString as _;
 use strum::IntoEnumIterator as _;
 
 use crate::error::{LockedReason, NetworkError, NotFoundReason};
@@ -42,14 +41,14 @@ fn debit_account(
 }
 
 fn main() {
-    i18n::init_with_language(Languages::default());
-    Languages::iter().for_each(run);
+    let i18n = i18n::try_new_with_language(Languages::default()).expect("i18n should initialize");
+    Languages::iter().for_each(|language| run(&i18n, language));
 }
 
-fn run(locale: Languages) {
-    i18n::change_locale(locale).unwrap();
+fn run(i18n: &i18n::I18n, locale: Languages) {
+    i18n::change_locale(i18n, locale).unwrap();
 
-    println!("Language : {}", locale.to_fluent_string());
+    println!("Language : {}", i18n.localize_message(&locale));
 
     let tests = [
         debit_account(69, 50, 100, ""),
@@ -64,7 +63,7 @@ fn run(locale: Languages) {
             Ok(_) => panic!("Unexpected success"),
             Err(e) => {
                 println!("thiserror: {}", e);
-                println!("i18n: {}", e.to_fluent_string());
+                println!("i18n: {}", i18n.localize_message(&e));
                 println!();
             },
         }

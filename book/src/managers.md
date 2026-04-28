@@ -14,12 +14,12 @@ your own asset pipeline.
 
 ## Embedded Manager (`es-fluent-manager-embedded`)
 
-Bundles your translations directly into the binary and exposes a global singleton. No external files needed at runtime.
+Bundles your translations directly into the binary and returns an explicit manager handle. No external files needed at runtime.
 
 ### Features
 
 - **Embedded Assets**: Compiles your FTL files into the binary.
-- **Global Access**: Once initialized, you can call `to_fluent_string()` anywhere in your code without passing context around.
+- **Explicit Context**: Keep the manager handle in application state and pass it to code that localizes messages.
 - **Thread Safe**: Safe to use from multiple threads after initialization.
 
 ### Quick Start
@@ -38,58 +38,60 @@ es_fluent_manager_embedded::define_i18n_module!();
 In your application entry point:
 
 ```rust
-use es_fluent::ToFluentString;
+use es_fluent::EsFluent;
+use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
-fn main() {
-    // 1. Initialize the global manager with the active language
-    es_fluent_manager_embedded::init_with_language(langid!("en-US"));
+#[derive(EsFluent)]
+enum MyMessage {
+    Hello { name: String },
+}
 
-    // 2. Localize things!
-    let msg = MyMessage::Hello { name: "World" };
-    println!("{}", msg.to_fluent_string());
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
+
+    let msg = MyMessage::Hello { name: "World".to_string() };
+    println!("{}", i18n.localize_message(&msg));
+
+    Ok(())
 }
 ```
 
 If you have a [Language Enum](language_enum.md), you can pass it directly since it implements `Into<LanguageIdentifier>`:
 
 ```rust
-es_fluent_manager_embedded::init_with_language(Languages::En);
+let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::En)?;
 ```
 
-If the language is not known during startup, call `init()` and switch later with
-`select_language(...)`:
+If the language is not known during startup, create the context first and switch
+later with `select_language(...)`:
 
 ```rust
-es_fluent_manager_embedded::init();
-es_fluent_manager_embedded::select_language(Languages::Fr)
-    .expect("manager initialized and locale is available");
+let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new()?;
+i18n.select_language(Languages::Fr)?;
 ```
 
-`select_language(...)` returns an error if initialization was skipped, if no
-discovered module can serve the requested locale, or if a supported locale's
-resources would build a broken Fluent bundle (for example duplicate message
-definitions across loaded files). When some modules support the requested
-locale and others do not, the default switch keeps the supporting modules
-active. Failed switches keep the previous ready locale active.
+`select_language(...)` returns an error if no discovered module can serve the
+requested locale, or if a supported locale's resources would build a broken
+Fluent bundle. When some modules support the requested locale and others do
+not, the default switch keeps the supporting modules active. Failed switches
+keep the previous ready locale active.
 
 For custom runtime integrations, `es-fluent-manager-core` exposes the same
 strict discovery behavior through
 `FluentManager::try_new_with_discovered_modules()`. Most applications should
 prefer a concrete manager crate instead of wiring the shared context manually.
 
-The embedded manager also uses strict discovery. `init_with_language(...)`
-logs initialization errors, while the fallible entry points return them before
-the singleton is published:
+The embedded manager also uses strict discovery and returns initialization
+errors before the manager is returned:
 
 ```rust
-es_fluent_manager_embedded::try_init_with_language(Languages::Fr)
+es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::Fr)
     .expect("embedded i18n manager should initialize");
 ```
 
-Both `init_with_language(...)` and `try_init_with_language(...)` only publish
-the embedded singleton after the requested language has been selected
-successfully.
+`try_new_with_language(...)` only returns the embedded context after the
+requested language has been selected successfully.
 
 ---
 
@@ -160,7 +162,7 @@ fn LocaleButton() -> Element {
 
 Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup, use `localize(...)` and `localize_in_domain(...)` for string ID lookup, or use explicit fallback helpers when rendering message IDs on misses is intended. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state.
 
-Dioxus intentionally does not use the process-global `message.to_fluent_string()` bridge. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
+Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
 If `use_init_i18n(...)` or `use_provide_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it keeps the permissive behavior and still renders children. Use `I18nProviderStrict` when children should not render after initialization failure; it renders `fallback` when supplied and otherwise renders an empty vnode. Descendants can call `try_use_i18n()` or `use_i18n_optional()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
 
@@ -192,7 +194,7 @@ let html = i18n.rebuild_and_render(&mut vdom);
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches validated module discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
-SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`. The SSR runtime does not install process-global localization hooks, so direct `message.to_fluent_string()` calls are not part of the Dioxus integration pattern.
+SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`
 
 ---
 
@@ -205,7 +207,8 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localization bridge or fail fast when another integration already installed one.
+- **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
+- **Explicit Context**: Localization comes from Bevy resources instead of a context-free bridge.
 
 ### Quick Start
 
@@ -235,22 +238,8 @@ fn main() {
 }
 ```
 
-`I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
-inside Bevy, but it now defaults to
-`GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
-another integration already owns the process-global localization bridge.
-
-If your Bevy app intentionally owns that hook and should override any previous
-registration, opt in explicitly:
-
-```rust
-use es_fluent_manager_bevy::{GlobalLocalizerMode, I18nPlugin};
-
-App::new().add_plugins(
-    I18nPlugin::with_language(langid!("en-US"))
-        .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
-);
-```
+`I18nPlugin` localizes `FluentText` components through Bevy resources and does
+not install a process-wide localization hook.
 
 Plugin startup also uses strict module discovery, so invalid or duplicate i18n
 module registrations fail the app boot instead of being normalized silently.
@@ -260,6 +249,18 @@ instead of publishing a broken update.
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
 `ActiveLanguageId`, not merely the latest request.
+
+For direct localization inside a system, request `BevyI18n` like any other
+Bevy system parameter:
+
+```rust
+use es_fluent_manager_bevy::BevyI18n;
+
+fn update_title(i18n: BevyI18n) {
+    let title = i18n.localize_message(&UiMessage::Settings);
+    // apply `title` to your Bevy UI, window, or gameplay state
+}
+```
 
 #### 3. Define Localizable Components (Recommended)
 
@@ -288,7 +289,7 @@ pub enum UiMessage {
 
 #### 4. Using in UI
 
-Use the `FluentText` component wrapper for any type that implements `ToFluentString` (which `#[derive(EsFluent)]` provides).
+Use the `FluentText` component wrapper for any type that implements `FluentMessage` (which `#[derive(EsFluent)]` provides).
 
 ```rust
 use es_fluent_manager_bevy::FluentText;

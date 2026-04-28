@@ -3,7 +3,8 @@ use dioxus_core::{Element, VNode, try_consume_context, use_hook};
 use dioxus_core_macro::{Props, component};
 use dioxus_hooks::{try_use_context, use_context_provider};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
-use es_fluent::{FluentMessage, FluentValue, GlobalLocalizationError};
+use es_fluent::{FluentMessage, FluentValue};
+use es_fluent_manager_core::LocalizationError;
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
@@ -91,7 +92,7 @@ impl DioxusI18n {
     pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
-    ) -> Result<(), GlobalLocalizationError> {
+    ) -> Result<(), LocalizationError> {
         self.managed().select_language(lang)?;
         self.context.update(self.managed().requested_language());
         Ok(())
@@ -100,7 +101,7 @@ impl DioxusI18n {
     pub fn select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
-    ) -> Result<(), GlobalLocalizationError> {
+    ) -> Result<(), LocalizationError> {
         self.managed().select_language_strict(lang)?;
         self.context.update(self.managed().requested_language());
         Ok(())

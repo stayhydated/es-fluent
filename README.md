@@ -15,7 +15,7 @@ This framework gives you:
 - Derives to turn enums/structs into Fluent message IDs and arguments.
 - A [cli](crates/es-fluent-cli/README.md) to generate ftl files skeleton and other utilities.
 - [Language Enum Generation](crates/es-fluent-lang/README.md)
-- Integration via the [embedded singleton manager](crates/es-fluent-manager-embedded/README.md), the [Dioxus manager](crates/es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](crates/es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
+- Integration via the [embedded manager](crates/es-fluent-manager-embedded/README.md), the [Dioxus manager](crates/es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](crates/es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
 
 ## Examples
 
@@ -40,7 +40,7 @@ Add the crate with the `derive` feature to access the procedural macros:
 es-fluent = { version = "0.15", features = ["derive"] }
 unic-langid = "0.9"
 
-# If you want to register modules with the embedded singleton and localize at runtime:
+# If you want to register modules with the embedded context and localize at runtime:
 es-fluent-manager-embedded = "0.15"
 
 # For Dioxus apps, enable only the runtime surface you use.
@@ -51,21 +51,20 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 es-fluent-manager-bevy = "0.18"
 ```
 
-`es_fluent_manager_embedded::init_with_language(...)` is the simplest startup
-path. If you want initialization errors back instead of log-only behavior, use
-`es-fluent-manager-embedded::try_init_with_language(...)`:
+`es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:
 
 ```rust
-es_fluent_manager_embedded::init_with_language(langid!("en-US"));
+let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
 ```
 
 For custom runtime integrations, use
 `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
-For Dioxus, `es-fluent-manager-dioxus` provides a provider component, hook-based client helpers, typed context-bound localization, and signal-backed locale state behind the `client` feature. Its `ssr` feature provides a request-scoped runtime. Dioxus code should use `DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or explicit `localize*` helpers; Dioxus does not use the process-global `ToFluentString` bridge.
+For Dioxus, `es-fluent-manager-dioxus` provides a provider component, hook-based client helpers, typed context-bound localization, and signal-backed locale state behind the `client` feature. Its `ssr` feature provides a request-scoped runtime. Dioxus code should use `DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or explicit `localize*` helpers; Dioxus does not use the explicit localizer context.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep
-the last ready locale active.
+the last ready locale active. Systems that need direct localization can request
+`BevyI18n` as a `SystemParam` and call `localize_message(...)` on it.
 
 ## Project configuration
 
@@ -227,11 +226,10 @@ pub enum LoginError {
     ), // exposed as $input, $expected, $details
 }
 
-use es_fluent::ToFluentString;
-let _ = LoginError::InvalidPassword.to_fluent_string();
-let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
-let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
-let _ = LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
+let _ = i18n.localize_message(&LoginError::InvalidPassword);
+let _ = i18n.localize_message(&LoginError::UserNotFound { username: "john".to_string() });
+let _ = i18n.localize_message(&LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()));
+let _ = i18n.localize_message(&LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()));
 
 #[derive(EsFluent)]
 pub struct WelcomeMessage<'a> {
@@ -239,9 +237,8 @@ pub struct WelcomeMessage<'a> {
     pub count: i32,    // exposed as $count in the ftl file
 }
 
-use es_fluent::ToFluentString;
 let welcome = WelcomeMessage { name: "John", count: 5 };
-let _ = welcome.to_fluent_string();
+let _ = i18n.localize_message(&welcome);
 ```
 
 Argument naming attributes:
@@ -251,11 +248,11 @@ Argument naming attributes:
 Skipped single-field enum variants:
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
-key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+key and delegates context-bound rendering to the wrapped value. This is useful for
 transparent wrapper enums.
 
 ```rs
-use es_fluent::{EsFluent, ToFluentString};
+use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 pub enum NetworkError {
@@ -268,7 +265,7 @@ pub enum TransactionError {
     Network(NetworkError),
 }
 
-let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+let _ = i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable));
 ```
 
 ```ftl
@@ -299,9 +296,9 @@ pub struct Greeting<'a> {
     pub gender: &'a GenderChoice,
 }
 
-use es_fluent::ToFluentString;
+use es_fluent::FluentMessage;
 let greeting = Greeting { name: "John", gender: &GenderChoice::Male };
-let _ = greeting.to_fluent_string();
+let _ = i18n.localize_message(&greeting);
 ```
 
 ### `#[derive(EsFluentVariants)]`
@@ -324,8 +321,8 @@ pub struct LoginFormVariants {
 // LoginFormVariantsLabelVariants::{Variants} -> (login_form_variants_label_variants-{variant})
 // LoginFormVariantsDescriptionVariants::{Variants} -> (login_form_variants_description_variants-{variant})
 
-use es_fluent::ToFluentString;
-let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+use es_fluent::FluentMessage;
+let _ = i18n.localize_message(&LoginFormVariantsLabelVariants::Username);
 
 #[derive(EsFluentVariants)]
 pub enum SettingsTab {
@@ -338,7 +335,7 @@ pub enum SettingsTab {
 // SettingsTabVariants::{General, Notifications, Privacy}
 //     -> (settings_tab_variants-{variant})
 
-let _ = SettingsTabVariants::Notifications.to_fluent_string();
+let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 ```
 
 ### `#[derive(EsFluentThis)]`

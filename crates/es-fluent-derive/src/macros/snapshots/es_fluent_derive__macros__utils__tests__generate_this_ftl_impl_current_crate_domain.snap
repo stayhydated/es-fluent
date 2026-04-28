@@ -1,9 +1,12 @@
 ---
 source: crates/es-fluent-derive/src/macros/utils.rs
+assertion_line: 455
 expression: tokens
 ---
 impl ::es_fluent::ThisFtl for Greeting {
-    fn this_ftl() -> String {
-        ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"), "hello", None)
+    fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+        localizer: &__EsFluentLocalizer,
+    ) -> String {
+        ::es_fluent::__private::localize_this(localizer, env!("CARGO_PKG_NAME"), "hello")
     }
 }

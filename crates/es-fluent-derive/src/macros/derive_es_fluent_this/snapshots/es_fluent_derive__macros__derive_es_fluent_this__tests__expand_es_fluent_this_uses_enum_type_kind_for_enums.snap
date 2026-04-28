@@ -1,10 +1,17 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_this/mod.rs
+assertion_line: 204
 expression: tokens
 ---
 impl ::es_fluent::ThisFtl for LoginState {
-    fn this_ftl() -> String {
-        ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"), "login_state_this", None)
+    fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+        localizer: &__EsFluentLocalizer,
+    ) -> String {
+        ::es_fluent::__private::localize_this(
+            localizer,
+            env!("CARGO_PKG_NAME"),
+            "login_state_this",
+        )
     }
 }
 #[doc(hidden)]

@@ -1,54 +1,10 @@
 #![doc = include_str!("../README.md")]
 
-#[doc(hidden)]
-use arc_swap::ArcSwap;
-
-#[doc(hidden)]
-use es_fluent::try_set_shared_context;
-
-#[doc(hidden)]
-use es_fluent_manager_core::FluentManager;
-
-#[doc(hidden)]
-use parking_lot::{Mutex, MutexGuard};
-
-#[doc(hidden)]
-use std::sync::{Arc, LazyLock, OnceLock};
-
-#[doc(hidden)]
+use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
+use es_fluent_manager_core::{FluentManager, LocalizationError, ModuleDiscoveryError};
+use std::collections::HashMap;
+use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
-
-pub use es_fluent::GlobalLocalizationError;
-
-#[derive(Debug)]
-pub enum EmbeddedInitError {
-    ModuleDiscovery(Vec<es_fluent_manager_core::ModuleDiscoveryError>),
-    GlobalContext(GlobalLocalizationError),
-}
-
-impl std::fmt::Display for EmbeddedInitError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::ModuleDiscovery(errors) => {
-                f.write_str("failed strict i18n module discovery")?;
-                for error in errors {
-                    write!(f, "\n- {error}")?;
-                }
-                Ok(())
-            },
-            Self::GlobalContext(error) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl std::error::Error for EmbeddedInitError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::ModuleDiscovery(_) => None,
-            Self::GlobalContext(error) => Some(error),
-        }
-    }
-}
 
 #[doc(hidden)]
 pub use es_fluent::__inventory;
@@ -65,326 +21,172 @@ pub use unic_langid as __unic_langid;
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_module;
 
-#[doc(hidden)]
-static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
+pub use es_fluent_manager_core::LocalizationError as LanguageSelectionError;
 
-static INIT_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-fn init_lock() -> MutexGuard<'static, ()> {
-    INIT_LOCK.lock()
+#[derive(Debug)]
+pub enum EmbeddedInitError {
+    ModuleDiscovery(Vec<ModuleDiscoveryError>),
+    LanguageSelection(LocalizationError),
 }
 
-fn build_manager(
-    initial_language: Option<&LanguageIdentifier>,
-) -> Result<Arc<FluentManager>, EmbeddedInitError> {
-    let manager = FluentManager::try_new_with_discovered_modules()
-        .map_err(EmbeddedInitError::ModuleDiscovery)?;
-    if let Some(initial_language) = initial_language {
-        select_initial_language(&manager, initial_language)?;
-    }
-    Ok(Arc::new(manager))
-}
-
-fn select_initial_language(
-    manager: &FluentManager,
-    initial_language: &LanguageIdentifier,
-) -> Result<(), EmbeddedInitError> {
-    manager
-        .select_language(initial_language)
-        .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
-}
-
-fn initialize_manager(manager: Arc<FluentManager>) -> Result<bool, EmbeddedInitError> {
-    let _guard = init_lock();
-
-    if GENERIC_MANAGER.get().is_some() {
-        tracing::warn!("Generic fluent manager already initialized.");
-        return Ok(false);
-    }
-
-    try_set_shared_context(Arc::clone(&manager)).map_err(EmbeddedInitError::GlobalContext)?;
-
-    if GENERIC_MANAGER.set(ArcSwap::new(manager)).is_ok() {
-        Ok(true)
-    } else {
-        tracing::error!(
-            "Embedded manager initialization published the shared context but failed to install the embedded singleton"
-        );
-        Err(EmbeddedInitError::GlobalContext(
-            GlobalLocalizationError::ContextAlreadyInitialized,
-        ))
-    }
-}
-
-fn apply_language_to_live_manager(lang: &LanguageIdentifier) -> Result<(), EmbeddedInitError> {
-    let manager = GENERIC_MANAGER
-        .get()
-        .ok_or(EmbeddedInitError::GlobalContext(
-            GlobalLocalizationError::ContextNotInitialized,
-        ))?;
-    manager
-        .load()
-        .select_language(lang)
-        .map_err(|error| EmbeddedInitError::GlobalContext(error.into()))
-}
-
-fn complete_raced_language_init(lang: &LanguageIdentifier) -> Result<(), EmbeddedInitError> {
-    if GENERIC_MANAGER.get().is_none() {
-        tracing::error!(
-            "Generic fluent manager initialization lost a race and no live manager was found."
-        );
-        return Err(EmbeddedInitError::GlobalContext(
-            GlobalLocalizationError::ContextNotInitialized,
-        ));
-    }
-
-    apply_language_to_live_manager(lang)
-}
-
-fn init_manager(
-    initial_language: Option<LanguageIdentifier>,
-    builder: fn(Option<&LanguageIdentifier>) -> Result<Arc<FluentManager>, EmbeddedInitError>,
-) -> Result<(), EmbeddedInitError> {
-    if let Some(lang) = initial_language {
-        if GENERIC_MANAGER.get().is_some() {
-            tracing::warn!("Generic fluent manager already initialized.");
-            return apply_language_to_live_manager(&lang);
+impl std::fmt::Display for EmbeddedInitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ModuleDiscovery(errors) => {
+                f.write_str("failed strict i18n module discovery")?;
+                for error in errors {
+                    write!(f, "\n- {error}")?;
+                }
+                Ok(())
+            },
+            Self::LanguageSelection(error) => {
+                write!(f, "failed to select the requested language: {error}")
+            },
         }
-
-        let manager = builder(Some(&lang))?;
-        if initialize_manager(manager)? {
-            return Ok(());
-        }
-
-        return complete_raced_language_init(&lang);
     }
-
-    if GENERIC_MANAGER.get().is_none() {
-        let _ = initialize_manager(builder(None)?)?;
-    } else {
-        tracing::warn!("Generic fluent manager already initialized.");
-    }
-
-    Ok(())
 }
 
-/// Initializes the embedded singleton `FluentManager`.
+impl std::error::Error for EmbeddedInitError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ModuleDiscovery(_) => None,
+            Self::LanguageSelection(error) => Some(error),
+        }
+    }
+}
+
+/// Explicit embedded localization context.
 ///
-/// This convenience entry point uses strict module discovery and logs
-/// initialization failures instead of returning them.
-pub fn init() {
-    if let Err(error) = init_manager(None, build_manager) {
-        tracing::error!("Failed to initialize embedded fluent manager: {}", error);
-    }
+/// Construct this once during application startup, keep it in application state,
+/// and pass it to code that needs localization. No context-free `es-fluent`
+/// context is installed.
+#[derive(Clone)]
+pub struct EmbeddedI18n {
+    manager: Arc<FluentManager>,
 }
 
-/// Initializes the embedded singleton with strict registry discovery.
-pub fn try_init() -> Result<(), EmbeddedInitError> {
-    init_manager(None, build_manager)
-}
-
-/// Initializes the embedded singleton `FluentManager` and selects the active
-/// language.
-///
-/// This convenience entry point uses strict module discovery and logs
-/// initialization failures instead of returning them. It is equivalent to
-/// calling [`init()`] followed by [`select_language()`], except the language is
-/// selected before the manager is published as the global singleton. If
-/// another thread initializes the singleton concurrently, `lang` is applied to
-/// the live manager after the race is resolved.
-pub fn init_with_language<L: Into<LanguageIdentifier>>(lang: L) {
-    let lang = lang.into();
-    if let Err(error) = init_manager(Some(lang.clone()), build_manager) {
-        tracing::error!(
-            "Failed to initialize embedded fluent manager with language '{}': {}",
-            lang,
-            error
-        );
-    }
-}
-
-/// Initializes the embedded singleton with strict registry discovery and then
-/// selects the active language.
-pub fn try_init_with_language<L: Into<LanguageIdentifier>>(
-    lang: L,
-) -> Result<(), EmbeddedInitError> {
-    init_manager(Some(lang.into()), build_manager)
-}
-
-/// Selects the active language for the embedded singleton `FluentManager`.
-///
-/// After a language is selected, all subsequent calls to localization functions
-/// will use the bundles for this language.
-///
-/// # Errors
-///
-/// Returns an error if the embedded singleton has not been initialized by
-/// calling `init()` first, or if no discovered module can serve the requested
-/// language.
-pub fn select_language<L: Into<LanguageIdentifier>>(
-    lang: L,
-) -> Result<(), GlobalLocalizationError> {
-    let manager = GENERIC_MANAGER
-        .get()
-        .ok_or(GlobalLocalizationError::ContextNotInitialized)?;
-    manager
-        .load()
-        .select_language(&lang.into())
-        .map_err(Into::into)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use es_fluent::FluentValue;
-    use es_fluent_manager_core::{
-        I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-        ModuleData,
-    };
-    use parking_lot::Mutex;
-    use std::collections::HashMap;
-    use std::sync::{
-        LazyLock,
-        atomic::{AtomicUsize, Ordering},
-    };
-    use unic_langid::langid;
-
-    static SELECT_CALLS: AtomicUsize = AtomicUsize::new(0);
-    static TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-    static EMBEDDED_TEST_MODULE_DATA: ModuleData = ModuleData {
-        name: "embedded-test-module",
-        domain: "embedded-test-module",
-        supported_languages: &[],
-        namespaces: &[],
-    };
-
-    struct EmbeddedTestModule;
-    struct EmbeddedTestLocalizer;
-
-    impl Localizer for EmbeddedTestLocalizer {
-        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-            SELECT_CALLS.fetch_add(1, Ordering::Relaxed);
-            if lang == &langid!("zz") {
-                return Err(LocalizationError::LanguageNotSupported(lang.clone()));
-            }
-            Ok(())
-        }
-
-        fn localize<'a>(
-            &self,
-            id: &str,
-            _args: Option<&HashMap<&str, FluentValue<'a>>>,
-        ) -> Option<String> {
-            if id == "embedded-key" {
-                Some("embedded-value".to_string())
-            } else {
-                None
-            }
+impl EmbeddedI18n {
+    fn from_manager(manager: FluentManager) -> Self {
+        Self {
+            manager: Arc::new(manager),
         }
     }
 
-    impl I18nModuleDescriptor for EmbeddedTestModule {
-        fn data(&self) -> &'static ModuleData {
-            &EMBEDDED_TEST_MODULE_DATA
-        }
+    /// Builds an embedded context without selecting a language.
+    pub fn try_new() -> Result<Self, EmbeddedInitError> {
+        FluentManager::try_new_with_discovered_modules()
+            .map(Self::from_manager)
+            .map_err(EmbeddedInitError::ModuleDiscovery)
     }
 
-    impl I18nModule for EmbeddedTestModule {
-        fn create_localizer(&self) -> Box<dyn Localizer> {
-            Box::new(EmbeddedTestLocalizer)
-        }
+    /// Builds an embedded context and selects the initial active language.
+    pub fn try_new_with_language<L: Into<LanguageIdentifier>>(
+        lang: L,
+    ) -> Result<Self, EmbeddedInitError> {
+        let lang = lang.into();
+        let manager = FluentManager::try_new_with_discovered_modules()
+            .map_err(EmbeddedInitError::ModuleDiscovery)?;
+        manager
+            .select_language(&lang)
+            .map_err(EmbeddedInitError::LanguageSelection)?;
+        Ok(Self::from_manager(manager))
     }
 
-    static TEST_MODULE: EmbeddedTestModule = EmbeddedTestModule;
-
-    crate::__inventory::submit! {
-        &TEST_MODULE as &dyn I18nModuleRegistration
+    /// Returns the underlying manager.
+    pub fn manager(&self) -> &FluentManager {
+        &self.manager
     }
 
-    #[test]
-    fn build_manager_selects_initial_language_when_requested() {
-        let _guard = TEST_LOCK.lock();
-        SELECT_CALLS.store(0, Ordering::Relaxed);
-
-        let manager = build_manager(Some(&langid!("en-US")))
-            .expect("strict manager build should still apply the initial language");
-
-        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
-        assert_eq!(
-            manager.localize("embedded-key", None),
-            Some("embedded-value".to_string())
-        );
+    /// Selects the active language for this context.
+    pub fn select_language<L: Into<LanguageIdentifier>>(
+        &self,
+        lang: L,
+    ) -> Result<(), LocalizationError> {
+        self.manager.select_language(&lang.into())
     }
 
-    #[test]
-    fn build_manager_rejects_unselectable_initial_language() {
-        let _guard = TEST_LOCK.lock();
-        SELECT_CALLS.store(0, Ordering::Relaxed);
-
-        let err = match build_manager(Some(&langid!("zz"))) {
-            Ok(_) => panic!("initial language selection failure should abort publication"),
-            Err(err) => err,
-        };
-
-        assert!(SELECT_CALLS.load(Ordering::Relaxed) >= 1);
-        assert!(matches!(
-            err,
-            EmbeddedInitError::GlobalContext(GlobalLocalizationError::LanguageSelectionFailed(_))
-        ));
+    /// Selects the active language for this context and fails if any runtime
+    /// module rejects the requested locale.
+    pub fn select_language_strict<L: Into<LanguageIdentifier>>(
+        &self,
+        lang: L,
+    ) -> Result<(), LocalizationError> {
+        self.manager.select_language_strict(&lang.into())
     }
 
-    #[test]
-    fn init_and_select_language_cover_singleton_paths() {
-        let _guard = TEST_LOCK.lock();
-        SELECT_CALLS.store(0, Ordering::Relaxed);
+    /// Localizes a message by ID using manager discovery order.
+    pub fn localize<'a>(
+        &self,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.manager.localize(id.as_ref(), args)
+    }
 
-        // Exercise the pre-init error path.
-        let err = select_language(langid!("en-US")).expect_err("selecting before init should fail");
-        assert!(matches!(
-            err,
-            GlobalLocalizationError::ContextNotInitialized
-        ));
-        assert!(GENERIC_MANAGER.get().is_none());
+    /// Localizes a message by ID, falling back to the ID on misses.
+    pub fn localize_or_id<'a>(
+        &self,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        FluentLocalizerExt::localize_or_id(self, id.as_ref(), args)
+    }
 
-        init_with_language(langid!("zz"));
-        assert!(GENERIC_MANAGER.get().is_none());
+    /// Localizes a message by ID within a specific domain.
+    pub fn localize_in_domain<'a>(
+        &self,
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.manager
+            .localize_in_domain(domain.as_ref(), id.as_ref(), args)
+    }
 
-        let strict_init_err = try_init_with_language(langid!("zz"))
-            .expect_err("strict init should fail before publishing when selection fails");
-        assert!(matches!(
-            strict_init_err,
-            EmbeddedInitError::GlobalContext(GlobalLocalizationError::LanguageSelectionFailed(_))
-        ));
-        assert!(GENERIC_MANAGER.get().is_none());
+    /// Localizes a domain-scoped message by ID, falling back to the ID on
+    /// misses.
+    pub fn localize_in_domain_or_id<'a>(
+        &self,
+        domain: impl AsRef<str>,
+        id: impl AsRef<str>,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        FluentLocalizerExt::localize_in_domain_or_id(self, domain.as_ref(), id.as_ref(), args)
+    }
 
-        SELECT_CALLS.store(0, Ordering::Relaxed);
+    /// Renders a derived typed message through this context.
+    pub fn localize_message<T>(&self, message: &T) -> String
+    where
+        T: FluentMessage + ?Sized,
+    {
+        FluentLocalizerExt::localize_message(self, message)
+    }
 
-        init_with_language(langid!("en-US"));
-        assert!(GENERIC_MANAGER.get().is_some());
-        assert_eq!(SELECT_CALLS.load(Ordering::Relaxed), 1);
+    /// Renders a derived typed message through this context without logging
+    /// missing-message warnings.
+    pub fn localize_message_silent<T>(&self, message: &T) -> String
+    where
+        T: FluentMessage + ?Sized,
+    {
+        FluentLocalizerExt::localize_message_silent(self, message)
+    }
+}
 
-        select_language(langid!("en-US")).expect("initialized manager should select language");
-        let after_explicit_select = SELECT_CALLS.load(Ordering::Relaxed);
-        assert_eq!(after_explicit_select, 2);
+impl FluentLocalizer for EmbeddedI18n {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.manager.localize(id, args)
+    }
 
-        init();
-
-        // Re-initialization with a language should still apply the requested selection.
-        let after_init_with_language = SELECT_CALLS.load(Ordering::Relaxed);
-        init_with_language(langid!("de"));
-        assert_eq!(
-            SELECT_CALLS.load(Ordering::Relaxed),
-            after_init_with_language + 1
-        );
-
-        // Plain init should still hit the already-initialized branch without changing language.
-        let after_reinit_with_language = SELECT_CALLS.load(Ordering::Relaxed);
-        init();
-        assert_eq!(
-            SELECT_CALLS.load(Ordering::Relaxed),
-            after_reinit_with_language
-        );
-
-        assert_eq!(es_fluent::localize("embedded-key", None), "embedded-value");
+    fn localize_in_domain<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.manager.localize_in_domain(domain, id, args)
     }
 }

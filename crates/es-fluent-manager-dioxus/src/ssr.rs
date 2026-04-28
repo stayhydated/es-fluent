@@ -1,8 +1,8 @@
 use crate::{DioxusInitError, ManagedI18n, ModuleDiscoveryErrors};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
-use es_fluent::{FluentMessage, FluentValue, GlobalLocalizationError};
-use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager};
+use es_fluent::{FluentMessage, FluentValue};
+use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager, LocalizationError};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use unic_langid::LanguageIdentifier;
@@ -11,7 +11,7 @@ use unic_langid::LanguageIdentifier;
 ///
 /// Construct this once during process startup, then create one [`SsrI18n`] per
 /// request. The request object owns its own manager state, so locale selection is
-/// isolated without relying on process-global localization hooks.
+/// isolated without relying on context-free localization hooks.
 #[derive(Clone, Debug, Default)]
 pub struct SsrI18nRuntime {
     modules: Arc<OnceLock<Result<DiscoveredI18nModules, ModuleDiscoveryErrors>>>,
@@ -55,14 +55,14 @@ impl SsrI18n {
     pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
-    ) -> Result<(), GlobalLocalizationError> {
+    ) -> Result<(), LocalizationError> {
         self.managed.select_language(lang)
     }
 
     pub fn select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
-    ) -> Result<(), GlobalLocalizationError> {
+    ) -> Result<(), LocalizationError> {
         self.managed.select_language_strict(lang)
     }
 

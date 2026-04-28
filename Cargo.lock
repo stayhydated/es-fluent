@@ -4882,7 +4882,6 @@ dependencies = [
 name = "es-fluent"
 version = "0.15.0"
 dependencies = [
- "arc-swap",
  "es-fluent-derive",
  "es-fluent-generate",
  "es-fluent-manager-core",
@@ -4890,7 +4889,6 @@ dependencies = [
  "es-fluent-toml",
  "fluent-bundle",
  "inventory",
- "parking_lot",
  "rust-embed",
  "strum",
  "tempfile",
@@ -5077,7 +5075,6 @@ dependencies = [
  "es-fluent-manager-macros",
  "fluent-bundle",
  "inventory",
- "parking_lot",
  "serde",
  "unic-langid",
 ]
@@ -5123,12 +5120,9 @@ dependencies = [
 name = "es-fluent-manager-embedded"
 version = "0.15.0"
 dependencies = [
- "arc-swap",
  "es-fluent",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
- "parking_lot",
- "tracing",
  "unic-langid",
 ]
 

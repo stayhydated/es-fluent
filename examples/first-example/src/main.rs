@@ -1,24 +1,23 @@
-use es_fluent::ToFluentString as _;
 use example_shared_lib::Languages;
 use first_example::first_example::*;
 use first_example::i18n;
 use strum::IntoEnumIterator as _;
 
 fn main() {
-    i18n::init_with_language(Languages::default());
-    Languages::iter().for_each(run);
+    let i18n = i18n::try_new_with_language(Languages::default()).expect("i18n should initialize");
+    Languages::iter().for_each(|language| run(&i18n, language));
 }
 
-fn run(locale: Languages) {
-    i18n::change_locale(locale).unwrap();
+fn run(i18n: &i18n::I18n, locale: Languages) {
+    i18n::change_locale(i18n, locale).unwrap();
 
-    println!("Language: {}", locale.to_fluent_string());
+    println!("Language: {}", i18n.localize_message(&locale));
 
     let hello = HelloUser::new("Alice");
-    println!("{}", hello.to_fluent_string());
+    println!("{}", i18n.localize_message(&hello));
 
     for gender in Gender::iter() {
-        println!("Gender: {}", gender.to_fluent_string());
+        println!("Gender: {}", i18n.localize_message(&gender));
     }
 
     let shared1 = Shared::Photos {
@@ -42,10 +41,10 @@ fn run(locale: Languages) {
         user_gender: &Gender::Helicopter,
     };
 
-    println!("{}", shared1.to_fluent_string());
-    println!("{}", shared2.to_fluent_string());
-    println!("{}", shared3.to_fluent_string());
-    println!("{}", shared4.to_fluent_string());
+    println!("{}", i18n.localize_message(&shared1));
+    println!("{}", i18n.localize_message(&shared2));
+    println!("{}", i18n.localize_message(&shared3));
+    println!("{}", i18n.localize_message(&shared4));
 
     println!();
 }

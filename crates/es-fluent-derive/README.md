@@ -18,9 +18,7 @@ Turns an enum or struct into a localizable message.
 - **Enums**: Each variant becomes a message ID (e.g., `MyEnum::Variant` -> `my_enum-Variant`).
 - **Structs**: The struct itself becomes the message ID (e.g., `MyStruct` -> `my_struct`).
 - **Fields**: Fields are automatically exposed as arguments to the Fluent message.
-- **Typed runtime lookup**: Generated types implement both `ToFluentString` for
-  the process-global runtime and `FluentMessage` for managers that provide an
-  explicit context, such as Dioxus.
+- **Typed runtime lookup**: Generated types implement `FluentMessage` for managers that provide an explicit context.
 
 ```rs
 use es_fluent::EsFluent;
@@ -37,10 +35,10 @@ pub enum LoginError {
     ), // exposed as $input, $expected, $details
 }
 
-// Usage:
-// LoginError::InvalidPassword.to_fluent_string()
-// LoginError::UserNotFound { username: "john" }.to_fluent_string()
-// LoginError::Something("a", "b", "c").to_fluent_string()
+// Usage with an explicit manager:
+// i18n.localize_message(&LoginError::InvalidPassword)
+// i18n.localize_message(&LoginError::UserNotFound { username: "john".to_string() })
+// i18n.localize_message(&LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()))
 
 #[derive(EsFluent)]
 pub struct UserProfile<'a> {
@@ -48,7 +46,7 @@ pub struct UserProfile<'a> {
     pub gender: &'a str, // exposed as $gender in the ftl file
 }
 
-// usage: UserProfile { name: "John", gender: "male" }.to_fluent_string()
+// usage: i18n.localize_message(&UserProfile { name: "John", gender: "male" })
 ```
 
 Argument naming attributes:
@@ -58,11 +56,11 @@ Argument naming attributes:
 Skipped single-field enum variants:
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
-key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+key and delegates context-bound rendering to the wrapped value. This is useful for
 transparent wrapper enums.
 
 ```rs
-use es_fluent::{EsFluent, ToFluentString};
+use es_fluent::EsFluent;
 
 #[derive(EsFluent)]
 pub enum NetworkError {
@@ -75,7 +73,7 @@ pub enum TransactionError {
     Network(NetworkError),
 }
 
-let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+let _ = i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable));
 ```
 
 ```ftl
@@ -134,7 +132,7 @@ pub struct UserProfile<'a> {
     pub gender: &'a Gender,
 }
 
-// usage: UserProfile { name: "John", gender: &Gender::Male }.to_fluent_string()
+// usage: i18n.localize_message(&UserProfile { name: "John", gender: &Gender::Male })
 ```
 
 ### `#[derive(EsFluentVariants)]`
@@ -158,7 +156,7 @@ pub struct LoginForm {
 // LoginFormLabelVariants::{Variants} -> (login_form_label_variants-{variant})
 // LoginFormDescriptionVariants::{Variants} -> (login_form_description_variants-{variant})
 
-// usage: LoginFormLabelVariants::Username.to_fluent_string()
+// usage: i18n.localize_message(&LoginFormLabelVariants::Username)
 
 #[derive(EsFluentVariants)]
 pub enum SettingsTab {
@@ -171,7 +169,7 @@ pub enum SettingsTab {
 // SettingsTabVariants::{General, Notifications, Privacy}
 //     -> (settings_tab_variants-{variant})
 
-// usage: SettingsTabVariants::Notifications.to_fluent_string()
+// usage: i18n.localize_message(&SettingsTabVariants::Notifications)
 ```
 
 ### `#[derive(EsFluentThis)]`

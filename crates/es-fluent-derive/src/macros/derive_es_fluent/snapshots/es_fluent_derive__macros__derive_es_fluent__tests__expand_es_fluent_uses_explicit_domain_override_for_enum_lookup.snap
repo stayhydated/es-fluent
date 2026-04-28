@@ -3,18 +3,6 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
 assertion_line: 268
 expression: tokens
 ---
-impl ::es_fluent::FluentDisplay for Languages {
-    fn fluent_fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match self {
-            Self::En => {
-                write!(
-                    f, "{}", ::es_fluent::localize_in_domain("es-fluent-lang",
-                    "es-fluent-lang-en", None)
-                )
-            }
-        }
-    }
-}
 impl ::es_fluent::FluentMessage for Languages {
     fn to_fluent_string_with(
         &self,
@@ -57,15 +45,4 @@ mod __es_fluent_inventory_languages {
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
-}
-impl From<&Languages> for ::es_fluent::FluentValue<'_> {
-    fn from(value: &Languages) -> Self {
-        use ::es_fluent::ToFluentString as _;
-        value.to_fluent_string().into()
-    }
-}
-impl From<Languages> for ::es_fluent::FluentValue<'_> {
-    fn from(value: Languages) -> Self {
-        (&value).into()
-    }
 }

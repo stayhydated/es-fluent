@@ -19,7 +19,6 @@ pub enum NotFoundReason {
     NotExist(u64),
 }
 
-// here, we use thiserror::Error which uses std::fmt::Display + Debug, and es_fluent::FluentDisplay at the same time.
 #[derive(Debug, Error, EsFluent)]
 pub enum TransactionError {
     #[error("Account is locked: {reason:?}")]
@@ -38,7 +37,6 @@ pub enum TransactionError {
     Network(#[from] NetworkError),
 }
 
-// here, we use thiserror::Error which uses std::fmt::Display + Debug, and es_fluent::FluentDisplay at the same time.
 #[derive(Clone, Debug, Error, EsFluent)]
 pub enum NetworkError {
     #[error("API is unavailable")]

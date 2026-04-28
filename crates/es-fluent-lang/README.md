@@ -42,7 +42,7 @@ It also implements:
 - `Into<LanguageIdentifier>`: Converts back to a standard locale ID.
 
 For user-facing labels, derive `EsFluent` on the generated enum and call
-`to_fluent_string()` instead of relying on `Display`.
+manager-backed `localize_message(...)` instead of relying on `Display`.
 
 If you want to provide your own language-name translations, use
 `#[es_fluent_language(custom)]`. Custom mode skips the built-in
@@ -60,7 +60,7 @@ provide the labels.
 
 The crate also includes a built-in module for translating language names themselves (e.g., "English", "Français", "Deutsch"). This means you can easily build a "Language Picker" UI without manually translating the names of every language.
 
-By default, labels are formatted directly from ICU4X display-name data as autonyms, so `Languages::Fr.to_fluent_string()` resolves to `français` and `Languages::Ja.to_fluent_string()` resolves to `日本語`. With the `localized-langs` feature, the same ICU4X data is formatted in the currently selected UI language instead, so selecting English yields labels like `French` and `Japanese`.
+By default, labels are formatted directly from ICU4X display-name data as autonyms, so `i18n.localize_message(&Languages::Fr)` resolves to `français` and `i18n.localize_message(&Languages::Ja)` resolves to `日本語`. With the `localized-langs` feature, the same ICU4X data is formatted in the currently selected UI language instead, so selecting English yields labels like `French` and `Japanese`.
 
 The runtime resolves fallback locales through the shared ICU4X/CLDR fallback chain when a display locale is missing exact display-name data. If you need fully custom labels for project-specific or unsupported locale tags, use `#[es_fluent_language(custom)]` and ship your own translations.
 

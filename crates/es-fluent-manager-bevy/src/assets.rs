@@ -1,9 +1,10 @@
 use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    LocaleLoadReport, ModuleResourceSpec, ResourceKey, ResourceLoadError, SyncFluentBundle,
-    build_locale_load_report, collect_available_languages, collect_locale_resources,
-    fallback_errors_are_fatal, locale_candidates, localize_with_fallback_resources,
+    FluentManager, LocaleLoadReport, LocalizationError, ModuleResourceSpec, ResourceKey,
+    ResourceLoadError, SyncFluentBundle, build_locale_load_report, collect_available_languages,
+    collect_locale_resources, fallback_errors_are_fatal, locale_candidates,
+    localize_with_fallback_resources,
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use serde::{Deserialize, Serialize};
@@ -66,8 +67,9 @@ pub struct I18nBundle {
 
 /// Per-language domain bundles plus accepted per-domain resources derived from
 /// the same accepted resources as [`I18nBundle`].
+#[doc(hidden)]
 #[derive(Clone, Default, Resource)]
-pub(crate) struct I18nDomainBundles {
+pub struct I18nDomainBundles {
     pub(crate) bundles: HashMap<LanguageIdentifier, HashMap<String, Arc<SyncFluentBundle>>>,
     pub(crate) locale_resources:
         HashMap<LanguageIdentifier, HashMap<String, Vec<Arc<FluentResource>>>>,
@@ -218,17 +220,6 @@ impl I18nBundle {
         self.bundles.remove(lang);
     }
 
-    #[cfg(test)]
-    pub(crate) fn insert(
-        &mut self,
-        lang: LanguageIdentifier,
-        bundle: Arc<SyncFluentBundle>,
-        accepted_resources: Vec<Arc<FluentResource>>,
-    ) {
-        self.bundles.insert(lang.clone(), bundle);
-        self.locale_resources.insert(lang, accepted_resources);
-    }
-
     pub(crate) fn remove(&mut self, lang: &LanguageIdentifier) {
         self.bundles.remove(lang);
         self.locale_resources.remove(lang);
@@ -271,17 +262,6 @@ impl I18nDomainBundles {
         self.bundles.remove(lang);
     }
 
-    #[cfg(test)]
-    pub(crate) fn insert(
-        &mut self,
-        lang: LanguageIdentifier,
-        bundles: HashMap<String, Arc<SyncFluentBundle>>,
-        locale_resources: HashMap<String, Vec<Arc<FluentResource>>>,
-    ) {
-        self.bundles.insert(lang.clone(), bundles);
-        self.locale_resources.insert(lang, locale_resources);
-    }
-
     pub(crate) fn remove(&mut self, lang: &LanguageIdentifier) {
         self.bundles.remove(lang);
         self.locale_resources.remove(lang);
@@ -310,6 +290,7 @@ impl I18nDomainBundles {
 pub struct I18nResource {
     active_language: LanguageIdentifier,
     resolved_language: LanguageIdentifier,
+    fallback_manager: Option<Arc<FluentManager>>,
 }
 
 impl I18nResource {
@@ -318,6 +299,7 @@ impl I18nResource {
         Self {
             active_language: initial_language.clone(),
             resolved_language: initial_language,
+            fallback_manager: None,
         }
     }
 
@@ -330,7 +312,16 @@ impl I18nResource {
         Self {
             active_language,
             resolved_language,
+            fallback_manager: None,
         }
+    }
+
+    /// Attaches a runtime fallback manager for non-Bevy embedded runtime
+    /// modules, such as `es-fluent-lang`.
+    #[doc(hidden)]
+    pub fn with_fallback_manager(mut self, fallback_manager: Arc<FluentManager>) -> Self {
+        self.fallback_manager = Some(fallback_manager);
+        self
     }
 
     /// Returns the current published active `LanguageIdentifier`.
@@ -351,6 +342,18 @@ impl I18nResource {
     ) {
         self.active_language = active_language;
         self.resolved_language = resolved_language;
+    }
+
+    #[doc(hidden)]
+    pub fn select_fallback_language(
+        &self,
+        requested_language: &LanguageIdentifier,
+    ) -> Result<(), LocalizationError> {
+        if let Some(fallback_manager) = &self.fallback_manager {
+            fallback_manager.select_language(requested_language)?;
+        }
+
+        Ok(())
     }
 
     /// Localizes a message by its ID and arguments against the requested locale
@@ -374,7 +377,11 @@ impl I18nResource {
             );
         }
 
-        value
+        value.or_else(|| {
+            self.fallback_manager
+                .as_ref()
+                .and_then(|manager| manager.localize(id, args))
+        })
     }
 
     #[doc(hidden)]
@@ -387,6 +394,32 @@ impl I18nResource {
         self.localize(id, args, i18n_bundle).unwrap_or_else(|| {
             warn!("Translation for '{}' not found", id);
             id.to_string()
+        })
+    }
+
+    #[doc(hidden)]
+    pub(crate) fn localize_in_domain<'a>(
+        &self,
+        i18n_domain_bundles: &I18nDomainBundles,
+        domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        let locale_resources =
+            i18n_domain_bundles.fallback_locale_resources(&self.active_language, domain);
+        let (value, errors) =
+            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
+        if fallback_errors_are_fatal(&errors) {
+            error!(
+                "Fluent fallback formatting errors for '{}' in domain '{}': {:?}",
+                id, domain, errors
+            );
+        }
+
+        value.or_else(|| {
+            self.fallback_manager
+                .as_ref()
+                .and_then(|manager| manager.localize_in_domain(domain, id, args))
         })
     }
 }

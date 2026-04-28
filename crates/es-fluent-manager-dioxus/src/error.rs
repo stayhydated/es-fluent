@@ -1,5 +1,4 @@
-use es_fluent::GlobalLocalizationError;
-use es_fluent_manager_core::ModuleDiscoveryError;
+use es_fluent_manager_core::{LocalizationError, ModuleDiscoveryError};
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
@@ -55,7 +54,7 @@ impl std::error::Error for ModuleDiscoveryErrors {
 #[derive(Clone, Debug)]
 pub enum DioxusInitError {
     ModuleDiscovery(ModuleDiscoveryErrors),
-    LanguageSelection(Arc<GlobalLocalizationError>),
+    LanguageSelection(Arc<LocalizationError>),
     MissingContext,
 }
 
@@ -64,7 +63,7 @@ impl DioxusInitError {
         Self::ModuleDiscovery(errors.into())
     }
 
-    pub(crate) fn language_selection(error: GlobalLocalizationError) -> Self {
+    pub(crate) fn language_selection(error: LocalizationError) -> Self {
         Self::LanguageSelection(Arc::new(error))
     }
 

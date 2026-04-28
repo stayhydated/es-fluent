@@ -1,155 +1,46 @@
 # es-fluent Architecture
 
-This document details the architecture of the `es-fluent` crate, which serves as the user-facing facade and entry point for the ecosystem.
+`es-fluent` is the public facade for typed Fluent messages.
 
-## Overview
+## Responsibilities
 
-`es-fluent` ties together the derive macros and manager components into a cohesive API. It provides:
+1. Re-export derive macros and shared metadata types.
+2. Define the runtime traits used by managers:
+   - `FluentMessage` for generated typed messages.
+   - `FluentLocalizer` for explicit localization contexts.
+   - `FluentLocalizerExt` for fallback helpers such as `localize_message(...)`.
+   - `ThisFtl` for type-level Fluent keys rendered through an explicit context.
+3. Re-export hidden inventory and asset dependencies needed by generated code.
 
-1. **Re-exports**: Easy access to common traits (`EsFluent`, `EsFluentChoice`, `EsFluentVariants`, `EsFluentThis`, `ToFluentString`, `FluentMessage`, `ThisFtl`) and derive macros.
-1. **Registry Types**: `FtlTypeInfo`, `FtlVariant`, `RegisteredFtlType`, and inventory collection for FTL file generation (including optional namespaces).
-1. **Global Context**: A thread-safe singleton for storing the `FluentManager`, enabling ergonomic derived localization calls.
-1. **Custom Localizer**: A hook for overriding or intercepting the localization process.
-1. **Traits**: Standard definitions for how types invoke the localization system.
+## Runtime model
 
-The registry/meta surface re-exported here is implemented in `es-fluent-shared`. `es-fluent` remains the public façade and inventory owner.
+The crate does not own runtime localization state. There is no core singleton,
+custom localizer hook, or hidden manager lookup path.
 
-## Architecture
+Derived messages call a caller-provided closure:
 
-```mermaid
-flowchart TD
-    subgraph FACADE["es-fluent"]
-        API["Public API (Derive Macros)"]
-        CTX["Global Context (OnceLock)"]
-        CUSTOM["Custom Localizer (OnceLock)"]
-        TRAIT["Traits (ToFluentString, FluentMessage, etc)"]
-        INTERNAL["Internal localize() fn"]
-        NS["Internal namespace helpers"]
-    end
-
-    subgraph BACKEND["Backends"]
-        EMBED["es-fluent-manager-embedded"]
-        DIOXUS["es-fluent-manager-dioxus"]
-        BEVY["es-fluent-manager-bevy"]
-    end
-
-    subgraph CORE["Core"]
-        MGR["es-fluent-manager-core"]
-        DERIVE["es-fluent-derive"]
-    end
-
-    API -->|generates code calling| INTERNAL
-    API -->|uses| NS
-    INTERNAL --> CUSTOM
-    CUSTOM -.->|fallback| CTX
-    CTX --> MGR
-    EMBED -->|initializes| CTX
-    DIOXUS -->|installs custom localizer| CUSTOM
-    BEVY -->|initializes| CTX
-    TRAIT --> API
+```rust
+message.to_fluent_string_with(&mut |domain, id, args| {
+    localizer.localize_in_domain_or_id(domain, id, args)
+})
 ```
 
-## Global Context
+Managers implement `FluentLocalizer` and decide where state lives:
 
-To allow `Display` implementations (which can't easily pass arguments) to access translations, `es-fluent` uses a `OnceLock`-protected global context with `ArcSwap` for lock-free reads.
+- `es-fluent-manager-embedded` stores state in an `EmbeddedI18n` handle.
+- `es-fluent-manager-dioxus` stores state in Dioxus component/request context.
+- `es-fluent-manager-bevy` stores state in Bevy resources.
 
-```rs
-static CONTEXT: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
-```
+This removes cross-root, cross-request, and test leakage caused by process-wide
+lookup hooks.
 
-- **Initialization**: Only one backend (e.g., `embedded::init()` or `bevy` plugin) can initialize this context using `set_context` or `set_shared_context`. Integrations that need explicit error handling can use `try_set_context` or `try_set_shared_context`.
-- **Language Selection**: The active language can be changed at runtime using `select_language`, which now returns an error when no global context exists or no module can serve the requested locale.
-- **Consumption**: The internal `localize` helpers (used by the `FluentDisplay`
-  trait) use lock-free `ArcSwap::load()` to access the manager, providing
-  better performance in read-heavy localization scenarios. Derive-generated
-  lookups route through the defining crate's domain so same-key collisions
-  across modules do not depend on discovery order.
+## Generated-code contract
 
-### Why ArcSwap?
+`#[derive(EsFluent)]` emits:
 
-Localization is a classic "read-heavy, write-rare" workload:
+- `impl FluentMessage` for runtime rendering through explicit contexts.
+- inventory metadata for generation/validation.
 
-- **Reads**: `localize()` is called frequently (every time text is displayed)
-- **Writes**: Language changes are rare (user occasionally switches language)
-
-Using `ArcSwap` instead of `Arc<RwLock<...>>` eliminates lock contention on the hot path, making localization calls completely lock-free.
-
-## Custom Localizer
-
-A custom localizer can be registered to intercept translation requests. This is useful for testing, special environments, or implementing fallbacks.
-
-```rs
-static CUSTOM_LOCALIZER: OnceLock<RwLock<Option<Arc<dyn Fn(...) -> Option<String> ...>>>> =
-    OnceLock::new();
-```
-
-- **Registration**: `set_custom_localizer_with_domain` remains fail-fast for convenience, while `try_set_custom_localizer_with_domain` gives integrations a non-panicking path.
-- **Domain-aware override**: `set_custom_localizer_with_domain` and `replace_custom_localizer_with_domain` let integrations participate in both `localize()` and `localize_in_domain()`.
-- **Snapshot/restore**: `custom_localizer_snapshot` and `restore_custom_localizer_snapshot` are hidden integration hooks for scoped owners that need to restore a prior process-global localizer after tests or mixed-runtime examples.
-- **Priority**: The global localization helpers first check the custom
-  localizer. If it returns `Some(string)`, that result is used.
-- **Domain context**: `localize_in_domain()` passes the requested domain to the
-  installed custom localizer.
-- **Fallback**: If the custom localizer returns `None` (or isn't set), the system falls back to the Global Context.
-
-## Traits
-
-> **Important**: All traits listed below are intended to be implemented automatically by `#[derive(EsFluent)]` or other macros. **Manual implementation is strongly discouraged** and rarely needed (except for wrapping enums that delegate to other derived types).
-
-### `ToFluentString`
-
-The primary trait for converting a type into a localized string.
-
-### `FluentDisplay`
-
-A helper trait that `#[derive(EsFluent)]` implements. It handles the logic of looking up the correct key and passing arguments to the `localize` function.
-
-### `FluentMessage`
-
-A typed message trait that `#[derive(EsFluent)]` implements for explicit manager lookup. Managers such as Dioxus use it to render derived messages through component or request context without relying on the process-global context.
-
-### `EsFluentChoice`
-
-Used to convert an enum into a string that can be used as a Fluent choice (selector).
-
-### `ThisFtl`
-
-A trait for types that have a "this" fluent key representing the type itself, implemented by `#[derive(EsFluentThis)]` and by generated variant enums when `#[fluent_this(variants)]` is used.
-
-## Internal Namespace Helpers
-
-Derive macros can request a namespace based on the file path (e.g., `namespace = file`, `namespace(file(relative))`, `namespace = folder`, or `namespace(folder(relative))`). The namespace rule is stored on `FtlTypeInfo` and resolved by the generator/CLI to drive per-namespace `.ftl` output.
-
-## Integration
-
-Users generally add this crate to their dependencies:
-
-```toml
-[dependencies]
-es-fluent = { version = "...", features = ["derive"] }
-```
-
-And then use the derive macros:
-
-```rs
-use es_fluent::{EsFluent, EsFluentChoice, EsFluentVariants, EsFluentThis};
-
-#[derive(EsFluent)]
-struct Hello;
-
-#[derive(EsFluentVariants)]
-#[fluent_variants(keys = ["label", "placeholder"])]
-struct MyForm {
-    username: String,
-    password: String,
-}
-
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
-enum Gender {
-    Male,
-    Female,
-}
-```
-
-> **Note**: Consumers should rely on the `#[derive(EsFluent)]` macro and the `ToFluentString` trait. The trait only needs to be in scope to enable calling `to_fluent_string`. Direct usage of the hidden `localize` helpers is discouraged and generally not necessary.
+It does not emit a hidden display implementation or a conversion that performs
+localization without context. Nested derived-message arguments are rendered with
+the same explicit lookup closure as the outer message.

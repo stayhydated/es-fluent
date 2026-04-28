@@ -43,18 +43,16 @@ login_error-UserNotFound = User Not Found { $username }
 welcome_message = Welcome Message { $name } { $count }
 ```
 
-At runtime, call `to_fluent_string()` to resolve the translations:
+At runtime, call `i18n.localize_message(&value)` on an explicit manager to resolve translations:
 
 ```rust
-use es_fluent::ToFluentString;
-
-let _ = LoginError::InvalidPassword.to_fluent_string();
-let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
-let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
-let _ = LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
+let _ = i18n.localize_message(&LoginError::InvalidPassword);
+let _ = i18n.localize_message(&LoginError::UserNotFound { username: "john".to_string() });
+let _ = i18n.localize_message(&LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()));
+let _ = i18n.localize_message(&LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()));
 
 let welcome = WelcomeMessage { name: "John", count: 5 };
-let _ = welcome.to_fluent_string();
+let _ = i18n.localize_message(&welcome);
 ```
 
 Argument naming attributes:
@@ -64,11 +62,11 @@ Argument naming attributes:
 Skipped single-field enum variants:
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
-key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+key and delegates context-bound rendering to the wrapped value. This is useful for
 transparent wrapper enums.
 
 ```rust
-use es_fluent::{EsFluent, ToFluentString};
+use es_fluent::{EsFluent, FluentMessage};
 
 #[derive(EsFluent)]
 pub enum NetworkError {
@@ -81,7 +79,7 @@ pub enum TransactionError {
     Network(NetworkError),
 }
 
-let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+let _ = i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable));
 ```
 
 ```ftl
@@ -124,9 +122,9 @@ greeting = { $gender ->
 ```
 
 ```rust
-use es_fluent::ToFluentString;
+use es_fluent::FluentMessage;
 let greeting = Greeting { name: "John", gender: &GenderChoice::Male };
-let _ = greeting.to_fluent_string();
+let _ = i18n.localize_message(&greeting);
 ```
 
 ## Generating Variants
@@ -162,8 +160,8 @@ login_form_variants_description_variants-username = Username
 ```
 
 ```rust
-use es_fluent::ToFluentString;
-let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+use es_fluent::FluentMessage;
+let _ = i18n.localize_message(&LoginFormVariantsLabelVariants::Username);
 ```
 
 Enums are supported too. In that case, the derive generates a single
@@ -189,8 +187,8 @@ settings_tab_variants-Privacy = Privacy
 ```
 
 ```rust
-use es_fluent::ToFluentString;
-let _ = SettingsTabVariants::Notifications.to_fluent_string();
+use es_fluent::FluentMessage;
+let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 ```
 
 ## Type-level Keys (This)

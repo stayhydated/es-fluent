@@ -1,41 +1,44 @@
-use es_fluent::{ThisFtl as _, ToFluentString as _};
+use es_fluent::ThisFtl as _;
 use example_shared_lib::Languages;
 use readme::*;
 use strum::IntoEnumIterator as _;
 
 fn main() {
-    i18n::init_with_language(Languages::default());
-    Languages::iter().for_each(run);
+    let i18n = i18n::try_new_with_language(Languages::default()).expect("i18n should initialize");
+    Languages::iter().for_each(|language| run(&i18n, language));
 }
 
-fn run(locale: Languages) {
-    i18n::change_locale(locale).unwrap();
+fn run(i18n: &i18n::I18n, locale: Languages) {
+    i18n::change_locale(i18n, locale).unwrap();
     println!("=== Locale: {locale:?} ===");
     println!("=== Deriving Messages ===");
     println!(
         "InvalidPassword: {}",
-        LoginError::InvalidPassword.to_fluent_string()
+        i18n.localize_message(&LoginError::InvalidPassword)
     );
     println!(
         "UserNotFound: {}",
-        LoginError::UserNotFound {
+        i18n.localize_message(&LoginError::UserNotFound {
             username: "john".to_string()
-        }
-        .to_fluent_string()
+        })
     );
     println!(
         "Something: {}",
-        LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string()
+        i18n.localize_message(&LoginError::Something(
+            "a".to_string(),
+            "b".to_string(),
+            "c".to_string(),
+        ))
     );
 
     let welcome = WelcomeMessage {
         name: "John",
         count: 5,
     };
-    println!("WelcomeMessage: {}", welcome.to_fluent_string());
+    println!("WelcomeMessage: {}", i18n.localize_message(&welcome));
     println!(
         "TransactionError Network: {}",
-        TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string()
+        i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable))
     );
 
     println!("\n=== Using Choices ===");
@@ -43,22 +46,22 @@ fn run(locale: Languages) {
         name: "John",
         gender: &GenderChoice::Male,
     };
-    println!("Greeting: {}", greeting.to_fluent_string());
+    println!("Greeting: {}", i18n.localize_message(&greeting));
 
     println!("\n=== Generating Variants ===");
     println!(
         "LoginFormVariants Username Label: {}",
-        LoginFormVariantsLabelVariants::Username.to_fluent_string()
+        i18n.localize_message(&LoginFormVariantsLabelVariants::Username)
     );
     println!(
         "SettingsTab Notifications: {}",
-        SettingsTabVariants::Notifications.to_fluent_string()
+        i18n.localize_message(&SettingsTabVariants::Notifications)
     );
 
     println!("\n=== Type-level Keys (This) ===");
-    println!("GenderThisOnly: {}", GenderThisOnly::this_ftl());
+    println!("GenderThisOnly: {}", GenderThisOnly::this_ftl(i18n));
     println!(
         "LoginFormCombined Description: {}",
-        LoginFormCombinedDescriptionVariants::this_ftl()
+        LoginFormCombinedDescriptionVariants::this_ftl(i18n)
     );
 }

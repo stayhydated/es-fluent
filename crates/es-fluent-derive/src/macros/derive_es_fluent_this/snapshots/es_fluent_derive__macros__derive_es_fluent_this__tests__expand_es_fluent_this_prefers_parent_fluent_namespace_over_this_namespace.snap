@@ -1,13 +1,16 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_this/mod.rs
+assertion_line: 174
 expression: tokens
 ---
 impl ::es_fluent::ThisFtl for NamespacedThis {
-    fn this_ftl() -> String {
-        ::es_fluent::localize_in_domain(
+    fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+        localizer: &__EsFluentLocalizer,
+    ) -> String {
+        ::es_fluent::__private::localize_this(
+            localizer,
             env!("CARGO_PKG_NAME"),
             "namespaced_this_this",
-            None,
         )
     }
 }

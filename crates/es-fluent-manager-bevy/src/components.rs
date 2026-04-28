@@ -1,10 +1,9 @@
 use bevy::prelude::*;
-use es_fluent::ToFluentString;
-use std::fmt::Display;
+use es_fluent::FluentMessage;
 
 /// A Bevy component that holds localized text content.
 ///
-/// `FluentText` is a generic component that wraps any type implementing `ToFluentString`
+/// `FluentText` is a generic component that wraps any type implementing `FluentMessage`
 /// and `Clone`. It's designed to work with the `es-fluent` localization system in Bevy
 /// applications.
 ///
@@ -30,17 +29,17 @@ use std::fmt::Display;
 /// }
 /// ```
 #[derive(Clone, Component)]
-pub struct FluentText<T: ToFluentString + Clone> {
+pub struct FluentText<T: FluentMessage + Clone> {
     /// The localized text content.
     pub value: T,
 }
 
-impl<T: ToFluentString + Clone> FluentText<T> {
+impl<T: FluentMessage + Clone> FluentText<T> {
     /// Creates a new `FluentText` component with the given value.
     ///
     /// # Arguments
     ///
-    /// * `value` - The text content that implements `ToFluentString` and `Clone`
+    /// * `value` - The text content that implements `FluentMessage` and `Clone`
     ///
     /// # Examples
     ///
@@ -63,12 +62,6 @@ impl<T: ToFluentString + Clone> FluentText<T> {
     }
 }
 
-impl<T: ToFluentString + Clone> Display for FluentText<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value.to_fluent_string())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,16 +69,22 @@ mod tests {
     #[derive(Clone)]
     struct FakeMessage(&'static str);
 
-    impl ToFluentString for FakeMessage {
-        fn to_fluent_string(&self) -> String {
+    impl FluentMessage for FakeMessage {
+        fn to_fluent_string_with(
+            &self,
+            _localize: &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&std::collections::HashMap<&str, es_fluent::FluentValue<'a>>>,
+            ) -> String,
+        ) -> String {
             self.0.to_string()
         }
     }
 
     #[test]
-    fn fluent_text_new_and_display_use_inner_to_fluent_string() {
+    fn fluent_text_new_stores_inner_value() {
         let component = FluentText::new(FakeMessage("hello"));
-        assert_eq!(component.value.to_fluent_string(), "hello");
-        assert_eq!(component.to_string(), "hello");
+        assert_eq!(component.value.0, "hello");
     }
 }

@@ -4,7 +4,7 @@ mod this_ftl;
 
 pub use fluent_choice::EsFluentChoice;
 pub use fluent_display::{
-    FluentArgumentValue, FluentDisplay, FluentMessage, FluentMessageStringValue,
-    IntoFluentArgumentValue, IntoFluentMessageString, ToFluentString,
+    FluentArgumentValue, FluentLocalizer, FluentLocalizerExt, FluentMessage,
+    IntoFluentArgumentValue,
 };
-pub use this_ftl::ThisFtl;
+pub use this_ftl::{ThisFtl, localize_this};

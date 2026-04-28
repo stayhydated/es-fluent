@@ -12,7 +12,6 @@ pub use es_fluent_manager_core as __manager_core;
 #[doc(hidden)]
 pub use unic_langid as __unic_langid;
 
-pub use es_fluent::GlobalLocalizationError;
 pub use es_fluent_manager_macros::define_dioxus_i18n_module as define_i18n_module;
 
 mod error;

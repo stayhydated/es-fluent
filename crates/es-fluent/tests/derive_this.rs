@@ -1,7 +1,31 @@
+#![cfg(feature = "derive")]
+
 use es_fluent::meta::TypeKind;
 use es_fluent::registry::NamespaceRule;
-use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants, ThisFtl};
+use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants, FluentLocalizer, FluentValue, ThisFtl};
 use std::borrow::Cow;
+use std::collections::HashMap;
+
+struct IdLocalizer;
+
+impl FluentLocalizer for IdLocalizer {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        Some(id.to_string())
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        _domain: &str,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        Some(id.to_string())
+    }
+}
 
 #[derive(EsFluent, EsFluentThis)]
 #[fluent_this(origin)]
@@ -56,7 +80,7 @@ struct TestSharedNamespace {
 #[test]
 fn test_derive_this_struct() {
     // Basic ThisFtl on struct
-    assert_eq!(TestStruct::this_ftl(), "test_struct_this");
+    assert_eq!(TestStruct::this_ftl(&IdLocalizer), "test_struct_this");
 }
 
 #[test]
@@ -64,7 +88,7 @@ fn test_derive_this_fields() {
     // ThisFtl on generated variants enum for struct fields
     // Generated name: TestVariantsStruct + Label + Variants = TestVariantsStructLabelVariants
     assert_eq!(
-        TestVariantsStructLabelVariants::this_ftl(),
+        TestVariantsStructLabelVariants::this_ftl(&IdLocalizer),
         "test_variants_struct_label_variants_this"
     );
 }
@@ -74,7 +98,7 @@ fn test_derive_this_variants() {
     // ThisFtl on generated variants enum for enum variants
     // Generated name: TestVariantsEnum + Description + Variants = TestVariantsEnumDescriptionVariants
     assert_eq!(
-        TestVariantsEnumDescriptionVariants::this_ftl(),
+        TestVariantsEnumDescriptionVariants::this_ftl(&IdLocalizer),
         "test_variants_enum_description_variants_this"
     );
 }

@@ -1,6 +1,6 @@
 # es-fluent-manager-dioxus architecture
 
-`es-fluent-manager-dioxus` adapts the shared `FluentManager` runtime to Dioxus without using process-global localization hooks.
+`es-fluent-manager-dioxus` adapts the shared `FluentManager` runtime to Dioxus without using context-free localization hooks.
 
 ## Runtime surfaces
 
@@ -28,4 +28,4 @@ Failed initialization is represented as a provided failed context. This keeps ho
 
 `SsrI18nRuntime` caches strict discovered-module validation. `SsrI18nRuntime::request(...)` creates fresh `ManagedI18n` state from that cache for each request, keeping language selection isolated between requests.
 
-SSR does not maintain a thread-local manager stack and does not install a process-global custom localizer. Components must receive a `ManagedI18n` explicitly, usually as a prop or through an app-owned context, and call `localize_message(...)` or explicit string-ID helpers.
+SSR does not maintain a thread-local manager stack and does not install a context-free custom localizer. Components must receive a `ManagedI18n` explicitly, usually as a prop or through an app-owned context, and call `localize_message(...)` or explicit string-ID helpers.

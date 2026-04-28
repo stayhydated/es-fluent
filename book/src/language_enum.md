@@ -51,20 +51,20 @@ The `Languages` enum plugs directly into manager initialization:
 ```rust
 use es_fluent_manager_embedded as manager;
 
-manager::init_with_language(Languages::En);
+let i18n = manager::EmbeddedI18n::try_new_with_language(Languages::En)?;
 ```
 
 Since it implements `Into<LanguageIdentifier>`, you can pass variants anywhere a `LanguageIdentifier` is expected.
 
 ## Language Name Labels
 
-By deriving `EsFluent` alongside `#[es_fluent_language]`, you get `to_fluent_string()` on each variant. The crate formats those labels directly from ICU4X display-name data, so a language picker works out of the box:
+By deriving `EsFluent` alongside `#[es_fluent_language]`, each variant can be rendered through an explicit manager with `i18n.localize_message(&language)`. The crate formats those labels directly from ICU4X display-name data, so a language picker works out of the box:
 
 ```rust
-use es_fluent::ToFluentString;
+use es_fluent::FluentMessage;
 
 // Prints the language name in its native script
-println!("{}", Languages::Fr.to_fluent_string()); // → "français"
+println!("{}", i18n.localize_message(&Languages::Fr)); // → "français"
 ```
 
 ## Custom Mode

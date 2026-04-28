@@ -74,8 +74,10 @@ pub fn generate_this_ftl_impl(
     };
     quote! {
         impl #impl_generics ::es_fluent::ThisFtl for #ident #ty_generics #where_clause {
-            fn this_ftl() -> String {
-                ::es_fluent::localize_in_domain(#domain_expr, #ftl_key, None)
+            fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+                localizer: &__EsFluentLocalizer,
+            ) -> String {
+                ::es_fluent::__private::localize_this(localizer, #domain_expr, #ftl_key)
             }
         }
     }
@@ -143,43 +145,6 @@ pub fn inventory_variant_tokens(
         arg_names,
     }
     .tokens()
-}
-
-pub fn generate_from_impls(ident: &syn::Ident, generics: &syn::Generics) -> TokenStream {
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    quote! {
-        impl #impl_generics From<&#ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: &#ident #ty_generics) -> Self {
-                use ::es_fluent::ToFluentString as _;
-                value.to_fluent_string().into()
-            }
-        }
-
-        impl #impl_generics From<#ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: #ident #ty_generics) -> Self {
-                (&value).into()
-            }
-        }
-    }
-}
-
-pub fn generate_fluent_display_impl(
-    ident: &syn::Ident,
-    generics: &syn::Generics,
-    body: TokenStream,
-) -> TokenStream {
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let trait_impl = quote! { ::es_fluent::FluentDisplay };
-    let trait_fmt_fn_ident = quote! { fluent_fmt };
-
-    quote! {
-        impl #impl_generics #trait_impl for #ident #ty_generics #where_clause {
-            fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                #body
-            }
-        }
-    }
 }
 
 pub fn generate_fluent_message_impl(
@@ -277,21 +242,9 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
 
     let empty_generics = syn::Generics::default();
     let new_enum = generate_unit_enum_definition(ident, origin_ident, key_name, derives, variants);
-    let match_arms = variants
-        .iter()
-        .map(GeneratedUnitEnumVariant::display_match_arm);
     let localize_with_match_arms = variants
         .iter()
         .map(GeneratedUnitEnumVariant::localize_with_match_arm);
-    let display_impl = generate_fluent_display_impl(
-        ident,
-        &empty_generics,
-        quote! {
-            match self {
-                #(#match_arms),*
-            }
-        },
-    );
     let message_impl = generate_fluent_message_impl(
         ident,
         &empty_generics,
@@ -314,41 +267,31 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
     let this_impl = generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref(), None);
     let this_inventory =
         generate_optional_this_inventory_module(ident, namespace_expr, this_key.as_deref());
-    let from_impls = generate_from_impls(ident, &empty_generics);
 
     quote! {
         #new_enum
 
-        #display_impl
         #message_impl
 
         #inventory_submit
 
         #this_impl
         #this_inventory
-
-        #from_impls
     }
 }
 
-pub fn emit_display_inventory_and_from_impls(
+pub fn emit_message_inventory_impls(
     ident: &syn::Ident,
     generics: &syn::Generics,
-    display_body: TokenStream,
     fluent_message_body: TokenStream,
     inventory_submit: TokenStream,
 ) -> TokenStream {
-    let display_impl = generate_fluent_display_impl(ident, generics, display_body);
     let message_impl = generate_fluent_message_impl(ident, generics, fluent_message_body);
-    let from_impls = generate_from_impls(ident, generics);
 
     quote! {
-        #display_impl
         #message_impl
 
         #inventory_submit
-
-        #from_impls
     }
 }
 

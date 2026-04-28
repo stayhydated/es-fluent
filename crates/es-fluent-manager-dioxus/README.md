@@ -86,7 +86,7 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 
 `I18nProvider` and `use_provide_i18n(...)` initialize once per component instance. Changing the initial language or provided manager after the first render does not replace the installed context. Use `select_language(...)` to change locale at runtime. After a `ManagedI18n` is handed to the provider, route locale switches through `DioxusI18n::select_language(...)` or `DioxusI18n::select_language_strict(...)` so the Dioxus signal stays aligned with manager state.
 
-Dioxus intentionally does not use the process-global `message.to_fluent_string()` bridge. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
+Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
 ## SSR
 
@@ -116,6 +116,6 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches validated module discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
-SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`. The SSR runtime does not install process-global localization hooks, so direct `message.to_fluent_string()` calls are not part of the Dioxus integration pattern.
+SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`
 
 Executable Dioxus documentation lives in `examples/dioxus-client-example` and `examples/dioxus-ssr-example` because the client and SSR runtimes are feature-split and validated separately in CI.

@@ -24,7 +24,7 @@ inventory::collect!(&'static dyn BevyFluentTextRegistration);
 pub trait FluentTextRegistration {
     /// Registers the necessary systems for a `FluentText<T>` component.
     fn register_fluent_text<
-        T: es_fluent::ToFluentString + Clone + Component + Send + Sync + 'static,
+        T: es_fluent::FluentMessage + Clone + Component + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self;
@@ -34,7 +34,7 @@ pub trait FluentTextRegistration {
     ///
     /// This ensures that the component's value is updated when the locale changes.
     fn register_fluent_text_from_locale<
-        T: es_fluent::ToFluentString
+        T: es_fluent::FluentMessage
             + Clone
             + Component
             + crate::RefreshForLocale
@@ -48,7 +48,7 @@ pub trait FluentTextRegistration {
 
 impl FluentTextRegistration for App {
     fn register_fluent_text<
-        T: es_fluent::ToFluentString + Clone + Component + Send + Sync + 'static,
+        T: es_fluent::FluentMessage + Clone + Component + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self {
@@ -64,7 +64,7 @@ impl FluentTextRegistration for App {
     }
 
     fn register_fluent_text_from_locale<
-        T: es_fluent::ToFluentString
+        T: es_fluent::FluentMessage
             + Clone
             + Component
             + crate::RefreshForLocale

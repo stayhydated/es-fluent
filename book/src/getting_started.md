@@ -77,20 +77,22 @@ Edit the values to your liking — the CLI will preserve your changes on subsequ
 
 ```rust
 // src/main.rs
-use es_fluent::ToFluentString;
+use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
 // Register the embedded assets
 es_fluent_manager_embedded::define_i18n_module!();
 
-fn main() {
-    es_fluent_manager_embedded::init_with_language(langid!("en-US"));
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
 
     let err = my_crate::LoginError::UserNotFound {
         username: "alice".to_string(),
     };
-    println!("{}", err.to_fluent_string());
+    println!("{}", i18n.localize_message(&err));
     // → "User Not Found alice"
+
+    Ok(())
 }
 ```
 
@@ -102,6 +104,6 @@ A typical `es-fluent` workflow:
 2. **Derive** — Annotate structs and enums with `#[derive(EsFluent)]`.
 3. **Generate** — Run `cargo es-fluent generate` to create FTL file skeletons.
 4. **Translate** — Edit the generated `.ftl` files with real translations.
-5. **Use** — Call `to_fluent_string()` at runtime through a manager.
+5. **Use** — Call `i18n.localize_message(&value)` at runtime through an explicit manager.
 
 The following chapters break down each of these steps in detail.

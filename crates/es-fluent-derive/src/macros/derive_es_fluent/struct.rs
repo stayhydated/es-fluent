@@ -4,7 +4,7 @@ use es_fluent_shared::namer;
 
 use crate::macros::ir::LocalizeCallSpec;
 use crate::macros::utils::{
-    InventoryModuleInput, emit_display_inventory_and_from_impls, generate_field_argument,
+    InventoryModuleInput, emit_message_inventory_impls, generate_field_argument,
     generate_inventory_module, inventory_arg_name, inventory_variant_tokens, namespace_rule_tokens,
 };
 use proc_macro2::TokenStream;
@@ -20,32 +20,6 @@ fn generate(opts: &StructOpts) -> TokenStream {
     let indexed_fields = opts.indexed_fields();
 
     let ftl_key = namer::FluentKey::from(original_ident).to_string();
-
-    let arguments: Vec<_> = indexed_fields
-        .iter()
-        .map(|(index, field_opt)| {
-            let field_access = if let Some(ident) = field_opt.ident() {
-                quote! { self.#ident }
-            } else {
-                let field_index = syn::Index::from(*index);
-                quote! { self.#field_index }
-            };
-
-            generate_field_argument(
-                *field_opt,
-                *index,
-                field_access.clone(),
-                quote! { &(#field_access) },
-            )
-        })
-        .collect();
-
-    let display_body = LocalizeCallSpec {
-        domain_override: None,
-        ftl_key: ftl_key.clone(),
-        arguments,
-    }
-    .write_expr();
 
     let message_arguments: Vec<_> = indexed_fields
         .iter()
@@ -94,10 +68,9 @@ fn generate(opts: &StructOpts) -> TokenStream {
         })
     };
 
-    emit_display_inventory_and_from_impls(
+    emit_message_inventory_impls(
         original_ident,
         opts.generics(),
-        display_body,
         fluent_message_body,
         inventory_submit,
     )

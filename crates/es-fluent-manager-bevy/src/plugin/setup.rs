@@ -1,7 +1,6 @@
 use super::runtime::{
     build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_global_state,
 };
-use super::state::{BevyI18nState, set_bevy_i18n_state};
 use crate::{
     ActiveLanguageId, BevyFluentTextRegistration, FtlAsset, I18nAssets, I18nResource,
     LocaleChangeEvent, LocaleChangedEvent, PendingLanguageChange, RequestedLanguageId,
@@ -69,7 +68,7 @@ pub(super) fn resolve_initial_language(
     resolved_language
 }
 
-pub(super) fn initialize_global_state(
+pub(super) fn initialize_i18n_resource(
     requested_language: &LanguageIdentifier,
     resolved_language: &LanguageIdentifier,
 ) -> Result<I18nResource, String> {
@@ -84,13 +83,11 @@ pub(super) fn initialize_global_state(
                 requested_language, error
             )
         })?;
-    set_bevy_i18n_state(
-        BevyI18nState::new(requested_language.clone()).with_fallback_manager(fallback_manager),
-    );
     Ok(I18nResource::new_with_resolved_language(
         requested_language.clone(),
         resolved_language.clone(),
-    ))
+    )
+    .with_fallback_manager(fallback_manager))
 }
 
 fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {

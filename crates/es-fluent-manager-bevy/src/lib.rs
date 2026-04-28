@@ -20,6 +20,7 @@ pub use unic_langid;
 pub use unic_langid as __unic_langid;
 
 mod assets;
+mod context;
 mod locale;
 mod registration;
 
@@ -29,20 +30,15 @@ pub mod systems;
 
 pub use assets::*;
 pub use components::*;
-pub use es_fluent::{FluentDisplay, ToFluentString};
+pub use context::*;
+pub use es_fluent::FluentMessage;
 pub use locale::*;
 pub use plugin::*;
 pub use registration::*;
 pub use systems::*;
 
-pub(crate) use assets::{BundleBuildFailures, I18nDomainBundles};
+pub(crate) use assets::BundleBuildFailures;
 pub(crate) use locale::{LanguageSelection, PendingLanguageChange};
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-pub(crate) mod test_support;
 
 #[doc(hidden)]
 pub use unic_langid::langid as __langid;

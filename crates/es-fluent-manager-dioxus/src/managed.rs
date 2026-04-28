@@ -1,6 +1,6 @@
 use crate::DioxusInitError;
-use es_fluent::{FluentMessage, FluentValue, GlobalLocalizationError};
-use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager};
+use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
+use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager, LocalizationError};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -51,7 +51,6 @@ impl ManagedI18n {
     ) -> Result<Self, DioxusInitError> {
         manager
             .select_language(&lang)
-            .map_err(GlobalLocalizationError::from)
             .map_err(DioxusInitError::language_selection)?;
 
         Ok(Self {
@@ -67,11 +66,9 @@ impl ManagedI18n {
     pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
-    ) -> Result<(), GlobalLocalizationError> {
+    ) -> Result<(), LocalizationError> {
         let lang = lang.into();
-        self.manager
-            .select_language(&lang)
-            .map_err(GlobalLocalizationError::from)?;
+        self.manager.select_language(&lang)?;
         *self.requested_language.write() = lang;
         Ok(())
     }
@@ -79,11 +76,9 @@ impl ManagedI18n {
     pub fn select_language_strict<L: Into<LanguageIdentifier>>(
         &self,
         lang: L,
-    ) -> Result<(), GlobalLocalizationError> {
+    ) -> Result<(), LocalizationError> {
         let lang = lang.into();
-        self.manager
-            .select_language_strict(&lang)
-            .map_err(GlobalLocalizationError::from)?;
+        self.manager.select_language_strict(&lang)?;
         *self.requested_language.write() = lang;
         Ok(())
     }
@@ -175,5 +170,24 @@ impl ManagedI18n {
         message.to_fluent_string_with(&mut |domain, id, args| {
             self.localize_in_domain_or_id_silent(domain, id, args)
         })
+    }
+}
+
+impl FluentLocalizer for ManagedI18n {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.manager.localize(id, args)
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.manager.localize_in_domain(domain, id, args)
     }
 }

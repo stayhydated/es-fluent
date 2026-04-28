@@ -3,16 +3,6 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
 assertion_line: 139
 expression: struct_tokens
 ---
-impl ::es_fluent::FluentDisplay for User {
-    fn fluent_fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        let mut args = ::std::collections::HashMap::new();
-        args.insert("id", ::std::convert::Into::into((self.id).clone()));
-        write!(
-            f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"), "user",
-            Some(& args),)
-        )
-    }
-}
 impl ::es_fluent::FluentMessage for User {
     fn to_fluent_string_with(
         &self,
@@ -64,15 +54,4 @@ mod __es_fluent_inventory_user {
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
-}
-impl From<&User> for ::es_fluent::FluentValue<'_> {
-    fn from(value: &User) -> Self {
-        use ::es_fluent::ToFluentString as _;
-        value.to_fluent_string().into()
-    }
-}
-impl From<User> for ::es_fluent::FluentValue<'_> {
-    fn from(value: User) -> Self {
-        (&value).into()
-    }
 }
