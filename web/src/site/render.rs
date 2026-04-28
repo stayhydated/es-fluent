@@ -9,7 +9,7 @@ use crate::pages::route_content;
 #[cfg(test)]
 use crate::site::routing::SiteRoute;
 #[cfg(test)]
-use anyhow::{Context, Result};
+use anyhow::{Context as _, Result};
 #[cfg(test)]
 use dioxus::prelude::*;
 #[cfg(test)]

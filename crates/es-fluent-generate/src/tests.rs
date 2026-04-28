@@ -80,9 +80,7 @@ fn read_existing_and_write_updated_resource_cover_io_branches() {
     assert!(empty.body.is_empty());
 
     fs::write(&file_path, "broken = {\n").expect("write invalid");
-    let err = read_existing_resource(&file_path)
-        .err()
-        .expect("invalid resource should fail");
+    let err = read_existing_resource(&file_path).expect_err("invalid resource should fail");
     assert!(err.to_string().contains("Refusing to use"));
 
     let updated = parse_resource_allowing_errors("updated = value\n");
@@ -410,8 +408,7 @@ fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
         FluentParseMode::Conservative,
         true,
     )
-    .err()
-    .expect("escaping namespace should be rejected");
+    .expect_err("escaping namespace should be rejected");
 
     assert!(
         err.to_string().contains("Invalid namespace '../escape'")
@@ -456,8 +453,7 @@ fn generate_rejects_noncanonical_namespace_literals() {
         FluentParseMode::Conservative,
         true,
     )
-    .err()
-    .expect("noncanonical namespaces should be rejected");
+    .expect_err("noncanonical namespaces should be rejected");
 
     let error_text = err.to_string();
     assert!(

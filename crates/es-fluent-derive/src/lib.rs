@@ -127,12 +127,12 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// }
 ///
 /// // Generates key: (gender_this)
-/// // Usage: Gender::this_ftl()
+/// // Usage: Gender::this_ftl(&i18n)
 /// ```
 ///
 /// # Attributes
 ///
-/// - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
+/// - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl(localizer)` returns the base key for the type.
 /// - `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated variant enums.
 /// - `#[fluent_this(origin, variants)]`: Combines both behaviors.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.

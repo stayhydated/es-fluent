@@ -1,6 +1,7 @@
-use darling::FromDeriveInput;
+use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
-    EnumDataOptions, FluentField, GeneratedVariantsOptions, StructDataOptions, VariantFields,
+    EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
+    VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
     namespace::NamespaceValue,
     r#struct::{StructOpts, StructVariantsOpts},
@@ -49,7 +50,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
 
     let data = variants
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Data")
+        .find(|variant| *variant.ident() == "Data")
         .expect("Data variant present");
     assert!(matches!(data.style(), darling::ast::Style::Struct));
     let data_fields = data.fields();
@@ -67,7 +68,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
     let tuple = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Tuple")
+        .find(|variant| *variant.ident() == "Tuple")
         .expect("Tuple variant present");
     assert!(matches!(tuple.style(), darling::ast::Style::Tuple));
     assert_eq!(tuple.all_fields().len(), 2, "All tuple fields parsed");
@@ -77,7 +78,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
     let unit = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Unit")
+        .find(|variant| *variant.ident() == "Unit")
         .expect("Unit variant present");
     assert!(matches!(unit.style(), darling::ast::Style::Unit));
     assert!(unit.fields().is_empty());
@@ -110,7 +111,7 @@ fn enum_tuple_field_arg_name_parsing() {
     let variants = opts.variants();
     let tuple = variants
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Tuple")
+        .find(|variant| *variant.ident() == "Tuple")
         .expect("Tuple variant present");
 
     let fields = tuple.all_fields();
@@ -134,7 +135,7 @@ fn enum_named_field_arg_name_parsing() {
     let variants = opts.variants();
     let named = variants
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Named")
+        .find(|variant| *variant.ident() == "Named")
         .expect("Named variant present");
 
     let fields = named.all_fields();

@@ -13,8 +13,8 @@ unic-langid = "0.9"
 es-fluent-manager-embedded = "0.16"
 
 # For Dioxus apps, enable only the runtime surface you use.
-# es-fluent-manager-dioxus = { version = "0.8", features = ["client"] }
-# es-fluent-manager-dioxus = { version = "0.8", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 ```
 
 ## Project Configuration

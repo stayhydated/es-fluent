@@ -5093,6 +5093,7 @@ dependencies = [
  "parking_lot",
  "rust-embed",
  "rustc-hash 2.1.2",
+ "serial_test",
  "tracing",
  "unic-langid",
 ]
@@ -5123,6 +5124,7 @@ dependencies = [
  "es-fluent",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
+ "tempfile",
  "unic-langid",
 ]
 

@@ -178,7 +178,7 @@ Generates a helper implementation of the `ThisFtl` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
+- `#[fluent_this(origin)]`: Generates an implementation where `this_ftl(localizer)` returns the base key for the type.
 
 ```rs
 use es_fluent::EsFluentThis;
@@ -195,7 +195,7 @@ pub enum Gender {
 // Generates key:
 // (gender_this)
 
-// usage: Gender::this_ftl()
+// usage: Gender::this_ftl(&i18n)
 ```
 
 - `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
@@ -214,5 +214,5 @@ pub struct LoginForm {
 // (login_form_label_variants_this)
 // (login_form_description_variants_this)
 
-// usage: LoginFormDescriptionVariants::this_ftl()
+// usage: LoginFormDescriptionVariants::this_ftl(&i18n)
 ```

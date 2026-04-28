@@ -59,14 +59,13 @@ pub fn validate_assets_dir(assets_dir: &Path) -> EsFluentResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::OsString;
     use tempfile::tempdir;
 
     fn read_dir_entry_by_name(parent: &Path, name: &str) -> std::fs::DirEntry {
         std::fs::read_dir(parent)
             .expect("read_dir")
             .filter_map(|entry| entry.ok())
-            .find(|entry| entry.file_name() == OsString::from(name))
+            .find(|entry| entry.file_name() == name)
             .expect("entry not found")
     }
 

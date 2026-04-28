@@ -266,12 +266,12 @@ mod tests {
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("test-crate.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("test-crate.ftl"))
         );
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("test-crate/ui.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("test-crate/ui.ftl"))
         );
     }
 
@@ -304,12 +304,12 @@ mod tests {
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("app.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("app.ftl"))
         );
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("app/forms/input.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("app/forms/input.ftl"))
         );
     }
 

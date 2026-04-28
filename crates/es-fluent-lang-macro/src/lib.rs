@@ -320,7 +320,7 @@ mod tests {
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), || {
-                f(&manifest_dir)
+                f(manifest_dir)
             })
         }));
 

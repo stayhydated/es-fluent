@@ -196,11 +196,8 @@ impl GeneratedVariantsOptions for EnumVariantsOpts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::options::FluentField as _;
     use crate::options::namespace::NamespaceValue;
-    use crate::options::{
-        EnumDataOptions, FilteredEnumDataOptions, FluentField, GeneratedVariantsOptions,
-        KeyedVariant, VariantFields,
-    };
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 
@@ -234,7 +231,7 @@ mod tests {
         let variants = opts.variants();
         let data = variants
             .iter()
-            .find(|variant| variant.ident().to_string() == "Data")
+            .find(|variant| *variant.ident() == "Data")
             .expect("Data variant should exist");
         assert_eq!(data.fields().len(), 1);
         assert_eq!(data.all_fields().len(), 2);
@@ -250,7 +247,7 @@ mod tests {
 
         let tuple = variants
             .iter()
-            .find(|variant| variant.ident().to_string() == "Tuple")
+            .find(|variant| *variant.ident() == "Tuple")
             .expect("Tuple variant should exist");
         assert_eq!(tuple.fields().len(), 1);
         assert_eq!(tuple.all_fields().len(), 2);
@@ -258,7 +255,7 @@ mod tests {
 
         let skipped = variants
             .iter()
-            .find(|variant| variant.ident().to_string() == "Skipped")
+            .find(|variant| *variant.ident() == "Skipped")
             .expect("Skipped variant should exist");
         assert!(skipped.is_skipped());
         assert_eq!(skipped.key(), Some("skipped"));
@@ -340,21 +337,21 @@ mod tests {
 
         let one = variants
             .iter()
-            .find(|variant| variant.ident().to_string() == "One")
+            .find(|variant| *variant.ident() == "One")
             .expect("One variant should exist");
         assert!(matches!(one.style(), darling::ast::Style::Tuple));
         assert!(one.is_single_tuple());
 
         let two = variants
             .iter()
-            .find(|variant| variant.ident().to_string() == "Two")
+            .find(|variant| *variant.ident() == "Two")
             .expect("Two variant should exist");
         assert!(matches!(two.style(), darling::ast::Style::Tuple));
         assert!(!two.is_single_tuple());
 
         let three = variants
             .iter()
-            .find(|variant| variant.ident().to_string() == "Three")
+            .find(|variant| *variant.ident() == "Three")
             .expect("Three variant should exist");
         assert!(matches!(three.style(), darling::ast::Style::Struct));
         assert!(!three.is_single_tuple());
@@ -449,7 +446,7 @@ mod tests {
         let variants = opts.variants();
         let variant = variants
             .iter()
-            .find(|v| v.ident().to_string() == "Something")
+            .find(|v| *v.ident() == "Something")
             .expect("Something variant should exist");
 
         let fields = variant.all_fields();

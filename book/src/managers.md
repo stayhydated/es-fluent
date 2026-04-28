@@ -103,10 +103,10 @@ Enable the runtime surface your crate uses:
 
 ```toml
 # Client apps
-es-fluent-manager-dioxus = { version = "0.8", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 
 # SSR
-es-fluent-manager-dioxus = { version = "0.8", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 ```
 
 The crate has no default runtime feature. The `define_i18n_module!` macro is always available.

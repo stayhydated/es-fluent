@@ -400,7 +400,15 @@ mod tests {
         let result = format_ftl_file(&ftl, false);
 
         let mut restore = std::fs::metadata(&ftl).unwrap().permissions();
-        restore.set_readonly(false);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            restore.set_mode(0o644);
+        }
+        #[cfg(not(unix))]
+        {
+            restore.set_readonly(false);
+        }
         std::fs::set_permissions(&ftl, restore).unwrap();
 
         assert!(

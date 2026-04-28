@@ -44,8 +44,8 @@ unic-langid = "0.9"
 es-fluent-manager-embedded = "0.16"
 
 # For Dioxus apps, enable only the runtime surface you use.
-es-fluent-manager-dioxus = { version = "0.8", features = ["client"] }
-# es-fluent-manager-dioxus = { version = "0.8", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
 es-fluent-manager-bevy = "0.18.13"
@@ -344,7 +344,7 @@ Generates a helper implementation of the `ThisFtl` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `#[fluent_this(origin)]`: Generates an implementation where `this_ftl()` returns the base key for the type.
+- `#[fluent_this(origin)]`: Generates an implementation where `this_ftl(localizer)` returns the base key for the type.
 
 ```rs
 use es_fluent::EsFluentThis;
@@ -361,7 +361,7 @@ pub enum GenderThisOnly {
 // (gender_this_only_this)
 
 use es_fluent::ThisFtl;
-let _ = GenderThisOnly::this_ftl();
+let _ = GenderThisOnly::this_ftl(&i18n);
 ```
 
 - `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
@@ -380,5 +380,5 @@ pub struct LoginFormCombined {
 // (login_form_combined_description_variants_this)
 
 use es_fluent::ThisFtl;
-let _ = LoginFormCombinedDescriptionVariants::this_ftl();
+let _ = LoginFormCombinedDescriptionVariants::this_ftl(&i18n);
 ```

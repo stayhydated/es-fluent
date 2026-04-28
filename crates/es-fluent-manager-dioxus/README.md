@@ -13,10 +13,10 @@ Enable the runtime surface your crate uses:
 
 ```toml
 # Client apps
-es-fluent-manager-dioxus = { version = "0.8", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 
 # Server-side rendering
-es-fluent-manager-dioxus = { version = "0.8", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 ```
 
 The crate has no default runtime feature. `define_i18n_module!` is always re-exported.

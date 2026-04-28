@@ -415,9 +415,7 @@ fn run_monolithic_fast_path_reports_binary_failure() {
         mode: RunnerParseMode::Conservative,
         dry_run: false,
     };
-    let err = run_monolithic(&workspace, &request, false)
-        .err()
-        .expect("expected fast-path failure");
+    let err = run_monolithic(&workspace, &request, false).expect_err("expected fast-path failure");
     let msg = err.to_string();
     assert!(
         msg.contains("Monolithic binary failed") || msg.contains("Failed to run monolithic binary"),
@@ -455,14 +453,12 @@ fn run_cargo_helpers_execute_simple_temp_crate() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("bin"));
 
-    let err = run_cargo(temp.path(), Some("missing-bin"), &[])
-        .err()
-        .expect("missing bin should fail");
+    let err =
+        run_cargo(temp.path(), Some("missing-bin"), &[]).expect_err("missing bin should fail");
     assert!(err.to_string().contains("Cargo run failed"));
 
     let err = run_cargo_with_output(temp.path(), Some("missing-bin"), &[])
-        .err()
-        .expect("missing bin should fail");
+        .expect_err("missing bin should fail");
     assert!(err.to_string().contains("Cargo run failed"));
 }
 
@@ -658,9 +654,7 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
         mode: RunnerParseMode::Conservative,
         dry_run: false,
     };
-    let err = run_monolithic(&workspace, &request, false)
-        .err()
-        .expect("expected execution failure");
+    let err = run_monolithic(&workspace, &request, false).expect_err("expected execution failure");
     assert!(err.to_string().contains("Failed to run monolithic binary"));
 }
 

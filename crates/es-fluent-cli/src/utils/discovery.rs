@@ -162,9 +162,7 @@ mod tests {
     #[test]
     fn discover_workspace_errors_without_cargo_manifest() {
         let temp = tempdir().expect("tempdir");
-        let err = discover_workspace(temp.path())
-            .err()
-            .expect("expected cargo metadata failure");
+        let err = discover_workspace(temp.path()).expect_err("expected cargo metadata failure");
         assert!(err.to_string().contains("cargo metadata") || err.to_string().contains("manifest"));
     }
 
@@ -173,9 +171,7 @@ mod tests {
         let temp = create_test_crate_workspace();
         fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write invalid i18n");
 
-        let err = discover_workspace(temp.path())
-            .err()
-            .expect("expected i18n parse failure");
+        let err = discover_workspace(temp.path()).expect_err("expected i18n parse failure");
         assert!(err.to_string().contains("Failed to read"));
     }
 

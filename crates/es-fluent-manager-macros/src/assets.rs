@@ -470,9 +470,7 @@ mod tests {
     fn i18n_assets_load_reports_configuration_errors() {
         let missing_temp = tempdir().expect("tempdir");
         with_env_var("CARGO_MANIFEST_DIR", missing_temp.path().to_str(), || {
-            let err = I18nAssets::load("my-crate")
-                .err()
-                .expect("missing config should fail");
+            let err = I18nAssets::load("my-crate").expect_err("missing config should fail");
             assert_snapshot!(
                 "i18n_assets_load_reports_missing_configuration",
                 normalize_temp_paths(&err.to_string(), missing_temp.path())
@@ -482,9 +480,7 @@ mod tests {
         let invalid_temp = tempdir().expect("tempdir");
         write_manifest(invalid_temp.path(), "missing-assets");
         with_env_var("CARGO_MANIFEST_DIR", invalid_temp.path().to_str(), || {
-            let err = I18nAssets::load("my-crate")
-                .err()
-                .expect("invalid assets should fail");
+            let err = I18nAssets::load("my-crate").expect_err("invalid assets should fail");
             assert_snapshot!(
                 "i18n_assets_load_reports_invalid_assets_directory",
                 normalize_temp_paths(&err.to_string(), invalid_temp.path())
@@ -502,9 +498,8 @@ mod tests {
             .expect("write");
 
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
-            let err = I18nAssets::load("my-crate")
-                .err()
-                .expect("noncanonical locale dir should fail");
+            let err =
+                I18nAssets::load("my-crate").expect_err("noncanonical locale dir should fail");
             assert_snapshot!(
                 "i18n_assets_load_rejects_noncanonical_locale_directories",
                 normalize_temp_paths(&err.to_string(), temp.path())

@@ -3,6 +3,7 @@ use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDe
 use crate::localization::manager::{format_module_support, format_supported_languages};
 use fluent_bundle::FluentResource;
 use parking_lot::RwLock;
+use serial_test::serial;
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
@@ -417,6 +418,7 @@ fn manager_try_new_with_discovered_modules_succeeds_for_clean_inventory() {
 }
 
 #[test]
+#[serial(explicit_runtime_create_calls)]
 fn registration_runtime_support_defaults_match_registration_kind() {
     let metadata_only = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
     assert_eq!(
@@ -621,6 +623,7 @@ fn normalize_module_registry_keeps_runtime_localizer_when_metadata_duplicate_fol
 }
 
 #[test]
+#[serial(explicit_runtime_create_calls)]
 fn normalize_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
     EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
 

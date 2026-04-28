@@ -101,7 +101,6 @@ impl GeneratedVariantsOptions for StructVariantsOpts {
 mod tests {
     use super::*;
     use crate::options::namespace::NamespaceValue;
-    use crate::options::{GeneratedVariantsOptions, StructDataOptions};
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 

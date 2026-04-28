@@ -1,3 +1,4 @@
+#![allow(clippy::items_after_test_module)]
 //! Shared test fixtures for es-fluent-cli tests.
 //!
 //! This module provides common file-based fixtures that can be reused
@@ -285,7 +286,7 @@ pub fn install_fake_runner(binary_path: &Path, behavior: &FakeRunnerBehavior) {
             .expect("copy fake runner binary");
         #[cfg(unix)]
         {
-            use std::os::unix::fs::PermissionsExt;
+            use std::os::unix::fs::PermissionsExt as _;
 
             let mut perms = fs::metadata(&staged_binary_path)
                 .expect("fake runner metadata")

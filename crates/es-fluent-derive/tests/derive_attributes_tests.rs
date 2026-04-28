@@ -1,6 +1,7 @@
-use darling::FromDeriveInput;
+use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
-    EnumDataOptions, FluentField, GeneratedVariantsOptions, StructDataOptions, VariantFields,
+    EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
+    VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
@@ -62,7 +63,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
     let data = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Data")
+        .find(|variant| *variant.ident() == "Data")
         .expect("Data variant should exist");
     assert!(matches!(data.style(), darling::ast::Style::Struct));
     assert_eq!(data.fields().len(), 1);
@@ -76,7 +77,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
     let tuple = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "TupleVariant")
+        .find(|variant| *variant.ident() == "TupleVariant")
         .expect("TupleVariant should exist");
     assert!(matches!(tuple.style(), darling::ast::Style::Tuple));
     assert_eq!(tuple.fields().len(), 1);
@@ -108,7 +109,7 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
     let mixed = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Mixed")
+        .find(|variant| *variant.ident() == "Mixed")
         .expect("Mixed variant should exist");
     assert!(matches!(mixed.style(), darling::ast::Style::Tuple));
     assert_eq!(mixed.fields().len(), 1);
@@ -119,7 +120,7 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
     let info = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Info")
+        .find(|variant| *variant.ident() == "Info")
         .expect("Info variant should exist");
     assert!(matches!(info.style(), darling::ast::Style::Struct));
     assert_eq!(info.fields().len(), 2);

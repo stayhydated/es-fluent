@@ -1,5 +1,5 @@
 use crate::*;
-use bevy::asset::AssetLoader;
+use bevy::asset::AssetLoader as _;
 use bevy::prelude::*;
 use es_fluent::FluentValue;
 use es_fluent_manager_core::{ModuleResourceSpec, ResourceKey, ResourceLoadError};
@@ -168,7 +168,7 @@ fn i18n_resource_localizes_and_falls_back_to_parent_locale() {
     i18n_bundle.set_bundle(requested.clone(), Arc::new(requested_bundle));
     i18n_bundle.set_locale_resources(requested.clone(), vec![requested_resource]);
     i18n_bundle.set_bundle(parent.clone(), Arc::new(parent_bundle));
-    i18n_bundle.set_locale_resources(parent.clone(), vec![parent_resource]);
+    i18n_bundle.set_locale_resources(parent, vec![parent_resource]);
     let i18n_resource =
         I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
 
@@ -253,8 +253,7 @@ fn i18n_resource_prefers_partial_requested_locale_resources_over_resolved_parent
     i18n_bundle.set_bundle(resolved.clone(), Arc::new(resolved_bundle));
     i18n_bundle.set_locale_resources(resolved.clone(), vec![resolved_resource]);
 
-    let i18n_resource =
-        I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
+    let i18n_resource = I18nResource::new_with_resolved_language(requested, resolved);
 
     assert_eq!(
         i18n_resource.localize("hello", None, &i18n_bundle),

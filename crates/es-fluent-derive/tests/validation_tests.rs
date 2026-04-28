@@ -1,6 +1,6 @@
 //! Tests for validation functions.
 
-use darling::FromDeriveInput;
+use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::r#enum::EnumOpts;
 use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_derive_core::validation::{validate_enum, validate_struct};

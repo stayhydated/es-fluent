@@ -2,7 +2,9 @@
 
 use es_fluent::meta::TypeKind;
 use es_fluent::registry::NamespaceRule;
-use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants, FluentLocalizer, FluentValue, ThisFtl};
+use es_fluent::{
+    EsFluent, EsFluentThis, EsFluentVariants, FluentLocalizer, FluentValue, ThisFtl as _,
+};
 use std::borrow::Cow;
 use std::collections::HashMap;
 

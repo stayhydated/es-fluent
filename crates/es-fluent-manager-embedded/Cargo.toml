@@ -21,5 +21,8 @@ es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
 unic-langid = { workspace = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [lints]
 workspace = true

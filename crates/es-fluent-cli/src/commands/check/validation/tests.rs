@@ -57,10 +57,10 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
 
     let resource = fluent_syntax::parser::parse("hello = Hello\n".to_string()).unwrap();
     let loaded_files = vec![LoadedFtlFile {
-        abs_path: ftl_path.clone(),
+        abs_path: ftl_path,
         relative_path: PathBuf::from("test-app.ftl"),
         resource,
-        keys: ["hello".to_string()].into_iter().collect(),
+        keys: std::iter::once("hello".to_string()).collect(),
     }];
 
     let mut expected_keys = IndexMap::new();

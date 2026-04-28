@@ -217,12 +217,12 @@ gender_this_only_this = Gender This Only
 
 ```rust
 use es_fluent::ThisFtl;
-let _ = GenderThisOnly::this_ftl();
+let _ = GenderThisOnly::this_ftl(&i18n);
 ```
 
 ### Combined with Variants
 
-`#[fluent_this(variants)]` can be combined with `EsFluentVariants` to generate `this_ftl()` keys for each generated variant enum:
+`#[fluent_this(variants)]` can be combined with `EsFluentVariants` to generate type-level keys for each generated variant enum:
 
 ```rust
 use es_fluent::{EsFluentThis, EsFluentVariants};
@@ -243,5 +243,5 @@ login_form_combined_description_variants_this = Login Form Combined Description 
 
 ```rust
 use es_fluent::ThisFtl;
-let _ = LoginFormCombinedDescriptionVariants::this_ftl();
+let _ = LoginFormCombinedDescriptionVariants::this_ftl(&i18n);
 ```
