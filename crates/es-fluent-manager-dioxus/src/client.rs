@@ -194,11 +194,11 @@ pub fn I18nProvider(
         Err(error) => {
             tracing::error!(
                 error = %error,
-                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering no children"
+                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children without initialized i18n context"
             );
             match fallback {
                 Some(fallback) => fallback,
-                None => VNode::empty(),
+                None => children,
             }
         },
     }
@@ -264,10 +264,6 @@ pub fn try_use_i18n() -> Result<Option<DioxusI18n>, DioxusInitError> {
         Some(context) => context.into_i18n().map(Some),
         None => Ok(None),
     }
-}
-
-pub fn use_i18n_optional() -> Result<Option<DioxusI18n>, DioxusInitError> {
-    try_use_i18n()
 }
 
 pub fn use_i18n() -> Result<DioxusI18n, DioxusInitError> {

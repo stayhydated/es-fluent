@@ -8,7 +8,7 @@ Add the `es-fluent-lang` crate:
 
 ```toml
 [dependencies]
-es-fluent-lang = "0.15"
+es-fluent-lang = "0.16"
 ```
 
 ## Usage

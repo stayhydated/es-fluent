@@ -6,15 +6,15 @@ Add `es-fluent` with `derive` support and a runtime manager:
 
 ```toml
 [dependencies]
-es-fluent = { version = "0.15", features = ["derive"] }
+es-fluent = { version = "0.16", features = ["derive"] }
 unic-langid = "0.9"
 
 # For simple apps and CLIs:
-es-fluent-manager-embedded = "0.15"
+es-fluent-manager-embedded = "0.16"
 
 # For Dioxus apps, enable only the runtime surface you use.
-# es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
-# es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.8", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "0.8", features = ["ssr"] }
 ```
 
 ## Project Configuration

@@ -152,6 +152,31 @@ fn managed_i18n_selects_and_localizes() {
 
 #[test]
 #[serial]
+fn managed_i18n_instances_select_languages_independently() {
+    force_inventory_link();
+    let en = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
+        .expect("en managed dioxus i18n should initialize");
+    let fr = ManagedI18n::new_with_discovered_modules(langid!("fr"))
+        .expect("fr managed dioxus i18n should initialize");
+
+    assert_eq!(en.localize_message(&TestMessage), "Hello");
+    assert_eq!(fr.localize_message(&TestMessage), "Bonjour");
+
+    en.select_language(langid!("fr"))
+        .expect("en manager should switch to fr");
+
+    assert_eq!(en.localize_message(&TestMessage), "Bonjour");
+    assert_eq!(fr.localize_message(&TestMessage), "Bonjour");
+
+    fr.select_language(langid!("en-US"))
+        .expect("fr manager should switch to en-US");
+
+    assert_eq!(en.localize_message(&TestMessage), "Bonjour");
+    assert_eq!(fr.localize_message(&TestMessage), "Hello");
+}
+
+#[test]
+#[serial]
 fn managed_i18n_exposes_strict_selection_and_optional_lookup() {
     force_inventory_link();
     let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
@@ -265,7 +290,7 @@ mod ssr_tests {
 #[cfg(feature = "client")]
 mod client_tests {
     use super::*;
-    use crate::{use_i18n_optional, use_init_i18n, use_provide_i18n};
+    use crate::{try_use_i18n, use_init_i18n, use_provide_i18n};
     use dioxus_core::{Element, Event, Mutation, Mutations, VirtualDom};
     use dioxus_core_macro::rsx;
     #[allow(unused_imports)]
@@ -305,7 +330,7 @@ mod client_tests {
 
     #[allow(non_snake_case)]
     fn OptionalI18nMessage() -> Element {
-        let message = match use_i18n_optional() {
+        let message = match try_use_i18n() {
             Ok(Some(_)) => "present",
             Ok(None) => "missing",
             Err(_) => "failed",
@@ -320,7 +345,7 @@ mod client_tests {
     fn FailedInitMessage() -> Element {
         force_inventory_link();
         let init = crate::use_init_i18n(langid!("de-DE"));
-        let child = crate::use_i18n_optional();
+        let child = crate::try_use_i18n();
         let message = match (init, child) {
             (Ok(_), _) => "ready",
             (Err(_), Err(_)) => "failed-present",
@@ -331,6 +356,64 @@ mod client_tests {
         rsx! {
             div { "{message}" }
         }
+    }
+
+    #[allow(non_snake_case)]
+    fn ProviderFailureChild() -> Element {
+        let message = match crate::use_i18n() {
+            Ok(_) => "unexpected-ready",
+            Err(_) => "failed-open",
+        };
+
+        rsx! {
+            div { "{message}" }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn ProviderFailOpenApp() -> Element {
+        force_inventory_link();
+
+        rsx! {
+            crate::I18nProvider {
+                initial_language: langid!("de-DE"),
+                ProviderFailureChild {}
+            }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn ProviderStrictFailClosedApp() -> Element {
+        force_inventory_link();
+
+        rsx! {
+            crate::I18nProviderStrict {
+                initial_language: langid!("de-DE"),
+                ProviderFailureChild {}
+            }
+        }
+    }
+
+    fn rendered_mutations(component: fn() -> Element) -> String {
+        let mut dom = VirtualDom::new(component);
+        let mutations = dom.rebuild_to_vec();
+        format!("{mutations:?}")
+    }
+
+    #[test]
+    #[serial]
+    fn provider_fails_open_without_fallback() {
+        let mutations = rendered_mutations(ProviderFailOpenApp);
+
+        assert!(mutations.contains("failed-open"));
+    }
+
+    #[test]
+    #[serial]
+    fn strict_provider_fails_closed_without_fallback() {
+        let mutations = rendered_mutations(ProviderStrictFailClosedApp);
+
+        assert!(!mutations.contains("failed-open"));
     }
 
     #[allow(non_snake_case)]
@@ -461,7 +544,7 @@ mod client_tests {
 
     #[test]
     #[serial]
-    fn use_i18n_optional_returns_none_without_provider() {
+    fn try_use_i18n_returns_none_without_provider() {
         let mut dom = VirtualDom::new(OptionalI18nMessage);
         dom.rebuild_in_place();
 

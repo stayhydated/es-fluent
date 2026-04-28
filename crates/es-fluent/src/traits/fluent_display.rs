@@ -272,7 +272,7 @@ where
             Option<&HashMap<&str, FluentValue<'b>>>,
         ) -> String,
     ) -> FluentValue<'a> {
-        match self.value.clone() {
+        match self.value {
             Some(value) => value.into_fluent_value(),
             None => FluentValue::None,
         }
@@ -377,5 +377,46 @@ mod tests {
         let value =
             FluentArgumentValue::new(NestedMessage).into_fluent_argument_value(&mut localize);
         assert_string(value, "nested value");
+    }
+
+    struct StaticLocalizer {
+        value: &'static str,
+    }
+
+    impl FluentLocalizer for StaticLocalizer {
+        fn localize<'a>(
+            &self,
+            id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            if id == "nested-id" {
+                Some(self.value.to_string())
+            } else {
+                None
+            }
+        }
+
+        fn localize_in_domain<'a>(
+            &self,
+            domain: &str,
+            id: &str,
+            args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            if domain == "nested-domain" {
+                self.localize(id, args)
+            } else {
+                None
+            }
+        }
+    }
+
+    #[test]
+    fn localize_message_uses_the_explicit_localizer() {
+        let en = StaticLocalizer { value: "Hello" };
+        let fr = StaticLocalizer { value: "Bonjour" };
+
+        assert_eq!(en.localize_message(&NestedMessage), "Hello");
+        assert_eq!(fr.localize_message(&NestedMessage), "Bonjour");
+        assert_eq!(en.localize_message(&NestedMessage), "Hello");
     }
 }

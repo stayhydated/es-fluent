@@ -1,4 +1,4 @@
-use super::{FluentLocalizer, FluentLocalizerExt};
+use super::{FluentLocalizer, FluentLocalizerExt as _};
 
 /// A trait for types that have a "this" Fluent key representing the type itself.
 ///

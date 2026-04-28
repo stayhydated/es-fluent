@@ -103,10 +103,10 @@ Enable the runtime surface your crate uses:
 
 ```toml
 # Client apps
-es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.8", features = ["client"] }
 
 # SSR
-es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.8", features = ["ssr"] }
 ```
 
 The crate has no default runtime feature. The `define_i18n_module!` macro is always available.
@@ -164,7 +164,7 @@ Client apps should localize through the `DioxusI18n` context provided by `I18nPr
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
-If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it renders an empty vnode so failed initialization does not surface later as a missing i18n context in descendants. `I18nProviderStrict` is retained as an explicit alias for fail-closed provider usage. Descendants can call `try_use_i18n()` or `use_i18n_optional()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
+If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it renders children without an initialized i18n context, so descendants that call `use_i18n()` receive an initialization error. `I18nProviderStrict` is the fail-closed variant: it renders fallback when one is supplied and otherwise renders an empty vnode. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
 
 ### SSR Quick Start
 

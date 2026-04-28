@@ -29,7 +29,7 @@ pub use managed::ManagedI18n;
 #[cfg(feature = "client")]
 pub use client::{
     DioxusI18n, I18nProvider, I18nProviderStrict, consume_i18n, try_consume_i18n, try_use_i18n,
-    use_i18n, use_i18n_optional, use_init_i18n, use_provide_i18n,
+    use_i18n, use_init_i18n, use_provide_i18n,
 };
 
 #[cfg(test)]

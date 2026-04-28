@@ -13,10 +13,10 @@ Enable the runtime surface your crate uses:
 
 ```toml
 # Client apps
-es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+es-fluent-manager-dioxus = { version = "0.8", features = ["client"] }
 
 # Server-side rendering
-es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.8", features = ["ssr"] }
 ```
 
 The crate has no default runtime feature. `define_i18n_module!` is always re-exported.
@@ -79,10 +79,10 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 - `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback.
 - `select_language(...)` records the requested language and updates the Dioxus signal used by render code.
 - `select_language_strict(...)` requires every discovered module to support the requested locale.
-- `try_use_i18n()` and `try_consume_i18n()` follow Dioxus optional-context naming; `use_i18n_optional()` remains as a compatibility alias.
+- `try_use_i18n()` and `try_consume_i18n()` follow Dioxus optional-context naming.
 - `consume_i18n()` reads the context from event handlers, async tasks, or other places where the Dioxus runtime is active but hooks cannot be called.
 
-`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it renders no children so failed initialization does not surface later as a missing i18n context in descendants. `I18nProviderStrict` is retained as an explicit alias for fail-closed provider usage.
+`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it renders children without an initialized i18n context, so descendants that call `use_i18n()` receive an initialization error. `I18nProviderStrict` is the fail-closed variant: it renders fallback when one is supplied and otherwise renders no children.
 
 `I18nProvider` and `use_provide_i18n(...)` initialize once per component instance. Changing the initial language or provided manager after the first render does not replace the installed context. Use `select_language(...)` to change locale at runtime. After a `ManagedI18n` is handed to the provider, route locale switches through `DioxusI18n::select_language(...)` or `DioxusI18n::select_language_strict(...)` so the Dioxus signal stays aligned with manager state.
 

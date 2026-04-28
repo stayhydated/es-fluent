@@ -22,7 +22,7 @@ Client initialization is one-shot because it is stored through `use_hook`; later
 
 `DioxusI18n::localize_message(...)` reads the tracked language signal before delegating to `ManagedI18n::localize_message(...)`. String-ID helpers follow the same signal-read pattern. Direct access to the raw `ManagedI18n` is intentionally not exposed from `DioxusI18n`, because direct client language changes would bypass the signal update that makes locale changes visible to render code.
 
-Failed initialization is represented as a provided failed context. This keeps hook order stable and lets descendants distinguish a missing provider from a failed provider through `try_use_i18n()` or `use_i18n_optional()`.
+Failed initialization is represented as a provided failed context. This keeps hook order stable and lets descendants distinguish a missing provider from a failed provider through `try_use_i18n()`.
 
 ## SSR runtime
 

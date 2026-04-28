@@ -190,3 +190,131 @@ impl FluentLocalizer for EmbeddedI18n {
         self.manager.localize_in_domain(domain, id, args)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent_manager_core::{
+        I18nModule, I18nModuleDescriptor, I18nModuleRegistration, Localizer, ModuleData,
+    };
+    use std::sync::{Mutex, Once};
+    use unic_langid::langid;
+
+    static TEST_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
+    static TEST_MODULE_DATA: ModuleData = ModuleData {
+        name: "embedded-test-module",
+        domain: "embedded-test-module",
+        supported_languages: TEST_SUPPORTED_LANGUAGES,
+        namespaces: &[],
+    };
+
+    struct TestModule;
+
+    struct TestLocalizer {
+        selected: Mutex<LanguageIdentifier>,
+    }
+
+    impl I18nModuleDescriptor for TestModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_MODULE_DATA
+        }
+    }
+
+    impl I18nModule for TestModule {
+        fn create_localizer(&self) -> Box<dyn Localizer> {
+            Box::new(TestLocalizer {
+                selected: Mutex::new(langid!("en-US")),
+            })
+        }
+    }
+
+    impl Localizer for TestLocalizer {
+        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            if TEST_SUPPORTED_LANGUAGES
+                .iter()
+                .any(|candidate| candidate == lang)
+            {
+                let mut selected = self
+                    .selected
+                    .lock()
+                    .expect("test localizer language lock should not be poisoned");
+                *selected = lang.clone();
+                Ok(())
+            } else {
+                Err(LocalizationError::LanguageNotSupported(lang.clone()))
+            }
+        }
+
+        fn localize<'a>(
+            &self,
+            id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            let selected = self
+                .selected
+                .lock()
+                .expect("test localizer language lock should not be poisoned")
+                .to_string();
+            let value = match (selected.as_str(), id) {
+                ("en-US", "hello") => "Hello",
+                ("fr", "hello") => "Bonjour",
+                _ => return None,
+            };
+
+            Some(value.to_string())
+        }
+    }
+
+    static TEST_MODULE: TestModule = TestModule;
+    static INVENTORY_ONCE: Once = Once::new();
+
+    crate::__inventory::submit!(&TEST_MODULE as &dyn I18nModuleRegistration);
+
+    fn force_inventory_link() {
+        INVENTORY_ONCE.call_once(|| {
+            let _ = &TEST_MODULE;
+        });
+    }
+
+    #[test]
+    fn embedded_i18n_instances_select_languages_independently() {
+        force_inventory_link();
+        let en = EmbeddedI18n::try_new_with_language(langid!("en-US"))
+            .expect("en embedded i18n should initialize");
+        let fr = EmbeddedI18n::try_new_with_language(langid!("fr"))
+            .expect("fr embedded i18n should initialize");
+
+        assert_eq!(
+            en.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            fr.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Bonjour".to_string())
+        );
+
+        en.select_language(langid!("fr"))
+            .expect("en manager should switch to fr");
+
+        assert_eq!(
+            en.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Bonjour".to_string())
+        );
+        assert_eq!(
+            fr.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Bonjour".to_string())
+        );
+
+        fr.select_language(langid!("en-US"))
+            .expect("fr manager should switch to en-US");
+
+        assert_eq!(
+            en.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Bonjour".to_string())
+        );
+        assert_eq!(
+            fr.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Hello".to_string())
+        );
+    }
+}

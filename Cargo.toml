@@ -37,7 +37,7 @@ publish = true
 readme = "README.md"
 repository = "https://github.com/stayhydated/es-fluent"
 rust-version = "1.95"
-version = "0.15.0"
+version = "0.16.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
@@ -67,20 +67,20 @@ dioxus-motion = { default-features = false, version = "0.3.5" }
 dioxus-server = { default-features = false, version = "0.7" }
 dioxus-signals = "0.7"
 dioxus-ssr = { default-features = false, version = "0.7" }
-es-fluent = { path = "crates/es-fluent", version = "0.15.0" }
-es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.15.0" }
-es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.15.0" }
-es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.15.0" }
-es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.15.0" }
-es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.15.0" }
-es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.18.12" }
-es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.15.0" }
+es-fluent = { path = "crates/es-fluent", version = "0.16.0" }
+es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.16.0" }
+es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.16.0" }
+es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.16.0" }
+es-fluent-lang = { path = "crates/es-fluent-lang", version = "0.16.0" }
+es-fluent-lang-macro = { path = "crates/es-fluent-lang-macro", version = "0.16.0" }
+es-fluent-manager-bevy = { default-features = false, path = "crates/es-fluent-manager-bevy", version = "0.18.13" }
+es-fluent-manager-core = { path = "crates/es-fluent-manager-core", version = "0.16.0" }
 es-fluent-manager-dioxus = { default-features = false, path = "crates/es-fluent-manager-dioxus", version = "0.7.0" }
-es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.15.0" }
-es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.15.0" }
-es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.15.0" }
-es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.15.0" }
-es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.15.0" }
+es-fluent-manager-embedded = { path = "crates/es-fluent-manager-embedded", version = "0.16.0" }
+es-fluent-manager-macros = { path = "crates/es-fluent-manager-macros", version = "0.16.0" }
+es-fluent-runner = { path = "crates/es-fluent-runner", version = "0.16.0" }
+es-fluent-shared = { path = "crates/es-fluent-shared", version = "0.16.0" }
+es-fluent-toml = { path = "crates/es-fluent-toml", version = "0.16.0" }
 fluent-bundle = "0.16"
 fluent-fallback = "0.7"
 fluent-syntax = "0.12"
