@@ -42,3 +42,6 @@ pub(crate) use locale::{LanguageSelection, PendingLanguageChange};
 
 #[doc(hidden)]
 pub use unic_langid::langid as __langid;
+
+#[cfg(test)]
+mod tests;

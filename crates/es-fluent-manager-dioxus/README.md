@@ -82,7 +82,7 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 - `try_use_i18n()` and `try_consume_i18n()` follow Dioxus optional-context naming; `use_i18n_optional()` remains as a compatibility alias.
 - `consume_i18n()` reads the context from event handlers, async tasks, or other places where the Dioxus runtime is active but hooks cannot be called.
 
-`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it preserves permissive behavior and keeps rendering `children` with a failed i18n context so hook order stays stable. Use `I18nProviderStrict` when children should not render after initialization failure.
+`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it renders no children so failed initialization does not surface later as a missing i18n context in descendants. `I18nProviderStrict` is retained as an explicit alias for fail-closed provider usage.
 
 `I18nProvider` and `use_provide_i18n(...)` initialize once per component instance. Changing the initial language or provided manager after the first render does not replace the installed context. Use `select_language(...)` to change locale at runtime. After a `ManagedI18n` is handed to the provider, route locale switches through `DioxusI18n::select_language(...)` or `DioxusI18n::select_language_strict(...)` so the Dioxus signal stays aligned with manager state.
 

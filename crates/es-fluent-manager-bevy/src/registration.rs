@@ -1,4 +1,45 @@
 use bevy::prelude::*;
+use std::{any::TypeId, collections::HashSet};
+
+#[derive(Default, Resource)]
+pub(crate) struct RegisteredFluentTextTypes {
+    text_systems: HashSet<TypeId>,
+    locale_refresh_systems: HashSet<TypeId>,
+}
+
+impl RegisteredFluentTextTypes {
+    fn register_text_systems<T: 'static>(&mut self) -> bool {
+        self.text_systems.insert(TypeId::of::<T>())
+    }
+
+    fn register_locale_refresh<T: 'static>(&mut self) -> bool {
+        self.locale_refresh_systems.insert(TypeId::of::<T>())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn text_system_count(&self) -> usize {
+        self.text_systems.len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn locale_refresh_system_count(&self) -> usize {
+        self.locale_refresh_systems.len()
+    }
+}
+
+fn mark_text_systems_registered<T: 'static>(app: &mut App) -> bool {
+    app.init_resource::<RegisteredFluentTextTypes>();
+    app.world_mut()
+        .resource_mut::<RegisteredFluentTextTypes>()
+        .register_text_systems::<T>()
+}
+
+fn mark_locale_refresh_registered<T: 'static>(app: &mut App) -> bool {
+    app.init_resource::<RegisteredFluentTextTypes>();
+    app.world_mut()
+        .resource_mut::<RegisteredFluentTextTypes>()
+        .register_locale_refresh::<T>()
+}
 
 /// A plugin that initializes the `es-fluent` Bevy integration.
 pub struct EsFluentBevyPlugin;
@@ -52,14 +93,16 @@ impl FluentTextRegistration for App {
     >(
         &mut self,
     ) -> &mut Self {
-        self.add_systems(
-            PostUpdate,
-            (
-                crate::systems::update_all_fluent_text_on_locale_change::<T>,
-                crate::systems::update_fluent_text_system::<T>,
-            )
-                .chain(),
-        );
+        if mark_text_systems_registered::<T>(self) {
+            self.add_systems(
+                PostUpdate,
+                (
+                    crate::systems::update_all_fluent_text_on_locale_change::<T>,
+                    crate::systems::update_fluent_text_system::<T>,
+                )
+                    .chain(),
+            );
+        }
         self
     }
 
@@ -74,15 +117,40 @@ impl FluentTextRegistration for App {
     >(
         &mut self,
     ) -> &mut Self {
-        self.add_systems(
-            PostUpdate,
-            (
-                crate::update_values_on_locale_change::<T>,
-                crate::systems::update_all_fluent_text_on_locale_change::<T>,
-                crate::systems::update_fluent_text_system::<T>,
-            )
-                .chain(),
-        );
+        let should_register_locale_refresh = mark_locale_refresh_registered::<T>(self);
+        let should_register_text_systems = mark_text_systems_registered::<T>(self);
+
+        match (should_register_locale_refresh, should_register_text_systems) {
+            (true, true) => {
+                self.add_systems(
+                    PostUpdate,
+                    (
+                        crate::update_values_on_locale_change::<T>,
+                        crate::systems::update_all_fluent_text_on_locale_change::<T>,
+                        crate::systems::update_fluent_text_system::<T>,
+                    )
+                        .chain(),
+                );
+            },
+            (true, false) => {
+                self.add_systems(
+                    PostUpdate,
+                    crate::update_values_on_locale_change::<T>
+                        .before(crate::systems::update_all_fluent_text_on_locale_change::<T>),
+                );
+            },
+            (false, true) => {
+                self.add_systems(
+                    PostUpdate,
+                    (
+                        crate::systems::update_all_fluent_text_on_locale_change::<T>,
+                        crate::systems::update_fluent_text_system::<T>,
+                    )
+                        .chain(),
+                );
+            },
+            (false, false) => {},
+        }
         self
     }
 }

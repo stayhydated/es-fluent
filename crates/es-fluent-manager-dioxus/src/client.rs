@@ -189,16 +189,19 @@ pub fn I18nProvider(
     #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
-    if let Err(error) = use_init_i18n(initial_language) {
-        tracing::error!(
-            error = %error,
-            "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children with failed i18n context"
-        );
-        if let Some(fallback) = fallback {
-            return fallback;
-        }
+    match use_init_i18n(initial_language) {
+        Ok(_) => children,
+        Err(error) => {
+            tracing::error!(
+                error = %error,
+                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering no children"
+            );
+            match fallback {
+                Some(fallback) => fallback,
+                None => VNode::empty(),
+            }
+        },
     }
-    children
 }
 
 #[allow(non_snake_case)]

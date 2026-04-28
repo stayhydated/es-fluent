@@ -170,6 +170,20 @@ pub trait FluentLocalizerExt: FluentLocalizer {
 
 impl<T: FluentLocalizer + ?Sized> FluentLocalizerExt for T {}
 
+#[doc(hidden)]
+pub trait IntoFluentValue<'a> {
+    fn into_fluent_value(self) -> FluentValue<'a>;
+}
+
+impl<'a, T> IntoFluentValue<'a> for T
+where
+    T: Into<FluentValue<'a>>,
+{
+    fn into_fluent_value(self) -> FluentValue<'a> {
+        self.into()
+    }
+}
+
 /// Wrapper used by generated `FluentMessage` implementations to keep nested
 /// localized arguments on the same explicit lookup path as the outer message.
 #[doc(hidden)]
@@ -219,7 +233,7 @@ where
 
 impl<'a, T> IntoFluentArgumentValue<'a> for &FluentArgumentValue<T>
 where
-    T: Clone + Into<FluentValue<'a>>,
+    T: Clone + IntoFluentValue<'a>,
 {
     fn into_fluent_argument_value(
         self,
@@ -229,6 +243,139 @@ where
             Option<&HashMap<&str, FluentValue<'b>>>,
         ) -> String,
     ) -> FluentValue<'a> {
-        self.value.clone().into()
+        self.value.clone().into_fluent_value()
+    }
+}
+
+impl<'a> IntoFluentArgumentValue<'a> for FluentArgumentValue<bool> {
+    fn into_fluent_argument_value(
+        self,
+        _localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        if self.value { "true" } else { "false" }.into()
+    }
+}
+
+impl<'a, T> IntoFluentArgumentValue<'a> for FluentArgumentValue<Option<T>>
+where
+    T: Clone + IntoFluentValue<'a>,
+{
+    fn into_fluent_argument_value(
+        self,
+        _localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        match self.value.clone() {
+            Some(value) => value.into_fluent_value(),
+            None => FluentValue::None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn panic_lookup<'a>(
+        _domain: &str,
+        _id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> String {
+        panic!("ordinary arguments should not invoke nested localization")
+    }
+
+    fn assert_string(value: FluentValue<'_>, expected: &str) {
+        match value {
+            FluentValue::String(value) => assert_eq!(value.as_ref(), expected),
+            other => panic!("expected string FluentValue, got {other:?}"),
+        }
+    }
+
+    fn assert_number(value: FluentValue<'_>, expected: f64) {
+        match value {
+            FluentValue::Number(value) => assert_eq!(value.value, expected),
+            other => panic!("expected number FluentValue, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn argument_conversion_handles_primitive_values() {
+        let mut localize = panic_lookup;
+
+        let string_value =
+            FluentArgumentValue::new("borrowed").into_fluent_argument_value(&mut localize);
+        assert_string(string_value, "borrowed");
+
+        let number_value =
+            FluentArgumentValue::new(42i32).into_fluent_argument_value(&mut localize);
+        assert_number(number_value, 42.0);
+
+        let bool_value = FluentArgumentValue::new(true).into_fluent_argument_value(&mut localize);
+        assert_string(bool_value, "true");
+    }
+
+    #[test]
+    fn argument_conversion_handles_optional_and_missing_values() {
+        let mut localize = panic_lookup;
+
+        let optional_value =
+            FluentArgumentValue::new(Some("optional")).into_fluent_argument_value(&mut localize);
+        assert_string(optional_value, "optional");
+
+        let missing_value = FluentArgumentValue::new(Option::<String>::None)
+            .into_fluent_argument_value(&mut localize);
+        assert!(matches!(missing_value, FluentValue::None));
+    }
+
+    #[test]
+    fn argument_conversion_handles_borrowed_and_owned_values() {
+        let mut localize = panic_lookup;
+        let borrowed = String::from("borrowed string");
+
+        let borrowed_value =
+            FluentArgumentValue::new(&borrowed).into_fluent_argument_value(&mut localize);
+        assert_string(borrowed_value, "borrowed string");
+
+        let owned_value = FluentArgumentValue::new(String::from("owned string"))
+            .into_fluent_argument_value(&mut localize);
+        assert_string(owned_value, "owned string");
+    }
+
+    #[derive(Clone)]
+    struct NestedMessage;
+
+    impl FluentMessage for NestedMessage {
+        fn to_fluent_string_with(
+            &self,
+            localize: &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> String,
+        ) -> String {
+            localize("nested-domain", "nested-id", None)
+        }
+    }
+
+    #[test]
+    fn argument_conversion_localizes_nested_messages_with_current_callback() {
+        let mut localize =
+            |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+                assert_eq!(domain, "nested-domain");
+                assert_eq!(id, "nested-id");
+                assert!(args.is_none());
+                "nested value".to_string()
+            };
+
+        let value =
+            FluentArgumentValue::new(NestedMessage).into_fluent_argument_value(&mut localize);
+        assert_string(value, "nested value");
     }
 }

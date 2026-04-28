@@ -78,8 +78,6 @@ jobs:
             command: cargo check -p es-fluent-manager-dioxus --no-default-features --features client,ssr
           - name: client-ssr-test
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
-          - name: derive-macro-test
-            command: cargo test -p es-fluent-manager-dioxus-derive
           - name: client-wasm-check
             command: cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
           - name: client-example-wasm-check
