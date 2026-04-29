@@ -106,6 +106,7 @@ crate::__inventory::submit!(&TEST_MODULE as &dyn I18nModuleRegistration);
 crate::__inventory::submit!(&PARTIAL_TEST_MODULE as &dyn I18nModuleRegistration);
 
 struct TestMessage;
+struct MissingMessage;
 
 impl es_fluent::FluentMessage for TestMessage {
     fn to_fluent_string_with(
@@ -117,6 +118,19 @@ impl es_fluent::FluentMessage for TestMessage {
         ) -> String,
     ) -> String {
         localize("dioxus-test-module", "hello", None)
+    }
+}
+
+impl es_fluent::FluentMessage for MissingMessage {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'a> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, es_fluent::FluentValue<'a>>>,
+        ) -> String,
+    ) -> String {
+        localize("dioxus-test-module", "missing", None)
     }
 }
 
@@ -215,6 +229,45 @@ fn managed_i18n_localizes_typed_messages() {
     assert_eq!(i18n.localize_message(&TestMessage), "Bonjour");
 }
 
+#[test]
+#[serial]
+fn managed_i18n_cached_modules_identity_and_silent_fallbacks() {
+    force_inventory_link();
+    let modules = es_fluent_manager_core::FluentManager::try_discover_runtime_modules()
+        .expect("test inventory should discover runtime modules");
+    let i18n = ManagedI18n::new_with_cached_modules(&modules, langid!("en-US"))
+        .expect("cached modules should initialize");
+    let clone = i18n.clone();
+    let other = ManagedI18n::new_with_cached_modules(&modules, langid!("en-US"))
+        .expect("second cached manager should initialize");
+
+    assert!(i18n == clone);
+    assert!(i18n != other);
+    assert_eq!(i18n.localize_or_id("hello", None), "Hello");
+    assert_eq!(i18n.localize_or_id("missing", None), "missing");
+    assert_eq!(i18n.localize_or_id_silent("missing", None), "missing");
+    assert_eq!(
+        i18n.localize_in_domain_or_id_silent("dioxus-test-module", "missing", None),
+        "missing"
+    );
+    assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+}
+
+#[test]
+#[serial]
+fn managed_i18n_fluent_localizer_impl_delegates_to_manager() {
+    force_inventory_link();
+    let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
+        .expect("managed dioxus i18n should initialize");
+    let localizer: &dyn es_fluent::FluentLocalizer = &i18n;
+
+    assert_eq!(localizer.localize("hello", None), Some("Hello".to_string()));
+    assert_eq!(
+        localizer.localize_in_domain("dioxus-test-module", "hello", None),
+        Some("Hello".to_string())
+    );
+}
+
 #[cfg(feature = "ssr")]
 mod ssr_tests {
     use super::*;
@@ -232,6 +285,13 @@ mod ssr_tests {
 
         rsx! {
             div { "{message}" }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn StaticSsrView() -> Element {
+        rsx! {
+            main { "Static SSR" }
         }
     }
 
@@ -284,6 +344,64 @@ mod ssr_tests {
         runtime
             .request(langid!("fr"))
             .expect("second ssr request should initialize");
+    }
+
+    #[test]
+    #[serial]
+    fn ssr_i18n_exposes_request_scoped_localization_facade() {
+        force_inventory_link();
+        let runtime = SsrI18nRuntime::new();
+        let i18n = runtime
+            .request(langid!("en-US"))
+            .expect("ssr dioxus i18n should initialize");
+
+        assert_eq!(i18n.requested_language(), langid!("en-US"));
+        assert_eq!(i18n.localize("hello", None), Some("Hello".to_string()));
+        assert_eq!(
+            i18n.localize_in_domain("dioxus-test-module", "hello", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(i18n.localize_message(&TestMessage), "Hello");
+        assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+
+        i18n.select_language(langid!("fr"))
+            .expect("best-effort language switch should succeed");
+        assert_eq!(i18n.requested_language(), langid!("fr"));
+        assert_eq!(i18n.localize_message(&TestMessage), "Bonjour");
+
+        assert!(
+            i18n.select_language_strict(langid!("de")).is_err(),
+            "strict selection should reject unsupported languages"
+        );
+        assert_eq!(i18n.requested_language(), langid!("fr"));
+    }
+
+    #[test]
+    #[serial]
+    fn ssr_i18n_render_helpers_delegate_to_dioxus_ssr() {
+        force_inventory_link();
+        let runtime = SsrI18nRuntime::new();
+        let i18n = runtime
+            .request(langid!("en-US"))
+            .expect("ssr dioxus i18n should initialize");
+        let mut dom = VirtualDom::new(StaticSsrView);
+
+        assert!(i18n.rebuild_and_render(&mut dom).contains("Static SSR"));
+        assert!(i18n.render(&dom).contains("Static SSR"));
+        assert!(i18n.pre_render(&dom).contains("Static SSR"));
+
+        let mut prerender_dom = VirtualDom::new(StaticSsrView);
+        assert!(
+            i18n.rebuild_and_pre_render(&mut prerender_dom)
+                .contains("Static SSR")
+        );
+
+        let mut renderer = dioxus_ssr::Renderer::new();
+        assert!(i18n.render_with(&mut renderer, &dom).contains("Static SSR"));
+        assert!(
+            i18n.render_element(rsx! { section { "Element SSR" } })
+                .contains("Element SSR")
+        );
     }
 }
 
@@ -394,10 +512,42 @@ mod client_tests {
         }
     }
 
+    #[allow(non_snake_case)]
+    fn ProviderFailOpenWithFallbackApp() -> Element {
+        force_inventory_link();
+
+        rsx! {
+            crate::I18nProvider {
+                initial_language: langid!("de-DE"),
+                fallback: Some(rsx! { div { "fallback-open" } }),
+                ProviderFailureChild {}
+            }
+        }
+    }
+
+    #[allow(non_snake_case)]
+    fn ProviderStrictFailClosedWithFallbackApp() -> Element {
+        force_inventory_link();
+
+        rsx! {
+            crate::I18nProviderStrict {
+                initial_language: langid!("de-DE"),
+                fallback: Some(rsx! { div { "fallback-strict" } }),
+                ProviderFailureChild {}
+            }
+        }
+    }
+
     fn rendered_mutations(component: fn() -> Element) -> String {
         let mut dom = VirtualDom::new(component);
         let mutations = dom.rebuild_to_vec();
         format!("{mutations:?}")
+    }
+
+    fn rendered_html(component: fn() -> Element) -> String {
+        let mut dom = VirtualDom::new(component);
+        dom.rebuild_in_place();
+        dioxus_ssr::render(&dom)
     }
 
     #[test]
@@ -414,6 +564,13 @@ mod client_tests {
         let mutations = rendered_mutations(ProviderStrictFailClosedApp);
 
         assert!(!mutations.contains("failed-open"));
+    }
+
+    #[test]
+    #[serial]
+    fn providers_render_configured_fallbacks_when_initialization_fails() {
+        assert!(rendered_html(ProviderFailOpenWithFallbackApp).contains("fallback-open"));
+        assert!(rendered_html(ProviderStrictFailClosedWithFallbackApp).contains("fallback-strict"));
     }
 
     #[allow(non_snake_case)]
@@ -540,6 +697,52 @@ mod client_tests {
         let after = dioxus_ssr::render(&dom);
         assert!(after.contains("Bonjour"));
         assert_ne!(before, after);
+    }
+
+    #[test]
+    #[serial]
+    fn dioxus_i18n_facade_methods_localize_and_track_requested_language() {
+        CAPTURED_I18N.with(|slot| {
+            *slot.borrow_mut() = None;
+        });
+
+        let mut dom = VirtualDom::new(ReactiveMessage);
+        dom.rebuild_in_place();
+        let i18n = CAPTURED_I18N.with(|slot| {
+            slot.borrow()
+                .clone()
+                .expect("component should capture the Dioxus i18n handle")
+        });
+
+        assert_eq!(i18n.requested_language(), langid!("en-US"));
+        assert_eq!(i18n.peek_requested_language(), langid!("en-US"));
+        assert_eq!(i18n.localize("hello", None), Some("Hello".to_string()));
+        assert_eq!(i18n.localize_or_id("missing", None), "missing");
+        assert_eq!(i18n.localize_or_id_silent("missing", None), "missing");
+        assert_eq!(
+            i18n.localize_in_domain("dioxus-test-module", "hello", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            i18n.localize_in_domain_or_id("dioxus-test-module", "missing", None),
+            "missing"
+        );
+        assert_eq!(
+            i18n.localize_in_domain_or_id_silent("dioxus-test-module", "missing", None),
+            "missing"
+        );
+        assert_eq!(i18n.localize_message(&TestMessage), "Hello");
+        assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+
+        i18n.select_language_strict(langid!("en-US"))
+            .expect("strict selection should succeed for fully supported locale");
+        assert_eq!(i18n.requested_language(), langid!("en-US"));
+
+        i18n.select_language(langid!("fr"))
+            .expect("best-effort selection should succeed for partially supported locale");
+        assert_eq!(i18n.requested_language(), langid!("fr"));
+        assert_eq!(i18n.peek_requested_language(), langid!("fr"));
+        assert_eq!(i18n.localize_message(&TestMessage), "Bonjour");
     }
 
     #[test]

@@ -87,4 +87,38 @@ mod tests {
         let component = FluentText::new(FakeMessage("hello"));
         assert_eq!(component.value.0, "hello");
     }
+
+    #[test]
+    fn fluent_text_clone_clones_inner_value() {
+        let component = FluentText::new(FakeMessage("hello"));
+        let cloned = component.clone();
+
+        assert_eq!(cloned.value.0, "hello");
+    }
+
+    #[test]
+    fn fluent_text_can_be_inserted_as_bevy_component() {
+        let mut world = World::new();
+        let entity = world.spawn(FluentText::new(FakeMessage("hello"))).id();
+
+        let component = world
+            .get::<FluentText<FakeMessage>>(entity)
+            .expect("component should be present");
+        assert_eq!(component.value.0, "hello");
+    }
+
+    #[test]
+    fn fluent_text_value_can_render_through_fluent_message_trait() {
+        let component = FluentText::new(FakeMessage("hello"));
+        let mut localize = |_domain: &str,
+                            _id: &str,
+                            _args: Option<
+            &std::collections::HashMap<&str, es_fluent::FluentValue<'_>>,
+        >| { "unused".to_string() };
+
+        assert_eq!(
+            component.value.to_fluent_string_with(&mut localize),
+            "hello"
+        );
+    }
 }

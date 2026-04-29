@@ -388,6 +388,16 @@ mod tests {
     }
 
     #[derive(RustEmbed)]
+    #[folder = "tests/fixtures/embedded_i18n"]
+    struct BaseFileAssets;
+
+    impl EmbeddedAssets for BaseFileAssets {
+        fn domain() -> &'static str {
+            "test-domain"
+        }
+    }
+
+    #[derive(RustEmbed)]
     #[folder = "tests/fixtures/embedded_i18n_ns_errors"]
     struct NamespaceErrorAssets;
 
@@ -457,6 +467,24 @@ mod tests {
         }
     }
 
+    #[test]
+    fn embedded_asset_test_types_expose_expected_domains_and_namespaces() {
+        assert_eq!(TestAssets::domain(), "test-domain");
+        assert_eq!(TestAssets::namespaces(), &["ui"]);
+        assert_eq!(BaseFileAssets::domain(), "test-domain");
+        assert!(BaseFileAssets::namespaces().is_empty());
+        assert_eq!(NamespaceErrorAssets::domain(), "test-domain");
+        assert_eq!(NamespaceErrorAssets::namespaces(), &["ui"]);
+        assert_eq!(StrayBaseFileAssets::domain(), "test-domain");
+        assert_eq!(StrayBaseFileAssets::namespaces(), &["ui"]);
+        assert_eq!(NestedNamespaceAssets::domain(), "test-domain");
+        assert_eq!(NestedNamespaceAssets::namespaces(), &["ui/button"]);
+        assert_eq!(BundleAddErrorAssets::domain(), "test-domain");
+        assert_eq!(BundleAddErrorAssets::namespaces(), &["ui", "errors"]);
+        assert_eq!(PartialFallbackAssets::domain(), "test-domain");
+        assert_eq!(PartialFallbackAssets::namespaces(), &["ui"]);
+    }
+
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
         langid!("en"),
         langid!("en-GB"),
@@ -469,6 +497,13 @@ mod tests {
         domain: "test-domain",
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
+    };
+    static BASE_FILE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static BASE_FILE_MODULE_DATA: ModuleData = ModuleData {
+        name: "base-file-module",
+        domain: "test-domain",
+        supported_languages: BASE_FILE_SUPPORTED_LANGUAGES,
+        namespaces: &[],
     };
     static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("ef")];
     static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
@@ -515,6 +550,17 @@ mod tests {
     }
 
     #[test]
+    fn discover_languages_supports_base_files_when_no_namespaces_are_configured() {
+        assert!(BaseFileAssets::namespaces().is_empty());
+
+        let languages = EmbeddedI18nModule::<BaseFileAssets>::discover_languages();
+        assert_eq!(
+            languages,
+            vec![langid!("en"), langid!("en-GB"), langid!("fr")]
+        );
+    }
+
+    #[test]
     fn discover_languages_includes_locales_with_only_nested_namespace_files() {
         let languages = EmbeddedI18nModule::<NestedNamespaceAssets>::discover_languages();
         assert_eq!(languages, vec![langid!("en")]);
@@ -549,6 +595,49 @@ mod tests {
         assert_eq!(
             embedded_resource_from_asset_path("iw/test-domain/ui.ftl", "test-domain", &["ui"]),
             None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/other-domain/ui.ftl", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain.ftl/extra", "test-domain", &[]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en/test-domain/.ftl", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            embedded_resource_from_asset_path("en-us/test-domain/ui.ftl", "test-domain", &["ui"]),
+            None
+        );
+        assert_eq!(
+            parse_embedded_language_identifier("en-US"),
+            Some(langid!("en-US"))
+        );
+        assert_eq!(parse_embedded_language_identifier("en-us"), None);
+    }
+
+    #[test]
+    fn embedded_localizer_loads_base_file_modules_without_namespaces() {
+        let localizer = EmbeddedLocalizer::<BaseFileAssets>::new(&BASE_FILE_MODULE_DATA);
+
+        localizer
+            .select_language(&langid!("en"))
+            .expect("base file should make the locale ready");
+
+        assert_eq!(
+            localizer.localize("base-only", None),
+            Some("Hello main".to_string())
         );
     }
 
@@ -587,6 +676,9 @@ mod tests {
         localizer
             .select_language(&langid!("en"))
             .expect("re-selecting current language should no-op");
+        localizer
+            .select_language(&langid!("en"))
+            .expect("re-selecting exactly the active language should no-op");
     }
 
     #[test]
@@ -768,6 +860,11 @@ mod tests {
 
         assert_eq!(bundle_error.module_name(), "bundle-add-error-module");
         assert_eq!(bundle_error.language(), &langid!("fr"));
+        assert!(
+            bundle_error
+                .to_string()
+                .contains("failed to build a Fluent bundle for module 'bundle-add-error-module'")
+        );
         assert!(
             bundle_error
                 .diagnostics()

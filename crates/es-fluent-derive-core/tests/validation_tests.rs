@@ -163,6 +163,22 @@ mod validate_struct_tests {
     }
 
     #[test]
+    fn empty_struct_arg_name_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub struct TestStruct {
+                #[fluent(arg_name = "")]
+                value: String,
+            }
+        };
+
+        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+        let err = validate_struct(&opts).expect_err("empty arg_name should fail");
+
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn duplicate_struct_arg_name_fails() {
         let input: DeriveInput = parse_quote! {
@@ -290,6 +306,55 @@ mod validate_enum_tests {
             "validate_enum_duplicate_field_arg_name_overrides_fail",
             err.to_string()
         );
+    }
+
+    #[test]
+    fn field_arg_name_on_skipped_variant_field_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Something(#[fluent(skip, arg_name = "hidden")] String),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        let err = validate_enum(&opts).expect_err("arg_name on skipped field should fail");
+
+        assert!(
+            err.to_string()
+                .contains("cannot be used on a skipped field")
+        );
+    }
+
+    #[test]
+    fn empty_variant_field_arg_name_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Something(#[fluent(arg_name = "")] String),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        let err = validate_enum(&opts).expect_err("empty arg_name should fail");
+
+        assert!(err.to_string().contains("cannot be empty"));
+    }
+
+    #[test]
+    fn skipped_variant_field_is_ignored_when_checking_resolved_names() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Something(
+                    #[fluent(arg_name = "value")] String,
+                    #[fluent(skip)] String,
+                ),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        validate_enum(&opts).expect("skipped field should not participate in resolved arg names");
     }
 }
 

@@ -319,6 +319,15 @@ mod tests {
 
         let bool_value = FluentArgumentValue::new(true).into_fluent_argument_value(&mut localize);
         assert_string(bool_value, "true");
+
+        let false_value = FluentArgumentValue::new(false).into_fluent_argument_value(&mut localize);
+        assert_string(false_value, "false");
+    }
+
+    #[test]
+    #[should_panic(expected = "ordinary arguments should not invoke nested localization")]
+    fn panic_lookup_reports_unexpected_nested_localization() {
+        let _ = panic_lookup("domain", "id", None);
     }
 
     #[test]
@@ -332,6 +341,10 @@ mod tests {
         let missing_value = FluentArgumentValue::new(Option::<String>::None)
             .into_fluent_argument_value(&mut localize);
         assert!(matches!(missing_value, FluentValue::None));
+
+        let optional_number =
+            FluentArgumentValue::new(Some(7i32)).into_fluent_argument_value(&mut localize);
+        assert_number(optional_number, 7.0);
     }
 
     #[test]
@@ -418,5 +431,77 @@ mod tests {
         assert_eq!(en.localize_message(&NestedMessage), "Hello");
         assert_eq!(fr.localize_message(&NestedMessage), "Bonjour");
         assert_eq!(en.localize_message(&NestedMessage), "Hello");
+    }
+
+    struct MissingMessage;
+
+    impl FluentMessage for MissingMessage {
+        fn to_fluent_string_with(
+            &self,
+            localize: &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> String,
+        ) -> String {
+            localize("missing-domain", "missing-id", None)
+        }
+    }
+
+    #[test]
+    fn fluent_message_reference_impl_delegates_to_inner_message() {
+        let message = NestedMessage;
+        let message_ref = &message;
+        let mut localize =
+            |domain: &str, id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
+                format!("{domain}:{id}")
+            };
+
+        assert_eq!(
+            FluentMessage::to_fluent_string_with(&message_ref, &mut localize),
+            "nested-domain:nested-id"
+        );
+    }
+
+    #[test]
+    fn fluent_localizer_reference_and_arc_impls_delegate_to_inner_localizer() {
+        let localizer = StaticLocalizer { value: "Hello" };
+        let localizer_ref = &localizer;
+        let localizer_arc = Arc::new(StaticLocalizer { value: "Bonjour" });
+
+        assert_eq!(localizer_ref.localize_message(&NestedMessage), "Hello");
+        assert_eq!(localizer_arc.localize_message(&NestedMessage), "Bonjour");
+        assert_eq!(
+            FluentLocalizer::localize(&localizer_ref, "nested-id", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            FluentLocalizer::localize_in_domain(&localizer_ref, "nested-domain", "nested-id", None,),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            FluentLocalizer::localize_in_domain(&localizer_arc, "nested-domain", "nested-id", None,),
+            Some("Bonjour".to_string())
+        );
+    }
+
+    #[test]
+    fn localizer_extension_helpers_fall_back_to_message_ids() {
+        let localizer = StaticLocalizer { value: "Hello" };
+
+        assert_eq!(localizer.localize_or_id("nested-id", None), "Hello");
+        assert_eq!(
+            localizer.localize_in_domain_or_id("nested-domain", "nested-id", None),
+            "Hello"
+        );
+        assert_eq!(localizer.localize_or_id("missing", None), "missing");
+        assert_eq!(
+            localizer.localize_in_domain_or_id("wrong-domain", "nested-id", None),
+            "nested-id"
+        );
+        assert_eq!(
+            localizer.localize_message_silent(&MissingMessage),
+            "missing-id"
+        );
     }
 }

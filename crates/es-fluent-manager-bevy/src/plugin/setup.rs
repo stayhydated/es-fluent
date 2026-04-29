@@ -171,3 +171,198 @@ pub(super) fn configure_app(
                 .chain(),
         );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ActiveLanguageId, BundleBuildFailures, I18nBundle, I18nDomainBundles, LocaleChangeEvent,
+        PendingLanguageChange,
+    };
+    use bevy::asset::AssetPlugin;
+    use bevy::ecs::message::Messages;
+    use es_fluent::FluentValue;
+    use es_fluent_manager_core::{
+        LocalizationError, Localizer, ModuleData, ModuleRegistrationKind, ModuleResourceSpec,
+        ResourceKey,
+    };
+    use std::collections::{HashMap, HashSet};
+    use unic_langid::langid;
+
+    static TEST_MODULE_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+    static TEST_MODULE_NAMESPACES: &[&str] = &["ui"];
+    static TEST_MODULE_DATA: ModuleData = ModuleData {
+        name: "setup-test-module",
+        domain: "setup-domain",
+        supported_languages: TEST_MODULE_LANGUAGES,
+        namespaces: TEST_MODULE_NAMESPACES,
+    };
+
+    struct SetupTestModule;
+    struct SetupTestLocalizer;
+
+    impl Localizer for SetupTestLocalizer {
+        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            if lang == &langid!("en") {
+                Ok(())
+            } else {
+                Err(LocalizationError::LanguageNotSupported(lang.clone()))
+            }
+        }
+
+        fn localize<'a>(
+            &self,
+            _id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            None
+        }
+    }
+
+    impl es_fluent_manager_core::I18nModuleDescriptor for SetupTestModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_MODULE_DATA
+        }
+    }
+
+    impl I18nModuleRegistration for SetupTestModule {
+        fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+            Some(Box::new(SetupTestLocalizer))
+        }
+
+        fn registration_kind(&self) -> ModuleRegistrationKind {
+            ModuleRegistrationKind::RuntimeLocalizer
+        }
+
+        fn resource_plan_for_language(
+            &self,
+            lang: &LanguageIdentifier,
+        ) -> Option<Vec<ModuleResourceSpec>> {
+            (lang == &langid!("en")).then(|| {
+                vec![
+                    ModuleResourceSpec {
+                        key: ResourceKey::new("setup-domain"),
+                        locale_relative_path: "setup-domain.ftl".to_string(),
+                        required: true,
+                    },
+                    ModuleResourceSpec {
+                        key: ResourceKey::new("setup-domain/ui"),
+                        locale_relative_path: "setup-domain/ui.ftl".to_string(),
+                        required: false,
+                    },
+                ]
+            })
+        }
+    }
+
+    static SETUP_TEST_MODULE: SetupTestModule = SetupTestModule;
+
+    inventory::submit! {
+        &SETUP_TEST_MODULE as &dyn I18nModuleRegistration
+    }
+
+    #[test]
+    fn resolve_initial_language_falls_back_to_ready_parent_locale() {
+        let discovered_languages = HashSet::from([langid!("en"), langid!("fr")]);
+
+        assert_eq!(
+            resolve_initial_language(&langid!("en-US"), &discovered_languages),
+            langid!("en")
+        );
+        assert_eq!(
+            resolve_initial_language(&langid!("fr"), &discovered_languages),
+            langid!("fr")
+        );
+    }
+
+    #[test]
+    fn resolve_initial_language_keeps_request_when_no_discovered_fallback_matches() {
+        let discovered_languages = HashSet::from([langid!("fr")]);
+
+        assert_eq!(
+            resolve_initial_language(&langid!("de-AT"), &discovered_languages),
+            langid!("de-AT")
+        );
+    }
+
+    #[test]
+    fn discover_modules_collects_inventory_metadata() {
+        let discovery = discover_modules().expect("test inventory should be valid");
+
+        assert!(!discovery.modules.is_empty());
+        assert!(!discovery.domains.is_empty());
+        assert!(!discovery.languages.is_empty());
+    }
+
+    #[test]
+    fn initialize_i18n_resource_reports_fallback_manager_rejection() {
+        let error = match initialize_i18n_resource(&langid!("zz"), &langid!("zz")) {
+            Ok(_) => panic!("unsupported initial language should be rejected"),
+            Err(error) => error,
+        };
+
+        assert!(error.contains("fallback manager rejected initial language 'zz'"));
+    }
+
+    #[test]
+    fn build_i18n_assets_uses_manifest_resource_plans() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<FtlAsset>();
+
+        let asset_server = app.world().resource::<AssetServer>();
+        let i18n_assets = build_i18n_assets(asset_server, "localized", &[&SETUP_TEST_MODULE]);
+
+        let required_key = (langid!("en"), ResourceKey::new("setup-domain"));
+        let optional_key = (langid!("en"), ResourceKey::new("setup-domain/ui"));
+
+        assert!(i18n_assets.assets.contains_key(&required_key));
+        assert!(i18n_assets.assets.contains_key(&optional_key));
+        assert!(i18n_assets.resource_specs[&required_key].required);
+        assert!(!i18n_assets.resource_specs[&optional_key].required);
+    }
+
+    #[test]
+    fn register_discovered_fluent_text_returns_inventory_count() {
+        let mut app = App::new();
+        let registered = register_discovered_fluent_text(&mut app);
+
+        assert_eq!(
+            registered,
+            inventory::iter::<&'static dyn BevyFluentTextRegistration>().count()
+        );
+    }
+
+    #[test]
+    fn configure_app_inserts_runtime_resources_and_locale_messages() {
+        let requested = langid!("en-US");
+        let resolved = langid!("en");
+        let mut app = App::new();
+        app.init_resource::<I18nBundle>()
+            .init_resource::<I18nDomainBundles>()
+            .init_resource::<BundleBuildFailures>();
+
+        configure_app(
+            &mut app,
+            I18nAssets::new(),
+            I18nResource::new_with_resolved_language(requested.clone(), resolved.clone()),
+            requested.clone(),
+        );
+
+        assert!(app.world().get_resource::<I18nAssets>().is_some());
+        assert!(app.world().get_resource::<I18nBundle>().is_some());
+        assert!(
+            app.world()
+                .get_resource::<PendingLanguageChange>()
+                .is_some()
+        );
+        assert!(
+            app.world()
+                .get_resource::<Messages<LocaleChangeEvent>>()
+                .is_some()
+        );
+        assert_eq!(&app.world().resource::<RequestedLanguageId>().0, &requested);
+        assert_eq!(&app.world().resource::<ActiveLanguageId>().0, &requested);
+    }
+}

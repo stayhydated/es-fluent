@@ -86,4 +86,42 @@ mod tests {
         assert_eq!(parsed.raw_name, "en-US");
         assert_eq!(parsed.language.to_string(), "en-US");
     }
+
+    #[test]
+    fn parse_language_entry_rejects_invalid_language_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join("not_a_language")).expect("create locale dir");
+
+        let error = parse_language_entry(first_entry(temp.path())).unwrap_err();
+        assert!(matches!(
+            error,
+            I18nConfigError::InvalidLanguageIdentifier { .. }
+        ));
+    }
+
+    #[test]
+    fn parse_language_entry_rejects_non_canonical_language_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join("en-us")).expect("create locale dir");
+
+        let error = parse_language_entry(first_entry(temp.path())).unwrap_err();
+        assert!(matches!(
+            error,
+            I18nConfigError::NonCanonicalLanguageIdentifier { .. }
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parse_language_entry_rejects_non_utf8_directory_names() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join(OsString::from_vec(vec![0xff])))
+            .expect("create locale dir");
+
+        let error = parse_language_entry(first_entry(temp.path())).unwrap_err();
+        assert!(matches!(error, I18nConfigError::ReadError(_)));
+    }
 }

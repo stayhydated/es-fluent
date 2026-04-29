@@ -265,6 +265,21 @@ mod tests {
         }
     }
 
+    struct TestMessage;
+
+    impl FluentMessage for TestMessage {
+        fn to_fluent_string_with(
+            &self,
+            localize: &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> String,
+        ) -> String {
+            localize("embedded-test-module", "hello", None)
+        }
+    }
+
     static TEST_MODULE: TestModule = TestModule;
     static INVENTORY_ONCE: Once = Once::new();
 
@@ -316,5 +331,76 @@ mod tests {
             fr.localize_in_domain("embedded-test-module", "hello", None),
             Some("Hello".to_string())
         );
+    }
+
+    #[test]
+    fn embedded_i18n_facade_methods_delegate_to_manager_and_fallback_helpers() {
+        force_inventory_link();
+        let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))
+            .expect("embedded i18n should initialize");
+
+        assert!(std::ptr::eq(i18n.manager(), i18n.manager()));
+        assert_eq!(
+            i18n.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            i18n.localize_in_domain_or_id("embedded-test-module", "missing", None),
+            "missing"
+        );
+        assert_eq!(i18n.localize_or_id("missing", None), "missing");
+        assert_eq!(i18n.localize_message(&TestMessage), "Hello");
+        assert_eq!(i18n.localize_message_silent(&TestMessage), "Hello");
+        assert!(
+            i18n.select_language_strict(langid!("de")).is_err(),
+            "strict selection should reject unsupported locales"
+        );
+    }
+
+    #[test]
+    fn embedded_i18n_try_new_builds_context_before_language_selection() {
+        force_inventory_link();
+        let i18n = EmbeddedI18n::try_new().expect("embedded i18n should initialize");
+        let cloned = i18n.clone();
+
+        assert_eq!(i18n.localize("hello", None), None);
+        cloned
+            .select_language(langid!("fr"))
+            .expect("language selection should work after initialization");
+        assert_eq!(
+            i18n.localize_in_domain("embedded-test-module", "hello", None),
+            Some("Bonjour".to_string())
+        );
+    }
+
+    #[test]
+    fn embedded_init_error_display_and_source_match_error_kind() {
+        use es_fluent_manager_core::{ModuleDiscoveryError, ModuleRegistrationKind};
+        use std::error::Error;
+
+        let discovery = EmbeddedInitError::ModuleDiscovery(vec![
+            ModuleDiscoveryError::DuplicateModuleRegistration {
+                name: "app".to_string(),
+                domain: "app".to_string(),
+                kind: ModuleRegistrationKind::MetadataOnly,
+                count: 2,
+            },
+        ]);
+        assert!(
+            discovery
+                .to_string()
+                .contains("failed strict i18n module discovery")
+        );
+        assert!(discovery.source().is_none());
+
+        let selection = EmbeddedInitError::LanguageSelection(
+            LocalizationError::LanguageNotSupported(langid!("de")),
+        );
+        assert!(
+            selection
+                .to_string()
+                .contains("failed to select the requested language")
+        );
+        assert!(selection.source().is_some());
     }
 }

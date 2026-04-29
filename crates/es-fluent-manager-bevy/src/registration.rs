@@ -154,3 +154,53 @@ impl FluentTextRegistration for App {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::RefreshForLocale;
+    use es_fluent::{FluentMessage, FluentValue};
+    use std::collections::HashMap;
+    use unic_langid::{LanguageIdentifier, langid};
+
+    #[derive(Clone, Component)]
+    struct RefreshableMessage;
+
+    impl RefreshForLocale for RefreshableMessage {
+        fn refresh_for_locale(&mut self, _lang: &LanguageIdentifier) {}
+    }
+
+    impl FluentMessage for RefreshableMessage {
+        fn to_fluent_string_with(
+            &self,
+            localize: &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> String,
+        ) -> String {
+            localize("registration-test", "refreshable", None)
+        }
+    }
+
+    #[test]
+    fn register_from_locale_adds_text_systems_when_locale_refresh_already_exists() {
+        let mut app = App::new();
+        let mut message = RefreshableMessage;
+        let mut localize =
+            |_domain: &str, _id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
+                "unused".to_string()
+            };
+
+        message.refresh_for_locale(&langid!("en-US"));
+        assert_eq!(message.to_fluent_string_with(&mut localize), "unused");
+        assert!(mark_locale_refresh_registered::<RefreshableMessage>(
+            &mut app
+        ));
+        app.register_fluent_text_from_locale::<RefreshableMessage>();
+
+        let registered = app.world().resource::<RegisteredFluentTextTypes>();
+        assert_eq!(registered.text_system_count(), 1);
+        assert_eq!(registered.locale_refresh_system_count(), 1);
+    }
+}

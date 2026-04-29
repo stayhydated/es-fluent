@@ -94,3 +94,63 @@ impl std::error::Error for DioxusInitError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent_manager_core::ModuleDiscoveryError;
+    use std::error::Error;
+    use unic_langid::langid;
+
+    #[test]
+    fn module_discovery_errors_display_iterate_and_expose_first_source() {
+        let errors = ModuleDiscoveryErrors::from(vec![
+            ModuleDiscoveryError::InconsistentModuleMetadata {
+                name: "app".to_string(),
+                domain: "app".to_string(),
+            },
+            ModuleDiscoveryError::DuplicateModuleRegistration {
+                name: "admin".to_string(),
+                domain: "admin".to_string(),
+                kind: es_fluent_manager_core::ModuleRegistrationKind::MetadataOnly,
+                count: 2,
+            },
+        ]);
+
+        assert_eq!(errors.as_slice().len(), 2);
+        assert_eq!(errors.iter().count(), 2);
+        assert_eq!((&errors).into_iter().count(), 2);
+        assert!(
+            errors
+                .to_string()
+                .contains("failed to discover i18n modules")
+        );
+        assert!(errors.source().is_some());
+    }
+
+    #[test]
+    fn dioxus_init_error_display_and_source_follow_error_kind() {
+        let discovery = DioxusInitError::module_discovery(vec![
+            ModuleDiscoveryError::InconsistentModuleMetadata {
+                name: "app".to_string(),
+                domain: "app".to_string(),
+            },
+        ]);
+        assert!(discovery.to_string().contains("failed to discover"));
+        assert!(discovery.source().is_some());
+
+        let selection = DioxusInitError::language_selection(
+            LocalizationError::LanguageNotSupported(langid!("de")),
+        );
+        assert!(
+            selection
+                .to_string()
+                .contains("failed to select the requested language")
+        );
+        assert!(selection.source().is_some());
+
+        let missing = DioxusInitError::MissingContext;
+        assert_eq!(missing.to_string(), "missing Dioxus i18n provider");
+        assert!(missing.source().is_none());
+    }
+}

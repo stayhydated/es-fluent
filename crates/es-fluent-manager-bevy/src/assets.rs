@@ -423,3 +423,89 @@ impl I18nResource {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use unic_langid::langid;
+
+    fn resource(content: &str) -> Arc<FluentResource> {
+        Arc::new(FluentResource::try_new(content.to_string()).expect("valid FTL"))
+    }
+
+    #[test]
+    fn optional_asset_specs_do_not_block_language_readiness() {
+        let lang = langid!("en");
+        let mut assets = I18nAssets::new();
+        let spec = ModuleResourceSpec {
+            key: ResourceKey::new("optional"),
+            locale_relative_path: "optional.ftl".to_string(),
+            required: false,
+        };
+
+        assets.add_optional_asset_spec(lang.clone(), spec, Handle::default());
+
+        assert_eq!(assets.available_languages(), vec![lang.clone()]);
+        assert!(assets.is_language_loaded(&lang));
+        assert!(assets.get_language_resources(&lang).is_empty());
+    }
+
+    #[test]
+    fn inferred_optional_assets_register_available_languages() {
+        let lang = langid!("fr");
+        let mut assets = I18nAssets::new();
+
+        assets.add_optional_asset(lang.clone(), "app".to_string(), Handle::default());
+
+        assert_eq!(assets.available_languages(), vec![lang.clone()]);
+        assert!(assets.is_language_loaded(&lang));
+    }
+
+    #[test]
+    fn bundle_removal_can_preserve_or_clear_locale_resources() {
+        let lang = langid!("en");
+        let mut bundle = I18nBundle::default();
+        bundle.set_bundle(
+            lang.clone(),
+            Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()])),
+        );
+        bundle.set_locale_resources(lang.clone(), vec![resource("hello = Hello")]);
+
+        bundle.remove_bundle(&lang);
+        assert!(bundle.get(&lang).is_none());
+        assert_eq!(bundle.fallback_locale_resources(&lang).len(), 1);
+
+        bundle.remove(&lang);
+        assert!(bundle.fallback_locale_resources(&lang).is_empty());
+    }
+
+    #[test]
+    fn domain_bundle_removal_can_preserve_or_clear_locale_resources() {
+        let lang = langid!("en");
+        let mut domain_bundles = I18nDomainBundles::default();
+        domain_bundles.set_bundles(
+            lang.clone(),
+            HashMap::from([(
+                "app".to_string(),
+                Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()])),
+            )]),
+        );
+        domain_bundles.set_locale_resources(
+            lang.clone(),
+            HashMap::from([("app".to_string(), vec![resource("hello = Hello")])]),
+        );
+
+        domain_bundles.remove_bundles(&lang);
+        assert_eq!(
+            domain_bundles.fallback_locale_resources(&lang, "app").len(),
+            1
+        );
+
+        domain_bundles.remove(&lang);
+        assert!(
+            domain_bundles
+                .fallback_locale_resources(&lang, "app")
+                .is_empty()
+        );
+    }
+}

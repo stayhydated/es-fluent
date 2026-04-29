@@ -89,3 +89,114 @@ pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
     *params.last_current_bundle =
         Some((current_lang, current_resolved_lang, current_bundle_ptr_id));
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use es_fluent_manager_core::SyncFluentBundle;
+    use std::sync::Arc;
+    use unic_langid::langid;
+
+    #[derive(Default, Resource)]
+    struct ObservedSyncEvents {
+        locale_changed: Vec<LanguageIdentifier>,
+        redraw_count: usize,
+    }
+
+    fn bundle_for(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
+        Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()]))
+    }
+
+    fn observe_sync_events(
+        mut locale_changed_events: MessageReader<LocaleChangedEvent>,
+        mut redraw_events: MessageReader<RequestRedraw>,
+        mut observed: ResMut<ObservedSyncEvents>,
+    ) {
+        observed
+            .locale_changed
+            .extend(locale_changed_events.read().map(|event| event.0.clone()));
+        observed.redraw_count += redraw_events.read().count();
+    }
+
+    fn app_with_sync_systems(
+        i18n_bundle: I18nBundle,
+        i18n_domain_bundles: I18nDomainBundles,
+        i18n_resource: I18nResource,
+        active_language_id: ActiveLanguageId,
+        pending_language_change: PendingLanguageChange,
+    ) -> App {
+        let mut app = App::new();
+        app.add_message::<LocaleChangedEvent>()
+            .add_message::<RequestRedraw>()
+            .insert_resource(i18n_bundle)
+            .insert_resource(i18n_domain_bundles)
+            .insert_resource(i18n_resource)
+            .insert_resource(active_language_id)
+            .insert_resource(pending_language_change)
+            .insert_resource(ObservedSyncEvents::default())
+            .add_systems(Update, (sync_global_state, observe_sync_events).chain());
+        app
+    }
+
+    #[test]
+    fn current_bundle_id_tracks_present_bundle_identity() {
+        let lang = langid!("en");
+        let mut i18n_bundle = I18nBundle::default();
+        assert_eq!(current_bundle_id(&i18n_bundle, &lang), None);
+
+        let bundle = Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()]));
+        let expected_id = Arc::as_ptr(&bundle) as *const () as usize;
+        i18n_bundle.set_bundle(lang.clone(), bundle);
+
+        assert_eq!(current_bundle_id(&i18n_bundle, &lang), Some(expected_id));
+    }
+
+    #[test]
+    fn sync_global_state_emits_locale_changed_and_redraw_when_current_bundle_becomes_ready() {
+        let lang = langid!("en");
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.set_bundle(lang.clone(), bundle_for(&lang));
+
+        let mut app = app_with_sync_systems(
+            i18n_bundle,
+            I18nDomainBundles::default(),
+            I18nResource::new(lang.clone()),
+            ActiveLanguageId(lang.clone()),
+            PendingLanguageChange::default(),
+        );
+
+        app.update();
+
+        let observed = app.world().resource::<ObservedSyncEvents>();
+        assert_eq!(observed.locale_changed, vec![lang]);
+        assert_eq!(observed.redraw_count, 1);
+    }
+
+    #[test]
+    fn sync_global_state_publishes_pending_language_once_bundle_is_ready() {
+        let en = langid!("en");
+        let fr = langid!("fr");
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.set_bundle(fr.clone(), bundle_for(&fr));
+
+        let mut app = app_with_sync_systems(
+            i18n_bundle,
+            I18nDomainBundles::default(),
+            I18nResource::new(en.clone()),
+            ActiveLanguageId(en),
+            PendingLanguageChange(Some(crate::LanguageSelection::new(fr.clone(), fr.clone()))),
+        );
+
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<I18nResource>().active_language(),
+            &fr
+        );
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, fr);
+        assert!(app.world().resource::<PendingLanguageChange>().0.is_none());
+        let observed = app.world().resource::<ObservedSyncEvents>();
+        assert_eq!(observed.locale_changed, vec![fr]);
+        assert_eq!(observed.redraw_count, 1);
+    }
+}

@@ -92,6 +92,30 @@ fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<Strin
         .collect()
 }
 
+#[test]
+fn utf8_path_string_accepts_valid_paths() {
+    assert_eq!(
+        utf8_path_string(Path::new("target/es-fluent-runner"), "runner path").unwrap(),
+        "target/es-fluent-runner"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn utf8_path_string_rejects_non_utf8_paths() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let path = std::path::PathBuf::from(OsString::from_vec(vec![0xff]));
+    let error = utf8_path_string(&path, "runner path").unwrap_err();
+
+    assert!(
+        error
+            .to_string()
+            .contains("runner path must be valid UTF-8")
+    );
+}
+
 fn ensure_runner_dirs(runner: &MonolithicRunner<'_>) {
     fs::create_dir_all(runner.binary_path.parent().expect("binary parent"))
         .expect("create binary dir");

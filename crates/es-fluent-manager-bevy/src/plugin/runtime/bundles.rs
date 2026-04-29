@@ -221,3 +221,260 @@ pub(crate) fn build_fluent_bundles(
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bevy::asset::Assets;
+    use es_fluent_manager_core::ModuleResourceSpec;
+    use unic_langid::langid;
+
+    fn resource(source: &str) -> Arc<FluentResource> {
+        Arc::new(FluentResource::try_new(source.to_string()).expect("valid FTL"))
+    }
+
+    fn spec(key: &str, required: bool) -> ModuleResourceSpec {
+        ModuleResourceSpec {
+            key: ResourceKey::new(key),
+            locale_relative_path: format!("{key}.ftl"),
+            required,
+        }
+    }
+
+    fn empty_bundle(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
+        Arc::new(SyncFluentBundle::new_concurrent(locale_candidates(lang)))
+    }
+
+    #[test]
+    fn build_bundle_caches_creates_default_and_domain_scoped_bundles() {
+        let lang = langid!("en");
+        let (bundle, accepted_resources, domain_bundles, domain_locale_resources) =
+            build_bundle_caches(
+                &lang,
+                vec![
+                    (ResourceKey::new("app"), resource("app-title = App")),
+                    (ResourceKey::new("admin"), resource("admin-title = Admin")),
+                ],
+            )
+            .expect("valid resources should build caches");
+
+        assert_eq!(accepted_resources.len(), 2);
+        assert!(bundle.get_message("app-title").is_some());
+        assert!(bundle.get_message("admin-title").is_some());
+        assert!(domain_bundles["app"].get_message("app-title").is_some());
+        assert!(domain_bundles["app"].get_message("admin-title").is_none());
+        assert_eq!(domain_locale_resources["app"].len(), 1);
+        assert_eq!(domain_locale_resources["admin"].len(), 1);
+    }
+
+    #[test]
+    fn build_bundle_from_resources_reports_duplicate_message_ids() {
+        let diagnostics = match build_bundle_from_resources(
+            &langid!("en"),
+            vec![
+                (ResourceKey::new("app"), resource("shared = First")),
+                (ResourceKey::new("admin"), resource("shared = Second")),
+            ],
+        ) {
+            Ok(_) => panic!("duplicate message IDs should reject the cache rebuild"),
+            Err(diagnostics) => diagnostics,
+        };
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|message| message.contains("resource 'admin'"))
+        );
+    }
+
+    #[test]
+    fn build_domain_bundles_reports_domain_context_for_duplicate_message_ids() {
+        let diagnostics = match build_domain_bundles(
+            &langid!("en"),
+            &[
+                (ResourceKey::new("app/main"), resource("shared = First")),
+                (ResourceKey::new("app/extra"), resource("shared = Second")),
+            ],
+        ) {
+            Ok(_) => panic!("duplicate domain messages should reject the domain cache"),
+            Err(diagnostics) => diagnostics,
+        };
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|message| message.contains("domain 'app'"))
+        );
+    }
+
+    #[test]
+    fn build_fluent_bundles_rebuilds_added_i18n_assets_without_explicit_events() {
+        let lang = langid!("en");
+        let resource_spec = spec("app", true);
+        let mut i18n_assets = I18nAssets::new();
+        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), Handle::default());
+        i18n_assets
+            .loaded_resources
+            .insert((lang.clone(), resource_spec.key), resource("hello = Hello"));
+
+        let mut app = App::new();
+        app.add_message::<AssetEvent<FtlAsset>>()
+            .add_message::<AssetLoadFailedEvent<FtlAsset>>()
+            .insert_resource(i18n_assets)
+            .insert_resource(I18nBundle::default())
+            .insert_resource(I18nDomainBundles::default())
+            .insert_resource(BundleBuildFailures::default())
+            .add_systems(Update, build_fluent_bundles);
+
+        app.update();
+
+        assert!(app.world().resource::<I18nBundle>().get(&lang).is_some());
+        assert!(
+            app.world()
+                .resource::<I18nDomainBundles>()
+                .bundles
+                .get(&lang)
+                .and_then(|bundles| bundles.get("app"))
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn build_fluent_bundles_rebuilds_languages_from_asset_events() {
+        let lang = langid!("en");
+        let resource_spec = spec("app", true);
+        let mut ftl_assets = Assets::<FtlAsset>::default();
+        let handle = ftl_assets.add(FtlAsset {
+            content: "hello = Hello".to_string(),
+        });
+        let mut i18n_assets = I18nAssets::new();
+        i18n_assets.add_asset_spec(lang.clone(), resource_spec.clone(), handle.clone());
+        i18n_assets.loaded_resources.insert(
+            (lang.clone(), resource_spec.key.clone()),
+            resource("hello = Hello"),
+        );
+
+        let mut app = App::new();
+        app.add_message::<AssetEvent<FtlAsset>>()
+            .add_message::<AssetLoadFailedEvent<FtlAsset>>()
+            .insert_resource(i18n_assets)
+            .insert_resource(I18nBundle::default())
+            .insert_resource(I18nDomainBundles::default())
+            .insert_resource(BundleBuildFailures::default())
+            .add_systems(Update, build_fluent_bundles);
+
+        app.update();
+        app.world_mut()
+            .resource_mut::<I18nBundle>()
+            .remove_bundle(&lang);
+        app.world_mut()
+            .write_message(AssetEvent::LoadedWithDependencies { id: handle.id() });
+        app.update();
+
+        assert!(app.world().resource::<I18nBundle>().get(&lang).is_some());
+    }
+
+    #[test]
+    fn rebuild_bundle_for_language_removes_empty_language_cache() {
+        let lang = langid!("en");
+        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_domain_bundles = I18nDomainBundles::default();
+        let mut bundle_build_failures = BundleBuildFailures::default();
+        let i18n_assets = I18nAssets::new();
+
+        i18n_bundle.set_bundle(lang.clone(), empty_bundle(&lang));
+        i18n_bundle.set_locale_resources(lang.clone(), vec![resource("old = Old")]);
+        i18n_domain_bundles.set_bundles(
+            lang.clone(),
+            HashMap::from([("app".to_string(), empty_bundle(&lang))]),
+        );
+        i18n_domain_bundles.set_locale_resources(
+            lang.clone(),
+            HashMap::from([("app".to_string(), vec![resource("old = Old")])]),
+        );
+        bundle_build_failures
+            .0
+            .insert(lang.clone(), vec!["old failure".to_string()]);
+
+        rebuild_bundle_for_language(
+            &mut i18n_bundle,
+            &mut i18n_domain_bundles,
+            &mut bundle_build_failures,
+            &i18n_assets,
+            &lang,
+        );
+
+        assert!(i18n_bundle.get(&lang).is_none());
+        assert!(!i18n_bundle.locale_resources.contains_key(&lang));
+        assert!(!i18n_domain_bundles.bundles.contains_key(&lang));
+        assert!(!i18n_domain_bundles.locale_resources.contains_key(&lang));
+        assert!(!bundle_build_failures.0.contains_key(&lang));
+    }
+
+    #[test]
+    fn rebuild_bundle_for_language_stores_partial_resources_without_ready_bundle() {
+        let lang = langid!("en");
+        let optional_spec = spec("app", false);
+        let required_spec = spec("admin", true);
+        let mut i18n_assets = I18nAssets::new();
+        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_domain_bundles = I18nDomainBundles::default();
+        let mut bundle_build_failures = BundleBuildFailures::default();
+
+        i18n_assets.add_optional_asset_spec(lang.clone(), optional_spec.clone(), Handle::default());
+        i18n_assets.add_asset_spec(lang.clone(), required_spec, Handle::default());
+        i18n_assets.loaded_resources.insert(
+            (lang.clone(), optional_spec.key.clone()),
+            resource("app-title = App"),
+        );
+
+        rebuild_bundle_for_language(
+            &mut i18n_bundle,
+            &mut i18n_domain_bundles,
+            &mut bundle_build_failures,
+            &i18n_assets,
+            &lang,
+        );
+
+        assert!(i18n_bundle.get(&lang).is_none());
+        assert_eq!(i18n_bundle.locale_resources[&lang].len(), 1);
+        assert_eq!(i18n_domain_bundles.locale_resources[&lang]["app"].len(), 1);
+        assert!(!bundle_build_failures.0.contains_key(&lang));
+    }
+
+    #[test]
+    fn rebuild_bundle_for_language_keeps_previous_cache_when_new_bundle_fails() {
+        let lang = langid!("en");
+        let app_spec = spec("app", true);
+        let admin_spec = spec("admin", true);
+        let mut i18n_assets = I18nAssets::new();
+        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_domain_bundles = I18nDomainBundles::default();
+        let mut bundle_build_failures = BundleBuildFailures::default();
+        let old_bundle = empty_bundle(&lang);
+
+        i18n_bundle.set_bundle(lang.clone(), old_bundle.clone());
+        i18n_assets.add_asset_spec(lang.clone(), app_spec.clone(), Handle::default());
+        i18n_assets.add_asset_spec(lang.clone(), admin_spec.clone(), Handle::default());
+        i18n_assets
+            .loaded_resources
+            .insert((lang.clone(), app_spec.key), resource("shared = First"));
+        i18n_assets
+            .loaded_resources
+            .insert((lang.clone(), admin_spec.key), resource("shared = Second"));
+
+        rebuild_bundle_for_language(
+            &mut i18n_bundle,
+            &mut i18n_domain_bundles,
+            &mut bundle_build_failures,
+            &i18n_assets,
+            &lang,
+        );
+
+        assert!(Arc::ptr_eq(
+            i18n_bundle.get(&lang).expect("old bundle"),
+            &old_bundle
+        ));
+        assert!(bundle_build_failures.0.contains_key(&lang));
+    }
+}

@@ -29,3 +29,25 @@ pub fn terminal_links_enabled() -> bool {
 
 #[cfg(test)]
 pub(crate) mod test_fixtures;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn e2e_mode_facade_delegates_to_ui_state() {
+        set_e2e_mode(false);
+        assert!(!is_e2e());
+
+        set_e2e_mode(true);
+        assert!(is_e2e());
+
+        set_e2e_mode(false);
+        assert!(!is_e2e());
+    }
+
+    #[test]
+    fn terminal_links_facade_delegates_to_ui_state() {
+        let _ = terminal_links_enabled();
+    }
+}

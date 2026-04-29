@@ -39,6 +39,46 @@ impl FluentMessage for RefreshableMessage {
     }
 }
 
+struct DomainMessage(&'static str);
+
+impl FluentMessage for DomainMessage {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'a> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> String,
+    ) -> String {
+        localize("app", self.0, None)
+    }
+}
+
+#[derive(Default, Resource)]
+struct CapturedBevyI18n {
+    active_language: Option<LanguageIdentifier>,
+    resolved_language: Option<LanguageIdentifier>,
+    bundle_changed: bool,
+    localized: Option<String>,
+    fallback_id: String,
+    domain_localized: Option<String>,
+    domain_fallback_id: String,
+    message: String,
+    silent_message: String,
+}
+
+fn capture_bevy_i18n(i18n: BevyI18n, mut captured: ResMut<CapturedBevyI18n>) {
+    captured.active_language = Some(i18n.active_language().clone());
+    captured.resolved_language = Some(i18n.resolved_language().clone());
+    captured.bundle_changed = i18n.is_bundle_changed();
+    captured.localized = i18n.localize("hello", None);
+    captured.fallback_id = i18n.localize_or_id("missing", None);
+    captured.domain_localized = i18n.localize_in_domain("app", "hello", None);
+    captured.domain_fallback_id = i18n.localize_in_domain_or_id("app", "missing", None);
+    captured.message = i18n.localize_message(&DomainMessage("hello"));
+    captured.silent_message = i18n.localize_message_silent(&DomainMessage("missing"));
+}
+
 #[test]
 fn primary_language_extracts_language_subtag() {
     assert_eq!(primary_language(&langid!("en-US")), "en");
@@ -263,6 +303,52 @@ fn i18n_resource_prefers_partial_requested_locale_resources_over_resolved_parent
         i18n_resource.localize("shared", None, &i18n_bundle),
         Some("Shared fallback".to_string())
     );
+}
+
+#[test]
+fn bevy_i18n_system_param_exposes_context_bound_localization() {
+    let lang = langid!("en");
+    let resource =
+        Arc::new(FluentResource::try_new("hello = Hello Bevy".to_string()).expect("valid ftl"));
+    let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
+    bundle.add_resource(resource.clone()).expect("add resource");
+    let mut domain_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
+    domain_bundle
+        .add_resource(resource.clone())
+        .expect("add domain resource");
+
+    let mut i18n_bundle = I18nBundle::default();
+    i18n_bundle.set_bundle(lang.clone(), Arc::new(bundle));
+    i18n_bundle.set_locale_resources(lang.clone(), vec![resource.clone()]);
+    let mut i18n_domain_bundles = I18nDomainBundles::default();
+    i18n_domain_bundles.set_bundles(
+        lang.clone(),
+        HashMap::from([("app".to_string(), Arc::new(domain_bundle))]),
+    );
+    i18n_domain_bundles.set_locale_resources(
+        lang.clone(),
+        HashMap::from([("app".to_string(), vec![resource])]),
+    );
+
+    let mut app = App::new();
+    app.insert_resource(I18nResource::new(lang.clone()));
+    app.insert_resource(i18n_bundle);
+    app.insert_resource(i18n_domain_bundles);
+    app.insert_resource(CapturedBevyI18n::default());
+    app.add_systems(Update, capture_bevy_i18n);
+
+    app.update();
+
+    let captured = app.world().resource::<CapturedBevyI18n>();
+    assert_eq!(captured.active_language.as_ref(), Some(&lang));
+    assert_eq!(captured.resolved_language.as_ref(), Some(&lang));
+    assert!(captured.bundle_changed);
+    assert_eq!(captured.localized, Some("Hello Bevy".to_string()));
+    assert_eq!(captured.fallback_id, "missing");
+    assert_eq!(captured.domain_localized, Some("Hello Bevy".to_string()));
+    assert_eq!(captured.domain_fallback_id, "missing");
+    assert_eq!(captured.message, "Hello Bevy");
+    assert_eq!(captured.silent_message, "missing");
 }
 
 #[test]

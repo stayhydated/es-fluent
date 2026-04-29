@@ -1,6 +1,6 @@
 use super::events::{build_path_to_crate, process_file_events};
 use super::generation::{compute_watch_inputs_hash, spawn_generation};
-use super::{run_watch_loop_with_poll, watch_all};
+use super::{run_watch_loop_with_file_rx, run_watch_loop_with_poll, watch_all};
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
 use crate::generation::cache::compute_crate_inputs_hash;
 use crate::test_fixtures::{
@@ -242,6 +242,10 @@ fn quit_after_three_polls(_timeout: Duration) -> std::io::Result<bool> {
     Ok(count >= 2)
 }
 
+fn never_quit(_timeout: Duration) -> std::io::Result<bool> {
+    Ok(false)
+}
+
 #[test]
 fn run_watch_loop_with_poll_handles_non_library_crates() {
     let crate_without_lib = test_crate("no-lib", false);
@@ -278,6 +282,60 @@ fn run_watch_loop_with_poll_processes_initial_generation_for_valid_crate() {
         &FluentParseMode::default(),
         quit_after_three_polls,
         Some(10),
+    );
+
+    assert!(result.is_ok());
+}
+
+#[test]
+fn run_watch_loop_with_file_rx_records_watcher_errors() {
+    let crate_without_lib = test_crate("no-lib", false);
+    let workspace = WorkspaceInfo {
+        root_dir: PathBuf::from("/tmp/ws"),
+        target_dir: PathBuf::from("/tmp/ws/target"),
+        crates: vec![crate_without_lib.clone()],
+    };
+    let (tx, rx) = unbounded();
+    tx.send(Err(vec![notify::Error::generic("watch failed")]))
+        .expect("send watcher error");
+    drop(tx);
+
+    let backend = TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend).expect("create terminal");
+    let result = run_watch_loop_with_file_rx(
+        &mut terminal,
+        &[crate_without_lib],
+        &workspace,
+        &FluentParseMode::default(),
+        rx,
+        never_quit,
+        Some(2),
+    );
+
+    assert!(result.is_ok());
+}
+
+#[test]
+fn run_watch_loop_with_file_rx_exits_when_file_channel_disconnects() {
+    let crate_without_lib = test_crate("no-lib", false);
+    let workspace = WorkspaceInfo {
+        root_dir: PathBuf::from("/tmp/ws"),
+        target_dir: PathBuf::from("/tmp/ws/target"),
+        crates: vec![crate_without_lib.clone()],
+    };
+    let (tx, rx) = unbounded();
+    drop(tx);
+
+    let backend = TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend).expect("create terminal");
+    let result = run_watch_loop_with_file_rx(
+        &mut terminal,
+        &[crate_without_lib],
+        &workspace,
+        &FluentParseMode::default(),
+        rx,
+        never_quit,
+        Some(2),
     );
 
     assert!(result.is_ok());
