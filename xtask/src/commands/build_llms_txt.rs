@@ -2,8 +2,8 @@ use std::fs;
 use std::path::Path;
 
 use anyhow::Context;
-use mdbook_driver::book::BookItem;
 use mdbook_driver::MDBook;
+use mdbook_driver::book::BookItem;
 use path_slash::PathExt as _;
 
 use crate::util::workspace_root;

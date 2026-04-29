@@ -1,6 +1,6 @@
 use std::{fs, path::Path, process::Command};
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 
 use crate::util::workspace_root;
 

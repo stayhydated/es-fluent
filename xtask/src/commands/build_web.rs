@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use walkdir::WalkDir;
 
 use crate::util::workspace_root;
