@@ -1,7 +1,7 @@
 use crate::{DioxusInitError, ManagedI18n, ModuleDiscoveryErrors};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
-use es_fluent::{FluentMessage, FluentValue};
+use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
 use es_fluent_manager_core::{DiscoveredRuntimeI18nModules, FluentManager, LocalizationError};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -121,6 +121,25 @@ impl SsrI18n {
 
     pub fn render_element(&self, element: Element) -> String {
         dioxus_ssr::render_element(element)
+    }
+}
+
+impl FluentLocalizer for SsrI18n {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.managed.localize(id, args)
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.managed.localize_in_domain(domain, id, args)
     }
 }
 

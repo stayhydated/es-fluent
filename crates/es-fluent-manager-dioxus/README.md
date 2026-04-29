@@ -28,7 +28,7 @@ The crate has no default runtime feature. `define_i18n_module!` is always re-exp
 
 ```ignore
 use dioxus::prelude::*;
-use es_fluent::EsFluent;
+use es_fluent::{EsFluent, EsFluentThis, ThisFtl as _};
 use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
 use unic_langid::langid;
 
@@ -43,8 +43,9 @@ fn app() -> Element {
     }
 }
 
-#[derive(Clone, Copy, EsFluent)]
+#[derive(Clone, Copy, EsFluent, EsFluentThis)]
 #[fluent(namespace = "ui")]
+#[fluent_this(origin)]
 enum UiMessage {
     Hello,
 }
@@ -56,6 +57,7 @@ fn LocaleButton() -> Element {
         Err(error) => return rsx! { "Failed to initialize i18n: {error}" },
     };
     let label = i18n.localize_message(&UiMessage::Hello);
+    let title = UiMessage::this_ftl(&i18n);
 
     rsx! {
         button {
@@ -64,7 +66,7 @@ fn LocaleButton() -> Element {
                     eprintln!("locale switch failed: {error}");
                 }
             },
-            "{label}"
+            "{title}: {label}"
         }
     }
 }
@@ -74,6 +76,7 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 
 - `localize_message(...)` renders `#[derive(EsFluent)]` messages through the Dioxus context and is the preferred typed lookup path.
 - `localize_message_silent(...)` provides the same typed lookup without missing-message warnings.
+- `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentThis)]` values can call `MyType::this_ftl(&i18n)` in client components.
 - `localize(...)` searches runtime localizers in discovery order and returns the first matching string ID; use it for simple single-domain apps or intentional first-match lookup.
 - `localize_in_domain(...)` returns `Option<String>` for domain-scoped string IDs and avoids cross-module ID collisions.
 - `localize_or_id(...)` and `localize_in_domain_or_id(...)` are explicit fallback helpers for UIs that intentionally render message IDs on misses.
@@ -94,20 +97,30 @@ Dioxus localizes through explicit component or request context. Keeping lookup c
 
 ```ignore
 use dioxus::prelude::*;
+use es_fluent::{EsFluent, EsFluentThis, ThisFtl as _};
 use es_fluent_manager_dioxus::{ManagedI18n, ssr::SsrI18nRuntime};
 use unic_langid::langid;
 
-fn app(i18n: ManagedI18n) -> Element {
+#[derive(Clone, Copy, EsFluent, EsFluentThis)]
+#[fluent_this(origin)]
+enum SiteMessage {
+    Title,
+}
+
+#[component]
+fn App(i18n: ManagedI18n) -> Element {
     let title = i18n.localize_message(&SiteMessage::Title);
-    rsx! { div { "{title}" } }
+    let heading = SiteMessage::this_ftl(&i18n);
+
+    rsx! { div { "{heading}: {title}" } }
 }
 
 fn render() -> Result<String, Box<dyn std::error::Error>> {
     let runtime = SsrI18nRuntime::new();
     let i18n = runtime.request(langid!("en"))?;
     let mut dom = VirtualDom::new_with_props(
-        app,
-        appProps {
+        App,
+        AppProps {
             i18n: i18n.managed().clone(),
         },
     );
@@ -118,6 +131,6 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches validated module discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
-SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`.
+SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::this_ftl(&i18n)`.
 
 Executable Dioxus documentation lives in `examples/dioxus-client-example` and `examples/dioxus-ssr-example` because the client and SSR runtimes are feature-split and validated separately in CI.

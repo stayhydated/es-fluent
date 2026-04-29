@@ -15,8 +15,8 @@ use syn::{Data, DeriveInput, parse_macro_input};
 use crate::macros::ir::GeneratedUnitEnumVariant;
 use crate::macros::utils::{
     GeneratedUnitEnumInput, emit_default_or_keyed_items, emit_generated_unit_enum,
-    inherited_fluent_namespace, keyed_variant_idents_or_abort, namespace_rule_tokens,
-    preferred_namespace,
+    inherited_fluent_domain, inherited_fluent_namespace, keyed_variant_idents_or_abort,
+    namespace_rule_tokens, preferred_namespace,
 };
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -27,6 +27,10 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         Ok(namespace) => namespace,
         Err(err) => return err.write_errors().into(),
     };
+    let fluent_domain = match inherited_fluent_domain(&input) {
+        Ok(domain) => domain,
+        Err(err) => return err.write_errors().into(),
+    };
 
     let tokens = match &input.data {
         Data::Struct(_) => {
@@ -35,7 +39,12 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            process_struct(&opts, this_opts.as_ref(), fluent_namespace.as_ref())
+            process_struct(
+                &opts,
+                this_opts.as_ref(),
+                fluent_namespace.as_ref(),
+                fluent_domain.as_deref(),
+            )
         },
         Data::Enum(_) => {
             let opts = match EnumVariantsOpts::from_derive_input(&input) {
@@ -43,7 +52,12 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 Err(err) => return err.write_errors().into(),
             };
 
-            process_enum(&opts, this_opts.as_ref(), fluent_namespace.as_ref())
+            process_enum(
+                &opts,
+                this_opts.as_ref(),
+                fluent_namespace.as_ref(),
+                fluent_domain.as_deref(),
+            )
         },
         Data::Union(_) => panic!("EsFluentVariants cannot be used on unions"),
     };
@@ -67,9 +81,16 @@ pub fn process_struct(
     opts: &StructVariantsOpts,
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceRule>,
+    fluent_domain: Option<&str>,
 ) -> TokenStream {
     let variant_seeds = build_struct_variant_seeds(opts);
-    emit_variants_output(opts, &variant_seeds, this_opts, fluent_namespace)
+    emit_variants_output(
+        opts,
+        &variant_seeds,
+        this_opts,
+        fluent_namespace,
+        fluent_domain,
+    )
 }
 
 #[derive(Clone)]
@@ -100,6 +121,7 @@ fn emit_variants_output(
     variant_seeds: &[GeneratedVariantSeed],
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceRule>,
+    fluent_domain: Option<&str>,
 ) -> TokenStream {
     if variant_seeds.is_empty() {
         return quote! {};
@@ -124,6 +146,7 @@ fn emit_variants_output(
             ident,
             origin_ident,
             key_name,
+            domain_override: fluent_domain,
             derives: &derives,
             variants: &variant_entries,
             namespace_expr: namespace_expr.clone(),
@@ -153,9 +176,16 @@ pub fn process_enum(
     opts: &EnumVariantsOpts,
     this_opts: Option<&ThisOpts>,
     fluent_namespace: Option<&NamespaceRule>,
+    fluent_domain: Option<&str>,
 ) -> TokenStream {
     let variant_seeds = build_enum_variant_seeds(opts);
-    emit_variants_output(opts, &variant_seeds, this_opts, fluent_namespace)
+    emit_variants_output(
+        opts,
+        &variant_seeds,
+        this_opts,
+        fluent_namespace,
+        fluent_domain,
+    )
 }
 
 fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed> {
@@ -176,7 +206,7 @@ fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::{process_enum, process_struct};
-    use crate::macros::utils::inherited_fluent_namespace;
+    use crate::macros::utils::{inherited_fluent_domain, inherited_fluent_namespace};
     use crate::snapshot_support::pretty_file_tokens;
     use darling::FromDeriveInput as _;
     use es_fluent_derive_core::options::{
@@ -204,6 +234,7 @@ mod tests {
             &opts,
             this_opts.as_ref(),
             fluent_namespace.as_ref(),
+            None,
         ));
         assert_snapshot!("process_struct_emits_keyed_generated_enums", tokens);
     }
@@ -227,8 +258,46 @@ mod tests {
             &opts,
             this_opts.as_ref(),
             fluent_namespace.as_ref(),
+            None,
         ));
         assert_snapshot!("process_enum_emits_variants_this_registration", tokens);
+    }
+
+    #[test]
+    fn process_enum_uses_parent_domain_for_generated_variants_and_this() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(domain = "es-fluent-lang", resource = "es-fluent-lang", namespace = "languages")]
+            #[fluent_this(variants)]
+            enum Language {
+                English,
+                French,
+            }
+        };
+
+        let opts = EnumVariantsOpts::from_derive_input(&input).expect("EnumVariantsOpts");
+        let this_opts = ThisOpts::from_derive_input(&input).ok();
+        let fluent_namespace = inherited_fluent_namespace(&input).expect("parent namespace");
+        let fluent_domain = inherited_fluent_domain(&input).expect("parent domain");
+
+        let tokens = pretty_file_tokens(process_enum(
+            &opts,
+            this_opts.as_ref(),
+            fluent_namespace.as_ref(),
+            fluent_domain.as_deref(),
+        ));
+
+        assert!(
+            tokens.contains("localize(\"es-fluent-lang\", \"language_variants-English\", None)")
+        );
+        assert!(
+            tokens.contains("localize(\"es-fluent-lang\", \"language_variants-French\", None)")
+        );
+        assert!(tokens.contains(
+            "::es_fluent::__private::localize_this(\n            localizer,\n            \"es-fluent-lang\",\n            \"language_variants_this\","
+        ));
+        assert!(
+            !tokens.contains("localize(env!(\"CARGO_PKG_NAME\"), \"language_variants-English\"")
+        );
     }
 
     #[test]
@@ -250,6 +319,7 @@ mod tests {
             &opts,
             this_opts.as_ref(),
             fluent_namespace.as_ref(),
+            None,
         ));
         assert_snapshot!(
             "process_variants_prefers_parent_namespace_over_variants_and_this_namespaces",

@@ -81,11 +81,15 @@ For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:
 
 ```rs
+use es_fluent::ThisFtl as _;
 use es_fluent_manager_bevy::BevyI18n;
 
 fn update_title(i18n: BevyI18n) {
     let title = i18n.localize_message(&UiMessage::Settings);
+    // `SettingsPanel` is any type that derives `EsFluentThis`.
+    let section_title = SettingsPanel::this_ftl(&i18n);
     // apply `title` to your Bevy UI, window, or gameplay state
+    // use `section_title` for an `EsFluentThis` type label
 }
 ```
 

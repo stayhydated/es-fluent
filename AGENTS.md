@@ -71,6 +71,9 @@ Additional rules:
 - User-facing documentation should be example-first.
 - Prefer a Rust snippet over prose-only explanations when showing behavior changes.
 - `examples/readme` is the canonical source of truth for usage examples.
+- After making changes, run the smallest relevant validation for the affected
+  crate, docs, example, or web surface before handoff. If validation is skipped,
+  document why and what remains unvalidated.
 
 ## Workspace map
 

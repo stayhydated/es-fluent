@@ -107,6 +107,7 @@ crate::__inventory::submit!(&PARTIAL_TEST_MODULE as &dyn I18nModuleRegistration)
 
 struct TestMessage;
 struct MissingMessage;
+struct TestThisMessage;
 
 impl es_fluent::FluentMessage for TestMessage {
     fn to_fluent_string_with(
@@ -131,6 +132,17 @@ impl es_fluent::FluentMessage for MissingMessage {
         ) -> String,
     ) -> String {
         localize("dioxus-test-module", "missing", None)
+    }
+}
+
+impl es_fluent::ThisFtl for TestThisMessage {
+    fn this_ftl<L: es_fluent::FluentLocalizer + ?Sized>(localizer: &L) -> String {
+        es_fluent::FluentLocalizerExt::localize_in_domain_or_id(
+            localizer,
+            "dioxus-test-module",
+            "hello",
+            None,
+        )
     }
 }
 
@@ -266,6 +278,10 @@ fn managed_i18n_fluent_localizer_impl_delegates_to_manager() {
         localizer.localize_in_domain("dioxus-test-module", "hello", None),
         Some("Hello".to_string())
     );
+    assert_eq!(
+        <TestThisMessage as es_fluent::ThisFtl>::this_ftl(&i18n),
+        "Hello"
+    );
 }
 
 #[cfg(feature = "ssr")]
@@ -363,6 +379,10 @@ mod ssr_tests {
         );
         assert_eq!(i18n.localize_message(&TestMessage), "Hello");
         assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+        assert_eq!(
+            <TestThisMessage as es_fluent::ThisFtl>::this_ftl(&i18n),
+            "Hello"
+        );
 
         i18n.select_language(langid!("fr"))
             .expect("best-effort language switch should succeed");
@@ -733,6 +753,15 @@ mod client_tests {
         );
         assert_eq!(i18n.localize_message(&TestMessage), "Hello");
         assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+        let localizer: &dyn es_fluent::FluentLocalizer = &i18n;
+        assert_eq!(
+            localizer.localize_in_domain("dioxus-test-module", "hello", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            <TestThisMessage as es_fluent::ThisFtl>::this_ftl(&i18n),
+            "Hello"
+        );
 
         i18n.select_language_strict(langid!("en-US"))
             .expect("strict selection should succeed for fully supported locale");

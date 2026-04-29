@@ -29,11 +29,12 @@ es_fluent_manager_embedded::define_i18n_module!();
 In your application entry point:
 
 ```rs
-use es_fluent::EsFluent;
+use es_fluent::{EsFluent, EsFluentThis};
 use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
-#[derive(EsFluent)]
+#[derive(EsFluent, EsFluentThis)]
+#[fluent_this(origin)]
 enum MyMessage {
     Hello { name: String },
 }
@@ -46,6 +47,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+```
+
+For types that derive `EsFluentThis`, pass the same explicit context to
+`this_ftl(...)`:
+
+```rs
+use es_fluent::ThisFtl as _;
+
+let title = MyMessage::this_ftl(&i18n);
 ```
 
 If you prefer to initialize first and decide the locale later, create the
@@ -64,6 +74,11 @@ keep the previous ready locale active.
 
 Use `select_language_strict(...)` when every discovered module must support the
 requested locale for the switch to succeed.
+
+`EmbeddedI18n` clones are cheap shared handles. Calling
+`select_language(...)` through one clone changes the active language observed
+by the other clones. Construct a separate `EmbeddedI18n` value when you need
+isolated language state.
 
 For direct string-ID lookup, `EmbeddedI18n` exposes `localize(...)`,
 `localize_in_domain(...)`, `localize_or_id(...)`, and

@@ -3,7 +3,7 @@ use dioxus_core::{Element, VNode, try_consume_context, use_hook};
 use dioxus_core_macro::{Props, component};
 use dioxus_hooks::{try_use_context, use_context_provider};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
-use es_fluent::{FluentMessage, FluentValue};
+use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
 use es_fluent_manager_core::LocalizationError;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -179,6 +179,27 @@ impl DioxusI18n {
     {
         let _ = self.context.current();
         self.managed().localize_message_silent(message)
+    }
+}
+
+impl FluentLocalizer for DioxusI18n {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        let _ = self.context.current();
+        self.managed().localize(id, args)
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        let _ = self.context.current();
+        self.managed().localize_in_domain(domain, id, args)
     }
 }
 

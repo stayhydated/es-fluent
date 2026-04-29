@@ -3,12 +3,14 @@
 use es_fluent::meta::TypeKind;
 use es_fluent::registry::NamespaceRule;
 use es_fluent::{
-    EsFluent, EsFluentThis, EsFluentVariants, FluentLocalizer, FluentValue, ThisFtl as _,
+    EsFluent, EsFluentThis, EsFluentVariants, FluentLocalizer, FluentLocalizerExt as _,
+    FluentValue, ThisFtl as _,
 };
 use std::borrow::Cow;
 use std::collections::HashMap;
 
 struct IdLocalizer;
+struct DomainEchoLocalizer;
 
 impl FluentLocalizer for IdLocalizer {
     fn localize<'a>(
@@ -26,6 +28,25 @@ impl FluentLocalizer for IdLocalizer {
         _args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         Some(id.to_string())
+    }
+}
+
+impl FluentLocalizer for DomainEchoLocalizer {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        Some(format!("default:{id}"))
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        Some(format!("{domain}:{id}"))
     }
 }
 
@@ -77,6 +98,18 @@ struct TestVariantsNamespace {
 #[allow(dead_code)]
 struct TestSharedNamespace {
     field: String,
+}
+
+#[derive(EsFluent, EsFluentThis, EsFluentVariants)]
+#[fluent(
+    domain = "custom-domain",
+    resource = "custom-domain",
+    namespace = "custom_ns"
+)]
+#[fluent_this(origin, variants)]
+#[allow(dead_code)]
+enum TestCustomDomain {
+    Ready,
 }
 
 #[test]
@@ -172,5 +205,25 @@ fn test_derive_this_and_variants_share_fluent_namespace() {
         infos
             .iter()
             .all(|info| info.namespace == Some(NamespaceRule::Literal(Cow::Borrowed("shared_ns"))))
+    );
+}
+
+#[test]
+fn test_derive_this_and_variants_share_fluent_domain() {
+    assert_eq!(
+        TestCustomDomain::this_ftl(&DomainEchoLocalizer),
+        "custom-domain:test_custom_domain_this"
+    );
+    assert_eq!(
+        TestCustomDomainVariants::this_ftl(&DomainEchoLocalizer),
+        "custom-domain:test_custom_domain_variants_this"
+    );
+    assert_eq!(
+        DomainEchoLocalizer.localize_message(&TestCustomDomain::Ready),
+        "custom-domain:custom-domain-Ready"
+    );
+    assert_eq!(
+        DomainEchoLocalizer.localize_message(&TestCustomDomainVariants::Ready),
+        "custom-domain:test_custom_domain_variants-Ready"
     );
 }

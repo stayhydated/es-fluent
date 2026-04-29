@@ -91,11 +91,15 @@ pub(crate) struct GeneratedUnitEnumVariant {
 }
 
 impl GeneratedUnitEnumVariant {
-    pub(crate) fn localize_with_match_arm(&self) -> TokenStream {
+    pub(crate) fn localize_with_match_arm(&self, domain_override: Option<&str>) -> TokenStream {
         let variant_ident = &self.ident;
         let ftl_key = &self.ftl_key;
+        let domain_expr = match domain_override {
+            Some(domain) => quote! { #domain },
+            None => quote! { env!("CARGO_PKG_NAME") },
+        };
         quote! {
-            Self::#variant_ident => localize(env!("CARGO_PKG_NAME"), #ftl_key, None)
+            Self::#variant_ident => localize(#domain_expr, #ftl_key, None)
         }
     }
 

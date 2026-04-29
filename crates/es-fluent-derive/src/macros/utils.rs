@@ -22,6 +22,7 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub ident: &'a syn::Ident,
     pub origin_ident: &'a syn::Ident,
     pub key_name: Option<&'a str>,
+    pub domain_override: Option<&'a str>,
     pub derives: &'a [syn::Path],
     pub variants: &'a [GeneratedUnitEnumVariant],
     pub namespace_expr: TokenStream,
@@ -233,6 +234,7 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         ident,
         origin_ident,
         key_name,
+        domain_override,
         derives,
         variants,
         namespace_expr,
@@ -243,7 +245,7 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
     let new_enum = generate_unit_enum_definition(ident, origin_ident, key_name, derives, variants);
     let localize_with_match_arms = variants
         .iter()
-        .map(GeneratedUnitEnumVariant::localize_with_match_arm);
+        .map(|variant| variant.localize_with_match_arm(domain_override));
     let message_impl = generate_fluent_message_impl(
         ident,
         &empty_generics,
@@ -263,7 +265,8 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
             .collect(),
         namespace_expr: namespace_expr.clone(),
     });
-    let this_impl = generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref(), None);
+    let this_impl =
+        generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref(), domain_override);
     let this_inventory =
         generate_optional_this_inventory_module(ident, namespace_expr, this_key.as_deref());
 
