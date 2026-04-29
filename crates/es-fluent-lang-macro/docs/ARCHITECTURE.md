@@ -47,7 +47,7 @@ crate_root/
 └── assets/
     └── locales/       # The configured assets directory
         ├── en/        # Found -> Enum Variant: `En`
-        ├── fr/        # Found -> Enum Variant: `Fr`
+        ├── fr-FR/     # Found -> Enum Variant: `FrFr`
         └── zh-CN/     # Found -> Enum Variant: `ZhCn`
 ```
 
@@ -80,7 +80,7 @@ pub enum Languages {}
 #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang", skip_inventory)]
 pub enum Languages {
     En,
-    Fr,
+    FrFr,
     ZhCn, // PascalCase from language code
 }
 ```
@@ -89,7 +89,7 @@ pub enum Languages {
 - `resource = "es-fluent-lang"`: Links to the built-in runtime domain.
 - `skip_inventory`: Skips registration because these are generic language names, not user-app content.
 
-### Custom Mode (`custom = true`)
+### Custom Mode (`custom`)
 
 If you want to provide your own translations for language names, use the `custom` argument:
 
@@ -102,4 +102,4 @@ In this mode:
 
 1. **No Resource Link**: It does _not_ add `resource = "es-fluent-lang"`.
 1. **Inventory Registration**: It does _not_ skip inventory. The enum is registered like any other localized type.
-1. **Skeleton Generation**: The CLI will detect this registration and generate skeleton Fluent keys (e.g., `languages-en`, `languages-fr`) in your project's FTL files, which you can then translate manually.
+1. **Skeleton Generation**: The CLI will detect this registration and generate skeleton Fluent keys (e.g., `languages-en`, `languages-fr-FR`, `languages-zh-CN`) in your project's FTL files, which you can then translate manually.

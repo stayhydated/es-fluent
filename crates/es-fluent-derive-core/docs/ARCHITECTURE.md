@@ -36,7 +36,7 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 
 - **`mod.rs`**: Shared parsing helpers and traits. This now holds the common field/variant/container helper surface (`FluentField`, `VariantFields`, `StructDataOptions`, `EnumDataOptions`, `FilteredEnumDataOptions`, `GeneratedVariantsOptions`, `KeyedVariant`, `Skippable`) plus reusable attribute payload types.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
-- **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`).
+- **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`), including enum resource/domain overrides, inventory suppression, and variant key overrides.
 - **`choice.rs`**: Options for `#[fluent(choice)]` (nested enums).
 - **`namespace.rs`**: Parses `namespace` values from `#[fluent(...)]`.
   - Supports literal namespaces (`namespace = "ui"`), file stems (`namespace = file`), file-relative paths (`namespace(file(relative))`), parent folder names (`namespace = folder`), and relative parent folder paths (`namespace(folder(relative))`).
@@ -50,6 +50,11 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - `StructDataOptions` / `EnumDataOptions` / `FilteredEnumDataOptions`: Shared container traits for struct and enum traversal.
 - `GeneratedVariantsOptions`: Shared naming/key helpers for `#[fluent_variants]` containers.
 - `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
+
+Field parsing supports `skip`, `arg_name`, `choice`, and `value` transforms.
+`#[fluent_variants]` parsing supports lowercase snake_case `keys`, generated
+enum `derive(...)`, namespaces, and `#[fluent_variants(skip)]` filtering for
+fields or enum variants.
 
 ### 2. Validation (`src/validation.rs`)
 

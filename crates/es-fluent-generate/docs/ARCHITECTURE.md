@@ -73,7 +73,7 @@ If any `FtlTypeInfo` carries a namespace, items are grouped by that namespace an
 - `assets_dir/{locale}/{crate}/{namespace}.ftl` for namespaced types.
 - `assets_dir/{locale}/{crate}.ftl` for non-namespaced types (default).
 
-This lets large projects split translations by domain without changing key formats.
+This lets large projects split translations by namespace without changing key formats.
 
 ### Deterministic Output
 

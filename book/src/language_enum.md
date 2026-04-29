@@ -11,6 +11,13 @@ Add the `es-fluent-lang` crate:
 es-fluent-lang = "0.16"
 ```
 
+Feature flags:
+
+- `macros` is enabled by default and provides `#[es_fluent_language]`.
+- `localized-langs` formats language names in the currently selected UI
+  language instead of as autonyms.
+- `bevy` enables the Bevy/WASM force-link keepalive used by the Bevy manager.
+
 ## Usage
 
 Define an empty enum and annotate it with `#[es_fluent_language]`:
@@ -25,24 +32,29 @@ use strum::EnumIter;
 pub enum Languages {}
 ```
 
-If your `assets_dir` contains `en`, `fr`, and `de` folders, the macro expands this into:
+If your `assets_dir` contains the same locales as the executable README example
+(`en`, `fr-FR`, and `zh-CN`), the macro expands this into:
 
 ```rust
 pub enum Languages {
-    De,
     En,
-    Fr,
+    FrFr,
+    ZhCn,
 }
 ```
 
 The macro also generates these trait implementations:
 
-| Trait                          | Description                                                           |
-| ------------------------------ | --------------------------------------------------------------------- |
-| `Default`                      | Returns the variant matching `fallback_language` from `i18n.toml`     |
-| `FromStr`                      | Parses `"en-US"`, `"fr"`, or `"de-DE-1901"` into the matching variant |
-| `TryFrom<&LanguageIdentifier>` | Converts from a `unic-langid` identifier                              |
-| `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                           |
+| Trait                          | Description                                                       |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `Default`                      | Returns the variant matching `fallback_language` from `i18n.toml` |
+| `FromStr`                      | Parses `"en"`, `"fr-FR"`, or `"zh-CN"` into the matching variant  |
+| `TryFrom<&LanguageIdentifier>` | Converts from a borrowed `unic-langid` identifier                 |
+| `TryFrom<LanguageIdentifier>`  | Converts from an owned `unic-langid` identifier                   |
+| `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                       |
+
+If the configured fallback language is not present as a locale directory, the
+macro still adds it to the enum so `Default` always has a valid variant.
 
 ## Using with Managers
 
@@ -64,8 +76,17 @@ By deriving `EsFluent` alongside `#[es_fluent_language]`, each variant can be re
 use es_fluent::FluentMessage;
 
 // Prints the language name in its native script
-println!("{}", i18n.localize_message(&Languages::Fr)); // → "français"
+println!("{}", i18n.localize_message(&Languages::FrFr)); // → "français"
 ```
+
+By default, names are autonyms: `FrFr` renders as `français` and `ZhCn` renders
+as `中文`. With the `localized-langs` feature, the same ICU4X data is formatted
+in the currently selected UI language instead, so an English UI can render
+`French` and `Chinese`.
+
+The runtime uses the shared ICU4X/CLDR fallback chain when exact display-name
+data is missing. Use custom mode when you need project-specific labels or
+fully custom names for unsupported locale tags.
 
 ## Custom Mode
 

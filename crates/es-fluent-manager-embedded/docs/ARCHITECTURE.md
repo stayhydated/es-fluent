@@ -33,6 +33,19 @@ i18n.select_language(langid!("fr"))?;
 Failed switches keep the previous ready locale active because the underlying
 `FluentManager` only publishes accepted localizers after successful selection.
 
+`select_language(...)` uses the shared best-effort policy, allowing modules that
+do not support the requested locale to be skipped when at least one module can
+serve it. `select_language_strict(...)` keeps transactional behavior for callers
+that require all discovered modules to accept the locale.
+
+## Lookup helpers
+
+`EmbeddedI18n` implements `FluentLocalizer`, so typed messages use
+`localize_message(...)` and direct string IDs can use `localize(...)` or
+`localize_in_domain(...)`. The inherent fallback helpers mirror
+`FluentLocalizerExt`, including `localize_message_silent(...)` for callers that
+want ID fallback without warning logs.
+
 ## Macro integration
 
 `define_i18n_module!` is re-exported from

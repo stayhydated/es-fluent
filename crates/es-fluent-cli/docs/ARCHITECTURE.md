@@ -99,13 +99,21 @@ Actual FTL parsing and validation stay in `commands/check/validation/` so the CL
 can produce rich diagnostics without running that logic inside the generated
 binary.
 
+`generate` and `watch` pass a `FluentParseMode` through the runner request:
+`conservative` preserves existing translations and manual-only entries, while
+`aggressive` rebuilds generated output from the current inventory. `generate`,
+`clean`, and `check` also expose `--force-run` so callers can bypass the runner
+staleness cache when needed.
+
 ## Direct FTL Flow
 
 The direct commands stay entirely inside `es-fluent-cli`:
 
 - `format` walks crate-local `.ftl` files and uses `es-fluent-generate::formatting`
-  to sort and normalize entries
+  to sort and normalize entries, with dry-run diffs produced in the CLI process
 - `sync` reads fallback-locale files and fills missing keys in target locales
+  only when the caller chooses `--locale` or `--all`; dry-run mode also prints
+  diffs without writing
 - `tree` parses `.ftl` files and renders a terminal tree of messages, terms,
   attributes, and variables
 

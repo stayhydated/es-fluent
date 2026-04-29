@@ -5,8 +5,8 @@
 
 The `es-fluent-manager-core` crate defines the runtime contracts shared by the
 `es-fluent` managers. It owns the common manager, module, localizer, fallback,
-and resource-planning abstractions used by both embedded and asset-based runtime
-integrations.
+and resource-planning abstractions used by embedded, Dioxus, and asset-based
+runtime integrations.
 
 ## Key API
 
@@ -33,6 +33,7 @@ integrations.
 Most applications should use a concrete manager crate instead:
 
 - [`es-fluent-manager-embedded`](../es-fluent-manager-embedded/README.md)
+- [`es-fluent-manager-dioxus`](../es-fluent-manager-dioxus/README.md)
 - [`es-fluent-manager-bevy`](../es-fluent-manager-bevy/README.md)
 
 Reach for `es-fluent-manager-core` directly when building a custom runtime

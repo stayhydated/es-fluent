@@ -48,7 +48,7 @@ es_fluent_manager_bevy::define_i18n_module!();
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(I18nPlugin::with_language(langid!("en-US")))
+        .add_plugins(I18nPlugin::with_language(langid!("en")))
         .run();
 }
 ```
@@ -84,6 +84,12 @@ If a field depends on the active locale (like the `Languages` enum from
 [es_fluent_lang](../es-fluent-lang/README.md)), mark it with `#[locale]`. The
 macro will generate `RefreshForLocale` and register the locale-aware systems for
 you.
+`#[locale]` is supported on named struct fields and named enum variant fields,
+and multiple named fields in the same variant refresh together.
+
+`RefreshForLocale` receives the originally requested locale, not the fallback
+resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware
+fields still refresh with `en-GB`.
 
 ```rs
 use bevy::prelude::Component;

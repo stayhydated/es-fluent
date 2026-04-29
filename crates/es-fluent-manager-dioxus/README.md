@@ -37,7 +37,7 @@ es_fluent_manager_dioxus::define_i18n_module!();
 fn app() -> Element {
     rsx! {
         I18nProvider {
-            initial_language: langid!("en-US"),
+            initial_language: langid!("en"),
             LocaleButton {}
         }
     }
@@ -60,7 +60,7 @@ fn LocaleButton() -> Element {
     rsx! {
         button {
             onclick: move |_| {
-                if let Err(error) = i18n.select_language(langid!("fr")) {
+                if let Err(error) = i18n.select_language(langid!("fr-FR")) {
                     eprintln!("locale switch failed: {error}");
                 }
             },
@@ -76,6 +76,7 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 - `localize_message_silent(...)` provides the same typed lookup without missing-message warnings.
 - `localize(...)` and `localize_in_domain(...)` return `Option<String>` for string IDs.
 - `localize_or_id(...)` and `localize_in_domain_or_id(...)` are explicit fallback helpers for UIs that intentionally render message IDs on misses.
+- `localize_or_id_silent(...)` and `localize_in_domain_or_id_silent(...)` provide the same explicit fallback without missing-message warnings.
 - `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback.
 - `select_language(...)` records the requested language and updates the Dioxus signal used by render code.
 - `select_language_strict(...)` requires every discovered module to support the requested locale.
@@ -102,7 +103,7 @@ fn app(i18n: ManagedI18n) -> Element {
 
 fn render() -> Result<String, Box<dyn std::error::Error>> {
     let runtime = SsrI18nRuntime::new();
-    let i18n = runtime.request(langid!("en-US"))?;
+    let i18n = runtime.request(langid!("en"))?;
     let mut dom = VirtualDom::new_with_props(
         app,
         appProps {
@@ -116,6 +117,6 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches validated module discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
-SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`
+SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`.
 
 Executable Dioxus documentation lives in `examples/dioxus-client-example` and `examples/dioxus-ssr-example` because the client and SSR runtimes are feature-split and validated separately in CI.

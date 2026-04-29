@@ -84,12 +84,17 @@ Additional rules:
 - `crates/es-fluent-cli`
   Audience: **User-facing**
   Docs: [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md)
-  Role: primary CLI (`cargo es-fluent`) for validating and generating FTL files.
+  Role: primary CLI (`cargo es-fluent`) for generating, checking, cleaning, syncing, formatting, and inspecting FTL files.
 
 - `crates/es-fluent-manager-embedded`
   Audience: **User-facing**
   Docs: [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md)
   Role: zero-setup backend for embedding FTL files in the binary.
+
+- `crates/es-fluent-manager-dioxus`
+  Audience: **User-facing**
+  Docs: [Architecture](crates/es-fluent-manager-dioxus/docs/ARCHITECTURE.md)
+  Role: Dioxus integration for provider/hook client localization and request-scoped SSR.
 
 - `crates/es-fluent-manager-bevy`
   Audience: **User-facing**

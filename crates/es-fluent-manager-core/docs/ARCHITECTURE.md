@@ -4,7 +4,7 @@ This document details the architecture of the `es-fluent-manager-core` crate, wh
 
 ## Overview
 
-`es-fluent-manager-core` defines the traits and types necessary to decouple the _management_ of localization data (how it's loaded and stored) from the _consumption_ of it (how it's used to format strings). It also includes standard implementations for embedded and asset-based workflows.
+`es-fluent-manager-core` defines the traits and types necessary to decouple the _management_ of localization data (how it's loaded and stored) from the _consumption_ of it (how it's used to format strings). It also includes the standard embedded and asset-loading implementations used by concrete managers, including the Dioxus manager's embedded runtime path.
 
 ## Architecture
 
@@ -136,7 +136,7 @@ Simple wrapper used for metadata-only registrations.
 ## Modules
 
 - `localization`: Core traits (`FluentManager`, `I18nModule`, `Localizer`).
-- `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`).
+- `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`) used by embedded and Dioxus managers.
 - `asset_localization`: Shared module metadata contracts (`ModuleData`, `I18nModuleDescriptor`, `StaticModuleDescriptor`).
 
 ## Usage
@@ -144,4 +144,5 @@ Simple wrapper used for metadata-only registrations.
 This crate is the common dependency for:
 
 - `es-fluent-manager-embedded` (Wraps `EmbeddedI18nModule` setup).
+- `es-fluent-manager-dioxus` (Uses embedded runtime modules for client context and request-scoped SSR managers).
 - `es-fluent-manager-bevy` (Wraps `I18nModuleRegistration` setup).

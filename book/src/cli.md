@@ -1,6 +1,9 @@
 # CLI Tooling
 
-The `es-fluent-cli` is the command-line companion for `es-fluent`. It analyzes your Rust source code, finds types annotated with derive macros (see [Deriving Messages](deriving_messages.md)), and manages the corresponding FTL translation files for you.
+The `es-fluent-cli` is the command-line companion for `es-fluent`. It builds a
+temporary runner over your workspace library crates, reads the derive inventory
+emitted by localizable types (see [Deriving Messages](deriving_messages.md)),
+and manages the corresponding FTL translation files for you.
 
 ## Installation
 
@@ -14,7 +17,7 @@ The CLI reads your `i18n.toml` (see [Getting Started](getting_started.md)) to lo
 
 ```toml
 # Default fallback language (required)
-fallback_language = "en-US"
+fallback_language = "en"
 
 # Path to FTL assets relative to the config file (required)
 assets_dir = "assets/locales"
@@ -25,6 +28,12 @@ fluent_feature = ["my-feature"]
 # Optional allowlist of namespace values for FTL file splitting
 namespaces = ["ui", "errors", "messages"]
 ```
+
+### Common Workspace Options
+
+Every command accepts `--path <PATH>`/`-p <PATH>` to choose a crate or workspace
+root instead of the current directory, and `--package <NAME>`/`-P <NAME>` to
+process one package from a workspace.
 
 ## Commands
 
@@ -38,11 +47,15 @@ cargo es-fluent generate
 
 This will:
 
-1. Scan your `src/` directory for types with `es-fluent` derives.
-1. Update `assets_dir/en-US/{your_crate}.ftl` (and `assets_dir/en-US/{your_crate}/{namespace}.ftl` for [namespaced](namespaces.md) types).
+1. Collect derive inventory registrations from workspace library targets.
+1. Update `assets_dir/en/{your_crate}.ftl` (and `assets_dir/en/{your_crate}/{namespace}.ftl` for [namespaced](namespaces.md) types).
    - **New items**: Added as new messages.
    - **Changed items**: Variables updated (e.g. if you added a field).
    - **Existing translations**: Preserved untouched.
+
+Use `--mode conservative` to merge generated keys while preserving manual-only
+entries and existing translations. This is the default. Use `--mode aggressive`
+when you want generated files rebuilt from the current Rust inventory.
 
 Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and force a rebuild.
 
@@ -56,6 +69,9 @@ Same as `generate`, but runs in watch mode — updating FTL files as you type:
 cargo es-fluent watch
 ```
 
+`watch` accepts the same `--mode conservative|aggressive` option as
+`generate`.
+
 ### Check
 
 Verify that all your translations are valid and no keys are missing:
@@ -64,7 +80,9 @@ Verify that all your translations are valid and no keys are missing:
 cargo es-fluent check
 ```
 
-Use `--all` to check all locales (not just the fallback language), `--ignore <CRATE>` to skip specific crates, `--force-run` to bypass the staleness cache.
+Use `--all` to check all locales, not just the fallback language. Use
+`--ignore <CRATE>` to skip specific crates; it can be repeated or passed as a
+comma-separated list. Use `--force-run` to bypass the staleness cache.
 
 ### Clean
 
@@ -86,7 +104,7 @@ Remove FTL files that are no longer tied to any registered types (e.g., when all
 cargo es-fluent clean --orphaned --all
 ```
 
-This compares files in non-fallback locales against the fallback locale (`en-US` by default). Files that exist in non-fallback locales but have no corresponding file in the fallback locale are considered orphaned and will be removed. The fallback locale itself is never modified.
+This compares files in non-fallback locales against the configured fallback locale (`en` in the executable README example). Files that exist in non-fallback locales but have no corresponding file in the fallback locale are considered orphaned and will be removed. The fallback locale itself is never modified.
 
 Use `--dry-run` to preview which files would be removed without actually deleting them.
 
@@ -98,17 +116,21 @@ Standardize the formatting of your FTL files using `fluent-syntax` rules:
 cargo es-fluent format
 ```
 
-Use `--dry-run` to preview changes without writing them. Use `--all` to format all locales.
+Use `--dry-run` to preview changes and print diffs without writing them. Use
+`--all` to format all locales.
 
 ### Sync
 
-Propagate keys from your fallback language to other languages (e.g., from `en-US` to `fr` and `de`), creating placeholders for missing translations:
+Propagate keys from your fallback language to other languages (e.g., from `en` to `fr-FR` and `zh-CN`), creating placeholders for missing translations:
 
 ```sh
-cargo es-fluent sync
+cargo es-fluent sync --all
 ```
 
-Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all locales, `--dry-run` to preview changes without writing them.
+Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all
+non-fallback locales. Running `sync` without either option exits without
+modifying files. Use `--dry-run` to preview changes and print diffs without
+writing them.
 
 The `sync` command properly handles [namespaced](namespaces.md) FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.
 

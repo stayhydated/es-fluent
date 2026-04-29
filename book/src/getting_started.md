@@ -23,7 +23,7 @@ Create an `i18n.toml` next to your crate's `Cargo.toml`:
 
 ```toml
 # Default fallback language (required)
-fallback_language = "en-US"
+fallback_language = "en"
 
 # Path to FTL assets relative to the config file (required)
 assets_dir = "assets/locales"
@@ -36,8 +36,8 @@ namespaces = ["ui", "errors", "messages"]
 ```
 
 The CLI and build tools use this file as the single source of truth for locating `.ftl` files and validating keys.
-Locale directory names use canonical BCP-47 tags such as `en-US`, `fr`, or
-`de-DE-1901`.
+Locale directory names use canonical BCP-47 tags. The executable README example
+ships `en`, `fr-FR`, and `zh-CN`, with `en` as the fallback locale.
 
 ## End-to-End Example
 
@@ -62,7 +62,7 @@ pub enum LoginError {
 cargo es-fluent generate
 ```
 
-This creates `assets/locales/en-US/{your_crate}.ftl` with a skeleton:
+This creates `assets/locales/en/{your_crate}.ftl` with a skeleton:
 
 ```ftl
 ## LoginError
@@ -84,7 +84,7 @@ use unic_langid::langid;
 es_fluent_manager_embedded::define_i18n_module!();
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
+    let i18n = EmbeddedI18n::try_new_with_language(langid!("en"))?;
 
     let err = my_crate::LoginError::UserNotFound {
         username: "alice".to_string(),

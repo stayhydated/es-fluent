@@ -35,9 +35,12 @@ paths defined in this crate.
 
 The runner currently supports three commands:
 
-- `Generate`: generate or update fallback-locale FTL files
-- `Clean`: remove generated keys or orphaned generated files
-- `Check`: collect expected keys and variables from inventory
+- `Generate`: generate or update fallback-locale FTL files, carrying
+  `RunnerParseMode` and dry-run intent from the CLI
+- `Clean`: remove generated keys and stale namespace files in the generator
+  clean flow, with fallback-only or all-locale scope controlled by the request
+- `Check`: collect expected keys, variables, and optional Rust source locations
+  from inventory
 
 ### Output Types
 

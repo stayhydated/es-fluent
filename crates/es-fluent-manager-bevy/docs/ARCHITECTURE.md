@@ -47,3 +47,13 @@ types, and configures asset/bundle/locale systems.
 Locale change events resolve the requested locale against ready, available, and
 blocked assets. Accepted switches update `I18nResource`, `ActiveLanguageId`, and
 locale events. Failed switches keep the last ready locale active.
+
+When the requested locale has an available fallback that is not ready yet, the
+plugin keeps a pending language change and applies it after the bundle becomes
+ready. Current-locale hot reloads re-emit `LocaleChangedEvent` only after the
+replacement bundle is accepted.
+
+`RefreshForLocale` receives the requested locale stored in
+`ActiveLanguageId`, even when asset lookup resolves through a parent fallback
+bundle. This keeps locale-aware fields such as generated language enums aligned
+with user intent.

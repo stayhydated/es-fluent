@@ -39,7 +39,7 @@ enum MyMessage {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
+    let i18n = EmbeddedI18n::try_new_with_language(langid!("en"))?;
 
     let msg = MyMessage::Hello { name: "World".to_string() };
     println!("{}", i18n.localize_message(&msg));
@@ -53,7 +53,7 @@ context and call `select_language(...)` on that context:
 
 ```rs
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new()?;
-i18n.select_language(langid!("fr"))?;
+i18n.select_language(langid!("fr-FR"))?;
 ```
 
 `select_language(...)` returns an error if no discovered module can serve the
@@ -61,3 +61,12 @@ requested locale, or if a supported locale's resources would build a broken
 Fluent bundle. When some modules support the requested locale and others do
 not, the default switch keeps the supporting modules active. Failed switches
 keep the previous ready locale active.
+
+Use `select_language_strict(...)` when every discovered module must support the
+requested locale for the switch to succeed.
+
+For direct string-ID lookup, `EmbeddedI18n` exposes `localize(...)`,
+`localize_in_domain(...)`, `localize_or_id(...)`, and
+`localize_in_domain_or_id(...)`. For typed messages, use
+`localize_message(...)`; use `localize_message_silent(...)` when falling back to
+the message ID without logging a missing-message warning is intentional.

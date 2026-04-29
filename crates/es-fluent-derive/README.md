@@ -49,9 +49,14 @@ pub struct UserProfile<'a> {
 // usage: i18n.localize_message(&UserProfile { name: "John", gender: "male" })
 ```
 
-Argument naming attributes:
+Common derive attributes:
 
 - `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+- `#[fluent(skip)]` on a field excludes that field from generated arguments.
+- `#[fluent(value = "...")]` or `#[fluent(value(...))]` transforms a field before inserting it as a Fluent argument.
+- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
+- `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
+- `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Skipped single-field enum variants:
 
@@ -171,6 +176,11 @@ pub enum SettingsTab {
 
 // usage: i18n.localize_message(&SettingsTabVariants::Notifications)
 ```
+
+`keys = [...]` values must be lowercase snake_case. Use
+`#[fluent_variants(skip)]` to omit a struct field or enum variant from the
+generated enums. Use `derive(Debug, Clone)` inside `#[fluent_variants(...)]` to
+add derives to the generated enums.
 
 ### `#[derive(EsFluentThis)]`
 

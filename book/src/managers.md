@@ -48,7 +48,7 @@ enum MyMessage {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
+    let i18n = EmbeddedI18n::try_new_with_language(langid!("en"))?;
 
     let msg = MyMessage::Hello { name: "World".to_string() };
     println!("{}", i18n.localize_message(&msg));
@@ -68,7 +68,7 @@ later with `select_language(...)`:
 
 ```rust
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new()?;
-i18n.select_language(Languages::Fr)?;
+i18n.select_language(Languages::FrFr)?;
 ```
 
 `select_language(...)` returns an error if no discovered module can serve the
@@ -76,6 +76,15 @@ requested locale, or if a supported locale's resources would build a broken
 Fluent bundle. When some modules support the requested locale and others do
 not, the default switch keeps the supporting modules active. Failed switches
 keep the previous ready locale active.
+
+Use `select_language_strict(...)` when every discovered module must support the
+requested locale for the switch to succeed.
+
+For direct string-ID lookup, `EmbeddedI18n` exposes `localize(...)`,
+`localize_in_domain(...)`, `localize_or_id(...)`, and
+`localize_in_domain_or_id(...)`. For typed messages, use
+`localize_message(...)`; use `localize_message_silent(...)` when falling back to
+the message ID without logging a missing-message warning is intentional.
 
 For custom runtime integrations, `es-fluent-manager-core` exposes the same
 strict discovery behavior through
@@ -86,7 +95,7 @@ The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:
 
 ```rust
-es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::Fr)
+es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(Languages::FrFr)
     .expect("embedded i18n manager should initialize");
 ```
 
@@ -127,7 +136,7 @@ es_fluent_manager_dioxus::define_i18n_module!();
 fn app() -> Element {
     rsx! {
         I18nProvider {
-            initial_language: langid!("en-US"),
+            initial_language: langid!("en"),
             LocaleButton {}
         }
     }
@@ -150,7 +159,7 @@ fn LocaleButton() -> Element {
     rsx! {
         button {
             onclick: move |_| {
-                if let Err(error) = i18n.select_language(langid!("fr")) {
+                if let Err(error) = i18n.select_language(langid!("fr-FR")) {
                     eprintln!("locale switch failed: {error}");
                 }
             },
@@ -160,7 +169,7 @@ fn LocaleButton() -> Element {
 }
 ```
 
-Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup, use `localize(...)` and `localize_in_domain(...)` for string ID lookup, or use explicit fallback helpers when rendering message IDs on misses is intended. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state.
+Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup, or `localize_message_silent(...)` when ID fallback without missing-message warning logs is intended. Use `localize(...)` and `localize_in_domain(...)` for string ID lookup, or use explicit `localize_or_id(...)`, `localize_in_domain_or_id(...)`, `localize_or_id_silent(...)`, and `localize_in_domain_or_id_silent(...)` fallback helpers when rendering message IDs on misses is intended. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
@@ -180,7 +189,7 @@ fn app(i18n: ManagedI18n) -> Element {
 
 let runtime = SsrI18nRuntime::new();
 let i18n = runtime
-    .request(langid!("en-US"))
+    .request(langid!("en"))
     .expect("ssr i18n should initialize");
 
 let mut vdom = VirtualDom::new_with_props(
@@ -194,7 +203,7 @@ let html = i18n.rebuild_and_render(&mut vdom);
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches validated module discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
-SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`
+SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)`.
 
 ---
 
@@ -233,7 +242,7 @@ use unic_langid::langid;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(I18nPlugin::with_language(langid!("en-US")))
+        .add_plugins(I18nPlugin::with_language(langid!("en")))
         .run();
 }
 ```

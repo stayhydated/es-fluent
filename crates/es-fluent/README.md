@@ -37,33 +37,40 @@ Add the crate with the `derive` feature to access the procedural macros:
 
 ```toml
 [dependencies]
-es-fluent = { version = "*", features = ["derive"] }
-unic-langid = "*"
+es-fluent = { version = "0.16", features = ["derive"] }
+unic-langid = "0.9"
 
 # If you want to register modules with the embedded context and localize at runtime:
-es-fluent-manager-embedded = "*"
+es-fluent-manager-embedded = "0.16"
 
 # For Dioxus apps, enable only the runtime surface you use.
-es-fluent-manager-dioxus = { version = "*", features = ["client"] }
-# es-fluent-manager-dioxus = { version = "*", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
-es-fluent-manager-bevy = "*"
+es-fluent-manager-bevy = "0.18.13"
 ```
 
 `es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:
 
 ```ignore
-let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
+let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langid!("en"))?;
 ```
 
 For custom runtime integrations, use
 `es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
-For Dioxus, `es-fluent-manager-dioxus` provides hook-based client helpers behind the `client` feature and a request-scoped SSR runtime behind the `ssr` feature. Derived messages also implement `FluentMessage`, which lets Dioxus render typed messages through a component or request context without using context-free localization.
+For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
+hook-based client helpers, typed context-bound localization, and signal-backed
+locale state behind the `client` feature. Its `ssr` feature provides a
+request-scoped runtime. Dioxus code should use
+`DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or
+explicit `localize*` helpers; the Dioxus manager does not install a
+process-wide localizer.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep
-the last ready locale active.
+the last ready locale active. Systems that need direct localization can request
+`BevyI18n` as a `SystemParam` and call `localize_message(...)` on it.
 
 ## Project configuration
 
@@ -71,7 +78,7 @@ Create an `i18n.toml` next to your `Cargo.toml`:
 
 ```toml
 # Default fallback language (required)
-fallback_language = "en-US"
+fallback_language = "en"
 
 # Path to FTL assets relative to the config file (required)
 assets_dir = "assets/locales"
@@ -83,8 +90,8 @@ fluent_feature = ["my-feature"]
 namespaces = ["ui", "errors", "messages"]
 ```
 
-Locale directory names use canonical BCP-47 tags such as `en-US`, `fr`, or
-`de-DE-1901`.
+Locale directory names use canonical BCP-47 tags. The executable README example
+ships `en`, `fr-FR`, and `zh-CN`, with `en` as the fallback locale.
 
 ## Incremental builds for locale assets
 
@@ -96,7 +103,7 @@ feature of `es-fluent` in build dependencies and call the tracking helper from
 
 ```toml
 [build-dependencies]
-es-fluent = { version = "*", features = ["build"] }
+es-fluent = { version = "0.16", features = ["build"] }
 ```
 
 ```rs
@@ -243,9 +250,14 @@ let welcome = WelcomeMessage { name: "John", count: 5 };
 let _ = i18n.localize_message(&welcome);
 ```
 
-Argument naming attributes:
+Common derive attributes:
 
 - `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+- `#[fluent(skip)]` on a field excludes that field from generated arguments.
+- `#[fluent(value = "...")]` or `#[fluent(value(...))]` transforms a field before inserting it as a Fluent argument.
+- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
+- `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
+- `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Skipped single-field enum variants:
 
