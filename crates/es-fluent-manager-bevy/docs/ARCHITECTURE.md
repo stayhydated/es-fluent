@@ -36,6 +36,31 @@ fn update_title(i18n: BevyI18n) {
 
 No `es-fluent` global state or custom localizer is installed.
 
+## Asset readiness and runtime fallback managers
+
+The Bevy plugin uses strict module discovery and exposes both
+`RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish user
+intent from the currently published locale. Failed locale switches keep the last
+ready locale active.
+
+When a requested locale falls back to a resolved locale, Bevy publishes the
+requested locale for change events and ECS resources while using the resolved
+locale for ready bundle lookup. Runtime fallback managers are asked to select
+the requested locale first, then the resolved locale. Rejection by the runtime
+fallback manager does not block Bevy asset-backed locale publication.
+
+Generated embedded localizers are fallback-aware. Custom runtime localizers that
+need parent-locale fallback should implement that behavior in
+`select_language(...)`.
+
+Only metadata-only Bevy registrations create Bevy asset availability. Runtime
+localizer registrations are reserved for the fallback manager and do not make a
+locale wait on Bevy asset bundles. Runtime fallback managers are attached at
+startup only when they accept the requested or resolved locale, and are used
+only after Bevy resolves a locale through asset or ready-bundle availability
+during startup or a later `LocaleChangeEvent`. Runtime-only locales do not by
+themselves make a Bevy locale switch selectable.
+
 ## Startup
 
 `I18nPlugin` performs strict module discovery, initializes resources, attaches a

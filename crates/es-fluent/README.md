@@ -60,13 +60,20 @@ let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langi
 For custom runtime integrations, create a `FluentManager`, select the initial
 language, then use typed or domain-scoped lookup:
 
-```rust
+```no_run
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;
 
-let manager = FluentManager::try_new_with_discovered_modules()?;
-manager.select_language(&langid!("en"))?;
-let greeting = manager.localize_in_domain("app", "hello", None);
+fn main() -> Result<(), String> {
+    let manager = FluentManager::try_new_with_discovered_modules()
+        .map_err(|errors| format!("{errors:?}"))?;
+    manager
+        .select_language(&langid!("en"))
+        .map_err(|error| error.to_string())?;
+    let greeting = manager.localize_in_domain("app", "hello", None);
+
+    Ok(())
+}
 ```
 
 Prefer `localize_message(...)` or `localize_in_domain(...)` for multi-module
@@ -79,24 +86,12 @@ request-scoped runtime. Dioxus code should use
 `DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or
 explicit `localize*` helpers; the Dioxus manager does not install a
 process-wide localizer.
-The Bevy plugin uses the same strict discovery model and exposes both
-`RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
-requested locale from the currently published one. Failed locale switches keep
-the last ready locale active. When a requested locale falls back to a resolved
-locale, Bevy publishes the requested locale for change events and ECS resources
-while using the resolved locale for ready bundle lookup; runtime fallback
-managers are selected with the requested locale first, then the resolved locale.
-That selection uses `FluentManager`'s best-effort behavior; generated embedded
-localizers are fallback-aware, while custom runtime localizers should implement
-parent-locale fallback in `select_language(...)` when they need it.
-Only metadata-only Bevy registrations create Bevy asset availability; runtime
-localizer registrations are reserved for the fallback manager and do not make a
-locale wait on Bevy asset bundles. Runtime fallback managers are used only after
-Bevy resolves a locale through asset or ready-bundle availability during
-startup or a later `LocaleChangeEvent`; runtime-only locales do not by
-themselves make a Bevy locale switch selectable.
-Systems that need direct localization can request `BevyI18n` as a `SystemParam`
-and call `localize_message(...)` on it.
+For Bevy, systems that need direct localization can request `BevyI18n` as a
+`SystemParam` and call `localize_message(...)` on it. The plugin also exposes
+`RequestedLanguageId` and `ActiveLanguageId` for systems that need to
+distinguish user intent from the currently published locale. Detailed Bevy
+asset readiness and fallback-manager behavior is documented in
+`crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md`.
 
 ## Project configuration
 

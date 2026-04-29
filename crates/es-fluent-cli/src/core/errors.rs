@@ -114,6 +114,36 @@ pub struct MissingKeyError {
     pub help: String,
 }
 
+/// Error when an FTL message ID is defined more than once for a locale.
+#[derive(Debug, Diagnostic, Error)]
+#[error("duplicate translation key")]
+#[diagnostic(code(es_fluent::validate::duplicate_key), severity(Error))]
+pub struct DuplicateKeyError {
+    /// The source content of the duplicate FTL file.
+    #[source_code]
+    pub src: NamedSource<String>,
+
+    /// The span where the duplicate message is defined.
+    #[label("duplicate message id '{key}'")]
+    pub span: SourceSpan,
+
+    /// The duplicate key.
+    pub key: String,
+
+    /// The locale where the duplicate exists.
+    pub locale: String,
+
+    /// The file containing the first definition.
+    pub first_file: String,
+
+    /// The file containing the duplicate definition.
+    pub duplicate_file: String,
+
+    /// Help text.
+    #[help]
+    pub help: String,
+}
+
 /// A single missing variable diagnostic (warning).
 #[derive(Debug, Diagnostic, Error)]
 #[error("translation omits variable")]
@@ -187,6 +217,10 @@ pub enum ValidationIssue {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
+    DuplicateKey(#[from] DuplicateKeyError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     MissingVariable(#[from] MissingVariableWarning),
 
     #[error(transparent)]
@@ -199,18 +233,21 @@ impl ValidationIssue {
     ///
     /// The key includes:
     /// 1. File path (from source name)
-    /// 2. Issue type priority (SyntaxError > MissingKey > MissingVariable)
+    /// 2. Issue type priority (SyntaxError > DuplicateKey > MissingKey > MissingVariable)
     /// 3. Key/Variable name
     pub fn sort_key(&self) -> String {
         match self {
             ValidationIssue::SyntaxError(e) => {
                 format!("1:{:?}", e.src.name())
             },
-            ValidationIssue::MissingKey(e) => {
+            ValidationIssue::DuplicateKey(e) => {
                 format!("2:{:?}:{}", e.src.name(), e.key)
             },
+            ValidationIssue::MissingKey(e) => {
+                format!("3:{:?}:{}", e.src.name(), e.key)
+            },
             ValidationIssue::MissingVariable(e) => {
-                format!("3:{:?}:{}:{}", e.src.name(), e.key, e.variable)
+                format!("4:{:?}:{}:{}", e.src.name(), e.key, e.variable)
             },
         }
     }
@@ -451,6 +488,15 @@ line3"#;
             locale: "en".to_string(),
             help: "add key".to_string(),
         });
+        let duplicate_key = ValidationIssue::DuplicateKey(DuplicateKeyError {
+            src: src.clone(),
+            span: SourceSpan::new(0usize.into(), 1),
+            key: "hello".to_string(),
+            locale: "en".to_string(),
+            first_file: "first.ftl".to_string(),
+            duplicate_file: "second.ftl".to_string(),
+            help: "remove duplicate".to_string(),
+        });
         let missing_var = ValidationIssue::MissingVariable(MissingVariableWarning {
             src,
             span: SourceSpan::new(0usize.into(), 1),
@@ -461,8 +507,9 @@ line3"#;
         });
 
         assert!(syntax.sort_key().starts_with("1:"));
-        assert!(missing_key.sort_key().starts_with("2:"));
-        assert!(missing_var.sort_key().starts_with("3:"));
+        assert!(duplicate_key.sort_key().starts_with("2:"));
+        assert!(missing_key.sort_key().starts_with("3:"));
+        assert!(missing_var.sort_key().starts_with("4:"));
     }
 
     #[test]

@@ -189,7 +189,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Check FTL files
-        uses: stayhydated/es-fluent/crates/es-fluent-cli@master
+        uses: stayhydated/es-fluent/crates/es-fluent-cli@v0.16.0
         with:
           path: .
           all: true
@@ -197,7 +197,7 @@ jobs:
 
 Inputs:
 
-- `version`: Version of `es-fluent-cli` to install from crates.io. Default: `latest`.
+- `version`: Optional `es-fluent-cli` version to install from crates.io. If omitted, the action installs the CLI from the pinned action ref. Use `latest` to install the newest crates.io release.
 - `path`: Path to the crate or workspace root (passed as `--path`). Default: `.`.
 - `package`: Package name filter for workspaces (passed as `--package`). Default: empty.
 - `all`: Check all locales, not just the fallback language. Default: `false`.
@@ -205,7 +205,9 @@ Inputs:
 - `force_run`: Force rebuild of the runner, ignoring the staleness cache. Default: `false`.
 - `toolchain`: Rust toolchain to install for the action. Default: `stable`.
 
-This action always runs `cargo es-fluent check`. Pin the `uses` ref to a release tag or commit SHA for reproducible builds. Use the `version` input to install a matching `es-fluent-cli` crate version.
+This action always runs `cargo es-fluent check`. Pin the `uses` ref to a release
+tag or commit SHA for reproducible builds. Omit `version` to run the CLI from
+that ref, or set `version` when you intentionally want a crates.io release.
 
 ## Limitations
 

@@ -398,6 +398,7 @@ impl I18nResource {
                 "Fluent fallback formatting errors for '{}': {:?}",
                 id, errors
             );
+            return None;
         }
 
         value.or_else(|| {
@@ -437,6 +438,7 @@ impl I18nResource {
                 "Fluent fallback formatting errors for '{}' in domain '{}': {:?}",
                 id, domain, errors
             );
+            return None;
         }
 
         value.or_else(|| {

@@ -2,9 +2,9 @@ name: es-fluent-cli
 description: Run es-fluent check in CI.
 inputs:
   version:
-    description: "Version of es-fluent-cli to install from crates.io (default: latest)."
+    description: "Optional es-fluent-cli version to install from crates.io. When omitted, the CLI is installed from the pinned action ref."
     required: false
-    default: latest
+    default: ""
   path:
     description: Path to the crate or workspace root (passed as --path).
     required: false
@@ -45,10 +45,13 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        if [[ "${{ inputs.version }}" == "latest" || -z "${{ inputs.version }}" ]]; then
+        version="${{ inputs.version }}"
+        if [[ -z "$version" ]]; then
+          cargo install --path "${GITHUB_ACTION_PATH}" --locked
+        elif [[ "$version" == "latest" ]]; then
           cargo install es-fluent-cli --locked
         else
-          cargo install es-fluent-cli --locked --version "${{ inputs.version }}"
+          cargo install es-fluent-cli --locked --version "$version"
         fi
 
     - name: Run es-fluent

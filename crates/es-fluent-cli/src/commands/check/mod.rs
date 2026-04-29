@@ -146,7 +146,9 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         .filter(|i| {
             matches!(
                 i,
-                ValidationIssue::MissingKey(_) | ValidationIssue::SyntaxError(_)
+                ValidationIssue::MissingKey(_)
+                    | ValidationIssue::DuplicateKey(_)
+                    | ValidationIssue::SyntaxError(_)
             )
         })
         .count();
