@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
 use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
-use es_fluent_manager_core::{FluentManager, LocalizationError, ModuleDiscoveryError};
+use es_fluent_manager_core::{FluentManager, ModuleDiscoveryError};
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
@@ -21,7 +21,7 @@ pub use unic_langid as __unic_langid;
 #[cfg(feature = "macros")]
 pub use es_fluent_manager_macros::define_embedded_i18n_module as define_i18n_module;
 
-pub use es_fluent_manager_core::LocalizationError as LanguageSelectionError;
+pub use es_fluent_manager_core::LocalizationError;
 
 #[derive(Debug)]
 pub enum EmbeddedInitError {

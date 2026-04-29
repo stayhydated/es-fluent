@@ -12,6 +12,6 @@ pub fn try_new_with_language(language: Languages) -> Result<I18n, i18n_manager::
 pub fn change_locale(
     i18n: &I18n,
     language: Languages,
-) -> Result<(), i18n_manager::LanguageSelectionError> {
+) -> Result<(), i18n_manager::LocalizationError> {
     i18n.select_language(language)
 }
