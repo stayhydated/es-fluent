@@ -204,18 +204,20 @@ Client apps should localize through the `DioxusI18n` context provided by `I18nPr
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
-If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
+If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure once per provider instance and renders `fallback` when one is supplied; without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
 
 ### SSR Quick Start
 
 ```rust
 use dioxus::prelude::*;
-use es_fluent::{EsFluent, EsFluentThis, ThisFtl as _};
+use es_fluent::EsFluent;
 use es_fluent_manager_dioxus::{ManagedI18n, ssr::SsrI18nRuntime};
 use unic_langid::langid;
 
-#[derive(Clone, Copy, EsFluent, EsFluentThis)]
-#[fluent_this(origin)]
+es_fluent_manager_dioxus::define_i18n_module!();
+
+#[derive(Clone, Copy, EsFluent)]
+#[fluent(namespace = "site")]
 enum SiteMessage {
     Title,
 }
@@ -223,26 +225,23 @@ enum SiteMessage {
 #[component]
 fn App(i18n: ManagedI18n) -> Element {
     let title = i18n.localize_message(&SiteMessage::Title);
-    let heading = SiteMessage::this_ftl(&i18n);
-
-    rsx! { div { "{heading}: {title}" } }
+    rsx! { div { "{title}" } }
 }
 
-let runtime = SsrI18nRuntime::new();
-let i18n = runtime
-    .request(langid!("en"))
-    .expect("ssr i18n should initialize");
+fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>> {
+    let i18n = runtime.request(langid!("en"))?;
+    let mut dom = VirtualDom::new_with_props(
+        App,
+        AppProps {
+            i18n: i18n.managed().clone(),
+        },
+    );
 
-let mut vdom = VirtualDom::new_with_props(
-    App,
-    AppProps {
-        i18n: i18n.managed().clone(),
-    },
-);
-let html = i18n.rebuild_and_render(&mut vdom);
+    Ok(i18n.rebuild_and_render(&mut dom))
+}
 ```
 
-Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches validated module discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
+Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
 SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::this_ftl(&i18n)`.
 

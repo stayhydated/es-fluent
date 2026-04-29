@@ -210,12 +210,16 @@ pub fn I18nProvider(
     #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
-    match use_init_i18n(initial_language) {
+    let init = use_init_i18n(initial_language);
+    let init_failure_logged = use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
+
+    match init {
         Ok(_) => children,
         Err(error) => {
-            tracing::error!(
-                error = %error,
-                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children with a failed i18n context"
+            log_provider_init_error_once(
+                &error,
+                &init_failure_logged,
+                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children with a failed i18n context",
             );
             match fallback {
                 Some(fallback) => fallback,
@@ -239,12 +243,16 @@ pub fn I18nProviderStrict(
     #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
-    match use_init_i18n(initial_language) {
+    let init = use_init_i18n(initial_language);
+    let init_failure_logged = use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
+
+    match init {
         Ok(_) => children,
         Err(error) => {
-            tracing::error!(
-                error = %error,
-                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering no children"
+            log_provider_init_error_once(
+                &error,
+                &init_failure_logged,
+                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering no children",
             );
             match fallback {
                 Some(fallback) => fallback,
@@ -252,6 +260,22 @@ pub fn I18nProviderStrict(
             }
         },
     }
+}
+
+fn log_provider_init_error_once(
+    error: &DioxusInitError,
+    logged: &std::rc::Rc<std::cell::Cell<bool>>,
+    message: &'static str,
+) {
+    if logged.get() {
+        return;
+    }
+
+    tracing::error!(
+        error = %error,
+        "{message}"
+    );
+    logged.set(true);
 }
 
 pub fn use_init_i18n<L>(initial_language: L) -> Result<DioxusI18n, DioxusInitError>

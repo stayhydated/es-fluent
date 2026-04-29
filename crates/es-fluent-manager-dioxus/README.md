@@ -87,7 +87,7 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 - `try_use_i18n()` and `try_consume_i18n()` follow Dioxus optional-context naming.
 - `consume_i18n()` reads the context from event handlers, async tasks, or other places where the Dioxus runtime is active but hooks cannot be called.
 
-`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders no children. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection.
+`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures once per provider instance. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders no children. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection.
 
 `I18nProvider` and `use_provide_i18n(...)` initialize once per component instance. Changing the initial language or provided manager after the first render does not replace the installed context. Use `select_language(...)` to change locale at runtime. After a `ManagedI18n` is handed to the provider, route locale switches through `DioxusI18n::select_language(...)` or `DioxusI18n::select_language_strict(...)` so the Dioxus signal stays aligned with manager state.
 
@@ -97,12 +97,14 @@ Dioxus localizes through explicit component or request context. Keeping lookup c
 
 ```ignore
 use dioxus::prelude::*;
-use es_fluent::{EsFluent, EsFluentThis, ThisFtl as _};
+use es_fluent::EsFluent;
 use es_fluent_manager_dioxus::{ManagedI18n, ssr::SsrI18nRuntime};
 use unic_langid::langid;
 
-#[derive(Clone, Copy, EsFluent, EsFluentThis)]
-#[fluent_this(origin)]
+es_fluent_manager_dioxus::define_i18n_module!();
+
+#[derive(Clone, Copy, EsFluent)]
+#[fluent(namespace = "site")]
 enum SiteMessage {
     Title,
 }
@@ -110,13 +112,10 @@ enum SiteMessage {
 #[component]
 fn App(i18n: ManagedI18n) -> Element {
     let title = i18n.localize_message(&SiteMessage::Title);
-    let heading = SiteMessage::this_ftl(&i18n);
-
-    rsx! { div { "{heading}: {title}" } }
+    rsx! { div { "{title}" } }
 }
 
-fn render() -> Result<String, Box<dyn std::error::Error>> {
-    let runtime = SsrI18nRuntime::new();
+fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>> {
     let i18n = runtime.request(langid!("en"))?;
     let mut dom = VirtualDom::new_with_props(
         App,
@@ -129,7 +128,7 @@ fn render() -> Result<String, Box<dyn std::error::Error>> {
 }
 ```
 
-Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches validated module discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
+Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
 SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::this_ftl(&i18n)`.
 
