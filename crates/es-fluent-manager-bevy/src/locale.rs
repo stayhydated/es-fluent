@@ -87,7 +87,7 @@ pub fn update_values_on_locale_change<T>(
     mut locale_changed_events: MessageReader<LocaleChangedEvent>,
     mut query: Query<&mut FluentText<T>>,
 ) where
-    T: RefreshForLocale + FluentMessage + Clone + Component,
+    T: RefreshForLocale + FluentMessage + Clone + Send + Sync + 'static,
 {
     for event in locale_changed_events.read() {
         for mut fluent_text in query.iter_mut() {

@@ -149,7 +149,9 @@ mod tests {
         .build(&mut app);
 
         assert_eq!(
-            app.world().resource::<crate::I18nResource>().active_language(),
+            app.world()
+                .resource::<crate::I18nResource>()
+                .active_language(),
             &unsupported
         );
         assert_eq!(

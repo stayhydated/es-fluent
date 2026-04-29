@@ -6,7 +6,7 @@ use es_fluent::FluentMessage;
 ///
 /// This system handles incremental updates when `FluentText` components change.
 #[doc(hidden)]
-pub fn update_fluent_text_system<T: FluentMessage + Clone + Component>(
+pub fn update_fluent_text_system<T: FluentMessage + Clone + Send + Sync + 'static>(
     mut text_query: Query<&mut Text>,
     fluent_text_query: Query<
         (Entity, &FluentText<T>, Option<&Children>),
@@ -26,7 +26,7 @@ pub fn update_fluent_text_system<T: FluentMessage + Clone + Component>(
 /// Marks all `FluentText<T>` components as changed when locale changes,
 /// and performs a full refresh when the i18n bundle becomes ready.
 #[doc(hidden)]
-pub fn update_all_fluent_text_on_locale_change<T: FluentMessage + Clone + Component>(
+pub fn update_all_fluent_text_on_locale_change<T: FluentMessage + Clone + Send + Sync + 'static>(
     mut locale_changed_events: MessageReader<LocaleChangedEvent>,
     i18n: BevyI18n,
     i18n_assets: Res<I18nAssets>,
@@ -89,7 +89,7 @@ mod tests {
     use std::sync::Arc;
     use unic_langid::langid;
 
-    #[derive(Clone, Component)]
+    #[derive(Clone)]
     struct FakeMessage(&'static str);
 
     impl FluentMessage for FakeMessage {

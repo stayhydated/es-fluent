@@ -64,9 +64,7 @@ inventory::collect!(&'static dyn BevyFluentTextRegistration);
 /// An extension trait for `App` to simplify the registration of `FluentText` components.
 pub trait FluentTextRegistration {
     /// Registers the necessary systems for a `FluentText<T>` component.
-    fn register_fluent_text<
-        T: es_fluent::FluentMessage + Clone + Component + Send + Sync + 'static,
-    >(
+    fn register_fluent_text<T: es_fluent::FluentMessage + Clone + Send + Sync + 'static>(
         &mut self,
     ) -> &mut Self;
 
@@ -75,22 +73,14 @@ pub trait FluentTextRegistration {
     ///
     /// This ensures that the component's value is updated when the locale changes.
     fn register_fluent_text_from_locale<
-        T: es_fluent::FluentMessage
-            + Clone
-            + Component
-            + crate::RefreshForLocale
-            + Send
-            + Sync
-            + 'static,
+        T: es_fluent::FluentMessage + Clone + crate::RefreshForLocale + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self;
 }
 
 impl FluentTextRegistration for App {
-    fn register_fluent_text<
-        T: es_fluent::FluentMessage + Clone + Component + Send + Sync + 'static,
-    >(
+    fn register_fluent_text<T: es_fluent::FluentMessage + Clone + Send + Sync + 'static>(
         &mut self,
     ) -> &mut Self {
         if mark_text_systems_registered::<T>(self) {
@@ -107,13 +97,7 @@ impl FluentTextRegistration for App {
     }
 
     fn register_fluent_text_from_locale<
-        T: es_fluent::FluentMessage
-            + Clone
-            + Component
-            + crate::RefreshForLocale
-            + Send
-            + Sync
-            + 'static,
+        T: es_fluent::FluentMessage + Clone + crate::RefreshForLocale + Send + Sync + 'static,
     >(
         &mut self,
     ) -> &mut Self {
@@ -158,12 +142,12 @@ impl FluentTextRegistration for App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::RefreshForLocale;
+    use crate::{FluentText, LocaleChangedEvent, RefreshForLocale};
     use es_fluent::{FluentMessage, FluentValue};
     use std::collections::HashMap;
     use unic_langid::{LanguageIdentifier, langid};
 
-    #[derive(Clone, Component)]
+    #[derive(Clone)]
     struct RefreshableMessage;
 
     impl RefreshForLocale for RefreshableMessage {
@@ -180,6 +164,32 @@ mod tests {
             ) -> String,
         ) -> String {
             localize("registration-test", "refreshable", None)
+        }
+    }
+
+    #[derive(Clone)]
+    struct PlainMessage(&'static str);
+
+    impl RefreshForLocale for PlainMessage {
+        fn refresh_for_locale(&mut self, lang: &LanguageIdentifier) {
+            self.0 = if lang == &langid!("fr") {
+                "bonjour"
+            } else {
+                "hello"
+            };
+        }
+    }
+
+    impl FluentMessage for PlainMessage {
+        fn to_fluent_string_with(
+            &self,
+            localize: &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> String,
+        ) -> String {
+            localize("registration-test", self.0, None)
         }
     }
 
@@ -202,5 +212,34 @@ mod tests {
         let registered = app.world().resource::<RegisteredFluentTextTypes>();
         assert_eq!(registered.text_system_count(), 1);
         assert_eq!(registered.locale_refresh_system_count(), 1);
+    }
+
+    #[test]
+    fn register_from_locale_updates_plain_message_without_inner_component() {
+        let mut app = App::new();
+        let en = langid!("en");
+        let fr = langid!("fr");
+        app.insert_resource(crate::I18nAssets::new());
+        app.insert_resource(crate::I18nResource::new(en.clone()));
+        app.insert_resource(crate::RequestedLanguageId(en.clone()));
+        app.insert_resource(crate::ActiveLanguageId(en));
+        app.insert_resource(crate::I18nBundle::default());
+        app.insert_resource(crate::I18nDomainBundles::default());
+        app.add_message::<LocaleChangedEvent>();
+        app.register_fluent_text_from_locale::<PlainMessage>();
+
+        let entity = app
+            .world_mut()
+            .spawn(FluentText::new(PlainMessage("hello")))
+            .id();
+        app.world_mut().write_message(LocaleChangedEvent(fr));
+
+        app.update();
+
+        let component = app
+            .world()
+            .get::<FluentText<PlainMessage>>(entity)
+            .expect("plain message FluentText should remain inserted");
+        assert_eq!(component.value.0, "bonjour");
     }
 }

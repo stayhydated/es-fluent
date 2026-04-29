@@ -15,7 +15,7 @@ fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Opt
 }
 
 #[derive(SystemParam)]
-pub(crate) struct SyncGlobalStateParams<'w, 's> {
+pub(crate) struct SyncLocaleStateParams<'w, 's> {
     i18n_bundle: Res<'w, I18nBundle>,
     i18n_domain_bundles: Res<'w, I18nDomainBundles>,
     i18n_resource: ResMut<'w, I18nResource>,
@@ -27,7 +27,7 @@ pub(crate) struct SyncGlobalStateParams<'w, 's> {
 }
 
 #[doc(hidden)]
-pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
+pub(crate) fn sync_locale_state(mut params: SyncLocaleStateParams) {
     let current_lang = params.i18n_resource.active_language().clone();
     let current_resolved_lang = params.i18n_resource.resolved_language().clone();
     let current_bundle_ptr_id = current_bundle_id(&params.i18n_bundle, &current_resolved_lang);
@@ -134,7 +134,7 @@ mod tests {
             .insert_resource(active_language_id)
             .insert_resource(pending_language_change)
             .insert_resource(ObservedSyncEvents::default())
-            .add_systems(Update, (sync_global_state, observe_sync_events).chain());
+            .add_systems(Update, (sync_locale_state, observe_sync_events).chain());
         app
     }
 
@@ -152,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_global_state_emits_locale_changed_and_redraw_when_current_bundle_becomes_ready() {
+    fn sync_locale_state_emits_locale_changed_and_redraw_when_current_bundle_becomes_ready() {
         let lang = langid!("en");
         let mut i18n_bundle = I18nBundle::default();
         i18n_bundle.set_bundle(lang.clone(), bundle_for(&lang));
@@ -173,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_global_state_publishes_pending_language_once_bundle_is_ready() {
+    fn sync_locale_state_publishes_pending_language_once_bundle_is_ready() {
         let en = langid!("en");
         let fr = langid!("fr");
         let mut i18n_bundle = I18nBundle::default();

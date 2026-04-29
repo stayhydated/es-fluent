@@ -100,10 +100,10 @@ manager.select_language(&langid!("en"))?;
 let title = manager.localize_in_domain("app", "title", None);
 ```
 
-Most applications should prefer a concrete manager crate instead of wiring the
-shared context manually. `FluentManager::localize(...)` is a first-match search
-across runtime localizers; use it only for simple single-domain apps or
-intentional first-match lookup.
+Most applications should prefer a concrete manager crate instead of wiring a raw
+`FluentManager` into application state manually. `FluentManager::localize(...)`
+is a first-match search across runtime localizers; use it only for simple
+single-domain apps or intentional first-match lookup.
 
 The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:

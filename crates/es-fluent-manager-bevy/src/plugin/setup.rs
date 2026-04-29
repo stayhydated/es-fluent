@@ -1,5 +1,5 @@
 use super::runtime::{
-    build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_global_state,
+    build_fluent_bundles, handle_asset_loading, handle_locale_changes, sync_locale_state,
 };
 use crate::{
     ActiveLanguageId, BevyFluentTextRegistration, FtlAsset, I18nAssets, I18nResource,
@@ -230,7 +230,7 @@ pub(super) fn configure_app(
                 handle_asset_loading,
                 build_fluent_bundles,
                 handle_locale_changes,
-                sync_global_state,
+                sync_locale_state,
             )
                 .chain(),
         );
@@ -399,9 +399,7 @@ mod tests {
 
         assert_eq!(i18n_resource.active_language(), &unsupported);
         assert_eq!(i18n_resource.resolved_language(), &unsupported);
-        assert!(i18n_resource
-            .select_fallback_language(&unsupported)
-            .is_ok());
+        assert!(i18n_resource.select_fallback_language(&unsupported).is_ok());
     }
 
     #[test]
