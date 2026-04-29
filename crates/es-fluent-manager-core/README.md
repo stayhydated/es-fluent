@@ -21,6 +21,9 @@ runtime integrations.
   between best-effort locale switching and transactional switching
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts
   for localization modules
+- `I18nModuleRegistration::contributes_to_language_selection()`: lets utility
+  runtime modules follow locale changes without making unsupported locales look
+  supported
 - `FluentManager::new_with_discovered_modules()` and
   `FluentManager::try_new_with_discovered_modules()`: strict discovery helpers
   that fail fast on invalid metadata or repeated registrations of the same kind

@@ -72,6 +72,11 @@ Fluent bundle. When some modules support the requested locale and others do
 not, the default switch keeps the supporting modules active. Failed switches
 keep the previous ready locale active.
 
+When a locale has only some of a module's files, the available files can still
+activate and missing messages fall back through the ICU4X locale fallback chain.
+Utility modules such as localized language-name display follow successful
+switches but do not make an otherwise unsupported locale count as supported.
+
 Use `select_language_strict(...)` when every discovered module must support the
 requested locale for the switch to succeed.
 

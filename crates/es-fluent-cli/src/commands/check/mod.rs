@@ -34,7 +34,7 @@ pub struct CheckArgs {
     #[arg(long, value_delimiter = ',')]
     pub ignore: Vec<String>,
 
-    /// Force rebuild of the runner, ignoring the staleness cache.
+    /// Run the generated runner through Cargo, ignoring the staleness cache.
     #[arg(long)]
     pub force_run: bool,
 }

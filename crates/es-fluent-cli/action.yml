@@ -22,7 +22,7 @@ inputs:
     required: false
     default: ""
   force_run:
-    description: Force rebuild of the runner, ignoring the staleness cache.
+    description: Run the generated runner through Cargo, ignoring the staleness cache.
     required: false
     default: "false"
   toolchain:

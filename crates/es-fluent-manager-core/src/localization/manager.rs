@@ -217,6 +217,11 @@ impl FluentManager {
     ) -> crate::localization::LocalizationErrorResult<()> {
         let mut next_localizers = Vec::with_capacity(self.modules.len());
         let mut selected_modules = Vec::with_capacity(self.modules.len());
+        let checked_modules = self
+            .modules
+            .iter()
+            .map(|module| module.data())
+            .collect::<Vec<_>>();
         let mut any_selected = false;
         let mut first_failure = None;
         let mut first_non_unsupported_failure = None;
@@ -240,8 +245,16 @@ impl FluentManager {
 
             match localizer.select_language(lang) {
                 Ok(()) => {
-                    any_selected = true;
-                    selected_modules.push(data);
+                    if module.contributes_to_language_selection() {
+                        any_selected = true;
+                        selected_modules.push(data);
+                    } else {
+                        tracing::debug!(
+                            "Module '{}' follows language '{}' but does not count toward locale support",
+                            data.name,
+                            lang
+                        );
+                    }
                     next_localizers.push((data, localizer));
                 },
                 Err(error) => {
@@ -293,7 +306,7 @@ impl FluentManager {
             tracing::warn!(
                 "No i18n modules support language '{}'; modules checked: {}",
                 lang,
-                format_module_support_list(&unsupported_modules)
+                format_module_support_list(&checked_modules)
             );
             return Err(crate::localization::LocalizationError::LanguageNotSupported(lang.clone()));
         }

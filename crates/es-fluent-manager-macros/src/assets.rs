@@ -236,18 +236,7 @@ impl I18nAssets {
         }
 
         let namespaces: Vec<String> = namespaces.into_iter().collect();
-        let languages: Vec<String> = if namespaces.is_empty() {
-            discovered_languages.into_iter().collect()
-        } else {
-            discovered_languages
-                .into_iter()
-                .filter(|lang| {
-                    namespaces_by_language.get(lang).is_some_and(|found| {
-                        namespaces.iter().all(|namespace| found.contains(namespace))
-                    })
-                })
-                .collect()
-        };
+        let languages: Vec<String> = discovered_languages.into_iter().collect();
         let mut resource_specs_by_language = Vec::with_capacity(languages.len());
 
         for lang in &languages {
@@ -422,7 +411,7 @@ mod tests {
                 assets
                     .language_identifier_tokens(&quote!(::es_fluent_manager_bevy::__unic_langid))
                     .len(),
-                1
+                2
             );
             assert_eq!(assets.namespace_tokens().len(), 1);
         });

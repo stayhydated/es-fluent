@@ -2,6 +2,8 @@
 
 Internal task runner for repository maintenance tasks.
 
+This is for maintainers working inside this repository. Application users should use the published `es-fluent` crates and public book instead of invoking `xtask` directly.
+
 ## Commands
 
 ### `build-bevy-demo`

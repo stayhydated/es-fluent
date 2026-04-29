@@ -88,6 +88,10 @@ The runtime uses the shared ICU4X/CLDR fallback chain when exact display-name
 data is missing. Use custom mode when you need project-specific labels or
 fully custom names for unsupported locale tags.
 
+The built-in language-name module follows successful manager locale switches
+but does not count as application content support. A manager still reports an
+unsupported locale when no application translation module can serve it.
+
 ## Custom Mode
 
 By default, the macro links to the built-in `es-fluent-lang` runtime and skips inventory registration. If you want to provide your own translations for language names (for example, project-specific labels or exact wording control), use **custom mode**:

@@ -115,6 +115,10 @@ impl I18nModule for EsFluentLanguageModule {
     fn create_localizer(&self) -> Box<dyn Localizer> {
         Box::new(EsFluentLanguageLocalizer::new(langid!("en-US")))
     }
+
+    fn contributes_to_language_selection(&self) -> bool {
+        false
+    }
 }
 
 #[doc(hidden)]

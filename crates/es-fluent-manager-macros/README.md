@@ -9,6 +9,11 @@ The `es-fluent-manager-macros` crate provides the compile-time macros used by
 
 These macros read your `i18n.toml` configuration, scan the configured `assets_dir` at compile time, generate module metadata, and expose the `BevyFluentText` derive used by the Bevy integration.
 
+Locale discovery is per-locale and resource-aware. A locale that contains only
+some namespace files is still registered with the files it has, so runtime
+fallback can use translated messages from that locale and follow the ICU4X
+locale fallback chain for missing messages.
+
 Most applications should call the re-exported macros from the concrete manager
 crate they use. Depend on this crate directly only when building a custom
 integration around the manager macro surface.

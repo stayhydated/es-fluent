@@ -5,12 +5,23 @@ expression: assets
 I18nAssets {
     root_path: "<assets>",
     languages: [
+        "en",
         "fr",
     ],
     namespaces: [
         "ui/button",
     ],
     resource_specs_by_language: [
+        (
+            "en",
+            [
+                ResourceSpec {
+                    key: "my-crate",
+                    locale_relative_path: "my-crate.ftl",
+                    required: false,
+                },
+            ],
+        ),
         (
             "fr",
             [

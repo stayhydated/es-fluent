@@ -60,7 +60,7 @@ Use `--mode conservative` to merge generated keys while preserving manual-only
 entries and existing translations. This is the default. Use `--mode aggressive`
 when you want generated files rebuilt from the current Rust inventory.
 
-Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and force a rebuild.
+Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and run the generated runner through Cargo.
 
 Literal string namespaces are checked as safe relative namespace paths at compile time. If you configure `namespaces = [...]` in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler and the CLI during `generate` and `watch`.
 
@@ -125,6 +125,9 @@ cargo es-fluent clean
 ```
 
 Use `--dry-run` to preview changes without writing them. Use `--all` to clean all locales. Use `--force-run` to bypass the staleness cache.
+`clean --all` only targets canonical locale directories from the configured
+`assets_dir`; invalid or non-canonical locale directory names are reported
+instead of cleaned.
 
 When the main crate file no longer has any non-namespaced registered Rust
 types, `clean` deletes that stale main file. When a namespaced file no longer
@@ -208,7 +211,7 @@ Inputs:
 - `package`: Package name filter for workspaces (passed as `--package`). Default: empty.
 - `all`: Check all locales, not just the fallback language. Default: `false`.
 - `ignore`: Crates to skip during validation (comma-separated). Default: empty.
-- `force_run`: Force rebuild of the runner, ignoring the staleness cache. Default: `false`.
+- `force_run`: Run the generated runner through Cargo, ignoring the staleness cache. Default: `false`.
 - `toolchain`: Rust toolchain to install for the action. Default: `stable`.
 
 This action always runs `cargo es-fluent check`. Pin the `uses` ref to a release

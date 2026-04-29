@@ -68,6 +68,15 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
         )
     }
 
+    /// Returns whether this registration should count as locale content support.
+    ///
+    /// Runtime utility modules can return `false` when they should follow the
+    /// selected locale but must not make an otherwise unsupported locale look
+    /// supported.
+    fn contributes_to_language_selection(&self) -> bool {
+        self.supports_runtime_localization()
+    }
+
     /// Returns an optional manifest-derived resource plan for a specific language.
     ///
     /// When this returns `Some`, managers should use this plan directly instead of
@@ -83,6 +92,11 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
 pub trait I18nModule: I18nModuleDescriptor {
     /// Creates a localizer for the module.
     fn create_localizer(&self) -> Box<dyn Localizer>;
+
+    /// Returns whether this module should count as locale content support.
+    fn contributes_to_language_selection(&self) -> bool {
+        true
+    }
 }
 
 impl<T: I18nModule> I18nModuleRegistration for T {
@@ -96,6 +110,10 @@ impl<T: I18nModule> I18nModuleRegistration for T {
 
     fn supports_runtime_localization(&self) -> bool {
         true
+    }
+
+    fn contributes_to_language_selection(&self) -> bool {
+        I18nModule::contributes_to_language_selection(self)
     }
 }
 

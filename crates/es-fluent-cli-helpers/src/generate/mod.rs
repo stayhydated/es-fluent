@@ -14,7 +14,6 @@ pub use self::args::GeneratorArgs;
 pub use self::error::GeneratorError;
 pub use es_fluent_generate::FluentParseMode;
 use es_fluent_toml::ResolvedI18nLayout;
-use fs_err as fs;
 use std::path::{Path, PathBuf};
 
 /// Builder for generating FTL files from registered types.
@@ -80,6 +79,7 @@ impl EsFluentGenerator {
         Ok(self.resolve_layout()?.output_dir)
     }
 
+    #[cfg(test)]
     fn resolve_assets_dir(&self) -> Result<PathBuf, GeneratorError> {
         if let Some(path) = &self.assets_dir {
             return Ok(path.clone());
@@ -108,11 +108,16 @@ impl EsFluentGenerator {
             return Ok(vec![self.resolve_output_path()?]);
         }
 
-        let mut paths = self
-            .resolve_assets_dir()
-            .ok()
-            .map(|assets_dir| Self::resolve_clean_locale_dirs(&assets_dir))
-            .unwrap_or_default();
+        let mut paths = if let Some(assets_dir) = &self.assets_dir {
+            Self::resolve_clean_locale_dirs(assets_dir)?
+        } else {
+            let layout = self.resolve_layout()?;
+            layout
+                .available_locale_names()?
+                .into_iter()
+                .map(|locale| layout.locale_dir(&locale))
+                .collect()
+        };
 
         if paths.is_empty() {
             return Ok(vec![self.resolve_output_path()?]);
@@ -181,14 +186,19 @@ impl EsFluentGenerator {
         Ok(any_changed)
     }
 
-    fn resolve_clean_locale_dirs(assets_dir: &Path) -> Vec<PathBuf> {
-        fs::read_dir(assets_dir)
-            .ok()
+    fn resolve_clean_locale_dirs(assets_dir: &Path) -> Result<Vec<PathBuf>, GeneratorError> {
+        let config = es_fluent_toml::I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: assets_dir.to_path_buf(),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        Ok(config
+            .available_locale_names_from_base(Some(Path::new("")))?
             .into_iter()
-            .flat_map(|entries| entries.filter_map(Result::ok))
-            .map(|entry| entry.path())
-            .filter(|path| path.is_dir())
-            .collect()
+            .map(|locale| assets_dir.join(locale))
+            .collect())
     }
 
     fn detect_crate_name() -> Result<String, GeneratorError> {

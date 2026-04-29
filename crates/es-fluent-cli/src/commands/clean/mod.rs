@@ -22,7 +22,7 @@ pub struct CleanArgs {
     #[arg(long)]
     pub dry_run: bool,
 
-    /// Force rebuild of the runner, ignoring the staleness cache.
+    /// Run the generated runner through Cargo, ignoring the staleness cache.
     #[arg(long)]
     pub force_run: bool,
 

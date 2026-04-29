@@ -89,6 +89,9 @@ Unified inventory contract used by managers.
 - `create_localizer()` supports runtime localization backends.
 - `registration_kind()` is explicit metadata, so discovery does not infer
   module kind by constructing a localizer.
+- `contributes_to_language_selection()` lets runtime utility modules follow
+  successful locale switches without counting as content support for best-effort
+  locale selection.
 - `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
 - Successful strict discovery still normalizes one metadata-only registration
@@ -106,7 +109,7 @@ Responsible for the actual string formatting logic.
   first populated locale instead of hand-rolled subtag stripping.
 - `FluentManager::select_language()` is best-effort for unsupported locales:
   modules that reject a locale with `LanguageNotSupported` are skipped as long
-  as at least one module accepts it.
+  as at least one content-supporting module accepts it.
 - `FluentManager::select_language_strict()` preserves transactional switching
   when callers need all modules to agree.
 - `FluentManager::try_discover_runtime_modules()` returns
@@ -119,6 +122,9 @@ Responsible for the actual string formatting logic.
   ready locale active on failure.
 - Embedded locale/resource discovery only accepts canonical locale directory
   names, so compile-time discovery and runtime lookup use the same path keys.
+- Embedded runtime modules can derive an exact resource plan from embedded
+  files for each locale, allowing partially translated locales to load the
+  files they have and fall back for missing messages.
 
 ### `EmbeddedAssets`
 

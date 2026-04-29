@@ -217,7 +217,7 @@ fn resolve_clean_paths_supports_single_or_all_locales() {
 }
 
 #[test]
-fn resolve_clean_paths_preserves_raw_locale_directory_names() {
+fn resolve_clean_paths_rejects_noncanonical_locale_directory_names() {
     let temp = tempdir().expect("tempdir");
     fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
     fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
@@ -233,11 +233,8 @@ fn resolve_clean_paths_preserves_raw_locale_directory_names() {
 
     let all = generator
         .resolve_clean_paths(true)
-        .expect("all clean paths");
-    assert_eq!(
-        all,
-        vec![temp.path().join("i18n/en-us"), temp.path().join("i18n/fr")]
-    );
+        .expect_err("noncanonical locale directory should fail");
+    assert!(matches!(all, GeneratorError::Config(_)));
 }
 
 #[test]
@@ -265,7 +262,7 @@ fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
 }
 
 #[test]
-fn resolve_clean_paths_tolerates_invalid_locale_directory_names() {
+fn resolve_clean_paths_rejects_invalid_locale_directory_names() {
     let temp = tempdir().expect("tempdir");
     fs::create_dir_all(temp.path().join("i18n/en-US")).expect("mkdir en-US");
     fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
@@ -282,19 +279,12 @@ fn resolve_clean_paths_tolerates_invalid_locale_directory_names() {
 
     let all = generator
         .resolve_clean_paths(true)
-        .expect("all clean paths");
-    assert_eq!(
-        all,
-        vec![
-            temp.path().join("i18n/en-US"),
-            temp.path().join("i18n/fr"),
-            temp.path().join("i18n/not_a_locale"),
-        ]
-    );
+        .expect_err("invalid locale directory should fail");
+    assert!(matches!(all, GeneratorError::Config(_)));
 }
 
 #[test]
-fn resolve_clean_paths_falls_back_to_output_override_when_assets_dir_missing() {
+fn resolve_clean_paths_reports_missing_assets_dir_for_all_locales() {
     let temp = tempdir().expect("tempdir");
     let fallback_output = temp.path().join("fallback-output");
     let generator = EsFluentGenerator::builder()
@@ -306,8 +296,8 @@ fn resolve_clean_paths_falls_back_to_output_override_when_assets_dir_missing() {
 
     let paths = generator
         .resolve_clean_paths(true)
-        .expect("resolve clean paths");
-    assert_eq!(paths, vec![fallback_output]);
+        .expect_err("missing assets dir should fail");
+    assert!(matches!(paths, GeneratorError::Config(_)));
 }
 
 #[test]

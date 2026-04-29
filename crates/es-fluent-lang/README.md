@@ -65,4 +65,8 @@ By default, labels are formatted directly from ICU4X display-name data as autony
 
 The runtime resolves fallback locales through the shared ICU4X/CLDR fallback chain when a display locale is missing exact display-name data. If you need fully custom labels for project-specific or unsupported locale tags, use `#[es_fluent_language(custom)]` and ship your own translations.
 
+The built-in language-name module follows successful manager locale switches
+but does not count as application content support. A manager still reports an
+unsupported locale when no application translation module can serve it.
+
 When the `bevy` feature is enabled, this crate uses the same standard module registration as other managers and provides a small force-link keepalive hook for Bevy/WASM builds.
