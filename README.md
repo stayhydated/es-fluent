@@ -231,7 +231,7 @@ resource for non-namespaced messages.
 - `namespace = folder` - uses the source file parent folder (e.g., `src/ui/button.rs` -> `ui`)
 - `namespace(folder(relative))` - uses the parent folder path relative to the crate root, strips `src/` when nested, and keeps `src` for root module files (e.g., `src/ui/button.rs` -> `ui`)
 
-If `namespaces = [...]` is set in `i18n.toml`, both the compiler (at compile-time) and the CLI will validate that string-based namespaces used by your code are in that allowlist.
+Literal string namespaces are validated at compile time as safe relative namespace paths. If `namespaces = [...]` is set in `i18n.toml`, both the compiler and the CLI validate that string-based namespaces used by your code are in that allowlist.
 
 ## Derives
 

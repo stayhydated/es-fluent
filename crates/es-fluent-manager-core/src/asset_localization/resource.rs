@@ -88,6 +88,7 @@ fn module_resource_spec(
 /// - Without namespaces, `{domain}.ftl` is required.
 /// - With namespaces, `{domain}.ftl` remains an optional mixed-mode resource
 ///   and `{domain}/{namespace}.ftl` entries are required.
+/// - Invalid namespace paths panic before any resource paths are produced.
 pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourceSpec> {
     if namespaces.is_empty() {
         return vec![module_resource_spec(
@@ -106,11 +107,9 @@ pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourc
 
     let mut seen = HashSet::new();
     for namespace in namespaces {
-        debug_assert!(
-            validate_namespace_path(namespace).is_ok(),
-            "resource_plan_for received invalid namespace '{}'",
-            namespace
-        );
+        if let Err(error) = validate_namespace_path(namespace) {
+            panic!("resource_plan_for received invalid namespace '{namespace}': {error}");
+        }
 
         let namespace = namespace.trim();
         if !seen.insert(namespace) {
@@ -193,6 +192,12 @@ mod tests {
                 .iter()
                 .all(|spec| spec.locale_relative_path.ends_with(".ftl"))
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "resource_plan_for received invalid namespace")]
+    fn resource_plan_for_rejects_invalid_namespaces() {
+        let _ = resource_plan_for("demo", &["../outside"]);
     }
 
     #[test]

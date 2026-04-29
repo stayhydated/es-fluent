@@ -62,7 +62,7 @@ when you want generated files rebuilt from the current Rust inventory.
 
 Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and force a rebuild.
 
-If you configure `namespaces = [...]` in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler (at compile-time) and the CLI (during `generate` and `watch`).
+Literal string namespaces are checked as safe relative namespace paths at compile time. If you configure `namespaces = [...]` in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler and the CLI during `generate` and `watch`.
 
 ### Namespaces (optional)
 

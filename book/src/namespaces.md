@@ -113,4 +113,4 @@ A type in `src/user/profile.rs` maps to namespace `user`.
 
 ## Validation
 
-If `namespaces = [...]` is set in your `i18n.toml`, both the compiler (at compile-time) and the CLI will validate that explicit string-based namespaces used by your code match the provided allowlist. File-based and folder-based namespaces bypass validation since they're derived automatically from the source tree.
+Literal string namespaces are validated at compile time as safe relative namespace paths. If `namespaces = [...]` is set in your `i18n.toml`, both the compiler and the CLI validate that explicit string-based namespaces used by your code match the provided allowlist. File-based and folder-based namespaces bypass allowlist validation because they're derived automatically from the source tree.

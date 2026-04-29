@@ -13,6 +13,7 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
     };
     let label = i18n.localize_message(&DemosPageMessage::Label);
     let title = i18n.localize_message(&DemosPageMessage::Title);
+    let body = i18n.localize_message(&DemosPageMessage::Body);
     let action = i18n.localize_message(&DemosPageMessage::Action);
 
     rsx! {
@@ -27,7 +28,7 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
                         page: PageKind::Bevy,
                         label,
                         title,
-                        body: "",
+                        body,
                         action,
                     }
                 }

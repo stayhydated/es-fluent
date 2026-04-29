@@ -6,6 +6,7 @@ use crate::site::i18n::{
 use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
+use es_fluent_lang::LanguageIdentifier;
 use es_fluent_manager_dioxus::{DioxusI18n, use_i18n};
 use std::collections::HashSet;
 use std::fmt::{self, Display};
@@ -289,12 +290,10 @@ pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Resul
         }
 
         let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if generated_top_level_dirs.contains(name.as_ref()) || is_static_public_dir(name.as_ref()) {
+        let Some(name) = name.to_str() else {
             continue;
-        }
-
-        if directory_contains_generated_html(&entry.path())? {
+        };
+        if is_locale_route_dir(name) && contains_generated_route_cache(&entry.path()) {
             fs::remove_dir_all(entry.path())?;
         }
     }
@@ -318,25 +317,17 @@ fn remove_dir_if_exists(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn is_static_public_dir(name: &str) -> bool {
-    matches!(name, "assets" | "bevy-demo" | "book" | "wasm")
+fn is_locale_route_dir(name: &str) -> bool {
+    name.parse::<LanguageIdentifier>().is_ok()
 }
 
-fn directory_contains_generated_html(dir: &Path) -> std::io::Result<bool> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if entry.file_type()?.is_dir() {
-            if directory_contains_generated_html(&path)? {
-                return Ok(true);
-            }
-        } else if path.file_name().and_then(|name| name.to_str()) == Some("index.html") {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
+fn contains_generated_route_cache(dir: &Path) -> bool {
+    dir.join("index.html").is_file()
+        || PageKind::all()
+            .into_iter()
+            .map(PageKind::route)
+            .filter(|route| !route.is_empty())
+            .any(|route| dir.join(route).is_dir())
 }
 
 fn route_element(route: SiteRoute) -> Element {
