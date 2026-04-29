@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use es_fluent::EsFluent;
-use es_fluent_manager_dioxus::{ManagedI18n, ssr::SsrI18nRuntime};
+use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 use example_shared_lib::{ButtonState, Languages};
 use strum::IntoEnumIterator as _;
 use unic_langid::LanguageIdentifier;
@@ -72,7 +72,7 @@ fn render_ssr_preview_with_runtime(
         SsrPreview,
         SsrPreviewProps {
             initial_language,
-            i18n: i18n.managed().clone(),
+            i18n: i18n.clone(),
         },
     );
 
@@ -80,7 +80,7 @@ fn render_ssr_preview_with_runtime(
 }
 
 #[component]
-fn SsrPreview(initial_language: Languages, i18n: ManagedI18n) -> Element {
+fn SsrPreview(initial_language: Languages, i18n: SsrI18n) -> Element {
     let button_state = ButtonState::Pressed;
     let heading = i18n.localize_message(&DioxusScreenMessages::SsrHeading);
     let summary = i18n.localize_message(&DioxusScreenMessages::SsrSummary {

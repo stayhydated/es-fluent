@@ -13,12 +13,13 @@ use anyhow::{Context as _, Result};
 #[cfg(test)]
 use dioxus::prelude::*;
 #[cfg(test)]
-use es_fluent_manager_dioxus::{ManagedI18n, ssr::SsrI18nRuntime, use_provide_i18n};
+use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 
 #[cfg(test)]
 #[component]
-fn SsrI18nProvider(i18n: ManagedI18n, children: Element) -> Element {
-    use_provide_i18n(i18n).expect("SSR i18n context should be ready");
+fn SsrI18nProvider(i18n: SsrI18n, children: Element) -> Element {
+    i18n.provide_context()
+        .expect("SSR i18n context should be ready");
     children
 }
 
@@ -28,11 +29,10 @@ pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
     let i18n = runtime
         .request(route.locale.lang())
         .context("failed to initialize the Dioxus SSR localizer")?;
-    let managed = i18n.managed().clone();
 
     Ok(i18n.render_element(rsx! {
         SsrI18nProvider {
-            i18n: managed,
+            i18n: i18n.clone(),
             {route_content(route)}
         }
     }))

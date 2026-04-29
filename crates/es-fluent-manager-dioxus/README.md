@@ -94,7 +94,7 @@ Dioxus localizes through explicit component or request context. Keeping lookup c
 ```ignore
 use dioxus::prelude::*;
 use es_fluent::EsFluent;
-use es_fluent_manager_dioxus::{ManagedI18n, ssr::SsrI18nRuntime};
+use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 use unic_langid::langid;
 
 es_fluent_manager_dioxus::define_i18n_module!();
@@ -106,7 +106,7 @@ enum SiteMessage {
 }
 
 #[component]
-fn App(i18n: ManagedI18n) -> Element {
+fn App(i18n: SsrI18n) -> Element {
     let title = i18n.localize_message(&SiteMessage::Title);
     rsx! { div { "{title}" } }
 }
@@ -116,7 +116,7 @@ fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>
     let mut dom = VirtualDom::new_with_props(
         App,
         AppProps {
-            i18n: i18n.managed().clone(),
+            i18n: i18n.clone(),
         },
     );
 
@@ -126,6 +126,6 @@ fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
-SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`.
+SSR components should receive a cloned `SsrI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`. If SSR components use the Dioxus hook API, call `i18n.provide_context()?` from an app-owned provider component.
 
 Executable Dioxus documentation lives in `examples/dioxus-client-example` and `examples/dioxus-ssr-example` because the client and SSR runtimes are feature-split and validated separately in CI.

@@ -42,8 +42,10 @@ fn mark_locale_refresh_registered<T: 'static>(app: &mut App) -> bool {
 }
 
 /// A plugin that initializes the `es-fluent` Bevy integration.
+#[cfg(test)]
 pub struct EsFluentBevyPlugin;
 
+#[cfg(test)]
 impl Plugin for EsFluentBevyPlugin {
     fn build(&self, _app: &mut App) {
         debug!("EsFluentBevyPlugin initialized");

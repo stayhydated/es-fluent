@@ -37,7 +37,8 @@ pub(crate) struct PendingLanguageChange(pub(crate) Option<LanguageSelection>);
 /// Returns the primary language subtag from a `LanguageIdentifier`.
 ///
 /// For example, for `en-US`, this would return `en`.
-pub fn primary_language(lang: &LanguageIdentifier) -> &str {
+#[cfg(test)]
+pub(crate) fn primary_language(lang: &LanguageIdentifier) -> &str {
     lang.language.as_str()
 }
 

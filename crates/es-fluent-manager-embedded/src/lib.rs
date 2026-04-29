@@ -93,11 +93,6 @@ impl EmbeddedI18n {
         Ok(Self::from_manager(manager))
     }
 
-    /// Returns the underlying manager.
-    pub fn manager(&self) -> &FluentManager {
-        &self.manager
-    }
-
     /// Selects the active language for this context.
     pub fn select_language<L: Into<LanguageIdentifier>>(
         &self,
@@ -321,7 +316,6 @@ mod tests {
         let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))
             .expect("embedded i18n should initialize");
 
-        assert!(std::ptr::eq(i18n.manager(), i18n.manager()));
         assert_eq!(
             es_fluent::FluentLocalizer::localize_in_domain(
                 &i18n,

@@ -85,6 +85,7 @@ impl I18nAssets {
         Self::default()
     }
 
+    #[cfg(test)]
     fn inferred_spec_for_key(key: &str, required: bool) -> ModuleResourceSpec {
         ModuleResourceSpec {
             key: ResourceKey::new(key),
@@ -103,7 +104,8 @@ impl I18nAssets {
     }
 
     /// Adds an FTL asset to be managed.
-    pub fn add_asset(
+    #[cfg(test)]
+    pub(crate) fn add_asset(
         &mut self,
         lang: LanguageIdentifier,
         domain: String,
@@ -127,7 +129,8 @@ impl I18nAssets {
     }
 
     /// Adds an optional FTL asset to be managed.
-    pub fn add_optional_asset(
+    #[cfg(test)]
+    pub(crate) fn add_optional_asset(
         &mut self,
         lang: LanguageIdentifier,
         domain: String,
@@ -166,7 +169,11 @@ impl I18nAssets {
     }
 
     /// Retrieves all loaded `FluentResource`s for a given language.
-    pub fn get_language_resources(&self, lang: &LanguageIdentifier) -> Vec<&Arc<FluentResource>> {
+    #[cfg(test)]
+    pub(crate) fn get_language_resources(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Vec<&Arc<FluentResource>> {
         collect_locale_resources(&self.loaded_resources, lang)
     }
 

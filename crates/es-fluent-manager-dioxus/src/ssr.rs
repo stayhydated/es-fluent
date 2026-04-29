@@ -31,6 +31,7 @@ impl SsrI18nRuntime {
 }
 
 /// Request-scoped Dioxus SSR localization state.
+#[derive(Clone, Eq, PartialEq)]
 pub struct SsrI18n {
     managed: ManagedI18n,
 }
@@ -42,10 +43,6 @@ impl SsrI18n {
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::new_with_cached_modules(modules, lang)?;
         Ok(Self { managed })
-    }
-
-    pub fn managed(&self) -> &ManagedI18n {
-        &self.managed
     }
 
     pub fn requested_language(&self) -> LanguageIdentifier {
@@ -71,6 +68,11 @@ impl SsrI18n {
         T: FluentMessage + ?Sized,
     {
         self.managed.localize_message(message)
+    }
+
+    #[cfg(feature = "client")]
+    pub fn provide_context(&self) -> Result<crate::DioxusI18n, DioxusInitError> {
+        crate::use_provide_i18n(self.managed.clone())
     }
 
     pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {

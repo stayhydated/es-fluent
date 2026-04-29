@@ -291,7 +291,7 @@ mod ssr_tests {
 
     #[allow(non_snake_case)]
     #[component]
-    fn SsrLocalizedMessage(i18n: ManagedI18n) -> Element {
+    fn SsrLocalizedMessage(i18n: crate::ssr::SsrI18n) -> Element {
         let message = i18n.localize_message(&TestMessage);
 
         rsx! {
@@ -333,9 +333,7 @@ mod ssr_tests {
             .expect("ssr dioxus i18n should initialize");
         let mut dom = VirtualDom::new_with_props(
             SsrLocalizedMessage,
-            SsrLocalizedMessageProps {
-                i18n: i18n.managed().clone(),
-            },
+            SsrLocalizedMessageProps { i18n: i18n.clone() },
         );
 
         let html = i18n.rebuild_and_render(&mut dom);
