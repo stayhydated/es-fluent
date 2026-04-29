@@ -72,7 +72,7 @@ impl Plugin for I18nPlugin {
             panic!("failed to discover i18n modules:\n{details}");
         });
         let resolved_language =
-            resolve_initial_language(&self.config.initial_language, &discovery.languages);
+            resolve_initial_language(&self.config.initial_language, &discovery.asset_languages);
         let i18n_resource =
             initialize_i18n_resource(&self.config.initial_language, &resolved_language)
                 .unwrap_or_else(|error| panic!("failed to initialize i18n resource:\n{error}"));
@@ -83,9 +83,10 @@ impl Plugin for I18nPlugin {
 
         let module_count = discovery.modules.len();
         let domain_count = discovery.domains.len();
-        let language_count = discovery.languages.len();
+        let asset_language_count = discovery.asset_languages.len();
+        let total_language_count = discovery.all_languages.len();
         info!(
-            "Auto-discovered {module_count} modules, {domain_count} domains, {language_count} languages"
+            "Auto-discovered {module_count} modules, {domain_count} domains, {asset_language_count} Bevy asset languages ({total_language_count} total registered languages)"
         );
 
         let registered_count = register_discovered_fluent_text(app);

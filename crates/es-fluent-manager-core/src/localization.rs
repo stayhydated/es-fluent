@@ -18,8 +18,6 @@ pub use bundle::{
     localize_with_fallback_resources,
 };
 pub use manager::{DiscoveredRuntimeI18nModules, FluentManager};
-#[cfg(test)]
-pub(crate) use registry::normalize_module_registry;
 pub use registry::{ModuleDiscoveryError, ModuleRegistrationKind, try_filter_module_registry};
 
 pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;

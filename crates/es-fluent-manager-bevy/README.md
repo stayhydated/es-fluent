@@ -71,8 +71,9 @@ asset bundles. Runtime fallback selection uses `FluentManager`'s best-effort
 behavior; generated embedded localizers are fallback-aware, while custom
 runtime localizers should implement parent-locale fallback in
 `select_language(...)` when they need it. Runtime fallback managers are used
-only after Bevy resolves a locale through asset or ready-bundle availability;
-runtime-only locales do not by themselves make a Bevy locale switch selectable.
+only after Bevy resolves a locale through asset or ready-bundle availability
+during startup or a later `LocaleChangeEvent`; runtime-only locales do not by
+themselves make a Bevy locale switch selectable.
 
 For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:

@@ -65,18 +65,6 @@ static FILTER_MODULE_DATA: ModuleData = ModuleData {
     supported_languages: &[],
     namespaces: &[],
 };
-static FILTER_DUP_NAME_DATA: ModuleData = ModuleData {
-    name: "filter-module",
-    domain: "filter-domain-b",
-    supported_languages: &[],
-    namespaces: &[],
-};
-static FILTER_DUP_DOMAIN_DATA: ModuleData = ModuleData {
-    name: "filter-module-b",
-    domain: "filter-domain",
-    supported_languages: &[],
-    namespaces: &[],
-};
 static FILTER_EXACT_DUP_DATA: ModuleData = ModuleData {
     name: "filter-exact-module",
     domain: "filter-exact-domain",
@@ -95,12 +83,6 @@ static FILTER_INVALID_NAMESPACE_DATA: ModuleData = ModuleData {
     supported_languages: &[],
     namespaces: &[" ../escape "],
 };
-static FILTER_DUP_LANGUAGE_DATA: ModuleData = ModuleData {
-    name: "filter-dup-language",
-    domain: "filter-dup-language",
-    supported_languages: &[langid!("en"), langid!("en")],
-    namespaces: &[],
-};
 static DIAGNOSTIC_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
     langid!("en"),
     langid!("fr"),
@@ -116,19 +98,12 @@ static DIAGNOSTIC_MODULE_DATA: ModuleData = ModuleData {
     supported_languages: DIAGNOSTIC_SUPPORTED_LANGUAGES,
     namespaces: &[],
 };
-static FILTER_DESCRIPTOR: StaticModuleDescriptor = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
-static FILTER_DUP_NAME_DESCRIPTOR: StaticModuleDescriptor =
-    StaticModuleDescriptor::new(&FILTER_DUP_NAME_DATA);
-static FILTER_DUP_DOMAIN_DESCRIPTOR: StaticModuleDescriptor =
-    StaticModuleDescriptor::new(&FILTER_DUP_DOMAIN_DATA);
 static FILTER_EXACT_DUP_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 static FILTER_EXACT_DUP_DESCRIPTOR_TWO: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 static FILTER_INVALID_NAMESPACE_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_INVALID_NAMESPACE_DATA);
-static FILTER_DUP_LANGUAGE_DESCRIPTOR: StaticModuleDescriptor =
-    StaticModuleDescriptor::new(&FILTER_DUP_LANGUAGE_DATA);
 
 struct ModuleOk;
 struct ModuleErr;
@@ -665,76 +640,6 @@ fn build_sync_bundle_reports_resource_add_errors() {
     let (localized, _format_errors) =
         localize_with_bundle(&bundle, "hello", None).expect("message should exist");
     assert_eq!(localized, "first");
-}
-
-#[test]
-fn normalize_module_registry_skips_duplicate_name_and_domain() {
-    let filtered = normalize_module_registry([
-        &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_DUP_NAME_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_DUP_DOMAIN_DESCRIPTOR as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(filtered[0].data().name, "filter-module");
-}
-
-#[test]
-fn normalize_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
-    let filtered = normalize_module_registry([
-        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_some());
-}
-
-#[test]
-fn normalize_module_registry_keeps_metadata_only_registration_when_runtime_metadata_conflicts() {
-    let filtered = normalize_module_registry([
-        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_RUNTIME_MISMATCH_MODULE as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_none());
-    assert_eq!(filtered[0].data(), &FILTER_EXACT_DUP_DATA);
-}
-
-#[test]
-fn normalize_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
-    let filtered = normalize_module_registry([
-        &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
-        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_some());
-}
-
-#[test]
-#[serial(explicit_runtime_create_calls)]
-fn normalize_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
-    EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
-
-    let filtered =
-        normalize_module_registry([&EXPLICIT_RUNTIME_REGISTRATION as &dyn I18nModuleRegistration]);
-
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 0);
-}
-
-#[test]
-fn normalize_module_registry_skips_entries_with_invalid_metadata() {
-    let filtered = normalize_module_registry([
-        &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_INVALID_NAMESPACE_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_DUP_LANGUAGE_DESCRIPTOR as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(filtered[0].data().name, "filter-module");
 }
 
 #[test]

@@ -16,7 +16,8 @@ use unic_langid::LanguageIdentifier;
 pub(super) struct ModuleDiscovery {
     pub(super) modules: Vec<&'static dyn I18nModuleRegistration>,
     pub(super) domains: HashSet<&'static str>,
-    pub(super) languages: HashSet<LanguageIdentifier>,
+    pub(super) asset_languages: HashSet<LanguageIdentifier>,
+    pub(super) all_languages: HashSet<LanguageIdentifier>,
 }
 
 pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryError>> {
@@ -25,13 +26,17 @@ pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryE
         .collect::<Vec<_>>();
     let modules = try_filter_module_registry(discovered)?;
     let mut domains = HashSet::new();
-    let mut languages = HashSet::new();
+    let mut asset_languages = HashSet::new();
+    let mut all_languages = HashSet::new();
 
     for module in &modules {
         let data = module.data();
         domains.insert(data.domain);
         for lang in data.supported_languages {
-            languages.insert(lang.clone());
+            all_languages.insert(lang.clone());
+            if module.registration_kind() == ModuleRegistrationKind::MetadataOnly {
+                asset_languages.insert(lang.clone());
+            }
         }
 
         info!(
@@ -43,7 +48,8 @@ pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryE
     Ok(ModuleDiscovery {
         modules,
         domains,
-        languages,
+        asset_languages,
+        all_languages,
     })
 }
 
@@ -360,7 +366,12 @@ mod tests {
 
         assert!(!discovery.modules.is_empty());
         assert!(!discovery.domains.is_empty());
-        assert!(!discovery.languages.is_empty());
+        assert!(!discovery.all_languages.is_empty());
+        assert!(
+            discovery
+                .asset_languages
+                .is_subset(&discovery.all_languages)
+        );
     }
 
     #[test]
