@@ -41,14 +41,15 @@ es-fluent = { version = "0.16", features = ["derive"] }
 unic-langid = "0.9"
 
 # If you want to register modules with the embedded context and localize at runtime:
+# Default zero-setup runtime manager for this quick start.
 es-fluent-manager-embedded = "0.16"
 
 # For Dioxus apps, enable only the runtime surface you use.
-es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
-es-fluent-manager-bevy = "0.18.13"
+# es-fluent-manager-bevy = "0.18.13"
 ```
 
 `es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:

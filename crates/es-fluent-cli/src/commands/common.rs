@@ -130,7 +130,9 @@ pub fn run_generation_command(
     let has_errors = render_generation_results_with_dry_run(&results, dry_run, verb);
 
     if has_errors {
-        std::process::exit(1);
+        return Err(CliError::Other(
+            "generation command failed; see diagnostics above".to_string(),
+        ));
     }
 
     Ok(())

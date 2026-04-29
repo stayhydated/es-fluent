@@ -370,7 +370,9 @@ pub fn inherited_fluent_namespace(
         Data::Enum(_) => {
             EnumOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
         },
-        Data::Union(_) => panic!("namespace lookup is not supported for unions"),
+        Data::Union(_) => Err(darling::Error::custom(
+            "namespace lookup is not supported for unions",
+        )),
     }
 }
 
@@ -379,7 +381,9 @@ pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<String>, da
         Data::Struct(_) => Ok(None),
         Data::Enum(_) => EnumOpts::from_derive_input(input)
             .map(|opts| opts.attr_args().domain().map(str::to_owned)),
-        Data::Union(_) => panic!("domain lookup is not supported for unions"),
+        Data::Union(_) => Err(darling::Error::custom(
+            "domain lookup is not supported for unions",
+        )),
     }
 }
 

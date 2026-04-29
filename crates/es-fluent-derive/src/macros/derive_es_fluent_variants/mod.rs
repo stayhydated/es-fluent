@@ -59,7 +59,10 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 fluent_domain.as_deref(),
             )
         },
-        Data::Union(_) => panic!("EsFluentVariants cannot be used on unions"),
+        Data::Union(_) => proc_macro_error2::abort!(
+            input.ident.span(),
+            "EsFluentVariants can only be derived for structs and enums"
+        ),
     };
 
     tokens.into()

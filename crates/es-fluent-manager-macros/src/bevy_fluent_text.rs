@@ -32,6 +32,16 @@ pub(crate) fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
     let ident = &input.ident;
     let type_name = ident.to_string();
 
+    if matches!(&input.data, syn::Data::Union(_)) {
+        return TokenStream::from(
+            syn::Error::new(
+                input.ident.span(),
+                "BevyFluentText can only be derived for structs and enums",
+            )
+            .to_compile_error(),
+        );
+    }
+
     // Collect all locale fields from all variants/fields
     let locale_fields = match collect_locale_fields(&input.data) {
         Ok(locale_fields) => locale_fields,

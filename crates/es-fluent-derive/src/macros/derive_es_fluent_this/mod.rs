@@ -21,6 +21,13 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
+    if matches!(&input.data, Data::Union(_)) {
+        proc_macro_error2::abort!(
+            input.ident.span(),
+            "EsFluentThis can only be derived for structs and enums"
+        );
+    }
+
     let fluent_namespace = match inherited_fluent_namespace(&input) {
         Ok(namespace) => namespace,
         Err(err) => return err.write_errors(),

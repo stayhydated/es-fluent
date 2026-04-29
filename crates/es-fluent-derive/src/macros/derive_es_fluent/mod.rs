@@ -52,7 +52,10 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
 
             r#struct::process_struct(&opts, data)
         },
-        _ => panic!("Unsupported data type"),
+        _ => proc_macro_error2::abort!(
+            input.ident.span(),
+            "EsFluent can only be derived for structs and enums"
+        ),
     }
 }
 
