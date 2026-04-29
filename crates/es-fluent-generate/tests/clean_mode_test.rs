@@ -107,7 +107,7 @@ fn test_clean_writes_namespaced_files() {
 
     fs::create_dir_all(&i18n_path).unwrap();
     fs::create_dir_all(namespaced_file.parent().unwrap()).unwrap();
-    fs::write(&namespaced_file, "## Legacy\n\nlegacy-Old = Remove me\n").unwrap();
+    fs::write(&namespaced_file, "## Stale\n\nstale-Old = Remove me\n").unwrap();
 
     let variant = variant("Title", &ftl_key("Ui", "Title"));
     let item = common::enum_type_with_namespace("Ui", vec![variant], "ui");
@@ -135,7 +135,7 @@ fn test_clean_removes_stale_namespaced_files() {
 
     fs::create_dir_all(stale_file.parent().unwrap()).unwrap();
     fs::create_dir_all(active_file.parent().unwrap()).unwrap();
-    fs::write(&stale_file, "## Legacy\n\nlegacy-Old = Remove me\n").unwrap();
+    fs::write(&stale_file, "## Stale\n\nstale-Old = Remove me\n").unwrap();
     fs::write(&active_file, "## Errors\n\nerrors-Missing = Missing\n").unwrap();
 
     let variant = variant("Missing", &ftl_key("Errors", "Missing"));

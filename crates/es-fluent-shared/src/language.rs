@@ -85,9 +85,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_aliases_that_are_not_canonicalized() {
-        let err =
-            parse_canonical_language_identifier("iw").expect_err("deprecated aliases should fail");
+    fn rejects_noncanonical_language_identifiers() {
+        let err = parse_canonical_language_identifier("iw")
+            .expect_err("noncanonical identifiers should fail");
         assert!(matches!(
             err,
             CanonicalLanguageIdentifierError::NonCanonical { name, canonical }

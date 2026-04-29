@@ -1,12 +1,11 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
-use es_fluent_derive_core::options::namespace::NamespaceValue;
 use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
 use es_fluent_derive_core::options::this::ThisOpts;
 use es_fluent_derive_core::options::{
     FilteredEnumDataOptions as _, GeneratedVariantsOptions, StructDataOptions as _,
 };
-use es_fluent_shared::namer;
+use es_fluent_shared::{namer, namespace::NamespaceRule};
 
 use heck::ToPascalCase as _;
 use proc_macro2::TokenStream;
@@ -55,8 +54,8 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 fn resolved_variants_namespace<'a>(
     opts: &'a impl GeneratedVariantsOptions,
     this_opts: Option<&'a ThisOpts>,
-    fluent_namespace: Option<&'a NamespaceValue>,
-) -> Option<&'a NamespaceValue> {
+    fluent_namespace: Option<&'a NamespaceRule>,
+) -> Option<&'a NamespaceRule> {
     preferred_namespace([
         fluent_namespace,
         opts.variants_attr_args().namespace(),
@@ -67,7 +66,7 @@ fn resolved_variants_namespace<'a>(
 pub fn process_struct(
     opts: &StructVariantsOpts,
     this_opts: Option<&ThisOpts>,
-    fluent_namespace: Option<&NamespaceValue>,
+    fluent_namespace: Option<&NamespaceRule>,
 ) -> TokenStream {
     let variant_seeds = build_struct_variant_seeds(opts);
     emit_variants_output(opts, &variant_seeds, this_opts, fluent_namespace)
@@ -100,7 +99,7 @@ fn emit_variants_output(
     opts: &impl GeneratedVariantsOptions,
     variant_seeds: &[GeneratedVariantSeed],
     this_opts: Option<&ThisOpts>,
-    fluent_namespace: Option<&NamespaceValue>,
+    fluent_namespace: Option<&NamespaceRule>,
 ) -> TokenStream {
     if variant_seeds.is_empty() {
         return quote! {};
@@ -153,7 +152,7 @@ fn build_struct_variant_seeds(opts: &StructVariantsOpts) -> Vec<GeneratedVariant
 pub fn process_enum(
     opts: &EnumVariantsOpts,
     this_opts: Option<&ThisOpts>,
-    fluent_namespace: Option<&NamespaceValue>,
+    fluent_namespace: Option<&NamespaceRule>,
 ) -> TokenStream {
     let variant_seeds = build_enum_variant_seeds(opts);
     emit_variants_output(opts, &variant_seeds, this_opts, fluent_namespace)

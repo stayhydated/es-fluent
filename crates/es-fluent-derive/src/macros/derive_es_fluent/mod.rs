@@ -3,10 +3,10 @@ mod r#struct;
 
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::{
-    options::namespace::NamespaceValue,
     options::{r#enum::EnumOpts, r#struct::StructOpts},
     validation,
 };
+use es_fluent_shared::namespace::NamespaceRule;
 use syn::{Data, DeriveInput, parse_macro_input};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -14,7 +14,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     expand_es_fluent(input).into()
 }
 
-fn validate_namespace(namespace: Option<&NamespaceValue>, span: proc_macro2::Span) {
+fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
     if let Some(ns) = namespace
         && let Err(err) = validation::validate_namespace(ns, Some(span))
     {

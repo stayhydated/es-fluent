@@ -258,18 +258,18 @@ fn to_relative_path_uses_non_canonical_strip_fallback() {
     let temp = tempdir().unwrap();
     let real_root = temp.path().join("workspace-real");
     fs::create_dir_all(&real_root).unwrap();
-    let alias_parent = temp.path().join("alias-parent");
-    fs::create_dir_all(&alias_parent).unwrap();
-    let alias_root = alias_parent.join("..").join("workspace-real");
+    let alternate_parent = temp.path().join("alternate-parent");
+    fs::create_dir_all(&alternate_parent).unwrap();
+    let alternate_root = alternate_parent.join("..").join("workspace-real");
 
     let expected_keys = IndexMap::new();
     let ctx = ValidationContext {
         expected_keys: &expected_keys,
-        workspace_root: &alias_root,
-        manifest_dir: &alias_root,
+        workspace_root: &alternate_root,
+        manifest_dir: &alternate_root,
     };
 
-    let virtual_path = alias_root.join("i18n/en/missing.ftl");
+    let virtual_path = alternate_root.join("i18n/en/missing.ftl");
     let rel = ctx.to_relative_path(&virtual_path);
     assert_eq!(rel, "i18n/en/missing.ftl");
 

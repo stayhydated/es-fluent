@@ -2,11 +2,11 @@
 
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::r#enum::EnumOpts;
-use es_fluent_derive_core::options::namespace::NamespaceValue;
 use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_derive_core::validation::{
     validate_enum, validate_namespace, validate_namespace_against_allowed, validate_struct,
 };
+use es_fluent_shared::namespace::NamespaceRule;
 use insta::assert_snapshot;
 use std::path::Path;
 use syn::{DeriveInput, parse_quote};
@@ -365,14 +365,14 @@ mod validate_namespace_tests {
     #[test]
     fn file_namespace_always_passes() {
         // File-based namespaces are deferred to CLI validation
-        let ns = NamespaceValue::File;
+        let ns = NamespaceRule::File;
         validate_namespace(&ns, None).expect("File namespace should always pass at compile time");
     }
 
     #[test]
     fn file_relative_namespace_always_passes() {
         // File-based namespaces are deferred to CLI validation
-        let ns = NamespaceValue::FileRelative;
+        let ns = NamespaceRule::FileRelative;
         validate_namespace(&ns, None)
             .expect("FileRelative namespace should always pass at compile time");
     }
@@ -380,14 +380,14 @@ mod validate_namespace_tests {
     #[test]
     fn folder_namespace_always_passes() {
         // Folder-based namespaces are deferred to CLI validation
-        let ns = NamespaceValue::Folder;
+        let ns = NamespaceRule::Folder;
         validate_namespace(&ns, None).expect("Folder namespace should always pass at compile time");
     }
 
     #[test]
     fn folder_relative_namespace_always_passes() {
         // Folder-based namespaces are deferred to CLI validation
-        let ns = NamespaceValue::FolderRelative;
+        let ns = NamespaceRule::FolderRelative;
         validate_namespace(&ns, None)
             .expect("FolderRelative namespace should always pass at compile time");
     }
@@ -398,7 +398,7 @@ mod validate_namespace_tests {
         // validation should pass for any literal namespace.
         // This test runs without setting up a config file, so it relies on
         // the graceful fallback behavior.
-        let ns = NamespaceValue::Literal("any_namespace".into());
+        let ns = NamespaceRule::Literal("any_namespace".into());
         with_manifest_dir(None, || {
             validate_namespace(&ns, None).expect("Should pass when no config exists");
         });
@@ -409,7 +409,7 @@ mod validate_namespace_tests {
     fn literal_namespace_reports_parse_errors_from_config() {
         let temp = tempdir().expect("tempdir");
         std::fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write i18n.toml");
-        let ns = NamespaceValue::Literal("ui".into());
+        let ns = NamespaceRule::Literal("ui".into());
 
         let err = with_manifest_dir(Some(temp.path()), || {
             validate_namespace(&ns, None).expect_err("invalid config should be surfaced")

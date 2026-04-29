@@ -1,5 +1,6 @@
 use bon::Builder;
 use darling::{FromDeriveInput, FromMeta};
+use es_fluent_shared::namespace::NamespaceRule;
 use getset::Getters;
 
 /// Options for `EsFluentThis`.
@@ -38,7 +39,7 @@ impl ThisNamespacedAttributeArgs {
     }
 
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()
     }
 }

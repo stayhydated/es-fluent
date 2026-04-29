@@ -1,9 +1,8 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::options::namespace::NamespaceValue;
 use es_fluent_derive_core::options::{
     FluentField, GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
 };
-use es_fluent_shared::namer;
+use es_fluent_shared::{namer, namespace::NamespaceRule};
 use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -335,23 +334,23 @@ pub fn generate_inventory_module(input: InventoryModuleInput<'_>) -> TokenStream
     }
 }
 
-pub fn namespace_rule_tokens(namespace: Option<&NamespaceValue>) -> TokenStream {
+pub fn namespace_rule_tokens(namespace: Option<&NamespaceRule>) -> TokenStream {
     match namespace {
-        Some(NamespaceValue::Literal(s)) => {
+        Some(NamespaceRule::Literal(s)) => {
             quote! {
                 Some(::es_fluent::registry::NamespaceRule::Literal(::std::borrow::Cow::Borrowed(#s)))
             }
         },
-        Some(NamespaceValue::File) => {
+        Some(NamespaceRule::File) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::File) }
         },
-        Some(NamespaceValue::FileRelative) => {
+        Some(NamespaceRule::FileRelative) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
         },
-        Some(NamespaceValue::Folder) => {
+        Some(NamespaceRule::Folder) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::Folder) }
         },
-        Some(NamespaceValue::FolderRelative) => {
+        Some(NamespaceRule::FolderRelative) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::FolderRelative) }
         },
         None => quote! { None },
@@ -360,7 +359,7 @@ pub fn namespace_rule_tokens(namespace: Option<&NamespaceValue>) -> TokenStream 
 
 pub fn inherited_fluent_namespace(
     input: &DeriveInput,
-) -> Result<Option<NamespaceValue>, darling::Error> {
+) -> Result<Option<NamespaceRule>, darling::Error> {
     match &input.data {
         Data::Struct(_) => {
             StructOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
@@ -382,8 +381,8 @@ pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<String>, da
 }
 
 pub fn preferred_namespace<'a>(
-    namespaces: impl IntoIterator<Item = Option<&'a NamespaceValue>>,
-) -> Option<&'a NamespaceValue> {
+    namespaces: impl IntoIterator<Item = Option<&'a NamespaceRule>>,
+) -> Option<&'a NamespaceRule> {
     namespaces.into_iter().flatten().next()
 }
 
@@ -394,7 +393,7 @@ mod tests {
         preferred_namespace,
     };
     use crate::snapshot_support::pretty_file_tokens;
-    use es_fluent_derive_core::options::namespace::NamespaceValue;
+    use es_fluent_shared::namespace::NamespaceRule;
     use insta::assert_snapshot;
     use syn::parse_quote;
 
@@ -413,19 +412,19 @@ mod tests {
 
         assert!(matches!(
             inherited_fluent_namespace(&struct_input).expect("struct namespace"),
-            Some(NamespaceValue::Literal(value)) if value == "ui"
+            Some(NamespaceRule::Literal(value)) if value == "ui"
         ));
         assert!(matches!(
             inherited_fluent_namespace(&enum_input).expect("enum namespace"),
-            Some(NamespaceValue::Literal(value)) if value == "errors"
+            Some(NamespaceRule::Literal(value)) if value == "errors"
         ));
     }
 
     #[test]
     fn preferred_namespace_picks_the_first_available_namespace() {
-        let parent = NamespaceValue::Literal("parent".into());
-        let child = NamespaceValue::Literal("child".into());
-        let fallback = NamespaceValue::Literal("fallback".into());
+        let parent = NamespaceRule::Literal("parent".into());
+        let child = NamespaceRule::Literal("child".into());
+        let fallback = NamespaceRule::Literal("fallback".into());
 
         assert_eq!(
             preferred_namespace([Some(&parent), Some(&child), Some(&fallback)]),

@@ -3,9 +3,9 @@ use es_fluent_derive_core::options::{
     EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
     VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
-    namespace::NamespaceValue,
     r#struct::{StructOpts, StructVariantsOpts},
 };
+use es_fluent_shared::namespace::NamespaceRule;
 use syn::{DeriveInput, parse_quote};
 
 fn assert_no_generics(generics: &syn::Generics) {
@@ -333,7 +333,7 @@ fn struct_fluent_with_namespace_literal() {
     );
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::Literal(value)) if value == "ui"
+        Some(NamespaceRule::Literal(value)) if value == "ui"
     ));
 }
 
@@ -357,7 +357,7 @@ fn struct_fluent_with_namespace_file() {
     );
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::File)
+        Some(NamespaceRule::File)
     ));
 }
 
@@ -381,7 +381,7 @@ fn struct_fluent_with_namespace_file_relative() {
     );
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::FileRelative)
+        Some(NamespaceRule::FileRelative)
     ));
 }
 
@@ -398,7 +398,7 @@ fn struct_fluent_with_namespace_folder() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::Folder)
+        Some(NamespaceRule::Folder)
     ));
 }
 
@@ -415,7 +415,7 @@ fn struct_fluent_with_namespace_folder_relative() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::FolderRelative)
+        Some(NamespaceRule::FolderRelative)
     ));
 }
 
@@ -437,7 +437,7 @@ fn enum_fluent_with_namespace_literal() {
     assert_eq!(opts.variants().len(), 2);
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::Literal(value)) if value == "errors"
+        Some(NamespaceRule::Literal(value)) if value == "errors"
     ));
     assert!(opts.attr_args().resource().is_none());
     assert!(opts.attr_args().domain().is_none());

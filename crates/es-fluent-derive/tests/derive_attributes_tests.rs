@@ -226,7 +226,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
             host: String,
             port: u16,
             #[fluent_variants(skip)]
-            deprecated: bool,
+            archived: bool,
         }
     };
 
@@ -253,7 +253,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
     assert_eq!(all_fields.len(), 3);
     assert_eq!(
         all_fields[2].1.ident().expect("named field").to_string(),
-        "deprecated"
+        "archived"
     );
     assert!(all_fields[2].1.is_skipped());
 }

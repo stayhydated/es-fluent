@@ -3,14 +3,13 @@
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use bon::Builder;
 use darling::{FromField, FromMeta};
-use es_fluent_shared::namer;
+use es_fluent_shared::{namer, namespace::NamespaceRule};
 use getset::Getters;
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use quote::format_ident;
 
 pub mod choice;
 pub mod r#enum;
-pub mod namespace;
 pub mod r#struct;
 pub mod this;
 
@@ -487,12 +486,12 @@ pub struct NamespacedAttributeArgs {
     /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
     /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
     #[darling(default)]
-    namespace: Option<namespace::NamespaceValue>,
+    namespace: Option<NamespaceRule>,
 }
 
 impl NamespacedAttributeArgs {
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace.as_ref()
     }
 }
@@ -509,7 +508,7 @@ pub struct DerivedNamespacedAttributeArgs {
 
 impl DerivedNamespacedAttributeArgs {
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()
     }
 }
@@ -529,7 +528,7 @@ impl VariantsFluentAttributeArgs {
     }
 
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.derived_args.namespace()
     }
 

@@ -1,5 +1,6 @@
 use bon::Builder;
 use darling::{FromDeriveInput, FromMeta, FromVariant};
+use es_fluent_shared::namespace::NamespaceRule;
 use getset::Getters;
 use heck::ToSnakeCase as _;
 
@@ -105,7 +106,7 @@ impl FluentEnumAttributeArgs {
     }
 
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&super::namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()
     }
 }
@@ -197,7 +198,7 @@ impl GeneratedVariantsOptions for EnumVariantsOpts {
 mod tests {
     use super::*;
     use crate::options::FluentField as _;
-    use crate::options::namespace::NamespaceValue;
+    use es_fluent_shared::namespace::NamespaceRule;
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 
@@ -225,7 +226,7 @@ mod tests {
         assert!(opts.attr_args().skip_inventory());
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if value == "errors"
+            Some(NamespaceRule::Literal(value)) if value == "errors"
         ));
 
         let variants = opts.variants();
@@ -329,7 +330,7 @@ mod tests {
         );
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if value == "ui"
+            Some(NamespaceRule::Literal(value)) if value == "ui"
         ));
 
         let variants = opts.variants();
