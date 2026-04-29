@@ -92,6 +92,41 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
 }
 
 #[test]
+fn validate_loaded_ftl_files_reports_unexpected_variable_as_error() {
+    let temp = tempdir().unwrap();
+    let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+    fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+    fs::write(&ftl_path, "hello = Hello { $name } { $extra }\n").unwrap();
+
+    let resource =
+        fluent_syntax::parser::parse("hello = Hello { $name } { $extra }\n".to_string()).unwrap();
+    let loaded_files = vec![LoadedFtlFile {
+        abs_path: ftl_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource,
+        keys: std::iter::once("hello".to_string()).collect(),
+    }];
+
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert("hello".to_string(), key_info(&["name"], None, None));
+
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+
+    let issues = validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    assert!(issues.iter().any(|issue| {
+        matches!(
+            issue,
+            ValidationIssue::UnexpectedVariable(err)
+                if err.key == "hello" && err.variable == "extra"
+        )
+    }));
+}
+
+#[test]
 fn validate_crate_reports_missing_main_file_as_missing_key() {
     let temp = tempdir().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();

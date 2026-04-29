@@ -161,3 +161,38 @@ fn test_clean_removes_stale_namespaced_files() {
     let content = read_ftl(&active_file);
     assert_snapshot!("clean_removes_stale_namespaced_files_active", content);
 }
+
+#[test]
+fn test_clean_deletes_stale_main_file_when_all_items_are_namespaced() {
+    let temp_dir = TempDir::new().unwrap();
+    let i18n_path = temp_dir.path().join("i18n");
+    let crate_name = "test_crate";
+    let stale_main_file = i18n_path.join(format!("{}.ftl", crate_name));
+    let active_file = i18n_path.join(crate_name).join("ui.ftl");
+
+    fs::create_dir_all(&i18n_path).unwrap();
+    fs::create_dir_all(active_file.parent().unwrap()).unwrap();
+    fs::write(&stale_main_file, "## Stale\n\nstale-Old = Remove me\n").unwrap();
+    fs::write(&active_file, "## Ui\n\nui-Title = Title\n").unwrap();
+
+    let variant = variant("Title", &ftl_key("Ui", "Title"));
+    let item = common::enum_type_with_namespace("Ui", vec![variant], "ui");
+    let changed = es_fluent_generate::clean::clean(
+        crate_name,
+        &i18n_path,
+        temp_dir.path(),
+        std::slice::from_ref(&item),
+        false,
+    )
+    .unwrap();
+
+    assert!(changed);
+    assert!(
+        !stale_main_file.exists(),
+        "stale main file should be removed"
+    );
+    assert!(
+        active_file.exists(),
+        "active namespace file should be written"
+    );
+}

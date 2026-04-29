@@ -1,6 +1,7 @@
 use super::super::inventory::KeyInfo;
 use crate::core::{
-    DuplicateKeyError, FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue,
+    DuplicateKeyError, FtlSyntaxError, MissingKeyError, MissingVariableWarning,
+    UnexpectedVariableError, ValidationIssue,
 };
 use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
@@ -86,6 +87,23 @@ impl ValidationContext<'_> {
             key: key.to_string(),
             locale: locale.to_string(),
             help: self.missing_variable_help(variable, source_file, source_line),
+        })
+    }
+
+    pub(super) fn unexpected_variable_issue(
+        &self,
+        key: &str,
+        variable: &str,
+        locale: &str,
+        header_link: &str,
+    ) -> ValidationIssue {
+        ValidationIssue::UnexpectedVariable(UnexpectedVariableError {
+            src: NamedSource::new(header_link, String::new()),
+            span: SourceSpan::new(0_usize.into(), 1_usize),
+            variable: variable.to_string(),
+            key: key.to_string(),
+            locale: locale.to_string(),
+            help: format!("Remove variable '${variable}' from '{key}' or declare it in Rust code"),
         })
     }
 

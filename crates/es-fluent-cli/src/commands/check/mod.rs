@@ -5,16 +5,18 @@
 //! - Parsing FTL files directly using fluent-syntax (for proper ParserError handling)
 //! - Comparing FTL files against the expected keys and variables from Rust code
 //! - Reporting missing keys as errors
-//! - Reporting missing variables as warnings
+//! - Reporting unexpected FTL variables as errors
+//! - Reporting Rust-declared variables omitted by translations as warnings
 
 mod inventory;
 mod validation;
 
 use super::common::{WorkspaceArgs, WorkspaceCrates};
-use crate::core::{CliError, ValidationIssue, ValidationReport};
+use crate::core::{CliError, ValidationExecutionError, ValidationIssue, ValidationReport};
 use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
 use crate::utils::ui;
 use clap::Parser;
+use miette::NamedSource;
 use std::collections::HashSet;
 
 /// Arguments for the check command.
@@ -127,10 +129,18 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
                 all_issues.extend(issues);
             },
             Err(e) => {
+                let error = e.to_string();
                 // If error, print above progress bar
                 pb.suspend(|| {
-                    ui::Ui::print_check_error(&krate.name, &e.to_string());
+                    ui::Ui::print_check_error(&krate.name, &error);
                 });
+                all_issues.push(ValidationIssue::ValidationExecution(
+                    ValidationExecutionError {
+                        src: NamedSource::new(krate.name.clone(), String::new()),
+                        crate_name: krate.name.clone(),
+                        help: error,
+                    },
+                ));
             },
         }
         pb.inc(1);
@@ -148,6 +158,8 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
                 i,
                 ValidationIssue::MissingKey(_)
                     | ValidationIssue::DuplicateKey(_)
+                    | ValidationIssue::UnexpectedVariable(_)
+                    | ValidationIssue::ValidationExecution(_)
                     | ValidationIssue::SyntaxError(_)
             )
         })
@@ -325,8 +337,8 @@ mod tests {
         });
 
         assert!(
-            result.is_ok(),
-            "per-crate validation errors should be reported and command should complete, got {result:?}"
+            matches!(result, Err(CliError::Validation(ref report)) if report.error_count == 1),
+            "per-crate validation errors should make check fail, got {result:?}"
         );
     }
 }

@@ -42,6 +42,14 @@ pub(super) fn validate_loaded_ftl_files(
                 key_info.source_line,
             ));
         }
+
+        for variable in &actual.variables {
+            if key_info.variables.contains(variable) {
+                continue;
+            }
+
+            issues.push(ctx.unexpected_variable_issue(key, variable, locale, &actual.header_link));
+        }
     }
 
     issues
