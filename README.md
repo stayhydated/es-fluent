@@ -77,7 +77,8 @@ hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a
 request-scoped runtime. Dioxus code should use
 `DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or
-explicit `localize*` helpers; the Dioxus manager does not install a
+explicit `localize*` helpers through the component or SSR request context.
+Dioxus does not use the generic embedded localizer handle or install a
 process-wide localizer.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
@@ -85,15 +86,17 @@ requested locale from the currently published one. Failed locale switches keep
 the last ready locale active. When a requested locale falls back to a resolved
 locale, Bevy publishes the requested locale for change events and ECS resources
 while using the resolved locale for ready bundle lookup; runtime fallback
-managers are selected with the requested locale first, then the resolved locale.
-That selection uses `FluentManager`'s best-effort behavior; generated embedded
+managers are asked to select the requested locale first, then the resolved
+locale, but rejection does not block Bevy asset-backed locale publication. That
+selection uses `FluentManager`'s best-effort behavior; generated embedded
 localizers are fallback-aware, while custom runtime localizers should implement
 parent-locale fallback in `select_language(...)` when they need it.
 Only metadata-only Bevy registrations create Bevy asset availability; runtime
 localizer registrations are reserved for the fallback manager and do not make a
-locale wait on Bevy asset bundles. Runtime fallback managers are used only after
-Bevy resolves a locale through asset or ready-bundle availability during
-startup or a later `LocaleChangeEvent`; runtime-only locales do not by
+locale wait on Bevy asset bundles. Runtime fallback managers are attached at
+startup only when they accept the requested or resolved locale, and are used
+only after Bevy resolves a locale through asset or ready-bundle availability
+during startup or a later `LocaleChangeEvent`; runtime-only locales do not by
 themselves make a Bevy locale switch selectable.
 Systems that need direct localization can request `BevyI18n` as a `SystemParam`
 and call `localize_message(...)` on it.

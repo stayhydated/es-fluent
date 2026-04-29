@@ -194,7 +194,7 @@ pub fn I18nProvider(
         Err(error) => {
             tracing::error!(
                 error = %error,
-                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children without initialized i18n context"
+                "Dioxus i18n provider initialization failed; rendering fallback if configured, otherwise rendering children with a failed i18n context"
             );
             match fallback {
                 Some(fallback) => fallback,

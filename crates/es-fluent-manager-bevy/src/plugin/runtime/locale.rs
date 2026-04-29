@@ -25,10 +25,9 @@ pub(super) fn apply_selected_language(
         .select_fallback_language_for_resolution(&selection.requested, &selection.resolved)
     {
         warn!(
-            "Skipping locale change to '{}' resolved as '{}' because the fallback manager rejected the switch: {}",
+            "Runtime fallback manager rejected locale change to '{}' resolved as '{}'; publishing Bevy locale anyway: {}",
             selection.requested, selection.resolved, error
         );
-        return false;
     }
 
     i18n_resource.set_active_language(selection.requested.clone(), selection.resolved.clone());

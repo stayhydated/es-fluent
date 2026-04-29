@@ -187,7 +187,7 @@ Client apps should localize through the `DioxusI18n` context provided by `I18nPr
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
-If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it renders children without an initialized i18n context, so descendants that call `use_i18n()` receive an initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
+If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
 
 ### SSR Quick Start
 
@@ -274,14 +274,16 @@ to read the currently published locale. `LocaleChangedEvent` refers to
 `ActiveLanguageId`, not merely the latest request. When a requested locale
 falls back to a resolved locale, Bevy publishes the requested locale for change
 events and ECS resources while using the resolved locale for ready bundle
-lookup. Runtime fallback managers follow the same policy by trying the
-requested locale first, then the resolved locale. Only metadata-only Bevy
-registrations create Bevy asset availability; runtime localizer registrations
-are reserved for the fallback manager and do not make a locale wait on Bevy
-asset bundles. Runtime fallback selection uses `FluentManager`'s best-effort
+lookup. Runtime fallback managers are best-effort: Bevy asks them to select the
+requested locale first, then the resolved locale, but rejection does not block
+Bevy asset-backed locale publication. Only metadata-only Bevy registrations
+create Bevy asset availability; runtime localizer registrations are reserved
+for the fallback manager and do not make a locale wait on Bevy asset bundles.
+When attached, runtime fallback selection uses `FluentManager`'s best-effort
 behavior; generated embedded localizers are fallback-aware, while custom
 runtime localizers should implement parent-locale fallback in
-`select_language(...)` when they need it. Runtime fallback managers are used
+`select_language(...)` when they need it. Runtime fallback managers are attached
+at startup only when they accept the requested or resolved locale, and are used
 only after Bevy resolves a locale through asset or ready-bundle availability
 during startup or a later `LocaleChangeEvent`; runtime-only locales do not by
 themselves make a Bevy locale switch selectable.

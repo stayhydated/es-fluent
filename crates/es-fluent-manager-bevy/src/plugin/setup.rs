@@ -7,8 +7,8 @@ use crate::{
 };
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    FluentManager, I18nModuleRegistration, ModuleDiscoveryError, ModuleRegistrationKind,
-    resolve_ready_locale, try_filter_module_registry,
+    FluentManager, I18nModuleRegistration, LocalizationError, ModuleDiscoveryError,
+    ModuleRegistrationKind, resolve_ready_locale, try_filter_module_registry,
 };
 use std::{collections::HashSet, sync::Arc};
 use unic_langid::LanguageIdentifier;
@@ -109,24 +109,41 @@ fn initialize_i18n_resource_with_fallback_manager(
         return Ok(i18n_resource);
     };
 
-    let i18n_resource = i18n_resource.with_fallback_manager(fallback_manager);
-    i18n_resource
-        .select_fallback_language_for_resolution(requested_language, resolved_language)
-        .map_err(|error| {
-            if requested_language == resolved_language {
-                format!(
-                    "fallback manager rejected initial language '{}': {}",
-                    requested_language, error
-                )
-            } else {
-                format!(
-                    "fallback manager rejected initial language '{}' and resolved fallback '{}': {}",
-                    requested_language, resolved_language, error
-                )
-            }
-        })?;
+    if let Err(error) = select_fallback_manager_for_resolution(
+        &fallback_manager,
+        requested_language,
+        resolved_language,
+    ) {
+        debug!(
+            "Runtime fallback manager rejected initial locale '{}' resolved as '{}'; continuing without runtime fallback manager: {}",
+            requested_language, resolved_language, error
+        );
+        return Ok(i18n_resource);
+    }
 
-    Ok(i18n_resource)
+    Ok(i18n_resource.with_fallback_manager(fallback_manager))
+}
+
+fn select_fallback_manager_for_resolution(
+    fallback_manager: &FluentManager,
+    requested_language: &LanguageIdentifier,
+    resolved_language: &LanguageIdentifier,
+) -> Result<(), LocalizationError> {
+    match fallback_manager.select_language(requested_language) {
+        Ok(()) => Ok(()),
+        Err(requested_error) if resolved_language != requested_language => fallback_manager
+            .select_language(resolved_language)
+            .map_err(|resolved_error| {
+                debug!(
+                    "Runtime fallback manager rejected requested locale '{}' before resolved locale '{}' failed: {}",
+                    requested_language,
+                    resolved_language,
+                    requested_error
+                );
+                resolved_error
+            }),
+        Err(error) => Err(error),
+    }
 }
 
 fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
@@ -375,13 +392,16 @@ mod tests {
     }
 
     #[test]
-    fn initialize_i18n_resource_reports_fallback_manager_rejection() {
-        let error = match initialize_i18n_resource(&langid!("zz"), &langid!("zz")) {
-            Ok(_) => panic!("unsupported initial language should be rejected"),
-            Err(error) => error,
-        };
+    fn initialize_i18n_resource_ignores_fallback_manager_rejection() {
+        let unsupported = langid!("zz");
+        let i18n_resource = initialize_i18n_resource(&unsupported, &unsupported)
+            .expect("unsupported runtime fallback language should not block Bevy startup");
 
-        assert!(error.contains("fallback manager rejected initial language 'zz'"));
+        assert_eq!(i18n_resource.active_language(), &unsupported);
+        assert_eq!(i18n_resource.resolved_language(), &unsupported);
+        assert!(i18n_resource
+            .select_fallback_language(&unsupported)
+            .is_ok());
     }
 
     #[test]

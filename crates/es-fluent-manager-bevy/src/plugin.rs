@@ -136,17 +136,26 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "failed to initialize i18n resource")]
-    fn i18n_plugin_build_reports_initial_language_rejected_by_fallback_manager() {
+    fn i18n_plugin_build_ignores_initial_language_rejected_by_fallback_manager() {
+        let unsupported = langid!("zz");
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_plugins(AssetPlugin::default());
 
         I18nPlugin::with_config(I18nPluginConfig {
-            initial_language: langid!("zz"),
+            initial_language: unsupported.clone(),
             asset_path: "i18n".to_string(),
         })
         .build(&mut app);
+
+        assert_eq!(
+            app.world().resource::<crate::I18nResource>().active_language(),
+            &unsupported
+        );
+        assert_eq!(
+            &app.world().resource::<crate::ActiveLanguageId>().0,
+            &unsupported
+        );
     }
 
     #[test]
