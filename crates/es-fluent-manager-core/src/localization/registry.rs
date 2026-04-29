@@ -96,6 +96,7 @@ fn validate_single_module_data(data: &'static ModuleData, errors: &mut Vec<Modul
 ///
 /// For exact duplicates (`name` + `domain`), runtime-localizer registrations are
 /// preferred over metadata-only registrations.
+#[cfg(test)]
 pub(crate) fn normalize_module_registry(
     modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
 ) -> Vec<&'static dyn I18nModuleRegistration> {
@@ -226,14 +227,16 @@ pub(crate) fn normalize_module_registry(
     filtered
 }
 
-/// Validates discovered registrations strictly and returns either a normalized
+/// Validates discovered registrations strictly and returns either the validated
 /// module list or the collected registry/discovery errors.
 ///
 /// Strict validation still allows one metadata-only registration plus one
 /// runtime-localizer registration for the same exact (`name`, `domain`)
 /// identity, because that pairing is used intentionally by some integrations.
 /// It rejects repeated registrations of the same kind for one identity and all
-/// metadata validation failures reported by `validate_module_registry()`.
+/// metadata validation failures reported by `validate_module_registry()`. Exact
+/// metadata/runtime pairs are preserved so integrations can filter the
+/// registration kind they need.
 pub fn try_filter_module_registry(
     modules: impl IntoIterator<Item = &'static dyn I18nModuleRegistration>,
 ) -> Result<Vec<&'static dyn I18nModuleRegistration>, Vec<ModuleDiscoveryError>> {
@@ -291,7 +294,7 @@ pub fn try_filter_module_registry(
     }
 
     if errors.is_empty() {
-        Ok(normalize_module_registry(modules))
+        Ok(modules)
     } else {
         Err(errors)
     }

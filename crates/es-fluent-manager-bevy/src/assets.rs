@@ -366,7 +366,15 @@ impl I18nResource {
             Ok(()) => Ok(()),
             Err(requested_error) if resolved_language != requested_language => self
                 .select_fallback_language(resolved_language)
-                .map_err(|_| requested_error),
+                .map_err(|resolved_error| {
+                    debug!(
+                        "Runtime fallback manager rejected requested locale '{}' before resolved locale '{}' failed: {}",
+                        requested_language,
+                        resolved_language,
+                        requested_error
+                    );
+                    resolved_error
+                }),
             Err(error) => Err(error),
         }
     }

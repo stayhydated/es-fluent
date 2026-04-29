@@ -52,7 +52,8 @@ Strict discovery is now the default constructor behavior. Construction does not
 select a language, so custom runtime integrations must select the initial
 language before lookup:
 
-```rust
+```rust,no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;
 
@@ -60,4 +61,7 @@ let manager = FluentManager::new_with_discovered_modules();
 manager.select_language(&langid!("en"))?;
 
 let value = manager.localize_in_domain("app", "hello", None);
+# let _ = value;
+# Ok(())
+# }
 ```

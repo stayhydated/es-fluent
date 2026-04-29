@@ -91,7 +91,9 @@ localizers are fallback-aware, while custom runtime localizers should implement
 parent-locale fallback in `select_language(...)` when they need it.
 Only metadata-only Bevy registrations create Bevy asset availability; runtime
 localizer registrations are reserved for the fallback manager and do not make a
-locale wait on Bevy asset bundles.
+locale wait on Bevy asset bundles. Runtime fallback managers are used only after
+Bevy resolves a locale through asset or ready-bundle availability; runtime-only
+locales do not by themselves make a Bevy locale switch selectable.
 Systems that need direct localization can request `BevyI18n` as a `SystemParam`
 and call `localize_message(...)` on it.
 

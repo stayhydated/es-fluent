@@ -738,15 +738,20 @@ fn normalize_module_registry_skips_entries_with_invalid_metadata() {
 }
 
 #[test]
-fn try_filter_module_registry_allows_exact_runtime_and_metadata_pairing() {
+fn try_filter_module_registry_preserves_exact_runtime_and_metadata_pairing() {
     let filtered = try_filter_module_registry([
         &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
     ])
     .expect("metadata plus runtime for one exact identity should remain valid");
 
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_some());
+    assert_eq!(filtered.len(), 2);
+    assert!(filtered.iter().any(|registration| {
+        registration.registration_kind() == ModuleRegistrationKind::MetadataOnly
+    }));
+    assert!(filtered.iter().any(|registration| {
+        registration.registration_kind() == ModuleRegistrationKind::RuntimeLocalizer
+    }));
 }
 
 #[test]

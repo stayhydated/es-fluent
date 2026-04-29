@@ -444,6 +444,28 @@ mod tests {
     }
 
     #[test]
+    fn build_i18n_assets_uses_metadata_half_of_metadata_runtime_pair() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<FtlAsset>();
+
+        let asset_server = app.world().resource::<AssetServer>();
+        let i18n_assets = build_i18n_assets(
+            asset_server,
+            "localized",
+            &[&SETUP_TEST_ASSET_MODULE, &SETUP_TEST_MODULE],
+        );
+
+        let required_key = (langid!("en"), ResourceKey::new("setup-domain"));
+        let optional_key = (langid!("en"), ResourceKey::new("setup-domain/ui"));
+
+        assert_eq!(i18n_assets.assets.len(), 2);
+        assert!(i18n_assets.assets.contains_key(&required_key));
+        assert!(i18n_assets.assets.contains_key(&optional_key));
+    }
+
+    #[test]
     fn register_discovered_fluent_text_returns_inventory_count() {
         let mut app = App::new();
         let registered = register_discovered_fluent_text(&mut app);

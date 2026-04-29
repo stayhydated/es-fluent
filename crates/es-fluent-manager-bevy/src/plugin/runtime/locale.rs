@@ -244,7 +244,7 @@ mod tests {
         pending_language_change: PendingLanguageChange,
         i18n_resource: I18nResource,
     ) -> App {
-        let lang = langid!("en");
+        let lang = i18n_resource.active_language().clone();
         let mut app = App::new();
         app.add_message::<LocaleChangeEvent>()
             .add_message::<LocaleChangedEvent>()
@@ -416,6 +416,38 @@ mod tests {
             app.world().resource::<ObservedLocaleChanges>().0,
             vec![requested]
         );
+    }
+
+    #[test]
+    fn handle_locale_changes_treats_runtime_only_locale_as_unavailable() {
+        let fr = langid!("fr");
+        let en = langid!("en");
+        let fallback_manager = Arc::new(
+            es_fluent_manager_core::FluentManager::try_new_with_discovered_modules()
+                .expect("test runtime module discovery should be valid"),
+        );
+        fallback_manager
+            .select_language(&en)
+            .expect("test fallback manager should support runtime-only English");
+        let mut app = app_with_locale_system_and_resource(
+            I18nBundle::default(),
+            I18nAssets::new(),
+            BundleBuildFailures::default(),
+            PendingLanguageChange::default(),
+            I18nResource::new(fr.clone()).with_fallback_manager(fallback_manager),
+        );
+
+        app.world_mut().write_message(LocaleChangeEvent(en.clone()));
+        app.update();
+
+        assert_eq!(app.world().resource::<RequestedLanguageId>().0, en);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, fr);
+        assert_eq!(
+            app.world().resource::<I18nResource>().active_language(),
+            &fr
+        );
+        assert!(app.world().resource::<PendingLanguageChange>().0.is_none());
+        assert!(app.world().resource::<ObservedLocaleChanges>().0.is_empty());
     }
 
     #[test]
