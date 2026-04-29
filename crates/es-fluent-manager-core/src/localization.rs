@@ -32,6 +32,11 @@ pub enum LanguageSelectionPolicy {
 
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
+    ///
+    /// Implementations own their fallback behavior. Generated embedded
+    /// localizers resolve parent locales internally; custom localizers that
+    /// need the same behavior should perform that resolution here before
+    /// returning [`LocalizationError::LanguageNotSupported`].
     fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
     /// Localizes a message by its ID.
     fn localize<'a>(

@@ -86,6 +86,12 @@ the last ready locale active. When a requested locale falls back to a resolved
 locale, Bevy publishes the requested locale for change events and ECS resources
 while using the resolved locale for ready bundle lookup; runtime fallback
 managers are selected with the requested locale first, then the resolved locale.
+That selection uses `FluentManager`'s best-effort behavior; generated embedded
+localizers are fallback-aware, while custom runtime localizers should implement
+parent-locale fallback in `select_language(...)` when they need it.
+Only metadata-only Bevy registrations create Bevy asset availability; runtime
+localizer registrations are reserved for the fallback manager and do not make a
+locale wait on Bevy asset bundles.
 Systems that need direct localization can request `BevyI18n` as a `SystemParam`
 and call `localize_message(...)` on it.
 

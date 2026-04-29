@@ -7,8 +7,8 @@ use crate::{
 };
 use bevy::prelude::*;
 use es_fluent_manager_core::{
-    FluentManager, I18nModuleRegistration, ModuleDiscoveryError, resolve_ready_locale,
-    try_filter_module_registry,
+    FluentManager, I18nModuleRegistration, ModuleDiscoveryError, ModuleRegistrationKind,
+    resolve_ready_locale, try_filter_module_registry,
 };
 use std::{collections::HashSet, sync::Arc};
 use unic_langid::LanguageIdentifier;
@@ -139,6 +139,14 @@ pub(super) fn build_i18n_assets(
     let mut i18n_assets = I18nAssets::new();
 
     for module in modules {
+        if module.registration_kind() != ModuleRegistrationKind::MetadataOnly {
+            debug!(
+                "Skipping runtime i18n module '{}' for Bevy asset loading",
+                module.data().name
+            );
+            continue;
+        }
+
         let data = module.data();
         let canonical_resource_plan = data.resource_plan();
         for lang in data.supported_languages {
@@ -235,6 +243,7 @@ mod tests {
     };
 
     struct SetupTestModule;
+    struct SetupTestAssetModule;
     struct SetupTestLocalizer;
 
     impl Localizer for SetupTestLocalizer {
@@ -261,6 +270,29 @@ mod tests {
         }
     }
 
+    impl es_fluent_manager_core::I18nModuleDescriptor for SetupTestAssetModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_MODULE_DATA
+        }
+    }
+
+    fn setup_test_resource_plan(lang: &LanguageIdentifier) -> Option<Vec<ModuleResourceSpec>> {
+        (lang == &langid!("en")).then(|| {
+            vec![
+                ModuleResourceSpec {
+                    key: ResourceKey::new("setup-domain"),
+                    locale_relative_path: "setup-domain.ftl".to_string(),
+                    required: true,
+                },
+                ModuleResourceSpec {
+                    key: ResourceKey::new("setup-domain/ui"),
+                    locale_relative_path: "setup-domain/ui.ftl".to_string(),
+                    required: false,
+                },
+            ]
+        })
+    }
+
     impl I18nModuleRegistration for SetupTestModule {
         fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
             Some(Box::new(SetupTestLocalizer))
@@ -274,24 +306,25 @@ mod tests {
             &self,
             lang: &LanguageIdentifier,
         ) -> Option<Vec<ModuleResourceSpec>> {
-            (lang == &langid!("en")).then(|| {
-                vec![
-                    ModuleResourceSpec {
-                        key: ResourceKey::new("setup-domain"),
-                        locale_relative_path: "setup-domain.ftl".to_string(),
-                        required: true,
-                    },
-                    ModuleResourceSpec {
-                        key: ResourceKey::new("setup-domain/ui"),
-                        locale_relative_path: "setup-domain/ui.ftl".to_string(),
-                        required: false,
-                    },
-                ]
-            })
+            setup_test_resource_plan(lang)
+        }
+    }
+
+    impl I18nModuleRegistration for SetupTestAssetModule {
+        fn registration_kind(&self) -> ModuleRegistrationKind {
+            ModuleRegistrationKind::MetadataOnly
+        }
+
+        fn resource_plan_for_language(
+            &self,
+            lang: &LanguageIdentifier,
+        ) -> Option<Vec<ModuleResourceSpec>> {
+            setup_test_resource_plan(lang)
         }
     }
 
     static SETUP_TEST_MODULE: SetupTestModule = SetupTestModule;
+    static SETUP_TEST_ASSET_MODULE: SetupTestAssetModule = SetupTestAssetModule;
 
     inventory::submit! {
         &SETUP_TEST_MODULE as &dyn I18nModuleRegistration
@@ -385,7 +418,7 @@ mod tests {
         app.init_asset::<FtlAsset>();
 
         let asset_server = app.world().resource::<AssetServer>();
-        let i18n_assets = build_i18n_assets(asset_server, "localized", &[&SETUP_TEST_MODULE]);
+        let i18n_assets = build_i18n_assets(asset_server, "localized", &[&SETUP_TEST_ASSET_MODULE]);
 
         let required_key = (langid!("en"), ResourceKey::new("setup-domain"));
         let optional_key = (langid!("en"), ResourceKey::new("setup-domain/ui"));
@@ -394,6 +427,20 @@ mod tests {
         assert!(i18n_assets.assets.contains_key(&optional_key));
         assert!(i18n_assets.resource_specs[&required_key].required);
         assert!(!i18n_assets.resource_specs[&optional_key].required);
+    }
+
+    #[test]
+    fn build_i18n_assets_ignores_runtime_localizer_modules() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(AssetPlugin::default());
+        app.init_asset::<FtlAsset>();
+
+        let asset_server = app.world().resource::<AssetServer>();
+        let i18n_assets = build_i18n_assets(asset_server, "localized", &[&SETUP_TEST_MODULE]);
+
+        assert!(i18n_assets.assets.is_empty());
+        assert!(i18n_assets.resource_specs.is_empty());
     }
 
     #[test]

@@ -64,7 +64,13 @@ to read the currently published locale. `LocaleChangedEvent` refers to
 falls back to a resolved locale, Bevy publishes the requested locale for change
 events and ECS resources while using the resolved locale for ready bundle
 lookup. Runtime fallback managers follow the same policy by trying the
-requested locale first, then the resolved locale.
+requested locale first, then the resolved locale. Only metadata-only Bevy
+registrations create Bevy asset availability; runtime localizer registrations
+are reserved for the fallback manager and do not make a locale wait on Bevy
+asset bundles. Runtime fallback selection uses `FluentManager`'s best-effort
+behavior; generated embedded localizers are fallback-aware, while custom
+runtime localizers should implement parent-locale fallback in
+`select_language(...)` when they need it.
 
 For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:
