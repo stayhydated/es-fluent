@@ -5,6 +5,7 @@ use es_fluent_derive_core::options::this::ThisOpts;
 use es_fluent_derive_core::options::{
     FilteredEnumDataOptions as _, GeneratedVariantsOptions, StructDataOptions as _,
 };
+use es_fluent_derive_core::validation;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 
 use heck::ToPascalCase as _;
@@ -66,6 +67,14 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     tokens.into()
+}
+
+fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
+    if let Some(ns) = namespace
+        && let Err(err) = validation::validate_namespace(ns, Some(span))
+    {
+        err.abort();
+    }
 }
 
 fn resolved_variants_namespace<'a>(
@@ -134,8 +143,9 @@ fn emit_variants_output(
     let key_strings = opts.variants_attr_args().key_strings().unwrap_or_default();
     let derives: Vec<syn::Path> = (*opts.variants_attr_args().derive()).to_vec();
     let namespace = resolved_variants_namespace(opts, this_opts, fluent_namespace);
-    let namespace_expr = namespace_rule_tokens(namespace);
     let origin_ident = opts.variants_ident();
+    validate_namespace(namespace, origin_ident.span());
+    let namespace_expr = namespace_rule_tokens(namespace);
     let ftl_enum_ident = opts.ftl_enum_ident();
 
     emit_default_or_keyed_items(&ftl_enum_ident, &keys, &key_strings, |ident, key_name| {

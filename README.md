@@ -61,6 +61,11 @@ let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langi
 For custom runtime integrations, create a `FluentManager`, select the initial
 language, then use typed or domain-scoped lookup:
 
+```toml
+[dependencies]
+es-fluent-manager-core = "0.16"
+```
+
 ```no_run
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;

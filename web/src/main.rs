@@ -5,8 +5,13 @@ fn main() {
         use dioxus_server::{DioxusRouterExt as _, FullstackState, ServerFunction};
 
         let cfg = serve_config();
-        web::cleanup_generated_route_cache(public_dir())
+        let public_dir = public_dir();
+        web::cleanup_generated_route_cache(&public_dir)
             .expect("failed to clear generated route cache");
+        if std::env::var_os("DIOXUS_PUBLIC_PATH").is_none() {
+            web::mark_generated_route_cache(&public_dir)
+                .expect("failed to mark generated route cache");
+        }
         let app_router = Router::new().serve_dioxus_application(cfg.clone(), web::App);
         let app_router = with_base_path(app_router, cfg);
 

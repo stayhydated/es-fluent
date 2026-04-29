@@ -54,7 +54,9 @@ fn main() {
 ```
 
 Plugin startup uses strict module discovery, so invalid or duplicate
-registrations fail the app boot instead of being normalized silently. Failed hot
+registrations are reported through `I18nPluginStartupError` instead of being
+normalized silently. When setup fails, the plugin skips localization runtime
+setup and leaves the error resource in the app world for diagnostics. Failed hot
 reloads or locale switches keep the last accepted locale active instead of
 publishing a broken update.
 

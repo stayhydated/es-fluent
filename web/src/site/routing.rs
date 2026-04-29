@@ -259,8 +259,22 @@ fn relative_path(locale: SiteLanguage, page: PageKind) -> String {
     segments.join("/")
 }
 
+const GENERATED_ROUTE_CACHE_MARKER: &str = ".es-fluent-generated-route-cache";
+
+pub(crate) fn mark_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(public_dir)?;
+    fs::write(
+        public_dir.join(GENERATED_ROUTE_CACHE_MARKER),
+        "Generated route cache owned by es-fluent web server.\n",
+    )
+}
+
 pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
     if !public_dir.exists() {
+        return Ok(());
+    }
+
+    if !public_dir.join(GENERATED_ROUTE_CACHE_MARKER).is_file() {
         return Ok(());
     }
 

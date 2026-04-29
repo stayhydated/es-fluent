@@ -13,6 +13,10 @@ pub fn cleanup_generated_route_cache(public_dir: impl AsRef<Path>) -> std::io::R
     site::routing::cleanup_generated_route_cache(public_dir.as_ref())
 }
 
+pub fn mark_generated_route_cache(public_dir: impl AsRef<Path>) -> std::io::Result<()> {
+    site::routing::mark_generated_route_cache(public_dir.as_ref())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::site::i18n::SiteLanguage;
@@ -115,6 +119,7 @@ mod tests {
         fs::create_dir_all(public_dir.join("assets")).expect("create assets dir");
         fs::write(public_dir.join("assets").join("site.css"), "body {}").expect("write asset");
 
+        crate::mark_generated_route_cache(public_dir).expect("mark route cache");
         crate::cleanup_generated_route_cache(public_dir).expect("cleanup route cache");
 
         assert!(!public_dir.join("index.html").exists());

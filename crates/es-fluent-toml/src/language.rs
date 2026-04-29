@@ -39,6 +39,12 @@ pub(crate) fn parse_language_entry(
                 source,
             }
         },
+        CanonicalLanguageIdentifierError::IcuInvalid { details, .. } => {
+            I18nConfigError::IcuLanguageIdentifier {
+                name: name.clone(),
+                details,
+            }
+        },
         CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
             I18nConfigError::NonCanonicalLanguageIdentifier {
                 name: name.clone(),

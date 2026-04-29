@@ -25,7 +25,7 @@ pub struct SyncArgs {
     pub locale: Vec<String>,
 
     /// Sync to all locales (excluding the fallback language).
-    #[arg(long)]
+    #[arg(long, conflicts_with = "locale")]
     pub all: bool,
 
     /// Dry run - show what would be synced without making changes.

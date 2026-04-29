@@ -111,6 +111,11 @@ strict discovery behavior through `FluentManager`. Construction does not select
 a language, so select the initial language before lookup and prefer typed or
 domain-scoped localization:
 
+```toml
+[dependencies]
+es-fluent-manager-core = "0.16"
+```
+
 ```rust
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;
@@ -296,7 +301,9 @@ fn main() {
 not install a process-wide localization hook.
 
 Plugin startup also uses strict module discovery, so invalid or duplicate i18n
-module registrations fail the app boot instead of being normalized silently.
+module registrations are reported through `I18nPluginStartupError` instead of
+being normalized silently. When setup fails, the plugin skips localization
+runtime setup and leaves the error resource in the app world for diagnostics.
 Failed hot reloads or locale switches keep the last accepted locale active
 instead of publishing a broken update.
 

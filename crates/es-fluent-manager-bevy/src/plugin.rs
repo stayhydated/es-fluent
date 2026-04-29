@@ -25,6 +25,37 @@ impl Default for I18nPluginConfig {
     }
 }
 
+/// Startup failure captured when the plugin cannot safely initialize i18n.
+///
+/// Bevy plugins cannot return `Result` from `build`, so setup failures are
+/// reported as a resource and the localization runtime setup is skipped.
+#[derive(Clone, Debug, Resource)]
+pub struct I18nPluginStartupError {
+    message: String,
+}
+
+impl I18nPluginStartupError {
+    /// Create a startup error resource from a displayable message.
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+
+    /// Return the startup error message.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl std::fmt::Display for I18nPluginStartupError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for I18nPluginStartupError {}
+
 /// Bevy plugin that wires asset loading, runtime language state, and the
 /// context-bound localization together.
 #[derive(Default)]
@@ -63,19 +94,32 @@ impl Plugin for I18nPlugin {
             .init_resource::<I18nDomainBundles>()
             .init_resource::<BundleBuildFailures>();
 
-        let discovery = discover_modules().unwrap_or_else(|errors| {
-            let details = errors
-                .into_iter()
-                .map(|error| format!("- {error}"))
-                .collect::<Vec<_>>()
-                .join("\n");
-            panic!("failed to discover i18n modules:\n{details}");
-        });
+        let discovery = match discover_modules() {
+            Ok(discovery) => discovery,
+            Err(errors) => {
+                let details = errors
+                    .into_iter()
+                    .map(|error| format!("- {error}"))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let message = format!("failed to discover i18n modules:\n{details}");
+                error!("{}", message);
+                app.insert_resource(I18nPluginStartupError::new(message));
+                return;
+            },
+        };
         let resolved_language =
             resolve_initial_language(&self.config.initial_language, &discovery.asset_languages);
         let i18n_resource =
-            initialize_i18n_resource(&self.config.initial_language, &resolved_language)
-                .unwrap_or_else(|error| panic!("failed to initialize i18n resource:\n{error}"));
+            match initialize_i18n_resource(&self.config.initial_language, &resolved_language) {
+                Ok(i18n_resource) => i18n_resource,
+                Err(error) => {
+                    let message = format!("failed to initialize i18n resource:\n{error}");
+                    error!("{}", message);
+                    app.insert_resource(I18nPluginStartupError::new(message));
+                    return;
+                },
+            };
         let i18n_assets = {
             let asset_server = app.world().resource::<AssetServer>();
             build_i18n_assets(asset_server, &self.config.asset_path, &discovery.modules)

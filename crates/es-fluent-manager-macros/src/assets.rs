@@ -134,6 +134,10 @@ fn canonical_locale_dir_name(path: &Path, raw_name: &str) -> syn::Result<String>
                 "Locale directory '{}' under \"{}\" is not a valid BCP-47 identifier: {}",
                 raw_name, display_path, source
             )),
+            CanonicalLanguageIdentifierError::IcuInvalid { details, .. } => macro_error(format!(
+                "Locale directory '{}' under \"{}\" could not be parsed as an ICU locale: {}",
+                raw_name, display_path, details
+            )),
             CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
                 macro_error(format!(
                     "Locale directory '{}' under \"{}\" must use canonical BCP-47 form '{}'",

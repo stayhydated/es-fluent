@@ -61,6 +61,11 @@ let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langi
 For custom runtime integrations, create a `FluentManager`, select the initial
 language, then use typed or domain-scoped lookup:
 
+```toml
+[dependencies]
+es-fluent-manager-core = "0.16"
+```
+
 ```no_run
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;
@@ -85,7 +90,8 @@ hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a
 request-scoped runtime. Dioxus code should use
 `DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or
-explicit `localize*` helpers; the Dioxus manager does not install a
+explicit `localize*` helpers through the component or SSR request context.
+Dioxus does not use the generic embedded localizer handle or install a
 process-wide localizer.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
 `SystemParam` and call `localize_message(...)` on it. The plugin also exposes

@@ -26,6 +26,9 @@ pub fn parse_language_entry(
         CanonicalLanguageIdentifierError::Invalid { source, .. } => {
             EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", source))
         },
+        CanonicalLanguageIdentifierError::IcuInvalid { details, .. } => {
+            EsFluentError::invalid_language_identifier(&name, format!("ICU parse error: {details}"))
+        },
         CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
             EsFluentError::invalid_language_identifier(
                 &name,

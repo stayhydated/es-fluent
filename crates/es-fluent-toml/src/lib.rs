@@ -34,6 +34,16 @@ pub enum I18nConfigError {
         #[source]
         source: LanguageIdentifierError,
     },
+    /// Encountered a language identifier that could not be converted to ICU.
+    #[error(
+        "Language identifier '{name}' found in assets directory could not be parsed as an ICU locale: {details}"
+    )]
+    IcuLanguageIdentifier {
+        /// The invalid identifier.
+        name: String,
+        /// The ICU parsing error.
+        details: String,
+    },
     /// Encountered a non-canonical locale directory name.
     #[error("Locale directory '{name}' must use canonical BCP-47 casing '{canonical}'")]
     NonCanonicalLanguageIdentifier {
@@ -50,6 +60,16 @@ pub enum I18nConfigError {
         /// The parsing error produced by `unic-langid`.
         #[source]
         source: LanguageIdentifierError,
+    },
+    /// Encountered a fallback language identifier that could not be converted to ICU.
+    #[error(
+        "Fallback language identifier '{name}' could not be parsed as an ICU locale: {details}"
+    )]
+    IcuFallbackLanguageIdentifier {
+        /// The invalid identifier.
+        name: String,
+        /// The ICU parsing error.
+        details: String,
     },
     /// Encountered a non-canonical fallback language identifier.
     #[error("Fallback language '{name}' must use canonical BCP-47 casing '{canonical}'")]
@@ -395,6 +415,12 @@ fn parse_fallback_language_identifier(value: &str) -> Result<LanguageIdentifier,
             I18nConfigError::InvalidFallbackLanguageIdentifier {
                 name: value.to_string(),
                 source,
+            }
+        },
+        CanonicalLanguageIdentifierError::IcuInvalid { details, .. } => {
+            I18nConfigError::IcuFallbackLanguageIdentifier {
+                name: value.to_string(),
+                details,
             }
         },
         CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {

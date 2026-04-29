@@ -1,6 +1,6 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::options::this::ThisOpts;
-use es_fluent_shared::namer;
+use es_fluent_derive_core::{options::this::ThisOpts, validation};
+use es_fluent_shared::{namer, namespace::NamespaceRule};
 use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
@@ -13,6 +13,14 @@ use crate::macros::utils::{
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     expand_es_fluent_this(input).into()
+}
+
+fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
+    if let Some(ns) = namespace
+        && let Err(err) = validation::validate_namespace(ns, Some(span))
+    {
+        err.abort();
+    }
 }
 
 fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
@@ -61,10 +69,10 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     // FTL metadata is purely structural and doesn't depend on generic type parameters
     let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
         let type_name = original_ident.to_string();
-        let namespace_expr = namespace_rule_tokens(preferred_namespace([
-            fluent_namespace.as_ref(),
-            opts.attr_args().namespace(),
-        ]));
+        let namespace =
+            preferred_namespace([fluent_namespace.as_ref(), opts.attr_args().namespace()]);
+        validate_namespace(namespace, original_ident.span());
+        let namespace_expr = namespace_rule_tokens(namespace);
         let this_variant = quote! {
             ::es_fluent::registry::FtlVariant {
                 name: #type_name,
