@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 /// Builder for generating FTL files from registered types.
 ///
 /// Uses the `inventory` crate to collect all types registered via
-/// `#[derive(EsFluent)]`, `#[derive(EsFluentVariants)]`, or `#[derive(EsFluentThis)]`.
+/// `#[derive(EsFluent)]`, `#[derive(EsFluentVariants)]`, or `#[derive(EsFluentLabel)]`.
 #[derive(bon::Builder)]
 pub struct EsFluentGenerator {
     /// The parse mode (Conservative preserves existing translations, Aggressive overwrites).

@@ -107,78 +107,12 @@ impl DioxusI18n {
         Ok(())
     }
 
-    pub fn localize<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        let _ = self.context.current();
-        self.managed().localize(id, args)
-    }
-
-    pub fn localize_or_id<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let _ = self.context.current();
-        self.managed().localize_or_id(id, args)
-    }
-
-    pub fn localize_or_id_silent<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let _ = self.context.current();
-        self.managed().localize_or_id_silent(id, args)
-    }
-
-    pub fn localize_in_domain<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        let _ = self.context.current();
-        self.managed().localize_in_domain(domain, id, args)
-    }
-
-    pub fn localize_in_domain_or_id<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let _ = self.context.current();
-        self.managed().localize_in_domain_or_id(domain, id, args)
-    }
-
-    pub fn localize_in_domain_or_id_silent<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let _ = self.context.current();
-        self.managed()
-            .localize_in_domain_or_id_silent(domain, id, args)
-    }
-
     pub fn localize_message<T>(&self, message: &T) -> String
     where
         T: FluentMessage + ?Sized,
     {
         let _ = self.context.current();
         self.managed().localize_message(message)
-    }
-
-    pub fn localize_message_silent<T>(&self, message: &T) -> String
-    where
-        T: FluentMessage + ?Sized,
-    {
-        let _ = self.context.current();
-        self.managed().localize_message_silent(message)
     }
 }
 
@@ -189,7 +123,7 @@ impl FluentLocalizer for DioxusI18n {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         let _ = self.context.current();
-        self.managed().localize(id, args)
+        FluentLocalizer::localize(self.managed(), id, args)
     }
 
     fn localize_in_domain<'a>(
@@ -199,7 +133,7 @@ impl FluentLocalizer for DioxusI18n {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         let _ = self.context.current();
-        self.managed().localize_in_domain(domain, id, args)
+        FluentLocalizer::localize_in_domain(self.managed(), domain, id, args)
     }
 }
 

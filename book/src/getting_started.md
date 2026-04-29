@@ -2,11 +2,11 @@
 
 ## Dependencies
 
-Add `es-fluent` with `derive` support and a runtime manager:
+Add `es-fluent` and a runtime manager. Derive macros are enabled by default:
 
 ```toml
 [dependencies]
-es-fluent = { version = "0.16", features = ["derive"] }
+es-fluent = "0.16"
 unic-langid = "0.9"
 
 # For simple apps and CLIs:
@@ -19,7 +19,18 @@ es-fluent-manager-embedded = "0.16"
 
 ## Project Configuration
 
-Create an `i18n.toml` next to your crate's `Cargo.toml`:
+For a new crate, let the CLI create the standard config and module scaffold:
+
+```sh
+cargo es-fluent init
+```
+
+This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
+`pub mod i18n;` declaration in `src/lib.rs`. Pass `--manager dioxus` or
+`--manager bevy` for framework-specific scaffolding, and pass `--build-rs`
+when you want Cargo to rebuild automatically after locale file changes.
+
+Or create an `i18n.toml` next to your crate's `Cargo.toml` manually:
 
 ```toml
 # Default fallback language (required)

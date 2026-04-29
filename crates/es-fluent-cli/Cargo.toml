@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent-cli"
 description = """
-CLI for es-fluent
+Cargo subcommand for generating, checking, syncing, and formatting es-fluent FTL files
 """
 version.workspace = true
 rust-version.workspace = true

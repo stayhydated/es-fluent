@@ -57,24 +57,24 @@ mod __es_fluent_inventory_namespace_holder_variants {
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
 }
-impl ::es_fluent::ThisFtl for NamespaceHolderVariants {
-    fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+impl ::es_fluent::FluentLabel for NamespaceHolderVariants {
+    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
         localizer: &__EsFluentLocalizer,
     ) -> String {
-        ::es_fluent::__private::localize_this(
+        ::es_fluent::__private::localize_label(
             localizer,
             env!("CARGO_PKG_NAME"),
-            "namespace_holder_variants_this",
+            "namespace_holder_variants_label",
         )
     }
 }
 #[doc(hidden)]
-mod __es_fluent_this_inventory_namespace_holder_variants {
+mod __es_fluent_label_inventory_namespace_holder_variants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "NamespaceHolderVariants",
-            ftl_key: "namespace_holder_variants_this",
+            ftl_key: "namespace_holder_variants_label",
             args: &[],
             module_path: module_path!(),
             line: line!(),

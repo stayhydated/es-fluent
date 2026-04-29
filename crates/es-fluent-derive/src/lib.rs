@@ -71,7 +71,7 @@ pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 ///
 /// - `#[fluent_variants(keys = ["label", "description"])]`: Specifies which key variants to generate.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
-#[proc_macro_derive(EsFluentVariants, attributes(fluent_variants, fluent))]
+#[proc_macro_derive(EsFluentVariants, attributes(fluent_variants, fluent_label, fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     macros::derive_es_fluent_variants::from(input)
@@ -109,35 +109,35 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
     macros::derive_fluent_choice::from(input)
 }
 
-/// Generates a helper implementation of the `ThisFtl` trait and registers the type's name as a key.
+/// Generates a helper implementation of the `FluentLabel` trait and registers the type's name as a key.
 ///
 /// This is similar to `EsFluentVariants` (which registers fields), but for the parent type itself.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use es_fluent::EsFluentThis;
+/// use es_fluent::EsFluentLabel;
 ///
-/// #[derive(EsFluentThis)]
-/// #[fluent_this(origin)]
+/// #[derive(EsFluentLabel)]
+/// #[fluent_label(origin)]
 /// pub enum Gender {
 ///     Male,
 ///     Female,
 ///     Other,
 /// }
 ///
-/// // Generates key: (gender_this)
-/// // Usage: Gender::this_ftl(&i18n)
+/// // Generates key: (gender_label)
+/// // Usage: Gender::localize_label(&i18n)
 /// ```
 ///
 /// # Attributes
 ///
-/// - `#[fluent_this(origin)]`: Generates an implementation where `this_ftl(localizer)` returns the base key for the type.
-/// - `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated variant enums.
-/// - `#[fluent_this(origin, variants)]`: Combines both behaviors.
+/// - `#[fluent_label(origin)]`: Generates an implementation where `localize_label(localizer)` returns the base key for the type.
+/// - `#[fluent_label(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated variant enums.
+/// - `#[fluent_label(origin, variants)]`: Combines both behaviors.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
-#[proc_macro_derive(EsFluentThis, attributes(fluent_this, fluent))]
+#[proc_macro_derive(EsFluentLabel, attributes(fluent_label, fluent))]
 #[proc_macro_error]
-pub fn derive_es_fluent_this(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    macros::derive_es_fluent_this::from(input)
+pub fn derive_es_fluent_label(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    macros::derive_es_fluent_label::from(input)
 }

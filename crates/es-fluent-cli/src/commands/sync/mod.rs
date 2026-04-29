@@ -60,7 +60,9 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
         None // Will sync to all locales
     } else if args.locale.is_empty() {
         ui::Ui::print_no_locales_specified();
-        return Ok(());
+        return Err(CliError::Other(
+            "no target locales specified; pass --all or --locale <LOCALE>".to_string(),
+        ));
     } else {
         Some(args.locale.iter().cloned().collect())
     };
@@ -157,7 +159,7 @@ world = World"#;
     }
 
     #[test]
-    fn run_sync_returns_ok_when_no_locales_specified() {
+    fn run_sync_returns_err_when_no_locales_specified() {
         let temp = create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
@@ -173,7 +175,7 @@ world = World"#;
             dry_run: false,
         });
 
-        assert!(result.is_ok());
+        assert!(result.is_err());
     }
 
     #[test]

@@ -29,12 +29,12 @@ es_fluent_manager_embedded::define_i18n_module!();
 In your application entry point:
 
 ```rs
-use es_fluent::{EsFluent, EsFluentThis};
+use es_fluent::{EsFluent, EsFluentLabel};
 use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
-#[derive(EsFluent, EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
 enum MyMessage {
     Hello { name: String },
 }
@@ -49,13 +49,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For types that derive `EsFluentThis`, pass the same explicit context to
-`this_ftl(...)`:
+For types that derive `EsFluentLabel`, pass the same explicit context to
+`localize_label(...)`:
 
 ```rs
-use es_fluent::ThisFtl as _;
+use es_fluent::FluentLabel as _;
 
-let title = MyMessage::this_ftl(&i18n);
+let title = MyMessage::localize_label(&i18n);
 ```
 
 If you prefer to initialize first and decide the locale later, create the
@@ -85,8 +85,4 @@ requested locale for the switch to succeed.
 by the other clones. Construct a separate `EmbeddedI18n` value when you need
 isolated language state.
 
-For direct string-ID lookup, `EmbeddedI18n` exposes `localize(...)`,
-`localize_in_domain(...)`, `localize_or_id(...)`, and
-`localize_in_domain_or_id(...)`. For typed messages, use
-`localize_message(...)`; use `localize_message_silent(...)` when falling back to
-the message ID without logging a missing-message warning is intentional.
+`EmbeddedI18n` intentionally exposes enum-first `localize_message(...)` for application lookup. It also implements `FluentLocalizer` so generated labels and integration code can resolve through the same explicit context.

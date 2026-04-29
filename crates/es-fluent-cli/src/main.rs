@@ -1,7 +1,8 @@
 use clap::{Parser, Subcommand};
 use es_fluent_cli::{
-    CheckArgs, CleanArgs, CliError, FormatArgs, GenerateArgs, SyncArgs, TreeArgs, WatchArgs,
-    run_check, run_clean, run_format, run_generate, run_sync, run_tree, run_watch,
+    CheckArgs, CleanArgs, CliError, FormatArgs, GenerateArgs, InitArgs, SyncArgs, TreeArgs,
+    WatchArgs, run_check, run_clean, run_format, run_generate, run_init, run_sync, run_tree,
+    run_watch,
 };
 use miette::Result as MietteResult;
 
@@ -31,6 +32,9 @@ enum CargoCommand {
 enum Commands {
     /// Generate FTL files once for all crates with i18n.toml
     Generate(GenerateArgs),
+
+    /// Scaffold i18n.toml, locale folders, and a crate-local i18n module
+    Init(InitArgs),
 
     /// Watch for changes and regenerate FTL files (TUI mode)
     Watch(WatchArgs),
@@ -86,6 +90,7 @@ fn main() -> MietteResult<()> {
 fn dispatch(command: Commands) -> Result<(), CliError> {
     match command {
         Commands::Generate(args) => run_generate(args),
+        Commands::Init(args) => run_init(args),
         Commands::Watch(args) => run_watch(args),
         Commands::Clean(args) => run_clean(args),
         Commands::Fmt(args) => run_format(args),

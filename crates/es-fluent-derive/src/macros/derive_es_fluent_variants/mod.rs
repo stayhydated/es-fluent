@@ -122,10 +122,10 @@ impl GeneratedVariantSeed {
     }
 }
 
-fn variants_this_key(this_opts: Option<&ThisOpts>, base_key: &namer::FluentKey) -> Option<String> {
+fn variants_label_key(this_opts: Option<&ThisOpts>, base_key: &namer::FluentKey) -> Option<String> {
     this_opts
         .filter(|opts| opts.attr_args().is_variants())
-        .map(|_| format!("{}{}", base_key, namer::FluentKey::THIS_SUFFIX))
+        .map(|_| format!("{}{}", base_key, namer::FluentKey::LABEL_SUFFIX))
 }
 
 fn emit_variants_output(
@@ -163,7 +163,7 @@ fn emit_variants_output(
             derives: &derives,
             variants: &variant_entries,
             namespace_expr: namespace_expr.clone(),
-            this_key: variants_this_key(this_opts, &base_key),
+            label_key: variants_label_key(this_opts, &base_key),
         })
     })
 }
@@ -253,10 +253,10 @@ mod tests {
     }
 
     #[test]
-    fn process_enum_emits_variants_this_registration() {
+    fn process_enum_emits_variants_label_registration() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "ui")]
-            #[fluent_this(variants)]
+            #[fluent_label(variants)]
             enum Status {
                 Ready,
                 Failed,
@@ -273,14 +273,14 @@ mod tests {
             fluent_namespace.as_ref(),
             None,
         ));
-        assert_snapshot!("process_enum_emits_variants_this_registration", tokens);
+        assert_snapshot!("process_enum_emits_variants_label_registration", tokens);
     }
 
     #[test]
-    fn process_enum_uses_parent_domain_for_generated_variants_and_this() {
+    fn process_enum_uses_parent_domain_for_generated_variants_and_label() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(domain = "es-fluent-lang", resource = "es-fluent-lang", namespace = "languages")]
-            #[fluent_this(variants)]
+            #[fluent_label(variants)]
             enum Language {
                 English,
                 French,
@@ -306,7 +306,7 @@ mod tests {
             tokens.contains("localize(\"es-fluent-lang\", \"language_variants-French\", None)")
         );
         assert!(tokens.contains(
-            "::es_fluent::__private::localize_this(\n            localizer,\n            \"es-fluent-lang\",\n            \"language_variants_this\","
+            "::es_fluent::__private::localize_label(\n            localizer,\n            \"es-fluent-lang\",\n            \"language_variants_label\","
         ));
         assert!(
             !tokens.contains("localize(env!(\"CARGO_PKG_NAME\"), \"language_variants-English\"")
@@ -314,11 +314,11 @@ mod tests {
     }
 
     #[test]
-    fn process_variants_prefers_parent_namespace_over_variants_and_this_namespaces() {
+    fn process_variants_prefers_parent_namespace_over_variants_and_label_namespaces() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent_ns")]
             #[fluent_variants(namespace = "variant_ns")]
-            #[fluent_this(variants, namespace = "this_ns")]
+            #[fluent_label(variants, namespace = "label_ns")]
             struct NamespaceHolder {
                 field: String,
             }
@@ -335,7 +335,7 @@ mod tests {
             None,
         ));
         assert_snapshot!(
-            "process_variants_prefers_parent_namespace_over_variants_and_this_namespaces",
+            "process_variants_prefers_parent_namespace_over_variants_and_label_namespaces",
             tokens
         );
     }

@@ -117,53 +117,17 @@ impl<T: FluentLocalizer + ?Sized> FluentLocalizer for Arc<T> {
 
 /// Convenience methods for explicit localization contexts.
 pub trait FluentLocalizerExt: FluentLocalizer {
-    /// Localizes a message by ID, falling back to the ID and logging a warning
-    /// when the message is missing.
-    fn localize_or_id<'a>(
-        &self,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        self.localize(id, args).unwrap_or_else(|| {
-            tracing::warn!(message_id = id, "missing Fluent message");
-            id.to_string()
-        })
-    }
-
-    /// Localizes a domain-scoped message by ID, falling back to the ID and
-    /// logging a warning when the message is missing.
-    fn localize_in_domain_or_id<'a>(
-        &self,
-        domain: &str,
-        id: &str,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        self.localize_in_domain(domain, id, args)
-            .unwrap_or_else(|| {
-                tracing::warn!(domain, message_id = id, "missing Fluent message");
-                id.to_string()
-            })
-    }
-
     /// Renders a derived typed message through this explicit localizer.
     fn localize_message<T>(&self, message: &T) -> String
     where
         T: FluentMessage + ?Sized,
     {
         message.to_fluent_string_with(&mut |domain, id, args| {
-            self.localize_in_domain_or_id(domain, id, args)
-        })
-    }
-
-    /// Renders a derived typed message through this explicit localizer without
-    /// logging missing-message warnings.
-    fn localize_message_silent<T>(&self, message: &T) -> String
-    where
-        T: FluentMessage + ?Sized,
-    {
-        message.to_fluent_string_with(&mut |domain, id, args| {
             self.localize_in_domain(domain, id, args)
-                .unwrap_or_else(|| id.to_string())
+                .unwrap_or_else(|| {
+                    tracing::warn!(domain, message_id = id, "missing Fluent message");
+                    id.to_string()
+                })
         })
     }
 }
@@ -486,22 +450,17 @@ mod tests {
     }
 
     #[test]
-    fn localizer_extension_helpers_fall_back_to_message_ids() {
+    fn localizer_extension_localizes_typed_messages_with_id_fallback() {
         let localizer = StaticLocalizer { value: "Hello" };
 
-        assert_eq!(localizer.localize_or_id("nested-id", None), "Hello");
         assert_eq!(
-            localizer.localize_in_domain_or_id("nested-domain", "nested-id", None),
-            "Hello"
-        );
-        assert_eq!(localizer.localize_or_id("missing", None), "missing");
-        assert_eq!(
-            localizer.localize_in_domain_or_id("wrong-domain", "nested-id", None),
-            "nested-id"
+            FluentLocalizer::localize(&localizer, "nested-id", None),
+            Some("Hello".to_string())
         );
         assert_eq!(
-            localizer.localize_message_silent(&MissingMessage),
-            "missing-id"
+            FluentLocalizer::localize_in_domain(&localizer, "nested-domain", "nested-id", None),
+            Some("Hello".to_string())
         );
+        assert_eq!(localizer.localize_message(&MissingMessage), "missing-id");
     }
 }

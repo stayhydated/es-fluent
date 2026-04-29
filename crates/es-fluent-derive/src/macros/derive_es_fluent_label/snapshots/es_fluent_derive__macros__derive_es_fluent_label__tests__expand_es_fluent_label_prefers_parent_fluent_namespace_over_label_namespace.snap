@@ -1,26 +1,26 @@
 ---
-source: crates/es-fluent-derive/src/macros/derive_es_fluent_this/mod.rs
+source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
 assertion_line: 174
 expression: tokens
 ---
-impl ::es_fluent::ThisFtl for NamespacedThis {
-    fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+impl ::es_fluent::FluentLabel for NamespacedLabel {
+    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
         localizer: &__EsFluentLocalizer,
     ) -> String {
-        ::es_fluent::__private::localize_this(
+        ::es_fluent::__private::localize_label(
             localizer,
             env!("CARGO_PKG_NAME"),
-            "namespaced_this_this",
+            "namespaced_label_label",
         )
     }
 }
 #[doc(hidden)]
-mod __es_fluent_this_inventory_namespaced_this {
+mod __es_fluent_label_inventory_namespaced_label {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
-            name: "NamespacedThis",
-            ftl_key: "namespaced_this_this",
+            name: "NamespacedLabel",
+            ftl_key: "namespaced_label_label",
             args: &[],
             module_path: module_path!(),
             line: line!(),
@@ -28,7 +28,7 @@ mod __es_fluent_this_inventory_namespaced_this {
     ];
     static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
         type_kind: ::es_fluent::meta::TypeKind::Struct,
-        type_name: "NamespacedThis",
+        type_name: "NamespacedLabel",
         variants: VARIANTS,
         file_path: file!(),
         module_path: module_path!(),

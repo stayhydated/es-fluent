@@ -53,6 +53,21 @@ fn main() {
 }
 ```
 
+By default, `I18nPlugin` loads locales from `locales` relative to Bevy's asset
+root, matching `assets_dir = "assets/locales"` in `i18n.toml`. If your Bevy
+asset root is `assets` but translations live in `assets/i18n`, configure the
+path explicitly:
+
+```rs
+use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
+
+app.add_plugins(I18nPlugin::with_config(
+    I18nPluginConfig::new(langid!("en")).with_asset_path("i18n"),
+));
+```
+
+### Advanced behavior
+
 Plugin startup uses strict module discovery, so invalid or duplicate
 registrations are reported through `I18nPluginStartupError` instead of being
 normalized silently. When setup fails, the plugin skips localization runtime
@@ -83,15 +98,15 @@ For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:
 
 ```rs
-use es_fluent::ThisFtl as _;
+use es_fluent::FluentLabel as _;
 use es_fluent_manager_bevy::BevyI18n;
 
 fn update_title(i18n: BevyI18n) {
     let title = i18n.localize_message(&UiMessage::Settings);
-    // `SettingsPanel` is any type that derives `EsFluentThis`.
-    let section_title = SettingsPanel::this_ftl(&i18n);
+    // `SettingsPanel` is any type that derives `EsFluentLabel`.
+    let section_title = SettingsPanel::localize_label(&i18n);
     // apply `title` to your Bevy UI, window, or gameplay state
-    // use `section_title` for an `EsFluentThis` type label
+    // use `section_title` for an `EsFluentLabel` type label
 }
 ```
 

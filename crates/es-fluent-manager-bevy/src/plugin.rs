@@ -9,19 +9,43 @@ use setup::{
 };
 use unic_langid::LanguageIdentifier;
 
-#[doc(hidden)]
+/// Configuration for [`I18nPlugin`].
+///
+/// `asset_path` is interpreted by Bevy's [`AssetServer`], so it is relative to
+/// the configured Bevy asset root. With the default Bevy asset root `assets`
+/// and the standard `i18n.toml` layout `assets_dir = "assets/locales"`, the
+/// plugin asset path should be `locales`.
+#[derive(Clone, Debug)]
 pub struct I18nPluginConfig {
+    /// Initial locale requested during plugin startup.
     pub initial_language: LanguageIdentifier,
+    /// Locale asset path relative to Bevy's asset root.
     pub asset_path: String,
 }
 
-#[doc(hidden)]
 impl Default for I18nPluginConfig {
     fn default() -> Self {
         Self {
             initial_language: unic_langid::langid!("en-US"),
-            asset_path: "i18n".to_string(),
+            asset_path: "locales".to_string(),
         }
+    }
+}
+
+impl I18nPluginConfig {
+    /// Creates a config with the default asset path and a requested initial
+    /// language.
+    pub fn new(initial_language: LanguageIdentifier) -> Self {
+        Self {
+            initial_language,
+            ..Default::default()
+        }
+    }
+
+    /// Sets the Bevy asset path that contains locale directories.
+    pub fn with_asset_path(mut self, asset_path: impl Into<String>) -> Self {
+        self.asset_path = asset_path.into();
+        self
     }
 }
 
@@ -73,10 +97,17 @@ impl I18nPlugin {
     ///
     pub fn with_language(initial_language: LanguageIdentifier) -> Self {
         Self {
-            config: I18nPluginConfig {
-                initial_language,
-                ..Default::default()
-            },
+            config: I18nPluginConfig::new(initial_language),
+        }
+    }
+
+    /// Create a plugin with a specific initial language and Bevy asset path.
+    pub fn with_asset_path(
+        initial_language: LanguageIdentifier,
+        asset_path: impl Into<String>,
+    ) -> Self {
+        Self {
+            config: I18nPluginConfig::new(initial_language).with_asset_path(asset_path),
         }
     }
 
@@ -160,14 +191,14 @@ mod tests {
         let config = I18nPluginConfig::default();
 
         assert_eq!(config.initial_language, langid!("en-US"));
-        assert_eq!(config.asset_path, "i18n");
+        assert_eq!(config.asset_path, "locales");
     }
 
     #[test]
     fn plugin_constructors_store_the_requested_configuration() {
         let fr = I18nPlugin::with_language(langid!("fr"));
         assert_eq!(fr.config.initial_language, langid!("fr"));
-        assert_eq!(fr.config.asset_path, "i18n");
+        assert_eq!(fr.config.asset_path, "locales");
 
         let custom_config = I18nPluginConfig {
             initial_language: langid!("de"),
@@ -188,7 +219,7 @@ mod tests {
 
         I18nPlugin::with_config(I18nPluginConfig {
             initial_language: unsupported.clone(),
-            asset_path: "i18n".to_string(),
+            asset_path: "locales".to_string(),
         })
         .build(&mut app);
 
@@ -212,7 +243,7 @@ mod tests {
 
         I18nPlugin::with_config(I18nPluginConfig {
             initial_language: langid!("en"),
-            asset_path: "i18n".to_string(),
+            asset_path: "locales".to_string(),
         })
         .build(&mut app);
 

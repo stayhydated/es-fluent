@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent-manager-embedded"
 description = """
-es-fluent manager for rust_embed
+Zero-setup embedded runtime manager for es-fluent translations
 """
 edition.workspace = true
 license.workspace = true

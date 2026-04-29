@@ -87,7 +87,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
 }
 
 #[test]
-fn es_fluent_enum_attributes_this_choice_snapshot() {
+fn es_fluent_enum_attributes_label_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         enum Status {
@@ -137,7 +137,7 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
 }
 
 #[test]
-fn es_fluent_struct_attributes_this_with_derive_snapshot() {
+fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         #[fluent(derive(Debug, Clone))]
@@ -259,7 +259,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
 }
 
 #[test]
-fn es_fluent_variants_attributes_keys_this_derive_default_snapshot() {
+fn es_fluent_variants_attributes_keys_label_derive_default_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentVariants)]
         #[fluent_variants(keys = ["primary", "secondary"], derive(Debug, PartialEq))]

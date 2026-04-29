@@ -7,7 +7,7 @@ pub mod meta;
 pub mod registry;
 
 #[cfg(feature = "derive")]
-pub use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentThis, EsFluentVariants};
+pub use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentLabel, EsFluentVariants};
 
 #[doc(hidden)]
 pub use fluent_bundle::FluentValue;
@@ -30,11 +30,12 @@ pub mod build {
 }
 
 mod traits;
-pub use traits::{EsFluentChoice, FluentLocalizer, FluentLocalizerExt, FluentMessage, ThisFtl};
+pub use traits::{EsFluentChoice, FluentLabel, FluentLocalizer, FluentMessage};
 
 #[doc(hidden)]
 pub mod __private {
     pub use crate::traits::{
-        FluentArgumentValue, IntoFluentArgumentValue, IntoFluentValue, localize_this,
+        FluentArgumentValue, FluentLocalizerExt, IntoFluentArgumentValue, IntoFluentValue,
+        localize_label,
     };
 }

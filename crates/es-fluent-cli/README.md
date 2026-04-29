@@ -8,7 +8,7 @@ The official command-line tool for `es-fluent`.
 This tool automatically manages your Fluent (`.ftl`) translation files from
 derive inventory emitted by your workspace library crates. It finds types with
 `#[derive(EsFluent)]`, `#[derive(EsFluentVariants)]`, and
-`#[derive(EsFluentThis)]` and keeps the corresponding message entries in sync.
+`#[derive(EsFluentLabel)]` and keeps the corresponding message entries in sync.
 
 ## Installation
 
@@ -17,6 +17,26 @@ cargo install es-fluent-cli --locked
 ```
 
 ## Commands
+
+### Init
+
+For a new crate, scaffold the standard files first:
+
+```sh
+cargo es-fluent init
+```
+
+This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
+`pub mod i18n;` declaration in `src/lib.rs`. Use `--manager dioxus` or
+`--manager bevy` to scaffold those manager imports instead of the embedded
+manager. Use `--build-rs` when the crate uses manager macros and should rebuild
+when locale files are added, removed, or renamed.
+
+Useful options:
+
+- `--fallback-language <LANG>`: choose the fallback locale directory and config value.
+- `--assets-dir <PATH>`: choose the locale asset directory relative to the crate root.
+- `--force`: overwrite generated files that already exist.
 
 Ensure you have an `i18n.toml` in your crate root:
 
@@ -166,8 +186,7 @@ cargo es-fluent sync --all
 ```
 
 Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all
-non-fallback locales. Running `sync` without either option exits without
-modifying files. Use `--dry-run` to preview changes and print diffs without
+non-fallback locales. Running `sync` without either option exits non-zero with an actionable message. Use `--dry-run` to preview changes and print diffs without
 writing them.
 
 The `sync` command properly handles namespaced FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.

@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 dioxus = { features = [ "html", "macro", "signals", "ssr" ], workspace = true }
-es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent = { workspace = true }
 es-fluent-manager-dioxus = { features = [ "ssr" ], workspace = true }
 example-shared-lib = { features = [ "dioxus" ], path = "../example-shared-lib" }
 strum = { features = [ "derive" ], workspace = true }

@@ -113,7 +113,7 @@ struct FolderModal;
 struct FolderRelativeModal;
 ```
 
-The same `#[fluent(namespace = ...)]` syntax also applies to `EsFluentThis` and `EsFluentVariants`.
+The same `#[fluent(namespace = ...)]` syntax also applies to `EsFluentLabel` and `EsFluentVariants`.
 
 ### `#[derive(EsFluentChoice)]`
 
@@ -182,19 +182,19 @@ pub enum SettingsTab {
 generated enums. Use `derive(Debug, Clone)` inside `#[fluent_variants(...)]` to
 add derives to the generated enums.
 
-### `#[derive(EsFluentThis)]`
+### `#[derive(EsFluentLabel)]`
 
-Generates a helper implementation of the `ThisFtl` trait and registers the
+Generates a helper implementation of the `FluentLabel` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `#[fluent_this(origin)]`: Generates an implementation where `this_ftl(localizer)` returns the base key for the type.
+- `#[fluent_label(origin)]`: Generates an implementation where `localize_label(localizer)` returns the base key for the type.
 
 ```rs
-use es_fluent::EsFluentThis;
+use es_fluent::EsFluentLabel;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = "forms")]
 pub enum Gender {
     Male,
@@ -203,16 +203,16 @@ pub enum Gender {
 }
 
 // Generates key:
-// (gender_this)
+// (gender_label)
 
-// usage: Gender::this_ftl(&i18n)
+// usage: Gender::localize_label(&i18n)
 ```
 
-- `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
+- `#[fluent_label(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
 
 ```rs
-#[derive(EsFluentVariants, EsFluentThis)]
-#[fluent_this(origin, variants)]
+#[derive(EsFluentVariants, EsFluentLabel)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 #[fluent(namespace = "forms")]
 pub struct LoginForm {
@@ -221,8 +221,8 @@ pub struct LoginForm {
 }
 
 // Generates keys:
-// (login_form_label_variants_this)
-// (login_form_description_variants_this)
+// (login_form_label_variants_label)
+// (login_form_description_variants_label)
 
-// usage: LoginFormDescriptionVariants::this_ftl(&i18n)
+// usage: LoginFormDescriptionVariants::localize_label(&i18n)
 ```

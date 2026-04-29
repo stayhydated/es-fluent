@@ -5,7 +5,7 @@ one runtime manager, and optionally the language-enum helper.
 
 ```toml
 [dependencies]
-es-fluent = { version = "0.16", features = ["derive"] }
+es-fluent = "0.16"
 es-fluent-manager-embedded = "0.16"
 es-fluent-lang = "0.16"
 ```

@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent"
 description = """
-The es-fluent crate
+Type-safe Fluent localization derives and runtime traits for Rust applications
 """
 version.workspace = true
 rust-version.workspace = true
@@ -15,7 +15,7 @@ keywords = [ "fluent", "i18n", "locale" ]
 
 [features]
 build = [ "dep:es-fluent-toml" ]
-default = [  ]
+default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
 
 [dependencies]

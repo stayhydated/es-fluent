@@ -201,20 +201,20 @@ let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 generated enums. Use `derive(Debug, Clone)` inside `#[fluent_variants(...)]` to
 add derives to the generated enums.
 
-## Type-level Keys (This)
+## Type-level Labels
 
-`EsFluentThis` generates a `ThisFtl` implementation that registers the type's _name_ as a key. Where `EsFluentVariants` registers individual fields, `EsFluentThis` registers the parent type itself.
+`EsFluentLabel` generates a `FluentLabel` implementation that registers the type's _name_ as a key. Where `EsFluentVariants` registers individual fields, `EsFluentLabel` registers the parent type itself.
 
 ### Origin Only
 
-`#[fluent_this(origin)]` creates a single key for the type:
+`#[fluent_label(origin)]` creates a single key for the type:
 
 ```rust
-use es_fluent::EsFluentThis;
+use es_fluent::EsFluentLabel;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
-pub enum GenderThisOnly {
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
+pub enum GenderLabelOnly {
     Male,
     Female,
     Other,
@@ -222,23 +222,23 @@ pub enum GenderThisOnly {
 ```
 
 ```ftl
-gender_this_only_this = Gender This Only
+gender_label_only_label = Gender Label Only
 ```
 
 ```rust
-use es_fluent::ThisFtl;
-let _ = GenderThisOnly::this_ftl(&i18n);
+use es_fluent::FluentLabel;
+let _ = GenderLabelOnly::localize_label(&i18n);
 ```
 
 ### Combined with Variants
 
-`#[fluent_this(variants)]` can be combined with `EsFluentVariants` to generate type-level keys for each generated variant enum:
+`#[fluent_label(variants)]` can be combined with `EsFluentVariants` to generate type-level keys for each generated variant enum:
 
 ```rust
-use es_fluent::{EsFluentThis, EsFluentVariants};
+use es_fluent::{EsFluentLabel, EsFluentVariants};
 
-#[derive(EsFluentThis, EsFluentVariants)]
-#[fluent_this(origin, variants)]
+#[derive(EsFluentLabel, EsFluentVariants)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,
@@ -247,11 +247,11 @@ pub struct LoginFormCombined {
 ```
 
 ```ftl
-login_form_combined_label_variants_this = Login Form Combined Label Variants
-login_form_combined_description_variants_this = Login Form Combined Description Variants
+login_form_combined_label_variants_label = Login Form Combined Label Variants
+login_form_combined_description_variants_label = Login Form Combined Description Variants
 ```
 
 ```rust
-use es_fluent::ThisFtl;
-let _ = LoginFormCombinedDescriptionVariants::this_ftl(&i18n);
+use es_fluent::FluentLabel;
+let _ = LoginFormCombinedDescriptionVariants::localize_label(&i18n);
 ```

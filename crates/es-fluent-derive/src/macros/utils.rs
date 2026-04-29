@@ -26,7 +26,7 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub derives: &'a [syn::Path],
     pub variants: &'a [GeneratedUnitEnumVariant],
     pub namespace_expr: TokenStream,
-    pub this_key: Option<String>,
+    pub label_key: Option<String>,
 }
 
 pub fn keyed_variant_idents_or_abort(opts: &impl GeneratedVariantsOptions) -> Vec<syn::Ident> {
@@ -56,8 +56,8 @@ pub fn emit_default_or_keyed_items(
     }
 }
 
-/// Generates the `ThisFtl` trait implementation.
-pub fn generate_this_ftl_impl(
+/// Generates the `FluentLabel` trait implementation.
+pub fn generate_localize_label_impl(
     ident: &syn::Ident,
     generics: &syn::Generics,
     ftl_key: Option<&str>,
@@ -73,11 +73,11 @@ pub fn generate_this_ftl_impl(
         None => quote! { env!("CARGO_PKG_NAME") },
     };
     quote! {
-        impl #impl_generics ::es_fluent::ThisFtl for #ident #ty_generics #where_clause {
-            fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+        impl #impl_generics ::es_fluent::FluentLabel for #ident #ty_generics #where_clause {
+            fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
                 localizer: &__EsFluentLocalizer,
             ) -> String {
-                ::es_fluent::__private::localize_this(localizer, #domain_expr, #ftl_key)
+                ::es_fluent::__private::localize_label(localizer, #domain_expr, #ftl_key)
             }
         }
     }
@@ -208,21 +208,21 @@ pub fn generate_unit_enum_definition(
     }
 }
 
-pub fn generate_optional_this_inventory_module(
+pub fn generate_optional_label_inventory_module(
     ident: &syn::Ident,
     namespace_expr: TokenStream,
-    this_key: Option<&str>,
+    label_key: Option<&str>,
 ) -> TokenStream {
-    let Some(this_key) = this_key else {
+    let Some(label_key) = label_key else {
         return quote! {};
     };
 
     let this_variant =
-        inventory_variant_tokens(ident.to_string(), this_key.to_string(), Vec::new());
+        inventory_variant_tokens(ident.to_string(), label_key.to_string(), Vec::new());
 
     generate_inventory_module(InventoryModuleInput {
         ident,
-        module_name_prefix: "this_inventory",
+        module_name_prefix: "label_inventory",
         type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
         variants: vec![this_variant],
         namespace_expr,
@@ -238,7 +238,7 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         derives,
         variants,
         namespace_expr,
-        this_key,
+        label_key,
     } = input;
 
     let empty_generics = syn::Generics::default();
@@ -265,10 +265,14 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
             .collect(),
         namespace_expr: namespace_expr.clone(),
     });
-    let this_impl =
-        generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref(), domain_override);
+    let this_impl = generate_localize_label_impl(
+        ident,
+        &empty_generics,
+        label_key.as_deref(),
+        domain_override,
+    );
     let this_inventory =
-        generate_optional_this_inventory_module(ident, namespace_expr, this_key.as_deref());
+        generate_optional_label_inventory_module(ident, namespace_expr, label_key.as_deref());
 
     quote! {
         #new_enum
@@ -396,7 +400,7 @@ pub fn preferred_namespace<'a>(
 #[cfg(test)]
 mod tests {
     use super::{
-        generate_this_ftl_impl, inherited_fluent_domain, inherited_fluent_namespace,
+        generate_localize_label_impl, inherited_fluent_domain, inherited_fluent_namespace,
         preferred_namespace,
     };
     use crate::snapshot_support::pretty_file_tokens;
@@ -450,28 +454,31 @@ mod tests {
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn generate_this_ftl_impl_routes_through_the_current_crate_domain() {
-        let tokens = pretty_file_tokens(generate_this_ftl_impl(
+    fn generate_localize_label_impl_routes_through_the_current_crate_domain() {
+        let tokens = pretty_file_tokens(generate_localize_label_impl(
             &parse_quote!(Greeting),
             &parse_quote!(),
             Some("hello"),
             None,
         ));
 
-        assert_snapshot!("generate_this_ftl_impl_current_crate_domain", tokens);
+        assert_snapshot!("generate_localize_label_impl_current_crate_domain", tokens);
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn generate_this_ftl_impl_uses_explicit_domain_override_when_present() {
-        let tokens = pretty_file_tokens(generate_this_ftl_impl(
+    fn generate_localize_label_impl_uses_explicit_domain_override_when_present() {
+        let tokens = pretty_file_tokens(generate_localize_label_impl(
             &parse_quote!(Languages),
             &parse_quote!(),
             Some("es-fluent-lang-this"),
             Some("es-fluent-lang"),
         ));
 
-        assert_snapshot!("generate_this_ftl_impl_explicit_domain_override", tokens);
+        assert_snapshot!(
+            "generate_localize_label_impl_explicit_domain_override",
+            tokens
+        );
     }
 
     #[test]

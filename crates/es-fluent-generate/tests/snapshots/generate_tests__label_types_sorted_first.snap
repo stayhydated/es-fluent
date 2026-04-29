@@ -2,9 +2,9 @@
 source: crates/es-fluent-generate/tests/generate_tests.rs
 expression: content
 ---
-## BananaThis
+## BananaLabel
 
-banana_this_this = This
+banana_label_label = Label
 
 ## Apple
 

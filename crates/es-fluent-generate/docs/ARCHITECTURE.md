@@ -63,7 +63,7 @@ By using `fluent-syntax` AST:
 The generator enforces a specific ordering to keep files readable:
 
 - Messages are grouped by their Rust type name (e.g., all variants of `enum MyErrors` are grouped together).
-- Within a group, "special" keys like `_this` (self-referential messages) are prioritized and placed at the top.
+- Within a group, "special" keys like `_label` (self-referential messages) are prioritized and placed at the top.
 - Other keys are sorted alphabetically.
 
 ### Namespaced Output
@@ -85,7 +85,7 @@ The crate uses `IndexMap` instead of `HashMap` for internal data structures to e
 
 ## Key Modules
 
-- `formatting`: Logic for sorting (including `_this` priority) and comparing entries.
+- `formatting`: Logic for sorting (including `_label` priority) and comparing entries.
 - `value`: Expansion of placeables and text elements.
 - `clean`: Logic for the `clean` command (identifying and removing orphaned keys
   and stale namespaced files).

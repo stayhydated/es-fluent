@@ -4,6 +4,6 @@ expression: content
 ---
 ## Fruit
 
-fruit_this = This
+fruit_label = Label
 fruit-Apple = Apple
 fruit-Banana = Banana

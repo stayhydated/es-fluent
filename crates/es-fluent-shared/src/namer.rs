@@ -27,7 +27,7 @@ impl From<&syn::Ident> for FluentKey {
 
 impl FluentKey {
     pub const DELIMITER: &str = "-";
-    pub const THIS_SUFFIX: &str = "_this";
+    pub const LABEL_SUFFIX: &str = "_label";
 
     pub fn join(&self, suffix: impl std::fmt::Display) -> Self {
         let suffix_str = suffix.to_string();
@@ -38,9 +38,9 @@ impl FluentKey {
         }
     }
 
-    pub fn new_this(ftl_name: &syn::Ident) -> Self {
-        let this_ident = quote::format_ident!("{}{}", ftl_name, Self::THIS_SUFFIX);
-        Self::from(&this_ident)
+    pub fn new_label(ftl_name: &syn::Ident) -> Self {
+        let label_ident = quote::format_ident!("{}{}", ftl_name, Self::LABEL_SUFFIX);
+        Self::from(&label_ident)
     }
 }
 
@@ -112,13 +112,13 @@ mod tests {
     }
 
     #[test]
-    fn fluent_key_this_and_token_generation_work() {
-        let this_key =
-            FluentKey::new_this(&syn::Ident::new("MyType", proc_macro2::Span::call_site()));
-        assert_eq!(this_key.to_string(), "my_type_this");
+    fn fluent_key_label_and_token_generation_work() {
+        let label_key =
+            FluentKey::new_label(&syn::Ident::new("MyType", proc_macro2::Span::call_site()));
+        assert_eq!(label_key.to_string(), "my_type_label");
 
-        let tokens = quote!(#this_key).to_string();
-        assert!(tokens.contains("my_type_this"));
+        let tokens = quote!(#label_key).to_string();
+        assert!(tokens.contains("my_type_label"));
     }
 
     #[test]

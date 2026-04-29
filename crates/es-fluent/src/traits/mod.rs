@@ -1,10 +1,10 @@
 mod fluent_choice;
 mod fluent_message;
-mod this_ftl;
+mod label;
 
 pub use fluent_choice::EsFluentChoice;
 pub use fluent_message::{
     FluentArgumentValue, FluentLocalizer, FluentLocalizerExt, FluentMessage,
     IntoFluentArgumentValue, IntoFluentValue,
 };
-pub use this_ftl::{ThisFtl, localize_this};
+pub use label::{FluentLabel, localize_label};

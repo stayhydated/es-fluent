@@ -1,26 +1,26 @@
 ---
-source: crates/es-fluent-derive/src/macros/derive_es_fluent_this/mod.rs
+source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
 assertion_line: 204
 expression: tokens
 ---
-impl ::es_fluent::ThisFtl for LoginState {
-    fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+impl ::es_fluent::FluentLabel for LoginState {
+    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
         localizer: &__EsFluentLocalizer,
     ) -> String {
-        ::es_fluent::__private::localize_this(
+        ::es_fluent::__private::localize_label(
             localizer,
             env!("CARGO_PKG_NAME"),
-            "login_state_this",
+            "login_state_label",
         )
     }
 }
 #[doc(hidden)]
-mod __es_fluent_this_inventory_login_state {
+mod __es_fluent_label_inventory_login_state {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "LoginState",
-            ftl_key: "login_state_this",
+            ftl_key: "login_state_label",
             args: &[],
             module_path: module_path!(),
             line: line!(),

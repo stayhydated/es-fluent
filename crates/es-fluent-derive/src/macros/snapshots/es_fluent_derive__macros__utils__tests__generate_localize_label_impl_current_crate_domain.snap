@@ -1,0 +1,15 @@
+---
+source: crates/es-fluent-derive/src/macros/utils.rs
+expression: tokens
+---
+impl ::es_fluent::FluentLabel for Greeting {
+    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+        localizer: &__EsFluentLocalizer,
+    ) -> String {
+        ::es_fluent::__private::localize_label(
+            localizer,
+            env!("CARGO_PKG_NAME"),
+            "hello",
+        )
+    }
+}

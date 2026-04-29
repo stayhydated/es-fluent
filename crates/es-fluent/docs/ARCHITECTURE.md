@@ -8,8 +8,8 @@
 2. Define the runtime traits used by managers:
    - `FluentMessage` for generated typed messages.
    - `FluentLocalizer` for explicit localization contexts.
-   - `FluentLocalizerExt` for fallback helpers such as `localize_message(...)`.
-   - `ThisFtl` for type-level Fluent keys rendered through an explicit context.
+   - `FluentLocalizerExt` as hidden workspace plumbing for manager crates that expose `localize_message(...)`.
+   - `FluentLabel` for type-level Fluent keys rendered through an explicit context.
 3. Re-export hidden inventory and asset dependencies needed by generated code.
 
 ## Runtime model
@@ -21,7 +21,7 @@ Derived messages call a caller-provided closure:
 
 ```rust
 message.to_fluent_string_with(&mut |domain, id, args| {
-    localizer.localize_in_domain_or_id(domain, id, args)
+    localizer.localize_in_domain(domain, id, args).unwrap_or_else(|| id.to_string())
 })
 ```
 

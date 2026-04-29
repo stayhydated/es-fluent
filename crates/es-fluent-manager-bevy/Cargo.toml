@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent-manager-bevy"
 description = """
-es-fluent manager for Bevy
+Bevy ECS and AssetServer runtime manager for es-fluent translations
 """
 edition.workspace = true
 license.workspace = true

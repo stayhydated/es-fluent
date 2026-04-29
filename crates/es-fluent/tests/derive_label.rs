@@ -1,10 +1,10 @@
 #![cfg(feature = "derive")]
 
+use es_fluent::__private::FluentLocalizerExt as _;
 use es_fluent::meta::TypeKind;
 use es_fluent::registry::NamespaceRule;
 use es_fluent::{
-    EsFluent, EsFluentThis, EsFluentVariants, FluentLocalizer, FluentLocalizerExt as _,
-    FluentValue, ThisFtl as _,
+    EsFluent, EsFluentLabel, EsFluentVariants, FluentLabel as _, FluentLocalizer, FluentValue,
 };
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -50,35 +50,35 @@ impl FluentLocalizer for DomainEchoLocalizer {
     }
 }
 
-#[derive(EsFluent, EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
 struct TestStruct {
     field: String,
 }
 
-#[derive(EsFluentThis, EsFluentVariants)]
+#[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent_variants(keys = ["label"])]
-#[fluent_this(variants)]
+#[fluent_label(variants)]
 #[allow(dead_code)]
 struct TestVariantsStruct {
     field: String,
 }
 
-#[derive(EsFluentThis, EsFluentVariants)]
+#[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent_variants(keys = ["description"])]
-#[fluent_this(variants)]
+#[fluent_label(variants)]
 #[allow(dead_code)]
 enum TestVariantsEnum {
     VariantA,
 }
 
-#[derive(EsFluentThis)]
+#[derive(EsFluentLabel)]
 #[fluent(namespace = "this_ns")]
 #[allow(dead_code)]
 struct TestThisNamespace;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[allow(dead_code)]
 enum TestThisEnumKind {
     Ready,
@@ -91,55 +91,58 @@ struct TestVariantsNamespace {
     field: String,
 }
 
-#[derive(EsFluentThis, EsFluentVariants)]
+#[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent(namespace = "shared_ns")]
 #[fluent_variants(keys = ["label"])]
-#[fluent_this(origin, variants)]
+#[fluent_label(origin, variants)]
 #[allow(dead_code)]
 struct TestSharedNamespace {
     field: String,
 }
 
-#[derive(EsFluent, EsFluentThis, EsFluentVariants)]
+#[derive(EsFluent, EsFluentLabel, EsFluentVariants)]
 #[fluent(
     domain = "custom-domain",
     resource = "custom-domain",
     namespace = "custom_ns"
 )]
-#[fluent_this(origin, variants)]
+#[fluent_label(origin, variants)]
 #[allow(dead_code)]
 enum TestCustomDomain {
     Ready,
 }
 
 #[test]
-fn test_derive_this_struct() {
-    // Basic ThisFtl on struct
-    assert_eq!(TestStruct::this_ftl(&IdLocalizer), "test_struct_this");
+fn test_derive_label_struct() {
+    // Basic FluentLabel on struct
+    assert_eq!(
+        TestStruct::localize_label(&IdLocalizer),
+        "test_struct_label"
+    );
 }
 
 #[test]
-fn test_derive_this_fields() {
-    // ThisFtl on generated variants enum for struct fields
+fn test_derive_label_fields() {
+    // FluentLabel on generated variants enum for struct fields
     // Generated name: TestVariantsStruct + Label + Variants = TestVariantsStructLabelVariants
     assert_eq!(
-        TestVariantsStructLabelVariants::this_ftl(&IdLocalizer),
-        "test_variants_struct_label_variants_this"
+        TestVariantsStructLabelVariants::localize_label(&IdLocalizer),
+        "test_variants_struct_label_variants_label"
     );
 }
 
 #[test]
-fn test_derive_this_variants() {
-    // ThisFtl on generated variants enum for enum variants
+fn test_derive_label_variants() {
+    // FluentLabel on generated variants enum for enum variants
     // Generated name: TestVariantsEnum + Description + Variants = TestVariantsEnumDescriptionVariants
     assert_eq!(
-        TestVariantsEnumDescriptionVariants::this_ftl(&IdLocalizer),
-        "test_variants_enum_description_variants_this"
+        TestVariantsEnumDescriptionVariants::localize_label(&IdLocalizer),
+        "test_variants_enum_description_variants_label"
     );
 }
 
 #[test]
-fn test_derive_this_namespace_from_fluent() {
+fn test_derive_label_namespace_from_fluent() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| info.type_name == "TestThisNamespace")
         .collect();
@@ -157,7 +160,7 @@ fn test_derive_this_namespace_from_fluent() {
 }
 
 #[test]
-fn test_derive_this_origin_preserves_type_kind() {
+fn test_derive_label_origin_preserves_type_kind() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| info.type_name == "TestThisEnumKind")
         .collect();
@@ -188,7 +191,7 @@ fn test_derive_variants_namespace_from_fluent() {
 }
 
 #[test]
-fn test_derive_this_and_variants_share_fluent_namespace() {
+fn test_derive_label_and_variants_share_fluent_namespace() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
             info.type_name == "TestSharedNamespace"
@@ -209,14 +212,14 @@ fn test_derive_this_and_variants_share_fluent_namespace() {
 }
 
 #[test]
-fn test_derive_this_and_variants_share_fluent_domain() {
+fn test_derive_label_and_variants_share_fluent_domain() {
     assert_eq!(
-        TestCustomDomain::this_ftl(&DomainEchoLocalizer),
-        "custom-domain:test_custom_domain_this"
+        TestCustomDomain::localize_label(&DomainEchoLocalizer),
+        "custom-domain:test_custom_domain_label"
     );
     assert_eq!(
-        TestCustomDomainVariants::this_ftl(&DomainEchoLocalizer),
-        "custom-domain:test_custom_domain_variants_this"
+        TestCustomDomainVariants::localize_label(&DomainEchoLocalizer),
+        "custom-domain:test_custom_domain_variants_label"
     );
     assert_eq!(
         DomainEchoLocalizer.localize_message(&TestCustomDomain::Ready),

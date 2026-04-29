@@ -2,7 +2,7 @@ mod common;
 mod fixtures;
 
 use common::{
-    enum_type, enum_type_with_namespace, ftl_key, leak_slice, struct_type, this_key, variant,
+    enum_type, enum_type_with_namespace, ftl_key, label_key, leak_slice, struct_type, variant,
 };
 use es_fluent_generate::{FluentParseMode, generate};
 use fixtures::{EMPTY_GROUP, EMPTY_GROUPS_SIMILAR, ORPHAN_GROUPS, RELOCATE_GROUPS};
@@ -221,13 +221,13 @@ fn test_generate_relocates_keys_between_similar_group_names() {
     let empty_struct = enum_type(
         "EmptyStruct",
         vec![
-            variant("This", &this_key("EmptyStruct")),
+            variant("Label", &label_key("EmptyStruct")),
             variant("empty_struct", &ftl_key("EmptyStruct", "")),
         ],
     );
     let empty_struct_variants = enum_type(
         "EmptyStructVariants",
-        vec![variant("This", &this_key("EmptyStructVariants"))],
+        vec![variant("Label", &label_key("EmptyStructVariants"))],
     );
     let items = leak_slice(vec![empty_struct, empty_struct_variants]);
     generate(
@@ -249,7 +249,7 @@ fn test_generate_relocates_keys_between_similar_group_names() {
         .find("## EmptyStruct\n")
         .expect("EmptyStruct group missing");
     let variants_key_pos = content
-        .find("empty_struct_variants_this")
+        .find("empty_struct_variants_label")
         .expect("variants key missing");
 
     assert!(
@@ -297,20 +297,23 @@ fn test_generate_clean_mode_removes_orphans() {
 
 #[test]
 #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-fn test_this_types_sorted_first() {
+fn test_label_types_sorted_first() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    // Create types: Apple, Banana, BananaThis (should come first)
+    // Create types: Apple, Banana, BananaLabel (should come first)
     let apple = enum_type("Apple", vec![variant("Red", &ftl_key("Apple", "Red"))]);
     let banana = enum_type(
         "Banana",
         vec![variant("Yellow", &ftl_key("Banana", "Yellow"))],
     );
     // This type should come first despite alphabetical order
-    let banana_this = struct_type("BananaThis", vec![variant("this", &this_key("BananaThis"))]);
+    let banana_label = struct_type(
+        "BananaLabel",
+        vec![variant("label", &label_key("BananaLabel"))],
+    );
 
-    let items = leak_slice(vec![apple, banana, banana_this]);
+    let items = leak_slice(vec![apple, banana, banana_label]);
 
     let result = generate(
         "test_crate",
@@ -325,27 +328,27 @@ fn test_this_types_sorted_first() {
     let ftl_file_path = i18n_path.join("test_crate.ftl");
     let content = read_ftl(&ftl_file_path);
 
-    // BananaThis (is_this=true) should come before Apple and Banana
-    let banana_this_pos = content.find("## BananaThis").expect("BananaThis missing");
+    // BananaLabel (is_label=true) should come before Apple and Banana
+    let banana_label_pos = content.find("## BananaLabel").expect("BananaLabel missing");
     let apple_pos = content.find("## Apple").expect("Apple missing");
     let banana_pos = content.find("## Banana\n").expect("Banana missing");
 
     assert!(
-        banana_this_pos < apple_pos,
-        "BananaThis (is_this=true) should come before Apple"
+        banana_label_pos < apple_pos,
+        "BananaLabel (is_label=true) should come before Apple"
     );
     assert!(
-        banana_this_pos < banana_pos,
-        "BananaThis (is_this=true) should come before Banana"
+        banana_label_pos < banana_pos,
+        "BananaLabel (is_label=true) should come before Banana"
     );
     // Apple should come before Banana alphabetically
     assert!(apple_pos < banana_pos, "Apple should come before Banana");
-    assert_snapshot!("this_types_sorted_first", content);
+    assert_snapshot!("label_types_sorted_first", content);
 }
 
 #[test]
 #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-fn test_this_variants_sorted_first_within_group() {
+fn test_label_variants_sorted_first_within_group() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
@@ -354,7 +357,7 @@ fn test_this_variants_sorted_first_within_group() {
         // Deliberately put variants in wrong order
         vec![
             variant("Banana", &ftl_key("Fruit", "Banana")),
-            variant("this", &this_key("Fruit")),
+            variant("label", &label_key("Fruit")),
             variant("Apple", &ftl_key("Fruit", "Apple")),
         ],
     );
@@ -374,8 +377,8 @@ fn test_this_variants_sorted_first_within_group() {
 
     // The "this" variant (fruit) should come first, then Apple, then Banana
     let this_pos = content
-        .find("fruit_this =")
-        .expect("this variant (fruit_this) missing");
+        .find("fruit_label =")
+        .expect("label variant (fruit_label) missing");
     let apple_pos = content.find("fruit-Apple").expect("Apple variant missing");
     let banana_pos = content
         .find("fruit-Banana")
@@ -383,14 +386,14 @@ fn test_this_variants_sorted_first_within_group() {
 
     assert!(
         this_pos < apple_pos,
-        "This variant should come before Apple"
+        "Label variant should come before Apple"
     );
     assert!(
         this_pos < banana_pos,
-        "This variant should come before Banana"
+        "Label variant should come before Banana"
     );
     assert!(apple_pos < banana_pos, "Apple should come before Banana");
-    assert_snapshot!("this_variants_sorted_first_within_group", content);
+    assert_snapshot!("label_variants_sorted_first_within_group", content);
 }
 
 #[test]

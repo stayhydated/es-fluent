@@ -107,7 +107,7 @@ crate::__inventory::submit!(&PARTIAL_TEST_MODULE as &dyn I18nModuleRegistration)
 
 struct TestMessage;
 struct MissingMessage;
-struct TestThisMessage;
+struct TestLabelMessage;
 
 impl es_fluent::FluentMessage for TestMessage {
     fn to_fluent_string_with(
@@ -135,14 +135,9 @@ impl es_fluent::FluentMessage for MissingMessage {
     }
 }
 
-impl es_fluent::ThisFtl for TestThisMessage {
-    fn this_ftl<L: es_fluent::FluentLocalizer + ?Sized>(localizer: &L) -> String {
-        es_fluent::FluentLocalizerExt::localize_in_domain_or_id(
-            localizer,
-            "dioxus-test-module",
-            "hello",
-            None,
-        )
+impl es_fluent::FluentLabel for TestLabelMessage {
+    fn localize_label<L: es_fluent::FluentLocalizer + ?Sized>(localizer: &L) -> String {
+        es_fluent::__private::localize_label(localizer, "dioxus-test-module", "hello")
     }
 }
 
@@ -162,7 +157,7 @@ fn managed_i18n_selects_and_localizes() {
 
     assert_eq!(i18n.requested_language(), langid!("en-US"));
     assert_eq!(
-        i18n.localize_in_domain("dioxus-test-module", "hello", None),
+        es_fluent::FluentLocalizer::localize_in_domain(&i18n, "dioxus-test-module", "hello", None),
         Some("Hello".to_string())
     );
 
@@ -171,7 +166,7 @@ fn managed_i18n_selects_and_localizes() {
 
     assert_eq!(i18n.requested_language(), langid!("fr"));
     assert_eq!(
-        i18n.localize_in_domain("dioxus-test-module", "hello", None),
+        es_fluent::FluentLocalizer::localize_in_domain(&i18n, "dioxus-test-module", "hello", None),
         Some("Bonjour".to_string())
     );
 }
@@ -203,13 +198,18 @@ fn managed_i18n_instances_select_languages_independently() {
 
 #[test]
 #[serial]
-fn managed_i18n_exposes_strict_selection_and_optional_lookup() {
+fn managed_i18n_exposes_strict_selection_and_trait_lookup() {
     force_inventory_link();
     let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
         .expect("managed dioxus i18n should initialize");
 
     assert_eq!(
-        i18n.localize_in_domain("dioxus-partial-module", "partial", None),
+        es_fluent::FluentLocalizer::localize_in_domain(
+            &i18n,
+            "dioxus-partial-module",
+            "partial",
+            None
+        ),
         Some("Partial".to_string())
     );
     assert!(
@@ -222,12 +222,13 @@ fn managed_i18n_exposes_strict_selection_and_optional_lookup() {
         .expect("best-effort selection should keep modules that support fr");
     assert_eq!(i18n.requested_language(), langid!("fr"));
     assert_eq!(
-        i18n.localize_in_domain("dioxus-partial-module", "partial", None),
+        es_fluent::FluentLocalizer::localize_in_domain(
+            &i18n,
+            "dioxus-partial-module",
+            "partial",
+            None
+        ),
         None
-    );
-    assert_eq!(
-        i18n.localize_in_domain_or_id("dioxus-partial-module", "partial", None),
-        "partial"
     );
 }
 
@@ -243,7 +244,7 @@ fn managed_i18n_localizes_typed_messages() {
 
 #[test]
 #[serial]
-fn managed_i18n_cached_modules_identity_and_silent_fallbacks() {
+fn managed_i18n_cached_modules_identity_and_typed_fallbacks() {
     force_inventory_link();
     let modules = es_fluent_manager_core::FluentManager::try_discover_runtime_modules()
         .expect("test inventory should discover runtime modules");
@@ -255,14 +256,8 @@ fn managed_i18n_cached_modules_identity_and_silent_fallbacks() {
 
     assert!(i18n == clone);
     assert!(i18n != other);
-    assert_eq!(i18n.localize_or_id("hello", None), "Hello");
-    assert_eq!(i18n.localize_or_id("missing", None), "missing");
-    assert_eq!(i18n.localize_or_id_silent("missing", None), "missing");
-    assert_eq!(
-        i18n.localize_in_domain_or_id_silent("dioxus-test-module", "missing", None),
-        "missing"
-    );
-    assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+    assert_eq!(i18n.localize_message(&TestMessage), "Hello");
+    assert_eq!(i18n.localize_message(&MissingMessage), "missing");
 }
 
 #[test]
@@ -279,7 +274,7 @@ fn managed_i18n_fluent_localizer_impl_delegates_to_manager() {
         Some("Hello".to_string())
     );
     assert_eq!(
-        <TestThisMessage as es_fluent::ThisFtl>::this_ftl(&i18n),
+        <TestLabelMessage as es_fluent::FluentLabel>::localize_label(&i18n),
         "Hello"
     );
 }
@@ -372,15 +367,23 @@ mod ssr_tests {
             .expect("ssr dioxus i18n should initialize");
 
         assert_eq!(i18n.requested_language(), langid!("en-US"));
-        assert_eq!(i18n.localize("hello", None), Some("Hello".to_string()));
         assert_eq!(
-            i18n.localize_in_domain("dioxus-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize(&i18n, "hello", None),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                "dioxus-test-module",
+                "hello",
+                None
+            ),
             Some("Hello".to_string())
         );
         assert_eq!(i18n.localize_message(&TestMessage), "Hello");
-        assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+        assert_eq!(i18n.localize_message(&MissingMessage), "missing");
         assert_eq!(
-            <TestThisMessage as es_fluent::ThisFtl>::this_ftl(&i18n),
+            <TestLabelMessage as es_fluent::FluentLabel>::localize_label(&i18n),
             "Hello"
         );
 
@@ -721,7 +724,7 @@ mod client_tests {
 
     #[test]
     #[serial]
-    fn dioxus_i18n_facade_methods_localize_and_track_requested_language() {
+    fn dioxus_i18n_facade_tracks_requested_language_and_typed_lookup() {
         CAPTURED_I18N.with(|slot| {
             *slot.borrow_mut() = None;
         });
@@ -736,30 +739,28 @@ mod client_tests {
 
         assert_eq!(i18n.requested_language(), langid!("en-US"));
         assert_eq!(i18n.peek_requested_language(), langid!("en-US"));
-        assert_eq!(i18n.localize("hello", None), Some("Hello".to_string()));
-        assert_eq!(i18n.localize_or_id("missing", None), "missing");
-        assert_eq!(i18n.localize_or_id_silent("missing", None), "missing");
         assert_eq!(
-            i18n.localize_in_domain("dioxus-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize(&i18n, "hello", None),
             Some("Hello".to_string())
         );
         assert_eq!(
-            i18n.localize_in_domain_or_id("dioxus-test-module", "missing", None),
-            "missing"
-        );
-        assert_eq!(
-            i18n.localize_in_domain_or_id_silent("dioxus-test-module", "missing", None),
-            "missing"
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                "dioxus-test-module",
+                "hello",
+                None
+            ),
+            Some("Hello".to_string())
         );
         assert_eq!(i18n.localize_message(&TestMessage), "Hello");
-        assert_eq!(i18n.localize_message_silent(&MissingMessage), "missing");
+        assert_eq!(i18n.localize_message(&MissingMessage), "missing");
         let localizer: &dyn es_fluent::FluentLocalizer = &i18n;
         assert_eq!(
             localizer.localize_in_domain("dioxus-test-module", "hello", None),
             Some("Hello".to_string())
         );
         assert_eq!(
-            <TestThisMessage as es_fluent::ThisFtl>::this_ftl(&i18n),
+            <TestLabelMessage as es_fluent::FluentLabel>::localize_label(&i18n),
             "Hello"
         );
 

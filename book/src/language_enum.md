@@ -84,6 +84,21 @@ as `中文`. With the `localized-langs` feature, the same ICU4X data is formatte
 in the currently selected UI language instead, so an English UI can render
 `French` and `Chinese`.
 
+For a language picker, iterate your generated enum, render each label through
+the active manager, and pass the selected variant back to the manager:
+
+```rust
+use es_fluent::FluentMessage as _;
+use strum::IntoEnumIterator as _;
+
+for language in Languages::iter() {
+    let label = i18n.localize_message(&language);
+    println!("{language:?}: {label}");
+}
+
+i18n.select_language(Languages::FrFr)?;
+```
+
 The runtime uses the shared ICU4X/CLDR fallback chain when exact display-name
 data is missing. Use custom mode when you need project-specific labels or
 fully custom names for unsupported locale tags.

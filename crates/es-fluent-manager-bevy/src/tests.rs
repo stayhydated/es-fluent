@@ -60,23 +60,20 @@ struct CapturedBevyI18n {
     resolved_language: Option<LanguageIdentifier>,
     bundle_changed: bool,
     localized: Option<String>,
-    fallback_id: String,
     domain_localized: Option<String>,
-    domain_fallback_id: String,
     message: String,
-    silent_message: String,
+    missing_message: String,
 }
 
 fn capture_bevy_i18n(i18n: BevyI18n, mut captured: ResMut<CapturedBevyI18n>) {
     captured.active_language = Some(i18n.active_language().clone());
     captured.resolved_language = Some(i18n.resolved_language().clone());
     captured.bundle_changed = i18n.is_bundle_changed();
-    captured.localized = i18n.localize("hello", None);
-    captured.fallback_id = i18n.localize_or_id("missing", None);
-    captured.domain_localized = i18n.localize_in_domain("app", "hello", None);
-    captured.domain_fallback_id = i18n.localize_in_domain_or_id("app", "missing", None);
+    captured.localized = es_fluent::FluentLocalizer::localize(&i18n, "hello", None);
+    captured.domain_localized =
+        es_fluent::FluentLocalizer::localize_in_domain(&i18n, "app", "hello", None);
     captured.message = i18n.localize_message(&DomainMessage("hello"));
-    captured.silent_message = i18n.localize_message_silent(&DomainMessage("missing"));
+    captured.missing_message = i18n.localize_message(&DomainMessage("missing"));
 }
 
 #[test]
@@ -344,11 +341,9 @@ fn bevy_i18n_system_param_exposes_context_bound_localization() {
     assert_eq!(captured.resolved_language.as_ref(), Some(&lang));
     assert!(captured.bundle_changed);
     assert_eq!(captured.localized, Some("Hello Bevy".to_string()));
-    assert_eq!(captured.fallback_id, "missing");
     assert_eq!(captured.domain_localized, Some("Hello Bevy".to_string()));
-    assert_eq!(captured.domain_fallback_id, "missing");
     assert_eq!(captured.message, "Hello Bevy");
-    assert_eq!(captured.silent_message, "missing");
+    assert_eq!(captured.missing_message, "missing");
 }
 
 #[test]

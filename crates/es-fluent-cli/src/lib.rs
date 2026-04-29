@@ -8,9 +8,9 @@ mod tui;
 mod utils;
 
 pub use commands::{
-    CheckArgs, CleanArgs, DryRunDiff, DryRunSummary, FormatArgs, GenerateArgs, SyncArgs, TreeArgs,
-    WatchArgs, WorkspaceArgs, run_check, run_clean, run_format, run_generate, run_sync, run_tree,
-    run_watch,
+    CheckArgs, CleanArgs, DryRunDiff, DryRunSummary, FormatArgs, GenerateArgs, InitArgs,
+    InitManager, SyncArgs, TreeArgs, WatchArgs, WorkspaceArgs, run_check, run_clean, run_format,
+    run_generate, run_init, run_sync, run_tree, run_watch,
 };
 pub use core::{CliError, FluentParseMode};
 pub use utils::ui::Ui;

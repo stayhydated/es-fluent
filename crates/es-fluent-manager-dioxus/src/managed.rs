@@ -1,4 +1,5 @@
 use crate::DioxusInitError;
+use es_fluent::__private::FluentLocalizerExt;
 use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
 use es_fluent_manager_core::{DiscoveredRuntimeI18nModules, FluentManager, LocalizationError};
 use parking_lot::RwLock;
@@ -83,93 +84,11 @@ impl ManagedI18n {
         Ok(())
     }
 
-    pub fn localize<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        self.manager.localize(id.as_ref(), args)
-    }
-
-    pub fn localize_or_id<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let id = id.as_ref();
-        match self.localize(id, args) {
-            Some(value) => value,
-            None => {
-                tracing::warn!(message_id = id, "missing Fluent message");
-                id.to_string()
-            },
-        }
-    }
-
-    pub fn localize_or_id_silent<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let id = id.as_ref();
-        self.localize(id, args).unwrap_or_else(|| id.to_string())
-    }
-
-    pub fn localize_in_domain<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        self.manager
-            .localize_in_domain(domain.as_ref(), id.as_ref(), args)
-    }
-
-    pub fn localize_in_domain_or_id<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let domain = domain.as_ref();
-        let id = id.as_ref();
-        match self.localize_in_domain(domain, id, args) {
-            Some(value) => value,
-            None => {
-                tracing::warn!(domain, message_id = id, "missing Fluent message");
-                id.to_string()
-            },
-        }
-    }
-
-    pub fn localize_in_domain_or_id_silent<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        let domain = domain.as_ref();
-        let id = id.as_ref();
-        self.localize_in_domain(domain, id, args)
-            .unwrap_or_else(|| id.to_string())
-    }
-
     pub fn localize_message<T>(&self, message: &T) -> String
     where
         T: FluentMessage + ?Sized,
     {
-        message.to_fluent_string_with(&mut |domain, id, args| {
-            self.localize_in_domain_or_id(domain, id, args)
-        })
-    }
-
-    pub fn localize_message_silent<T>(&self, message: &T) -> String
-    where
-        T: FluentMessage + ?Sized,
-    {
-        message.to_fluent_string_with(&mut |domain, id, args| {
-            self.localize_in_domain_or_id_silent(domain, id, args)
-        })
+        FluentLocalizerExt::localize_message(self, message)
     }
 }
 

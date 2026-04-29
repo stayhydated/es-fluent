@@ -31,13 +31,21 @@ This framework gives you:
 - [gpui-table](https://github.com/stayhydated/gpui-table)
 - [gpui-storybook](https://github.com/stayhydated/gpui-storybook)
 
+## Version compatibility
+
+| Surface                                           | Version line | Runtime        |
+| :------------------------------------------------ | :----------- | :------------- |
+| `es-fluent`, CLI, embedded manager, language enum | `0.16.x`     | General Rust   |
+| `es-fluent-manager-dioxus`                        | `0.7.x`      | Dioxus `0.7.x` |
+| `es-fluent-manager-bevy`                          | `0.18.x`     | Bevy `0.18.x`  |
+
 ## Installation
 
-Add the crate with the `derive` feature to access the procedural macros:
+Add `es-fluent`; derive macros are enabled by default:
 
 ```toml
 [dependencies]
-es-fluent = { version = "0.16", features = ["derive"] }
+es-fluent = "0.16"
 unic-langid = "0.9"
 
 # If you want to register modules with the embedded context and localize at runtime:
@@ -59,38 +67,42 @@ let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langi
 ```
 
 For custom runtime integrations, create a `FluentManager`, select the initial
-language, then use typed or domain-scoped lookup:
+language, then use typed lookup:
 
 ```toml
 [dependencies]
-es-fluent-manager-core = "0.16"
+es-fluent = "0.16"
+es-fluent-manager-embedded = "0.16"
 ```
 
 ```no_run
-use es_fluent_manager_core::FluentManager;
+use es_fluent::EsFluent;
+use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
+#[derive(EsFluent)]
+struct Greeting<'a> {
+    name: &'a str,
+}
+
 fn main() -> Result<(), String> {
-    let manager = FluentManager::try_new_with_discovered_modules()
-        .map_err(|errors| format!("{errors:?}"))?;
-    manager
-        .select_language(&langid!("en"))
+    let i18n = EmbeddedI18n::try_new_with_language(langid!("en"))
         .map_err(|error| error.to_string())?;
-    let greeting = manager.localize_in_domain("app", "hello", None);
+    let greeting = i18n.localize_message(&Greeting { name: "Ada" });
 
     Ok(())
 }
 ```
 
-Prefer `localize_message(...)` or `localize_in_domain(...)` for multi-module
-apps. `localize(...)` searches runtime localizers in discovery order and is
-best suited to simple single-domain apps or intentional first-match lookup.
+Prefer `localize_message(...)` on the concrete manager handle. Raw string-ID
+lookup remains available in `es-fluent-manager-core` for integration code, but
+application-facing APIs are intentionally enum-first.
 For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
 hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a
 request-scoped runtime. Dioxus code should use
 `DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or
-explicit `localize*` helpers through the component or SSR request context.
+typed label helpers through the component or SSR request context.
 Dioxus does not use the generic embedded localizer handle or install a
 process-wide localizer.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
@@ -102,7 +114,18 @@ asset readiness and fallback-manager behavior is documented in
 
 ## Project configuration
 
-Create an `i18n.toml` next to your `Cargo.toml`:
+For a new crate, start with the CLI scaffold:
+
+```sh
+cargo es-fluent init
+```
+
+This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
+`pub mod i18n;` declaration in `src/lib.rs`. Use `--manager dioxus` or
+`--manager bevy` for framework-specific scaffolding, and `--build-rs` to add
+locale asset rebuild tracking.
+
+Or create an `i18n.toml` next to your `Cargo.toml` manually:
 
 ```toml
 # Default fallback language (required)
@@ -170,33 +193,33 @@ pub enum Gender {
 }
 ```
 
-### `EsFluentThis`
+### `EsFluentLabel`
 
 ```rs
-use es_fluent::EsFluentThis;
+use es_fluent::EsFluentLabel;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = "forms")]
-pub enum GenderThis { Male, Female, Other }
+pub enum GenderLabel { Male, Female, Other }
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = file)]
 pub enum Status { Active, Inactive }
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace(file(relative)))]
 pub struct UserProfile;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus { Active, Inactive }
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace(folder(relative)))]
 pub struct FolderUserProfile;
 ```
@@ -380,37 +403,37 @@ pub enum SettingsTab {
 let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 ```
 
-### `#[derive(EsFluentThis)]`
+### `#[derive(EsFluentLabel)]`
 
-Generates a helper implementation of the `ThisFtl` trait and registers the
+Generates a helper implementation of the `FluentLabel` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `#[fluent_this(origin)]`: Generates an implementation where `this_ftl(localizer)` returns the base key for the type.
+- `#[fluent_label(origin)]`: Generates an implementation where `localize_label(localizer)` returns the base key for the type.
 
 ```rs
-use es_fluent::EsFluentThis;
+use es_fluent::EsFluentLabel;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
-pub enum GenderThisOnly {
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
+pub enum GenderLabelOnly {
     Male,
     Female,
     Other,
 }
 
 // Generates key:
-// (gender_this_only_this)
+// (gender_label_only_label)
 
-use es_fluent::ThisFtl;
-let _ = GenderThisOnly::this_ftl(&i18n);
+use es_fluent::FluentLabel;
+let _ = GenderLabelOnly::localize_label(&i18n);
 ```
 
-- `#[fluent_this(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
+- `#[fluent_label(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
 
 ```rs
-#[derive(EsFluentVariants, EsFluentThis)]
-#[fluent_this(origin, variants)]
+#[derive(EsFluentVariants, EsFluentLabel)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,
@@ -418,9 +441,9 @@ pub struct LoginFormCombined {
 }
 
 // Generates keys:
-// (login_form_combined_label_variants_this)
-// (login_form_combined_description_variants_this)
+// (login_form_combined_label_variants_label)
+// (login_form_combined_description_variants_label)
 
-use es_fluent::ThisFtl;
-let _ = LoginFormCombinedDescriptionVariants::this_ftl(&i18n);
+use es_fluent::FluentLabel;
+let _ = LoginFormCombinedDescriptionVariants::localize_label(&i18n);
 ```

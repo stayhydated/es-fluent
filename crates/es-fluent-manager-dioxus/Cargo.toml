@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent-manager-dioxus"
 description = """
-es-fluent manager for Dioxus
+Dioxus provider, hook, and SSR runtime manager for es-fluent translations
 """
 edition.workspace = true
 license.workspace = true

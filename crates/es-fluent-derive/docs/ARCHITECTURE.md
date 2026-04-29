@@ -16,7 +16,7 @@ It does not emit context-free display/localization implementations.
 `#[derive(EsFluentVariants)]` emits generated unit enums that also implement
 `FluentMessage` and inventory metadata.
 
-`#[derive(EsFluentThis)]` emits `ThisFtl::this_ftl(localizer)`, which resolves a
+`#[derive(EsFluentLabel)]` emits `FluentLabel::localize_label(localizer)`, which resolves a
 type-level key through an explicit `FluentLocalizer`.
 
 Enum derives can override the generated base key with `resource = "..."`, route

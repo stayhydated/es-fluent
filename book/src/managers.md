@@ -38,12 +38,12 @@ es_fluent_manager_embedded::define_i18n_module!();
 In your application entry point:
 
 ```rust
-use es_fluent::{EsFluent, EsFluentThis};
+use es_fluent::{EsFluent, EsFluentLabel};
 use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
-#[derive(EsFluent, EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
 enum MyMessage {
     Hello { name: String },
 }
@@ -58,13 +58,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For types that derive `EsFluentThis`, pass the same explicit context to
-`this_ftl(...)`:
+For types that derive `EsFluentLabel`, pass the same explicit context to
+`localize_label(...)`:
 
 ```rust
-use es_fluent::ThisFtl as _;
+use es_fluent::FluentLabel as _;
 
-let title = MyMessage::this_ftl(&i18n);
+let title = MyMessage::localize_label(&i18n);
 ```
 
 If you have a [Language Enum](language_enum.md), you can pass it directly since it implements `Into<LanguageIdentifier>`:
@@ -100,16 +100,12 @@ requested locale for the switch to succeed.
 by the other clones. Construct a separate `EmbeddedI18n` value when you need
 isolated language state.
 
-For direct string-ID lookup, `EmbeddedI18n` exposes `localize(...)`,
-`localize_in_domain(...)`, `localize_or_id(...)`, and
-`localize_in_domain_or_id(...)`. For typed messages, use
-`localize_message(...)`; use `localize_message_silent(...)` when falling back to
-the message ID without logging a missing-message warning is intentional.
+`EmbeddedI18n` intentionally exposes enum-first `localize_message(...)` for application lookup. It also implements `FluentLocalizer` so generated labels and integration code can resolve through the same explicit context.
 
 For custom runtime integrations, `es-fluent-manager-core` exposes the same
 strict discovery behavior through `FluentManager`. Construction does not select
-a language, so select the initial language before lookup and prefer typed or
-domain-scoped localization:
+a language, so select the initial language before handing the manager to
+integration code:
 
 ```toml
 [dependencies]
@@ -122,13 +118,11 @@ use unic_langid::langid;
 
 let manager = FluentManager::try_new_with_discovered_modules()?;
 manager.select_language(&langid!("en"))?;
-let title = manager.localize_in_domain("app", "title", None);
+// Use concrete manager crates for application-facing typed lookup.
 ```
 
 Most applications should prefer a concrete manager crate instead of wiring a raw
-`FluentManager` into application state manually. `FluentManager::localize(...)`
-is a first-match search across runtime localizers; use it only for simple
-single-domain apps or intentional first-match lookup.
+`FluentManager` into application state manually. `FluentManager` remains a low-level integration point; most application code should stay on derived messages and concrete manager handles.
 
 The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:
@@ -166,7 +160,7 @@ The crate has no default runtime feature. The `define_i18n_module!` macro is alw
 
 ```rust
 use dioxus::prelude::*;
-use es_fluent::{EsFluent, EsFluentThis, ThisFtl as _};
+use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
 use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
 use unic_langid::langid;
 
@@ -181,9 +175,9 @@ fn app() -> Element {
     }
 }
 
-#[derive(Clone, Copy, EsFluent, EsFluentThis)]
+#[derive(Clone, Copy, EsFluent, EsFluentLabel)]
 #[fluent(namespace = "ui")]
-#[fluent_this(origin)]
+#[fluent_label(origin)]
 enum UiMessage {
     Hello,
 }
@@ -195,7 +189,7 @@ fn LocaleButton() -> Element {
         Err(error) => return rsx! { "Failed to initialize i18n: {error}" },
     };
     let label = i18n.localize_message(&UiMessage::Hello);
-    let title = UiMessage::this_ftl(&i18n);
+    let title = UiMessage::localize_label(&i18n);
 
     rsx! {
         button {
@@ -210,7 +204,7 @@ fn LocaleButton() -> Element {
 }
 ```
 
-Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup, or `localize_message_silent(...)` when ID fallback without missing-message warning logs is intended. `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentThis)]` values can call `MyType::this_ftl(&i18n)` in client components. Use `localize_in_domain(...)` for domain-scoped string ID lookup, and reserve `localize(...)` for simple single-domain apps or intentional first-match lookup across runtime localizers. Use explicit `localize_or_id(...)`, `localize_in_domain_or_id(...)`, `localize_or_id_silent(...)`, and `localize_in_domain_or_id_silent(...)` fallback helpers when rendering message IDs on misses is intended. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
+Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup. `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components. Raw string-ID lookup is not exposed as a client convenience API; keep application code on derived messages and labels. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
@@ -253,7 +247,7 @@ fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
 
-SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::this_ftl(&i18n)`.
+SSR components should receive a cloned `ManagedI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`.
 
 ---
 
@@ -297,8 +291,23 @@ fn main() {
 }
 ```
 
+By default, `I18nPlugin` loads locales from `locales` relative to Bevy's asset
+root, matching `assets_dir = "assets/locales"` in `i18n.toml`. If your Bevy
+asset root is `assets` but translations live in `assets/i18n`, configure the
+path explicitly:
+
+```rust
+use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
+
+app.add_plugins(I18nPlugin::with_config(
+    I18nPluginConfig::new(langid!("en")).with_asset_path("i18n"),
+));
+```
+
 `I18nPlugin` localizes `FluentText` components through Bevy resources and does
 not install a process-wide localization hook.
+
+#### Advanced behavior
 
 Plugin startup also uses strict module discovery, so invalid or duplicate i18n
 module registrations are reported through `I18nPluginStartupError` instead of
@@ -330,15 +339,15 @@ For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:
 
 ```rust
-use es_fluent::ThisFtl as _;
+use es_fluent::FluentLabel as _;
 use es_fluent_manager_bevy::BevyI18n;
 
 fn update_title(i18n: BevyI18n) {
     let title = i18n.localize_message(&UiMessage::Settings);
-    // `SettingsPanel` is any type that derives `EsFluentThis`.
-    let section_title = SettingsPanel::this_ftl(&i18n);
+    // `SettingsPanel` is any type that derives `EsFluentLabel`.
+    let section_title = SettingsPanel::localize_label(&i18n);
     // apply `title` to your Bevy UI, window, or gameplay state
-    // use `section_title` for an `EsFluentThis` type label
+    // use `section_title` for an `EsFluentLabel` type label
 }
 ```
 

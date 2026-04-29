@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 
-use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
+use es_fluent::__private::FluentLocalizerExt;
+use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
 use es_fluent_manager_core::{FluentManager, ModuleDiscoveryError};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -114,61 +115,12 @@ impl EmbeddedI18n {
         self.manager.select_language_strict(&lang.into())
     }
 
-    /// Localizes a message by ID using manager discovery order.
-    pub fn localize<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        self.manager.localize(id.as_ref(), args)
-    }
-
-    /// Localizes a message by ID, falling back to the ID on misses.
-    pub fn localize_or_id<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        FluentLocalizerExt::localize_or_id(self, id.as_ref(), args)
-    }
-
-    /// Localizes a message by ID within a specific domain.
-    pub fn localize_in_domain<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        self.manager
-            .localize_in_domain(domain.as_ref(), id.as_ref(), args)
-    }
-
-    /// Localizes a domain-scoped message by ID, falling back to the ID on
-    /// misses.
-    pub fn localize_in_domain_or_id<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> String {
-        FluentLocalizerExt::localize_in_domain_or_id(self, domain.as_ref(), id.as_ref(), args)
-    }
-
     /// Renders a derived typed message through this context.
     pub fn localize_message<T>(&self, message: &T) -> String
     where
         T: FluentMessage + ?Sized,
     {
         FluentLocalizerExt::localize_message(self, message)
-    }
-
-    /// Renders a derived typed message through this context without logging
-    /// missing-message warnings.
-    pub fn localize_message_silent<T>(&self, message: &T) -> String
-    where
-        T: FluentMessage + ?Sized,
-    {
-        FluentLocalizerExt::localize_message_silent(self, message)
     }
 }
 
@@ -300,11 +252,21 @@ mod tests {
             .expect("fr embedded i18n should initialize");
 
         assert_eq!(
-            en.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &en,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Hello".to_string())
         );
         assert_eq!(
-            fr.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &fr,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Bonjour".to_string())
         );
 
@@ -312,11 +274,21 @@ mod tests {
             .expect("en manager should switch to fr");
 
         assert_eq!(
-            en.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &en,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Bonjour".to_string())
         );
         assert_eq!(
-            fr.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &fr,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Bonjour".to_string())
         );
 
@@ -324,33 +296,42 @@ mod tests {
             .expect("fr manager should switch to en-US");
 
         assert_eq!(
-            en.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &en,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Bonjour".to_string())
         );
         assert_eq!(
-            fr.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &fr,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Hello".to_string())
         );
     }
 
     #[test]
-    fn embedded_i18n_facade_methods_delegate_to_manager_and_fallback_helpers() {
+    fn embedded_i18n_facade_methods_delegate_to_manager_and_typed_lookup() {
         force_inventory_link();
         let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))
             .expect("embedded i18n should initialize");
 
         assert!(std::ptr::eq(i18n.manager(), i18n.manager()));
         assert_eq!(
-            i18n.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Hello".to_string())
         );
-        assert_eq!(
-            i18n.localize_in_domain_or_id("embedded-test-module", "missing", None),
-            "missing"
-        );
-        assert_eq!(i18n.localize_or_id("missing", None), "missing");
         assert_eq!(i18n.localize_message(&TestMessage), "Hello");
-        assert_eq!(i18n.localize_message_silent(&TestMessage), "Hello");
         assert!(
             i18n.select_language_strict(langid!("de")).is_err(),
             "strict selection should reject unsupported locales"
@@ -363,12 +344,20 @@ mod tests {
         let i18n = EmbeddedI18n::try_new().expect("embedded i18n should initialize");
         let cloned = i18n.clone();
 
-        assert_eq!(i18n.localize("hello", None), None);
+        assert_eq!(
+            es_fluent::FluentLocalizer::localize(&i18n, "hello", None),
+            None
+        );
         cloned
             .select_language(langid!("fr"))
             .expect("language selection should work after initialization");
         assert_eq!(
-            i18n.localize_in_domain("embedded-test-module", "hello", None),
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
             Some("Bonjour".to_string())
         );
     }

@@ -40,11 +40,7 @@ that require all discovered modules to accept the locale.
 
 ## Lookup helpers
 
-`EmbeddedI18n` implements `FluentLocalizer`, so typed messages use
-`localize_message(...)` and direct string IDs can use `localize(...)` or
-`localize_in_domain(...)`. The inherent fallback helpers mirror
-`FluentLocalizerExt`, including `localize_message_silent(...)` for callers that
-want ID fallback without warning logs.
+`EmbeddedI18n` implements `FluentLocalizer`, but its inherent application API stays enum-first through `localize_message(...)`. Generated labels and workspace integrations use the trait path when they need explicit context-bound lookup.
 
 ## Macro integration
 

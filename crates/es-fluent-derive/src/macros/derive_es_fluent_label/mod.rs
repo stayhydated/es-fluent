@@ -5,14 +5,14 @@ use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
 use crate::macros::utils::{
-    InventoryModuleInput, generate_inventory_module, generate_this_ftl_impl,
+    InventoryModuleInput, generate_inventory_module, generate_localize_label_impl,
     inherited_fluent_domain, inherited_fluent_namespace, namespace_rule_tokens,
     preferred_namespace,
 };
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand_es_fluent_this(input).into()
+    expand_es_fluent_label(input).into()
 }
 
 fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
@@ -23,7 +23,7 @@ fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span
     }
 }
 
-fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
+fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
     let opts = match ThisOpts::from_derive_input(&input) {
         Ok(opts) => opts,
         Err(err) => return err.write_errors(),
@@ -32,7 +32,7 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     if matches!(&input.data, Data::Union(_)) {
         proc_macro_error2::abort!(
             input.ident.span(),
-            "EsFluentThis can only be derived for structs and enums"
+            "EsFluentLabel can only be derived for structs and enums"
         );
     }
 
@@ -48,12 +48,12 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     let original_ident = opts.ident();
     let generics = opts.generics();
     let ftl_key = if opts.attr_args().is_origin() {
-        Some(namer::FluentKey::new_this(original_ident).to_string())
+        Some(namer::FluentKey::new_label(original_ident).to_string())
     } else {
         None
     };
 
-    let this_ftl_impl = generate_this_ftl_impl(
+    let localize_label_impl = generate_localize_label_impl(
         original_ident,
         generics,
         ftl_key.as_deref(),
@@ -62,7 +62,7 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     let type_kind = match &input.data {
         Data::Struct(_) => quote! { ::es_fluent::meta::TypeKind::Struct },
         Data::Enum(_) => quote! { ::es_fluent::meta::TypeKind::Enum },
-        Data::Union(_) => unreachable!("EsFluentThis does not support unions"),
+        Data::Union(_) => unreachable!("EsFluentLabel does not support unions"),
     };
 
     // Generate inventory submission for types with origin=true
@@ -85,7 +85,7 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
 
         generate_inventory_module(InventoryModuleInput {
             ident: original_ident,
-            module_name_prefix: "this_inventory",
+            module_name_prefix: "label_inventory",
             type_kind,
             variants: vec![this_variant],
             namespace_expr,
@@ -95,7 +95,7 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
     };
 
     let tokens = quote! {
-        #this_ftl_impl
+        #localize_label_impl
         #inventory_submit
     };
 
@@ -104,120 +104,120 @@ fn expand_es_fluent_this(input: DeriveInput) -> proc_macro2::TokenStream {
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
-    use super::expand_es_fluent_this;
+    use super::expand_es_fluent_label;
     use crate::snapshot_support::pretty_file_tokens;
     use insta::assert_snapshot;
     use syn::parse_quote;
 
     #[test]
-    fn expand_es_fluent_this_generates_inventory_when_origin_is_enabled() {
+    fn expand_es_fluent_label_generates_inventory_when_origin_is_enabled() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_this]
+            #[fluent_label]
             #[fluent(namespace = "ui")]
             struct LoginForm;
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_this_generates_inventory_when_origin_is_enabled",
+            "expand_es_fluent_label_generates_inventory_when_origin_is_enabled",
             tokens
         );
     }
 
     #[test]
-    fn expand_es_fluent_this_skips_inventory_when_origin_is_disabled() {
+    fn expand_es_fluent_label_skips_inventory_when_origin_is_disabled() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_this(origin = false)]
+            #[fluent_label(origin = false)]
             enum NoOrigin {
                 A
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_this_skips_inventory_when_origin_is_disabled",
+            "expand_es_fluent_label_skips_inventory_when_origin_is_disabled",
             tokens
         );
     }
 
     #[test]
-    fn expand_es_fluent_this_returns_compile_errors_for_parse_failures() {
+    fn expand_es_fluent_label_returns_compile_errors_for_parse_failures() {
         let this_opts_error: syn::DeriveInput = parse_quote! {
-            #[fluent_this(origin = "nope")]
-            struct InvalidThisOpts;
+            #[fluent_label(origin = "nope")]
+            struct InvalidLabelOpts;
         };
-        let this_opts_tokens = pretty_file_tokens(expand_es_fluent_this(this_opts_error));
+        let this_opts_tokens = pretty_file_tokens(expand_es_fluent_label(this_opts_error));
         assert_snapshot!(
-            "expand_es_fluent_this_returns_compile_errors_for_invalid_this_opts",
+            "expand_es_fluent_label_returns_compile_errors_for_invalid_label_opts",
             this_opts_tokens
         );
 
         let struct_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_this]
+            #[fluent_label]
             #[fluent(namespace = 123)]
             struct InvalidStructNamespace;
         };
-        let struct_tokens = pretty_file_tokens(expand_es_fluent_this(struct_namespace_error));
+        let struct_tokens = pretty_file_tokens(expand_es_fluent_label(struct_namespace_error));
         assert_snapshot!(
-            "expand_es_fluent_this_returns_compile_errors_for_invalid_struct_namespace",
+            "expand_es_fluent_label_returns_compile_errors_for_invalid_struct_namespace",
             struct_tokens
         );
 
         let enum_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_this]
+            #[fluent_label]
             #[fluent(namespace = 123)]
             enum InvalidEnumNamespace {
                 A
             }
         };
-        let enum_tokens = pretty_file_tokens(expand_es_fluent_this(enum_namespace_error));
+        let enum_tokens = pretty_file_tokens(expand_es_fluent_label(enum_namespace_error));
         assert_snapshot!(
-            "expand_es_fluent_this_returns_compile_errors_for_invalid_enum_namespace",
+            "expand_es_fluent_label_returns_compile_errors_for_invalid_enum_namespace",
             enum_tokens
         );
     }
 
     #[test]
-    fn expand_es_fluent_this_prefers_parent_fluent_namespace_over_this_namespace() {
+    fn expand_es_fluent_label_prefers_parent_fluent_namespace_over_label_namespace() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent")]
-            #[fluent_this(namespace = "child")]
-            struct NamespacedThis;
+            #[fluent_label(namespace = "child")]
+            struct NamespacedLabel;
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_this_prefers_parent_fluent_namespace_over_this_namespace",
+            "expand_es_fluent_label_prefers_parent_fluent_namespace_over_label_namespace",
             tokens
         );
     }
 
     #[test]
-    fn expand_es_fluent_this_uses_struct_type_kind_for_structs() {
+    fn expand_es_fluent_label_uses_struct_type_kind_for_structs() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_this]
+            #[fluent_label]
             struct LoginForm;
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_this_uses_struct_type_kind_for_structs",
+            "expand_es_fluent_label_uses_struct_type_kind_for_structs",
             tokens
         );
     }
 
     #[test]
-    fn expand_es_fluent_this_uses_enum_type_kind_for_enums() {
+    fn expand_es_fluent_label_uses_enum_type_kind_for_enums() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_this]
+            #[fluent_label]
             enum LoginState {
                 Ready
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_this(input));
+        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_this_uses_enum_type_kind_for_enums",
+            "expand_es_fluent_label_uses_enum_type_kind_for_enums",
             tokens
         );
     }

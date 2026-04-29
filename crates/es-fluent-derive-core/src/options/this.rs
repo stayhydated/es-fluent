@@ -3,9 +3,9 @@ use darling::{FromDeriveInput, FromMeta};
 use es_fluent_shared::namespace::NamespaceRule;
 use getset::Getters;
 
-/// Options for `EsFluentThis`.
+/// Options for `EsFluentLabel`.
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(struct_any, enum_any), attributes(fluent_this))]
+#[darling(supports(struct_any, enum_any), attributes(fluent_label))]
 #[getset(get = "pub")]
 pub struct ThisOpts {
     /// The identifier of the struct/enum.
@@ -16,7 +16,7 @@ pub struct ThisOpts {
     attr_args: ThisNamespacedAttributeArgs,
 }
 
-/// Attribute arguments for `EsFluentThis`.
+/// Attribute arguments for `EsFluentLabel`.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct ThisNamespacedAttributeArgs {
     #[darling(default)]

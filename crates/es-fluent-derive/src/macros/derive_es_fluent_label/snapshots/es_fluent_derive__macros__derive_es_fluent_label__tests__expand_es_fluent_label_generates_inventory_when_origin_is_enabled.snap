@@ -1,26 +1,26 @@
 ---
-source: crates/es-fluent-derive/src/macros/derive_es_fluent_this/mod.rs
-assertion_line: 188
+source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
+assertion_line: 106
 expression: tokens
 ---
-impl ::es_fluent::ThisFtl for LoginForm {
-    fn this_ftl<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+impl ::es_fluent::FluentLabel for LoginForm {
+    fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
         localizer: &__EsFluentLocalizer,
     ) -> String {
-        ::es_fluent::__private::localize_this(
+        ::es_fluent::__private::localize_label(
             localizer,
             env!("CARGO_PKG_NAME"),
-            "login_form_this",
+            "login_form_label",
         )
     }
 }
 #[doc(hidden)]
-mod __es_fluent_this_inventory_login_form {
+mod __es_fluent_label_inventory_login_form {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "LoginForm",
-            ftl_key: "login_form_this",
+            ftl_key: "login_form_label",
             args: &[],
             module_path: module_path!(),
             line: line!(),
@@ -32,7 +32,11 @@ mod __es_fluent_this_inventory_login_form {
         variants: VARIANTS,
         file_path: file!(),
         module_path: module_path!(),
-        namespace: None,
+        namespace: Some(
+            ::es_fluent::registry::NamespaceRule::Literal(
+                ::std::borrow::Cow::Borrowed("ui"),
+            ),
+        ),
     };
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)

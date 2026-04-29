@@ -1,4 +1,4 @@
-use es_fluent::ThisFtl as _;
+use es_fluent::FluentLabel as _;
 use example_shared_lib::Languages;
 use readme::*;
 use strum::IntoEnumIterator as _;
@@ -58,10 +58,10 @@ fn run(i18n: &i18n::I18n, locale: Languages) {
         i18n.localize_message(&SettingsTabVariants::Notifications)
     );
 
-    println!("\n=== Type-level Keys (This) ===");
-    println!("GenderThisOnly: {}", GenderThisOnly::this_ftl(i18n));
+    println!("\n=== Type-level Labels ===");
+    println!("GenderLabelOnly: {}", GenderLabelOnly::localize_label(i18n));
     println!(
         "LoginFormCombined Description: {}",
-        LoginFormCombinedDescriptionVariants::this_ftl(i18n)
+        LoginFormCombinedDescriptionVariants::localize_label(i18n)
     );
 }

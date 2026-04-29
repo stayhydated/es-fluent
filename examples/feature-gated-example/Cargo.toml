@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
-es-fluent = { features = [ "derive" ], optional = true, workspace = true }
+es-fluent = { optional = true, workspace = true }
 
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }

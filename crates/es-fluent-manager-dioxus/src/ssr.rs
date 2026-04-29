@@ -66,35 +66,11 @@ impl SsrI18n {
         self.managed.select_language_strict(lang)
     }
 
-    pub fn localize<'a>(
-        &self,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        self.managed.localize(id, args)
-    }
-
-    pub fn localize_in_domain<'a>(
-        &self,
-        domain: impl AsRef<str>,
-        id: impl AsRef<str>,
-        args: Option<&HashMap<&str, FluentValue<'a>>>,
-    ) -> Option<String> {
-        self.managed.localize_in_domain(domain, id, args)
-    }
-
     pub fn localize_message<T>(&self, message: &T) -> String
     where
         T: FluentMessage + ?Sized,
     {
         self.managed.localize_message(message)
-    }
-
-    pub fn localize_message_silent<T>(&self, message: &T) -> String
-    where
-        T: FluentMessage + ?Sized,
-    {
-        self.managed.localize_message_silent(message)
     }
 
     pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
@@ -130,7 +106,7 @@ impl FluentLocalizer for SsrI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        self.managed.localize(id, args)
+        FluentLocalizer::localize(&self.managed, id, args)
     }
 
     fn localize_in_domain<'a>(
@@ -139,7 +115,7 @@ impl FluentLocalizer for SsrI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        self.managed.localize_in_domain(domain, id, args)
+        FluentLocalizer::localize_in_domain(&self.managed, domain, id, args)
     }
 }
 
