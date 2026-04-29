@@ -207,6 +207,24 @@ Additional rules:
 
 ## Working rules by change type
 
+### After making changes
+
+- Run the narrowest relevant validation command after code or workflow changes.
+- If validation cannot be run, explicitly say it was skipped and why.
+- Do not assert that changes work unless validation, tests, or an equivalent check actually ran.
+
+### When validating changes
+
+- Validation is the default expectation after changes, not an optional follow-up.
+- Run the narrowest command that proves the edited behavior works.
+- Prefer targeted crate, example, docs, or web checks before full-workspace validation.
+- Use `just check`, `just test`, or a more specific `justfile` recipe when the change spans multiple surfaces.
+- For Rust-only changes, prefer targeted `cargo check`, `cargo test`, or crate-specific commands.
+- For documentation changes, prefer the smallest relevant executable example, mdBook, or docs build check when practical.
+- For JavaScript or web-only changes, prefer targeted Bun/Turbo scripts such as `bun run check`, `bun run test`, or a package-specific script.
+- If validation depends on external services, generated files, secrets, or long-running containers, state the dependency and use the relevant `justfile` recipe when practical.
+- Do not claim a change works unless it was validated, generated from a source of truth, or the remaining risk is explicitly documented.
+
 ### When editing docs
 
 - Keep READMEs and the book user-facing.
