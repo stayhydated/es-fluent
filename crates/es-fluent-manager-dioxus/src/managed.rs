@@ -1,6 +1,6 @@
 use crate::DioxusInitError;
 use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
-use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager, LocalizationError};
+use es_fluent_manager_core::{DiscoveredRuntimeI18nModules, FluentManager, LocalizationError};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -37,7 +37,7 @@ impl ManagedI18n {
     }
 
     pub fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
-        modules: &DiscoveredI18nModules,
+        modules: &DiscoveredRuntimeI18nModules,
         lang: L,
     ) -> Result<Self, DioxusInitError> {
         let lang = lang.into();

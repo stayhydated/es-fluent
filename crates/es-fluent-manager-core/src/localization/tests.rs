@@ -457,7 +457,10 @@ fn discovered_modules_expose_len_empty_debug_clone_and_manager_construction() {
     assert_eq!(manager.modules.len(), discovered.len());
     assert_eq!(
         format!("{discovered:?}"),
-        format!("DiscoveredI18nModules {{ len: {} }}", discovered.len())
+        format!(
+            "DiscoveredRuntimeI18nModules {{ len: {} }}",
+            discovered.len()
+        )
     );
 }
 

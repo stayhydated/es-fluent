@@ -13,16 +13,16 @@ use unic_langid::LanguageIdentifier;
 type ManagedLocalizer = (&'static ModuleData, Box<dyn Localizer>);
 const MAX_DIAGNOSTIC_LANGUAGES: usize = 6;
 
-/// Cached, validated i18n module registrations.
+/// Cached, validated runtime-capable i18n module registrations.
 ///
 /// This lets integrations pay strict inventory discovery once, then construct
 /// request-local [`FluentManager`] values cheaply from the cached module list.
 #[derive(Clone)]
-pub struct DiscoveredI18nModules {
+pub struct DiscoveredRuntimeI18nModules {
     modules: Arc<[&'static dyn I18nModuleRegistration]>,
 }
 
-impl DiscoveredI18nModules {
+impl DiscoveredRuntimeI18nModules {
     pub fn len(&self) -> usize {
         self.modules.len()
     }
@@ -32,16 +32,15 @@ impl DiscoveredI18nModules {
     }
 }
 
-impl std::fmt::Debug for DiscoveredI18nModules {
+impl std::fmt::Debug for DiscoveredRuntimeI18nModules {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DiscoveredI18nModules")
+        f.debug_struct("DiscoveredRuntimeI18nModules")
             .field("len", &self.len())
             .finish()
     }
 }
 
 /// A manager for Fluent translations.
-#[derive(Default)]
 pub struct FluentManager {
     pub(super) modules: Vec<&'static dyn I18nModuleRegistration>,
     pub(super) localizers: RwLock<Vec<ManagedLocalizer>>,
@@ -169,21 +168,21 @@ impl FluentManager {
     }
 
     /// Discovers, validates, and caches runtime-capable i18n modules.
-    pub fn try_discover_runtime_modules() -> Result<DiscoveredI18nModules, Vec<ModuleDiscoveryError>>
-    {
+    pub fn try_discover_runtime_modules()
+    -> Result<DiscoveredRuntimeI18nModules, Vec<ModuleDiscoveryError>> {
         let discovered_modules = try_filter_module_registry(
             inventory::iter::<&'static dyn I18nModuleRegistration>()
                 .copied()
                 .collect::<Vec<_>>(),
         )?;
 
-        Ok(DiscoveredI18nModules {
+        Ok(DiscoveredRuntimeI18nModules {
             modules: load_runtime_modules(discovered_modules).into(),
         })
     }
 
     /// Creates a new manager from previously discovered runtime modules.
-    pub fn from_discovered_modules(discovered: &DiscoveredI18nModules) -> Self {
+    pub fn from_discovered_modules(discovered: &DiscoveredRuntimeI18nModules) -> Self {
         Self {
             modules: discovered.modules.iter().copied().collect(),
             localizers: RwLock::default(),

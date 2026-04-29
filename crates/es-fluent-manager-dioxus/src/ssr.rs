@@ -2,7 +2,7 @@ use crate::{DioxusInitError, ManagedI18n, ModuleDiscoveryErrors};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
 use es_fluent::{FluentMessage, FluentValue};
-use es_fluent_manager_core::{DiscoveredI18nModules, FluentManager, LocalizationError};
+use es_fluent_manager_core::{DiscoveredRuntimeI18nModules, FluentManager, LocalizationError};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use unic_langid::LanguageIdentifier;
@@ -14,7 +14,7 @@ use unic_langid::LanguageIdentifier;
 /// isolated without relying on context-free localization hooks.
 #[derive(Clone, Debug, Default)]
 pub struct SsrI18nRuntime {
-    modules: Arc<OnceLock<Result<DiscoveredI18nModules, ModuleDiscoveryErrors>>>,
+    modules: Arc<OnceLock<Result<DiscoveredRuntimeI18nModules, ModuleDiscoveryErrors>>>,
 }
 
 impl SsrI18nRuntime {
@@ -37,7 +37,7 @@ pub struct SsrI18n {
 
 impl SsrI18n {
     pub(crate) fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
-        modules: &DiscoveredI18nModules,
+        modules: &DiscoveredRuntimeI18nModules,
         lang: L,
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::new_with_cached_modules(modules, lang)?;
@@ -125,8 +125,8 @@ impl SsrI18n {
 }
 
 fn cached_discovered_modules(
-    modules: &OnceLock<Result<DiscoveredI18nModules, ModuleDiscoveryErrors>>,
-) -> Result<&DiscoveredI18nModules, DioxusInitError> {
+    modules: &OnceLock<Result<DiscoveredRuntimeI18nModules, ModuleDiscoveryErrors>>,
+) -> Result<&DiscoveredRuntimeI18nModules, DioxusInitError> {
     let modules = modules.get_or_init(|| {
         FluentManager::try_discover_runtime_modules().map_err(ModuleDiscoveryErrors::from)
     });

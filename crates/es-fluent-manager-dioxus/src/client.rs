@@ -204,6 +204,13 @@ pub fn I18nProvider(
     }
 }
 
+/// Provider variant that fails closed when initialization fails.
+///
+/// Strict here refers to rendering behavior: without an explicit fallback this
+/// provider renders no children after an initialization failure. Initial
+/// language selection uses the same best-effort selection as [`I18nProvider`].
+/// Use [`DioxusI18n::select_language_strict`] for strict runtime locale
+/// switches.
 #[allow(non_snake_case)]
 #[component]
 pub fn I18nProviderStrict(

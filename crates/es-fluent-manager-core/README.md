@@ -11,9 +11,12 @@ runtime integrations.
 ## Key API
 
 - `FluentManager`: central runtime entry point for selecting locales and formatting
-  messages, with optional domain-scoped lookup via `localize_in_domain`
-- `DiscoveredI18nModules`: cached, validated module discovery for integrations
-  that need many request-local managers without repeating inventory validation
+  messages after an initial `select_language(...)` call, with optional
+  domain-scoped lookup via `localize_in_domain`
+- `DiscoveredRuntimeI18nModules`: cached, validated runtime-capable module
+  discovery for integrations that need many request-local managers without
+  repeating inventory validation. Metadata-only registrations are validated but
+  are not stored in this cache.
 - `LanguageSelectionPolicy` plus `FluentManager::select_language_strict()`: choose
   between best-effort locale switching and transactional switching
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts
@@ -39,15 +42,22 @@ Most applications should use a concrete manager crate instead:
 Reach for `es-fluent-manager-core` directly when building a custom runtime
 integration or reusing the shared fallback and module-registration logic.
 
-`FluentManager::localize()` remains a first-match search across discovered
-localizers when you call it directly. Derived `es-fluent` messages route through
-their crate domain automatically; direct callers that need explicit routing
-should use `FluentManager::localize_in_domain()` and keep domains unique.
+`FluentManager::localize()` is a first-match search across discovered runtime
+localizers. Prefer typed `localize_message(...)` wrappers or
+`FluentManager::localize_in_domain()` for multi-module apps; use
+`localize(...)` directly only for simple single-domain apps or intentional
+first-match lookup.
 
-Strict discovery is now the default constructor behavior:
+Strict discovery is now the default constructor behavior. Construction does not
+select a language, so custom runtime integrations must select the initial
+language before lookup:
 
 ```rust
 use es_fluent_manager_core::FluentManager;
+use unic_langid::langid;
 
 let manager = FluentManager::new_with_discovered_modules();
+manager.select_language(&langid!("en"))?;
+
+let value = manager.localize_in_domain("app", "hello", None);
 ```

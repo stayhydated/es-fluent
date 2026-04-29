@@ -87,9 +87,23 @@ For direct string-ID lookup, `EmbeddedI18n` exposes `localize(...)`,
 the message ID without logging a missing-message warning is intentional.
 
 For custom runtime integrations, `es-fluent-manager-core` exposes the same
-strict discovery behavior through
-`FluentManager::try_new_with_discovered_modules()`. Most applications should
-prefer a concrete manager crate instead of wiring the shared context manually.
+strict discovery behavior through `FluentManager`. Construction does not select
+a language, so select the initial language before lookup and prefer typed or
+domain-scoped localization:
+
+```rust
+use es_fluent_manager_core::FluentManager;
+use unic_langid::langid;
+
+let manager = FluentManager::try_new_with_discovered_modules()?;
+manager.select_language(&langid!("en"))?;
+let title = manager.localize_in_domain("app", "title", None);
+```
+
+Most applications should prefer a concrete manager crate instead of wiring the
+shared context manually. `FluentManager::localize(...)` is a first-match search
+across runtime localizers; use it only for simple single-domain apps or
+intentional first-match lookup.
 
 The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:
@@ -169,11 +183,11 @@ fn LocaleButton() -> Element {
 }
 ```
 
-Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup, or `localize_message_silent(...)` when ID fallback without missing-message warning logs is intended. Use `localize(...)` and `localize_in_domain(...)` for string ID lookup, or use explicit `localize_or_id(...)`, `localize_in_domain_or_id(...)`, `localize_or_id_silent(...)`, and `localize_in_domain_or_id_silent(...)` fallback helpers when rendering message IDs on misses is intended. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
+Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup, or `localize_message_silent(...)` when ID fallback without missing-message warning logs is intended. Use `localize_in_domain(...)` for domain-scoped string ID lookup, and reserve `localize(...)` for simple single-domain apps or intentional first-match lookup across runtime localizers. Use explicit `localize_or_id(...)`, `localize_in_domain_or_id(...)`, `localize_or_id_silent(...)`, and `localize_in_domain_or_id_silent(...)` fallback helpers when rendering message IDs on misses is intended. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
-If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it renders children without an initialized i18n context, so descendants that call `use_i18n()` receive an initialization error. `I18nProviderStrict` is the fail-closed variant: it renders fallback when one is supplied and otherwise renders an empty vnode. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
+If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure and renders `fallback` when one is supplied; without a fallback it renders children without an initialized i18n context, so descendants that call `use_i18n()` receive an initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
 
 ### SSR Quick Start
 

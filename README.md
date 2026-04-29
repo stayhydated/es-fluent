@@ -19,10 +19,10 @@ This framework gives you:
 
 ## Examples
 
-- [bevy](https://github.com/stayhydated/es-fluent/tree/master/examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
-- [dioxus client](https://github.com/stayhydated/es-fluent/tree/master/examples/dioxus-client-example)
-- [dioxus SSR](https://github.com/stayhydated/es-fluent/tree/master/examples/dioxus-ssr-example)
-- [gpui](https://github.com/stayhydated/es-fluent/tree/master/examples/gpui-example)
+- [bevy](examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
+- [dioxus client](examples/dioxus-client-example)
+- [dioxus SSR](examples/dioxus-ssr-example)
+- [gpui](examples/gpui-example)
 
 ## Used in
 
@@ -57,8 +57,21 @@ es-fluent-manager-bevy = "0.18.13"
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langid!("en"))?;
 ```
 
-For custom runtime integrations, use
-`es-fluent-manager-core::FluentManager::try_new_with_discovered_modules()`.
+For custom runtime integrations, create a `FluentManager`, select the initial
+language, then use typed or domain-scoped lookup:
+
+```rust
+use es_fluent_manager_core::FluentManager;
+use unic_langid::langid;
+
+let manager = FluentManager::try_new_with_discovered_modules()?;
+manager.select_language(&langid!("en"))?;
+let greeting = manager.localize_in_domain("app", "hello", None);
+```
+
+Prefer `localize_message(...)` or `localize_in_domain(...)` for multi-module
+apps. `localize(...)` searches runtime localizers in discovery order and is
+best suited to simple single-domain apps or intentional first-match lookup.
 For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
 hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a

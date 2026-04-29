@@ -72,9 +72,18 @@ pub(super) fn initialize_i18n_resource(
     requested_language: &LanguageIdentifier,
     resolved_language: &LanguageIdentifier,
 ) -> Result<I18nResource, String> {
-    let fallback_manager = Arc::new(
-        FluentManager::try_new_with_discovered_modules().map_err(format_module_discovery_errors)?,
+    let discovered =
+        FluentManager::try_discover_runtime_modules().map_err(format_module_discovery_errors)?;
+    let i18n_resource = I18nResource::new_with_resolved_language(
+        requested_language.clone(),
+        resolved_language.clone(),
     );
+
+    if discovered.is_empty() {
+        return Ok(i18n_resource);
+    }
+
+    let fallback_manager = Arc::new(FluentManager::from_discovered_modules(&discovered));
     fallback_manager
         .select_language(requested_language)
         .map_err(|error| {
@@ -83,11 +92,8 @@ pub(super) fn initialize_i18n_resource(
                 requested_language, error
             )
         })?;
-    Ok(I18nResource::new_with_resolved_language(
-        requested_language.clone(),
-        resolved_language.clone(),
-    )
-    .with_fallback_manager(fallback_manager))
+
+    Ok(i18n_resource.with_fallback_manager(fallback_manager))
 }
 
 fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {

@@ -72,9 +72,10 @@ fn LocaleButton() -> Element {
 
 Client apps localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`.
 
-- `localize_message(...)` renders `#[derive(EsFluent)]` messages through the Dioxus context.
+- `localize_message(...)` renders `#[derive(EsFluent)]` messages through the Dioxus context and is the preferred typed lookup path.
 - `localize_message_silent(...)` provides the same typed lookup without missing-message warnings.
-- `localize(...)` and `localize_in_domain(...)` return `Option<String>` for string IDs.
+- `localize(...)` searches runtime localizers in discovery order and returns the first matching string ID; use it for simple single-domain apps or intentional first-match lookup.
+- `localize_in_domain(...)` returns `Option<String>` for domain-scoped string IDs and avoids cross-module ID collisions.
 - `localize_or_id(...)` and `localize_in_domain_or_id(...)` are explicit fallback helpers for UIs that intentionally render message IDs on misses.
 - `localize_or_id_silent(...)` and `localize_in_domain_or_id_silent(...)` provide the same explicit fallback without missing-message warnings.
 - `requested_language()` returns the requested language, not necessarily the locale used by every message after fallback.
@@ -83,7 +84,7 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 - `try_use_i18n()` and `try_consume_i18n()` follow Dioxus optional-context naming.
 - `consume_i18n()` reads the context from event handlers, async tasks, or other places where the Dioxus runtime is active but hooks cannot be called.
 
-`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it renders children without an initialized i18n context, so descendants that call `use_i18n()` receive an initialization error. `I18nProviderStrict` is the fail-closed variant: it renders fallback when one is supplied and otherwise renders no children.
+`I18nProvider` is a thin provider component over `use_init_i18n(...)`. It logs initialization failures. If `fallback: Option<Element>` is supplied, the provider renders that fallback on initialization failure. Without a fallback it renders children without an initialized i18n context, so descendants that call `use_i18n()` receive an initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders no children. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection.
 
 `I18nProvider` and `use_provide_i18n(...)` initialize once per component instance. Changing the initial language or provided manager after the first render does not replace the installed context. Use `select_language(...)` to change locale at runtime. After a `ManagedI18n` is handed to the provider, route locale switches through `DioxusI18n::select_language(...)` or `DioxusI18n::select_language_strict(...)` so the Dioxus signal stays aligned with manager state.
 

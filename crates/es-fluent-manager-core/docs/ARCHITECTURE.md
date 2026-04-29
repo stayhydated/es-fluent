@@ -22,7 +22,7 @@ classDiagram
         +localize(id, args)
     }
 
-    class DiscoveredI18nModules {
+    class DiscoveredRuntimeI18nModules {
         +len()
         +is_empty()
     }
@@ -52,9 +52,9 @@ classDiagram
     }
 
     I18nModule --|> I18nModuleDescriptor
-    DiscoveredI18nModules "1" o-- "*" I18nModule : caches
+    DiscoveredRuntimeI18nModules "1" o-- "*" I18nModule : caches
     FluentManager "1" *-- "*" I18nModule : manages
-    FluentManager ..> DiscoveredI18nModules : constructs from
+    FluentManager ..> DiscoveredRuntimeI18nModules : constructs from
     I18nModule ..> Localizer : creates
     StaticModuleDescriptor --|> I18nModuleDescriptor
     EmbeddedI18nModule --|> I18nModule
@@ -110,9 +110,10 @@ Responsible for the actual string formatting logic.
 - `FluentManager::select_language_strict()` preserves transactional switching
   when callers need all modules to agree.
 - `FluentManager::try_discover_runtime_modules()` returns
-  `DiscoveredI18nModules`, allowing integrations such as request-scoped SSR to
-  cache strict inventory validation and create fresh managers from the cached
-  module list.
+  `DiscoveredRuntimeI18nModules`, allowing integrations such as request-scoped
+  SSR to cache strict inventory validation and create fresh managers from the
+  cached runtime-capable module list. Metadata-only registrations are validated
+  during discovery but skipped for this runtime manager cache.
 - `EmbeddedLocalizer::select_language()` now rejects bundle-add conflicts (for
   example duplicate message IDs across loaded files) and keeps the previous
   ready locale active on failure.
