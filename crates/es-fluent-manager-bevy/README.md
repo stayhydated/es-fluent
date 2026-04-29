@@ -60,7 +60,11 @@ publishing a broken update.
 
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
-`ActiveLanguageId`, not merely the latest request.
+`ActiveLanguageId`, not merely the latest request. When a requested locale
+falls back to a resolved locale, Bevy publishes the requested locale for change
+events and ECS resources while using the resolved locale for ready bundle
+lookup. Runtime fallback managers follow the same policy by trying the
+requested locale first, then the resolved locale.
 
 For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:

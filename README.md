@@ -82,8 +82,12 @@ process-wide localizer.
 The Bevy plugin uses the same strict discovery model and exposes both
 `RequestedLanguageId` and `ActiveLanguageId` so systems can distinguish the
 requested locale from the currently published one. Failed locale switches keep
-the last ready locale active. Systems that need direct localization can request
-`BevyI18n` as a `SystemParam` and call `localize_message(...)` on it.
+the last ready locale active. When a requested locale falls back to a resolved
+locale, Bevy publishes the requested locale for change events and ECS resources
+while using the resolved locale for ready bundle lookup; runtime fallback
+managers are selected with the requested locale first, then the resolved locale.
+Systems that need direct localization can request `BevyI18n` as a `SystemParam`
+and call `localize_message(...)` on it.
 
 ## Project configuration
 

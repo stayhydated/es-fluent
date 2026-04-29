@@ -74,26 +74,53 @@ pub(super) fn initialize_i18n_resource(
 ) -> Result<I18nResource, String> {
     let discovered =
         FluentManager::try_discover_runtime_modules().map_err(format_module_discovery_errors)?;
+    let fallback_manager = if discovered.is_empty() {
+        None
+    } else {
+        Some(Arc::new(FluentManager::from_discovered_modules(
+            &discovered,
+        )))
+    };
+
+    initialize_i18n_resource_with_fallback_manager(
+        requested_language,
+        resolved_language,
+        fallback_manager,
+    )
+}
+
+fn initialize_i18n_resource_with_fallback_manager(
+    requested_language: &LanguageIdentifier,
+    resolved_language: &LanguageIdentifier,
+    fallback_manager: Option<Arc<FluentManager>>,
+) -> Result<I18nResource, String> {
     let i18n_resource = I18nResource::new_with_resolved_language(
         requested_language.clone(),
         resolved_language.clone(),
     );
 
-    if discovered.is_empty() {
+    let Some(fallback_manager) = fallback_manager else {
         return Ok(i18n_resource);
-    }
+    };
 
-    let fallback_manager = Arc::new(FluentManager::from_discovered_modules(&discovered));
-    fallback_manager
-        .select_language(requested_language)
+    let i18n_resource = i18n_resource.with_fallback_manager(fallback_manager);
+    i18n_resource
+        .select_fallback_language_for_resolution(requested_language, resolved_language)
         .map_err(|error| {
-            format!(
-                "fallback manager rejected initial language '{}': {}",
-                requested_language, error
-            )
+            if requested_language == resolved_language {
+                format!(
+                    "fallback manager rejected initial language '{}': {}",
+                    requested_language, error
+                )
+            } else {
+                format!(
+                    "fallback manager rejected initial language '{}' and resolved fallback '{}': {}",
+                    requested_language, resolved_language, error
+                )
+            }
         })?;
 
-    Ok(i18n_resource.with_fallback_manager(fallback_manager))
+    Ok(i18n_resource)
 }
 
 fn format_module_discovery_errors(errors: Vec<ModuleDiscoveryError>) -> String {
@@ -192,7 +219,10 @@ mod tests {
         LocalizationError, Localizer, ModuleData, ModuleRegistrationKind, ModuleResourceSpec,
         ResourceKey,
     };
-    use std::collections::{HashMap, HashSet};
+    use std::{
+        collections::{HashMap, HashSet},
+        sync::Arc,
+    };
     use unic_langid::langid;
 
     static TEST_MODULE_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
@@ -308,6 +338,43 @@ mod tests {
         };
 
         assert!(error.contains("fallback manager rejected initial language 'zz'"));
+    }
+
+    #[test]
+    fn initialize_i18n_resource_accepts_absent_runtime_fallback_manager() {
+        let requested = langid!("en-US");
+        let resolved = langid!("en");
+        let i18n_resource =
+            initialize_i18n_resource_with_fallback_manager(&requested, &resolved, None)
+                .expect("metadata-only Bevy startup should not require a runtime fallback manager");
+
+        assert_eq!(i18n_resource.active_language(), &requested);
+        assert_eq!(i18n_resource.resolved_language(), &resolved);
+        assert!(
+            i18n_resource
+                .select_fallback_language(&langid!("zz"))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn initialize_i18n_resource_selects_resolved_runtime_fallback_when_requested_fails() {
+        let requested = langid!("en-US");
+        let resolved = langid!("en");
+        let fallback_manager = Arc::new(
+            FluentManager::try_new_with_discovered_modules()
+                .expect("test runtime module discovery should be valid"),
+        );
+
+        let i18n_resource = initialize_i18n_resource_with_fallback_manager(
+            &requested,
+            &resolved,
+            Some(fallback_manager),
+        )
+        .expect("resolved fallback language should be accepted by runtime fallback manager");
+
+        assert_eq!(i18n_resource.active_language(), &requested);
+        assert_eq!(i18n_resource.resolved_language(), &resolved);
     }
 
     #[test]

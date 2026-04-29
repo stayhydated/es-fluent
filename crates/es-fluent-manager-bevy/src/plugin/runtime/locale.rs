@@ -21,10 +21,12 @@ pub(super) fn apply_selected_language(
         return false;
     }
 
-    if let Err(error) = i18n_resource.select_fallback_language(&selection.requested) {
+    if let Err(error) = i18n_resource
+        .select_fallback_language_for_resolution(&selection.requested, &selection.resolved)
+    {
         warn!(
-            "Skipping locale change to '{}' because the fallback manager rejected the switch: {}",
-            selection.requested, error
+            "Skipping locale change to '{}' resolved as '{}' because the fallback manager rejected the switch: {}",
+            selection.requested, selection.resolved, error
         );
         return false;
     }
@@ -226,11 +228,27 @@ mod tests {
         failures: BundleBuildFailures,
         pending_language_change: PendingLanguageChange,
     ) -> App {
+        app_with_locale_system_and_resource(
+            i18n_bundle,
+            i18n_assets,
+            failures,
+            pending_language_change,
+            I18nResource::new(langid!("en")),
+        )
+    }
+
+    fn app_with_locale_system_and_resource(
+        i18n_bundle: I18nBundle,
+        i18n_assets: I18nAssets,
+        failures: BundleBuildFailures,
+        pending_language_change: PendingLanguageChange,
+        i18n_resource: I18nResource,
+    ) -> App {
         let lang = langid!("en");
         let mut app = App::new();
         app.add_message::<LocaleChangeEvent>()
             .add_message::<LocaleChangedEvent>()
-            .insert_resource(I18nResource::new(lang.clone()))
+            .insert_resource(i18n_resource)
             .insert_resource(RequestedLanguageId(lang.clone()))
             .insert_resource(ActiveLanguageId(lang))
             .insert_resource(i18n_bundle)
@@ -360,6 +378,44 @@ mod tests {
         );
         assert!(app.world().resource::<PendingLanguageChange>().0.is_none());
         assert_eq!(app.world().resource::<ObservedLocaleChanges>().0, vec![fr]);
+    }
+
+    #[test]
+    fn handle_locale_changes_selects_resolved_runtime_fallback_when_requested_fails() {
+        let requested = langid!("en-US");
+        let resolved = langid!("en");
+        let fallback_manager = Arc::new(
+            es_fluent_manager_core::FluentManager::try_new_with_discovered_modules()
+                .expect("test runtime module discovery should be valid"),
+        );
+        let mut i18n_bundle = I18nBundle::default();
+        insert_ready_bundle(&mut i18n_bundle, resolved.clone());
+        let mut app = app_with_locale_system_and_resource(
+            i18n_bundle,
+            I18nAssets::new(),
+            BundleBuildFailures::default(),
+            PendingLanguageChange::default(),
+            I18nResource::new(langid!("en")).with_fallback_manager(fallback_manager),
+        );
+
+        app.world_mut()
+            .write_message(LocaleChangeEvent(requested.clone()));
+        app.update();
+
+        assert_eq!(app.world().resource::<RequestedLanguageId>().0, requested);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, requested);
+        assert_eq!(
+            app.world().resource::<I18nResource>().active_language(),
+            &requested
+        );
+        assert_eq!(
+            app.world().resource::<I18nResource>().resolved_language(),
+            &resolved
+        );
+        assert_eq!(
+            app.world().resource::<ObservedLocaleChanges>().0,
+            vec![requested]
+        );
     }
 
     #[test]

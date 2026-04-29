@@ -356,6 +356,21 @@ impl I18nResource {
         Ok(())
     }
 
+    #[doc(hidden)]
+    pub(crate) fn select_fallback_language_for_resolution(
+        &self,
+        requested_language: &LanguageIdentifier,
+        resolved_language: &LanguageIdentifier,
+    ) -> Result<(), LocalizationError> {
+        match self.select_fallback_language(requested_language) {
+            Ok(()) => Ok(()),
+            Err(requested_error) if resolved_language != requested_language => self
+                .select_fallback_language(resolved_language)
+                .map_err(|_| requested_error),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Localizes a message by its ID and arguments against the requested locale
     /// fallback chain.
     ///
