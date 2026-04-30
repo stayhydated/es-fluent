@@ -18,7 +18,7 @@ mod error;
 mod managed;
 
 #[cfg(feature = "client")]
-pub mod client;
+mod client;
 
 #[cfg(feature = "ssr")]
 pub mod ssr;
