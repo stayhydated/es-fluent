@@ -2,9 +2,8 @@ use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
 use es_fluent_manager_core::{
     FluentManager, LocaleLoadReport, LocalizationError, ModuleResourceSpec, ResourceKey,
-    ResourceLoadError, SyncFluentBundle, build_locale_load_report, collect_available_languages,
-    collect_locale_resources, fallback_errors_are_fatal, locale_candidates,
-    localize_with_fallback_resources,
+    ResourceLoadError, SyncFluentBundle, build_locale_load_report, fallback_errors_are_fatal,
+    locale_candidates, localize_with_fallback_resources,
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use serde::{Deserialize, Serialize};
@@ -174,7 +173,7 @@ impl I18nAssets {
         &self,
         lang: &LanguageIdentifier,
     ) -> Vec<&Arc<FluentResource>> {
-        collect_locale_resources(&self.loaded_resources, lang)
+        es_fluent_manager_core::collect_locale_resources(&self.loaded_resources, lang)
     }
 
     pub(crate) fn get_language_resource_entries(
@@ -198,7 +197,7 @@ impl I18nAssets {
 
     /// Returns the set of languages that have assets registered.
     pub fn available_languages(&self) -> Vec<LanguageIdentifier> {
-        collect_available_languages(&self.assets)
+        es_fluent_manager_core::collect_available_languages(&self.assets)
     }
 }
 
@@ -373,14 +372,13 @@ impl I18nResource {
             Ok(()) => Ok(()),
             Err(requested_error) if resolved_language != requested_language => self
                 .select_fallback_language(resolved_language)
-                .map_err(|resolved_error| {
+                .inspect_err(|_resolved_error| {
                     debug!(
                         "Runtime fallback manager rejected requested locale '{}' before resolved locale '{}' failed: {}",
                         requested_language,
                         resolved_language,
                         requested_error
                     );
-                    resolved_error
                 }),
             Err(error) => Err(error),
         }

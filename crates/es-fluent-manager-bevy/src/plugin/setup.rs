@@ -133,14 +133,13 @@ fn select_fallback_manager_for_resolution(
         Ok(()) => Ok(()),
         Err(requested_error) if resolved_language != requested_language => fallback_manager
             .select_language(resolved_language)
-            .map_err(|resolved_error| {
+            .inspect_err(|_resolved_error| {
                 debug!(
                     "Runtime fallback manager rejected requested locale '{}' before resolved locale '{}' failed: {}",
                     requested_language,
                     resolved_language,
                     requested_error
                 );
-                resolved_error
             }),
         Err(error) => Err(error),
     }
