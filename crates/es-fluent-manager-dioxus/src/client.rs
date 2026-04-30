@@ -267,3 +267,6 @@ pub fn try_consume_i18n() -> Result<Option<DioxusI18n>, DioxusInitError> {
 pub fn consume_i18n() -> Result<DioxusI18n, DioxusInitError> {
     try_consume_i18n()?.ok_or_else(DioxusInitError::missing_context)
 }
+
+#[cfg(test)]
+mod tests;

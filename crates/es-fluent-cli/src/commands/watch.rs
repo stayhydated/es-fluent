@@ -29,34 +29,4 @@ pub fn run_watch(args: WatchArgs) -> Result<(), CliError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn run_watch_returns_ok_when_package_filter_matches_nothing() {
-        let temp = crate::test_fixtures::create_test_crate_workspace_without_ftl();
-
-        let result = run_watch(WatchArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: Some("missing-crate".to_string()),
-            },
-            mode: FluentParseMode::default(),
-        });
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn run_watch_returns_error_for_invalid_path() {
-        let result = run_watch(WatchArgs {
-            workspace: WorkspaceArgs {
-                path: Some(std::path::PathBuf::from("/definitely/missing/path")),
-                package: None,
-            },
-            mode: FluentParseMode::default(),
-        });
-
-        assert!(result.is_err());
-    }
-}
+mod tests;

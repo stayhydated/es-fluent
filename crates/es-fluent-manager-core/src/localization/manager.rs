@@ -356,3 +356,6 @@ impl FluentManager {
             .and_then(|(_, localizer)| localizer.localize(id, args))
     }
 }
+
+#[cfg(test)]
+mod tests;

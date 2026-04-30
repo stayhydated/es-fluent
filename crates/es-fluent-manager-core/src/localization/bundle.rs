@@ -202,3 +202,6 @@ pub fn fallback_errors_are_fatal(errors: &[FallbackLocalizationError]) -> bool {
         )
     })
 }
+
+#[cfg(test)]
+mod tests;

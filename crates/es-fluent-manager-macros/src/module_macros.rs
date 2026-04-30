@@ -255,3 +255,17 @@ fn utf8_folder_literal(path: &Path) -> syn::Result<syn::LitStr> {
     })?;
     Ok(syn::LitStr::new(path, proc_macro2::Span::call_site()))
 }
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt as _, path::PathBuf};
+
+    #[test]
+    fn utf8_folder_literal_rejects_non_utf8_paths() {
+        let path = PathBuf::from(OsString::from_vec(vec![b'i', b'1', 0xff]));
+        let err = utf8_folder_literal(&path).expect_err("non-UTF-8 paths should be rejected");
+
+        assert!(err.to_string().contains("valid UTF-8"));
+    }
+}

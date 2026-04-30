@@ -359,3 +359,223 @@ fn section_insert_index(manifest: &str, section: &str) -> Option<usize> {
 
     last_index
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fs_err as test_fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
+    struct TempProject {
+        root: PathBuf,
+    }
+
+    impl TempProject {
+        fn new(name: &str, with_manifest: bool) -> Self {
+            let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+            let root = std::env::temp_dir().join(format!(
+                "es_fluent_init_{name}_{}_{}",
+                std::process::id(),
+                id
+            ));
+            let _ = test_fs::remove_dir_all(&root);
+            test_fs::create_dir_all(&root).expect("temp project root should be created");
+
+            if with_manifest {
+                test_fs::write(
+                    root.join("Cargo.toml"),
+                    "[package]\nname = \"init-test\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+                )
+                .expect("temp manifest should be written");
+            }
+
+            Self { root }
+        }
+
+        fn path(&self) -> &Path {
+            &self.root
+        }
+    }
+
+    impl Drop for TempProject {
+        fn drop(&mut self) {
+            let _ = test_fs::remove_dir_all(&self.root);
+        }
+    }
+
+    fn default_args(root: &Path) -> InitArgs {
+        InitArgs {
+            path: Some(root.to_path_buf()),
+            fallback_language: "en".to_string(),
+            locales: Vec::new(),
+            assets_dir: PathBuf::from("assets/locales"),
+            namespaces: Vec::new(),
+            manager: InitManager::Embedded,
+            build_rs: false,
+            update_cargo_toml: false,
+            dry_run: false,
+            force: false,
+        }
+    }
+
+    #[test]
+    fn init_manager_module_contents_match_selected_runtime() {
+        assert!(
+            InitManager::Embedded
+                .module_contents()
+                .contains("es_fluent_manager_embedded::define_i18n_module!();")
+        );
+        assert!(
+            InitManager::Dioxus
+                .module_contents()
+                .contains("es_fluent_manager_dioxus::define_i18n_module!();")
+        );
+        assert!(
+            InitManager::Bevy
+                .module_contents()
+                .contains("es_fluent_manager_bevy::define_i18n_module!();")
+        );
+    }
+
+    #[test]
+    fn run_init_creates_project_scaffold_and_updates_manifest() {
+        let project = TempProject::new("scaffold", true);
+        let mut args = default_args(project.path());
+        args.fallback_language = "en-US".to_string();
+        args.locales = vec!["fr".to_string(), "de".to_string(), "en-US".to_string()];
+        args.assets_dir = PathBuf::from("i18n");
+        args.namespaces = vec!["auth".to_string(), "ui".to_string()];
+        args.manager = InitManager::Dioxus;
+        args.build_rs = true;
+        args.update_cargo_toml = true;
+
+        run_init(args).expect("init should scaffold the project");
+
+        let config = test_fs::read_to_string(project.path().join("i18n.toml"))
+            .expect("i18n.toml should exist");
+        assert!(config.contains("fallback_language = \"en-US\""));
+        assert!(config.contains("assets_dir = \"i18n\""));
+        assert!(config.contains("namespaces = [\"auth\", \"ui\"]"));
+
+        assert!(project.path().join("i18n/en-US").is_dir());
+        assert!(project.path().join("i18n/fr").is_dir());
+        assert!(project.path().join("i18n/de").is_dir());
+
+        let module = test_fs::read_to_string(project.path().join("src/i18n.rs"))
+            .expect("runtime module should exist");
+        assert!(module.contains("pub use es_fluent_manager_dioxus::*;"));
+        assert!(module.contains("define_i18n_module"));
+
+        let lib = test_fs::read_to_string(project.path().join("src/lib.rs"))
+            .expect("lib.rs should be created");
+        assert_eq!(lib, "pub mod i18n;\n");
+
+        let build_rs = test_fs::read_to_string(project.path().join("build.rs"))
+            .expect("build.rs should be created");
+        assert!(build_rs.contains("es_fluent::build::track_i18n_assets"));
+
+        let manifest = test_fs::read_to_string(project.path().join("Cargo.toml"))
+            .expect("manifest should be updated");
+        assert!(manifest.contains("es-fluent"));
+        assert!(manifest.contains("unic-langid"));
+        assert!(manifest.contains("es-fluent-manager-dioxus"));
+        assert!(manifest.contains("[build-dependencies]"));
+    }
+
+    #[test]
+    fn run_init_appends_lib_module_once_and_respects_existing_decl() {
+        let project = TempProject::new("lib_decl", false);
+        test_fs::create_dir_all(project.path().join("src")).expect("src should be created");
+        test_fs::write(project.path().join("src/lib.rs"), "pub fn existing() {}")
+            .expect("lib.rs should be seeded");
+
+        let mut args = default_args(project.path());
+        args.force = true;
+        run_init(args).expect("init should append the i18n module declaration");
+
+        let lib = test_fs::read_to_string(project.path().join("src/lib.rs"))
+            .expect("lib.rs should be readable");
+        assert_eq!(lib, "pub fn existing() {}\npub mod i18n;\n");
+
+        let mut args = default_args(project.path());
+        args.force = true;
+        run_init(args).expect("existing module declaration should be left alone");
+
+        let lib = test_fs::read_to_string(project.path().join("src/lib.rs"))
+            .expect("lib.rs should be readable");
+        assert_eq!(
+            lib.lines()
+                .filter(|line| line.trim() == "pub mod i18n;")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn run_init_dry_run_does_not_write_files_or_directories() {
+        let project = TempProject::new("dry_run", false);
+        let mut args = default_args(project.path());
+        args.locales = vec!["fr".to_string()];
+        args.manager = InitManager::Bevy;
+        args.build_rs = true;
+        args.dry_run = true;
+
+        run_init(args).expect("dry-run init should succeed");
+
+        assert!(!project.path().join("i18n.toml").exists());
+        assert!(!project.path().join("src").exists());
+        assert!(!project.path().join("assets").exists());
+        assert!(!project.path().join("build.rs").exists());
+    }
+
+    #[test]
+    fn run_init_rejects_missing_or_file_roots() {
+        let project = TempProject::new("bad_roots", false);
+        let mut args = default_args(&project.path().join("missing"));
+        let missing = run_init(args).expect_err("missing roots should be rejected");
+        assert!(missing.to_string().contains("does not exist"));
+
+        let file_root = project.path().join("not-a-directory");
+        test_fs::write(&file_root, "not a directory").expect("file root should be written");
+        args = default_args(&file_root);
+        let file = run_init(args).expect_err("file roots should be rejected");
+        assert!(file.to_string().contains("not a directory"));
+    }
+
+    #[test]
+    fn run_init_refuses_to_overwrite_without_force_and_allows_force() {
+        let project = TempProject::new("overwrite", false);
+        test_fs::write(project.path().join("i18n.toml"), "existing = true\n")
+            .expect("existing config should be written");
+
+        let err = run_init(default_args(project.path()))
+            .expect_err("existing generated files should require --force");
+        assert!(err.to_string().contains("pass --force to overwrite"));
+        assert_eq!(
+            test_fs::read_to_string(project.path().join("i18n.toml"))
+                .expect("existing config should remain"),
+            "existing = true\n"
+        );
+
+        let mut args = default_args(project.path());
+        args.force = true;
+        run_init(args).expect("force should overwrite generated files");
+        assert!(
+            test_fs::read_to_string(project.path().join("i18n.toml"))
+                .expect("config should be overwritten")
+                .contains("fallback_language = \"en\"")
+        );
+    }
+
+    #[test]
+    fn run_init_reports_manifest_update_errors() {
+        let project = TempProject::new("missing_manifest", false);
+        let mut args = default_args(project.path());
+        args.update_cargo_toml = true;
+
+        let err = run_init(args).expect_err("missing Cargo.toml should fail manifest update");
+        assert!(!err.to_string().is_empty());
+    }
+}

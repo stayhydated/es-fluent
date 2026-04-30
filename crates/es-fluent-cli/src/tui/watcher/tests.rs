@@ -356,6 +356,99 @@ fn run_watch_loop_with_file_rx_exits_when_file_channel_disconnects() {
 }
 
 #[test]
+fn run_watch_loop_with_file_rx_accepts_no_iteration_limit_when_poll_quits() {
+    let crate_without_lib = test_crate("no-lib", false);
+    let workspace = WorkspaceInfo {
+        root_dir: PathBuf::from("/tmp/ws"),
+        target_dir: PathBuf::from("/tmp/ws/target"),
+        crates: vec![crate_without_lib.clone()],
+    };
+    let (_tx, rx) = crossbeam_channel::unbounded();
+
+    let backend = TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend).expect("create terminal");
+    let result = super::run_watch_loop_with_file_rx(
+        &mut terminal,
+        &[crate_without_lib],
+        &workspace,
+        &FluentParseMode::default(),
+        rx,
+        always_quit,
+        None,
+    );
+
+    assert!(result.is_ok());
+}
+
+#[test]
+fn configure_file_watcher_reports_invalid_watch_roots() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let krate = CrateInfo {
+        name: "broken-watch-root".to_string(),
+        manifest_dir: temp.path().join("missing-manifest"),
+        src_dir: temp.path().join("missing-src"),
+        i18n_config_path: temp.path().join("i18n.toml"),
+        ftl_output_dir: temp.path().join("i18n/en"),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+
+    let err = super::configure_file_watcher(&[&krate])
+        .expect_err("missing watch roots should fail watcher setup");
+    assert!(err.to_string().contains("Failed to watch"));
+}
+
+#[test]
+fn configure_file_watcher_reports_invalid_manifest_watch_root() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let src_dir = temp.path().join("src");
+    fs::create_dir_all(&src_dir).expect("create src dir");
+    let krate = CrateInfo {
+        name: "broken-manifest-watch-root".to_string(),
+        manifest_dir: temp.path().join("missing-manifest"),
+        src_dir,
+        i18n_config_path: temp.path().join("i18n.toml"),
+        ftl_output_dir: temp.path().join("i18n/en"),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+
+    let err = super::configure_file_watcher(&[&krate])
+        .expect_err("missing manifest watch root should fail watcher setup");
+    assert!(err.to_string().contains("Failed to watch"));
+}
+
+#[test]
+fn run_watch_loop_with_file_rx_handles_file_events_from_channel() {
+    let crate_without_lib = test_crate("no-lib", false);
+    let workspace = WorkspaceInfo {
+        root_dir: PathBuf::from("/tmp/ws"),
+        target_dir: PathBuf::from("/tmp/ws/target"),
+        crates: vec![crate_without_lib.clone()],
+    };
+    let (tx, rx) = crossbeam_channel::unbounded();
+    tx.send(Ok(vec![event_with_path(
+        &crate_without_lib.src_dir.join("lib.rs"),
+    )]))
+    .expect("send file event");
+    drop(tx);
+
+    let backend = TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend).expect("create terminal");
+    let result = super::run_watch_loop_with_file_rx(
+        &mut terminal,
+        &[crate_without_lib],
+        &workspace,
+        &FluentParseMode::default(),
+        rx,
+        never_quit,
+        Some(2),
+    );
+
+    assert!(result.is_ok());
+}
+
+#[test]
 fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
     let (_temp, workspace, krate) = create_valid_workspace_with_fake_runner();
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
@@ -487,4 +580,13 @@ fn watch_all_propagates_runner_preparation_errors() {
         err.to_string()
             .contains("Failed to create .es-fluent directory")
     );
+}
+
+#[test]
+fn watch_all_uses_test_terminal_for_valid_workspace() {
+    let (_temp, workspace, krate) = create_valid_workspace_with_fake_runner();
+
+    let result = super::watch_all(&[krate], &workspace, &FluentParseMode::default());
+
+    assert!(result.is_ok());
 }

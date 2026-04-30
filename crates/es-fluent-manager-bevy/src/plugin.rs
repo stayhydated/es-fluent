@@ -3,6 +3,7 @@ mod setup;
 
 use crate::{BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nBundle, I18nDomainBundles};
 use bevy::prelude::*;
+use es_fluent_manager_core::ModuleDiscoveryError;
 use unic_langid::LanguageIdentifier;
 
 /// Configuration for [`I18nPlugin`].
@@ -124,14 +125,7 @@ impl Plugin for I18nPlugin {
         let discovery = match setup::discover_modules() {
             Ok(discovery) => discovery,
             Err(errors) => {
-                let details = errors
-                    .into_iter()
-                    .map(|error| format!("- {error}"))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                let message = format!("failed to discover i18n modules:\n{details}");
-                error!("{}", message);
-                app.insert_resource(I18nPluginStartupError::new(message));
+                insert_startup_error(app, format_discovery_startup_error(errors));
                 return;
             },
         };
@@ -145,9 +139,7 @@ impl Plugin for I18nPlugin {
         ) {
             Ok(i18n_resource) => i18n_resource,
             Err(error) => {
-                let message = format!("failed to initialize i18n resource:\n{error}");
-                error!("{}", message);
-                app.insert_resource(I18nPluginStartupError::new(message));
+                insert_startup_error(app, format_initialization_startup_error(&error));
                 return;
             },
         };
@@ -165,9 +157,7 @@ impl Plugin for I18nPlugin {
         );
 
         let registered_count = setup::register_discovered_fluent_text(app);
-        if registered_count > 0 {
-            info!("Auto-registered {} FluentText types", registered_count);
-        }
+        log_registered_fluent_text_count(registered_count);
 
         setup::configure_app(
             app,
@@ -180,74 +170,29 @@ impl Plugin for I18nPlugin {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use bevy::asset::AssetPlugin;
-    use unic_langid::langid;
+fn format_discovery_startup_error(errors: Vec<ModuleDiscoveryError>) -> String {
+    let details = errors
+        .into_iter()
+        .map(|error| format!("- {error}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("failed to discover i18n modules:\n{details}")
+}
 
-    #[test]
-    fn plugin_config_defaults_to_en_us_and_i18n_asset_path() {
-        let config = I18nPluginConfig::default();
+fn format_initialization_startup_error(error: &str) -> String {
+    format!("failed to initialize i18n resource:\n{error}")
+}
 
-        assert_eq!(config.initial_language, langid!("en-US"));
-        assert_eq!(config.asset_path, "locales");
-    }
+fn insert_startup_error(app: &mut App, message: String) {
+    error!("{}", message);
+    app.insert_resource(I18nPluginStartupError::new(message));
+}
 
-    #[test]
-    fn plugin_constructors_store_the_requested_configuration() {
-        let fr = I18nPlugin::with_language(langid!("fr"));
-        assert_eq!(fr.config.initial_language, langid!("fr"));
-        assert_eq!(fr.config.asset_path, "locales");
-
-        let custom_config = I18nPluginConfig {
-            initial_language: langid!("de"),
-            asset_path: "locale-assets".to_string(),
-        };
-        let custom = I18nPlugin::with_config(custom_config);
-
-        assert_eq!(custom.config.initial_language, langid!("de"));
-        assert_eq!(custom.config.asset_path, "locale-assets");
-    }
-
-    #[test]
-    fn i18n_plugin_build_ignores_initial_language_rejected_by_fallback_manager() {
-        let unsupported = langid!("zz");
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.add_plugins(AssetPlugin::default());
-
-        I18nPlugin::with_config(I18nPluginConfig {
-            initial_language: unsupported.clone(),
-            asset_path: "locales".to_string(),
-        })
-        .build(&mut app);
-
-        assert_eq!(
-            app.world()
-                .resource::<crate::I18nResource>()
-                .active_language(),
-            &unsupported
-        );
-        assert_eq!(
-            &app.world().resource::<crate::ActiveLanguageId>().0,
-            &unsupported
-        );
-    }
-
-    #[test]
-    fn i18n_plugin_build_initializes_resources_for_supported_inventory_language() {
-        let mut app = App::new();
-        app.add_plugins(MinimalPlugins);
-        app.add_plugins(AssetPlugin::default());
-
-        I18nPlugin::with_config(I18nPluginConfig {
-            initial_language: langid!("en"),
-            asset_path: "locales".to_string(),
-        })
-        .build(&mut app);
-
-        assert!(app.world().get_resource::<crate::I18nResource>().is_some());
-        assert!(app.world().get_resource::<crate::I18nAssets>().is_some());
+fn log_registered_fluent_text_count(registered_count: usize) {
+    if registered_count > 0 {
+        info!("Auto-registered {} FluentText types", registered_count);
     }
 }
+
+#[cfg(test)]
+mod tests;

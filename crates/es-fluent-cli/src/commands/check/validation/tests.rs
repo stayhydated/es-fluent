@@ -124,6 +124,52 @@ fn validate_loaded_ftl_files_reports_unexpected_variable_as_error() {
 }
 
 #[test]
+fn validate_loaded_ftl_files_reports_duplicate_keys_and_ignores_non_messages() {
+    let temp = tempfile::tempdir().unwrap();
+    let first_path = temp.path().join("i18n/en/first.ftl");
+    let duplicate_path = temp.path().join("i18n/en/duplicate.ftl");
+    fs::create_dir_all(first_path.parent().unwrap()).unwrap();
+    fs::write(&first_path, "hello = Hello\n-term = Term\n").unwrap();
+    fs::write(&duplicate_path, "hello = Duplicate\n").unwrap();
+
+    let first_resource =
+        fluent_syntax::parser::parse("hello = Hello\n-term = Term\n".to_string()).unwrap();
+    let duplicate_resource =
+        fluent_syntax::parser::parse("hello = Duplicate\n".to_string()).unwrap();
+    let loaded_files = vec![
+        LoadedFtlFile {
+            abs_path: first_path,
+            relative_path: PathBuf::from("first.ftl"),
+            resource: first_resource,
+            keys: std::iter::once("hello".to_string()).collect(),
+        },
+        LoadedFtlFile {
+            abs_path: duplicate_path,
+            relative_path: PathBuf::from("duplicate.ftl"),
+            resource: duplicate_resource,
+            keys: std::iter::once("hello".to_string()).collect(),
+        },
+    ];
+
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert("hello".to_string(), key_info(&[], None, None));
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+
+    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    assert!(issues.iter().any(|issue| {
+        matches!(
+            issue,
+            ValidationIssue::DuplicateKey(err)
+                if err.key == "hello" && err.first_file.ends_with("first.ftl")
+        )
+    }));
+}
+
+#[test]
 fn validate_crate_reports_missing_main_file_as_missing_key() {
     let temp = tempfile::tempdir().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();

@@ -29,12 +29,44 @@ pub fn watch_all(
 
     crate::generation::prepare_monolithic_runner_crate(workspace)?;
 
+    run_watch_terminal(crates, workspace, mode)
+}
+
+#[cfg(not(any(test, coverage)))]
+fn run_watch_terminal(
+    crates: &[CrateInfo],
+    workspace: &WorkspaceInfo,
+    mode: &FluentParseMode,
+) -> Result<()> {
     let mut terminal = ratatui::init();
     let poll = tui::poll_quit_event;
     let result = run_watch_loop_with_poll(&mut terminal, crates, workspace, mode, poll, None);
     ratatui::restore();
 
     result
+}
+
+#[cfg(any(test, coverage))]
+fn run_watch_terminal(
+    crates: &[CrateInfo],
+    workspace: &WorkspaceInfo,
+    mode: &FluentParseMode,
+) -> Result<()> {
+    let backend = ratatui::backend::TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend)?;
+    run_watch_loop_with_poll(
+        &mut terminal,
+        crates,
+        workspace,
+        mode,
+        quit_immediately,
+        Some(1),
+    )
+}
+
+#[cfg(any(test, coverage))]
+fn quit_immediately(_timeout: Duration) -> std::io::Result<bool> {
+    Ok(true)
 }
 
 fn run_watch_loop_with_poll<B: Backend>(

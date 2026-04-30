@@ -4,6 +4,7 @@ mod app;
 mod message;
 mod watcher;
 
+#[allow(unused_imports)]
 pub use app::{TuiApp, draw, poll_quit_event};
 pub use message::Message;
 pub use watcher::watch_all;

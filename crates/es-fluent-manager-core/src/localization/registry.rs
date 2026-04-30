@@ -186,3 +186,6 @@ fn inspect_module_registry(
 
     inspections
 }
+
+#[cfg(test)]
+mod tests;

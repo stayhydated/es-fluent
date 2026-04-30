@@ -23,3 +23,6 @@ pub fn localize_label<L: FluentLocalizer + ?Sized>(
             id.to_string()
         })
 }
+
+#[cfg(test)]
+mod tests;
