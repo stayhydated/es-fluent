@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 
-use es_fluent::__private::FluentLocalizerExt;
-use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
+use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
 use es_fluent_manager_core::{FluentManager, ModuleDiscoveryError};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -89,6 +88,20 @@ impl EmbeddedI18n {
             .map_err(EmbeddedInitError::ModuleDiscovery)?;
         manager
             .select_language(&lang)
+            .map_err(EmbeddedInitError::LanguageSelection)?;
+        Ok(Self::from_manager(manager))
+    }
+
+    /// Builds an embedded context and selects the initial active language,
+    /// failing if any runtime module rejects the requested locale.
+    pub fn try_new_with_language_strict<L: Into<LanguageIdentifier>>(
+        lang: L,
+    ) -> Result<Self, EmbeddedInitError> {
+        let lang = lang.into();
+        let manager = FluentManager::try_new_with_discovered_modules()
+            .map_err(EmbeddedInitError::ModuleDiscovery)?;
+        manager
+            .select_language_strict(&lang)
             .map_err(EmbeddedInitError::LanguageSelection)?;
         Ok(Self::from_manager(manager))
     }

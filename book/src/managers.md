@@ -92,8 +92,9 @@ activate and missing messages fall back through the ICU4X locale fallback chain.
 Utility modules such as localized language-name display follow successful
 switches but do not make an otherwise unsupported locale count as supported.
 
-Use `select_language_strict(...)` when every discovered module must support the
-requested locale for the switch to succeed.
+Use `try_new_with_language_strict(...)` during startup or
+`select_language_strict(...)` at runtime when every discovered module must
+support the requested locale for selection to succeed.
 
 `EmbeddedI18n` clones are cheap shared handles. Calling
 `select_language(...)` through one clone changes the active language observed
@@ -122,7 +123,7 @@ manager.select_language(&langid!("en"))?;
 ```
 
 Most applications should prefer a concrete manager crate instead of wiring a raw
-`FluentManager` into application state manually. `FluentManager` remains a low-level integration point; most application code should stay on derived messages and concrete manager handles.
+`FluentManager` into application state manually. `FluentManager` remains a low-level integration point; import `es_fluent::FluentLocalizerExt as _` if custom integration code needs generic `localize_message(...)` on a raw manager. Most application code should stay on derived messages and concrete manager handles.
 
 The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:
@@ -204,11 +205,11 @@ fn LocaleButton() -> Element {
 }
 ```
 
-Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup. `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components. Raw string-ID lookup is not exposed as a client convenience API; keep application code on derived messages and labels. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
+Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, `use_init_i18n_strict(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language, selection policy, or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup. `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components. Raw string-ID lookup is not exposed as a client convenience API; keep application code on derived messages and labels. Startup selection defaults to best effort; pass `selection_policy: LanguageSelectionPolicy::Strict`, call `use_init_i18n_with_policy(..., LanguageSelectionPolicy::Strict)`, or call `use_init_i18n_strict(...)` when every discovered module must support the startup locale. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
-If `use_init_i18n(...)` cannot initialize, it still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure once per provider instance and renders `fallback` when one is supplied; without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. It uses the same best-effort initial language selection as `I18nProvider`; strictness here does not mean strict locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
+If initialization cannot complete, the hook still provides a failed context to keep hook order stable for callers that inspect the returned `Result` directly. `I18nProvider` logs that failure once per provider instance and renders `fallback` when one is supplied; without a fallback it renders children with a failed i18n context, so descendants that call `use_i18n()` receive the same initialization error. `I18nProviderStrict` is the fail-closed rendering variant: it renders fallback when one is supplied and otherwise renders an empty vnode. Strictness in the component name refers to rendering behavior; use `selection_policy: LanguageSelectionPolicy::Strict` for strict startup locale selection. Descendants can call `try_use_i18n()` to distinguish a missing provider from a failed provider. Event handlers and async tasks can call `consume_i18n()` or `try_consume_i18n()` while the Dioxus runtime is active.
 
 ### SSR Quick Start
 
@@ -245,9 +246,9 @@ fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>
 }
 ```
 
-Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated.
+Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated. `request(...)` uses best-effort initial language selection; use `request_strict(...)` when every discovered module must support the request locale.
 
-SSR components should receive a cloned `SsrI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`. If SSR components use the Dioxus hook API, call `i18n.provide_context()?` from an app-owned provider component.
+SSR components should receive a cloned `SsrI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`. If SSR components use the Dioxus hook API, enable both `ssr` and `client` features because `SsrI18n::provide_context(...)` is compiled behind `client`, then call `i18n.provide_context()?` from an app-owned provider component.
 
 ---
 

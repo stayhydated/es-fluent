@@ -30,7 +30,7 @@ pub mod build {
 }
 
 mod traits;
-pub use traits::{EsFluentChoice, FluentLabel, FluentLocalizer, FluentMessage};
+pub use traits::{EsFluentChoice, FluentLabel, FluentLocalizer, FluentLocalizerExt, FluentMessage};
 
 #[doc(hidden)]
 pub mod __private {

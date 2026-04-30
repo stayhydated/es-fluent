@@ -77,8 +77,9 @@ activate and missing messages fall back through the ICU4X locale fallback chain.
 Utility modules such as localized language-name display follow successful
 switches but do not make an otherwise unsupported locale count as supported.
 
-Use `select_language_strict(...)` when every discovered module must support the
-requested locale for the switch to succeed.
+Use `try_new_with_language_strict(...)` during startup or
+`select_language_strict(...)` at runtime when every discovered module must
+support the requested locale for selection to succeed.
 
 `EmbeddedI18n` clones are cheap shared handles. Calling
 `select_language(...)` through one clone changes the active language observed

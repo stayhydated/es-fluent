@@ -66,8 +66,11 @@ es-fluent-manager-embedded = "0.16"
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langid!("en"))?;
 ```
 
-For custom runtime integrations, create a `FluentManager`, select the initial
-language, then use typed lookup:
+Use `try_new_with_language_strict(...)` instead when every discovered module
+must support the startup locale.
+
+For ordinary applications, keep an explicit concrete manager handle in
+application state and use typed lookup on that handle:
 
 ```toml
 [dependencies]
@@ -95,8 +98,43 @@ fn main() -> Result<(), String> {
 ```
 
 Prefer `localize_message(...)` on the concrete manager handle. Raw string-ID
-lookup remains available in `es-fluent-manager-core` for integration code, but
-application-facing APIs are intentionally enum-first.
+lookup remains available in `es-fluent-manager-core` for integration code.
+Application-facing APIs are intentionally enum-first.
+
+For custom runtime integrations, create a `FluentManager`, select the initial
+language, and either wrap it in your integration type or import the public
+extension trait for generic typed lookup:
+
+```toml
+[dependencies]
+es-fluent = "0.16"
+es-fluent-manager-core = "0.16"
+```
+
+```no_run
+use es_fluent::{EsFluent, FluentLocalizerExt as _};
+use es_fluent_manager_core::FluentManager;
+use unic_langid::langid;
+
+#[derive(EsFluent)]
+struct Greeting<'a> {
+    name: &'a str,
+}
+
+fn main() -> Result<(), String> {
+    let manager = FluentManager::try_new_with_discovered_modules()
+        .map_err(|errors| format!("{errors:?}"))?;
+    manager
+        .select_language(&langid!("en"))
+        .map_err(|error| error.to_string())?;
+
+    let greeting = manager.localize_message(&Greeting { name: "Ada" });
+    let _ = greeting;
+
+    Ok(())
+}
+```
+
 For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
 hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a

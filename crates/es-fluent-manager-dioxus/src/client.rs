@@ -3,7 +3,7 @@ use dioxus_core::{Element, VNode};
 use dioxus_core_macro::{Props, component};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
 use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
-use es_fluent_manager_core::LocalizationError;
+use es_fluent_manager_core::{LanguageSelectionPolicy, LocalizationError};
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
@@ -140,10 +140,12 @@ impl FluentLocalizer for DioxusI18n {
 #[component]
 pub fn I18nProvider(
     initial_language: LanguageIdentifier,
+    #[props(default = LanguageSelectionPolicy::BestEffort)]
+    selection_policy: LanguageSelectionPolicy,
     #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
-    let init = use_init_i18n(initial_language);
+    let init = use_init_i18n_with_policy(initial_language, selection_policy);
     let init_failure_logged =
         dioxus_core::use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
 
@@ -167,17 +169,20 @@ pub fn I18nProvider(
 ///
 /// Strict here refers to rendering behavior: without an explicit fallback this
 /// provider renders no children after an initialization failure. Initial
-/// language selection uses the same best-effort selection as [`I18nProvider`].
-/// Use [`DioxusI18n::select_language_strict`] for strict runtime locale
-/// switches.
+/// language selection uses the same selection policy as [`I18nProvider`].
+/// Use `selection_policy: LanguageSelectionPolicy::Strict` for strict startup
+/// locale selection and [`DioxusI18n::select_language_strict`] for strict
+/// runtime locale switches.
 #[allow(non_snake_case)]
 #[component]
 pub fn I18nProviderStrict(
     initial_language: LanguageIdentifier,
+    #[props(default = LanguageSelectionPolicy::BestEffort)]
+    selection_policy: LanguageSelectionPolicy,
     #[props(default)] fallback: Option<Element>,
     children: Element,
 ) -> Element {
-    let init = use_init_i18n(initial_language);
+    let init = use_init_i18n_with_policy(initial_language, selection_policy);
     let init_failure_logged =
         dioxus_core::use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
 
@@ -217,10 +222,30 @@ pub fn use_init_i18n<L>(initial_language: L) -> Result<DioxusI18n, DioxusInitErr
 where
     L: Into<LanguageIdentifier> + 'static,
 {
+    use_init_i18n_with_policy(initial_language, LanguageSelectionPolicy::BestEffort)
+}
+
+pub fn use_init_i18n_strict<L>(initial_language: L) -> Result<DioxusI18n, DioxusInitError>
+where
+    L: Into<LanguageIdentifier> + 'static,
+{
+    use_init_i18n_with_policy(initial_language, LanguageSelectionPolicy::Strict)
+}
+
+pub fn use_init_i18n_with_policy<L>(
+    initial_language: L,
+    selection_policy: LanguageSelectionPolicy,
+) -> Result<DioxusI18n, DioxusInitError>
+where
+    L: Into<LanguageIdentifier> + 'static,
+{
     let initial_language = initial_language.into();
     let state = dioxus_core::use_hook({
         let initial_language = initial_language.clone();
-        move || match ManagedI18n::new_with_discovered_modules(initial_language) {
+        move || match ManagedI18n::new_with_discovered_modules_with_policy(
+            initial_language,
+            selection_policy,
+        ) {
             Ok(managed) => I18nContextState::Ready(Arc::new(managed)),
             Err(error) => I18nContextState::Failed(error),
         }

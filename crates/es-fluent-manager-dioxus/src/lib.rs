@@ -24,12 +24,13 @@ mod client;
 pub mod ssr;
 
 pub use error::{DioxusInitError, ModuleDiscoveryErrors};
+pub use es_fluent_manager_core::LanguageSelectionPolicy;
 pub use managed::ManagedI18n;
 
 #[cfg(feature = "client")]
 pub use client::{
     DioxusI18n, I18nProvider, I18nProviderStrict, consume_i18n, try_consume_i18n, try_use_i18n,
-    use_i18n, use_init_i18n, use_provide_i18n,
+    use_i18n, use_init_i18n, use_init_i18n_strict, use_init_i18n_with_policy, use_provide_i18n,
 };
 
 #[cfg(test)]

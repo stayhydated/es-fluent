@@ -2,7 +2,9 @@ use crate::{DioxusInitError, ManagedI18n, ModuleDiscoveryErrors};
 use dioxus_core::{Element, VirtualDom};
 use dioxus_ssr::Renderer;
 use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
-use es_fluent_manager_core::{DiscoveredRuntimeI18nModules, FluentManager, LocalizationError};
+use es_fluent_manager_core::{
+    DiscoveredRuntimeI18nModules, FluentManager, LanguageSelectionPolicy, LocalizationError,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use unic_langid::LanguageIdentifier;
@@ -26,7 +28,26 @@ impl SsrI18nRuntime {
         &self,
         language: L,
     ) -> Result<SsrI18n, DioxusInitError> {
-        SsrI18n::new_with_cached_modules(cached_discovered_modules(&self.modules)?, language)
+        self.request_with_policy(language, LanguageSelectionPolicy::BestEffort)
+    }
+
+    pub fn request_strict<L: Into<LanguageIdentifier>>(
+        &self,
+        language: L,
+    ) -> Result<SsrI18n, DioxusInitError> {
+        SsrI18n::new_with_cached_modules_strict(cached_discovered_modules(&self.modules)?, language)
+    }
+
+    pub fn request_with_policy<L: Into<LanguageIdentifier>>(
+        &self,
+        language: L,
+        selection_policy: LanguageSelectionPolicy,
+    ) -> Result<SsrI18n, DioxusInitError> {
+        SsrI18n::new_with_cached_modules_with_policy(
+            cached_discovered_modules(&self.modules)?,
+            language,
+            selection_policy,
+        )
     }
 }
 
@@ -42,6 +63,24 @@ impl SsrI18n {
         lang: L,
     ) -> Result<Self, DioxusInitError> {
         let managed = ManagedI18n::new_with_cached_modules(modules, lang)?;
+        Ok(Self { managed })
+    }
+
+    pub(crate) fn new_with_cached_modules_strict<L: Into<LanguageIdentifier>>(
+        modules: &DiscoveredRuntimeI18nModules,
+        lang: L,
+    ) -> Result<Self, DioxusInitError> {
+        let managed = ManagedI18n::new_with_cached_modules_strict(modules, lang)?;
+        Ok(Self { managed })
+    }
+
+    pub(crate) fn new_with_cached_modules_with_policy<L: Into<LanguageIdentifier>>(
+        modules: &DiscoveredRuntimeI18nModules,
+        lang: L,
+        selection_policy: LanguageSelectionPolicy,
+    ) -> Result<Self, DioxusInitError> {
+        let managed =
+            ManagedI18n::new_with_cached_modules_with_policy(modules, lang, selection_policy)?;
         Ok(Self { managed })
     }
 

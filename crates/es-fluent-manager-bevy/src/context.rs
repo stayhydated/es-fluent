@@ -1,8 +1,7 @@
 use crate::{I18nBundle, I18nDomainBundles, I18nResource};
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use es_fluent::__private::FluentLocalizerExt;
-use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
+use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
 use std::collections::HashMap;
 use unic_langid::LanguageIdentifier;
 
