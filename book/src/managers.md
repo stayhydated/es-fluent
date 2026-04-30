@@ -123,7 +123,13 @@ manager.select_language(&langid!("en"))?;
 ```
 
 Most applications should prefer a concrete manager crate instead of wiring a raw
-`FluentManager` into application state manually. `FluentManager` remains a low-level integration point; import `es_fluent::FluentLocalizerExt as _` if custom integration code needs generic `localize_message(...)` or fallible `try_localize_message(...)` on a raw manager. Most application code should stay on derived messages and concrete manager handles.
+`FluentManager` into application state manually. `FluentManager` remains a
+low-level integration point; import `es_fluent::FluentLocalizerExt as _` if
+custom integration code needs generic `localize_message(...)` or fallible
+`try_localize_message(...)` on a raw manager. Typed rendering uses a
+render-scoped lookup, so nested message arguments and the outer message use the
+same active localizer set during a concurrent language switch. Most application
+code should stay on derived messages and concrete manager handles.
 
 The embedded manager also uses strict discovery and returns initialization
 errors before the manager is returned:

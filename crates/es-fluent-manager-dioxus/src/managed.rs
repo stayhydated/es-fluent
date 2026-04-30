@@ -162,4 +162,18 @@ impl FluentLocalizer for ManagedI18n {
         let _selection = self.selection_lock.lock();
         self.manager.localize_in_domain(domain, id, args)
     }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        let _selection = self.selection_lock.lock();
+        self.manager.with_lookup(f);
+    }
 }

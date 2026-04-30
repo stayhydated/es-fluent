@@ -36,6 +36,10 @@ Use `--locales fr-FR,zh-CN` to create additional locale directories up front,
 `--dioxus-runtime client,ssr` selects the generated manager features; omitting
 it enables both.
 
+`init` creates a library target because CLI inventory collection reads library
+targets. Put derived message types in `src/lib.rs` or another library crate;
+binary-only derived types in `src/main.rs` are not discovered by `generate`.
+
 Or create an `i18n.toml` next to your crate's `Cargo.toml` manually:
 
 ```toml
@@ -94,14 +98,11 @@ Edit the values to your liking — the CLI will preserve your changes on subsequ
 
 ```rust
 // src/main.rs
-use es_fluent_manager_embedded::EmbeddedI18n;
+use my_crate::i18n::I18n;
 use unic_langid::langid;
 
-// Register the embedded assets
-es_fluent_manager_embedded::define_i18n_module!();
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let i18n = EmbeddedI18n::try_new_with_language(langid!("en"))?;
+    let i18n = I18n::try_new_with_language(langid!("en"))?;
 
     let err = my_crate::LoginError::UserNotFound {
         username: "alice".to_string(),

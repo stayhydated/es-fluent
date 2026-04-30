@@ -3,6 +3,8 @@ use crate::asset_localization::{I18nModuleDescriptor, StaticModuleDescriptor};
 use crate::localization::{I18nModule, LocalizationError};
 use fluent_bundle::FluentValue;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::Duration;
 use unic_langid::{LanguageIdentifier, langid};
 
 static MANAGER_INLINE_METADATA_DATA: ModuleData = ModuleData {
@@ -35,6 +37,12 @@ static MANAGER_SHARED_DOMAIN_SECOND_DATA: ModuleData = ModuleData {
     supported_languages: &[langid!("en")],
     namespaces: &[],
 };
+static MANAGER_SCOPED_LOOKUP_DATA: ModuleData = ModuleData {
+    name: "manager-scoped-lookup",
+    domain: "manager-scoped-lookup",
+    supported_languages: &[langid!("en"), langid!("fr")],
+    namespaces: &[],
+};
 static MANAGER_INLINE_METADATA: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&MANAGER_INLINE_METADATA_DATA);
 
@@ -49,6 +57,11 @@ struct ManagerSharedDomainModule {
 struct ManagerSharedDomainLocalizer {
     id: &'static str,
     value: &'static str,
+}
+struct ManagerScopedLookupLocalizer {
+    language: &'static str,
+    child_seen: Option<Mutex<mpsc::Sender<()>>>,
+    continue_child: Option<Mutex<mpsc::Receiver<()>>>,
 }
 
 impl Localizer for ManagerInlineLocalizer {
@@ -76,6 +89,59 @@ impl Localizer for ManagerSharedDomainLocalizer {
         _args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         (id == self.id).then(|| self.value.to_string())
+    }
+}
+
+impl ManagerScopedLookupLocalizer {
+    fn blocking(
+        language: &'static str,
+        child_seen: mpsc::Sender<()>,
+        continue_child: mpsc::Receiver<()>,
+    ) -> Self {
+        Self {
+            language,
+            child_seen: Some(Mutex::new(child_seen)),
+            continue_child: Some(Mutex::new(continue_child)),
+        }
+    }
+
+    fn static_language(language: &'static str) -> Self {
+        Self {
+            language,
+            child_seen: None,
+            continue_child: None,
+        }
+    }
+}
+
+impl Localizer for ManagerScopedLookupLocalizer {
+    fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        Ok(())
+    }
+
+    fn localize<'a>(
+        &self,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        if id == "child" {
+            if let Some(child_seen) = &self.child_seen {
+                child_seen
+                    .lock()
+                    .expect("test child sender lock should not be poisoned")
+                    .send(())
+                    .expect("test should receive child lookup notification");
+            }
+            if let Some(continue_child) = &self.continue_child {
+                continue_child
+                    .lock()
+                    .expect("test child receiver lock should not be poisoned")
+                    .recv()
+                    .expect("test should release child lookup");
+            }
+        }
+
+        matches!(id, "child" | "parent").then(|| format!("{}-{id}", self.language))
     }
 }
 
@@ -259,5 +325,85 @@ fn domain_scoped_lookup_searches_all_localizers_in_the_domain() {
     assert_eq!(
         manager.localize_in_domain("manager-shared-domain", "second-message", None),
         Some("second".to_string())
+    );
+}
+
+#[test]
+fn with_lookup_holds_active_localizers_for_the_entire_callback() {
+    let (child_seen_tx, child_seen_rx) = mpsc::channel();
+    let (continue_child_tx, continue_child_rx) = mpsc::channel();
+    let manager = Arc::new(FluentManager {
+        modules: Vec::new(),
+        localizers: RwLock::new(vec![(
+            &MANAGER_SCOPED_LOOKUP_DATA,
+            Box::new(ManagerScopedLookupLocalizer::blocking(
+                "en",
+                child_seen_tx,
+                continue_child_rx,
+            )) as Box<dyn Localizer>,
+        )]),
+    });
+
+    let render_manager = Arc::clone(&manager);
+    let render = std::thread::spawn(move || {
+        let mut rendered = None;
+        render_manager.with_lookup(&mut |lookup| {
+            let child = lookup("manager-scoped-lookup", "child", None)
+                .expect("child lookup should resolve");
+            let parent = lookup("manager-scoped-lookup", "parent", None)
+                .expect("parent lookup should resolve");
+            rendered = Some(format!("{parent}:{child}"));
+        });
+        rendered.expect("with_lookup should run callback")
+    });
+
+    child_seen_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("render should reach the child lookup");
+
+    let (swap_started_tx, swap_started_rx) = mpsc::channel();
+    let (swap_done_tx, swap_done_rx) = mpsc::channel();
+    let swap_manager = Arc::clone(&manager);
+    let swap = std::thread::spawn(move || {
+        swap_started_tx
+            .send(())
+            .expect("test should observe localizer swap start");
+        *swap_manager.localizers.write() = vec![(
+            &MANAGER_SCOPED_LOOKUP_DATA,
+            Box::new(ManagerScopedLookupLocalizer::static_language("fr")) as Box<dyn Localizer>,
+        )];
+        swap_done_tx
+            .send(())
+            .expect("test should observe localizer swap completion");
+    });
+
+    swap_started_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("localizer swap thread should start");
+    assert!(
+        swap_done_rx
+            .recv_timeout(Duration::from_millis(50))
+            .is_err(),
+        "localizer swap completed while scoped lookup was still in progress"
+    );
+
+    continue_child_tx
+        .send(())
+        .expect("test should release the child lookup");
+    assert_eq!(
+        render
+            .join()
+            .expect("render thread should complete without panicking"),
+        "en-parent:en-child"
+    );
+    swap_done_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("localizer swap should complete after scoped lookup");
+    swap.join()
+        .expect("localizer swap thread should complete without panicking");
+
+    assert_eq!(
+        manager.localize_in_domain("manager-scoped-lookup", "parent", None),
+        Some("fr-parent".to_string())
     );
 }

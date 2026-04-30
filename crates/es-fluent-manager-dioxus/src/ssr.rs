@@ -155,6 +155,19 @@ impl FluentLocalizer for SsrI18n {
     ) -> Option<String> {
         FluentLocalizer::localize_in_domain(&self.managed, domain, id, args)
     }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        FluentLocalizer::with_lookup(&self.managed, f);
+    }
 }
 
 fn cached_discovered_modules(

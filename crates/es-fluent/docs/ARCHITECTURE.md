@@ -17,12 +17,18 @@
 The crate exposes traits and metadata, but runtime localization always flows
 through caller-provided contexts.
 
-Derived messages call a caller-provided closure:
+Derived messages call a caller-provided closure. `FluentLocalizerExt` obtains
+that closure through `FluentLocalizer::with_lookup(...)` so a manager can hold a
+single render-scoped snapshot or lock while nested message arguments and the
+outer message are resolved.
 
 ```rust
-message.to_fluent_string_with(&mut |domain, id, args| {
-    localizer.localize_in_domain(domain, id, args).unwrap_or_else(|| id.to_string())
-})
+let mut rendered = None;
+localizer.with_lookup(&mut |lookup| {
+    rendered = Some(message.to_fluent_string_with(&mut |domain, id, args| {
+        lookup(domain, id, args).unwrap_or_else(|| id.to_string())
+    }));
+});
 ```
 
 Managers implement `FluentLocalizer` and decide where state lives:

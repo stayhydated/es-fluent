@@ -13,6 +13,9 @@ runtime integrations.
 - `FluentManager`: central runtime entry point for selecting locales and formatting
   messages after an initial `select_language(...)` call, with optional
   domain-scoped lookup via `localize_in_domain`
+- `FluentManager::with_lookup(...)`: render-scoped domain lookup for custom
+  integration code that needs all nested typed-message lookups to use the same
+  active localizer set
 - `DiscoveredRuntimeI18nModules`: cached, validated runtime-capable module
   discovery for integrations that need many request-local managers without
   repeating inventory validation. Metadata-only registrations are validated but

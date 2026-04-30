@@ -413,6 +413,35 @@ impl FluentManager {
 
         None
     }
+
+    /// Runs a group of domain-scoped lookups against the current localizer set.
+    ///
+    /// The active localizer list is read-locked for the entire callback so
+    /// nested typed-message lookups cannot observe a partially switched locale.
+    pub fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        let localizers = self.localizers.read();
+        let mut lookup = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+            for (data, localizer) in localizers.iter() {
+                if data.domain == domain
+                    && let Some(message) = localizer.localize(id, args)
+                {
+                    return Some(message);
+                }
+            }
+
+            None
+        };
+        f(&mut lookup);
+    }
 }
 
 #[cfg(test)]

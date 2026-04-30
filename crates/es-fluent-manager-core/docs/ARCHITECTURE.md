@@ -20,6 +20,7 @@ classDiagram
         +select_language(lang)
         +select_language_strict(lang)
         +localize(id, args)
+        +with_lookup(callback)
     }
 
     class DiscoveredRuntimeI18nModules {
@@ -115,6 +116,9 @@ Responsible for the actual string formatting logic.
   as at least one content-supporting module accepts it.
 - `FluentManager::select_language_strict()` preserves transactional switching
   when callers need all modules to agree.
+- `FluentManager::with_lookup(...)` holds the active localizer list for an
+  entire typed render, so nested message lookups cannot mix old and new
+  localizer sets during concurrent language switches.
 - `FluentManager::try_discover_runtime_modules()` returns
   `DiscoveredRuntimeI18nModules`, allowing integrations such as request-scoped
   SSR to cache strict inventory validation and create fresh managers from the

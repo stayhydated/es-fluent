@@ -134,6 +134,20 @@ impl FluentLocalizer for DioxusI18n {
         let _ = self.context.current();
         FluentLocalizer::localize_in_domain(self.managed(), domain, id, args)
     }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        let _ = self.context.current();
+        FluentLocalizer::with_lookup(self.managed(), f);
+    }
 }
 
 #[allow(non_snake_case)]

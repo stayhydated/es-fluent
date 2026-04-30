@@ -56,6 +56,27 @@ pub trait FluentLocalizer {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String>;
+
+    /// Runs a group of lookups against one render-scoped localization view.
+    ///
+    /// The default implementation delegates each lookup independently.
+    /// Managers with mutable language selection should override this to hold
+    /// the relevant lock or snapshot for the whole callback.
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        let mut lookup = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+            self.localize_in_domain(domain, id, args)
+        };
+        f(&mut lookup);
+    }
 }
 
 impl FluentLocalizer for FluentManager {
@@ -74,6 +95,19 @@ impl FluentLocalizer for FluentManager {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         FluentManager::localize_in_domain(self, domain, id, args)
+    }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        FluentManager::with_lookup(self, f);
     }
 }
 
@@ -94,6 +128,19 @@ impl<T: FluentLocalizer + ?Sized> FluentLocalizer for &T {
     ) -> Option<String> {
         (**self).localize_in_domain(domain, id, args)
     }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        (**self).with_lookup(f);
+    }
 }
 
 impl<T: FluentLocalizer + ?Sized> FluentLocalizer for Arc<T> {
@@ -113,6 +160,19 @@ impl<T: FluentLocalizer + ?Sized> FluentLocalizer for Arc<T> {
     ) -> Option<String> {
         (**self).localize_in_domain(domain, id, args)
     }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        (**self).with_lookup(f);
+    }
 }
 
 /// Convenience methods for explicit localization contexts.
@@ -128,14 +188,18 @@ pub trait FluentLocalizerExt: FluentLocalizer {
         T: FluentMessage + ?Sized,
     {
         let mut missing = false;
-        let value = message.to_fluent_string_with(&mut |domain, id, args| {
-            self.localize_in_domain(domain, id, args)
-                .unwrap_or_else(|| {
+        let mut value = None;
+
+        self.with_lookup(&mut |lookup| {
+            value = Some(message.to_fluent_string_with(&mut |domain, id, args| {
+                lookup(domain, id, args).unwrap_or_else(|| {
                     missing = true;
                     String::new()
                 })
+            }));
         });
 
+        let value = value.expect("FluentLocalizer::with_lookup must invoke its callback");
         if missing { None } else { Some(value) }
     }
 
@@ -144,13 +208,18 @@ pub trait FluentLocalizerExt: FluentLocalizer {
     where
         T: FluentMessage + ?Sized,
     {
-        message.to_fluent_string_with(&mut |domain, id, args| {
-            self.localize_in_domain(domain, id, args)
-                .unwrap_or_else(|| {
+        let mut value = None;
+
+        self.with_lookup(&mut |lookup| {
+            value = Some(message.to_fluent_string_with(&mut |domain, id, args| {
+                lookup(domain, id, args).unwrap_or_else(|| {
                     tracing::warn!(domain, message_id = id, "missing Fluent message");
                     id.to_string()
                 })
-        })
+            }));
+        });
+
+        value.expect("FluentLocalizer::with_lookup must invoke its callback")
     }
 }
 

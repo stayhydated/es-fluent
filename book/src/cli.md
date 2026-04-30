@@ -54,6 +54,10 @@ when locale files are added, removed, or renamed. For Dioxus manifests,
 `--dioxus-runtime client,ssr` selects which manager features are added by
 `--update-cargo-toml`; omitting it enables both.
 
+`init` creates a library target because CLI inventory collection reads library
+targets. Put derived message types in `src/lib.rs` or another library crate;
+binary-only derived types in `src/main.rs` are not discovered by `generate`.
+
 Useful options:
 
 - `--fallback-language <LANG>`: choose the fallback locale directory and config value.

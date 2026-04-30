@@ -167,6 +167,10 @@ locale asset rebuild tracking. For Dioxus manifests, `--dioxus-runtime client`,
 `--dioxus-runtime ssr`, or `--dioxus-runtime client,ssr` selects the generated
 manager features when `--update-cargo-toml` is used; omitting it enables both.
 
+`init` creates a library target because CLI inventory collection reads library
+targets. Put derived message types in `src/lib.rs` or another library crate;
+binary-only derived types in `src/main.rs` are not discovered by `generate`.
+
 Or create an `i18n.toml` next to your `Cargo.toml` manually:
 
 ```toml
