@@ -23,12 +23,33 @@ static MANAGER_INLINE_FOLLOWER_DATA: ModuleData = ModuleData {
     supported_languages: &[langid!("en")],
     namespaces: &[],
 };
+static MANAGER_SHARED_DOMAIN_FIRST_DATA: ModuleData = ModuleData {
+    name: "manager-shared-domain-first",
+    domain: "manager-shared-domain",
+    supported_languages: &[langid!("en")],
+    namespaces: &[],
+};
+static MANAGER_SHARED_DOMAIN_SECOND_DATA: ModuleData = ModuleData {
+    name: "manager-shared-domain-second",
+    domain: "manager-shared-domain",
+    supported_languages: &[langid!("en")],
+    namespaces: &[],
+};
 static MANAGER_INLINE_METADATA: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&MANAGER_INLINE_METADATA_DATA);
 
 struct ManagerInlineRuntimeModule;
 struct ManagerInlineFollowerModule;
 struct ManagerInlineLocalizer(&'static str);
+struct ManagerSharedDomainModule {
+    data: &'static ModuleData,
+    id: &'static str,
+    value: &'static str,
+}
+struct ManagerSharedDomainLocalizer {
+    id: &'static str,
+    value: &'static str,
+}
 
 impl Localizer for ManagerInlineLocalizer {
     fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -41,6 +62,20 @@ impl Localizer for ManagerInlineLocalizer {
         _args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         (id == "inline").then(|| self.0.to_string())
+    }
+}
+
+impl Localizer for ManagerSharedDomainLocalizer {
+    fn select_language(&self, _lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+        Ok(())
+    }
+
+    fn localize<'a>(
+        &self,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        (id == self.id).then(|| self.value.to_string())
     }
 }
 
@@ -72,8 +107,33 @@ impl I18nModule for ManagerInlineFollowerModule {
     }
 }
 
+impl I18nModuleDescriptor for ManagerSharedDomainModule {
+    fn data(&self) -> &'static ModuleData {
+        self.data
+    }
+}
+
+impl I18nModule for ManagerSharedDomainModule {
+    fn create_localizer(&self) -> Box<dyn Localizer> {
+        Box::new(ManagerSharedDomainLocalizer {
+            id: self.id,
+            value: self.value,
+        })
+    }
+}
+
 static MANAGER_INLINE_RUNTIME: ManagerInlineRuntimeModule = ManagerInlineRuntimeModule;
 static MANAGER_INLINE_FOLLOWER: ManagerInlineFollowerModule = ManagerInlineFollowerModule;
+static MANAGER_SHARED_DOMAIN_FIRST: ManagerSharedDomainModule = ManagerSharedDomainModule {
+    data: &MANAGER_SHARED_DOMAIN_FIRST_DATA,
+    id: "first-message",
+    value: "first",
+};
+static MANAGER_SHARED_DOMAIN_SECOND: ManagerSharedDomainModule = ManagerSharedDomainModule {
+    data: &MANAGER_SHARED_DOMAIN_SECOND_DATA,
+    id: "second-message",
+    value: "second",
+};
 
 #[test]
 fn load_runtime_modules_filters_metadata_only_registrations() {
@@ -175,5 +235,29 @@ fn runtime_modules_select_and_replace_active_localizers() {
     assert_eq!(
         manager.localize_in_domain("manager-inline-runtime", "inline", None),
         Some("runtime".to_string())
+    );
+}
+
+#[test]
+fn domain_scoped_lookup_searches_all_localizers_in_the_domain() {
+    let manager = FluentManager {
+        modules: vec![
+            &MANAGER_SHARED_DOMAIN_FIRST as &dyn I18nModuleRegistration,
+            &MANAGER_SHARED_DOMAIN_SECOND as &dyn I18nModuleRegistration,
+        ],
+        localizers: RwLock::default(),
+    };
+
+    manager
+        .select_language_with_policy(&langid!("en"), LanguageSelectionPolicy::BestEffort)
+        .expect("shared-domain modules should support the locale");
+
+    assert_eq!(
+        manager.localize_in_domain("manager-shared-domain", "first-message", None),
+        Some("first".to_string())
+    );
+    assert_eq!(
+        manager.localize_in_domain("manager-shared-domain", "second-message", None),
+        Some("second".to_string())
     );
 }

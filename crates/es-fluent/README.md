@@ -163,7 +163,9 @@ cargo es-fluent init
 This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
 `pub mod i18n;` declaration in `src/lib.rs`. Use `--manager dioxus` or
 `--manager bevy` for framework-specific scaffolding, and `--build-rs` to add
-locale asset rebuild tracking.
+locale asset rebuild tracking. For Dioxus manifests, `--dioxus-runtime client`,
+`--dioxus-runtime ssr`, or `--dioxus-runtime client,ssr` selects the generated
+manager features when `--update-cargo-toml` is used; omitting it enables both.
 
 Or create an `i18n.toml` next to your `Cargo.toml` manually:
 

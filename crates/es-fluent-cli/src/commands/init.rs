@@ -1,6 +1,7 @@
 //! Init command implementation.
 use crate::core::CliError;
 use clap::{Parser, ValueEnum};
+use es_fluent_shared::namespace::validate_namespace_path;
 use fs_err as fs;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -49,6 +50,24 @@ es_fluent_manager_bevy::define_i18n_module!();
     }
 }
 
+/// Dioxus runtime features to add when scaffolding the Dioxus manager.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, ValueEnum)]
+pub enum InitDioxusRuntime {
+    /// Dioxus provider, hooks, and client-side locale state.
+    Client,
+    /// Request-scoped Dioxus SSR localization.
+    Ssr,
+}
+
+impl InitDioxusRuntime {
+    fn feature(self) -> &'static str {
+        match self {
+            Self::Client => "client",
+            Self::Ssr => "ssr",
+        }
+    }
+}
+
 /// Arguments for the init command.
 #[derive(Debug, Parser)]
 pub struct InitArgs {
@@ -75,6 +94,11 @@ pub struct InitArgs {
     /// Runtime manager to scaffold.
     #[arg(long, value_enum, default_value = "embedded")]
     pub manager: InitManager,
+
+    /// Dioxus dependency features for --manager dioxus with --update-cargo-toml.
+    /// Omit to enable client and ssr.
+    #[arg(long, value_enum, value_delimiter = ',')]
+    pub dioxus_runtime: Vec<InitDioxusRuntime>,
 
     /// Also create a build.rs that tracks locale asset changes.
     #[arg(long)]
@@ -108,6 +132,11 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
             root.display()
         )));
     }
+    if args.manager != InitManager::Dioxus && !args.dioxus_runtime.is_empty() {
+        return Err(CliError::Other(
+            "--dioxus-runtime can only be used with --manager dioxus".to_string(),
+        ));
+    }
 
     let fallback_language = crate::commands::sync::canonical_locale(&args.fallback_language)?;
     let mut locales = BTreeSet::from([fallback_language.clone()]);
@@ -116,19 +145,8 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
     }
 
     let assets_dir_toml = args.assets_dir.to_string_lossy().replace('\\', "/");
-    let mut config = format!(
-        "fallback_language = \"{}\"\nassets_dir = \"{}\"\n",
-        fallback_language, assets_dir_toml
-    );
-    if !args.namespaces.is_empty() {
-        let namespaces = args
-            .namespaces
-            .iter()
-            .map(|namespace| format!("\"{}\"", namespace))
-            .collect::<Vec<_>>()
-            .join(", ");
-        config.push_str(&format!("namespaces = [{namespaces}]\n"));
-    }
+    let namespaces = validate_init_namespaces(&args.namespaces)?;
+    let config = init_config_toml(&fallback_language, &assets_dir_toml, &namespaces)?;
 
     write_new_file(&root.join("i18n.toml"), &config, args.force, args.dry_run)?;
 
@@ -158,7 +176,13 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
     }
 
     if args.update_cargo_toml {
-        update_cargo_toml(&root, args.manager, args.build_rs, args.dry_run)?;
+        update_cargo_toml(
+            &root,
+            args.manager,
+            &args.dioxus_runtime,
+            args.build_rs,
+            args.dry_run,
+        )?;
     }
 
     if args.dry_run {
@@ -166,17 +190,66 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
     } else {
         println!("Initialized es-fluent project at {}", root.display());
     }
-    println!(
-        "Next: add the matching manager crate to Cargo.toml, derive EsFluent types, then run `cargo es-fluent generate`."
-    );
-    if args.build_rs {
+    if args.update_cargo_toml {
+        if args.dry_run {
+            println!("Cargo.toml dependency updates were included in the dry-run preview.");
+        } else {
+            println!("Cargo.toml dependencies were added or already present.");
+        }
+        println!("Next: derive EsFluent types, then run `cargo es-fluent generate`.");
+    } else {
         println!(
-            "Also add `es-fluent = {{ version = \"{}\", features = [\"build\"] }}` under [build-dependencies].",
-            env!("CARGO_PKG_VERSION")
+            "Next: add the matching manager crate to Cargo.toml, derive EsFluent types, then run `cargo es-fluent generate`."
         );
+        if args.build_rs {
+            println!(
+                "Also add `es-fluent = {{ version = \"{}\", features = [\"build\"] }}` under [build-dependencies].",
+                env!("CARGO_PKG_VERSION")
+            );
+        }
     }
 
     Ok(())
+}
+
+fn validate_init_namespaces(namespaces: &[String]) -> Result<Vec<String>, CliError> {
+    for namespace in namespaces {
+        validate_namespace_path(namespace).map_err(|reason| {
+            CliError::Other(format!("invalid namespace '{}': {}", namespace, reason))
+        })?;
+    }
+
+    Ok(namespaces.to_vec())
+}
+
+fn init_config_toml(
+    fallback_language: &str,
+    assets_dir: &str,
+    namespaces: &[String],
+) -> Result<String, CliError> {
+    let mut config = toml::Table::new();
+    config.insert(
+        "fallback_language".to_string(),
+        toml::Value::String(fallback_language.to_string()),
+    );
+    config.insert(
+        "assets_dir".to_string(),
+        toml::Value::String(assets_dir.to_string()),
+    );
+    if !namespaces.is_empty() {
+        config.insert(
+            "namespaces".to_string(),
+            toml::Value::Array(
+                namespaces
+                    .iter()
+                    .map(|namespace| toml::Value::String(namespace.clone()))
+                    .collect(),
+            ),
+        );
+    }
+
+    toml::to_string(&config)
+        .map_err(|error| CliError::Other(format!("failed to serialize i18n.toml: {error}")))
 }
 
 fn create_dir_all(path: &Path, dry_run: bool) -> Result<(), CliError> {
@@ -239,6 +312,7 @@ fn ensure_lib_declares_i18n_module(
 fn update_cargo_toml(
     root: &Path,
     manager: InitManager,
+    dioxus_runtime: &[InitDioxusRuntime],
     build_rs: bool,
     dry_run: bool,
 ) -> Result<(), CliError> {
@@ -255,7 +329,7 @@ fn update_cargo_toml(
         &format!("\"{version}\""),
     );
     ensure_manifest_dependency(&mut manifest, "dependencies", "unic-langid", "\"0.9\"");
-    let (manager_name, manager_spec) = manager_dependency(manager, version);
+    let (manager_name, manager_spec) = manager_dependency(manager, version, dioxus_runtime);
     ensure_manifest_dependency(&mut manifest, "dependencies", manager_name, &manager_spec);
 
     if build_rs {
@@ -280,15 +354,39 @@ fn update_cargo_toml(
     fs::write(path, manifest).map_err(|error| CliError::Other(error.to_string()))
 }
 
-fn manager_dependency(manager: InitManager, version: &str) -> (&'static str, String) {
+fn manager_dependency(
+    manager: InitManager,
+    version: &str,
+    dioxus_runtime: &[InitDioxusRuntime],
+) -> (&'static str, String) {
     match manager {
         InitManager::Embedded => ("es-fluent-manager-embedded", format!("\"{version}\"")),
         InitManager::Dioxus => (
             "es-fluent-manager-dioxus",
-            "{ version = \"0.7.0\", features = [\"client\"] }".to_string(),
+            format!(
+                "{{ version = \"0.7.0\", features = [{}] }}",
+                dioxus_runtime_features(dioxus_runtime)
+                    .into_iter()
+                    .map(|feature| format!("\"{feature}\""))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         ),
         InitManager::Bevy => ("es-fluent-manager-bevy", "\"0.18.13\"".to_string()),
     }
+}
+
+fn dioxus_runtime_features(dioxus_runtime: &[InitDioxusRuntime]) -> Vec<&'static str> {
+    let selected = if dioxus_runtime.is_empty() {
+        BTreeSet::from([InitDioxusRuntime::Client, InitDioxusRuntime::Ssr])
+    } else {
+        dioxus_runtime.iter().copied().collect::<BTreeSet<_>>()
+    };
+
+    selected
+        .into_iter()
+        .map(InitDioxusRuntime::feature)
+        .collect()
 }
 
 fn ensure_manifest_dependency(
@@ -413,6 +511,7 @@ mod tests {
             assets_dir: PathBuf::from("assets/locales"),
             namespaces: Vec::new(),
             manager: InitManager::Embedded,
+            dioxus_runtime: Vec::new(),
             build_rs: false,
             update_cargo_toml: false,
             dry_run: false,
@@ -481,7 +580,100 @@ mod tests {
         assert!(manifest.contains("es-fluent"));
         assert!(manifest.contains("unic-langid"));
         assert!(manifest.contains("es-fluent-manager-dioxus"));
+        assert!(manifest.contains("features = [\"client\", \"ssr\"]"));
         assert!(manifest.contains("[build-dependencies]"));
+    }
+
+    #[test]
+    fn run_init_updates_dioxus_manifest_for_selected_runtimes() {
+        let cases = [
+            (
+                "dioxus_client",
+                vec![InitDioxusRuntime::Client],
+                "es-fluent-manager-dioxus = { version = \"0.7.0\", features = [\"client\"] }",
+            ),
+            (
+                "dioxus_ssr",
+                vec![InitDioxusRuntime::Ssr],
+                "es-fluent-manager-dioxus = { version = \"0.7.0\", features = [\"ssr\"] }",
+            ),
+            (
+                "dioxus_both",
+                vec![InitDioxusRuntime::Ssr, InitDioxusRuntime::Client],
+                "es-fluent-manager-dioxus = { version = \"0.7.0\", features = [\"client\", \"ssr\"] }",
+            ),
+            (
+                "dioxus_default",
+                Vec::new(),
+                "es-fluent-manager-dioxus = { version = \"0.7.0\", features = [\"client\", \"ssr\"] }",
+            ),
+        ];
+
+        for (name, dioxus_runtime, expected_dependency) in cases {
+            let project = TempProject::new(name, true);
+            let mut args = default_args(project.path());
+            args.manager = InitManager::Dioxus;
+            args.dioxus_runtime = dioxus_runtime;
+            args.update_cargo_toml = true;
+
+            run_init(args).expect("init should update the Dioxus manifest dependency");
+
+            let manifest = test_fs::read_to_string(project.path().join("Cargo.toml"))
+                .expect("manifest should be updated");
+            assert!(manifest.contains(expected_dependency));
+        }
+    }
+
+    #[test]
+    fn run_init_rejects_dioxus_runtime_without_dioxus_manager() {
+        let project = TempProject::new("dioxus_runtime_without_manager", true);
+        let mut args = default_args(project.path());
+        args.dioxus_runtime = vec![InitDioxusRuntime::Ssr];
+
+        let err = run_init(args).expect_err("--dioxus-runtime should require the Dioxus manager");
+
+        assert!(
+            err.to_string()
+                .contains("--dioxus-runtime can only be used with --manager dioxus")
+        );
+    }
+
+    #[test]
+    fn run_init_rejects_invalid_namespaces() {
+        for (name, namespace) in [
+            ("backslash", r"ui\button"),
+            ("traversal", "../escape"),
+            ("empty_segment", "ui//button"),
+            ("empty", ""),
+        ] {
+            let project = TempProject::new(name, false);
+            let mut args = default_args(project.path());
+            args.namespaces = vec![namespace.to_string()];
+
+            let err = run_init(args).expect_err("invalid namespace should be rejected");
+
+            assert!(err.to_string().contains("invalid namespace"));
+            assert!(!project.path().join("i18n.toml").exists());
+        }
+    }
+
+    #[test]
+    fn run_init_serializes_namespace_allowlist_with_toml_escaping() {
+        let project = TempProject::new("namespace_escaping", false);
+        let mut args = default_args(project.path());
+        args.namespaces = vec![r#"ui"quote"#.to_string()];
+
+        run_init(args).expect("namespace requiring TOML escaping should be serialized");
+
+        let config =
+            test_fs::read_to_string(project.path().join("i18n.toml")).expect("read config");
+        let parsed =
+            toml::from_str::<toml::Table>(&config).expect("generated config should be valid TOML");
+        let namespaces = parsed
+            .get("namespaces")
+            .and_then(toml::Value::as_array)
+            .expect("namespaces should be present");
+        assert_eq!(namespaces[0].as_str(), Some(r#"ui"quote"#));
     }
 
     #[test]

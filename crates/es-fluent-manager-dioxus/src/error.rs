@@ -99,7 +99,7 @@ impl std::error::Error for DioxusInitError {
 mod tests {
     use super::*;
     use es_fluent_manager_core::ModuleDiscoveryError;
-    use std::error::Error;
+    use std::error::Error as _;
     use unic_langid::langid;
 
     #[test]

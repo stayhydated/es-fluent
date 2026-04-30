@@ -116,7 +116,7 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// # Example
 ///
 /// ```ignore
-/// use es_fluent::EsFluentLabel;
+/// use es_fluent::{EsFluentLabel, FluentLabel as _};
 ///
 /// #[derive(EsFluentLabel)]
 /// pub enum Gender {

@@ -49,7 +49,10 @@ This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
 `pub mod i18n;` declaration in `src/lib.rs`. Use `--manager dioxus` or
 `--manager bevy` to scaffold those manager imports instead of the embedded
 manager. Use `--build-rs` when the crate uses manager macros and should rebuild
-when locale files are added, removed, or renamed.
+when locale files are added, removed, or renamed. For Dioxus manifests,
+`--dioxus-runtime client`, `--dioxus-runtime ssr`, or
+`--dioxus-runtime client,ssr` selects which manager features are added by
+`--update-cargo-toml`; omitting it enables both.
 
 Useful options:
 
@@ -57,6 +60,7 @@ Useful options:
 - `--locales <LANG>`: create additional locale directories, repeatable or comma-separated.
 - `--assets-dir <PATH>`: choose the locale asset directory relative to the crate root.
 - `--namespaces <NAME>`: write a namespace allowlist into `i18n.toml`, repeatable or comma-separated.
+- `--dioxus-runtime <client|ssr>`: choose Dioxus manager features, repeatable or comma-separated.
 - `--update-cargo-toml`: add the matching `es-fluent`, manager, and `unic-langid` dependencies.
 - `--dry-run`: preview files and manifest updates without writing them.
 - `--force`: overwrite generated files that already exist.

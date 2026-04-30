@@ -403,11 +403,15 @@ impl FluentManager {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        self.localizers
-            .read()
-            .iter()
-            .find(|(data, _)| data.domain == domain)
-            .and_then(|(_, localizer)| localizer.localize(id, args))
+        for (data, localizer) in self.localizers.read().iter() {
+            if data.domain == domain
+                && let Some(message) = localizer.localize(id, args)
+            {
+                return Some(message);
+            }
+        }
+
+        None
     }
 }
 

@@ -4915,6 +4915,7 @@ dependencies = [
  "crossterm",
  "es-fluent-generate",
  "es-fluent-runner",
+ "es-fluent-shared",
  "es-fluent-toml",
  "fluent-syntax",
  "fs-err",

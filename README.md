@@ -165,7 +165,10 @@ This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
 `--manager bevy` for framework-specific scaffolding, and `--build-rs` to add
 locale asset rebuild tracking. Use `--locales fr-FR,zh-CN` to create more
 locale directories, `--namespaces ui,errors` to write a namespace allowlist,
-and `--update-cargo-toml` to add the matching dependencies.
+and `--update-cargo-toml` to add the matching dependencies. For Dioxus
+manifests, `--dioxus-runtime client`, `--dioxus-runtime ssr`, or
+`--dioxus-runtime client,ssr` selects the generated manager features; omitting
+it enables both.
 
 Or create an `i18n.toml` next to your `Cargo.toml` manually:
 

@@ -30,6 +30,7 @@ crossbeam-channel = { workspace = true }
 crossterm = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-runner = { workspace = true }
+es-fluent-shared = { workspace = true }
 es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
 fs-err = { workspace = true }

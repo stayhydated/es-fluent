@@ -19,6 +19,11 @@ struct BorrowedName<'a> {
     name: &'a str,
 }
 
+#[derive(EsFluent)]
+struct GenericParent<T: es_fluent::FluentMessage> {
+    child: T,
+}
+
 struct TestLocalizer {
     child_value: &'static str,
 }
@@ -56,6 +61,12 @@ impl FluentLocalizer for TestLocalizer {
                     return None;
                 };
                 Some(format!("name:{}", name.as_ref()))
+            },
+            "generic_parent" => {
+                let FluentValue::String(child) = args?.get("child")? else {
+                    return None;
+                };
+                Some(format!("generic:{}", child.as_ref()))
             },
             _ => None,
         }
@@ -102,4 +113,14 @@ fn derived_borrowed_string_field_renders_as_argument() {
         localizer.localize_message(&BorrowedName { name: "Ada" }),
         "name:Ada"
     );
+}
+
+#[test]
+fn derived_generic_message_field_uses_current_localizer() {
+    let localizer = TestLocalizer {
+        child_value: "child",
+    };
+    let parent = GenericParent { child: Child };
+
+    assert_eq!(localizer.localize_message(&parent), "generic:child");
 }
