@@ -67,6 +67,7 @@ enum Commands {
     Tree(TreeArgs),
 }
 
+#[doc(hidden)]
 pub fn run_cli() -> MietteResult<()> {
     // Parse first to check for e2e flag before setting up miette/logging.
     let cli = Cli::parse();

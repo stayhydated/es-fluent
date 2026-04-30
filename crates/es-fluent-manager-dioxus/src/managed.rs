@@ -37,7 +37,7 @@ impl ManagedI18n {
         Self::from_manager(manager, lang)
     }
 
-    pub fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
+    pub(crate) fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
         modules: &DiscoveredRuntimeI18nModules,
         lang: L,
     ) -> Result<Self, DioxusInitError> {

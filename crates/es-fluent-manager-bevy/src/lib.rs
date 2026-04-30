@@ -36,7 +36,6 @@ mod systems;
 
 pub use components::FluentText;
 pub use context::BevyI18n;
-pub use es_fluent::FluentMessage;
 pub use locale::{
     ActiveLanguageId, FromLocale, LocaleChangeEvent, LocaleChangedEvent, RefreshForLocale,
     RequestedLanguageId,
@@ -51,6 +50,7 @@ pub(crate) use assets::{
     BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nAssets, I18nBundle, I18nDomainBundles,
     I18nResource,
 };
+pub(crate) use es_fluent::FluentMessage;
 #[cfg(test)]
 pub(crate) use locale::primary_language;
 pub(crate) use locale::{LanguageSelection, PendingLanguageChange, update_values_on_locale_change};
