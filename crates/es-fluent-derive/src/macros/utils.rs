@@ -84,18 +84,42 @@ pub fn generate_localize_label_impl(
 }
 
 pub fn generate_field_value_expr(
+    field: &impl FluentField,
     access_expr: TokenStream,
     transform_arg_expr: TokenStream,
-    value_expr: Option<&syn::Expr>,
-    is_choice: bool,
 ) -> TokenStream {
-    if let Some(expr) = value_expr {
-        quote! { (#expr)(#transform_arg_expr) }
-    } else if is_choice {
-        quote! { { use ::es_fluent::EsFluentChoice as _; (#access_expr).as_fluent_choice() } }
+    if let Some(expr) = field.value() {
+        quote! {
+            ::es_fluent::__private::FluentArgumentValue::new((#expr)(#transform_arg_expr))
+        }
+    } else if field.is_choice() {
+        quote! {
+            ::es_fluent::__private::FluentArgumentValue::new({
+                use ::es_fluent::EsFluentChoice as _;
+                (#access_expr).as_fluent_choice()
+            })
+        }
+    } else if is_option_type(field.ty()) {
+        quote! {
+            ::es_fluent::__private::FluentOptionalArgumentValue::new((#transform_arg_expr).as_ref())
+        }
     } else {
-        quote! { (#access_expr).clone() }
+        quote! {
+            ::es_fluent::__private::FluentBorrowedArgumentValue::new(#transform_arg_expr)
+        }
     }
+}
+
+fn is_option_type(ty: &syn::Type) -> bool {
+    let syn::Type::Path(type_path) = ty else {
+        return false;
+    };
+
+    type_path
+        .path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "Option")
 }
 
 pub fn generate_field_argument(
@@ -104,12 +128,7 @@ pub fn generate_field_argument(
     access_expr: TokenStream,
     transform_arg_expr: TokenStream,
 ) -> FluentArgument {
-    let value_expr = generate_field_value_expr(
-        access_expr,
-        transform_arg_expr,
-        field.value(),
-        field.is_choice(),
-    );
+    let value_expr = generate_field_value_expr(field, access_expr, transform_arg_expr);
 
     FluentArgument {
         key: field.fluent_arg_name(index),

@@ -58,14 +58,6 @@ pub struct SsrI18n {
 }
 
 impl SsrI18n {
-    pub(crate) fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
-        modules: &DiscoveredRuntimeI18nModules,
-        lang: L,
-    ) -> Result<Self, DioxusInitError> {
-        let managed = ManagedI18n::new_with_cached_modules(modules, lang)?;
-        Ok(Self { managed })
-    }
-
     pub(crate) fn new_with_cached_modules_strict<L: Into<LanguageIdentifier>>(
         modules: &DiscoveredRuntimeI18nModules,
         lang: L,

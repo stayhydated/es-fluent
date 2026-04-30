@@ -60,7 +60,7 @@ language before lookup:
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;
 
-let manager = FluentManager::new_with_discovered_modules();
+let manager = FluentManager::try_new_with_discovered_modules()?;
 manager.select_language(&langid!("en"))?;
 
 let value = manager.localize_in_domain("app", "hello", None);

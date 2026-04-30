@@ -16,8 +16,7 @@ impl FluentArgument {
                 use ::es_fluent::__private::IntoFluentArgumentValue as _;
                 args.insert(
                     #key,
-                    ::es_fluent::__private::FluentArgumentValue::new(#value_expr)
-                        .into_fluent_argument_value(localize),
+                    (#value_expr).into_fluent_argument_value(localize),
                 );
             }
         }

@@ -299,6 +299,8 @@ pub trait GeneratedVariantsOptions {
 pub trait FluentField {
     /// Returns the source field identifier when present.
     fn ident(&self) -> Option<&syn::Ident>;
+    /// Returns the source field type.
+    fn ty(&self) -> &syn::Type;
     /// Returns the shared fluent field attribute arguments.
     fn field_attr_args(&self) -> &FluentFieldAttributeArgs;
 
@@ -438,6 +440,10 @@ impl FluentFieldOpts {
 impl FluentField for FluentFieldOpts {
     fn ident(&self) -> Option<&syn::Ident> {
         self.ident.as_ref()
+    }
+
+    fn ty(&self) -> &syn::Type {
+        &self.ty
     }
 
     fn field_attr_args(&self) -> &FluentFieldAttributeArgs {

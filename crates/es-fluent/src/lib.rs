@@ -35,7 +35,7 @@ pub use traits::{EsFluentChoice, FluentLabel, FluentLocalizer, FluentLocalizerEx
 #[doc(hidden)]
 pub mod __private {
     pub use crate::traits::{
-        FluentArgumentValue, FluentLocalizerExt, IntoFluentArgumentValue, IntoFluentValue,
-        localize_label,
+        FluentArgumentValue, FluentBorrowedArgumentValue, FluentLocalizerExt,
+        FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue, localize_label,
     };
 }

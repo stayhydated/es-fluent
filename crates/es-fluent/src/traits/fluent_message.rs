@@ -117,6 +117,28 @@ impl<T: FluentLocalizer + ?Sized> FluentLocalizer for Arc<T> {
 
 /// Convenience methods for explicit localization contexts.
 pub trait FluentLocalizerExt: FluentLocalizer {
+    /// Attempts to render a derived typed message through this explicit
+    /// localizer.
+    ///
+    /// Returns `None` if any lookup in the message tree is missing. Use
+    /// `localize_message(...)` when a display fallback to the message ID is
+    /// desired instead.
+    fn try_localize_message<T>(&self, message: &T) -> Option<String>
+    where
+        T: FluentMessage + ?Sized,
+    {
+        let mut missing = false;
+        let value = message.to_fluent_string_with(&mut |domain, id, args| {
+            self.localize_in_domain(domain, id, args)
+                .unwrap_or_else(|| {
+                    missing = true;
+                    String::new()
+                })
+        });
+
+        if missing { None } else { Some(value) }
+    }
+
     /// Renders a derived typed message through this explicit localizer.
     fn localize_message<T>(&self, message: &T) -> String
     where
@@ -161,6 +183,34 @@ impl<T> FluentArgumentValue<T> {
     }
 }
 
+/// Borrowed wrapper used by generated `FluentMessage` implementations for
+/// ordinary fields. Nested messages are rendered through the current callback;
+/// scalar values are cloned only at the final conversion boundary.
+#[doc(hidden)]
+pub struct FluentBorrowedArgumentValue<'a, T: ?Sized> {
+    value: &'a T,
+}
+
+impl<'a, T: ?Sized> FluentBorrowedArgumentValue<'a, T> {
+    pub fn new(value: &'a T) -> Self {
+        Self { value }
+    }
+}
+
+/// Optional wrapper used by generated `FluentMessage` implementations so
+/// `Option<T>` can represent missing Fluent arguments without losing nested
+/// message localization for `Some(T)`.
+#[doc(hidden)]
+pub struct FluentOptionalArgumentValue<T> {
+    value: Option<T>,
+}
+
+impl<T> FluentOptionalArgumentValue<T> {
+    pub fn new(value: Option<T>) -> Self {
+        Self { value }
+    }
+}
+
 /// Converts generated message arguments into Fluent values.
 ///
 /// This intentionally uses autoref-priority implementations: exact
@@ -195,6 +245,22 @@ where
     }
 }
 
+impl<'a, 'value, T> IntoFluentArgumentValue<'a> for FluentBorrowedArgumentValue<'value, T>
+where
+    T: FluentMessage + ?Sized,
+{
+    fn into_fluent_argument_value(
+        self,
+        localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        self.value.to_fluent_string_with(localize).into()
+    }
+}
+
 impl<'a, T> IntoFluentArgumentValue<'a> for &FluentArgumentValue<T>
 where
     T: Clone + IntoFluentValue<'a>,
@@ -211,6 +277,22 @@ where
     }
 }
 
+impl<'a, 'value, T> IntoFluentArgumentValue<'a> for &FluentBorrowedArgumentValue<'value, T>
+where
+    T: Clone + IntoFluentValue<'a>,
+{
+    fn into_fluent_argument_value(
+        self,
+        _localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        (*self.value).clone().into_fluent_value()
+    }
+}
+
 impl<'a> IntoFluentArgumentValue<'a> for FluentArgumentValue<bool> {
     fn into_fluent_argument_value(
         self,
@@ -224,7 +306,26 @@ impl<'a> IntoFluentArgumentValue<'a> for FluentArgumentValue<bool> {
     }
 }
 
-impl<'a, T> IntoFluentArgumentValue<'a> for FluentArgumentValue<Option<T>>
+impl<'a, T> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<T>
+where
+    T: FluentMessage,
+{
+    fn into_fluent_argument_value(
+        self,
+        localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        match self.value {
+            Some(value) => value.to_fluent_string_with(localize).into(),
+            None => FluentValue::None,
+        }
+    }
+}
+
+impl<'a, T> IntoFluentArgumentValue<'a> for &FluentOptionalArgumentValue<&T>
 where
     T: Clone + IntoFluentValue<'a>,
 {
@@ -237,7 +338,26 @@ where
         ) -> String,
     ) -> FluentValue<'a> {
         match self.value {
-            Some(value) => value.into_fluent_value(),
+            Some(value) => (*value).clone().into_fluent_value(),
+            None => FluentValue::None,
+        }
+    }
+}
+
+impl<'a, T> IntoFluentArgumentValue<'a> for FluentArgumentValue<Option<T>>
+where
+    T: FluentMessage,
+{
+    fn into_fluent_argument_value(
+        self,
+        localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        match self.value {
+            Some(value) => value.to_fluent_string_with(localize).into(),
             None => FluentValue::None,
         }
     }

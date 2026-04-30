@@ -49,17 +49,20 @@ fn panic_lookup_reports_unexpected_nested_localization() {
 #[test]
 fn argument_conversion_handles_optional_and_missing_values() {
     let mut localize = panic_lookup;
+    let optional = Some("optional");
+    let missing: Option<String> = None;
+    let optional_number = Some(7i32);
 
-    let optional_value =
-        FluentArgumentValue::new(Some("optional")).into_fluent_argument_value(&mut localize);
+    let optional_value = FluentOptionalArgumentValue::new(optional.as_ref())
+        .into_fluent_argument_value(&mut localize);
     assert_string(optional_value, "optional");
 
-    let missing_value =
-        FluentArgumentValue::new(Option::<String>::None).into_fluent_argument_value(&mut localize);
+    let missing_value = FluentOptionalArgumentValue::new(missing.as_ref())
+        .into_fluent_argument_value(&mut localize);
     assert!(matches!(missing_value, FluentValue::None));
 
-    let optional_number =
-        FluentArgumentValue::new(Some(7i32)).into_fluent_argument_value(&mut localize);
+    let optional_number = FluentOptionalArgumentValue::new(optional_number.as_ref())
+        .into_fluent_argument_value(&mut localize);
     assert_number(optional_number, 7.0);
 }
 
@@ -77,7 +80,6 @@ fn argument_conversion_handles_borrowed_and_owned_values() {
     assert_string(owned_value, "owned string");
 }
 
-#[derive(Clone)]
 struct NestedMessage;
 
 impl FluentMessage for NestedMessage {
@@ -104,6 +106,24 @@ fn argument_conversion_localizes_nested_messages_with_current_callback() {
 
     let value = FluentArgumentValue::new(NestedMessage).into_fluent_argument_value(&mut localize);
     assert_string(value, "nested value");
+}
+
+#[test]
+fn argument_conversion_localizes_optional_nested_messages_with_current_callback() {
+    let mut localize = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+        assert_eq!(domain, "nested-domain");
+        assert_eq!(id, "nested-id");
+        assert!(args.is_none());
+        "optional nested value".to_string()
+    };
+
+    let value =
+        FluentArgumentValue::new(Some(NestedMessage)).into_fluent_argument_value(&mut localize);
+    assert_string(value, "optional nested value");
+
+    let missing = FluentArgumentValue::new(Option::<NestedMessage>::None)
+        .into_fluent_argument_value(&mut localize);
+    assert!(matches!(missing, FluentValue::None));
 }
 
 struct StaticLocalizer {
@@ -211,4 +231,15 @@ fn localizer_extension_localizes_typed_messages_with_id_fallback() {
         Some("Hello".to_string())
     );
     assert_eq!(localizer.localize_message(&MissingMessage), "missing-id");
+}
+
+#[test]
+fn localizer_extension_can_return_missing_typed_messages_without_id_fallback() {
+    let localizer = StaticLocalizer { value: "Hello" };
+
+    assert_eq!(
+        localizer.try_localize_message(&NestedMessage),
+        Some("Hello".to_string())
+    );
+    assert_eq!(localizer.try_localize_message(&MissingMessage), None);
 }

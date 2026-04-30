@@ -38,6 +38,10 @@ impl FluentField for StructFieldOpts {
         self.ident.as_ref()
     }
 
+    fn ty(&self) -> &syn::Type {
+        &self.ty
+    }
+
     fn field_attr_args(&self) -> &super::FluentFieldAttributeArgs {
         &self.attr_args
     }

@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 139
 expression: struct_tokens
 ---
 impl ::es_fluent::FluentMessage for User {
@@ -23,7 +22,9 @@ impl ::es_fluent::FluentMessage for User {
                 use ::es_fluent::__private::IntoFluentArgumentValue as _;
                 args.insert(
                     "id",
-                    ::es_fluent::__private::FluentArgumentValue::new((self.id).clone())
+                    (::es_fluent::__private::FluentBorrowedArgumentValue::new(
+                        &(self.id),
+                    ))
                         .into_fluent_argument_value(localize),
                 );
             }

@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 250
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for LoginError {
@@ -24,7 +23,7 @@ impl ::es_fluent::FluentMessage for LoginError {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
                         "f0",
-                        ::es_fluent::__private::FluentArgumentValue::new((f0).clone())
+                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f0))
                             .into_fluent_argument_value(localize),
                     );
                 }
@@ -32,7 +31,7 @@ impl ::es_fluent::FluentMessage for LoginError {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
                         "f1",
-                        ::es_fluent::__private::FluentArgumentValue::new((f1).clone())
+                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f1))
                             .into_fluent_argument_value(localize),
                     );
                 }
@@ -40,7 +39,7 @@ impl ::es_fluent::FluentMessage for LoginError {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
                         "f2",
-                        ::es_fluent::__private::FluentArgumentValue::new((f2).clone())
+                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f2))
                             .into_fluent_argument_value(localize),
                     );
                 }

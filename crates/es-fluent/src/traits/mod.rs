@@ -4,7 +4,7 @@ mod label;
 
 pub use fluent_choice::EsFluentChoice;
 pub use fluent_message::{
-    FluentArgumentValue, FluentLocalizer, FluentLocalizerExt, FluentMessage,
-    IntoFluentArgumentValue, IntoFluentValue,
+    FluentArgumentValue, FluentBorrowedArgumentValue, FluentLocalizer, FluentLocalizerExt,
+    FluentMessage, FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue,
 };
 pub use label::{FluentLabel, localize_label};
