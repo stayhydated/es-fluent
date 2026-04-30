@@ -127,6 +127,8 @@ fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated. `request(...)` uses best-effort initial language selection; use `request_strict(...)` when every discovered module must support the request locale.
 
+The render helpers do not install context automatically; pass `SsrI18n` as a prop or call `provide_context()` from a component when using hook-based lookup.
+
 SSR components should receive a cloned `SsrI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`. If SSR components use the Dioxus hook API, enable both `ssr` and `client` features because `SsrI18n::provide_context(...)` is compiled behind `client`, then call `i18n.provide_context()?` from an app-owned provider component.
 
 Executable Dioxus documentation lives in `examples/dioxus-client-example` and `examples/dioxus-ssr-example` because the client and SSR runtimes are feature-split and validated separately in CI.

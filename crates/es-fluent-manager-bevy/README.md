@@ -75,6 +75,10 @@ setup and leaves the error resource in the app world for diagnostics. Failed hot
 reloads or locale switches keep the last accepted locale active instead of
 publishing a broken update.
 
+Generated message lookup is domain-scoped. If separate domains define the same
+message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
+unscoped lookup unavailable for the ambiguous merged locale.
+
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
 `ActiveLanguageId`, not merely the latest request. When a requested locale
@@ -91,10 +95,12 @@ such as `es-fluent-lang` can be committed without making runtime-only locales
 selectable. Generated embedded localizers are fallback-aware, while custom
 runtime localizers should implement parent-locale fallback in
 `select_language(...)` when they need it. Runtime fallback managers are attached
-at startup only when they accept the requested or resolved locale, and are used
-only after Bevy resolves a locale through asset or ready-bundle availability
-during startup or a later `LocaleChangeEvent`; runtime-only locales do not by
-themselves make a Bevy locale switch selectable.
+whenever runtime modules are discovered, even if they reject the startup locale.
+A startup rejection leaves runtime localizers unselected until a later accepted
+locale switch. Runtime fallback managers are used only after Bevy resolves a
+locale through asset or ready-bundle availability during startup or a later
+`LocaleChangeEvent`; runtime-only locales do not by themselves make a Bevy
+locale switch selectable.
 
 For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:

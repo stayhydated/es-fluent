@@ -106,6 +106,11 @@ impl SsrI18n {
         crate::use_provide_i18n(self.managed.clone())
     }
 
+    /// Rebuilds and renders a Dioxus virtual DOM.
+    ///
+    /// This helper does not install i18n context automatically; pass
+    /// `SsrI18n` as a prop or call `SsrI18n::provide_context` from a
+    /// component when using hook-based lookup.
     pub fn rebuild_and_render(&self, dom: &mut VirtualDom) -> String {
         dom.rebuild_in_place();
         dioxus_ssr::render(dom)

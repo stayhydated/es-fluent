@@ -8,9 +8,7 @@ use bevy::window::RequestRedraw;
 use unic_langid::LanguageIdentifier;
 
 fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Option<usize> {
-    i18n_bundle
-        .get(lang)
-        .map(|bundle| std::sync::Arc::as_ptr(bundle) as *const () as usize)
+    i18n_bundle.ready_cache_id(lang)
 }
 
 #[derive(SystemParam)]
@@ -138,16 +136,23 @@ mod tests {
     }
 
     #[test]
-    fn current_bundle_id_tracks_present_bundle_identity() {
+    fn current_bundle_id_tracks_ready_cache_identity() {
         let lang = langid!("en");
         let mut i18n_bundle = I18nBundle::default();
         assert_eq!(current_bundle_id(&i18n_bundle, &lang), None);
 
-        let bundle = Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()]));
-        let expected_id = Arc::as_ptr(&bundle) as *const () as usize;
-        i18n_bundle.set_bundle(lang.clone(), bundle);
+        i18n_bundle.set_bundle(
+            lang.clone(),
+            Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()])),
+        );
+        let first_id = current_bundle_id(&i18n_bundle, &lang).expect("ready cache id");
 
-        assert_eq!(current_bundle_id(&i18n_bundle, &lang), Some(expected_id));
+        i18n_bundle.mark_ready_without_unscoped_bundle(lang.clone());
+        assert_ne!(
+            current_bundle_id(&i18n_bundle, &lang),
+            Some(first_id),
+            "domain-only readiness should publish a new cache identity"
+        );
     }
 
     #[test]

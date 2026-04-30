@@ -118,10 +118,9 @@ fn initialize_i18n_resource_with_fallback_manager(
         resolved_language,
     ) {
         debug!(
-            "Runtime fallback manager rejected initial locale '{}' resolved as '{}'; continuing without runtime fallback manager: {}",
+            "Runtime fallback manager rejected initial locale '{}' resolved as '{}'; keeping it attached for future locale switches: {}",
             requested_language, resolved_language, error
         );
-        return Ok(i18n_resource);
     }
 
     Ok(i18n_resource.with_fallback_manager(fallback_manager))
@@ -446,14 +445,27 @@ mod tests {
     }
 
     #[test]
-    fn initialize_i18n_resource_ignores_fallback_manager_rejection() {
+    fn initialize_i18n_resource_keeps_fallback_manager_after_initial_rejection() {
         let unsupported = langid!("zz");
         let i18n_resource = initialize_i18n_resource(&unsupported, &unsupported)
             .expect("unsupported runtime fallback language should not block Bevy startup");
 
         assert_eq!(i18n_resource.active_language(), &unsupported);
         assert_eq!(i18n_resource.resolved_language(), &unsupported);
-        assert!(i18n_resource.select_fallback_language(&unsupported).is_ok());
+        assert!(
+            i18n_resource
+                .select_fallback_language(&unsupported)
+                .is_err()
+        );
+        assert!(
+            i18n_resource
+                .select_fallback_language(&langid!("fr"))
+                .is_ok()
+        );
+        assert_eq!(
+            i18n_resource.localize("runtime-follower-label", None, &I18nBundle::default()),
+            Some("runtime follower label".to_string())
+        );
     }
 
     #[test]

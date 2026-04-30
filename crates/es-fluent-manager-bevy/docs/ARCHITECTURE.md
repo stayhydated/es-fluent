@@ -8,8 +8,9 @@ installing a process-wide localization hook.
 Runtime state lives in Bevy resources:
 
 - `I18nAssets`: asset handles, loaded Fluent resources, and load errors.
-- `I18nBundle`: accepted per-locale bundles and fallback resources.
-- `I18nDomainBundles`: accepted per-domain resources.
+- `I18nBundle`: best-effort unscoped per-locale bundles, fallback resources,
+  and ready-cache tokens.
+- `I18nDomainBundles`: accepted per-domain bundles and fallback resources.
 - `I18nResource`: active/request-resolved language state plus a fallback
   `FluentManager` for runtime modules such as `es-fluent-lang`.
 - `RequestedLanguageId` and `ActiveLanguageId`: requested user intent versus
@@ -36,6 +37,13 @@ fn update_title(i18n: BevyI18n) {
 
 No `es-fluent` global state or custom localizer is installed.
 
+Generated message lookup is domain-scoped. Bundle rebuilds commit
+`I18nDomainBundles` independently from the merged all-domain `I18nBundle`, so
+duplicate message IDs in separate domains do not block typed generated lookup.
+When the merged all-domain bundle is ambiguous, Bevy marks the locale ready for
+domain-scoped lookup and leaves raw unscoped lookup without resources for that
+locale.
+
 ## Asset readiness and runtime fallback managers
 
 The Bevy plugin uses strict module discovery and exposes both
@@ -58,11 +66,13 @@ need parent-locale fallback should implement that behavior in
 
 Only metadata-only Bevy registrations create Bevy asset availability. Runtime
 localizer registrations are reserved for the fallback manager and do not make a
-locale wait on Bevy asset bundles. Runtime fallback managers are attached at
-startup only when they accept the requested or resolved locale, and are used
-only after Bevy resolves a locale through asset or ready-bundle availability
-during startup or a later `LocaleChangeEvent`. Runtime-only locales do not by
-themselves make a Bevy locale switch selectable.
+locale wait on Bevy asset bundles. Runtime fallback managers are attached when
+runtime modules are discovered, even when startup locale selection is rejected.
+In that case they remain attached with no selected runtime localizers until a
+later accepted locale switch. Runtime fallback managers are used only after Bevy
+resolves a locale through asset or ready-bundle availability during startup or a
+later `LocaleChangeEvent`. Runtime-only locales do not by themselves make a
+Bevy locale switch selectable.
 
 ## Startup
 

@@ -10,6 +10,14 @@ use unic_langid::LanguageIdentifier;
 type DomainBundleMap = HashMap<String, Arc<SyncFluentBundle>>;
 type DomainResourceMap = HashMap<String, Vec<Arc<FluentResource>>>;
 
+struct BundleCaches {
+    bundle: Option<Arc<SyncFluentBundle>>,
+    locale_resources: Option<Vec<Arc<FluentResource>>>,
+    domain_bundles: DomainBundleMap,
+    domain_locale_resources: DomainResourceMap,
+    unscoped_diagnostics: Vec<String>,
+}
+
 fn dirty_asset_ids(
     asset_events: &mut MessageReader<AssetEvent<FtlAsset>>,
     asset_failed_events: &mut MessageReader<AssetLoadFailedEvent<FtlAsset>>,
@@ -70,13 +78,37 @@ fn rebuild_bundle_for_language(
     }
 
     match build_bundle_caches(lang, resources) {
-        Ok((bundle, accepted_resources, domain_bundles, domain_locale_resources)) => {
-            i18n_bundle.set_locale_resources(lang.clone(), accepted_resources);
+        Ok(caches) => {
+            let BundleCaches {
+                bundle,
+                locale_resources,
+                domain_bundles,
+                domain_locale_resources,
+                unscoped_diagnostics,
+            } = caches;
+
+            if !unscoped_diagnostics.is_empty() {
+                warn!(
+                    "Unscoped Fluent lookup for {} is unavailable or ambiguous because the merged all-domain bundle could not be assembled: {}. Domain-scoped generated lookup remains available.",
+                    lang,
+                    unscoped_diagnostics.join(" | ")
+                );
+            }
+
+            if let Some(locale_resources) = locale_resources {
+                i18n_bundle.set_locale_resources(lang.clone(), locale_resources);
+            } else {
+                i18n_bundle.remove(lang);
+            }
             i18n_domain_bundles.set_locale_resources(lang.clone(), domain_locale_resources);
             bundle_build_failures.0.remove(lang);
 
             if i18n_assets.is_language_loaded(lang) {
-                i18n_bundle.set_bundle(lang.clone(), bundle);
+                if let Some(bundle) = bundle {
+                    i18n_bundle.set_bundle(lang.clone(), bundle);
+                } else {
+                    i18n_bundle.mark_ready_without_unscoped_bundle(lang.clone());
+                }
                 i18n_domain_bundles.set_bundles(lang.clone(), domain_bundles);
                 debug!("Updated fluent bundle cache for {}", lang);
             } else {
@@ -102,28 +134,27 @@ fn rebuild_bundle_for_language(
 fn build_bundle_caches(
     lang: &LanguageIdentifier,
     resources: Vec<(ResourceKey, Arc<FluentResource>)>,
-) -> Result<
-    (
-        Arc<SyncFluentBundle>,
-        Vec<Arc<FluentResource>>,
-        DomainBundleMap,
-        DomainResourceMap,
-    ),
-    Vec<String>,
-> {
-    let (bundle, accepted_resources) = build_bundle_from_resources(lang, resources)?;
-    let (domain_bundles, domain_locale_resources) =
-        build_domain_bundles(lang, &accepted_resources)?;
-    let locale_resources = accepted_resources
-        .iter()
-        .map(|(_, resource)| resource.clone())
-        .collect::<Vec<_>>();
-    Ok((
+) -> Result<BundleCaches, Vec<String>> {
+    let (domain_bundles, domain_locale_resources) = build_domain_bundles(lang, &resources)?;
+    let (bundle, locale_resources, unscoped_diagnostics) =
+        match build_bundle_from_resources(lang, resources) {
+            Ok((bundle, accepted_resources)) => {
+                let locale_resources = accepted_resources
+                    .into_iter()
+                    .map(|(_, resource)| resource)
+                    .collect::<Vec<_>>();
+                (Some(bundle), Some(locale_resources), Vec::new())
+            },
+            Err(diagnostics) => (None, None, diagnostics),
+        };
+
+    Ok(BundleCaches {
         bundle,
         locale_resources,
         domain_bundles,
         domain_locale_resources,
-    ))
+        unscoped_diagnostics,
+    })
 }
 
 fn build_bundle_from_resources(
@@ -251,23 +282,64 @@ mod tests {
     #[test]
     fn build_bundle_caches_creates_default_and_domain_scoped_bundles() {
         let lang = langid!("en");
-        let (bundle, accepted_resources, domain_bundles, domain_locale_resources) =
-            build_bundle_caches(
-                &lang,
-                vec![
-                    (ResourceKey::new("app"), resource("app-title = App")),
-                    (ResourceKey::new("admin"), resource("admin-title = Admin")),
-                ],
-            )
-            .expect("valid resources should build caches");
+        let caches = build_bundle_caches(
+            &lang,
+            vec![
+                (ResourceKey::new("app"), resource("app-title = App")),
+                (ResourceKey::new("admin"), resource("admin-title = Admin")),
+            ],
+        )
+        .expect("valid resources should build caches");
 
-        assert_eq!(accepted_resources.len(), 2);
+        let bundle = caches.bundle.expect("unscoped bundle");
+        assert_eq!(
+            caches.locale_resources.expect("unscoped resources").len(),
+            2
+        );
         assert!(bundle.get_message("app-title").is_some());
         assert!(bundle.get_message("admin-title").is_some());
-        assert!(domain_bundles["app"].get_message("app-title").is_some());
-        assert!(domain_bundles["app"].get_message("admin-title").is_none());
-        assert_eq!(domain_locale_resources["app"].len(), 1);
-        assert_eq!(domain_locale_resources["admin"].len(), 1);
+        assert!(
+            caches.domain_bundles["app"]
+                .get_message("app-title")
+                .is_some()
+        );
+        assert!(
+            caches.domain_bundles["app"]
+                .get_message("admin-title")
+                .is_none()
+        );
+        assert_eq!(caches.domain_locale_resources["app"].len(), 1);
+        assert_eq!(caches.domain_locale_resources["admin"].len(), 1);
+        assert!(caches.unscoped_diagnostics.is_empty());
+    }
+
+    #[test]
+    fn build_bundle_caches_keeps_domain_bundles_when_unscoped_bundle_has_duplicates() {
+        let caches = build_bundle_caches(
+            &langid!("en"),
+            vec![
+                (ResourceKey::new("app"), resource("shared = First")),
+                (ResourceKey::new("admin"), resource("shared = Second")),
+            ],
+        )
+        .expect("cross-domain duplicates should still build domain caches");
+
+        assert!(caches.bundle.is_none());
+        assert!(caches.locale_resources.is_none());
+        assert!(
+            caches
+                .unscoped_diagnostics
+                .iter()
+                .any(|message| message.contains("resource 'admin'"))
+        );
+        assert!(caches.domain_bundles["app"].get_message("shared").is_some());
+        assert!(
+            caches.domain_bundles["admin"]
+                .get_message("shared")
+                .is_some()
+        );
+        assert_eq!(caches.domain_locale_resources["app"].len(), 1);
+        assert_eq!(caches.domain_locale_resources["admin"].len(), 1);
     }
 
     #[test]
@@ -446,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn rebuild_bundle_for_language_keeps_previous_cache_when_new_bundle_fails() {
+    fn rebuild_bundle_for_language_commits_domain_cache_when_unscoped_bundle_fails() {
         let lang = langid!("en");
         let app_spec = spec("app", true);
         let admin_spec = spec("admin", true);
@@ -474,10 +546,23 @@ mod tests {
             &lang,
         );
 
-        assert!(Arc::ptr_eq(
-            i18n_bundle.get(&lang).expect("old bundle"),
-            &old_bundle
-        ));
-        assert!(bundle_build_failures.0.contains_key(&lang));
+        assert!(i18n_bundle.get(&lang).is_none());
+        assert!(!i18n_bundle.locale_resources.contains_key(&lang));
+        assert_eq!(i18n_bundle.languages().count(), 1);
+        assert!(
+            i18n_domain_bundles
+                .bundles
+                .get(&lang)
+                .and_then(|bundles| bundles.get("app"))
+                .is_some()
+        );
+        assert!(
+            i18n_domain_bundles
+                .bundles
+                .get(&lang)
+                .and_then(|bundles| bundles.get("admin"))
+                .is_some()
+        );
+        assert!(!bundle_build_failures.0.contains_key(&lang));
     }
 }

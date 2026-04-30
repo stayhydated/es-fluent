@@ -28,9 +28,9 @@ impl<'w> BevyI18n<'w> {
         self.i18n_resource.resolved_language()
     }
 
-    /// Returns whether the default bundle cache changed this tick.
+    /// Returns whether the unscoped or domain bundle cache changed this tick.
     pub fn is_bundle_changed(&self) -> bool {
-        self.i18n_bundle.is_changed()
+        self.i18n_bundle.is_changed() || self.i18n_domain_bundles.is_changed()
     }
 
     /// Renders a typed Fluent message through this Bevy context.

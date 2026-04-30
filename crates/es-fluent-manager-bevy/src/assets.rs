@@ -56,15 +56,16 @@ pub struct I18nAssets {
 }
 
 /// A Bevy resource containing per-locale Fluent bundles plus accepted resources
-/// used for locale fallback lookups.
+/// used for unscoped locale fallback lookups.
 #[derive(Clone, Default, Resource)]
 pub struct I18nBundle {
     pub(crate) bundles: HashMap<LanguageIdentifier, Arc<SyncFluentBundle>>,
     pub(crate) locale_resources: HashMap<LanguageIdentifier, Vec<Arc<FluentResource>>>,
+    pub(crate) ready_cache_tokens: HashMap<LanguageIdentifier, Arc<()>>,
 }
 
-/// Per-language domain bundles plus accepted per-domain resources derived from
-/// the same accepted resources as [`I18nBundle`].
+/// Per-language domain bundles plus accepted per-domain resources for generated
+/// domain-scoped lookup.
 #[doc(hidden)]
 #[derive(Clone, Default, Resource)]
 pub struct I18nDomainBundles {
@@ -201,12 +202,19 @@ impl I18nAssets {
 }
 
 impl I18nBundle {
+    #[cfg(test)]
     pub(crate) fn get(&self, lang: &LanguageIdentifier) -> Option<&Arc<SyncFluentBundle>> {
         self.bundles.get(lang)
     }
 
     pub(crate) fn languages(&self) -> impl Iterator<Item = &LanguageIdentifier> {
-        self.bundles.keys()
+        self.ready_cache_tokens.keys()
+    }
+
+    pub(crate) fn ready_cache_id(&self, lang: &LanguageIdentifier) -> Option<usize> {
+        self.ready_cache_tokens
+            .get(lang)
+            .map(|token| Arc::as_ptr(token) as usize)
     }
 
     pub(crate) fn set_locale_resources(
@@ -218,16 +226,25 @@ impl I18nBundle {
     }
 
     pub(crate) fn set_bundle(&mut self, lang: LanguageIdentifier, bundle: Arc<SyncFluentBundle>) {
-        self.bundles.insert(lang, bundle);
+        self.bundles.insert(lang.clone(), bundle);
+        self.ready_cache_tokens.insert(lang, Arc::new(()));
+    }
+
+    pub(crate) fn mark_ready_without_unscoped_bundle(&mut self, lang: LanguageIdentifier) {
+        self.bundles.remove(&lang);
+        self.locale_resources.remove(&lang);
+        self.ready_cache_tokens.insert(lang, Arc::new(()));
     }
 
     pub(crate) fn remove_bundle(&mut self, lang: &LanguageIdentifier) {
         self.bundles.remove(lang);
+        self.ready_cache_tokens.remove(lang);
     }
 
     pub(crate) fn remove(&mut self, lang: &LanguageIdentifier) {
         self.bundles.remove(lang);
         self.locale_resources.remove(lang);
+        self.ready_cache_tokens.remove(lang);
     }
 
     pub(crate) fn fallback_locale_resources(

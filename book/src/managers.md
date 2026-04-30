@@ -248,6 +248,8 @@ fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>
 
 Create one `SsrI18nRuntime` during startup, then create one `SsrI18n` per request. The runtime caches the first validated module-discovery result for its lifetime, including discovery or validation failures; construct a new runtime to retry after a failed discovery. Each request creates fresh manager/localizer state so request languages remain isolated. `request(...)` uses best-effort initial language selection; use `request_strict(...)` when every discovered module must support the request locale.
 
+The render helpers do not install context automatically; pass `SsrI18n` as a prop or call `provide_context()` from a component when using hook-based lookup.
+
 SSR components should receive a cloned `SsrI18n` as a prop or through app-owned context and call `localize_message(...)` or `MyType::localize_label(&i18n)`. If SSR components use the Dioxus hook API, enable both `ssr` and `client` features because `SsrI18n::provide_context(...)` is compiled behind `client`, then call `i18n.provide_context()?` from an app-owned provider component.
 
 ---
@@ -317,6 +319,10 @@ runtime setup and leaves the error resource in the app world for diagnostics.
 Failed hot reloads or locale switches keep the last accepted locale active
 instead of publishing a broken update.
 
+Generated message lookup is domain-scoped. If separate domains define the same
+message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
+unscoped lookup unavailable for the ambiguous merged locale.
+
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
 `ActiveLanguageId`, not merely the latest request. When a requested locale
@@ -333,10 +339,12 @@ such as `es-fluent-lang` can be committed without making runtime-only locales
 selectable. Generated embedded localizers are fallback-aware, while custom
 runtime localizers should implement parent-locale fallback in
 `select_language(...)` when they need it. Runtime fallback managers are attached
-at startup only when they accept the requested or resolved locale, and are used
-only after Bevy resolves a locale through asset or ready-bundle availability
-during startup or a later `LocaleChangeEvent`; runtime-only locales do not by
-themselves make a Bevy locale switch selectable.
+whenever runtime modules are discovered, even if they reject the startup locale.
+A startup rejection leaves runtime localizers unselected until a later accepted
+locale switch. Runtime fallback managers are used only after Bevy resolves a
+locale through asset or ready-bundle availability during startup or a later
+`LocaleChangeEvent`; runtime-only locales do not by themselves make a Bevy
+locale switch selectable.
 
 For direct localization inside a system, request `BevyI18n` like any other
 Bevy system parameter:
