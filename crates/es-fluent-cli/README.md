@@ -50,6 +50,9 @@ Useful options:
 - `--dry-run`: preview the files and manifest updates without writing them.
 - `--force`: overwrite generated files that already exist.
 
+Before writing anything, `init` checks generated-file conflicts, directory
+targets, and `Cargo.toml` parseability when manifest updates are requested.
+
 Ensure you have an `i18n.toml` in your crate root:
 
 ```toml

@@ -266,6 +266,22 @@ fn check_json_report_covers_all_issue_kinds_and_counts() {
             .iter()
             .any(|issue| issue.kind == "syntax_error")
     );
+    let source_for = |kind: &str| {
+        report
+            .issues
+            .iter()
+            .find(|issue| issue.kind == kind)
+            .map(|issue| issue.source.as_str())
+    };
+    assert_eq!(source_for("missing_key"), Some("missing.ftl"));
+    assert_eq!(source_for("duplicate_key"), Some("duplicate.ftl"));
+    assert_eq!(source_for("missing_variable"), Some("missing-var.ftl"));
+    assert_eq!(
+        source_for("unexpected_variable"),
+        Some("unexpected-var.ftl")
+    );
+    assert_eq!(source_for("validation_execution"), Some("crate"));
+    assert_eq!(source_for("syntax_error"), Some("syntax.ftl"));
 }
 
 #[test]

@@ -118,7 +118,10 @@ Responsible for the actual string formatting logic.
   when callers need all modules to agree.
 - `FluentManager::with_lookup(...)` holds the active localizer list for an
   entire typed render, so nested message lookups cannot mix old and new
-  localizer sets during concurrent language switches.
+  localizer sets during concurrent language switches. Custom `FluentLocalizer`
+  implementations must invoke their `with_lookup(...)` callback exactly once,
+  must not retain it after returning, and should provide a stable lookup
+  snapshot for the whole callback.
 - `FluentManager::try_discover_runtime_modules()` returns
   `DiscoveredRuntimeI18nModules`, allowing integrations such as request-scoped
   SSR to cache strict inventory validation and create fresh managers from the

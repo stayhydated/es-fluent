@@ -59,9 +59,14 @@ pub trait FluentLocalizer {
 
     /// Runs a group of lookups against one render-scoped localization view.
     ///
-    /// The default implementation delegates each lookup independently.
-    /// Managers with mutable language selection should override this to hold
-    /// the relevant lock or snapshot for the whole callback.
+    /// Implementations must invoke the callback exactly once, must not call it
+    /// after `with_lookup(...)` returns, and should provide a stable lookup
+    /// snapshot for the duration of that callback. The extension methods rely
+    /// on this contract when rendering nested typed messages.
+    ///
+    /// The default implementation delegates each lookup independently. Managers
+    /// with mutable language selection should override this to hold the relevant
+    /// lock or snapshot for the whole callback.
     fn with_lookup(
         &self,
         f: &mut dyn FnMut(

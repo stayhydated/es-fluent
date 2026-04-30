@@ -88,6 +88,10 @@ Client apps localize through the `DioxusI18n` context provided by `I18nProvider`
 
 `I18nProvider` and `use_provide_i18n(...)` initialize once per component instance. Changing the initial language or provided manager after the first render does not replace the installed context. Use `select_language(...)` to change locale at runtime. After a `ManagedI18n` is handed to the provider, route locale switches through `DioxusI18n::select_language(...)` or `DioxusI18n::select_language_strict(...)` so the Dioxus signal stays aligned with manager state.
 
+`ManagedI18n` clones are shared handles. Lookup and language selection are
+serialized on that shared manager so a typed render cannot race a locale
+switch; create a separate manager when you need isolated language state.
+
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
 ## SSR

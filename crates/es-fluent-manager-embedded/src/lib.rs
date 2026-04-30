@@ -368,6 +368,7 @@ mod tests {
             es_fluent::FluentLocalizer::localize(&i18n, "hello", None),
             None
         );
+        assert_eq!(i18n.localize_message(&TestMessage), "hello");
         cloned
             .select_language(langid!("fr"))
             .expect("language selection should work after initialization");

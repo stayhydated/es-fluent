@@ -15,7 +15,9 @@ runtime integrations.
   domain-scoped lookup via `localize_in_domain`
 - `FluentManager::with_lookup(...)`: render-scoped domain lookup for custom
   integration code that needs all nested typed-message lookups to use the same
-  active localizer set
+  active localizer set. Custom `FluentLocalizer` implementations must invoke
+  the callback exactly once, must not retain it after the method returns, and
+  should keep one stable lookup snapshot for the whole callback.
 - `DiscoveredRuntimeI18nModules`: cached, validated runtime-capable module
   discovery for integrations that need many request-local managers without
   repeating inventory validation. Metadata-only registrations are validated but

@@ -78,6 +78,18 @@ es-fluent = "0.16"
 es-fluent-manager-embedded = "0.16"
 ```
 
+Register the embedded module from a library-reachable module, usually
+`src/i18n.rs` declared by `pub mod i18n;` in `src/lib.rs`:
+
+```rs
+// src/i18n.rs
+pub use es_fluent_manager_embedded::{
+    EmbeddedI18n as I18n, EmbeddedInitError, LocalizationError,
+};
+
+es_fluent_manager_embedded::define_i18n_module!();
+```
+
 ```no_run
 use es_fluent::EsFluent;
 use es_fluent_manager_embedded::EmbeddedI18n;
@@ -166,6 +178,9 @@ This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
 locale asset rebuild tracking. For Dioxus manifests, `--dioxus-runtime client`,
 `--dioxus-runtime ssr`, or `--dioxus-runtime client,ssr` selects the generated
 manager features when `--update-cargo-toml` is used; omitting it enables both.
+
+Before writing anything, `init` checks generated-file conflicts, directory
+targets, and `Cargo.toml` parseability when manifest updates are requested.
 
 `init` creates a library target because CLI inventory collection reads library
 targets. Put derived message types in `src/lib.rs` or another library crate;
@@ -354,6 +369,8 @@ Common derive attributes:
 - `#[fluent(value = "...")]` or `#[fluent(value(...))]` transforms a field before inserting it as a Fluent argument.
 - `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
 - `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
+- `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.
+- Optional-argument omission is generated for direct `Option<T>` fields, including paths like `std::option::Option<T>`. Type aliases to `Option<T>` are treated like ordinary field types.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Skipped single-field enum variants:

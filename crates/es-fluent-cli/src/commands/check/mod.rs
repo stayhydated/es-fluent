@@ -90,7 +90,7 @@ impl From<&ValidationIssue> for CheckIssueJson {
             ValidationIssue::MissingKey(error) => Self {
                 severity: "error",
                 kind: "missing_key",
-                source: format!("{:?}", error.src.name()),
+                source: error.src.name().to_string(),
                 locale: error.locale.clone(),
                 key: Some(error.key.clone()),
                 variable: None,
@@ -99,7 +99,7 @@ impl From<&ValidationIssue> for CheckIssueJson {
             ValidationIssue::DuplicateKey(error) => Self {
                 severity: "error",
                 kind: "duplicate_key",
-                source: format!("{:?}", error.src.name()),
+                source: error.src.name().to_string(),
                 locale: error.locale.clone(),
                 key: Some(error.key.clone()),
                 variable: None,
@@ -108,7 +108,7 @@ impl From<&ValidationIssue> for CheckIssueJson {
             ValidationIssue::MissingVariable(error) => Self {
                 severity: "warning",
                 kind: "missing_variable",
-                source: format!("{:?}", error.src.name()),
+                source: error.src.name().to_string(),
                 locale: error.locale.clone(),
                 key: Some(error.key.clone()),
                 variable: Some(error.variable.clone()),
@@ -117,7 +117,7 @@ impl From<&ValidationIssue> for CheckIssueJson {
             ValidationIssue::UnexpectedVariable(error) => Self {
                 severity: "error",
                 kind: "unexpected_variable",
-                source: format!("{:?}", error.src.name()),
+                source: error.src.name().to_string(),
                 locale: error.locale.clone(),
                 key: Some(error.key.clone()),
                 variable: Some(error.variable.clone()),
@@ -126,7 +126,7 @@ impl From<&ValidationIssue> for CheckIssueJson {
             ValidationIssue::ValidationExecution(error) => Self {
                 severity: "error",
                 kind: "validation_execution",
-                source: format!("{:?}", error.src.name()),
+                source: error.src.name().to_string(),
                 locale: String::new(),
                 key: None,
                 variable: None,
@@ -135,7 +135,7 @@ impl From<&ValidationIssue> for CheckIssueJson {
             ValidationIssue::SyntaxError(error) => Self {
                 severity: "error",
                 kind: "syntax_error",
-                source: format!("{:?}", error.src.name()),
+                source: error.src.name().to_string(),
                 locale: error.locale.clone(),
                 key: None,
                 variable: None,

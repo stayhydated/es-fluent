@@ -91,6 +91,12 @@ plugin keeps a pending language change and applies it after the bundle becomes
 ready. Current-locale hot reloads re-emit `LocaleChangedEvent` only after the
 replacement bundle is accepted.
 
+If a hot reload fails hard during bundle assembly, Bevy records the diagnostics
+in `BundleBuildFailures` but does not replace or clear the last accepted ready
+cache for that language. The failed rebuild is diagnostic-only for already-ready
+locales; the previous translations remain selectable and no redraw/change event
+is published until a later rebuild succeeds.
+
 `RefreshForLocale` receives the requested locale stored in
 `ActiveLanguageId`, even when asset lookup resolves through a parent fallback
 bundle. This keeps locale-aware fields such as generated language enums aligned

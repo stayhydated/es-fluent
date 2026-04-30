@@ -120,7 +120,7 @@ pub struct InitArgs {
 
 /// Run the init command.
 pub fn run_init(args: InitArgs) -> Result<(), CliError> {
-    let root = args.path.unwrap_or_else(|| PathBuf::from("."));
+    let root = args.path.clone().unwrap_or_else(|| PathBuf::from("."));
     if !root.exists() {
         return Err(CliError::Other(format!(
             "crate root does not exist: {}",
@@ -148,6 +148,7 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
     let assets_dir_toml = args.assets_dir.to_string_lossy().replace('\\', "/");
     let namespaces = validate_init_namespaces(&args.namespaces)?;
     let config = init_config_toml(&fallback_language, &assets_dir_toml, &namespaces)?;
+    let preflight = preflight_init(&root, &args, &locales)?;
 
     write_new_file(&root.join("i18n.toml"), &config, args.force, args.dry_run)?;
 
@@ -166,8 +167,6 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
     )?;
 
     let lib_path = src_dir.join("lib.rs");
-    let created_library_target = !lib_path.exists();
-    let has_binary_target = src_dir.join("main.rs").exists();
     ensure_lib_declares_i18n_module(&lib_path, args.force, args.dry_run)?;
 
     if args.build_rs {
@@ -194,7 +193,7 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
     } else {
         println!("Initialized es-fluent project at {}", root.display());
     }
-    if created_library_target && has_binary_target {
+    if preflight.created_library_target && preflight.has_binary_target {
         let action = if args.dry_run {
             "would create"
         } else {
@@ -221,6 +220,85 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
                 env!("CARGO_PKG_VERSION")
             );
         }
+    }
+
+    Ok(())
+}
+
+struct InitPreflight {
+    created_library_target: bool,
+    has_binary_target: bool,
+}
+
+fn preflight_init(
+    root: &Path,
+    args: &InitArgs,
+    locales: &BTreeSet<String>,
+) -> Result<InitPreflight, CliError> {
+    let src_dir = root.join("src");
+    let lib_path = src_dir.join("lib.rs");
+    let created_library_target = !lib_path.exists();
+    let has_binary_target = src_dir.join("main.rs").exists();
+
+    preflight_new_file(&root.join("i18n.toml"), args.force)?;
+    for locale in locales {
+        preflight_create_dir_all(&root.join(&args.assets_dir).join(locale))?;
+    }
+    preflight_create_dir_all(&src_dir)?;
+    preflight_new_file(&src_dir.join("i18n.rs"), args.force)?;
+    preflight_lib_update(&lib_path)?;
+
+    if args.build_rs {
+        preflight_new_file(&root.join("build.rs"), args.force)?;
+    }
+
+    if args.update_cargo_toml {
+        prepare_cargo_toml_update(root, args.manager, &args.dioxus_runtime, args.build_rs)?;
+    }
+
+    Ok(InitPreflight {
+        created_library_target,
+        has_binary_target,
+    })
+}
+
+fn preflight_new_file(path: &Path, force: bool) -> Result<(), CliError> {
+    if path.is_dir() {
+        return Err(CliError::Other(format!(
+            "{} is a directory; expected a file path",
+            path.display()
+        )));
+    }
+    if path.exists() && !force {
+        return Err(CliError::Other(format!(
+            "{} already exists; pass --force to overwrite it",
+            path.display()
+        )));
+    }
+
+    Ok(())
+}
+
+fn preflight_create_dir_all(path: &Path) -> Result<(), CliError> {
+    for candidate in path.ancestors() {
+        if candidate.as_os_str().is_empty() {
+            continue;
+        }
+        if candidate.exists() && !candidate.is_dir() {
+            return Err(CliError::Other(format!(
+                "cannot create directory {} because {} is not a directory",
+                path.display(),
+                candidate.display()
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn preflight_lib_update(path: &Path) -> Result<(), CliError> {
+    if path.exists() {
+        fs::read_to_string(path).map_err(|error| CliError::Other(error.to_string()))?;
     }
 
     Ok(())
@@ -330,6 +408,27 @@ fn update_cargo_toml(
     build_rs: bool,
     dry_run: bool,
 ) -> Result<(), CliError> {
+    let Some((path, manifest)) =
+        prepare_cargo_toml_update(root, manager, dioxus_runtime, build_rs)?
+    else {
+        println!("Cargo.toml already has the requested es-fluent dependencies");
+        return Ok(());
+    };
+
+    if dry_run {
+        println!("Would update {}", path.display());
+        return Ok(());
+    }
+
+    fs::write(path, manifest).map_err(|error| CliError::Other(error.to_string()))
+}
+
+fn prepare_cargo_toml_update(
+    root: &Path,
+    manager: InitManager,
+    dioxus_runtime: &[InitDioxusRuntime],
+    build_rs: bool,
+) -> Result<Option<(PathBuf, String)>, CliError> {
     let path = root.join("Cargo.toml");
     let manifest = fs::read_to_string(&path).map_err(|error| CliError::Other(error.to_string()))?;
     let original = manifest.clone();
@@ -364,16 +463,10 @@ fn update_cargo_toml(
 
     let manifest = manifest.to_string();
     if manifest == original {
-        println!("Cargo.toml already has the requested es-fluent dependencies");
-        return Ok(());
+        Ok(None)
+    } else {
+        Ok(Some((path, manifest)))
     }
-
-    if dry_run {
-        println!("Would update {}", path.display());
-        return Ok(());
-    }
-
-    fs::write(path, manifest).map_err(|error| CliError::Other(error.to_string()))
 }
 
 fn manager_dependency(
@@ -779,6 +872,26 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
     }
 
     #[test]
+    fn run_init_preflights_file_conflicts_before_writing() {
+        let project = TempProject::new("preflight_conflict", false);
+        test_fs::create_dir_all(project.path().join("src")).expect("src should be created");
+        test_fs::write(project.path().join("src/i18n.rs"), "existing module\n")
+            .expect("existing generated module should be written");
+
+        let err = run_init(default_args(project.path()))
+            .expect_err("existing generated module should be rejected");
+
+        assert!(err.to_string().contains("pass --force to overwrite"));
+        assert!(!project.path().join("i18n.toml").exists());
+        assert!(!project.path().join("assets").exists());
+        assert_eq!(
+            test_fs::read_to_string(project.path().join("src/i18n.rs"))
+                .expect("existing generated module should remain"),
+            "existing module\n"
+        );
+    }
+
+    #[test]
     fn run_init_appends_lib_module_once_and_respects_existing_decl() {
         let project = TempProject::new("lib_decl", false);
         test_fs::create_dir_all(project.path().join("src")).expect("src should be created");
@@ -871,5 +984,8 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 
         let err = run_init(args).expect_err("missing Cargo.toml should fail manifest update");
         assert!(!err.to_string().is_empty());
+        assert!(!project.path().join("i18n.toml").exists());
+        assert!(!project.path().join("src").exists());
+        assert!(!project.path().join("assets").exists());
     }
 }

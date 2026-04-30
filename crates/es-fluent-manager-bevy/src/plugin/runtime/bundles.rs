@@ -565,4 +565,81 @@ mod tests {
         );
         assert!(!bundle_build_failures.0.contains_key(&lang));
     }
+
+    #[test]
+    fn rebuild_bundle_for_language_keeps_last_ready_cache_when_domain_rebuild_fails() {
+        let lang = langid!("en");
+        let main_spec = spec("app/main", true);
+        let extra_spec = spec("app/extra", true);
+        let old_resource = resource("hello = Old");
+        let mut i18n_assets = I18nAssets::new();
+        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_domain_bundles = I18nDomainBundles::default();
+        let mut bundle_build_failures = BundleBuildFailures::default();
+
+        let (old_bundle, old_resources) = build_bundle_from_resources(
+            &lang,
+            vec![(ResourceKey::new("app"), old_resource.clone())],
+        )
+        .expect("old unscoped cache should build");
+        let (old_domain_bundles, old_domain_resources) =
+            build_domain_bundles(&lang, &[(ResourceKey::new("app"), old_resource)])
+                .expect("old domain cache should build");
+        i18n_bundle.set_bundle(lang.clone(), old_bundle);
+        i18n_bundle.set_locale_resources(
+            lang.clone(),
+            old_resources
+                .into_iter()
+                .map(|(_, resource)| resource)
+                .collect(),
+        );
+        i18n_domain_bundles.set_bundles(lang.clone(), old_domain_bundles);
+        i18n_domain_bundles.set_locale_resources(lang.clone(), old_domain_resources);
+        let old_ready_id = i18n_bundle
+            .ready_cache_id(&lang)
+            .expect("old cache should be marked ready");
+
+        i18n_assets.add_asset_spec(lang.clone(), main_spec.clone(), Handle::default());
+        i18n_assets.add_asset_spec(lang.clone(), extra_spec.clone(), Handle::default());
+        i18n_assets
+            .loaded_resources
+            .insert((lang.clone(), main_spec.key), resource("shared = First"));
+        i18n_assets
+            .loaded_resources
+            .insert((lang.clone(), extra_spec.key), resource("shared = Second"));
+
+        rebuild_bundle_for_language(
+            &mut i18n_bundle,
+            &mut i18n_domain_bundles,
+            &mut bundle_build_failures,
+            &i18n_assets,
+            &lang,
+        );
+
+        assert_eq!(i18n_bundle.ready_cache_id(&lang), Some(old_ready_id));
+        assert!(
+            i18n_bundle
+                .get(&lang)
+                .expect("last accepted unscoped bundle should remain")
+                .get_message("hello")
+                .is_some()
+        );
+        assert!(
+            i18n_domain_bundles
+                .bundles
+                .get(&lang)
+                .and_then(|bundles| bundles.get("app"))
+                .expect("last accepted domain bundle should remain")
+                .get_message("hello")
+                .is_some()
+        );
+        assert!(
+            bundle_build_failures
+                .0
+                .get(&lang)
+                .expect("failed rebuild should be retained as diagnostics")
+                .iter()
+                .any(|message| message.contains("domain 'app'"))
+        );
+    }
 }

@@ -22,26 +22,29 @@ For `BevyFluentText`, `#[locale]` may be applied to named struct fields and name
 
 ## Usage
 
-You typically call one of these macros once in your `lib.rs` or `main.rs` to set up the translation module for your crate.
+You typically call one of these macros once from a library-reachable module,
+usually `src/i18n.rs` declared from `src/lib.rs`, to set up the translation
+module for your crate. Calling the macro only from `src/main.rs` is runtime-only;
+CLI generation still discovers localizable types through library targets.
 
 ### For Embedded Translations:
 
 ```rs
-// In lib.rs or main.rs
+// In src/i18n.rs, declared from src/lib.rs
 es_fluent_manager_embedded::define_i18n_module!();
 ```
 
 ### For Dioxus Client or SSR Translations:
 
 ```rs
-// In lib.rs or main.rs
+// In src/i18n.rs, declared from src/lib.rs
 es_fluent_manager_dioxus::define_i18n_module!();
 ```
 
 ### For Bevy Asset-based Translations:
 
 ```rs
-// In lib.rs or main.rs
+// In src/i18n.rs, declared from src/lib.rs
 es_fluent_manager_bevy::define_i18n_module!();
 ```
 

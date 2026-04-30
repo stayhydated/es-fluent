@@ -27,12 +27,18 @@ This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and As
 
 ### 1. Define the Module
 
-In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+Prefer a library-reachable module, usually `src/i18n.rs` declared from
+`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
+the library target:
 
 ```rs
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_bevy::define_i18n_module!();
 ```
+
+Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
+when derived message types are still reachable from a library target, or when
+you accept that binary-only derived types are not discovered by the CLI.
 
 ### 2. Initialize & Use
 
@@ -73,7 +79,8 @@ registrations are reported through `I18nPluginStartupError` instead of being
 normalized silently. When setup fails, the plugin skips localization runtime
 setup and leaves the error resource in the app world for diagnostics. Failed hot
 reloads or locale switches keep the last accepted locale active instead of
-publishing a broken update.
+publishing a broken update. A failed hot reload records diagnostics but keeps
+the previous ready cache selectable until a later rebuild succeeds.
 
 Generated message lookup is domain-scoped. If separate domains define the same
 message ID, Bevy keeps typed domain-scoped lookup available and leaves raw

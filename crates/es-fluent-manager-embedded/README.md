@@ -17,12 +17,18 @@ This crate is for standard Rust applications such as CLIs, TUIs, and desktop app
 
 ### 1. Define the Module
 
-In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+Prefer a library-reachable module, usually `src/i18n.rs` declared from
+`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
+the library target:
 
 ```rs
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_embedded::define_i18n_module!();
 ```
+
+Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
+when derived message types are still reachable from a library target, or when
+you accept that binary-only derived types are not discovered by the CLI.
 
 ### 2. Initialize & Use
 
@@ -65,6 +71,10 @@ context and call `select_language(...)` on that context:
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new()?;
 i18n.select_language(langid!("fr-FR"))?;
 ```
+
+Before a language is selected, raw lookup returns `None`. Typed
+`localize_message(...)` uses its display fallback and returns the message ID for
+missing messages until `select_language(...)` succeeds.
 
 `select_language(...)` returns an error if no discovered module can serve the
 requested locale, or if a supported locale's resources would build a broken

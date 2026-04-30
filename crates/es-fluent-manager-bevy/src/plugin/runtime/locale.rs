@@ -342,6 +342,25 @@ mod tests {
     }
 
     #[test]
+    fn resolve_requested_language_treats_failed_ready_cache_as_diagnostic_only() {
+        let lang = langid!("en");
+        let mut i18n_bundle = I18nBundle::default();
+        let mut failures = BundleBuildFailures::default();
+        insert_ready_bundle(&mut i18n_bundle, lang.clone());
+        failures
+            .0
+            .insert(lang.clone(), vec!["duplicate message".to_string()]);
+
+        match resolve_requested_language(&lang, &i18n_bundle, &I18nAssets::new(), &failures) {
+            RequestedLanguageResolution::Ready(selection) => {
+                assert_eq!(selection.requested, lang);
+                assert_eq!(selection.resolved, lang);
+            },
+            _ => panic!("expected the last ready cache to remain selectable"),
+        }
+    }
+
+    #[test]
     fn resolve_requested_language_returns_unavailable_without_any_candidate() {
         match resolve_requested_language(
             &langid!("de-AT"),

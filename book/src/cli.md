@@ -69,6 +69,9 @@ Useful options:
 - `--dry-run`: preview files and manifest updates without writing them.
 - `--force`: overwrite generated files that already exist.
 
+Before writing anything, `init` checks generated-file conflicts, directory
+targets, and `Cargo.toml` parseability when manifest updates are requested.
+
 ### Generate
 
 When you add new `#[derive(EsFluent)]`, `#[derive(EsFluentVariants)]`, or `#[derive(EsFluentLabel)]` types to your code, run:

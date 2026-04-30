@@ -26,12 +26,18 @@ Bundles your translations directly into the binary and returns an explicit manag
 
 #### 1. Define the Module
 
-In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+Prefer a library-reachable module, usually `src/i18n.rs` declared from
+`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
+the library target:
 
 ```rust
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_embedded::define_i18n_module!();
 ```
+
+Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
+when derived message types are still reachable from a library target, or when
+you accept that binary-only derived types are not discovered by the CLI.
 
 #### 2. Initialize & Use
 
@@ -80,6 +86,10 @@ later with `select_language(...)`:
 let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new()?;
 i18n.select_language(Languages::FrFr)?;
 ```
+
+Before a language is selected, raw lookup returns `None`. Typed
+`localize_message(...)` uses its display fallback and returns the message ID for
+missing messages until `select_language(...)` succeeds.
 
 `select_language(...)` returns an error if no discovered module can serve the
 requested locale, or if a supported locale's resources would build a broken
@@ -211,7 +221,7 @@ fn LocaleButton() -> Element {
 }
 ```
 
-Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, `use_init_i18n_strict(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language, selection policy, or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup. `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components. Raw string-ID lookup is not exposed as a client convenience API; keep application code on derived messages and labels. Startup selection defaults to best effort; pass `selection_policy: LanguageSelectionPolicy::Strict`, call `use_init_i18n_with_policy(..., LanguageSelectionPolicy::Strict)`, or call `use_init_i18n_strict(...)` when every discovered module must support the startup locale. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
+Client apps should localize through the `DioxusI18n` context provided by `I18nProvider`, `use_init_i18n(...)`, `use_init_i18n_strict(...)`, or `use_provide_i18n(...)`. Those hooks initialize once; changing the initial language, selection policy, or provided manager after the first render does not replace the installed context. Use `localize_message(...)` for typed context-bound lookup. `DioxusI18n` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components. Raw string-ID lookup is not exposed as a client convenience API; keep application code on derived messages and labels. Startup selection defaults to best effort; pass `selection_policy: LanguageSelectionPolicy::Strict`, call `use_init_i18n_with_policy(..., LanguageSelectionPolicy::Strict)`, or call `use_init_i18n_strict(...)` when every discovered module must support the startup locale. Locale switches use fallible `select_language(...)` or `select_language_strict(...)`; after a manager is handed to the Dioxus provider, route language changes through those `DioxusI18n` methods so the Dioxus signal stays aligned with manager state. `ManagedI18n` clones are shared handles; lookups and language selection are serialized on that shared manager so a typed render cannot race a locale switch. `requested_language()` tracks the requested locale, while `peek_requested_language()` reads it without subscribing.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
@@ -276,12 +286,18 @@ Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugi
 
 #### 1. Define the Module
 
-In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+Prefer a library-reachable module, usually `src/i18n.rs` declared from
+`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
+the library target:
 
 ```rust
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_bevy::define_i18n_module!();
 ```
+
+Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
+when derived message types are still reachable from a library target, or when
+you accept that binary-only derived types are not discovered by the CLI.
 
 #### 2. Initialize & Use
 
@@ -323,7 +339,8 @@ module registrations are reported through `I18nPluginStartupError` instead of
 being normalized silently. When setup fails, the plugin skips localization
 runtime setup and leaves the error resource in the app world for diagnostics.
 Failed hot reloads or locale switches keep the last accepted locale active
-instead of publishing a broken update.
+instead of publishing a broken update. A failed hot reload records diagnostics
+but keeps the previous ready cache selectable until a later rebuild succeeds.
 
 Generated message lookup is domain-scoped. If separate domains define the same
 message ID, Bevy keeps typed domain-scoped lookup available and leaves raw

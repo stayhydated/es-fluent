@@ -36,6 +36,9 @@ Use `--locales fr-FR,zh-CN` to create additional locale directories up front,
 `--dioxus-runtime client,ssr` selects the generated manager features; omitting
 it enables both.
 
+Before writing anything, `init` checks generated-file conflicts, directory
+targets, and `Cargo.toml` parseability when manifest updates are requested.
+
 `init` creates a library target because CLI inventory collection reads library
 targets. Put derived message types in `src/lib.rs` or another library crate;
 binary-only derived types in `src/main.rs` are not discovered by `generate`.
