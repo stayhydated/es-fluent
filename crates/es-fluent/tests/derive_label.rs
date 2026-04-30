@@ -73,14 +73,14 @@ enum TestVariantsEnum {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent(namespace = "this_ns")]
+#[fluent(namespace = "label_ns")]
 #[allow(dead_code)]
-struct TestThisNamespace;
+struct TestLabelNamespace;
 
 #[derive(EsFluentLabel)]
 #[fluent_label(origin)]
 #[allow(dead_code)]
-enum TestThisEnumKind {
+enum TestLabelEnumKind {
     Ready,
 }
 
@@ -144,17 +144,17 @@ fn test_derive_label_variants() {
 #[test]
 fn test_derive_label_namespace_from_fluent() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestThisNamespace")
+        .filter(|info| info.type_name == "TestLabelNamespace")
         .collect();
 
     assert_eq!(
         infos.len(),
         1,
-        "Expected one registration for TestThisNamespace"
+        "Expected one registration for TestLabelNamespace"
     );
     assert_eq!(
         infos[0].namespace,
-        Some(NamespaceRule::Literal(Cow::Borrowed("this_ns")))
+        Some(NamespaceRule::Literal(Cow::Borrowed("label_ns")))
     );
     assert_eq!(infos[0].type_kind, TypeKind::Struct);
 }
@@ -162,13 +162,13 @@ fn test_derive_label_namespace_from_fluent() {
 #[test]
 fn test_derive_label_origin_preserves_type_kind() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestThisEnumKind")
+        .filter(|info| info.type_name == "TestLabelEnumKind")
         .collect();
 
     assert_eq!(
         infos.len(),
         1,
-        "Expected one registration for TestThisEnumKind"
+        "Expected one registration for TestLabelEnumKind"
     );
     assert_eq!(infos[0].type_kind, TypeKind::Enum);
 }

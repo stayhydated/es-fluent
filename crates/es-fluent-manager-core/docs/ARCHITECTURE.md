@@ -92,6 +92,9 @@ Unified inventory contract used by managers.
 - `contributes_to_language_selection()` lets runtime utility modules follow
   successful locale switches without counting as content support for best-effort
   locale selection.
+- `FluentManager::select_language_for_supported_locale()` lets integrations
+  commit runtime utility modules after another backend has already proved
+  application locale support.
 - `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
 - Successful strict discovery still normalizes one metadata-only registration

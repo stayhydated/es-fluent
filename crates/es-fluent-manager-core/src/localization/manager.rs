@@ -13,6 +13,12 @@ use unic_langid::LanguageIdentifier;
 type ManagedLocalizer = (&'static ModuleData, Box<dyn Localizer>);
 const MAX_DIAGNOSTIC_LANGUAGES: usize = 6;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LanguageSupportRequirement {
+    ContributingModule,
+    RuntimeLocalizer,
+}
+
 /// Cached, validated runtime-capable i18n module registrations.
 ///
 /// This lets integrations pay strict inventory discovery once, then construct
@@ -209,11 +215,41 @@ impl FluentManager {
         self.select_language_with_policy(lang, LanguageSelectionPolicy::Strict)
     }
 
+    /// Selects runtime localizers after another backend has already confirmed
+    /// application content support for the locale.
+    ///
+    /// This is intended for integrations such as Bevy, where asset-backed
+    /// metadata proves locale support and runtime utility modules only need to
+    /// follow the already accepted locale.
+    pub fn select_language_for_supported_locale(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> crate::localization::LocalizationErrorResult<()> {
+        self.select_language_with_support_requirement(
+            lang,
+            LanguageSelectionPolicy::BestEffort,
+            LanguageSupportRequirement::RuntimeLocalizer,
+        )
+    }
+
     /// Selects a language for all localizers using the requested policy.
     pub fn select_language_with_policy(
         &self,
         lang: &LanguageIdentifier,
         policy: LanguageSelectionPolicy,
+    ) -> crate::localization::LocalizationErrorResult<()> {
+        self.select_language_with_support_requirement(
+            lang,
+            policy,
+            LanguageSupportRequirement::ContributingModule,
+        )
+    }
+
+    fn select_language_with_support_requirement(
+        &self,
+        lang: &LanguageIdentifier,
+        policy: LanguageSelectionPolicy,
+        support_requirement: LanguageSupportRequirement,
     ) -> crate::localization::LocalizationErrorResult<()> {
         let mut next_localizers = Vec::with_capacity(self.modules.len());
         let mut selected_modules = Vec::with_capacity(self.modules.len());
@@ -222,7 +258,8 @@ impl FluentManager {
             .iter()
             .map(|module| module.data())
             .collect::<Vec<_>>();
-        let mut any_selected = false;
+        let mut any_contributing_selected = false;
+        let mut any_runtime_selected = false;
         let mut first_failure = None;
         let mut first_non_unsupported_failure = None;
         let mut unsupported_modules = Vec::new();
@@ -245,9 +282,10 @@ impl FluentManager {
 
             match localizer.select_language(lang) {
                 Ok(()) => {
+                    any_runtime_selected = true;
+                    selected_modules.push(data);
                     if module.contributes_to_language_selection() {
-                        any_selected = true;
-                        selected_modules.push(data);
+                        any_contributing_selected = true;
                     } else {
                         tracing::debug!(
                             "Module '{}' follows language '{}' but does not count toward locale support",
@@ -289,7 +327,12 @@ impl FluentManager {
             return Err(error);
         }
 
-        if any_selected
+        let has_required_support = match support_requirement {
+            LanguageSupportRequirement::ContributingModule => any_contributing_selected,
+            LanguageSupportRequirement::RuntimeLocalizer => any_runtime_selected,
+        };
+
+        if has_required_support
             && policy == LanguageSelectionPolicy::Strict
             && let Some(error) = first_failure
         {
@@ -302,12 +345,23 @@ impl FluentManager {
             return Err(error);
         }
 
-        if !any_selected {
-            tracing::warn!(
-                "No i18n modules support language '{}'; modules checked: {}",
-                lang,
-                format_module_support_list(&checked_modules)
-            );
+        if !has_required_support {
+            match support_requirement {
+                LanguageSupportRequirement::ContributingModule => {
+                    tracing::warn!(
+                        "No i18n modules support language '{}'; modules checked: {}",
+                        lang,
+                        format_module_support_list(&checked_modules)
+                    );
+                },
+                LanguageSupportRequirement::RuntimeLocalizer => {
+                    tracing::warn!(
+                        "No runtime i18n modules accepted externally supported language '{}'; modules checked: {}",
+                        lang,
+                        format_module_support_list(&checked_modules)
+                    );
+                },
+            }
             return Err(crate::localization::LocalizationError::LanguageNotSupported(lang.clone()));
         }
 

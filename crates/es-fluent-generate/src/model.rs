@@ -36,7 +36,7 @@ impl From<&FtlTypeInfo> for OwnedTypeInfo {
     }
 }
 
-/// Compare two type infos, putting `this` entries first.
+/// Compare two type infos, putting label entries first.
 pub(crate) fn compare_type_infos(a: &OwnedTypeInfo, b: &OwnedTypeInfo) -> std::cmp::Ordering {
     let a_is_label = a
         .variants

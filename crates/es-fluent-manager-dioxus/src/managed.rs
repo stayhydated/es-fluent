@@ -53,11 +53,24 @@ impl ManagedI18n {
         Self::from_manager_with_policy(manager, lang, selection_policy)
     }
 
+    #[cfg_attr(test, allow(dead_code))]
     pub(crate) fn new_with_cached_modules_strict<L: Into<LanguageIdentifier>>(
         modules: &DiscoveredRuntimeI18nModules,
         lang: L,
     ) -> Result<Self, DioxusInitError> {
         Self::new_with_cached_modules_with_policy(modules, lang, LanguageSelectionPolicy::Strict)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_with_cached_modules<L: Into<LanguageIdentifier>>(
+        modules: &DiscoveredRuntimeI18nModules,
+        lang: L,
+    ) -> Result<Self, DioxusInitError> {
+        Self::new_with_cached_modules_with_policy(
+            modules,
+            lang,
+            LanguageSelectionPolicy::BestEffort,
+        )
     }
 
     pub(crate) fn new_with_cached_modules_with_policy<L: Into<LanguageIdentifier>>(

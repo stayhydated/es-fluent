@@ -355,7 +355,7 @@ impl I18nResource {
         requested_language: &LanguageIdentifier,
     ) -> Result<(), LocalizationError> {
         if let Some(fallback_manager) = &self.fallback_manager {
-            fallback_manager.select_language(requested_language)?;
+            fallback_manager.select_language_for_supported_locale(requested_language)?;
         }
 
         Ok(())

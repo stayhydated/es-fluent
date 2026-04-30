@@ -47,7 +47,7 @@ pub fn ftl_key(group: &str, variant: &str) -> String {
         .to_string()
 }
 
-/// Create a 'this' key for a type (used for struct types).
+/// Create a label key for a type (used for struct types).
 pub fn label_key(name: &str) -> String {
     FluentKey::new_label(&Ident::new(name, Span::call_site())).to_string()
 }

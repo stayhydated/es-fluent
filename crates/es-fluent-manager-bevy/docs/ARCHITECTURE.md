@@ -48,6 +48,9 @@ requested locale for change events and ECS resources while using the resolved
 locale for ready bundle lookup. Runtime fallback managers are asked to select
 the requested locale first, then the resolved locale. Rejection by the runtime
 fallback manager does not block Bevy asset-backed locale publication.
+Fallback selection tells `FluentManager` that Bevy assets have already proved
+application locale support, so follower-only utility modules can be committed
+without making runtime-only locales selectable.
 
 Generated embedded localizers are fallback-aware. Custom runtime localizers that
 need parent-locale fallback should implement that behavior in

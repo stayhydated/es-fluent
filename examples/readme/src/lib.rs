@@ -79,7 +79,6 @@ pub enum SettingsTab {
 // #[derive(EsFluentLabel)] - origin only
 use es_fluent::EsFluentLabel;
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 pub enum GenderLabelOnly {
     Male,
     Female,

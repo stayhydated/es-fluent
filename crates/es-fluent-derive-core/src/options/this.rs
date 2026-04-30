@@ -7,18 +7,18 @@ use getset::Getters;
 #[derive(Clone, Debug, FromDeriveInput, Getters)]
 #[darling(supports(struct_any, enum_any), attributes(fluent_label))]
 #[getset(get = "pub")]
-pub struct ThisOpts {
+pub struct LabelOpts {
     /// The identifier of the struct/enum.
     ident: syn::Ident,
     /// The generics of the struct/enum.
     generics: syn::Generics,
     #[darling(flatten)]
-    attr_args: ThisNamespacedAttributeArgs,
+    attr_args: LabelNamespacedAttributeArgs,
 }
 
 /// Attribute arguments for `EsFluentLabel`.
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct ThisNamespacedAttributeArgs {
+pub struct LabelNamespacedAttributeArgs {
     #[darling(default)]
     origin: Option<bool>,
     #[darling(default)]
@@ -27,7 +27,7 @@ pub struct ThisNamespacedAttributeArgs {
     namespace_args: super::NamespacedAttributeArgs,
 }
 
-impl ThisNamespacedAttributeArgs {
+impl LabelNamespacedAttributeArgs {
     /// Returns `true` if `origin` should be generated.
     pub fn is_origin(&self) -> bool {
         self.origin.unwrap_or(true)

@@ -119,7 +119,6 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// use es_fluent::EsFluentLabel;
 ///
 /// #[derive(EsFluentLabel)]
-/// #[fluent_label(origin)]
 /// pub enum Gender {
 ///     Male,
 ///     Female,
@@ -132,7 +131,8 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 ///
 /// # Attributes
 ///
-/// - `#[fluent_label(origin)]`: Generates an implementation where `localize_label(localizer)` returns the base key for the type.
+/// - `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
+/// - `#[fluent_label(origin)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
 /// - `#[fluent_label(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated variant enums.
 /// - `#[fluent_label(origin, variants)]`: Combines both behaviors.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.

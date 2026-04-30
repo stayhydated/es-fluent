@@ -48,7 +48,7 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
         println!("Fluent FTL Status");
     }
 
-    let generation_results = super::common::parallel_generate(
+    let generation_results = super::common::run_generation_for_crates(
         &workspace.workspace_info,
         &workspace.valid,
         &GenerationAction::Generate {

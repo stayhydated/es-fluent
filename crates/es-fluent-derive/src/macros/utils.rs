@@ -236,14 +236,14 @@ pub fn generate_optional_label_inventory_module(
         return quote! {};
     };
 
-    let this_variant =
+    let label_variant =
         inventory_variant_tokens(ident.to_string(), label_key.to_string(), Vec::new());
 
     generate_inventory_module(InventoryModuleInput {
         ident,
         module_name_prefix: "label_inventory",
         type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
-        variants: vec![this_variant],
+        variants: vec![label_variant],
         namespace_expr,
     })
 }
@@ -284,13 +284,13 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
             .collect(),
         namespace_expr: namespace_expr.clone(),
     });
-    let this_impl = generate_localize_label_impl(
+    let label_impl = generate_localize_label_impl(
         ident,
         &empty_generics,
         label_key.as_deref(),
         domain_override,
     );
-    let this_inventory =
+    let label_inventory =
         generate_optional_label_inventory_module(ident, namespace_expr, label_key.as_deref());
 
     quote! {
@@ -300,8 +300,8 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
 
         #inventory_submit
 
-        #this_impl
-        #this_inventory
+        #label_impl
+        #label_inventory
     }
 }
 

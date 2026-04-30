@@ -327,8 +327,10 @@ requested locale first, then the resolved locale, but rejection does not block
 Bevy asset-backed locale publication. Only metadata-only Bevy registrations
 create Bevy asset availability; runtime localizer registrations are reserved
 for the fallback manager and do not make a locale wait on Bevy asset bundles.
-When attached, runtime fallback selection uses `FluentManager`'s best-effort
-behavior; generated embedded localizers are fallback-aware, while custom
+When attached, runtime fallback selection tells `FluentManager` that Bevy assets
+have already proved application locale support, so follower-only utility modules
+such as `es-fluent-lang` can be committed without making runtime-only locales
+selectable. Generated embedded localizers are fallback-aware, while custom
 runtime localizers should implement parent-locale fallback in
 `select_language(...)` when they need it. Runtime fallback managers are attached
 at startup only when they accept the requested or resolved locale, and are used

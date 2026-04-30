@@ -132,10 +132,10 @@ fn select_fallback_manager_for_resolution(
     requested_language: &LanguageIdentifier,
     resolved_language: &LanguageIdentifier,
 ) -> Result<(), LocalizationError> {
-    match fallback_manager.select_language(requested_language) {
+    match fallback_manager.select_language_for_supported_locale(requested_language) {
         Ok(()) => Ok(()),
         Err(requested_error) if resolved_language != requested_language => fallback_manager
-            .select_language(resolved_language)
+            .select_language_for_supported_locale(resolved_language)
             .inspect_err(|_resolved_error| {
                 debug!(
                     "Runtime fallback manager rejected requested locale '{}' before resolved locale '{}' failed: {}",
@@ -266,10 +266,19 @@ mod tests {
         supported_languages: TEST_MODULE_LANGUAGES,
         namespaces: TEST_MODULE_NAMESPACES,
     };
+    static TEST_FOLLOWER_LANGUAGES: &[LanguageIdentifier] = &[langid!("fr")];
+    static TEST_FOLLOWER_DATA: ModuleData = ModuleData {
+        name: "setup-runtime-follower",
+        domain: "setup-runtime-follower",
+        supported_languages: TEST_FOLLOWER_LANGUAGES,
+        namespaces: &[],
+    };
 
     struct SetupTestModule;
     struct SetupTestAssetModule;
     struct SetupTestLocalizer;
+    struct SetupFollowerModule;
+    struct SetupFollowerLocalizer;
 
     impl Localizer for SetupTestLocalizer {
         fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
@@ -289,6 +298,24 @@ mod tests {
         }
     }
 
+    impl Localizer for SetupFollowerLocalizer {
+        fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
+            if lang == &langid!("fr") {
+                Ok(())
+            } else {
+                Err(LocalizationError::LanguageNotSupported(lang.clone()))
+            }
+        }
+
+        fn localize<'a>(
+            &self,
+            id: &str,
+            _args: Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> Option<String> {
+            (id == "runtime-follower-label").then(|| "runtime follower label".to_string())
+        }
+    }
+
     impl es_fluent_manager_core::I18nModuleDescriptor for SetupTestModule {
         fn data(&self) -> &'static ModuleData {
             &TEST_MODULE_DATA
@@ -298,6 +325,12 @@ mod tests {
     impl es_fluent_manager_core::I18nModuleDescriptor for SetupTestAssetModule {
         fn data(&self) -> &'static ModuleData {
             &TEST_MODULE_DATA
+        }
+    }
+
+    impl es_fluent_manager_core::I18nModuleDescriptor for SetupFollowerModule {
+        fn data(&self) -> &'static ModuleData {
+            &TEST_FOLLOWER_DATA
         }
     }
 
@@ -348,11 +381,30 @@ mod tests {
         }
     }
 
+    impl I18nModuleRegistration for SetupFollowerModule {
+        fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+            Some(Box::new(SetupFollowerLocalizer))
+        }
+
+        fn registration_kind(&self) -> ModuleRegistrationKind {
+            ModuleRegistrationKind::RuntimeLocalizer
+        }
+
+        fn contributes_to_language_selection(&self) -> bool {
+            false
+        }
+    }
+
     static SETUP_TEST_MODULE: SetupTestModule = SetupTestModule;
     static SETUP_TEST_ASSET_MODULE: SetupTestAssetModule = SetupTestAssetModule;
+    static SETUP_FOLLOWER_MODULE: SetupFollowerModule = SetupFollowerModule;
 
     inventory::submit! {
         &SETUP_TEST_MODULE as &dyn I18nModuleRegistration
+    }
+
+    inventory::submit! {
+        &SETUP_FOLLOWER_MODULE as &dyn I18nModuleRegistration
     }
 
     #[test]
@@ -439,6 +491,28 @@ mod tests {
 
         assert_eq!(i18n_resource.active_language(), &requested);
         assert_eq!(i18n_resource.resolved_language(), &resolved);
+    }
+
+    #[test]
+    fn initialize_i18n_resource_attaches_follower_only_runtime_fallback_after_asset_resolution() {
+        let requested = langid!("fr");
+        let resolved = langid!("fr");
+        let fallback_manager = Arc::new(
+            FluentManager::try_new_with_discovered_modules()
+                .expect("test runtime module discovery should be valid"),
+        );
+
+        let i18n_resource = initialize_i18n_resource_with_fallback_manager(
+            &requested,
+            &resolved,
+            Some(fallback_manager),
+        )
+        .expect("asset-backed support should allow follower-only runtime fallback modules");
+
+        assert_eq!(
+            i18n_resource.localize("runtime-follower-label", None, &I18nBundle::default()),
+            Some("runtime follower label".to_string())
+        );
     }
 
     #[test]

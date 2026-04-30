@@ -395,8 +395,8 @@ fn test_label_variants_sorted_first_within_group() {
     let ftl_file_path = i18n_path.join("test_crate.ftl");
     let content = read_ftl(&ftl_file_path);
 
-    // The "this" variant (fruit) should come first, then Apple, then Banana
-    let this_pos = content
+    // The "label" variant (fruit) should come first, then Apple, then Banana
+    let label_pos = content
         .find("fruit_label =")
         .expect("label variant (fruit_label) missing");
     let apple_pos = content.find("fruit-Apple").expect("Apple variant missing");
@@ -405,11 +405,11 @@ fn test_label_variants_sorted_first_within_group() {
         .expect("Banana variant missing");
 
     assert!(
-        this_pos < apple_pos,
+        label_pos < apple_pos,
         "Label variant should come before Apple"
     );
     assert!(
-        this_pos < banana_pos,
+        label_pos < banana_pos,
         "Label variant should come before Banana"
     );
     assert!(apple_pos < banana_pos, "Apple should come before Banana");

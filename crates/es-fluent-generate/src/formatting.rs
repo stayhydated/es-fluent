@@ -179,7 +179,7 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         }
     }
 
-    // Sort sections by header name, but prioritize "this" sections.
+    // Sort sections by header name, but prioritize label sections.
     sortable_sections.sort_by(|a, b| {
         let a_is_label = a
             .messages
@@ -302,11 +302,11 @@ usa_state_label = Usa State"#;
 
         let group_pos = sorted.find("## USAState").unwrap();
         let a_pos = sorted.find("usa_state-A = A").unwrap();
-        let this_pos = sorted.find("usa_state_label = Usa State").unwrap();
+        let label_pos = sorted.find("usa_state_label = Usa State").unwrap();
 
         // Both messages must be AFTER the header
         assert!(a_pos > group_pos, "A should be moved after Group Header");
-        assert!(this_pos > group_pos, "This should be after Group Header");
+        assert!(label_pos > group_pos, "Label should be after Group Header");
     }
 
     #[test]
@@ -322,9 +322,9 @@ usa_state_label = Usa State"#;
 
         // _label should come BEFORE -A
         let a_pos = sorted.find("usa_state-A").unwrap();
-        let this_pos = sorted.find("usa_state_label").unwrap();
+        let label_pos = sorted.find("usa_state_label").unwrap();
 
-        assert!(this_pos < a_pos, "_label should be sorted to top of group");
+        assert!(label_pos < a_pos, "_label should be sorted to top of group");
     }
 
     #[test]

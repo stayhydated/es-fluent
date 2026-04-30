@@ -1,5 +1,5 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{options::this::ThisOpts, validation};
+use es_fluent_derive_core::{options::this::LabelOpts, validation};
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
@@ -20,7 +20,7 @@ fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span
 }
 
 fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
-    let opts = match ThisOpts::from_derive_input(&input) {
+    let opts = match LabelOpts::from_derive_input(&input) {
         Ok(opts) => opts,
         Err(err) => return err.write_errors(),
     };
@@ -71,7 +71,7 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         ]);
         validate_namespace(namespace, original_ident.span());
         let namespace_expr = crate::macros::utils::namespace_rule_tokens(namespace);
-        let this_variant = quote! {
+        let label_variant = quote! {
             ::es_fluent::registry::FtlVariant {
                 name: #type_name,
                 ftl_key: #ftl_key_str,
@@ -85,7 +85,7 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
             ident: original_ident,
             module_name_prefix: "label_inventory",
             type_kind,
-            variants: vec![this_variant],
+            variants: vec![label_variant],
             namespace_expr,
         })
     } else {

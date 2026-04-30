@@ -141,6 +141,23 @@ fn non_contributing_runtime_modules_follow_selection_without_declaring_support()
 }
 
 #[test]
+fn non_contributing_runtime_modules_can_follow_externally_supported_locale() {
+    let manager = FluentManager {
+        modules: vec![&MANAGER_INLINE_FOLLOWER as &dyn I18nModuleRegistration],
+        localizers: RwLock::default(),
+    };
+
+    manager
+        .select_language_for_supported_locale(&langid!("en"))
+        .expect("external support should let follower modules commit");
+
+    assert_eq!(
+        manager.localize("inline", None),
+        Some("follower".to_string())
+    );
+}
+
+#[test]
 fn runtime_modules_select_and_replace_active_localizers() {
     let manager = FluentManager {
         modules: vec![&MANAGER_INLINE_RUNTIME as &dyn I18nModuleRegistration],

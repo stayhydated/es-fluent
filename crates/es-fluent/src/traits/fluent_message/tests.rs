@@ -38,6 +38,11 @@ fn argument_conversion_handles_primitive_values() {
 
     let false_value = FluentArgumentValue::new(false).into_fluent_argument_value(&mut localize);
     assert_string(false_value, "false");
+
+    let borrowed_bool = true;
+    let borrowed_bool_value =
+        FluentBorrowedArgumentValue::new(&borrowed_bool).into_fluent_argument_value(&mut localize);
+    assert_string(borrowed_bool_value, "true");
 }
 
 #[test]
@@ -52,6 +57,8 @@ fn argument_conversion_handles_optional_and_missing_values() {
     let optional = Some("optional");
     let missing: Option<String> = None;
     let optional_number = Some(7i32);
+    let optional_bool = Some(false);
+    let missing_bool: Option<bool> = None;
 
     let optional_value = FluentOptionalArgumentValue::new(optional.as_ref())
         .into_fluent_argument_value(&mut localize);
@@ -64,6 +71,14 @@ fn argument_conversion_handles_optional_and_missing_values() {
     let optional_number = FluentOptionalArgumentValue::new(optional_number.as_ref())
         .into_fluent_argument_value(&mut localize);
     assert_number(optional_number, 7.0);
+
+    let optional_bool = FluentOptionalArgumentValue::new(optional_bool.as_ref())
+        .into_fluent_argument_value(&mut localize);
+    assert_string(optional_bool, "false");
+
+    let missing_bool = FluentOptionalArgumentValue::new(missing_bool.as_ref())
+        .into_fluent_argument_value(&mut localize);
+    assert!(matches!(missing_bool, FluentValue::None));
 }
 
 #[test]

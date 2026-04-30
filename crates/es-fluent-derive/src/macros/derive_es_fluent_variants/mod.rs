@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
 use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
-use es_fluent_derive_core::options::this::ThisOpts;
+use es_fluent_derive_core::options::this::LabelOpts;
 use es_fluent_derive_core::options::{
     FilteredEnumDataOptions as _, GeneratedVariantsOptions, StructDataOptions as _,
 };
@@ -19,7 +19,7 @@ use crate::macros::utils::GeneratedUnitEnumInput;
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    let this_opts = ThisOpts::from_derive_input(&input).ok();
+    let label_opts = LabelOpts::from_derive_input(&input).ok();
     let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace(&input) {
         Ok(namespace) => namespace,
         Err(err) => return err.write_errors().into(),
@@ -38,7 +38,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
             process_struct(
                 &opts,
-                this_opts.as_ref(),
+                label_opts.as_ref(),
                 fluent_namespace.as_ref(),
                 fluent_domain.as_deref(),
             )
@@ -51,7 +51,7 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
             process_enum(
                 &opts,
-                this_opts.as_ref(),
+                label_opts.as_ref(),
                 fluent_namespace.as_ref(),
                 fluent_domain.as_deref(),
             )
@@ -75,19 +75,19 @@ fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span
 
 fn resolved_variants_namespace<'a>(
     opts: &'a impl GeneratedVariantsOptions,
-    this_opts: Option<&'a ThisOpts>,
+    label_opts: Option<&'a LabelOpts>,
     fluent_namespace: Option<&'a NamespaceRule>,
 ) -> Option<&'a NamespaceRule> {
     crate::macros::utils::preferred_namespace([
         fluent_namespace,
         opts.variants_attr_args().namespace(),
-        this_opts.and_then(|opts| opts.attr_args().namespace()),
+        label_opts.and_then(|opts| opts.attr_args().namespace()),
     ])
 }
 
 pub fn process_struct(
     opts: &StructVariantsOpts,
-    this_opts: Option<&ThisOpts>,
+    label_opts: Option<&LabelOpts>,
     fluent_namespace: Option<&NamespaceRule>,
     fluent_domain: Option<&str>,
 ) -> TokenStream {
@@ -95,7 +95,7 @@ pub fn process_struct(
     emit_variants_output(
         opts,
         &variant_seeds,
-        this_opts,
+        label_opts,
         fluent_namespace,
         fluent_domain,
     )
@@ -118,8 +118,11 @@ impl GeneratedVariantSeed {
     }
 }
 
-fn variants_label_key(this_opts: Option<&ThisOpts>, base_key: &namer::FluentKey) -> Option<String> {
-    this_opts
+fn variants_label_key(
+    label_opts: Option<&LabelOpts>,
+    base_key: &namer::FluentKey,
+) -> Option<String> {
+    label_opts
         .filter(|opts| opts.attr_args().is_variants())
         .map(|_| format!("{}{}", base_key, namer::FluentKey::LABEL_SUFFIX))
 }
@@ -127,7 +130,7 @@ fn variants_label_key(this_opts: Option<&ThisOpts>, base_key: &namer::FluentKey)
 fn emit_variants_output(
     opts: &impl GeneratedVariantsOptions,
     variant_seeds: &[GeneratedVariantSeed],
-    this_opts: Option<&ThisOpts>,
+    label_opts: Option<&LabelOpts>,
     fluent_namespace: Option<&NamespaceRule>,
     fluent_domain: Option<&str>,
 ) -> TokenStream {
@@ -138,7 +141,7 @@ fn emit_variants_output(
     let keys = crate::macros::utils::keyed_variant_idents_or_abort(opts);
     let key_strings = opts.variants_attr_args().key_strings().unwrap_or_default();
     let derives: Vec<syn::Path> = (*opts.variants_attr_args().derive()).to_vec();
-    let namespace = resolved_variants_namespace(opts, this_opts, fluent_namespace);
+    let namespace = resolved_variants_namespace(opts, label_opts, fluent_namespace);
     let origin_ident = opts.variants_ident();
     validate_namespace(namespace, origin_ident.span());
     let namespace_expr = crate::macros::utils::namespace_rule_tokens(namespace);
@@ -163,7 +166,7 @@ fn emit_variants_output(
                 derives: &derives,
                 variants: &variant_entries,
                 namespace_expr: namespace_expr.clone(),
-                label_key: variants_label_key(this_opts, &base_key),
+                label_key: variants_label_key(label_opts, &base_key),
             })
         },
     )
@@ -188,7 +191,7 @@ fn build_struct_variant_seeds(opts: &StructVariantsOpts) -> Vec<GeneratedVariant
 
 pub fn process_enum(
     opts: &EnumVariantsOpts,
-    this_opts: Option<&ThisOpts>,
+    label_opts: Option<&LabelOpts>,
     fluent_namespace: Option<&NamespaceRule>,
     fluent_domain: Option<&str>,
 ) -> TokenStream {
@@ -196,7 +199,7 @@ pub fn process_enum(
     emit_variants_output(
         opts,
         &variant_seeds,
-        this_opts,
+        label_opts,
         fluent_namespace,
         fluent_domain,
     )
@@ -221,7 +224,7 @@ fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed
 mod tests {
     use darling::FromDeriveInput as _;
     use es_fluent_derive_core::options::{
-        r#enum::EnumVariantsOpts, r#struct::StructVariantsOpts, this::ThisOpts,
+        r#enum::EnumVariantsOpts, r#struct::StructVariantsOpts, this::LabelOpts,
     };
     use insta::assert_snapshot;
     use syn::parse_quote;
@@ -238,13 +241,13 @@ mod tests {
         };
 
         let opts = StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts");
-        let this_opts = ThisOpts::from_derive_input(&input).ok();
+        let label_opts = LabelOpts::from_derive_input(&input).ok();
         let fluent_namespace =
             crate::macros::utils::inherited_fluent_namespace(&input).expect("parent namespace");
 
         let tokens = crate::snapshot_support::pretty_file_tokens(super::process_struct(
             &opts,
-            this_opts.as_ref(),
+            label_opts.as_ref(),
             fluent_namespace.as_ref(),
             None,
         ));
@@ -263,13 +266,13 @@ mod tests {
         };
 
         let opts = EnumVariantsOpts::from_derive_input(&input).expect("EnumVariantsOpts");
-        let this_opts = ThisOpts::from_derive_input(&input).ok();
+        let label_opts = LabelOpts::from_derive_input(&input).ok();
         let fluent_namespace =
             crate::macros::utils::inherited_fluent_namespace(&input).expect("parent namespace");
 
         let tokens = crate::snapshot_support::pretty_file_tokens(super::process_enum(
             &opts,
-            this_opts.as_ref(),
+            label_opts.as_ref(),
             fluent_namespace.as_ref(),
             None,
         ));
@@ -288,7 +291,7 @@ mod tests {
         };
 
         let opts = EnumVariantsOpts::from_derive_input(&input).expect("EnumVariantsOpts");
-        let this_opts = ThisOpts::from_derive_input(&input).ok();
+        let label_opts = LabelOpts::from_derive_input(&input).ok();
         let fluent_namespace =
             crate::macros::utils::inherited_fluent_namespace(&input).expect("parent namespace");
         let fluent_domain =
@@ -296,7 +299,7 @@ mod tests {
 
         let tokens = crate::snapshot_support::pretty_file_tokens(super::process_enum(
             &opts,
-            this_opts.as_ref(),
+            label_opts.as_ref(),
             fluent_namespace.as_ref(),
             fluent_domain.as_deref(),
         ));
@@ -327,13 +330,13 @@ mod tests {
         };
 
         let opts = StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts");
-        let this_opts = ThisOpts::from_derive_input(&input).ok();
+        let label_opts = LabelOpts::from_derive_input(&input).ok();
         let fluent_namespace =
             crate::macros::utils::inherited_fluent_namespace(&input).expect("parent namespace");
 
         let tokens = crate::snapshot_support::pretty_file_tokens(super::process_struct(
             &opts,
-            this_opts.as_ref(),
+            label_opts.as_ref(),
             fluent_namespace.as_ref(),
             None,
         ));

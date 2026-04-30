@@ -24,6 +24,9 @@ runtime integrations.
 - `I18nModuleRegistration::contributes_to_language_selection()`: lets utility
   runtime modules follow locale changes without making unsupported locales look
   supported
+- `FluentManager::select_language_for_supported_locale()`: lets integrations
+  commit runtime utility modules after another backend has already proved
+  application locale support
 - `FluentManager::new_with_discovered_modules()` and
   `FluentManager::try_new_with_discovered_modules()`: strict discovery helpers
   that fail fast on invalid metadata or repeated registrations of the same kind

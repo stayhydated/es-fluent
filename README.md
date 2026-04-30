@@ -461,13 +461,13 @@ Generates a helper implementation of the `FluentLabel` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `#[fluent_label(origin)]`: Generates an implementation where `localize_label(localizer)` returns the base key for the type.
+- `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
+- `#[fluent_label(origin)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
 
 ```rs
 use es_fluent::EsFluentLabel;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 pub enum GenderLabelOnly {
     Male,
     Female,

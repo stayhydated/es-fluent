@@ -207,13 +207,15 @@ add derives to the generated enums.
 
 ### Origin Only
 
-`#[fluent_label(origin)]` creates a single key for the type:
+`origin` is enabled by default, so `#[derive(EsFluentLabel)]` creates a single
+key for the type. `#[fluent_label(origin)]` is equivalent; use
+`#[fluent_label(origin = false)]` when deriving only variant labels through
+`EsFluentVariants`.
 
 ```rust
 use es_fluent::EsFluentLabel;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
 pub enum GenderLabelOnly {
     Male,
     Female,

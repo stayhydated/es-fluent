@@ -99,10 +99,10 @@ impl WorkspaceCrates {
 /// Run generation-like work using the monolithic temp crate approach.
 ///
 /// This prepares a single temp crate at workspace root that links all workspace crates,
-/// then runs the binary for each crate. Much faster on subsequent runs.
+/// then runs the binary sequentially for each crate. Much faster on subsequent runs.
 ///
 /// If `force_run` is true, the staleness check is skipped and the runner is always rebuilt.
-pub fn parallel_generate(
+pub fn run_generation_for_crates(
     workspace: &WorkspaceInfo,
     crates: &[CrateInfo],
     action: &GenerationAction,
@@ -153,7 +153,7 @@ pub fn run_generation_command(
         return Ok(());
     }
 
-    let results = parallel_generate(
+    let results = run_generation_for_crates(
         &workspace.workspace_info,
         &workspace.valid,
         &action,
@@ -361,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn parallel_generate_uses_cached_runner_and_reads_changed_status() {
+    fn run_generation_for_crates_uses_cached_runner_and_reads_changed_status() {
         let temp = crate::test_fixtures::create_test_crate_workspace_without_ftl();
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
@@ -377,7 +377,7 @@ mod tests {
         fs::create_dir_all(result_json.parent().unwrap()).expect("create metadata dir");
         fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
 
-        let results = parallel_generate(
+        let results = run_generation_for_crates(
             &workspace,
             std::slice::from_ref(&krate),
             &GenerationAction::Generate {
@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn parallel_generate_returns_failures_when_runner_preparation_fails() {
+    fn run_generation_for_crates_returns_failures_when_runner_preparation_fails() {
         let krate = CrateInfo {
             name: "broken".to_string(),
             manifest_dir: PathBuf::from("/dev/null"),
@@ -453,7 +453,7 @@ mod tests {
             crates: vec![krate.clone()],
         };
 
-        let results = parallel_generate(
+        let results = run_generation_for_crates(
             &workspace,
             std::slice::from_ref(&krate),
             &GenerationAction::Generate {
@@ -469,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn parallel_generate_handles_empty_output_and_dry_run_render_paths() {
+    fn run_generation_for_crates_handles_empty_output_and_dry_run_render_paths() {
         let temp = crate::test_fixtures::create_test_crate_workspace_without_ftl();
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
@@ -479,7 +479,7 @@ mod tests {
             FakeRunnerBehavior::silent_success(),
         );
 
-        let results = parallel_generate(
+        let results = run_generation_for_crates(
             &workspace,
             std::slice::from_ref(&krate),
             &GenerationAction::Generate {
