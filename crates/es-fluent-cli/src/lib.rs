@@ -2,8 +2,9 @@
 
 use clap::{Parser, Subcommand};
 use commands::{
-    CheckArgs, CleanArgs, FormatArgs, GenerateArgs, InitArgs, SyncArgs, TreeArgs, WatchArgs,
-    run_check, run_clean, run_format, run_generate, run_init, run_sync, run_tree, run_watch,
+    AddLocaleArgs, CheckArgs, CleanArgs, DoctorArgs, FormatArgs, GenerateArgs, InitArgs,
+    StatusArgs, SyncArgs, TreeArgs, WatchArgs, run_add_locale, run_check, run_clean, run_doctor,
+    run_format, run_generate, run_init, run_status, run_sync, run_tree, run_watch,
 };
 use miette::Result as MietteResult;
 
@@ -60,8 +61,17 @@ enum Commands {
     /// Check FTL files for missing keys and variables
     Check(CheckArgs),
 
+    /// Diagnose es-fluent setup issues
+    Doctor(DoctorArgs),
+
+    /// Report whether generated, formatted, synced, cleaned, and checked surfaces are current
+    Status(StatusArgs),
+
     /// Sync missing translations from fallback to other locales
     Sync(SyncArgs),
+
+    /// Create locale directories and seed them from the fallback language
+    AddLocale(AddLocaleArgs),
 
     /// Display a tree view of FTL items for each crate
     Tree(TreeArgs),
@@ -94,7 +104,11 @@ pub fn run_cli() -> MietteResult<()> {
     }))
     .ok();
 
-    dispatch(command).map_err(miette::Report::new)
+    match dispatch(command) {
+        Ok(()) => Ok(()),
+        Err(CliError::Exit(code)) => std::process::exit(code),
+        Err(error) => Err(miette::Report::new(error)),
+    }
 }
 
 fn dispatch(command: Commands) -> Result<(), CliError> {
@@ -105,7 +119,10 @@ fn dispatch(command: Commands) -> Result<(), CliError> {
         Commands::Clean(args) => run_clean(args),
         Commands::Fmt(args) => run_format(args),
         Commands::Check(args) => run_check(args),
+        Commands::Doctor(args) => run_doctor(args),
+        Commands::Status(args) => run_status(args),
         Commands::Sync(args) => run_sync(args),
+        Commands::AddLocale(args) => run_add_locale(args),
         Commands::Tree(args) => run_tree(args),
     }
 }
@@ -116,7 +133,7 @@ pub(crate) mod test_fixtures;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::WorkspaceArgs;
+    use crate::commands::{OutputFormat, WorkspaceArgs};
     use crate::core::FluentParseMode;
     mod fixtures {
         include!(concat!(
@@ -190,6 +207,7 @@ mod tests {
                 workspace: workspace.clone(),
                 all: false,
                 dry_run: false,
+                output: OutputFormat::Text,
             }))
             .is_ok()
         );
@@ -200,6 +218,15 @@ mod tests {
                 all: false,
                 ignore: Vec::new(),
                 force_run: false,
+                output: OutputFormat::Text,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Doctor(DoctorArgs {
+                workspace: workspace.clone(),
+                output: OutputFormat::Text,
             }))
             .is_ok()
         );
@@ -209,7 +236,18 @@ mod tests {
                 workspace: workspace.clone(),
                 locale: vec!["en".to_string()],
                 all: false,
+                create: false,
                 dry_run: false,
+                output: OutputFormat::Text,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::AddLocale(AddLocaleArgs {
+                workspace: workspace.clone(),
+                locale: vec!["fr-FR".to_string()],
+                dry_run: true,
             }))
             .is_ok()
         );
@@ -220,6 +258,7 @@ mod tests {
                 all: false,
                 attributes: false,
                 variables: false,
+                output: OutputFormat::Text,
             }))
             .is_ok()
         );

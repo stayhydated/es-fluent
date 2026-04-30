@@ -54,7 +54,11 @@ when locale files are added, removed, or renamed.
 Useful options:
 
 - `--fallback-language <LANG>`: choose the fallback locale directory and config value.
+- `--locales <LANG>`: create additional locale directories, repeatable or comma-separated.
 - `--assets-dir <PATH>`: choose the locale asset directory relative to the crate root.
+- `--namespaces <NAME>`: write a namespace allowlist into `i18n.toml`, repeatable or comma-separated.
+- `--update-cargo-toml`: add the matching `es-fluent`, manager, and `unic-langid` dependencies.
+- `--dry-run`: preview files and manifest updates without writing them.
 - `--force`: overwrite generated files that already exist.
 
 ### Generate
@@ -158,9 +162,21 @@ cargo es-fluent sync --all
 
 Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all
 non-fallback locales. Running `sync` without either option exits non-zero with an actionable message. Use `--dry-run` to preview changes and print diffs without
-writing them.
+writing them. Use `--create` with `--locale <LANG>` to create missing locale
+directories before seeding them from the fallback locale.
 
 The `sync` command properly handles [namespaced](namespaces.md) FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.
+
+### Add Locale
+
+Create one or more locale directories and seed them from the fallback locale:
+
+```sh
+cargo es-fluent add-locale fr-FR zh-CN
+```
+
+This is equivalent to `sync --create --locale <LANG>` for each requested
+locale. Use `--dry-run` to preview the files that would be created.
 
 ### Tree
 
@@ -173,6 +189,43 @@ cargo es-fluent tree
 Use `--all` to show all locales instead of just the fallback language. Use
 `--attributes` to include message and term attributes, and `--variables` to
 list the Fluent variables referenced by each entry.
+
+### Doctor
+
+Diagnose setup issues without changing files:
+
+```sh
+cargo es-fluent doctor
+```
+
+`doctor` checks discovered i18n crates for common setup problems such as missing
+library targets, unreadable locale assets, manager dependency mismatches, and
+missing build-script asset tracking.
+
+### Status
+
+Run a read-only workflow summary before committing or in CI:
+
+```sh
+cargo es-fluent status --all
+```
+
+`status` reports whether generation would change fallback files, formatting is
+needed, non-fallback locales need synced keys, orphaned files exist, or
+validation would fail. It exits non-zero when attention is required.
+
+### Structured Output
+
+Machine-readable output is available for commands intended for CI and editor
+integrations:
+
+```sh
+cargo es-fluent check --all --output json
+cargo es-fluent status --all --output json
+```
+
+`--output json` is supported by `check`, `format`, `sync`, `tree`, `doctor`,
+and `status`.
 
 ## CI/CD Integration
 

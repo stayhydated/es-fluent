@@ -1,8 +1,9 @@
 use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
 use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
 use crate::utils::{filter_crates_by_package, partition_by_lib_rs, ui};
-use clap::Args;
+use clap::{Args, ValueEnum};
 use colored::Colorize as _;
+use serde::Serialize;
 use std::path::PathBuf;
 
 #[derive(Args, Clone, Debug)]
@@ -13,6 +14,31 @@ pub struct WorkspaceArgs {
     /// Package name to filter (if in a workspace, only process this package).
     #[arg(short = 'P', long)]
     pub package: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+}
+
+impl OutputFormat {
+    pub fn is_json(self) -> bool {
+        matches!(self, Self::Json)
+    }
+
+    pub fn print_json<T: Serialize>(self, value: &T) -> Result<(), CliError> {
+        if self.is_json() {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(value)
+                    .map_err(|error| CliError::Other(error.to_string()))?
+            );
+        }
+
+        Ok(())
+    }
 }
 
 /// Represents a resolved set of crates for a command to operate on.
@@ -80,6 +106,7 @@ pub fn parallel_generate(
     crates: &[CrateInfo],
     action: &GenerationAction,
     force_run: bool,
+    show_progress: bool,
 ) -> Vec<GenerateResult> {
     // Prepare the monolithic temp crate once upfront
     if let Err(e) = prepare_monolithic_runner_crate(workspace) {
@@ -93,7 +120,11 @@ pub fn parallel_generate(
     }
 
     let executor = MonolithicExecutor::new(workspace);
-    let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Processing crates...");
+    let pb = if show_progress {
+        ui::Ui::create_progress_bar(crates.len() as u64, "Processing crates...")
+    } else {
+        indicatif::ProgressBar::hidden()
+    };
 
     // Process sequentially since they share the same binary
     // (parallel could cause contention on first build)
@@ -126,6 +157,7 @@ pub fn run_generation_command(
         &workspace.valid,
         &action,
         force_run,
+        true,
     );
     let has_errors = render_generation_results_with_dry_run(&results, dry_run, verb);
 
@@ -355,6 +387,7 @@ mod tests {
                 dry_run: false,
             },
             false,
+            false,
         );
 
         assert_eq!(results.len(), 1);
@@ -430,6 +463,7 @@ mod tests {
                 dry_run: false,
             },
             false,
+            false,
         );
 
         assert_eq!(results.len(), 1);
@@ -451,6 +485,7 @@ mod tests {
                 mode: FluentParseMode::default(),
                 dry_run: true,
             },
+            false,
             false,
         );
         assert_eq!(results.len(), 1);

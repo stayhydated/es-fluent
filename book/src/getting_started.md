@@ -29,6 +29,9 @@ This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
 `pub mod i18n;` declaration in `src/lib.rs`. Pass `--manager dioxus` or
 `--manager bevy` for framework-specific scaffolding, and pass `--build-rs`
 when you want Cargo to rebuild automatically after locale file changes.
+Use `--locales fr-FR,zh-CN` to create additional locale directories up front,
+`--namespaces ui,errors` to write a namespace allowlist, and
+`--update-cargo-toml` to add the matching dependencies.
 
 Or create an `i18n.toml` next to your crate's `Cargo.toml` manually:
 
@@ -116,5 +119,14 @@ A typical `es-fluent` workflow:
 3. **Generate** — Run `cargo es-fluent generate` to create FTL file skeletons.
 4. **Translate** — Edit the generated `.ftl` files with real translations.
 5. **Use** — Call `i18n.localize_message(&value)` at runtime through an explicit manager.
+
+When adding a new target language later, seed it from the fallback locale:
+
+```sh
+cargo es-fluent add-locale fr-FR
+```
+
+Before committing, `cargo es-fluent status --all` gives a read-only summary of
+generation, formatting, sync, orphan-cleanup, and validation work that remains.
 
 The following chapters break down each of these steps in detail.

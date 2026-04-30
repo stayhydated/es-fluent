@@ -381,6 +381,10 @@ pub enum CliError {
     #[error("{0}")]
     #[diagnostic(code(es_fluent::other))]
     Other(String),
+
+    #[error("command exited with status {0}")]
+    #[diagnostic(code(es_fluent::exit))]
+    Exit(i32),
 }
 
 impl From<anyhow::Error> for CliError {

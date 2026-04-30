@@ -11,22 +11,23 @@ use std::path::Path;
 
 /// Result of syncing a single locale.
 #[derive(Debug)]
-pub(super) struct SyncLocaleResult {
+pub(crate) struct SyncLocaleResult {
     /// The locale that was synced.
-    pub(super) locale: String,
+    pub(crate) locale: String,
     /// Number of keys added.
-    pub(super) keys_added: usize,
+    pub(crate) keys_added: usize,
     /// The keys that were added.
-    pub(super) added_keys: Vec<String>,
+    pub(crate) added_keys: Vec<String>,
     /// Diff info (original, new) if dry run and changed.
-    pub(super) diff_info: Option<DryRunDiff>,
+    pub(crate) diff_info: Option<DryRunDiff>,
 }
 
 /// Sync all FTL files for a crate.
-pub(super) fn sync_crate(
+pub(crate) fn sync_crate(
     krate: &CrateInfo,
     target_locales: Option<&HashSet<String>>,
     dry_run: bool,
+    create_missing: bool,
 ) -> Result<Vec<SyncLocaleResult>> {
     let ctx = LocaleContext::from_crate(krate, true)?;
     let fallback_dir = ctx.locale_dir(&ctx.fallback);
@@ -45,21 +46,27 @@ pub(super) fn sync_crate(
     }
 
     let mut results = Vec::new();
+    let mut locales: Vec<String> = match target_locales {
+        Some(targets) => targets.iter().cloned().collect(),
+        None => ctx.locales.clone(),
+    };
+    locales.sort();
 
-    for locale in &ctx.locales {
+    for locale in &locales {
         // Skip the fallback locale
         if locale == &ctx.fallback {
             continue;
         }
 
-        // Filter by target locales if specified
-        if let Some(targets) = target_locales
-            && !targets.contains(locale)
-        {
-            continue;
-        }
-
         let locale_dir = ctx.locale_dir(locale);
+        if !locale_dir.exists() {
+            if !create_missing {
+                continue;
+            }
+            if !dry_run {
+                fs::create_dir_all(&locale_dir)?;
+            }
+        }
 
         // Sync each FTL file (main + namespaced)
         for ftl_info in &fallback_files {
@@ -313,7 +320,7 @@ mod tests {
         let krate = test_crate_with_i18n(&temp);
         std::fs::create_dir_all(temp.path().join("i18n/es")).expect("create non-fallback locale");
 
-        let results = sync_crate(&krate, None, false).expect("sync crate");
+        let results = sync_crate(&krate, None, false, false).expect("sync crate");
         assert!(results.is_empty());
     }
 
@@ -345,7 +352,7 @@ mod tests {
         );
 
         let targets = HashSet::from(["es".to_string()]);
-        let results = sync_crate(&krate, Some(&targets), false).expect("sync crate");
+        let results = sync_crate(&krate, Some(&targets), false, false).expect("sync crate");
 
         // Only `es` should be touched, and both main + namespaced files are considered.
         assert_eq!(results.len(), 2);

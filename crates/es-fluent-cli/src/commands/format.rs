@@ -3,13 +3,14 @@
 //! This module provides functionality to format FTL files by sorting
 //! message keys alphabetically while preserving group comments.
 
-use super::common::{WorkspaceArgs, WorkspaceCrates};
+use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use super::dry_run::{DryRunDiff, DryRunSummary};
 use crate::core::{CliError, CrateInfo, FormatError, FormatReport};
 use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
+use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -26,6 +27,10 @@ pub struct FormatArgs {
     /// Dry run - show what would be formatted without making changes.
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::default())]
+    pub output: OutputFormat,
 }
 
 /// Result of formatting a single file.
@@ -73,25 +78,52 @@ impl FormatResult {
     }
 }
 
+#[derive(Serialize)]
+struct FormatJsonReport {
+    formatted_count: usize,
+    unchanged_count: usize,
+    error_count: usize,
+    files: Vec<FormatFileJson>,
+}
+
+#[derive(Serialize)]
+struct FormatFileJson {
+    path: String,
+    changed: bool,
+    error: Option<String>,
+}
+
 /// Run the format command.
 pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
+    let show_text = !args.output.is_json();
 
-    if !workspace.print_discovery(ui::Ui::print_format_header) {
+    if show_text && !workspace.print_discovery(ui::Ui::print_format_header) {
         return Ok(());
     }
 
     let mut total_formatted = 0;
     let mut total_unchanged = 0;
     let mut errors: Vec<FormatError> = Vec::new();
+    let mut files = Vec::new();
 
-    let pb = ui::Ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...");
+    let pb = if show_text {
+        ui::Ui::create_progress_bar(workspace.crates.len() as u64, "Formatting crates...")
+    } else {
+        indicatif::ProgressBar::hidden()
+    };
 
     for krate in &workspace.crates {
         pb.set_message(format!("Formatting {}", krate.name));
         let results = format_crate(krate, args.all, args.dry_run)?;
 
         for result in results {
+            files.push(FormatFileJson {
+                path: result.path.display().to_string(),
+                changed: result.changed,
+                error: result.error.clone(),
+            });
+
             if let Some(error) = result.error {
                 errors.push(FormatError {
                     path: result.path,
@@ -99,21 +131,23 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
                 });
             } else if result.changed {
                 total_formatted += 1;
-                pb.suspend(|| {
-                    let display_path = std::env::current_dir()
-                        .ok()
-                        .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
-                        .unwrap_or(&result.path);
+                if show_text {
+                    pb.suspend(|| {
+                        let display_path = std::env::current_dir()
+                            .ok()
+                            .and_then(|cwd| result.path.strip_prefix(&cwd).ok())
+                            .unwrap_or(&result.path);
 
-                    if args.dry_run {
-                        ui::Ui::print_would_format(display_path);
-                        if let Some(diff) = &result.diff_info {
-                            diff.print();
+                        if args.dry_run {
+                            ui::Ui::print_would_format(display_path);
+                            if let Some(diff) = &result.diff_info {
+                                diff.print();
+                            }
+                        } else {
+                            ui::Ui::print_formatted(display_path);
                         }
-                    } else {
-                        ui::Ui::print_formatted(display_path);
-                    }
-                });
+                    });
+                }
             } else {
                 total_unchanged += 1;
             }
@@ -121,6 +155,19 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
         pb.inc(1);
     }
     pb.finish_and_clear();
+
+    if args.output.is_json() {
+        args.output.print_json(&FormatJsonReport {
+            formatted_count: total_formatted,
+            unchanged_count: total_unchanged,
+            error_count: errors.len(),
+            files,
+        })?;
+        if !errors.is_empty() {
+            return Err(CliError::Exit(1));
+        }
+        return Ok(());
+    }
 
     if errors.is_empty() {
         if args.dry_run && total_formatted > 0 {
@@ -142,7 +189,7 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
 }
 
 /// Format all FTL files for a crate.
-fn format_crate(
+pub(crate) fn format_crate(
     krate: &CrateInfo,
     all_locales: bool,
     check_only: bool,
@@ -322,6 +369,7 @@ mod tests {
             },
             all: false,
             dry_run: true,
+            output: OutputFormat::Text,
         });
         assert!(dry_run.is_ok());
         let after_dry_run = std::fs::read_to_string(&namespaced_path).expect("read after dry-run");
@@ -334,6 +382,7 @@ mod tests {
             },
             all: false,
             dry_run: false,
+            output: OutputFormat::Text,
         });
         assert!(real.is_ok());
 
@@ -355,6 +404,7 @@ mod tests {
             },
             all: false,
             dry_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(result.is_ok());

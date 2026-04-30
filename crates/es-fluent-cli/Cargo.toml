@@ -49,6 +49,7 @@ thiserror = { workspace = true }
 throbber-widgets-tui = { workspace = true }
 toml = { workspace = true }
 treelog = { workspace = true }
+unic-langid = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]

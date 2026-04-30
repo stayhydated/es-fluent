@@ -7,15 +7,14 @@ support crates around it.
 
 `es-fluent-cli` has two execution paths:
 
-1. **Runner-backed commands**: `generate`, `clean`, `check`, and the generation
-   loop inside `watch`
-1. **Direct FTL commands**: `format`, `sync`, and `tree`
+1. **Runner-backed commands**: `generate`, `clean`, `check`, `status`, and the
+   generation loop inside `watch`
+1. **Direct FTL commands**: `format`, `sync`, `add-locale`, `tree`, and `doctor`
 
 Runner-backed commands need access to inventory registrations emitted by user
 crates, so the CLI prepares a monolithic `.es-fluent/` runner workspace and
 executes a generated binary that calls into `es-fluent-cli-helpers`. Direct FTL
-commands operate only on the discovered `.ftl` files and never invoke the
-runner.
+commands operate only on discovered project files and never invoke the runner.
 
 ## High-Level Architecture
 
@@ -61,15 +60,18 @@ flowchart TD
 
 ## Command Paths
 
-| Command    | Inventory needed? | Execution path      | Notes                                                                                         |
-| ---------- | ----------------- | ------------------- | --------------------------------------------------------------------------------------------- |
-| `generate` | Yes               | Runner-backed       | Generates or updates fallback-locale FTL files and reads `result.json` for the changed flag   |
-| `clean`    | Yes               | Runner-backed       | Uses the same runner workspace and reads `result.json`                                        |
-| `check`    | Yes               | Mixed               | Runner collects inventory into `inventory.json`; the CLI then validates `.ftl` files directly |
-| `watch`    | Yes               | Runner-backed + TUI | Reuses `generate` requests behind a debounced file watcher                                    |
-| `format`   | No                | Direct              | Parses existing `.ftl` files and rewrites them with shared formatting logic                   |
-| `sync`     | No                | Direct              | Copies missing keys from the fallback locale into target locales                              |
-| `tree`     | No                | Direct              | Parses `.ftl` files and renders a structural tree view                                        |
+| Command      | Inventory needed? | Execution path      | Notes                                                                                         |
+| ------------ | ----------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `generate`   | Yes               | Runner-backed       | Generates or updates fallback-locale FTL files and reads `result.json` for the changed flag   |
+| `clean`      | Yes               | Runner-backed       | Uses the same runner workspace and reads `result.json`                                        |
+| `check`      | Yes               | Mixed               | Runner collects inventory into `inventory.json`; the CLI then validates `.ftl` files directly |
+| `watch`      | Yes               | Runner-backed + TUI | Reuses `generate` requests behind a debounced file watcher                                    |
+| `status`     | Yes               | Mixed               | Runs read-only generate/check probes plus direct format/sync/orphan probes                    |
+| `format`     | No                | Direct              | Parses existing `.ftl` files and rewrites them with shared formatting logic                   |
+| `sync`       | No                | Direct              | Copies missing keys from the fallback locale into target locales                              |
+| `add-locale` | No                | Direct              | Creates target locale directories and seeds them via the sync merge path                      |
+| `tree`       | No                | Direct              | Parses `.ftl` files and renders a structural tree view                                        |
+| `doctor`     | No                | Direct              | Inspects project setup, manager dependencies, locale assets, and build-script tracking        |
 
 ## Runner-Backed Flow
 
@@ -112,10 +114,19 @@ The direct commands stay entirely inside `es-fluent-cli`:
 - `format` walks crate-local `.ftl` files and uses `es-fluent-generate::formatting`
   to sort and normalize entries, with dry-run diffs produced in the CLI process
 - `sync` reads fallback-locale files and fills missing keys in target locales
-  only when the caller chooses `--locale` or `--all`; dry-run mode also prints
-  diffs without writing
+  only when the caller chooses `--locale` or `--all`; `--create` allows missing
+  target locale directories to be created; dry-run mode also prints diffs
+  without writing
+- `add-locale` is a focused wrapper over `sync --create --locale <LANG>` for
+  seeding new target locales from fallback files
 - `tree` parses `.ftl` files and renders a terminal tree of messages, terms,
   attributes, and variables
+- `doctor` reads manifests and scaffolded files to report setup issues without
+  running user code
+
+`check`, `format`, `sync`, `tree`, `doctor`, and `status` support
+`--output json` for CI and editor integrations. JSON mode suppresses human
+headers and progress output so stdout remains machine-readable.
 
 These commands do not depend on inventory and therefore do not need the runner
 workspace.

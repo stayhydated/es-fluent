@@ -1,6 +1,6 @@
 //! Clean command implementation.
 
-mod orphaned;
+pub(crate) mod orphaned;
 
 use super::common::{GenerationVerb, WorkspaceArgs, WorkspaceCrates, run_generation_command};
 use crate::core::{CliError, GenerationAction};

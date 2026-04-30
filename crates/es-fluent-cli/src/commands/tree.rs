@@ -3,7 +3,7 @@
 //! This module provides functionality to display a tree view of FTL items
 //! for each FTL file associated with a crate.
 
-use super::common::{WorkspaceArgs, WorkspaceCrates};
+use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use crate::core::CliError;
 use crate::ftl::{
     CrateFtlLayout, LocaleContext, extract_variables_from_value_and_attributes, parse_ftl_file,
@@ -13,6 +13,7 @@ use anyhow::Result;
 use clap::Parser;
 use colored::Colorize as _;
 use fluent_syntax::ast;
+use serde::Serialize;
 use std::path::Path;
 use treelog::Tree;
 
@@ -134,16 +135,67 @@ pub struct TreeArgs {
     /// Show variables used in each message.
     #[arg(long)]
     pub variables: bool,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::default())]
+    pub output: OutputFormat,
+}
+
+#[derive(Serialize)]
+struct TreeJsonReport {
+    crates: Vec<TreeCrateJson>,
+}
+
+#[derive(Serialize)]
+struct TreeCrateJson {
+    name: String,
+    locales: Vec<TreeLocaleJson>,
+}
+
+#[derive(Serialize)]
+struct TreeLocaleJson {
+    locale: String,
+    files: Vec<TreeFileJson>,
+}
+
+#[derive(Serialize)]
+struct TreeFileJson {
+    path: String,
+    parse_error: bool,
+    entries: Vec<TreeEntryJson>,
+}
+
+#[derive(Serialize)]
+struct TreeEntryJson {
+    id: String,
+    kind: &'static str,
+    attributes: Vec<String>,
+    variables: Vec<String>,
 }
 
 /// Run the tree command.
 pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
+    let show_text = !args.output.is_json();
 
-    ui::Ui::print_tree_header();
+    if show_text {
+        ui::Ui::print_tree_header();
+    }
 
     if workspace.crates.is_empty() {
-        ui::Ui::print_no_crates_found();
+        if show_text {
+            ui::Ui::print_no_crates_found();
+        }
+        return Ok(());
+    }
+
+    if args.output.is_json() {
+        let crates = workspace
+            .crates
+            .iter()
+            .map(|krate| build_crate_tree_json(krate, args.all))
+            .collect::<Result<Vec<_>>>()?;
+        args.output.print_json(&TreeJsonReport { crates })?;
         return Ok(());
     }
 
@@ -152,6 +204,105 @@ pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
     }
 
     Ok(())
+}
+
+fn build_crate_tree_json(
+    krate: &crate::core::CrateInfo,
+    all_locales: bool,
+) -> Result<TreeCrateJson> {
+    let ctx = LocaleContext::from_crate(krate, all_locales)?;
+    let mut locales = Vec::new();
+
+    for locale in &ctx.locales {
+        let locale_dir = ctx.locale_dir(locale);
+        if !locale_dir.exists() {
+            continue;
+        }
+
+        let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
+            .discover_files()?;
+        let files = ftl_files
+            .iter()
+            .map(|file_info| {
+                build_file_tree_json(
+                    &file_info.relative_path.display().to_string(),
+                    &file_info.abs_path,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        locales.push(TreeLocaleJson {
+            locale: locale.clone(),
+            files,
+        });
+    }
+
+    Ok(TreeCrateJson {
+        name: krate.name.clone(),
+        locales,
+    })
+}
+
+fn build_file_tree_json(relative_path: &str, abs_path: &Path) -> TreeFileJson {
+    let Ok(resource) = parse_ftl_file(abs_path) else {
+        return TreeFileJson {
+            path: relative_path.to_string(),
+            parse_error: true,
+            entries: Vec::new(),
+        };
+    };
+
+    let entries = resource
+        .body
+        .iter()
+        .filter_map(|entry| match entry {
+            ast::Entry::Message(message) => Some(TreeEntryJson {
+                id: message.id.name.clone(),
+                kind: "message",
+                attributes: message
+                    .attributes
+                    .iter()
+                    .map(|attribute| attribute.id.name.clone())
+                    .collect(),
+                variables: {
+                    let mut variables = extract_variables_from_value_and_attributes(
+                        message.value.as_ref(),
+                        &message.attributes,
+                    )
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                    variables.sort();
+                    variables
+                },
+            }),
+            ast::Entry::Term(term) => Some(TreeEntryJson {
+                id: format!("-{}", term.id.name),
+                kind: "term",
+                attributes: term
+                    .attributes
+                    .iter()
+                    .map(|attribute| attribute.id.name.clone())
+                    .collect(),
+                variables: {
+                    let mut variables = extract_variables_from_value_and_attributes(
+                        Some(&term.value),
+                        &term.attributes,
+                    )
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                    variables.sort();
+                    variables
+                },
+            }),
+            _ => None,
+        })
+        .collect();
+
+    TreeFileJson {
+        path: relative_path.to_string(),
+        parse_error: false,
+        entries,
+    }
 }
 
 /// Print the tree for a single crate.
@@ -489,6 +640,7 @@ edition = "2024"
             all: false,
             attributes: false,
             variables: false,
+            output: OutputFormat::Text,
         });
         assert!(result.is_ok());
     }

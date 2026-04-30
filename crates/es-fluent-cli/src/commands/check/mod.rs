@@ -11,12 +11,13 @@
 mod inventory;
 mod validation;
 
-use super::common::{WorkspaceArgs, WorkspaceCrates};
+use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, ValidationExecutionError, ValidationIssue, ValidationReport};
 use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
 use crate::utils::ui;
 use clap::Parser;
 use miette::NamedSource;
+use serde::Serialize;
 use std::collections::HashSet;
 
 /// Arguments for the check command.
@@ -37,19 +38,144 @@ pub struct CheckArgs {
     /// Run the generated runner through Cargo, ignoring the staleness cache.
     #[arg(long)]
     pub force_run: bool,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::default())]
+    pub output: OutputFormat,
 }
 
-/// Run the check command.
-pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
-    let workspace = WorkspaceCrates::discover(args.workspace)?;
+pub(crate) struct CheckRun {
+    pub(crate) crates_discovered: usize,
+    pub(crate) crates_checked: usize,
+    pub(crate) issues: Vec<ValidationIssue>,
+}
 
-    if !workspace.print_discovery(ui::Ui::print_check_header) {
-        return Ok(());
+#[derive(Serialize)]
+struct CheckJsonReport {
+    crates_discovered: usize,
+    crates_checked: usize,
+    error_count: usize,
+    warning_count: usize,
+    issues: Vec<CheckIssueJson>,
+}
+
+#[derive(Serialize)]
+struct CheckIssueJson {
+    severity: &'static str,
+    kind: &'static str,
+    source: String,
+    locale: String,
+    key: Option<String>,
+    variable: Option<String>,
+    help: String,
+}
+
+impl CheckJsonReport {
+    fn from_run(run: &CheckRun) -> Self {
+        let (error_count, warning_count) = count_issues(&run.issues);
+
+        Self {
+            crates_discovered: run.crates_discovered,
+            crates_checked: run.crates_checked,
+            error_count,
+            warning_count,
+            issues: run.issues.iter().map(CheckIssueJson::from).collect(),
+        }
     }
+}
 
+impl From<&ValidationIssue> for CheckIssueJson {
+    fn from(issue: &ValidationIssue) -> Self {
+        match issue {
+            ValidationIssue::MissingKey(error) => Self {
+                severity: "error",
+                kind: "missing_key",
+                source: format!("{:?}", error.src.name()),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: None,
+                help: error.help.clone(),
+            },
+            ValidationIssue::DuplicateKey(error) => Self {
+                severity: "error",
+                kind: "duplicate_key",
+                source: format!("{:?}", error.src.name()),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: None,
+                help: error.help.clone(),
+            },
+            ValidationIssue::MissingVariable(error) => Self {
+                severity: "warning",
+                kind: "missing_variable",
+                source: format!("{:?}", error.src.name()),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: Some(error.variable.clone()),
+                help: error.help.clone(),
+            },
+            ValidationIssue::UnexpectedVariable(error) => Self {
+                severity: "error",
+                kind: "unexpected_variable",
+                source: format!("{:?}", error.src.name()),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: Some(error.variable.clone()),
+                help: error.help.clone(),
+            },
+            ValidationIssue::ValidationExecution(error) => Self {
+                severity: "error",
+                kind: "validation_execution",
+                source: format!("{:?}", error.src.name()),
+                locale: String::new(),
+                key: None,
+                variable: None,
+                help: error.help.clone(),
+            },
+            ValidationIssue::SyntaxError(error) => Self {
+                severity: "error",
+                kind: "syntax_error",
+                source: format!("{:?}", error.src.name()),
+                locale: error.locale.clone(),
+                key: None,
+                variable: None,
+                help: error.help.clone(),
+            },
+        }
+    }
+}
+
+pub(crate) fn count_issues(issues: &[ValidationIssue]) -> (usize, usize) {
+    let error_count = issues
+        .iter()
+        .filter(|i| {
+            matches!(
+                i,
+                ValidationIssue::MissingKey(_)
+                    | ValidationIssue::DuplicateKey(_)
+                    | ValidationIssue::UnexpectedVariable(_)
+                    | ValidationIssue::ValidationExecution(_)
+                    | ValidationIssue::SyntaxError(_)
+            )
+        })
+        .count();
+    let warning_count = issues
+        .iter()
+        .filter(|i| matches!(i, ValidationIssue::MissingVariable(_)))
+        .count();
+
+    (error_count, warning_count)
+}
+
+pub(crate) fn collect_check_run(
+    workspace: &WorkspaceCrates,
+    all: bool,
+    ignore: &[String],
+    force_run: bool,
+    show_progress: bool,
+) -> Result<CheckRun, CliError> {
     // Convert ignore list to a HashSet for efficient lookups
-    let ignore_crates: HashSet<String> = args.ignore.into_iter().collect();
-    let force_run = args.force_run;
+    let ignore_crates: HashSet<String> = ignore.iter().cloned().collect();
 
     // Filter out ignored crates
     let crates_to_check: Vec<_> = workspace
@@ -84,8 +210,14 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 
     if crates_to_check.is_empty() {
-        ui::Ui::print_no_crates_found();
-        return Ok(());
+        if show_progress {
+            ui::Ui::print_no_crates_found();
+        }
+        return Ok(CheckRun {
+            crates_discovered: workspace.crates.len(),
+            crates_checked: 0,
+            issues: Vec::new(),
+        });
     }
 
     // Prepare monolithic temp crate once for all checks
@@ -98,7 +230,11 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     );
     let executor = MonolithicExecutor::new(&workspace.workspace_info);
 
-    let pb = ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
+    let pb = if show_progress {
+        ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...")
+    } else {
+        indicatif::ProgressBar::hidden()
+    };
 
     for krate in &crates_to_check {
         pb.set_message(format!("Scanning {}", krate.name));
@@ -114,7 +250,11 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     // Second pass: validate FTL files
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
-    let pb = ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...");
+    let pb = if show_progress {
+        ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...")
+    } else {
+        indicatif::ProgressBar::hidden()
+    };
 
     for krate in &crates_to_check {
         pb.set_message(format!("Checking {}", krate.name));
@@ -123,7 +263,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
             krate,
             &workspace.workspace_info.root_dir,
             temp_store.base_dir(),
-            args.all,
+            all,
         ) {
             Ok(issues) => {
                 all_issues.extend(issues);
@@ -131,9 +271,11 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
             Err(e) => {
                 let error = e.to_string();
                 // If error, print above progress bar
-                pb.suspend(|| {
-                    ui::Ui::print_check_error(&krate.name, &error);
-                });
+                if show_progress {
+                    pb.suspend(|| {
+                        ui::Ui::print_check_error(&krate.name, &error);
+                    });
+                }
                 all_issues.push(ValidationIssue::ValidationExecution(
                     ValidationExecutionError {
                         src: NamedSource::new(krate.name.clone(), String::new()),
@@ -151,32 +293,47 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     // Sort issues for deterministic output
     all_issues.sort_by_cached_key(|issue| issue.sort_key());
 
-    let error_count = all_issues
-        .iter()
-        .filter(|i| {
-            matches!(
-                i,
-                ValidationIssue::MissingKey(_)
-                    | ValidationIssue::DuplicateKey(_)
-                    | ValidationIssue::UnexpectedVariable(_)
-                    | ValidationIssue::ValidationExecution(_)
-                    | ValidationIssue::SyntaxError(_)
-            )
-        })
-        .count();
-    let warning_count = all_issues
-        .iter()
-        .filter(|i| matches!(i, ValidationIssue::MissingVariable(_)))
-        .count();
+    Ok(CheckRun {
+        crates_discovered: workspace.crates.len(),
+        crates_checked: crates_to_check.len(),
+        issues: all_issues,
+    })
+}
 
-    if all_issues.is_empty() {
+/// Run the check command.
+pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
+    let workspace = WorkspaceCrates::discover(args.workspace)?;
+    let show_text = !args.output.is_json();
+
+    if show_text && !workspace.print_discovery(ui::Ui::print_check_header) {
+        return Ok(());
+    }
+
+    let run = collect_check_run(
+        &workspace,
+        args.all,
+        &args.ignore,
+        args.force_run,
+        show_text,
+    )?;
+    let (error_count, warning_count) = count_issues(&run.issues);
+
+    if args.output.is_json() {
+        args.output.print_json(&CheckJsonReport::from_run(&run))?;
+        if !run.issues.is_empty() {
+            return Err(CliError::Exit(1));
+        }
+        return Ok(());
+    }
+
+    if run.issues.is_empty() {
         ui::Ui::print_check_success();
         Ok(())
     } else {
         Err(CliError::Validation(ValidationReport {
             error_count,
             warning_count,
-            issues: all_issues,
+            issues: run.issues,
         }))
     }
 }
@@ -214,6 +371,7 @@ mod tests {
             all: false,
             ignore: vec!["missing-crate".to_string()],
             force_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(
@@ -233,6 +391,7 @@ mod tests {
             all: false,
             ignore: Vec::new(),
             force_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(result.is_ok());
@@ -257,6 +416,7 @@ mod tests {
             all: false,
             ignore: Vec::new(),
             force_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(result.is_ok());
@@ -281,6 +441,7 @@ mod tests {
             all: false,
             ignore: Vec::new(),
             force_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(matches!(result, Err(CliError::Validation(_))));
@@ -297,6 +458,7 @@ mod tests {
             all: false,
             ignore: vec!["test-app".to_string()],
             force_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(result.is_ok());
@@ -315,6 +477,7 @@ mod tests {
             all: false,
             ignore: Vec::new(),
             force_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(matches!(result, Err(CliError::Other(_))));
@@ -334,6 +497,7 @@ mod tests {
             all: false,
             ignore: Vec::new(),
             force_run: false,
+            output: OutputFormat::Text,
         });
 
         assert!(

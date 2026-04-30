@@ -4938,6 +4938,7 @@ dependencies = [
  "throbber-widgets-tui",
  "toml 1.1.2+spec-1.1.0",
  "treelog",
+ "unic-langid",
  "walkdir",
 ]
 

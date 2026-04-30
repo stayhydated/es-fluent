@@ -135,6 +135,43 @@ pub(super) fn clean_orphaned_files(
     Ok(())
 }
 
+pub(crate) fn find_orphaned_files(
+    workspace: &WorkspaceCrates,
+    all_locales: bool,
+) -> Result<Vec<PathBuf>, CliError> {
+    let crate_names: HashSet<&str> = workspace.crates.iter().map(|c| c.name.as_str()).collect();
+    let cleaner = OrphanedCleaner::new(crate_names);
+    let mut cleanup_targets = BTreeSet::new();
+    let mut orphaned = Vec::new();
+
+    for krate in &workspace.crates {
+        let ctx = LocaleContext::from_crate(krate, all_locales)
+            .map_err(|e| CliError::from(std::io::Error::other(e)))?;
+        let fallback_locale_dir = ctx.locale_dir(&ctx.fallback);
+
+        for (locale, _ftl_path) in ctx.iter_non_fallback() {
+            cleanup_targets.insert(LocaleCleanupTarget {
+                fallback_locale_dir: fallback_locale_dir.clone(),
+                locale_dir: ctx.locale_dir(locale),
+            });
+        }
+    }
+
+    for target in cleanup_targets {
+        let expected_files =
+            cleaner.expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir)?;
+
+        for file_info in discover_locale_ftl_files(&target.locale_dir)? {
+            if !expected_files.contains(&file_info.abs_path) {
+                orphaned.push(file_info.abs_path);
+            }
+        }
+    }
+
+    orphaned.sort();
+    Ok(orphaned)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
