@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 use es_fluent::EsFluent;
-use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
+use es_fluent_manager_dioxus::I18nProvider;
 use example_shared_lib::{ButtonState, Languages};
 use strum::IntoEnumIterator as _;
 use unic_langid::LanguageIdentifier;
@@ -75,7 +75,7 @@ fn ClientPreview(initial_language: Languages) -> Element {
 
 #[component]
 fn ClientPreviewBody(initial_language: Languages) -> Element {
-    let i18n = match use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { section { "Failed to initialize i18n: {error}" } },
     };
@@ -123,7 +123,7 @@ fn ClientPreviewBody(initial_language: Languages) -> Element {
 
 #[component]
 fn ClientSharedValues(current_language: Languages, button_state: ButtonState) -> Element {
-    let i18n = match use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { "Failed to read i18n context: {error}" } },
     };

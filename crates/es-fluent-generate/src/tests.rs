@@ -6,7 +6,6 @@ use fs_err as fs;
 use indexmap::IndexMap;
 use std::borrow::Cow;
 use std::path::PathBuf;
-use tempfile::tempdir;
 
 fn leak_str(s: impl ToString) -> &'static str {
     s.to_string().leak()
@@ -69,7 +68,7 @@ fn owned_type_info_and_entry_helpers_work() {
 
 #[test]
 fn read_existing_and_write_updated_resource_cover_io_branches() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let file_path = temp.path().join("example.ftl");
 
     let missing = read_existing_resource(&file_path).expect("missing resource");
@@ -117,7 +116,7 @@ fn read_existing_and_write_updated_resource_cover_io_branches() {
 
 #[test]
 fn write_or_preview_and_print_diff_cover_preview_and_write_paths() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let file_path = temp.path().join("nested/preview.ftl");
 
     write_or_preview(&file_path, "old = value\n", "new = value\n", false, true)
@@ -130,7 +129,7 @@ fn write_or_preview_and_print_diff_cover_preview_and_write_paths() {
 
 #[test]
 fn write_updated_resource_covers_unchanged_empty_and_dry_run_empty_paths() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let file_path = temp.path().join("empty.ftl");
     fs::write(&file_path, "").expect("write empty file");
 
@@ -352,7 +351,7 @@ fn smart_merge_appends_relocated_entries_for_group_switch_and_missing_group_head
 
 #[test]
 fn generate_creates_namespaced_directories_and_handles_dry_run() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
     let mut namespaced = test_type("NamespacedType", vec![test_variant("A1", "ns-a1", &[])]);
@@ -379,7 +378,7 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
 
 #[test]
 fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
     let escaping = FtlTypeInfo {
@@ -424,7 +423,7 @@ fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
 
 #[test]
 fn generate_rejects_noncanonical_namespace_literals() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
     let padded = FtlTypeInfo {

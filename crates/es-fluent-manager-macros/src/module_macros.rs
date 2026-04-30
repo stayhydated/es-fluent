@@ -1,4 +1,4 @@
-use crate::assets::{I18nAssets, current_crate_name, module_data_static_tokens};
+use crate::assets::I18nAssets;
 use heck::ToPascalCase as _;
 use proc_macro::TokenStream;
 use quote::quote;
@@ -60,7 +60,7 @@ fn expand_define_i18n_module(
     manager_paths: ManagerPaths,
     generate_tokens: ModuleTokenGenerator,
 ) -> TokenStream {
-    let crate_name = match current_crate_name() {
+    let crate_name = match crate::assets::current_crate_name() {
         Ok(name) => name,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
@@ -82,7 +82,7 @@ fn expand_define_i18n_module(
         proc_macro2::Span::call_site(),
     );
 
-    let module_data_static = module_data_static_tokens(
+    let module_data_static = crate::assets::module_data_static_tokens(
         &manager_paths.manager_core_path,
         &module_data_name,
         &crate_name,

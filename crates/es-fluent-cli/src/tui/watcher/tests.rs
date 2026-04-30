@@ -1,13 +1,5 @@
-use super::events::{build_path_to_crate, process_file_events};
-use super::generation::{compute_watch_inputs_hash, spawn_generation};
-use super::{run_watch_loop_with_file_rx, run_watch_loop_with_poll, watch_all};
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
-use crate::generation::cache::compute_crate_inputs_hash;
-use crate::test_fixtures::{
-    FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner_with_cache,
-    toml_helpers::{package_manifest, string_value, table, write_toml},
-};
-use crossbeam_channel::unbounded;
+use crate::test_fixtures::FakeRunnerBehavior;
 use fs_err as fs;
 use notify::{
     Event,
@@ -45,12 +37,21 @@ fn i18n_config(
     assets_dir: Option<&str>,
     fluent_feature: Option<&str>,
 ) -> Value {
-    let mut config = table([("fallback_language", string_value(fallback_language))]);
+    let mut config = crate::test_fixtures::toml_helpers::table([(
+        "fallback_language",
+        crate::test_fixtures::toml_helpers::string_value(fallback_language),
+    )]);
     if let Some(assets_dir) = assets_dir {
-        config.insert("assets_dir".to_string(), string_value(assets_dir));
+        config.insert(
+            "assets_dir".to_string(),
+            crate::test_fixtures::toml_helpers::string_value(assets_dir),
+        );
     }
     if let Some(fluent_feature) = fluent_feature {
-        config.insert("fluent_feature".to_string(), string_value(fluent_feature));
+        config.insert(
+            "fluent_feature".to_string(),
+            crate::test_fixtures::toml_helpers::string_value(fluent_feature),
+        );
     }
     Value::Table(config)
 }
@@ -63,11 +64,14 @@ fn compute_src_hash_changes_when_i18n_changes() {
     fs::write(src_dir.join("lib.rs"), "pub struct A;\n").expect("write lib.rs");
 
     let i18n_toml = temp.path().join("i18n.toml");
-    write_toml(&i18n_toml, &i18n_config("en", None, None));
+    crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
 
-    let first = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
-    write_toml(&i18n_toml, &i18n_config("en", None, Some("i18n")));
-    let second = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    let first = super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    crate::test_fixtures::toml_helpers::write_toml(
+        &i18n_toml,
+        &i18n_config("en", None, Some("i18n")),
+    );
+    let second = super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
 
     assert_ne!(first, second);
 }
@@ -75,7 +79,7 @@ fn compute_src_hash_changes_when_i18n_changes() {
 #[test]
 fn process_file_events_filters_and_deduplicates_expected_paths() {
     let valid_crate = test_crate("crate-a", true);
-    let path_to_crate = build_path_to_crate(&[&valid_crate]);
+    let path_to_crate = super::events::build_path_to_crate(&[&valid_crate]);
     let src_dir = valid_crate.src_dir;
 
     let events = vec![
@@ -89,7 +93,7 @@ fn process_file_events_filters_and_deduplicates_expected_paths() {
         event_with_path(&valid_crate.i18n_config_path),
     ];
 
-    let mut affected = process_file_events(&events, &path_to_crate);
+    let mut affected = super::events::process_file_events(&events, &path_to_crate);
     affected.sort();
 
     assert_eq!(affected, vec!["crate-a".to_string()]);
@@ -101,25 +105,28 @@ fn compute_watch_inputs_hash_changes_when_manifest_or_build_script_changes() {
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).expect("create src");
     fs::write(src_dir.join("lib.rs"), "pub struct A;\n").expect("write lib.rs");
-    write_toml(
+    crate::test_fixtures::toml_helpers::write_toml(
         &temp.path().join("Cargo.toml"),
-        &package_manifest("watch-demo", "0.1.0"),
+        &crate::test_fixtures::toml_helpers::package_manifest("watch-demo", "0.1.0"),
     );
 
     let i18n_toml = temp.path().join("i18n.toml");
-    write_toml(&i18n_toml, &i18n_config("en", None, None));
+    crate::test_fixtures::toml_helpers::write_toml(&i18n_toml, &i18n_config("en", None, None));
 
-    let before_manifest = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
-    write_toml(
+    let before_manifest =
+        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    crate::test_fixtures::toml_helpers::write_toml(
         &temp.path().join("Cargo.toml"),
-        &package_manifest("watch-demo", "0.2.0"),
+        &crate::test_fixtures::toml_helpers::package_manifest("watch-demo", "0.2.0"),
     );
-    let after_manifest = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    let after_manifest =
+        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
     assert_ne!(before_manifest, after_manifest);
 
     let before_build = after_manifest;
     fs::write(temp.path().join("build.rs"), "fn main() {}\n").expect("write build.rs");
-    let after_build = compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
+    let after_build =
+        super::generation::compute_watch_inputs_hash(temp.path(), &src_dir, &i18n_toml);
     assert_ne!(before_build, after_build);
 }
 
@@ -143,9 +150,9 @@ fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
-    let path_to_crate = build_path_to_crate(&[&crate_a, &crate_b]);
+    let path_to_crate = super::events::build_path_to_crate(&[&crate_a, &crate_b]);
 
-    let mut affected = process_file_events(
+    let mut affected = super::events::process_file_events(
         &[event_with_path(&crate_b.i18n_config_path)],
         &path_to_crate,
     );
@@ -163,8 +170,8 @@ fn spawn_generation_sends_failure_for_missing_lib_rs() {
         crates: vec![krate.clone()],
     };
 
-    let (tx, rx) = unbounded();
-    spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
+    let (tx, rx) = crossbeam_channel::unbounded();
+    super::generation::spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
 
     let result = rx
         .recv_timeout(Duration::from_secs(2))
@@ -181,7 +188,7 @@ fn watch_all_errors_when_no_crates_provided() {
         crates: Vec::new(),
     };
 
-    let result = watch_all(&[], &workspace, &FluentParseMode::default());
+    let result = super::watch_all(&[], &workspace, &FluentParseMode::default());
     assert!(result.is_err());
 }
 
@@ -202,7 +209,10 @@ fn create_valid_workspace_with_fake_runner_behavior(
     fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
 
     let i18n_toml = temp.path().join("i18n.toml");
-    write_toml(&i18n_toml, &i18n_config("en", Some("i18n"), None));
+    crate::test_fixtures::toml_helpers::write_toml(
+        &i18n_toml,
+        &i18n_config("en", Some("i18n"), None),
+    );
 
     let krate = CrateInfo {
         name: "watch-crate".to_string(),
@@ -219,12 +229,16 @@ fn create_valid_workspace_with_fake_runner_behavior(
         crates: vec![krate.clone()],
     };
 
-    let binary_path = fake_runner_binary_path(&workspace.target_dir);
-    let hash = compute_crate_inputs_hash(temp.path(), &src_dir, Some(&i18n_toml));
+    let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+    let hash = crate::generation::cache::compute_crate_inputs_hash(
+        temp.path(),
+        &src_dir,
+        Some(&i18n_toml),
+    );
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert(krate.name.clone(), hash);
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
-    install_fake_runner_with_cache(
+    crate::test_fixtures::install_fake_runner_with_cache(
         &binary_path,
         &temp_store,
         temp.path(),
@@ -257,7 +271,7 @@ fn run_watch_loop_with_poll_handles_non_library_crates() {
 
     let backend = TestBackend::new(80, 20);
     let mut terminal = Terminal::new(backend).expect("create terminal");
-    let result = run_watch_loop_with_poll(
+    let result = super::run_watch_loop_with_poll(
         &mut terminal,
         &[crate_without_lib],
         &workspace,
@@ -275,7 +289,7 @@ fn run_watch_loop_with_poll_processes_initial_generation_for_valid_crate() {
     let backend = TestBackend::new(80, 20);
     let mut terminal = Terminal::new(backend).expect("create terminal");
 
-    let result = run_watch_loop_with_poll(
+    let result = super::run_watch_loop_with_poll(
         &mut terminal,
         &[krate],
         &workspace,
@@ -295,14 +309,14 @@ fn run_watch_loop_with_file_rx_records_watcher_errors() {
         target_dir: PathBuf::from("/tmp/ws/target"),
         crates: vec![crate_without_lib.clone()],
     };
-    let (tx, rx) = unbounded();
+    let (tx, rx) = crossbeam_channel::unbounded();
     tx.send(Err(vec![notify::Error::generic("watch failed")]))
         .expect("send watcher error");
     drop(tx);
 
     let backend = TestBackend::new(80, 20);
     let mut terminal = Terminal::new(backend).expect("create terminal");
-    let result = run_watch_loop_with_file_rx(
+    let result = super::run_watch_loop_with_file_rx(
         &mut terminal,
         &[crate_without_lib],
         &workspace,
@@ -323,12 +337,12 @@ fn run_watch_loop_with_file_rx_exits_when_file_channel_disconnects() {
         target_dir: PathBuf::from("/tmp/ws/target"),
         crates: vec![crate_without_lib.clone()],
     };
-    let (tx, rx) = unbounded();
+    let (tx, rx) = crossbeam_channel::unbounded();
     drop(tx);
 
     let backend = TestBackend::new(80, 20);
     let mut terminal = Terminal::new(backend).expect("create terminal");
-    let result = run_watch_loop_with_file_rx(
+    let result = super::run_watch_loop_with_file_rx(
         &mut terminal,
         &[crate_without_lib],
         &workspace,
@@ -354,8 +368,8 @@ fn spawn_generation_sends_success_and_reads_changed_from_result_json() {
     )
     .expect("write result json");
 
-    let (tx, rx) = unbounded();
-    spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
+    let (tx, rx) = crossbeam_channel::unbounded();
+    super::generation::spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
     let result = rx
         .recv_timeout(Duration::from_secs(2))
         .expect("generation result");
@@ -383,8 +397,8 @@ fn spawn_generation_handles_invalid_json_and_empty_output() {
     fs::create_dir_all(result_json.parent().unwrap()).expect("create result dir");
     fs::write(&result_json, "{not-json").expect("write invalid json");
 
-    let (tx, rx) = unbounded();
-    spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
+    let (tx, rx) = crossbeam_channel::unbounded();
+    super::generation::spawn_generation(krate, Arc::new(workspace), FluentParseMode::default(), tx);
     let result = rx
         .recv_timeout(Duration::from_secs(2))
         .expect("generation result");
@@ -416,7 +430,7 @@ fn run_watch_loop_with_poll_processes_file_change_events() {
         let _ = fs::write(&src_file, "pub struct DemoChanged;\n");
     });
 
-    let result = run_watch_loop_with_poll(
+    let result = super::run_watch_loop_with_poll(
         &mut terminal,
         std::slice::from_ref(&krate),
         &workspace,
@@ -434,7 +448,7 @@ fn run_watch_loop_with_poll_respects_zero_iteration_limit() {
     let backend = TestBackend::new(80, 20);
     let mut terminal = Terminal::new(backend).expect("create terminal");
 
-    let result = run_watch_loop_with_poll(
+    let result = super::run_watch_loop_with_poll(
         &mut terminal,
         &[krate],
         &workspace,
@@ -467,7 +481,7 @@ fn watch_all_propagates_runner_preparation_errors() {
         crates: vec![krate.clone()],
     };
 
-    let err = watch_all(&[krate], &workspace, &FluentParseMode::default())
+    let err = super::watch_all(&[krate], &workspace, &FluentParseMode::default())
         .expect_err("invalid workspace root should fail before entering the TUI loop");
     assert!(
         err.to_string()

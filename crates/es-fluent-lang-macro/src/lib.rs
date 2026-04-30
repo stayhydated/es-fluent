@@ -295,7 +295,6 @@ fn expand_es_fluent_language(
 #[cfg(all(test, target_os = "linux"))]
 #[serial_test::serial(manifest)]
 mod tests {
-    use super::expand_es_fluent_language;
     use insta::assert_snapshot;
     use path_slash::PathExt as _;
     use std::path::Path;
@@ -337,7 +336,7 @@ mod tests {
             attr.parse().expect("parse attribute tokens")
         };
         let item_tokens: proc_macro2::TokenStream = item.parse().expect("parse item tokens");
-        expand_es_fluent_language(attr_tokens, item_tokens)
+        super::expand_es_fluent_language(attr_tokens, item_tokens)
     }
 
     fn pretty_tokens(tokens: &proc_macro2::TokenStream) -> String {

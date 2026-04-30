@@ -5,9 +5,7 @@
 
 use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use crate::core::CliError;
-use crate::ftl::{
-    CrateFtlLayout, LocaleContext, extract_variables_from_value_and_attributes, parse_ftl_file,
-};
+use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
@@ -33,7 +31,7 @@ impl TreeRenderer {
 
     /// Build a tree for a single FTL file.
     fn build_file_tree(&self, relative_path: &str, abs_path: &Path) -> Tree {
-        let resource = match parse_ftl_file(abs_path) {
+        let resource = match crate::ftl::parse_ftl_file(abs_path) {
             Ok(res) => res,
             Err(_) => {
                 return Tree::Node(
@@ -99,7 +97,7 @@ impl TreeRenderer {
 
         if self.show_variables {
             let mut variables: Vec<_> =
-                extract_variables_from_value_and_attributes(value, attributes)
+                crate::ftl::extract_variables_from_value_and_attributes(value, attributes)
                     .into_iter()
                     .collect();
 
@@ -244,7 +242,7 @@ fn build_crate_tree_json(
 }
 
 fn build_file_tree_json(relative_path: &str, abs_path: &Path) -> TreeFileJson {
-    let Ok(resource) = parse_ftl_file(abs_path) else {
+    let Ok(resource) = crate::ftl::parse_ftl_file(abs_path) else {
         return TreeFileJson {
             path: relative_path.to_string(),
             parse_error: true,
@@ -265,7 +263,7 @@ fn build_file_tree_json(relative_path: &str, abs_path: &Path) -> TreeFileJson {
                     .map(|attribute| attribute.id.name.clone())
                     .collect(),
                 variables: {
-                    let mut variables = extract_variables_from_value_and_attributes(
+                    let mut variables = crate::ftl::extract_variables_from_value_and_attributes(
                         message.value.as_ref(),
                         &message.attributes,
                     )
@@ -284,7 +282,7 @@ fn build_file_tree_json(relative_path: &str, abs_path: &Path) -> TreeFileJson {
                     .map(|attribute| attribute.id.name.clone())
                     .collect(),
                 variables: {
-                    let mut variables = extract_variables_from_value_and_attributes(
+                    let mut variables = crate::ftl::extract_variables_from_value_and_attributes(
                         Some(&term.value),
                         &term.attributes,
                     )
@@ -355,7 +353,6 @@ mod tests {
     use crate::core::CrateInfo;
     use fluent_syntax::parser;
     use std::fs;
-    use tempfile::tempdir;
 
     fn parse_ftl(content: &str) -> ast::Resource<String> {
         parser::parse(content.to_string()).unwrap()
@@ -380,7 +377,7 @@ mod tests {
     }
 
     fn create_workspace_with_tree_data() -> tempfile::TempDir {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(temp.path().join("src")).expect("create src");
         fs::create_dir_all(temp.path().join("i18n/en/test-app")).expect("create i18n dirs");
         fs::write(
@@ -429,10 +426,12 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "hello").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["name"]);
@@ -444,10 +443,12 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "greeting").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["count", "name"]);
@@ -462,10 +463,12 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "count").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["num"]);
@@ -477,10 +480,12 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "message").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["date", "user"]);

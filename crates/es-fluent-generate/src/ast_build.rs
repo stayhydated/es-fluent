@@ -1,4 +1,4 @@
-use crate::model::{OwnedVariant, compare_type_infos, merge_ftl_type_infos};
+use crate::model::{OwnedVariant, compare_type_infos};
 use crate::value::ValueFormatter;
 use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::ast;
@@ -42,7 +42,7 @@ pub(crate) fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String>
 
 /// Build a full target resource from the current registered type infos.
 pub(crate) fn build_target_resource(items: &[&FtlTypeInfo]) -> ast::Resource<String> {
-    let items = merge_ftl_type_infos(items);
+    let items = crate::model::merge_ftl_type_infos(items);
     let mut body: Vec<ast::Entry<String>> = Vec::new();
     let mut sorted_items = items.to_vec();
     sorted_items.sort_by(compare_type_infos);

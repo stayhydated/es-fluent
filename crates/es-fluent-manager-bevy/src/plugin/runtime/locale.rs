@@ -4,7 +4,7 @@ use crate::{
 };
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use es_fluent_manager_core::{FallbackChainAvailability, resolve_fallback_chain_availability};
+use es_fluent_manager_core::FallbackChainAvailability;
 use std::collections::HashSet;
 use unic_langid::LanguageIdentifier;
 
@@ -77,7 +77,7 @@ fn resolve_requested_language(
     let available_candidates = available_languages.iter().cloned().collect::<Vec<_>>();
     let blocked_candidates = blocked_languages.iter().cloned().collect::<Vec<_>>();
 
-    match resolve_fallback_chain_availability(
+    match es_fluent_manager_core::resolve_fallback_chain_availability(
         requested_language,
         &ready_candidates,
         &available_candidates,

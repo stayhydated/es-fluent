@@ -3,16 +3,8 @@ use super::exec::RunnerCrate;
 use super::monolithic::MonolithicRunner;
 use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
-use crate::generation::cache::{MetadataCache, RunnerCache, compute_crate_inputs_hash};
-use crate::test_fixtures::{
-    FakeRunnerBehavior, fake_runner_binary_path, install_fake_runner,
-    install_fake_runner_with_cache, runner_binary_mtime, save_runner_cache,
-    toml_helpers::{
-        i18n_config, insert_section, package_manifest as package_manifest_toml, string_value,
-        table, write_toml,
-    },
-    write_file,
-};
+use crate::generation::cache::{MetadataCache, RunnerCache};
+use crate::test_fixtures::FakeRunnerBehavior;
 use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
 use fs_err as fs;
 use std::path::Path;
@@ -23,7 +15,7 @@ fn package_manifest(name: &str) -> Value {
 }
 
 fn package_manifest_with_version(name: &str, version: &str) -> Value {
-    package_manifest_toml(name, version)
+    crate::test_fixtures::toml_helpers::package_manifest(name, version)
 }
 
 fn toml_string(value: &Value) -> String {
@@ -31,9 +23,12 @@ fn toml_string(value: &Value) -> String {
 }
 
 fn cargo_build_config(target_dir: &str) -> Value {
-    Value::Table(table([(
+    Value::Table(crate::test_fixtures::toml_helpers::table([(
         "build",
-        Value::Table(table([("target-dir", string_value(target_dir))])),
+        Value::Table(crate::test_fixtures::toml_helpers::table([(
+            "target-dir",
+            crate::test_fixtures::toml_helpers::string_value(target_dir),
+        )])),
     )]))
 }
 
@@ -43,7 +38,7 @@ fn create_workspace_fixture(
 ) -> (tempfile::TempDir, WorkspaceInfo) {
     let temp = tempfile::tempdir().expect("tempdir");
 
-    write_toml(
+    crate::test_fixtures::toml_helpers::write_toml(
         &temp.path().join("Cargo.toml"),
         &package_manifest(crate_name),
     );
@@ -51,11 +46,14 @@ fn create_workspace_fixture(
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).expect("create src");
     if has_lib_rs {
-        write_file(&src_dir.join("lib.rs"), "pub struct Demo;\n");
+        crate::test_fixtures::write_file(&src_dir.join("lib.rs"), "pub struct Demo;\n");
     }
 
     let i18n_config_path = temp.path().join("i18n.toml");
-    write_toml(&i18n_config_path, &i18n_config("en", "i18n"));
+    crate::test_fixtures::toml_helpers::write_toml(
+        &i18n_config_path,
+        &crate::test_fixtures::toml_helpers::i18n_config("en", "i18n"),
+    );
 
     let krate = CrateInfo {
         name: crate_name.to_string(),
@@ -77,7 +75,7 @@ fn create_workspace_fixture(
 }
 
 fn crate_inputs_hash(krate: &CrateInfo) -> String {
-    compute_crate_inputs_hash(
+    crate::generation::cache::compute_crate_inputs_hash(
         &krate.manifest_dir,
         &krate.src_dir,
         Some(&krate.i18n_config_path),
@@ -128,7 +126,7 @@ fn install_cached_runner(
     behavior: &FakeRunnerBehavior,
 ) -> u64 {
     ensure_runner_dirs(runner);
-    install_fake_runner_with_cache(
+    crate::test_fixtures::install_fake_runner_with_cache(
         &runner.binary_path,
         &runner.temp_store,
         &workspace.root_dir,
@@ -146,7 +144,7 @@ fn write_cached_runner(
     crate_hashes: indexmap::IndexMap<String, String>,
 ) {
     ensure_runner_dirs(runner);
-    save_runner_cache(
+    crate::test_fixtures::save_runner_cache(
         &runner.temp_store,
         &workspace.root_dir,
         runner_mtime,
@@ -175,15 +173,18 @@ fn test_temp_crate_config_non_workspace_member() {
     let manifest_path = temp_dir.path().join("Cargo.toml");
 
     let mut cargo_toml = package_manifest("test-crate");
-    insert_section(
+    crate::test_fixtures::toml_helpers::insert_section(
         &mut cargo_toml,
         "dependencies",
-        Value::Table(table([(
+        Value::Table(crate::test_fixtures::toml_helpers::table([(
             "es-fluent",
-            Value::Table(table([("version", string_value("*"))])),
+            Value::Table(crate::test_fixtures::toml_helpers::table([(
+                "version",
+                crate::test_fixtures::toml_helpers::string_value("*"),
+            )])),
         )])),
     );
-    write_toml(&manifest_path, &cargo_toml);
+    crate::test_fixtures::toml_helpers::write_toml(&manifest_path, &cargo_toml);
 
     let src_dir = temp_dir.path().join("src");
     fs::create_dir_all(&src_dir).unwrap();
@@ -205,21 +206,28 @@ fn temp_crate_config_extracts_manifest_overrides() {
     let manifest_path = temp_dir.path().join("Cargo.toml");
 
     let mut cargo_toml = package_manifest("override-test");
-    insert_section(
+    crate::test_fixtures::toml_helpers::insert_section(
         &mut cargo_toml,
         "replace",
-        Value::Table(table([(
+        Value::Table(crate::test_fixtures::toml_helpers::table([(
             "https://github.com/zed-industries/zed#gpui@0.2.2",
-            Value::Table(table([
-                ("git", string_value("https://github.com/zed-industries/zed")),
+            Value::Table(crate::test_fixtures::toml_helpers::table([
+                (
+                    "git",
+                    crate::test_fixtures::toml_helpers::string_value(
+                        "https://github.com/zed-industries/zed",
+                    ),
+                ),
                 (
                     "rev",
-                    string_value("15d8660748b508b3525d3403e5d172f1a557bfa5"),
+                    crate::test_fixtures::toml_helpers::string_value(
+                        "15d8660748b508b3525d3403e5d172f1a557bfa5",
+                    ),
                 ),
             ])),
         )])),
     );
-    write_toml(&manifest_path, &cargo_toml);
+    crate::test_fixtures::toml_helpers::write_toml(&manifest_path, &cargo_toml);
 
     let overrides = TempCrateConfig::extract_manifest_overrides(&manifest_path);
     let rendered = toml::to_string(&toml::Value::Table(overrides)).expect("serialize overrides");
@@ -235,8 +243,8 @@ fn temp_crate_config_extracts_manifest_overrides() {
 fn temp_crate_config_uses_valid_cached_metadata() {
     let temp = tempfile::tempdir().expect("tempdir");
     let manifest_path = temp.path().join("Cargo.toml");
-    write_toml(&manifest_path, &package_manifest("cached"));
-    write_file(&temp.path().join("Cargo.lock"), "lock");
+    crate::test_fixtures::toml_helpers::write_toml(&manifest_path, &package_manifest("cached"));
+    crate::test_fixtures::write_file(&temp.path().join("Cargo.lock"), "lock");
 
     let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
@@ -277,8 +285,11 @@ fn temp_crate_config_uses_valid_cached_metadata() {
 fn temp_crate_config_writes_metadata_cache_when_lock_exists() {
     let temp = tempfile::tempdir().expect("tempdir");
     let manifest_path = temp.path().join("Cargo.toml");
-    write_toml(&manifest_path, &package_manifest("cache-write"));
-    write_file(&temp.path().join("Cargo.lock"), "lock-content");
+    crate::test_fixtures::toml_helpers::write_toml(
+        &manifest_path,
+        &package_manifest("cache-write"),
+    );
+    crate::test_fixtures::write_file(&temp.path().join("Cargo.lock"), "lock-content");
 
     let _ = TempCrateConfig::from_manifest(&manifest_path).expect("load temp crate config");
     let temp_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
@@ -319,7 +330,7 @@ fn prepare_monolithic_runner_crate_writes_expected_files() {
 #[test]
 fn prepare_monolithic_runner_crate_serializes_windows_style_paths() {
     let (temp, workspace) = create_workspace_fixture("windows-paths", true);
-    write_file(&temp.path().join("Cargo.lock"), "lock");
+    crate::test_fixtures::write_file(&temp.path().join("Cargo.lock"), "lock");
 
     let temp_dir = RunnerMetadataStore::temp_for_workspace(temp.path());
     fs::create_dir_all(temp_dir.base_dir()).expect("create .es-fluent");
@@ -399,7 +410,7 @@ fn monolithic_runner_staleness_detects_hash_changes() {
     assert!(!runner.is_stale(), "cache should mark runner as fresh");
 
     let krate = &workspace.crates[0];
-    write_file(&krate.src_dir.join("lib.rs"), "pub struct Changed;\n");
+    crate::test_fixtures::write_file(&krate.src_dir.join("lib.rs"), "pub struct Changed;\n");
     assert!(runner.is_stale(), "content change should mark runner stale");
 }
 
@@ -451,11 +462,11 @@ fn run_monolithic_fast_path_reports_binary_failure() {
 fn run_cargo_helpers_execute_simple_temp_crate() {
     let temp = tempfile::tempdir().expect("tempdir");
     fs::create_dir_all(temp.path().join("src")).expect("create src");
-    write_toml(
+    crate::test_fixtures::toml_helpers::write_toml(
         &temp.path().join("Cargo.toml"),
         &package_manifest("runner-test"),
     );
-    write_file(
+    crate::test_fixtures::write_file(
         &temp.path().join("src/main.rs"),
         r#"fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -521,15 +532,21 @@ fn monolithic_runner_staleness_detects_workspace_manifest_changes() {
     install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
     let mut manifest = package_manifest("manifest-stale");
-    insert_section(
+    crate::test_fixtures::toml_helpers::insert_section(
         &mut manifest,
         "patch",
-        Value::Table(table([(
+        Value::Table(crate::test_fixtures::toml_helpers::table([(
             "crates-io",
-            Value::Table(table([("serde", string_value("1"))])),
+            Value::Table(crate::test_fixtures::toml_helpers::table([(
+                "serde",
+                crate::test_fixtures::toml_helpers::string_value("1"),
+            )])),
         )])),
     );
-    write_toml(&workspace.root_dir.join("Cargo.toml"), &manifest);
+    crate::test_fixtures::toml_helpers::write_toml(
+        &workspace.root_dir.join("Cargo.toml"),
+        &manifest,
+    );
 
     assert!(
         runner.is_stale(),
@@ -544,7 +561,7 @@ fn monolithic_runner_staleness_detects_crate_manifest_changes() {
     install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
     let krate = &workspace.crates[0];
-    write_toml(
+    crate::test_fixtures::toml_helpers::write_toml(
         &krate.manifest_dir.join("Cargo.toml"),
         &package_manifest_with_version("crate-manifest-stale", "0.2.0"),
     );
@@ -562,7 +579,7 @@ fn monolithic_runner_staleness_detects_build_script_changes() {
     install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
     let krate = &workspace.crates[0];
-    write_file(
+    crate::test_fixtures::write_file(
         &krate.manifest_dir.join("build.rs"),
         "fn main() { println!(\"cargo:rerun-if-changed=build.rs\"); }\n",
     );
@@ -576,12 +593,12 @@ fn monolithic_runner_staleness_detects_build_script_changes() {
 #[test]
 fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
     let (_temp, workspace) = create_workspace_fixture("lockfile-stale", true);
-    write_file(&workspace.root_dir.join("Cargo.lock"), "version = 4\n");
+    crate::test_fixtures::write_file(&workspace.root_dir.join("Cargo.lock"), "version = 4\n");
 
     let runner = MonolithicRunner::new(&workspace);
     install_cached_runner(&runner, &workspace, &FakeRunnerBehavior::stdout("ok\n"));
 
-    write_file(&workspace.root_dir.join("Cargo.lock"), "version = 5\n");
+    crate::test_fixtures::write_file(&workspace.root_dir.join("Cargo.lock"), "version = 5\n");
 
     assert!(
         runner.is_stale(),
@@ -615,7 +632,7 @@ fn monolithic_runner_staleness_rebuilds_when_mtime_changes() {
 #[test]
 fn prepare_monolithic_runner_crate_copies_workspace_lock_file() {
     let (_temp, workspace) = create_workspace_fixture("lock-copy", true);
-    write_file(&workspace.root_dir.join("Cargo.lock"), "workspace-lock");
+    crate::test_fixtures::write_file(&workspace.root_dir.join("Cargo.lock"), "workspace-lock");
 
     let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
     assert!(runner_dir.join("Cargo.lock").exists());
@@ -625,21 +642,31 @@ fn prepare_monolithic_runner_crate_copies_workspace_lock_file() {
 fn prepare_monolithic_runner_crate_includes_manifest_overrides() {
     let (_temp, workspace) = create_workspace_fixture("manifest-overrides", true);
     let mut manifest = package_manifest("manifest-overrides");
-    insert_section(
+    crate::test_fixtures::toml_helpers::insert_section(
         &mut manifest,
         "replace",
-        Value::Table(table([(
+        Value::Table(crate::test_fixtures::toml_helpers::table([(
             "https://github.com/zed-industries/zed#gpui@0.2.2",
-            Value::Table(table([
-                ("git", string_value("https://github.com/zed-industries/zed")),
+            Value::Table(crate::test_fixtures::toml_helpers::table([
+                (
+                    "git",
+                    crate::test_fixtures::toml_helpers::string_value(
+                        "https://github.com/zed-industries/zed",
+                    ),
+                ),
                 (
                     "rev",
-                    string_value("15d8660748b508b3525d3403e5d172f1a557bfa5"),
+                    crate::test_fixtures::toml_helpers::string_value(
+                        "15d8660748b508b3525d3403e5d172f1a557bfa5",
+                    ),
                 ),
             ])),
         )])),
     );
-    write_toml(&workspace.root_dir.join("Cargo.toml"), &manifest);
+    crate::test_fixtures::toml_helpers::write_toml(
+        &workspace.root_dir.join("Cargo.toml"),
+        &manifest,
+    );
 
     let runner_dir = prepare_monolithic_runner_crate(&workspace).expect("prepare runner");
     let runner_manifest =
@@ -661,9 +688,9 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
     let runner = MonolithicRunner::new(&workspace);
     ensure_runner_dirs(&runner);
 
-    write_file(&runner.binary_path, "not executable");
+    crate::test_fixtures::write_file(&runner.binary_path, "not executable");
 
-    let runner_mtime = runner_binary_mtime(&runner.binary_path);
+    let runner_mtime = crate::test_fixtures::runner_binary_mtime(&runner.binary_path);
     write_cached_runner(
         &runner,
         &workspace,
@@ -688,16 +715,27 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     let runner_dir = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(&workspace.root_dir);
     fs::create_dir_all(runner_dir.base_dir().join("src")).expect("create runner src");
     let mut manifest = package_manifest("dummy-runner");
-    insert_section(
+    crate::test_fixtures::toml_helpers::insert_section(
         &mut manifest,
         "bin",
-        Value::Array(vec![Value::Table(table([
-            ("name", string_value("es-fluent-runner")),
-            ("path", string_value("src/main.rs")),
-        ]))]),
+        Value::Array(vec![Value::Table(
+            crate::test_fixtures::toml_helpers::table([
+                (
+                    "name",
+                    crate::test_fixtures::toml_helpers::string_value("es-fluent-runner"),
+                ),
+                (
+                    "path",
+                    crate::test_fixtures::toml_helpers::string_value("src/main.rs"),
+                ),
+            ]),
+        )]),
     );
-    write_toml(&runner_dir.base_dir().join("Cargo.toml"), &manifest);
-    write_file(
+    crate::test_fixtures::toml_helpers::write_toml(
+        &runner_dir.base_dir().join("Cargo.toml"),
+        &manifest,
+    );
+    crate::test_fixtures::write_file(
         &runner_dir.base_dir().join("src/main.rs"),
         r#"fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -706,8 +744,8 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
 "#,
     );
 
-    let binary_path = fake_runner_binary_path(&workspace.target_dir);
-    install_fake_runner(
+    let binary_path = crate::test_fixtures::fake_runner_binary_path(&workspace.target_dir);
+    crate::test_fixtures::install_fake_runner(
         &binary_path,
         &FakeRunnerBehavior::stdout("cache-metadata\n"),
     );

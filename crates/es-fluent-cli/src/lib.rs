@@ -3,8 +3,7 @@
 use clap::{Parser, Subcommand};
 use commands::{
     AddLocaleArgs, CheckArgs, CleanArgs, DoctorArgs, FormatArgs, GenerateArgs, InitArgs,
-    StatusArgs, SyncArgs, TreeArgs, WatchArgs, run_add_locale, run_check, run_clean, run_doctor,
-    run_format, run_generate, run_init, run_status, run_sync, run_tree, run_watch,
+    StatusArgs, SyncArgs, TreeArgs, WatchArgs,
 };
 use miette::Result as MietteResult;
 
@@ -113,17 +112,17 @@ pub fn run_cli() -> MietteResult<()> {
 
 fn dispatch(command: Commands) -> Result<(), CliError> {
     match command {
-        Commands::Generate(args) => run_generate(args),
-        Commands::Init(args) => run_init(args),
-        Commands::Watch(args) => run_watch(args),
-        Commands::Clean(args) => run_clean(args),
-        Commands::Fmt(args) => run_format(args),
-        Commands::Check(args) => run_check(args),
-        Commands::Doctor(args) => run_doctor(args),
-        Commands::Status(args) => run_status(args),
-        Commands::Sync(args) => run_sync(args),
-        Commands::AddLocale(args) => run_add_locale(args),
-        Commands::Tree(args) => run_tree(args),
+        Commands::Generate(args) => commands::run_generate(args),
+        Commands::Init(args) => commands::run_init(args),
+        Commands::Watch(args) => commands::run_watch(args),
+        Commands::Clean(args) => commands::run_clean(args),
+        Commands::Fmt(args) => commands::run_format(args),
+        Commands::Check(args) => commands::run_check(args),
+        Commands::Doctor(args) => commands::run_doctor(args),
+        Commands::Status(args) => commands::run_status(args),
+        Commands::Sync(args) => commands::run_sync(args),
+        Commands::AddLocale(args) => commands::run_add_locale(args),
+        Commands::Tree(args) => commands::run_tree(args),
     }
 }
 
@@ -141,8 +140,6 @@ mod tests {
             "/tests/fixtures/mod.rs"
         ));
     }
-
-    use fixtures::create_workspace;
 
     fn missing_package_workspace_args(path: &std::path::Path) -> WorkspaceArgs {
         WorkspaceArgs {
@@ -170,7 +167,7 @@ mod tests {
 
     #[test]
     fn dispatch_handles_all_commands_without_matching_packages() {
-        let temp = create_workspace();
+        let temp = fixtures::create_workspace();
         let workspace = missing_package_workspace_args(temp.path());
 
         assert!(

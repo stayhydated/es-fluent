@@ -3,8 +3,6 @@ use fs_err as fs;
 use rstest::rstest;
 use tempfile::TempDir;
 
-use crate::test_utils::with_manifest_env;
-
 fn string_value(value: &str) -> toml::Value {
     toml::Value::String(value.to_string())
 }
@@ -300,7 +298,7 @@ fn test_available_languages_and_locale_names_use_manifest_env() {
         namespaces: None,
     };
 
-    with_manifest_env(Some(temp_dir.path()), || {
+    crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
         let mut locale_names = config.available_locale_names().unwrap();
         locale_names.sort();
         assert_eq!(locale_names, vec!["en", "fr"]);
@@ -368,8 +366,10 @@ fn test_available_languages_uses_manifest_env_when_base_not_provided() {
         namespaces: None,
     };
 
-    let languages = with_manifest_env(Some(temp_dir.path()), || config.available_languages())
-        .expect("available languages");
+    let languages = crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
+        config.available_languages()
+    })
+    .expect("available languages");
     assert_eq!(
         languages
             .into_iter()
@@ -390,14 +390,18 @@ fn test_validate_assets_dir_reports_missing_and_non_directory() {
         namespaces: None,
     };
 
-    let missing = with_manifest_env(Some(temp_dir.path()), || config.validate_assets_dir());
+    let missing = crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
+        config.validate_assets_dir()
+    });
     assert!(matches!(
         missing,
         Err(I18nConfigError::ReadError(err)) if err.kind() == std::io::ErrorKind::NotFound
     ));
 
     fs::write(temp_dir.path().join("i18n"), "not a directory").unwrap();
-    let not_directory = with_manifest_env(Some(temp_dir.path()), || config.validate_assets_dir());
+    let not_directory = crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
+        config.validate_assets_dir()
+    });
     assert!(matches!(
         not_directory,
         Err(I18nConfigError::ReadError(err)) if err.kind() == std::io::ErrorKind::InvalidInput

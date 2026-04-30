@@ -3,9 +3,7 @@
 pub mod build;
 mod language;
 
-use language::parse_language_entry;
-
-use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use es_fluent_shared::CanonicalLanguageIdentifierError;
 use fs_err::{self as fs, DirEntry};
 use path_slash::PathExt as _;
 use serde::{Deserialize, Serialize};
@@ -410,7 +408,7 @@ impl I18nConfig {
 }
 
 fn parse_fallback_language_identifier(value: &str) -> Result<LanguageIdentifier, I18nConfigError> {
-    parse_canonical_language_identifier(value).map_err(|err| match err {
+    es_fluent_shared::parse_canonical_language_identifier(value).map_err(|err| match err {
         CanonicalLanguageIdentifierError::Invalid { source, .. } => {
             I18nConfigError::InvalidFallbackLanguageIdentifier {
                 name: value.to_string(),
@@ -439,7 +437,7 @@ fn collect_language_entries(
 
     for entry in entries {
         let entry = entry.map_err(I18nConfigError::ReadError)?;
-        if let Some(entry) = parse_language_entry(entry)? {
+        if let Some(entry) = language::parse_language_entry(entry)? {
             parsed_entries.push(entry);
         }
     }

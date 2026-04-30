@@ -1,15 +1,14 @@
 #[cfg(target_arch = "wasm32")]
-use dioxus::prelude::use_effect;
 #[cfg(target_arch = "wasm32")]
 use dioxus_motion::prelude::{
-    AnimationConfig, AnimationManager as _, AnimationMode, Duration, Spring, use_motion,
+    AnimationConfig, AnimationManager as _, AnimationMode, Duration, Spring,
 };
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn use_reveal_style(delay_ms: u64, distance_px: f32) -> String {
-    let mut progress = use_motion(0.0f32);
+    let mut progress = dioxus_motion::prelude::use_motion(0.0f32);
 
-    use_effect(move || {
+    dioxus::prelude::use_effect(move || {
         progress.animate_to(
             1.0,
             AnimationConfig::new(AnimationMode::Spring(Spring {

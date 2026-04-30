@@ -265,7 +265,6 @@ fn format_ftl_file(path: &Path, check_only: bool) -> FormatResult {
 mod tests {
     use super::*;
     use std::path::Path;
-    use tempfile::tempdir;
 
     use crate::test_fixtures::{CARGO_TOML, HELLO_FTL, I18N_TOML, LIB_RS, UI_UNSORTED_FTL};
 
@@ -356,7 +355,7 @@ mod tests {
 
     #[test]
     fn run_format_dry_run_and_real_cover_command_paths() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         write_workspace_files(temp.path());
         write_test_crate(temp.path());
         let namespaced_path = temp.path().join("i18n/en/test-app/ui.ftl");
@@ -393,7 +392,7 @@ mod tests {
 
     #[test]
     fn run_format_returns_ok_when_package_filter_matches_nothing() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         write_workspace_files(temp.path());
         write_test_crate(temp.path());
 
@@ -412,7 +411,7 @@ mod tests {
 
     #[test]
     fn format_ftl_file_covers_read_empty_and_parse_error_paths() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
 
         let missing = temp.path().join("missing.ftl");
         let missing_result = format_ftl_file(&missing, false);
@@ -439,7 +438,7 @@ mod tests {
 
     #[test]
     fn format_ftl_file_returns_write_error_for_read_only_file() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let ftl = temp.path().join("read-only.ftl");
         std::fs::write(&ftl, "zeta = Z\nalpha = A\n").expect("write ftl");
 

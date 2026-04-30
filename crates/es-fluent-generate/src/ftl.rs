@@ -201,7 +201,6 @@ pub fn group_comment_name(comment: &ast::Comment<String>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn parse_ftl_file_nonexistent() {
@@ -222,7 +221,7 @@ mod tests {
 
     #[test]
     fn parse_ftl_file_rejects_parse_errors() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let file_path = temp.path().join("invalid.ftl");
         std::fs::write(&file_path, "broken = {\n").expect("write invalid");
 
@@ -233,7 +232,7 @@ mod tests {
 
     #[test]
     fn parse_ftl_file_errors_when_path_is_directory() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let dir_path = temp.path().join("not-a-file");
         std::fs::create_dir_all(&dir_path).expect("create dir");
 

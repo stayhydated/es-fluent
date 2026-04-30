@@ -1,5 +1,5 @@
 use super::I18nModuleRegistration;
-use crate::asset_localization::{ModuleData, validate_module_registry};
+use crate::asset_localization::ModuleData;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -78,7 +78,7 @@ struct IdentityInspection {
 }
 
 fn validate_single_module_data(data: &'static ModuleData, errors: &mut Vec<ModuleDiscoveryError>) {
-    if let Err(validation_errors) = validate_module_registry([data]) {
+    if let Err(validation_errors) = crate::asset_localization::validate_module_registry([data]) {
         errors.extend(
             validation_errors
                 .into_iter()
@@ -108,7 +108,9 @@ pub fn try_filter_module_registry(
         .collect::<Vec<_>>();
 
     let mut errors = Vec::new();
-    if let Err(validation_errors) = validate_module_registry(discovered_data.iter().copied()) {
+    if let Err(validation_errors) =
+        crate::asset_localization::validate_module_registry(discovered_data.iter().copied())
+    {
         errors.extend(
             validation_errors
                 .into_iter()

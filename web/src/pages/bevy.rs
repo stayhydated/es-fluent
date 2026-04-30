@@ -1,14 +1,16 @@
 use crate::components::PageLink;
 use crate::site::i18n::{BevyPageMessage, SiteLanguage};
-use crate::site::routing::{PageKind, SiteRoute, site_root_prefix};
+use crate::site::routing::{PageKind, SiteRoute};
 use dioxus::prelude::*;
-use es_fluent_manager_dioxus::use_i18n;
 
 #[component]
 pub(crate) fn BevyPage(locale: SiteLanguage) -> Element {
     let page_output_dir = SiteRoute::new(locale, PageKind::Bevy).output_dir();
-    let demo_src = format!("{}bevy-demo/", site_root_prefix(&page_output_dir));
-    let i18n = match use_i18n() {
+    let demo_src = format!(
+        "{}bevy-demo/",
+        crate::site::routing::site_root_prefix(&page_output_dir)
+    );
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "fullscreen-demo", "failed: {error}" } },
     };

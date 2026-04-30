@@ -1,6 +1,6 @@
 //! Generate command implementation.
 
-use super::common::{GenerationVerb, WorkspaceArgs, run_generation_command};
+use super::common::{GenerationVerb, WorkspaceArgs};
 use crate::core::{CliError, FluentParseMode, GenerationAction};
 use clap::Parser;
 
@@ -25,7 +25,7 @@ pub struct GenerateArgs {
 
 /// Run the generate command.
 pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
-    run_generation_command(
+    super::common::run_generation_command(
         args.workspace,
         GenerationAction::Generate {
             mode: args.mode,
@@ -40,13 +40,11 @@ pub fn run_generate(args: GenerateArgs) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::{
-        FakeRunnerBehavior, create_test_crate_workspace, setup_fake_runner_and_cache,
-    };
+    use crate::test_fixtures::FakeRunnerBehavior;
 
     #[test]
     fn run_generate_returns_ok_when_package_filter_matches_nothing() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         let result = run_generate(GenerateArgs {
             workspace: WorkspaceArgs {
                 path: Some(temp.path().to_path_buf()),
@@ -62,8 +60,11 @@ mod tests {
 
     #[test]
     fn run_generate_executes_with_fake_runner() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::stdout("generated\n"));
+        let temp = crate::test_fixtures::create_test_crate_workspace();
+        crate::test_fixtures::setup_fake_runner_and_cache(
+            &temp,
+            FakeRunnerBehavior::stdout("generated\n"),
+        );
 
         let result = run_generate(GenerateArgs {
             workspace: WorkspaceArgs {

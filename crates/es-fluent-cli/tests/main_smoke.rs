@@ -1,7 +1,6 @@
 mod fixtures;
 
 use assert_cmd::Command;
-use fixtures::create_workspace;
 use predicates::prelude::*;
 
 #[test]
@@ -16,7 +15,7 @@ fn binary_help_command_succeeds() {
 
 #[test]
 fn binary_generate_with_missing_package_filter_succeeds() {
-    let temp = create_workspace();
+    let temp = fixtures::create_workspace();
     Command::cargo_bin("cargo-es-fluent")
         .expect("binary exists")
         .args([

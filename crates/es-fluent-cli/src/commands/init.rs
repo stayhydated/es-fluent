@@ -1,6 +1,4 @@
 //! Init command implementation.
-
-use crate::commands::sync::canonical_locale;
 use crate::core::CliError;
 use clap::{Parser, ValueEnum};
 use fs_err as fs;
@@ -111,10 +109,10 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
         )));
     }
 
-    let fallback_language = canonical_locale(&args.fallback_language)?;
+    let fallback_language = crate::commands::sync::canonical_locale(&args.fallback_language)?;
     let mut locales = BTreeSet::from([fallback_language.clone()]);
     for locale in &args.locales {
-        locales.insert(canonical_locale(locale)?);
+        locales.insert(crate::commands::sync::canonical_locale(locale)?);
     }
 
     let assets_dir_toml = args.assets_dir.to_string_lossy().replace('\\', "/");

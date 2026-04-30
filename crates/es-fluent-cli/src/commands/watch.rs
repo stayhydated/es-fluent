@@ -2,7 +2,6 @@
 
 use super::common::{WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, FluentParseMode};
-use crate::tui::watch_all;
 use crate::utils::ui;
 use clap::Parser;
 
@@ -25,17 +24,17 @@ pub fn run_watch(args: WatchArgs) -> Result<(), CliError> {
         return Ok(());
     }
 
-    watch_all(&workspace.crates, &workspace.workspace_info, &args.mode).map_err(CliError::from)
+    crate::tui::watch_all(&workspace.crates, &workspace.workspace_info, &args.mode)
+        .map_err(CliError::from)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::create_test_crate_workspace_without_ftl;
 
     #[test]
     fn run_watch_returns_ok_when_package_filter_matches_nothing() {
-        let temp = create_test_crate_workspace_without_ftl();
+        let temp = crate::test_fixtures::create_test_crate_workspace_without_ftl();
 
         let result = run_watch(WatchArgs {
             workspace: WorkspaceArgs {

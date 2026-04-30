@@ -1,13 +1,12 @@
 use crate::components::PageLink;
 use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
-use crate::site::routing::{PageKind, book_href, page_href};
+use crate::site::routing::PageKind;
 use dioxus::prelude::*;
-use es_fluent_manager_dioxus::use_i18n;
 
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
-    let i18n = match use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { header { class: "page-header", "failed: {error}" } },
     };
@@ -20,7 +19,7 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
 
     rsx! {
         header { class: "page-header",
-            a { class: "brand", href: page_href(locale, PageKind::Home),
+            a { class: "brand", href: crate::site::routing::page_href(locale, PageKind::Home),
                     span { class: "brand-mark", "EF" }
                     span { class: "brand-copy",
                         span { class: "brand-kicker", "{page_kicker}" }
@@ -42,7 +41,7 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
                         label: nav_demos,
                     }
                     ExternalNavLink {
-                        href: book_href(),
+                        href: crate::site::routing::book_href(),
                         label: nav_docs,
                     }
                     ExternalNavLink {
@@ -73,7 +72,7 @@ fn ExternalNavLink(href: String, label: String) -> Element {
 
 #[component]
 fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
-    let i18n = match use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "locale-switcher", "failed: {error}" } },
     };
@@ -102,7 +101,7 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
 
 #[component]
 pub(crate) fn FooterPanel() -> Element {
-    let i18n = match use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { footer { class: "site-footer", "failed: {error}" } },
     };

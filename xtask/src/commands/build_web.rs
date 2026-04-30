@@ -5,8 +5,6 @@ use std::process::Command;
 use anyhow::{Context, bail};
 use walkdir::WalkDir;
 
-use crate::util::workspace_root;
-
 const BUNDLE_DIR: &str = "web/.dx-bundle";
 const DIST_DIR: &str = "web/dist";
 const DX_RELEASE_PUBLIC_DIR: &str = "target/dx/web/release/web/public";
@@ -19,7 +17,7 @@ const LLMS_TXT: &str = "web/public/llms.txt";
 const ROOT_NOJEKYLL: &str = "web/public/.nojekyll";
 
 pub fn run() -> anyhow::Result<()> {
-    run_from_workspace_root(&workspace_root()?)
+    run_from_workspace_root(&crate::util::workspace_root()?)
 }
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {

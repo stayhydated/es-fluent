@@ -2,14 +2,8 @@
 
 use crate::asset_localization::{
     I18nModuleDescriptor, ModuleData, ModuleResourceSpec, ResourceKey, ResourceLoadStatus,
-    load_locale_resources, parse_fluent_resource_bytes,
 };
-use crate::fallback::resolve_fallback_language;
-use crate::localization::{
-    I18nModule, LocalizationError, Localizer, SyncFluentBundle, build_sync_bundle,
-    fallback_errors_are_fatal, localize_with_bundle, localize_with_fallback_resources,
-};
-use es_fluent_shared::parse_canonical_language_identifier;
+use crate::localization::{I18nModule, LocalizationError, Localizer, SyncFluentBundle};
 use fluent_bundle::{FluentError, FluentResource, FluentValue};
 use parking_lot::RwLock;
 use rust_embed::RustEmbed;
@@ -175,25 +169,30 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     ) -> Result<Vec<Arc<FluentResource>>, LocalizationError> {
         let resource_plan =
             T::resource_plan_for_language(lang).unwrap_or_else(|| self.data.resource_plan());
-        let (resources, report) = load_locale_resources(&resource_plan, |spec| {
-            let file_path = spec.locale_path(lang);
+        let (resources, report) =
+            crate::asset_localization::load_locale_resources(&resource_plan, |spec| {
+                let file_path = spec.locale_path(lang);
 
-            match T::get(&file_path) {
-                Some(file_data) => match parse_fluent_resource_bytes(spec, file_data.data.as_ref())
-                {
-                    Ok(resource) => ResourceLoadStatus::Loaded(resource),
-                    Err(err) => {
-                        tracing::debug!("{}", err);
-                        ResourceLoadStatus::Error(err)
+                match T::get(&file_path) {
+                    Some(file_data) => {
+                        match crate::asset_localization::parse_fluent_resource_bytes(
+                            spec,
+                            file_data.data.as_ref(),
+                        ) {
+                            Ok(resource) => ResourceLoadStatus::Loaded(resource),
+                            Err(err) => {
+                                tracing::debug!("{}", err);
+                                ResourceLoadStatus::Error(err)
+                            },
+                        }
                     },
-                },
-                None => {
-                    let err = crate::asset_localization::ResourceLoadError::missing(spec);
-                    tracing::debug!("{}", err);
-                    ResourceLoadStatus::Missing
-                },
-            }
-        });
+                    None => {
+                        let err = crate::asset_localization::ResourceLoadError::missing(spec);
+                        tracing::debug!("{}", err);
+                        ResourceLoadStatus::Missing
+                    },
+                }
+            });
 
         if !report.is_ready() {
             let mut missing_required = report
@@ -232,12 +231,14 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         let mut current_bundle = None;
         let mut locale_resources = Vec::new();
 
-        while let Some(candidate) = resolve_fallback_language(lang, &remaining_languages) {
+        while let Some(candidate) =
+            crate::fallback::resolve_fallback_language(lang, &remaining_languages)
+        {
             remaining_languages.retain(|supported| supported != &candidate);
 
             if let Ok(resources) = self.load_resource_for_language(&candidate) {
                 let (mut candidate_bundle, add_errors) =
-                    build_sync_bundle(&candidate, resources.clone());
+                    crate::localization::build_sync_bundle(&candidate, resources.clone());
                 if !add_errors.is_empty() {
                     if locale_resources.is_empty() {
                         let error =
@@ -282,7 +283,8 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         if let Some(bundle) = self.current_bundle.read().as_ref()
-            && let Some((value, errors)) = localize_with_bundle(bundle.as_ref(), id, args)
+            && let Some((value, errors)) =
+                crate::localization::localize_with_bundle(bundle.as_ref(), id, args)
         {
             if !errors.is_empty() {
                 tracing::error!("Fluent formatting errors for id '{}': {:?}", id, errors);
@@ -293,10 +295,13 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         }
 
         let locale_resources = self.current_locale_resources.read();
-        let (value, errors) =
-            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
+        let (value, errors) = crate::localization::localize_with_fallback_resources(
+            locale_resources.as_slice(),
+            id,
+            args,
+        );
 
-        if fallback_errors_are_fatal(&errors) {
+        if crate::localization::fallback_errors_are_fatal(&errors) {
             tracing::error!(
                 "Fluent fallback formatting errors for id '{}': {:?}",
                 id,
@@ -348,7 +353,7 @@ fn embedded_resource_from_asset_path(
 }
 
 fn parse_embedded_language_identifier(raw: &str) -> Option<LanguageIdentifier> {
-    parse_canonical_language_identifier(raw).ok()
+    es_fluent_shared::parse_canonical_language_identifier(raw).ok()
 }
 
 impl<T: EmbeddedAssets> EmbeddedI18nModule<T> {

@@ -4885,6 +4885,7 @@ dependencies = [
  "es-fluent-derive",
  "es-fluent-generate",
  "es-fluent-manager-core",
+ "es-fluent-manager-embedded",
  "es-fluent-shared",
  "es-fluent-toml",
  "fluent-bundle",

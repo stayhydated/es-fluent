@@ -1,7 +1,6 @@
 use crate::{DioxusInitError, ManagedI18n};
-use dioxus_core::{Element, VNode, try_consume_context, use_hook};
+use dioxus_core::{Element, VNode};
 use dioxus_core_macro::{Props, component};
-use dioxus_hooks::{try_use_context, use_context_provider};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
 use es_fluent::{FluentLocalizer, FluentMessage, FluentValue};
 use es_fluent_manager_core::LocalizationError;
@@ -65,7 +64,7 @@ fn provide_i18n_context_once(
     state: I18nContextState,
     fallback_language: LanguageIdentifier,
 ) -> I18nContext {
-    use_context_provider(move || I18nContext {
+    dioxus_hooks::use_context_provider(move || I18nContext {
         tracked: Signal::new(state.requested_language_or(&fallback_language)),
         state,
     })
@@ -145,7 +144,8 @@ pub fn I18nProvider(
     children: Element,
 ) -> Element {
     let init = use_init_i18n(initial_language);
-    let init_failure_logged = use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
+    let init_failure_logged =
+        dioxus_core::use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
 
     match init {
         Ok(_) => children,
@@ -178,7 +178,8 @@ pub fn I18nProviderStrict(
     children: Element,
 ) -> Element {
     let init = use_init_i18n(initial_language);
-    let init_failure_logged = use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
+    let init_failure_logged =
+        dioxus_core::use_hook(|| std::rc::Rc::new(std::cell::Cell::new(false)));
 
     match init {
         Ok(_) => children,
@@ -217,7 +218,7 @@ where
     L: Into<LanguageIdentifier> + 'static,
 {
     let initial_language = initial_language.into();
-    let state = use_hook({
+    let state = dioxus_core::use_hook({
         let initial_language = initial_language.clone();
         move || match ManagedI18n::new_with_discovered_modules(initial_language) {
             Ok(managed) => I18nContextState::Ready(Arc::new(managed)),
@@ -240,13 +241,13 @@ fn use_i18n_context_once(
     state: I18nContextState,
     fallback_language: LanguageIdentifier,
 ) -> Result<DioxusI18n, DioxusInitError> {
-    let state = use_hook(move || state);
+    let state = dioxus_core::use_hook(move || state);
     let context = provide_i18n_context_once(state, fallback_language);
     context.into_i18n()
 }
 
 pub fn try_use_i18n() -> Result<Option<DioxusI18n>, DioxusInitError> {
-    match try_use_context::<I18nContext>() {
+    match dioxus_hooks::try_use_context::<I18nContext>() {
         Some(context) => context.into_i18n().map(Some),
         None => Ok(None),
     }
@@ -257,7 +258,7 @@ pub fn use_i18n() -> Result<DioxusI18n, DioxusInitError> {
 }
 
 pub fn try_consume_i18n() -> Result<Option<DioxusI18n>, DioxusInitError> {
-    match try_consume_context::<I18nContext>() {
+    match dioxus_core::try_consume_context::<I18nContext>() {
         Some(context) => context.into_i18n().map(Some),
         None => Ok(None),
     }

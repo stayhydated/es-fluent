@@ -1,4 +1,3 @@
-use super::locale::apply_selected_language;
 use crate::{
     ActiveLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
     PendingLanguageChange,
@@ -51,7 +50,7 @@ pub(crate) fn sync_locale_state(mut params: SyncLocaleStateParams) {
             let pending_bundle_id =
                 current_bundle_id(&params.i18n_bundle, &pending_language.resolved);
             if pending_bundle_id.is_some() {
-                let published = apply_selected_language(
+                let published = super::locale::apply_selected_language(
                     &pending_language,
                     &mut params.i18n_resource,
                     &mut params.active_language_id,

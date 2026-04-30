@@ -1,9 +1,10 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
+use gpui::prelude::*;
 use gpui::{
     App, Bounds, Context, FocusHandle, Focusable, KeyBinding, Window, WindowBounds, WindowOptions,
-    actions, div, prelude::*, px, size,
+    actions,
 };
 use gpui_component::{button::Button, label::Label};
 use gpui_example::{GpuiScreenMessages, i18n};
@@ -28,7 +29,7 @@ fn main() {
         cx.bind_keys([KeyBinding::new("t", CycleLocale, Some("GpuiExample"))]);
         gpui_component::init(cx);
 
-        let bounds = Bounds::centered(None, size(px(640.), px(480.)), cx);
+        let bounds = Bounds::centered(None, gpui::size(gpui::px(640.), gpui::px(480.)), cx);
         cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -80,7 +81,7 @@ impl Render for GpuiExampleView {
         let current_language = cx.global::<CurrentLanguage>().0;
         let i18n = cx.global::<i18n_global::CurrentI18n>().0.clone();
 
-        div()
+        gpui::div()
             .id("gpui-example")
             .key_context("GpuiExample")
             .track_focus(&self.focus_handle)
@@ -120,7 +121,7 @@ impl Render for GpuiExampleView {
                     ),
             )
             .child(
-                div().child(
+                gpui::div().child(
                     Label::new(
                         i18n.localize_message(&GpuiScreenMessages::ToggleLanguageHint {
                             current_language,

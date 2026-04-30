@@ -3,10 +3,6 @@ mod setup;
 
 use crate::{BundleBuildFailures, FtlAsset, FtlAssetLoader, I18nBundle, I18nDomainBundles};
 use bevy::prelude::*;
-use setup::{
-    build_i18n_assets, configure_app, discover_modules, initialize_i18n_resource,
-    register_discovered_fluent_text, resolve_initial_language,
-};
 use unic_langid::LanguageIdentifier;
 
 /// Configuration for [`I18nPlugin`].
@@ -125,7 +121,7 @@ impl Plugin for I18nPlugin {
             .init_resource::<I18nDomainBundles>()
             .init_resource::<BundleBuildFailures>();
 
-        let discovery = match discover_modules() {
+        let discovery = match setup::discover_modules() {
             Ok(discovery) => discovery,
             Err(errors) => {
                 let details = errors
@@ -139,21 +135,25 @@ impl Plugin for I18nPlugin {
                 return;
             },
         };
-        let resolved_language =
-            resolve_initial_language(&self.config.initial_language, &discovery.asset_languages);
-        let i18n_resource =
-            match initialize_i18n_resource(&self.config.initial_language, &resolved_language) {
-                Ok(i18n_resource) => i18n_resource,
-                Err(error) => {
-                    let message = format!("failed to initialize i18n resource:\n{error}");
-                    error!("{}", message);
-                    app.insert_resource(I18nPluginStartupError::new(message));
-                    return;
-                },
-            };
+        let resolved_language = setup::resolve_initial_language(
+            &self.config.initial_language,
+            &discovery.asset_languages,
+        );
+        let i18n_resource = match setup::initialize_i18n_resource(
+            &self.config.initial_language,
+            &resolved_language,
+        ) {
+            Ok(i18n_resource) => i18n_resource,
+            Err(error) => {
+                let message = format!("failed to initialize i18n resource:\n{error}");
+                error!("{}", message);
+                app.insert_resource(I18nPluginStartupError::new(message));
+                return;
+            },
+        };
         let i18n_assets = {
             let asset_server = app.world().resource::<AssetServer>();
-            build_i18n_assets(asset_server, &self.config.asset_path, &discovery.modules)
+            setup::build_i18n_assets(asset_server, &self.config.asset_path, &discovery.modules)
         };
 
         let module_count = discovery.modules.len();
@@ -164,12 +164,12 @@ impl Plugin for I18nPlugin {
             "Auto-discovered {module_count} modules, {domain_count} domains, {asset_language_count} Bevy asset languages ({total_language_count} total registered languages)"
         );
 
-        let registered_count = register_discovered_fluent_text(app);
+        let registered_count = setup::register_discovered_fluent_text(app);
         if registered_count > 0 {
             info!("Auto-registered {} FluentText types", registered_count);
         }
 
-        configure_app(
+        setup::configure_app(
             app,
             i18n_assets,
             i18n_resource,

@@ -1,10 +1,7 @@
 use crate::{FtlAsset, I18nAssets};
 use bevy::asset::{AssetEvent, AssetId, AssetLoadFailedEvent, Assets};
 use bevy::prelude::*;
-use es_fluent_manager_core::{
-    ResourceKey, clear_locale_resource, parse_and_store_locale_resource_content,
-    record_failed_locale_resource, record_locale_resource_error, record_missing_locale_resource,
-};
+use es_fluent_manager_core::ResourceKey;
 use unic_langid::LanguageIdentifier;
 
 fn find_asset_key(
@@ -36,7 +33,7 @@ fn handle_loaded_asset(
 
     if let Some(ftl_asset) = ftl_assets.get(id) {
         let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-        match parse_and_store_locale_resource_content(
+        match es_fluent_manager_core::parse_and_store_locale_resource_content(
             loaded_resources,
             load_errors,
             &lang_key,
@@ -51,7 +48,12 @@ fn handle_loaded_asset(
             },
             Err(err) => {
                 let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-                record_locale_resource_error(loaded_resources, load_errors, &lang_key, err.clone());
+                es_fluent_manager_core::record_locale_resource_error(
+                    loaded_resources,
+                    load_errors,
+                    &lang_key,
+                    err.clone(),
+                );
                 if err.is_required() {
                     error!("{}", err);
                 } else {
@@ -61,7 +63,12 @@ fn handle_loaded_asset(
         }
     } else {
         let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-        let err = record_missing_locale_resource(loaded_resources, load_errors, &lang_key, &spec);
+        let err = es_fluent_manager_core::record_missing_locale_resource(
+            loaded_resources,
+            load_errors,
+            &lang_key,
+            &spec,
+        );
         if err.is_required() {
             warn!("{}", err);
         } else {
@@ -76,7 +83,12 @@ fn handle_unloaded_asset(i18n_assets: &mut I18nAssets, id: AssetId<FtlAsset>) {
     };
 
     let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-    clear_locale_resource(loaded_resources, load_errors, &lang_key, &resource_key);
+    es_fluent_manager_core::clear_locale_resource(
+        loaded_resources,
+        load_errors,
+        &lang_key,
+        &resource_key,
+    );
     debug!(
         "Unloaded FTL resource for language: {}, key: {}",
         lang_key, resource_key
@@ -96,7 +108,7 @@ fn handle_failed_asset(i18n_assets: &mut I18nAssets, event: &AssetLoadFailedEven
     };
 
     let (loaded_resources, load_errors) = i18n_assets.load_state_mut();
-    let err = record_failed_locale_resource(
+    let err = es_fluent_manager_core::record_failed_locale_resource(
         loaded_resources,
         load_errors,
         &lang_key,

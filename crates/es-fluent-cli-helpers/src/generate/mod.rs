@@ -8,7 +8,6 @@ mod inventory;
 mod tests;
 
 use self::args::Action;
-use self::inventory::{collect_type_infos, validate_namespaces};
 
 pub use self::args::GeneratorArgs;
 pub use self::error::GeneratorError;
@@ -132,9 +131,9 @@ impl EsFluentGenerator {
         let crate_name = self.resolve_crate_name()?;
         let output_path = self.resolve_output_path()?;
         let manifest_dir = self.resolve_manifest_dir()?;
-        let type_infos = collect_type_infos(&crate_name);
+        let type_infos = self::inventory::collect_type_infos(&crate_name);
 
-        validate_namespaces(&type_infos, &manifest_dir)?;
+        self::inventory::validate_namespaces(&type_infos, &manifest_dir)?;
 
         tracing::info!(
             "Generating FTL files for {} types in crate '{}'",
@@ -159,7 +158,7 @@ impl EsFluentGenerator {
         let crate_name = self.resolve_crate_name()?;
         let paths = self.resolve_clean_paths(all_locales)?;
         let manifest_dir = self.resolve_manifest_dir()?;
-        let type_infos = collect_type_infos(&crate_name);
+        let type_infos = self::inventory::collect_type_infos(&crate_name);
 
         let mut any_changed = false;
         for output_path in paths {

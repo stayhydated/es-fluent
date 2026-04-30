@@ -1,6 +1,6 @@
 use super::super::common::WorkspaceCrates;
 use crate::core::CliError;
-use crate::ftl::{CrateFtlLayout, LocaleContext, discover_locale_ftl_files};
+use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::utils::ui;
 use colored::Colorize as _;
 use fs_err as fs;
@@ -43,7 +43,7 @@ impl<'a> OrphanedCleaner<'a> {
 
     #[cfg(test)]
     fn find_all_ftl_files(&self, dir: &std::path::Path) -> Result<Vec<PathBuf>, CliError> {
-        Ok(discover_locale_ftl_files(dir)?
+        Ok(crate::ftl::discover_locale_ftl_files(dir)?
             .into_iter()
             .map(|info| info.abs_path)
             .collect())
@@ -83,7 +83,7 @@ pub(super) fn clean_orphaned_files(
         let expected_files =
             cleaner.expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir)?;
 
-        for file_info in discover_locale_ftl_files(&target.locale_dir)? {
+        for file_info in crate::ftl::discover_locale_ftl_files(&target.locale_dir)? {
             total_files_checked += 1;
 
             if !expected_files.contains(&file_info.abs_path) {
@@ -161,7 +161,7 @@ pub(crate) fn find_orphaned_files(
         let expected_files =
             cleaner.expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir)?;
 
-        for file_info in discover_locale_ftl_files(&target.locale_dir)? {
+        for file_info in crate::ftl::discover_locale_ftl_files(&target.locale_dir)? {
             if !expected_files.contains(&file_info.abs_path) {
                 orphaned.push(file_info.abs_path);
             }

@@ -2,7 +2,7 @@
 
 use super::common::OutputFormat;
 use super::common::WorkspaceArgs;
-use super::sync::{SyncArgs, run_sync};
+use super::sync::SyncArgs;
 use crate::core::CliError;
 use clap::Parser;
 
@@ -23,7 +23,7 @@ pub struct AddLocaleArgs {
 
 /// Run the add-locale command.
 pub fn run_add_locale(args: AddLocaleArgs) -> Result<(), CliError> {
-    run_sync(SyncArgs {
+    super::sync::run_sync(SyncArgs {
         workspace: args.workspace,
         locale: args.locale,
         all: false,
@@ -37,12 +37,14 @@ pub fn run_add_locale(args: AddLocaleArgs) -> Result<(), CliError> {
 mod tests {
     use super::*;
     use crate::commands::common::WorkspaceArgs;
-    use crate::test_fixtures::create_workspace_with_locales;
     use fs_err as fs;
 
     #[test]
     fn run_add_locale_creates_and_seeds_missing_locale() {
-        let temp = create_workspace_with_locales(&[("en", "hello = Hello\nworld = World\n")]);
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[(
+            "en",
+            "hello = Hello\nworld = World\n",
+        )]);
 
         let result = run_add_locale(AddLocaleArgs {
             workspace: WorkspaceArgs {
@@ -62,7 +64,8 @@ mod tests {
 
     #[test]
     fn run_add_locale_rejects_noncanonical_locale() {
-        let temp = create_workspace_with_locales(&[("en", "hello = Hello\n")]);
+        let temp =
+            crate::test_fixtures::create_workspace_with_locales(&[("en", "hello = Hello\n")]);
 
         let result = run_add_locale(AddLocaleArgs {
             workspace: WorkspaceArgs {

@@ -1,7 +1,7 @@
 //! Common path utilities for the es-fluent ecosystem.
 
+use crate::CanonicalLanguageIdentifierError;
 use crate::error::{EsFluentError, EsFluentResult};
-use crate::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
 use std::path::Path;
 
 /// Parse a directory entry as a language identifier.
@@ -22,7 +22,7 @@ pub fn parse_language_entry(
         ))
     })?;
 
-    let lang = parse_canonical_language_identifier(&name).map_err(|err| match err {
+    let lang = crate::parse_canonical_language_identifier(&name).map_err(|err| match err {
         CanonicalLanguageIdentifierError::Invalid { source, .. } => {
             EsFluentError::invalid_language_identifier(&name, format!("Parse error: {}", source))
         },
@@ -62,7 +62,6 @@ pub fn validate_assets_dir(assets_dir: &Path) -> EsFluentResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     fn read_dir_entry_by_name(parent: &Path, name: &str) -> std::fs::DirEntry {
         std::fs::read_dir(parent)
@@ -74,7 +73,7 @@ mod tests {
 
     #[test]
     fn parse_language_entry_handles_non_directory_and_valid_directory() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         std::fs::write(temp.path().join("file.txt"), "not a directory").expect("write");
         std::fs::create_dir_all(temp.path().join("en-US")).expect("create lang");
 
@@ -95,7 +94,7 @@ mod tests {
 
     #[test]
     fn parse_language_entry_rejects_invalid_identifiers_and_accepts_variants() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir_all(temp.path().join("not-a-lang!")).expect("create invalid");
         std::fs::create_dir_all(temp.path().join("de-DE-1901")).expect("create variant");
 
@@ -120,7 +119,7 @@ mod tests {
 
     #[test]
     fn parse_language_entry_rejects_noncanonical_locale_casing() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir_all(temp.path().join("en-us")).expect("create noncanonical");
 
         let entry = read_dir_entry_by_name(temp.path(), "en-us");
@@ -134,7 +133,7 @@ mod tests {
 
     #[test]
     fn validate_assets_dir_checks_missing_file_and_directory() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let missing = temp.path().join("missing");
         let file = temp.path().join("file.txt");
         let dir = temp.path().join("assets");

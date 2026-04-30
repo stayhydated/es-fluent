@@ -9,7 +9,6 @@ mod merge;
 use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use super::dry_run::DryRunSummary;
 use crate::core::{CliError, LocaleNotFoundError};
-use crate::ftl::collect_all_available_locales;
 use crate::utils::ui;
 use clap::Parser;
 use serde::Serialize;
@@ -125,7 +124,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
     if let Some(ref targets) = target_locales
         && !args.create
     {
-        let all_available_locales = collect_all_available_locales(&crates)?;
+        let all_available_locales = crate::ftl::collect_all_available_locales(&crates)?;
 
         for locale in targets {
             if !all_available_locales.contains(locale) {
@@ -223,8 +222,6 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ftl::extract_message_keys;
-    use crate::test_fixtures::create_workspace_with_locales;
     use fluent_syntax::parser;
     use fs_err as fs;
 
@@ -233,7 +230,7 @@ mod tests {
         let content = r#"hello = Hello
 world = World"#;
         let resource = parser::parse(content.to_string()).unwrap();
-        let keys = extract_message_keys(&resource);
+        let keys = crate::ftl::extract_message_keys(&resource);
 
         assert!(keys.contains("hello"));
         assert!(keys.contains("world"));
@@ -242,7 +239,7 @@ world = World"#;
 
     #[test]
     fn run_sync_returns_err_when_no_locales_specified() {
-        let temp = create_workspace_with_locales(&[
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
         ]);
@@ -264,7 +261,7 @@ world = World"#;
 
     #[test]
     fn run_sync_returns_ok_when_no_crates_match_filter() {
-        let temp = create_workspace_with_locales(&[
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
         ]);
@@ -286,7 +283,7 @@ world = World"#;
 
     #[test]
     fn run_sync_fails_for_unknown_locale() {
-        let temp = create_workspace_with_locales(&[
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
         ]);
@@ -308,7 +305,7 @@ world = World"#;
 
     #[test]
     fn run_sync_dry_run_does_not_write_missing_keys() {
-        let temp = create_workspace_with_locales(&[
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
         ]);
@@ -334,7 +331,7 @@ world = World"#;
 
     #[test]
     fn run_sync_writes_missing_keys_for_target_locale() {
-        let temp = create_workspace_with_locales(&[
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
         ]);
@@ -359,7 +356,10 @@ world = World"#;
 
     #[test]
     fn run_sync_create_writes_missing_target_locale() {
-        let temp = create_workspace_with_locales(&[("en", "hello = Hello\nworld = World\n")]);
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[(
+            "en",
+            "hello = Hello\nworld = World\n",
+        )]);
         let fr_path = temp.path().join("i18n/fr-FR/test-app.ftl");
 
         let result = run_sync(SyncArgs {
@@ -382,7 +382,7 @@ world = World"#;
 
     #[test]
     fn run_sync_all_processes_non_fallback_locales() {
-        let temp = create_workspace_with_locales(&[
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
         ]);
@@ -409,7 +409,7 @@ world = World"#;
 
     #[test]
     fn collect_affected_locales_deduplicates_namespaced_file_results() {
-        let temp = create_workspace_with_locales(&[
+        let temp = crate::test_fixtures::create_workspace_with_locales(&[
             ("en", "hello = Hello\nworld = World\n"),
             ("es", "hello = Hola\n"),
         ]);

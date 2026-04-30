@@ -3,10 +3,7 @@ use es_fluent_derive_core::options::r#struct::StructOpts;
 use es_fluent_shared::namer;
 
 use crate::macros::ir::LocalizeCallSpec;
-use crate::macros::utils::{
-    InventoryModuleInput, emit_message_inventory_impls, generate_field_argument,
-    generate_inventory_module, inventory_arg_name, inventory_variant_tokens, namespace_rule_tokens,
-};
+use crate::macros::utils::InventoryModuleInput;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -31,7 +28,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
                 quote! { self.#field_index }
             };
 
-            generate_field_argument(
+            crate::macros::utils::generate_field_argument(
                 *field_opt,
                 *index,
                 field_access.clone(),
@@ -54,21 +51,26 @@ fn generate(opts: &StructOpts) -> TokenStream {
         // Build static variant with args from struct fields
         let arg_names: Vec<String> = indexed_fields
             .iter()
-            .map(|(index, field_opt)| inventory_arg_name(*field_opt, *index))
+            .map(|(index, field_opt)| crate::macros::utils::inventory_arg_name(*field_opt, *index))
             .collect();
-        let static_variant =
-            inventory_variant_tokens(original_ident.to_string(), ftl_key, arg_names);
+        let static_variant = crate::macros::utils::inventory_variant_tokens(
+            original_ident.to_string(),
+            ftl_key,
+            arg_names,
+        );
 
-        generate_inventory_module(InventoryModuleInput {
+        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
             ident: original_ident,
             module_name_prefix: "inventory",
             type_kind: quote! { ::es_fluent::meta::TypeKind::Struct },
             variants: vec![static_variant],
-            namespace_expr: namespace_rule_tokens(opts.attr_args().namespace()),
+            namespace_expr: crate::macros::utils::namespace_rule_tokens(
+                opts.attr_args().namespace(),
+            ),
         })
     };
 
-    emit_message_inventory_impls(
+    crate::macros::utils::emit_message_inventory_impls(
         original_ident,
         opts.generics(),
         fluent_message_body,

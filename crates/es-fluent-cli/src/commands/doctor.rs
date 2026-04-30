@@ -205,12 +205,11 @@ fn print_doctor_report(report: &DoctorReport) {
 mod tests {
     use super::*;
     use crate::commands::common::WorkspaceArgs;
-    use crate::test_fixtures::create_test_crate_workspace;
     use fs_err as fs;
 
     #[test]
     fn run_doctor_succeeds_for_basic_workspace() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
 
         let result = run_doctor(DoctorArgs {
             workspace: WorkspaceArgs {
@@ -225,7 +224,7 @@ mod tests {
 
     #[test]
     fn run_doctor_fails_when_fallback_locale_directory_is_missing() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         fs::remove_dir_all(temp.path().join("i18n/en")).expect("remove fallback locale");
 
         let result = run_doctor(DoctorArgs {
@@ -241,7 +240,7 @@ mod tests {
 
     #[test]
     fn run_doctor_warns_for_manager_dependency_mismatch_without_failing() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         fs::write(
             temp.path().join("src/i18n.rs"),
             "es_fluent_manager_embedded::define_i18n_module!();\n",

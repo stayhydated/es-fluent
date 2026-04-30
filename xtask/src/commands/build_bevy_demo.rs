@@ -2,15 +2,13 @@ use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, bail};
 
-use crate::util::workspace_root;
-
 const EXAMPLE_DIR: &str = "examples/bevy-example";
 const OUTPUT_ROOT: &str = "web/public/bevy-demo";
 const OUTPUT_DIR: &str = "web/public/bevy-demo";
 const REQUIRED_MARKER: &str = "es-fluent-lang-en";
 
 pub fn run() -> anyhow::Result<()> {
-    run_from_workspace_root(&workspace_root()?)
+    run_from_workspace_root(&crate::util::workspace_root()?)
 }
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {

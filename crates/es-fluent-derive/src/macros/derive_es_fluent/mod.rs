@@ -62,8 +62,6 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
 #[cfg(test)]
 #[serial_test::serial(manifest)]
 mod tests {
-    use super::expand_es_fluent;
-    use crate::snapshot_support::pretty_file_tokens;
     use fs_err as fs;
     use insta::assert_snapshot;
     use std::path::Path;
@@ -130,7 +128,8 @@ mod tests {
                 Ready,
             }
         };
-        let enum_tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        let enum_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!("expand_es_fluent_generates_tokens_for_enum", enum_tokens);
 
         let struct_input: syn::DeriveInput = parse_quote! {
@@ -138,7 +137,8 @@ mod tests {
                 id: u64
             }
         };
-        let struct_tokens = pretty_file_tokens(expand_es_fluent(struct_input));
+        let struct_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
         assert_snapshot!(
             "expand_es_fluent_generates_tokens_for_struct",
             struct_tokens
@@ -154,7 +154,8 @@ mod tests {
                 A
             }
         };
-        let enum_tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        let enum_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!(
             "expand_es_fluent_returns_compile_errors_for_bad_enum_attribute",
             enum_tokens
@@ -166,7 +167,8 @@ mod tests {
                 a: i32
             }
         };
-        let struct_tokens = pretty_file_tokens(expand_es_fluent(struct_input));
+        let struct_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
         assert_snapshot!(
             "expand_es_fluent_returns_compile_errors_for_bad_struct_attribute",
             struct_tokens
@@ -184,7 +186,7 @@ mod tests {
             }
         };
         let validation_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = expand_es_fluent(invalid_struct_input);
+            let _ = super::expand_es_fluent(invalid_struct_input);
         }));
         assert!(validation_panic.is_err());
 
@@ -195,7 +197,7 @@ mod tests {
             }
         };
         let union_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = expand_es_fluent(union_input);
+            let _ = super::expand_es_fluent(union_input);
         }));
         assert!(union_panic.is_err());
     }
@@ -210,7 +212,7 @@ mod tests {
                 }
             };
             let enum_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let _ = expand_es_fluent(enum_input);
+                let _ = super::expand_es_fluent(enum_input);
             }));
             assert!(enum_panic.is_err());
 
@@ -221,7 +223,7 @@ mod tests {
                 }
             };
             let struct_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let _ = expand_es_fluent(struct_input);
+                let _ = super::expand_es_fluent(struct_input);
             }));
             assert!(struct_panic.is_err());
         });
@@ -236,7 +238,8 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!("expand_es_fluent_emits_field_level_tuple_arg_name", tokens);
     }
 
@@ -249,7 +252,8 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!(
             "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override",
             tokens
@@ -267,7 +271,8 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!(
             "expand_es_fluent_uses_explicit_domain_override_for_enum_lookup",
             tokens
@@ -283,7 +288,8 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!(
             "expand_es_fluent_handles_tuple_variant_with_all_fields_skipped",
             tokens
@@ -300,7 +306,8 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent(enum_input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!(
             "expand_es_fluent_delegates_skipped_single_field_variant",
             tokens

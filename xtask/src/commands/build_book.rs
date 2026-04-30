@@ -3,10 +3,8 @@ use std::path::Path;
 
 use mdbook_driver::MDBook;
 
-use crate::util::workspace_root;
-
 pub fn run() -> anyhow::Result<()> {
-    run_from_workspace_root(&workspace_root()?)
+    run_from_workspace_root(&crate::util::workspace_root()?)
 }
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {

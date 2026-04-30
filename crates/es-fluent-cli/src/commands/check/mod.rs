@@ -13,7 +13,7 @@ mod validation;
 
 use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, ValidationExecutionError, ValidationIssue, ValidationReport};
-use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
+use crate::generation::MonolithicExecutor;
 use crate::utils::ui;
 use clap::Parser;
 use miette::NamedSource;
@@ -221,7 +221,7 @@ pub(crate) fn collect_check_run(
     }
 
     // Prepare monolithic temp crate once for all checks
-    prepare_monolithic_runner_crate(&workspace.workspace_info)
+    crate::generation::prepare_monolithic_runner_crate(&workspace.workspace_info)
         .map_err(|e| CliError::Other(e.to_string()))?;
 
     // First pass: collect all expected keys from crates
@@ -345,14 +345,13 @@ mod tests {
 
     use crate::test_fixtures::{
         FakeRunnerBehavior, INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY,
-        create_test_crate_workspace, setup_fake_runner_and_cache as setup_runner_cache,
     };
 
     fn setup_fake_runner_and_cache_with_behavior(
         temp: &tempfile::TempDir,
         behavior: FakeRunnerBehavior,
     ) {
-        setup_runner_cache(temp, behavior);
+        crate::test_fixtures::setup_fake_runner_and_cache(temp, behavior);
     }
 
     fn setup_fake_runner_and_cache(temp: &tempfile::TempDir) {
@@ -361,7 +360,7 @@ mod tests {
 
     #[test]
     fn run_check_returns_error_for_unknown_ignored_crate() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
 
         let result = run_check(CheckArgs {
             workspace: WorkspaceArgs {
@@ -381,7 +380,7 @@ mod tests {
 
     #[test]
     fn run_check_returns_ok_when_package_filter_matches_nothing() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
 
         let result = run_check(CheckArgs {
             workspace: WorkspaceArgs {
@@ -399,7 +398,7 @@ mod tests {
 
     #[test]
     fn run_check_succeeds_with_fake_runner_and_matching_inventory() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         setup_fake_runner_and_cache(&temp);
 
         let inventory_path =
@@ -424,7 +423,7 @@ mod tests {
 
     #[test]
     fn run_check_returns_validation_error_for_missing_key() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         setup_fake_runner_and_cache(&temp);
 
         let inventory_path =
@@ -449,7 +448,7 @@ mod tests {
 
     #[test]
     fn run_check_returns_ok_when_all_crates_are_ignored() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         let result = run_check(CheckArgs {
             workspace: WorkspaceArgs {
                 path: Some(temp.path().to_path_buf()),
@@ -466,7 +465,7 @@ mod tests {
 
     #[test]
     fn run_check_returns_other_error_when_runner_execution_fails() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         setup_fake_runner_and_cache_with_behavior(&temp, FakeRunnerBehavior::failing("boom\n"));
 
         let result = run_check(CheckArgs {
@@ -485,7 +484,7 @@ mod tests {
 
     #[test]
     fn run_check_handles_validation_errors_per_crate_and_completes() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         setup_fake_runner_and_cache(&temp);
         // Intentionally do not create inventory file so validation::validate_crate fails.
 

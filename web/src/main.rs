@@ -67,12 +67,9 @@ fn with_base_path(
     cfg: dioxus_server::ServeConfig,
 ) -> dioxus_server::axum::Router<()> {
     use dioxus_server::FullstackState;
-    use dioxus_server::axum::{
-        Router,
-        body::Body,
-        extract::{Request, State},
-        routing::get,
-    };
+    use dioxus_server::axum::Router;
+    use dioxus_server::axum::body::Body;
+    use dioxus_server::axum::extract::{Request, State};
 
     let Some(base_path) = dioxus::cli_config::base_path() else {
         return app_router;
@@ -84,7 +81,7 @@ fn with_base_path(
         .nest(&format!("/{base_path}/"), app_router)
         .route(
             &format!("/{base_path}"),
-            get(
+            dioxus_server::axum::routing::get(
                 |State(state): State<FullstackState>, mut request: Request<Body>| async move {
                     *request.uri_mut() = "/".parse().expect("root route should parse");
                     FullstackState::render_handler(State(state), request).await

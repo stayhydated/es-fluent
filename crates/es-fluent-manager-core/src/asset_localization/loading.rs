@@ -1,4 +1,4 @@
-use super::resource::{ModuleResourceSpec, ResourceKey, locale_is_ready};
+use super::resource::{ModuleResourceSpec, ResourceKey};
 use fluent_bundle::FluentResource;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -88,7 +88,8 @@ impl LocaleLoadReport {
 
     /// Returns true when locale readiness requirements are met.
     pub fn is_ready(&self) -> bool {
-        locale_is_ready(&self.required_keys, &self.loaded_keys) && !self.has_required_errors()
+        super::resource::locale_is_ready(&self.required_keys, &self.loaded_keys)
+            && !self.has_required_errors()
     }
 }
 

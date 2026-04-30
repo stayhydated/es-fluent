@@ -1,5 +1,5 @@
 use crate::site::i18n::SiteLanguage;
-use crate::site::routing::{PageKind, app_route, page_href};
+use crate::site::routing::PageKind;
 use dioxus::prelude::*;
 
 #[component]
@@ -13,7 +13,7 @@ pub(crate) fn PageLink(
         rsx! {
             Link {
                 class,
-                to: app_route(locale, page),
+                to: crate::site::routing::app_route(locale, page),
                 "{label}"
             }
         }
@@ -21,7 +21,7 @@ pub(crate) fn PageLink(
         rsx! {
             a {
                 class,
-                href: page_href(locale, page),
+                href: crate::site::routing::page_href(locale, page),
                 "{label}"
             }
         }
@@ -41,7 +41,7 @@ pub(crate) fn PageCardLink(
         rsx! {
             Link {
                 class: "demo-card",
-                to: app_route(locale, page),
+                to: crate::site::routing::app_route(locale, page),
                 div { class: "card-label", "{label}" }
                 h2 { "{title}" }
                 p { class: "card-copy", "{body}" }
@@ -52,7 +52,7 @@ pub(crate) fn PageCardLink(
         rsx! {
             a {
                 class: "demo-card",
-                href: page_href(locale, page),
+                href: crate::site::routing::page_href(locale, page),
                 div { class: "card-label", "{label}" }
                 h2 { "{title}" }
                 p { class: "card-copy", "{body}" }

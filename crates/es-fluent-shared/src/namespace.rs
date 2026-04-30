@@ -1,8 +1,4 @@
 //! Shared namespace rules used by derive parsing and runtime registration.
-
-use crate::namespace_resolver::{
-    file_relative_namespace, file_stem_namespace, folder_namespace, folder_relative_namespace,
-};
 use darling::FromMeta;
 use std::{
     borrow::Cow,
@@ -29,10 +25,14 @@ impl NamespaceRule {
     pub fn resolve(&self, file_path: &str, manifest_dir: Option<&Path>) -> String {
         match self {
             Self::Literal(value) => value.to_string(),
-            Self::File => file_stem_namespace(file_path),
-            Self::FileRelative => file_relative_namespace(file_path, manifest_dir),
-            Self::Folder => folder_namespace(file_path),
-            Self::FolderRelative => folder_relative_namespace(file_path, manifest_dir),
+            Self::File => crate::namespace_resolver::file_stem_namespace(file_path),
+            Self::FileRelative => {
+                crate::namespace_resolver::file_relative_namespace(file_path, manifest_dir)
+            },
+            Self::Folder => crate::namespace_resolver::folder_namespace(file_path),
+            Self::FolderRelative => {
+                crate::namespace_resolver::folder_relative_namespace(file_path, manifest_dir)
+            },
         }
     }
 }

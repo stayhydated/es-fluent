@@ -8,7 +8,7 @@ use crate::{
 use bevy::prelude::*;
 use es_fluent_manager_core::{
     FluentManager, I18nModuleRegistration, LocalizationError, ModuleDiscoveryError,
-    ModuleRegistrationKind, resolve_ready_locale, try_filter_module_registry,
+    ModuleRegistrationKind,
 };
 use std::{collections::HashSet, sync::Arc};
 use unic_langid::LanguageIdentifier;
@@ -24,7 +24,7 @@ pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryE
     let discovered = inventory::iter::<&'static dyn I18nModuleRegistration>()
         .copied()
         .collect::<Vec<_>>();
-    let modules = try_filter_module_registry(discovered)?;
+    let modules = es_fluent_manager_core::try_filter_module_registry(discovered)?;
     let mut domains = HashSet::new();
     let mut asset_languages = HashSet::new();
     let mut all_languages = HashSet::new();
@@ -60,9 +60,12 @@ pub(super) fn resolve_initial_language(
     let mut discovered_language_list = discovered_languages.iter().cloned().collect::<Vec<_>>();
     discovered_language_list.sort_by_key(|lang| lang.to_string());
 
-    let resolved_language =
-        resolve_ready_locale(requested_language, &[], &discovered_language_list)
-            .unwrap_or_else(|| requested_language.clone());
+    let resolved_language = es_fluent_manager_core::resolve_ready_locale(
+        requested_language,
+        &[],
+        &discovered_language_list,
+    )
+    .unwrap_or_else(|| requested_language.clone());
 
     if resolved_language != *requested_language {
         info!(

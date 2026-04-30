@@ -1,10 +1,5 @@
 //! Status command implementation.
-
-use super::check::{collect_check_run, count_issues};
-use super::clean::orphaned::find_orphaned_files;
-use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates, parallel_generate};
-use super::format::format_crate;
-use super::sync::sync_crate;
+use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, FluentParseMode, GenerationAction};
 use clap::Parser;
 use serde::Serialize;
@@ -53,7 +48,7 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
         println!("Fluent FTL Status");
     }
 
-    let generation_results = parallel_generate(
+    let generation_results = super::common::parallel_generate(
         &workspace.workspace_info,
         &workspace.valid,
         &GenerationAction::Generate {
@@ -80,7 +75,7 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
     let mut files_need_formatting = 0;
     let mut format_errors = Vec::new();
     for krate in &workspace.crates {
-        for result in format_crate(krate, args.all, true)? {
+        for result in super::format::format_crate(krate, args.all, true)? {
             if let Some(error) = result.error {
                 format_errors.push(format!("{}: {}", result.path.display(), error));
             } else if result.changed {
@@ -92,7 +87,7 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
     let mut missing_synced_keys = 0;
     let mut locales_need_sync = std::collections::HashSet::new();
     for krate in &workspace.crates {
-        for result in sync_crate(krate, None, true, false)? {
+        for result in super::sync::sync_crate(krate, None, true, false)? {
             if result.keys_added > 0 {
                 missing_synced_keys += result.keys_added;
                 locales_need_sync.insert(result.locale);
@@ -100,13 +95,14 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
         }
     }
 
-    let orphaned_files = find_orphaned_files(&workspace, args.all)?
+    let orphaned_files = super::clean::orphaned::find_orphaned_files(&workspace, args.all)?
         .into_iter()
         .map(|path| path.display().to_string())
         .collect::<Vec<_>>();
 
-    let check_run = collect_check_run(&workspace, args.all, &[], args.force_run, false)?;
-    let (validation_errors, validation_warnings) = count_issues(&check_run.issues);
+    let check_run =
+        super::check::collect_check_run(&workspace, args.all, &[], args.force_run, false)?;
+    let (validation_errors, validation_warnings) = super::check::count_issues(&check_run.issues);
 
     let clean = generated_files_stale == 0
         && generation_errors.is_empty()
@@ -177,9 +173,7 @@ fn print_status_report(report: &StatusReport) {
 mod tests {
     use super::*;
     use crate::commands::common::WorkspaceArgs;
-    use crate::test_fixtures::{
-        FakeRunnerBehavior, create_test_crate_workspace, setup_fake_runner_and_cache,
-    };
+    use crate::test_fixtures::FakeRunnerBehavior;
     use fs_err as fs;
 
     fn write_inventory(temp: &tempfile::TempDir, expected_keys: &[&str]) {
@@ -201,8 +195,11 @@ mod tests {
 
     #[test]
     fn run_status_succeeds_when_workspace_is_clean() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::silent_success());
+        let temp = crate::test_fixtures::create_test_crate_workspace();
+        crate::test_fixtures::setup_fake_runner_and_cache(
+            &temp,
+            FakeRunnerBehavior::silent_success(),
+        );
         write_inventory(&temp, &["hello"]);
 
         let result = run_status(StatusArgs {
@@ -220,8 +217,11 @@ mod tests {
 
     #[test]
     fn run_status_fails_when_formatting_is_needed() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::silent_success());
+        let temp = crate::test_fixtures::create_test_crate_workspace();
+        crate::test_fixtures::setup_fake_runner_and_cache(
+            &temp,
+            FakeRunnerBehavior::silent_success(),
+        );
         fs::write(
             temp.path().join("i18n/en/test-app.ftl"),
             "zeta = Z\nalpha = A\n",

@@ -6,9 +6,7 @@
 #![allow(dead_code)]
 
 #[cfg(test)]
-use crate::generation::cache::{
-    RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
-};
+use crate::generation::cache::RunnerCache;
 #[cfg(test)]
 use fs_err as fs;
 #[cfg(test)]
@@ -136,7 +134,6 @@ pub fn write_file(path: &Path, contents: &str) {
 
 #[cfg(test)]
 pub mod toml_helpers {
-    use super::write_file;
     use std::path::Path;
     use toml::Value;
 
@@ -154,7 +151,7 @@ pub mod toml_helpers {
     }
 
     pub fn write_toml(path: &Path, value: &Value) {
-        write_file(
+        super::write_file(
             path,
             &toml::to_string(value).expect("serialize TOML fixture"),
         );
@@ -339,7 +336,9 @@ pub fn save_runner_cache(
         crate_hashes,
         runner_mtime,
         cli_version: cli_version.to_string(),
-        workspace_inputs_hash: compute_workspace_inputs_hash(workspace_root),
+        workspace_inputs_hash: crate::generation::cache::compute_workspace_inputs_hash(
+            workspace_root,
+        ),
     }
     .save(temp_store.base_dir())
     .expect("save runner cache");
@@ -371,7 +370,11 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunne
     let binary_path = fake_runner_binary_path(&temp.path().join("target"));
     let src_dir = temp.path().join("src");
     let i18n_toml = temp.path().join("i18n.toml");
-    let hash = compute_crate_inputs_hash(temp.path(), &src_dir, Some(&i18n_toml));
+    let hash = crate::generation::cache::compute_crate_inputs_hash(
+        temp.path(),
+        &src_dir,
+        Some(&i18n_toml),
+    );
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let mut crate_hashes = indexmap::IndexMap::new();
     crate_hashes.insert("test-app".to_string(), hash);

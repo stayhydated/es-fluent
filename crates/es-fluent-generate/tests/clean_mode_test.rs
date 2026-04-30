@@ -2,8 +2,6 @@
 
 mod common;
 mod fixtures;
-
-use common::{enum_type, ftl_key, variant};
 use fixtures::{COUNTRY_VARIANTS, EMPTY_GROUP_A, ORPHAN_GROUPS};
 use insta::assert_snapshot;
 use std::fs;
@@ -26,8 +24,8 @@ fn test_clean_mode_orphans() {
     fs::write(&ftl_file_path, ORPHAN_GROUPS).unwrap();
 
     // 2. Define valid items (only GroupA Key1)
-    let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));
-    let group_a = enum_type("GroupA", vec![key1]);
+    let key1 = common::variant("Key1", &common::ftl_key("GroupA", "Key1"));
+    let group_a = common::enum_type("GroupA", vec![key1]);
 
     // Run clean
     es_fluent_generate::clean::clean(
@@ -54,8 +52,14 @@ fn test_clean_removes_empty_group_comments_for_valid_groups() {
 
     fs::write(&ftl_file_path, EMPTY_GROUP_A).unwrap();
 
-    let group_a = enum_type("GroupA", vec![variant("Key1", &ftl_key("GroupA", "Key1"))]);
-    let group_b = enum_type("GroupB", vec![variant("Key1", &ftl_key("GroupB", "Key1"))]);
+    let group_a = common::enum_type(
+        "GroupA",
+        vec![common::variant("Key1", &common::ftl_key("GroupA", "Key1"))],
+    );
+    let group_b = common::enum_type(
+        "GroupB",
+        vec![common::variant("Key1", &common::ftl_key("GroupB", "Key1"))],
+    );
     let items = vec![group_a, group_b];
 
     es_fluent_generate::clean::clean(crate_name, &i18n_path, temp_dir.path(), &items, false)
@@ -80,10 +84,10 @@ fn test_clean_preserves_variants_items() {
     fs::write(&ftl_file_path, COUNTRY_VARIANTS).unwrap();
 
     let variants = vec![
-        variant("Canada", &ftl_key("CountryLabelVariants", "Canada")),
-        variant("USA", &ftl_key("CountryLabelVariants", "USA")),
+        common::variant("Canada", &common::ftl_key("CountryLabelVariants", "Canada")),
+        common::variant("USA", &common::ftl_key("CountryLabelVariants", "USA")),
     ];
-    let group = enum_type("CountryLabelVariants", variants);
+    let group = common::enum_type("CountryLabelVariants", variants);
 
     es_fluent_generate::clean::clean(
         crate_name,
@@ -109,7 +113,7 @@ fn test_clean_writes_namespaced_files() {
     fs::create_dir_all(namespaced_file.parent().unwrap()).unwrap();
     fs::write(&namespaced_file, "## Stale\n\nstale-Old = Remove me\n").unwrap();
 
-    let variant = variant("Title", &ftl_key("Ui", "Title"));
+    let variant = common::variant("Title", &common::ftl_key("Ui", "Title"));
     let item = common::enum_type_with_namespace("Ui", vec![variant], "ui");
     let changed = es_fluent_generate::clean::clean(
         crate_name,
@@ -138,7 +142,7 @@ fn test_clean_removes_stale_namespaced_files() {
     fs::write(&stale_file, "## Stale\n\nstale-Old = Remove me\n").unwrap();
     fs::write(&active_file, "## Errors\n\nerrors-Missing = Missing\n").unwrap();
 
-    let variant = variant("Missing", &ftl_key("Errors", "Missing"));
+    let variant = common::variant("Missing", &common::ftl_key("Errors", "Missing"));
     let item = common::enum_type_with_namespace("Errors", vec![variant], "errors");
     let changed = es_fluent_generate::clean::clean(
         crate_name,
@@ -175,7 +179,7 @@ fn test_clean_deletes_stale_main_file_when_all_items_are_namespaced() {
     fs::write(&stale_main_file, "## Stale\n\nstale-Old = Remove me\n").unwrap();
     fs::write(&active_file, "## Ui\n\nui-Title = Title\n").unwrap();
 
-    let variant = variant("Title", &ftl_key("Ui", "Title"));
+    let variant = common::variant("Title", &common::ftl_key("Ui", "Title"));
     let item = common::enum_type_with_namespace("Ui", vec![variant], "ui");
     let changed = es_fluent_generate::clean::clean(
         crate_name,

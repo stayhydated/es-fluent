@@ -1,7 +1,7 @@
 use crate::{BundleBuildFailures, FtlAsset, I18nAssets, I18nBundle, I18nDomainBundles};
 use bevy::asset::{AssetEvent, AssetId, AssetLoadFailedEvent};
 use bevy::prelude::*;
-use es_fluent_manager_core::{ResourceKey, SyncFluentBundle, locale_candidates};
+use es_fluent_manager_core::{ResourceKey, SyncFluentBundle};
 use fluent_bundle::{FluentError, FluentResource};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -136,7 +136,8 @@ fn build_bundle_from_resources(
     ),
     Vec<String>,
 > {
-    let mut bundle = SyncFluentBundle::new_concurrent(locale_candidates(lang));
+    let mut bundle =
+        SyncFluentBundle::new_concurrent(es_fluent_manager_core::locale_candidates(lang));
     let mut accepted_resources = Vec::with_capacity(resources.len());
     let mut diagnostics = Vec::new();
 
@@ -242,7 +243,9 @@ mod tests {
     }
 
     fn empty_bundle(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
-        Arc::new(SyncFluentBundle::new_concurrent(locale_candidates(lang)))
+        Arc::new(SyncFluentBundle::new_concurrent(
+            es_fluent_manager_core::locale_candidates(lang),
+        ))
     }
 
     #[test]

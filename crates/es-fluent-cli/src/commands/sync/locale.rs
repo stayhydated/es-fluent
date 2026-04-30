@@ -1,9 +1,7 @@
 use super::super::dry_run::DryRunDiff;
-use super::merge::merge_missing_keys;
 use crate::core::CrateInfo;
-use crate::ftl::{CrateFtlLayout, LocaleContext, extract_message_keys};
+use crate::ftl::{CrateFtlLayout, LocaleContext};
 use anyhow::{Result, bail};
-use es_fluent_generate::ftl::{format_parse_errors, parse_ftl_content};
 use fluent_syntax::{ast, serializer};
 use std::collections::HashSet;
 use std::fs;
@@ -111,16 +109,17 @@ fn sync_locale_file(
         String::new()
     };
 
-    let (existing_resource, errors) = parse_ftl_content(existing_content.clone());
+    let (existing_resource, errors) =
+        es_fluent_generate::ftl::parse_ftl_content(existing_content.clone());
     if !errors.is_empty() {
         bail!(
             "Refusing to sync '{}' because it contains Fluent parse errors: {}",
             ftl_file.display(),
-            format_parse_errors(&errors)
+            es_fluent_generate::ftl::format_parse_errors(&errors)
         );
     }
 
-    let existing_keys = extract_message_keys(&existing_resource);
+    let existing_keys = crate::ftl::extract_message_keys(&existing_resource);
 
     // Find missing keys
     let missing_keys: Vec<&String> = fallback_keys
@@ -140,7 +139,7 @@ fn sync_locale_file(
     // Build the merged resource
     let mut added_keys: Vec<String> = Vec::new();
 
-    let merged = merge_missing_keys(
+    let merged = super::merge::merge_missing_keys(
         &existing_resource,
         fallback_resource,
         &missing_keys,
@@ -173,7 +172,6 @@ fn sync_locale_file(
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use tempfile::tempdir;
 
     fn write_file(path: &Path, content: &str) {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("create parent");
@@ -209,13 +207,13 @@ mod tests {
 
     #[test]
     fn sync_locale_file_returns_unchanged_when_no_missing_keys() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let locale_dir = temp.path().join("es");
         let relative_path = PathBuf::from("test-crate.ftl");
         write_file(&locale_dir.join(&relative_path), "hello = Hola\n");
 
         let fallback_resource = parse_resource("hello = Hello\n");
-        let fallback_keys = extract_message_keys(&fallback_resource);
+        let fallback_keys = crate::ftl::extract_message_keys(&fallback_resource);
         let result = sync_locale_file(
             &locale_dir,
             &relative_path,
@@ -234,7 +232,7 @@ mod tests {
 
     #[test]
     fn sync_locale_file_dry_run_reports_diff_without_writing() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let locale_dir = temp.path().join("es");
         let relative_path = PathBuf::from("test-crate.ftl");
         let ftl_path = locale_dir.join(&relative_path);
@@ -242,7 +240,7 @@ mod tests {
         let before = std::fs::read_to_string(&ftl_path).expect("read before");
 
         let fallback_resource = parse_resource("hello = Hello\nworld = World\n");
-        let fallback_keys = extract_message_keys(&fallback_resource);
+        let fallback_keys = crate::ftl::extract_message_keys(&fallback_resource);
         let result = sync_locale_file(
             &locale_dir,
             &relative_path,
@@ -263,13 +261,13 @@ mod tests {
 
     #[test]
     fn sync_locale_file_writes_and_creates_parent_dirs() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let locale_dir = temp.path().join("es");
         let relative_path = PathBuf::from("test-crate/ui.ftl");
         let ftl_path = locale_dir.join(&relative_path);
 
         let fallback_resource = parse_resource("hello = Hello\n");
-        let fallback_keys = extract_message_keys(&fallback_resource);
+        let fallback_keys = crate::ftl::extract_message_keys(&fallback_resource);
         let result = sync_locale_file(
             &locale_dir,
             &relative_path,
@@ -292,14 +290,14 @@ mod tests {
 
     #[test]
     fn sync_locale_file_rejects_existing_parse_errors() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let locale_dir = temp.path().join("es");
         let relative_path = PathBuf::from("test-crate.ftl");
         let ftl_path = locale_dir.join(&relative_path);
         write_file(&ftl_path, "broken = {\n");
 
         let fallback_resource = parse_resource("hello = Hello\n");
-        let fallback_keys = extract_message_keys(&fallback_resource);
+        let fallback_keys = crate::ftl::extract_message_keys(&fallback_resource);
         let err = sync_locale_file(
             &locale_dir,
             &relative_path,
@@ -316,7 +314,7 @@ mod tests {
 
     #[test]
     fn sync_crate_returns_empty_when_fallback_locale_missing() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let krate = test_crate_with_i18n(&temp);
         std::fs::create_dir_all(temp.path().join("i18n/es")).expect("create non-fallback locale");
 
@@ -326,7 +324,7 @@ mod tests {
 
     #[test]
     fn sync_crate_filters_target_locales_and_syncs_namespaced_files() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let krate = test_crate_with_i18n(&temp);
 
         // Fallback files (main + namespaced).

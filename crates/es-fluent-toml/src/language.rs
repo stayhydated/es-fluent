@@ -1,5 +1,5 @@
 use crate::I18nConfigError;
-use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use es_fluent_shared::CanonicalLanguageIdentifierError;
 use fs_err as fs;
 use std::io;
 use unic_langid::LanguageIdentifier;
@@ -32,26 +32,27 @@ pub(crate) fn parse_language_entry(
         ))
     })?;
 
-    let lang = parse_canonical_language_identifier(&name).map_err(|err| match err {
-        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
-            I18nConfigError::InvalidLanguageIdentifier {
-                name: name.clone(),
-                source,
-            }
-        },
-        CanonicalLanguageIdentifierError::IcuInvalid { details, .. } => {
-            I18nConfigError::IcuLanguageIdentifier {
-                name: name.clone(),
-                details,
-            }
-        },
-        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
-            I18nConfigError::NonCanonicalLanguageIdentifier {
-                name: name.clone(),
-                canonical,
-            }
-        },
-    })?;
+    let lang =
+        es_fluent_shared::parse_canonical_language_identifier(&name).map_err(|err| match err {
+            CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+                I18nConfigError::InvalidLanguageIdentifier {
+                    name: name.clone(),
+                    source,
+                }
+            },
+            CanonicalLanguageIdentifierError::IcuInvalid { details, .. } => {
+                I18nConfigError::IcuLanguageIdentifier {
+                    name: name.clone(),
+                    details,
+                }
+            },
+            CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+                I18nConfigError::NonCanonicalLanguageIdentifier {
+                    name: name.clone(),
+                    canonical,
+                }
+            },
+        })?;
 
     Ok(Some(ParsedLanguageEntry {
         raw_name: name,

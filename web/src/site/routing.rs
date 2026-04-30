@@ -1,4 +1,4 @@
-use crate::pages::{DevErrorPage, route_content};
+use crate::pages::DevErrorPage;
 use crate::site::i18n::{
     BevyPageMessage, DemosPageMessage, HomeHeroMessage, PageMetadataMessage, SiteChromeMessage,
     SiteLanguage,
@@ -7,7 +7,7 @@ use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent_lang::LanguageIdentifier;
-use es_fluent_manager_dioxus::{DioxusI18n, use_i18n};
+use es_fluent_manager_dioxus::DioxusI18n;
 use std::collections::HashSet;
 use std::fmt::{self, Display};
 use std::fs;
@@ -345,7 +345,7 @@ fn contains_generated_route_cache(dir: &Path) -> bool {
 }
 
 fn route_element(route: SiteRoute) -> Element {
-    let i18n = match use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => {
             return rsx!(DevErrorPage {
@@ -384,7 +384,7 @@ fn route_element(route: SiteRoute) -> Element {
                     name: "description",
                     content: description,
                 }
-                {route_content(route)}
+                {crate::pages::route_content(route)}
             }
         },
         Err(error) => rsx!(DevErrorPage {

@@ -6,13 +6,11 @@ use mdbook_driver::MDBook;
 use mdbook_driver::book::BookItem;
 use path_slash::PathExt as _;
 
-use crate::util::workspace_root;
-
 const BASE_URL: &str = "https://stayhydated.github.io/es-fluent";
 const LLMS_HEADER: &str = include_str!("../../templates/llms-header.md");
 
 pub fn run() -> anyhow::Result<()> {
-    run_from_workspace_root(&workspace_root()?)
+    run_from_workspace_root(&crate::util::workspace_root()?)
 }
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {

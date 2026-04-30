@@ -14,8 +14,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::LanguageIdentifier;
 
-use crate::fallback::locale_candidates;
-
 pub type LocalizationError = EsFluentError;
 pub type SyncFluentBundle =
     FluentBundle<Arc<FluentResource>, intl_memoizer::concurrent::IntlLangMemoizer>;
@@ -49,7 +47,7 @@ impl StaticBundleGenerator {
         locale: &LanguageIdentifier,
     ) -> Option<FluentBundleResult<Arc<FluentResource>>> {
         let resources = self.resources_by_locale.get(locale)?.clone();
-        let mut bundle = FallbackFluentBundle::new(locale_candidates(locale));
+        let mut bundle = FallbackFluentBundle::new(crate::fallback::locale_candidates(locale));
         let mut errors = Vec::new();
 
         for resource in resources {
@@ -115,7 +113,7 @@ pub fn build_sync_bundle(
     lang: &LanguageIdentifier,
     resources: impl IntoIterator<Item = Arc<FluentResource>>,
 ) -> (SyncFluentBundle, Vec<Vec<FluentError>>) {
-    let mut bundle = FluentBundle::new_concurrent(locale_candidates(lang));
+    let mut bundle = FluentBundle::new_concurrent(crate::fallback::locale_candidates(lang));
     let add_errors = add_resources_to_bundle(&mut bundle, resources);
     (bundle, add_errors)
 }

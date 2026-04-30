@@ -1,12 +1,11 @@
 use crate::site::i18n::SiteLanguage;
 use crate::site::routing::AppRoute;
-use crate::site::routing::app_base_href;
 use dioxus::{document, prelude::*};
 use es_fluent_manager_dioxus::I18nProvider;
 
 #[component]
 pub fn App() -> Element {
-    let stylesheet_href = format!("{}assets/site.css", app_base_href());
+    let stylesheet_href = format!("{}assets/site.css", crate::site::routing::app_base_href());
 
     rsx! {
         document::Stylesheet { href: stylesheet_href }

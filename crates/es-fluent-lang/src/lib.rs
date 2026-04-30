@@ -31,7 +31,7 @@ pub use es_fluent_lang_macro::es_fluent_language;
 #[doc(hidden)]
 use es_fluent_manager_core::{
     I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, locale_candidates,
+    ModuleData,
 };
 use fluent_bundle::FluentValue;
 use icu_experimental::displaynames::{DisplayNamesOptions, multi::LocaleDisplayNamesFormatter};
@@ -47,7 +47,7 @@ fn parse_message_language(id: &str) -> Option<LanguageIdentifier> {
 }
 
 fn formatter_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifier> {
-    let mut candidates = locale_candidates(requested);
+    let mut candidates = es_fluent_manager_core::locale_candidates(requested);
 
     for fallback in DISPLAY_LANGUAGE_FALLBACKS {
         if let Ok(language) = fallback.parse::<LanguageIdentifier>()

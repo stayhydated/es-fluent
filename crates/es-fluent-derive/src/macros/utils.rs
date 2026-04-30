@@ -399,11 +399,6 @@ pub fn preferred_namespace<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        generate_localize_label_impl, inherited_fluent_domain, inherited_fluent_namespace,
-        preferred_namespace,
-    };
-    use crate::snapshot_support::pretty_file_tokens;
     use es_fluent_shared::namespace::NamespaceRule;
     use insta::assert_snapshot;
     use syn::parse_quote;
@@ -422,11 +417,11 @@ mod tests {
         };
 
         assert!(matches!(
-            inherited_fluent_namespace(&struct_input).expect("struct namespace"),
+            super::inherited_fluent_namespace(&struct_input).expect("struct namespace"),
             Some(NamespaceRule::Literal(value)) if value == "ui"
         ));
         assert!(matches!(
-            inherited_fluent_namespace(&enum_input).expect("enum namespace"),
+            super::inherited_fluent_namespace(&enum_input).expect("enum namespace"),
             Some(NamespaceRule::Literal(value)) if value == "errors"
         ));
     }
@@ -438,29 +433,30 @@ mod tests {
         let fallback = NamespaceRule::Literal("fallback".into());
 
         assert_eq!(
-            preferred_namespace([Some(&parent), Some(&child), Some(&fallback)]),
+            super::preferred_namespace([Some(&parent), Some(&child), Some(&fallback)]),
             Some(&parent)
         );
         assert_eq!(
-            preferred_namespace([None, Some(&child), Some(&fallback)]),
+            super::preferred_namespace([None, Some(&child), Some(&fallback)]),
             Some(&child)
         );
         assert_eq!(
-            preferred_namespace([None, None, Some(&fallback)]),
+            super::preferred_namespace([None, None, Some(&fallback)]),
             Some(&fallback)
         );
-        assert_eq!(preferred_namespace([None, None, None]), None);
+        assert_eq!(super::preferred_namespace([None, None, None]), None);
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_localize_label_impl_routes_through_the_current_crate_domain() {
-        let tokens = pretty_file_tokens(generate_localize_label_impl(
-            &parse_quote!(Greeting),
-            &parse_quote!(),
-            Some("hello"),
-            None,
-        ));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
+                &parse_quote!(Greeting),
+                &parse_quote!(),
+                Some("hello"),
+                None,
+            ));
 
         assert_snapshot!("generate_localize_label_impl_current_crate_domain", tokens);
     }
@@ -468,12 +464,13 @@ mod tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_localize_label_impl_uses_explicit_domain_override_when_present() {
-        let tokens = pretty_file_tokens(generate_localize_label_impl(
-            &parse_quote!(Languages),
-            &parse_quote!(),
-            Some("es-fluent-lang-this"),
-            Some("es-fluent-lang"),
-        ));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
+                &parse_quote!(Languages),
+                &parse_quote!(),
+                Some("es-fluent-lang-this"),
+                Some("es-fluent-lang"),
+            ));
 
         assert_snapshot!(
             "generate_localize_label_impl_explicit_domain_override",
@@ -494,11 +491,11 @@ mod tests {
         };
 
         assert_eq!(
-            inherited_fluent_domain(&enum_input).expect("enum domain"),
+            super::inherited_fluent_domain(&enum_input).expect("enum domain"),
             Some("es-fluent-lang".to_string())
         );
         assert_eq!(
-            inherited_fluent_domain(&struct_input).expect("struct domain"),
+            super::inherited_fluent_domain(&struct_input).expect("struct domain"),
             None
         );
     }

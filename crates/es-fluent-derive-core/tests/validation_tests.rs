@@ -3,14 +3,10 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::r#enum::EnumOpts;
 use es_fluent_derive_core::options::r#struct::StructOpts;
-use es_fluent_derive_core::validation::{
-    validate_enum, validate_namespace, validate_namespace_against_allowed, validate_struct,
-};
 use es_fluent_shared::namespace::NamespaceRule;
 use insta::assert_snapshot;
 use std::path::Path;
 use syn::{DeriveInput, parse_quote};
-use tempfile::tempdir;
 
 fn with_manifest_dir<T>(manifest_dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
     temp_env::with_var("CARGO_MANIFEST_DIR", manifest_dir, f)
@@ -46,7 +42,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = validate_struct(&opts).expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect_err("Expected validation error");
 
         assert_snapshot!(
             "validate_struct_multiple_defaults_produces_error",
@@ -68,7 +65,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = validate_struct(&opts).expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect_err("Expected validation error");
 
         assert_snapshot!(
             "validate_struct_multiple_defaults_tuple_struct_produces_error",
@@ -84,7 +82,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        validate_struct(&opts).expect("Validation should succeed");
+        es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect("Validation should succeed");
     }
 
     #[test]
@@ -95,7 +94,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        validate_struct(&opts).expect("Validation should succeed");
+        es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect("Validation should succeed");
     }
 
     #[test]
@@ -110,7 +110,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        validate_struct(&opts).expect("Validation should succeed");
+        es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect("Validation should succeed");
     }
 
     #[test]
@@ -125,7 +126,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = validate_struct(&opts).expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect_err("Expected validation error");
 
         assert_snapshot!(
             "validate_struct_skip_and_default_conflict_produces_error",
@@ -144,7 +146,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        validate_struct(&opts).expect("Validation should succeed");
+        es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect("Validation should succeed");
     }
 
     #[test]
@@ -159,7 +162,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        validate_struct(&opts).expect("Validation should succeed");
+        es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect("Validation should succeed");
     }
 
     #[test]
@@ -173,7 +177,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = validate_struct(&opts).expect_err("empty arg_name should fail");
+        let err = es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect_err("empty arg_name should fail");
 
         assert!(err.to_string().contains("cannot be empty"));
     }
@@ -191,7 +196,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = validate_struct(&opts).expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect_err("Expected validation error");
         assert_snapshot!("validate_struct_duplicate_arg_name_fails", err.to_string());
     }
 
@@ -207,7 +213,8 @@ mod validate_struct_tests {
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = validate_struct(&opts).expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect_err("Expected validation error");
         assert_snapshot!(
             "validate_struct_arg_name_on_skipped_field_fails",
             err.to_string()
@@ -228,7 +235,8 @@ mod validate_enum_tests {
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        validate_enum(&opts).expect("Single tuple field with field-level arg_name should pass");
+        es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect("Single tuple field with field-level arg_name should pass");
     }
 
     #[test]
@@ -244,7 +252,8 @@ mod validate_enum_tests {
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        validate_enum(&opts).expect("Named field with field-level arg_name should pass");
+        es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect("Named field with field-level arg_name should pass");
     }
 
     #[test]
@@ -280,7 +289,8 @@ mod validate_enum_tests {
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = validate_enum(&opts).expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect_err("Expected validation error");
         assert_snapshot!(
             "validate_enum_field_arg_name_duplicate_with_named_field_fails",
             err.to_string()
@@ -301,7 +311,8 @@ mod validate_enum_tests {
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = validate_enum(&opts).expect_err("Expected validation error");
+        let err = es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect_err("Expected validation error");
         assert_snapshot!(
             "validate_enum_duplicate_field_arg_name_overrides_fail",
             err.to_string()
@@ -318,7 +329,8 @@ mod validate_enum_tests {
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = validate_enum(&opts).expect_err("arg_name on skipped field should fail");
+        let err = es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect_err("arg_name on skipped field should fail");
 
         assert!(
             err.to_string()
@@ -336,7 +348,8 @@ mod validate_enum_tests {
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = validate_enum(&opts).expect_err("empty arg_name should fail");
+        let err = es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect_err("empty arg_name should fail");
 
         assert!(err.to_string().contains("cannot be empty"));
     }
@@ -354,7 +367,8 @@ mod validate_enum_tests {
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        validate_enum(&opts).expect("skipped field should not participate in resolved arg names");
+        es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect("skipped field should not participate in resolved arg names");
     }
 }
 
@@ -366,14 +380,15 @@ mod validate_namespace_tests {
     fn file_namespace_always_passes() {
         // File-based namespaces are deferred to CLI validation
         let ns = NamespaceRule::File;
-        validate_namespace(&ns, None).expect("File namespace should always pass at compile time");
+        es_fluent_derive_core::validation::validate_namespace(&ns, None)
+            .expect("File namespace should always pass at compile time");
     }
 
     #[test]
     fn file_relative_namespace_always_passes() {
         // File-based namespaces are deferred to CLI validation
         let ns = NamespaceRule::FileRelative;
-        validate_namespace(&ns, None)
+        es_fluent_derive_core::validation::validate_namespace(&ns, None)
             .expect("FileRelative namespace should always pass at compile time");
     }
 
@@ -381,14 +396,15 @@ mod validate_namespace_tests {
     fn folder_namespace_always_passes() {
         // Folder-based namespaces are deferred to CLI validation
         let ns = NamespaceRule::Folder;
-        validate_namespace(&ns, None).expect("Folder namespace should always pass at compile time");
+        es_fluent_derive_core::validation::validate_namespace(&ns, None)
+            .expect("Folder namespace should always pass at compile time");
     }
 
     #[test]
     fn folder_relative_namespace_always_passes() {
         // Folder-based namespaces are deferred to CLI validation
         let ns = NamespaceRule::FolderRelative;
-        validate_namespace(&ns, None)
+        es_fluent_derive_core::validation::validate_namespace(&ns, None)
             .expect("FolderRelative namespace should always pass at compile time");
     }
 
@@ -400,19 +416,21 @@ mod validate_namespace_tests {
         // the graceful fallback behavior.
         let ns = NamespaceRule::Literal("any_namespace".into());
         with_manifest_dir(None, || {
-            validate_namespace(&ns, None).expect("Should pass when no config exists");
+            es_fluent_derive_core::validation::validate_namespace(&ns, None)
+                .expect("Should pass when no config exists");
         });
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn literal_namespace_reports_parse_errors_from_config() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         std::fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write i18n.toml");
         let ns = NamespaceRule::Literal("ui".into());
 
         let err = with_manifest_dir(Some(temp.path()), || {
-            validate_namespace(&ns, None).expect_err("invalid config should be surfaced")
+            es_fluent_derive_core::validation::validate_namespace(&ns, None)
+                .expect_err("invalid config should be surfaced")
         });
 
         assert_snapshot!(
@@ -433,11 +451,18 @@ mod validate_namespace_against_allowed_tests {
             "components".to_string(),
         ];
 
-        validate_namespace_against_allowed("ui", &allowed, None).expect("'ui' should be allowed");
-        validate_namespace_against_allowed("errors", &allowed, None)
-            .expect("'errors' should be allowed");
-        validate_namespace_against_allowed("components", &allowed, None)
-            .expect("'components' should be allowed");
+        es_fluent_derive_core::validation::validate_namespace_against_allowed("ui", &allowed, None)
+            .expect("'ui' should be allowed");
+        es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "errors", &allowed, None,
+        )
+        .expect("'errors' should be allowed");
+        es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "components",
+            &allowed,
+            None,
+        )
+        .expect("'components' should be allowed");
     }
 
     #[test]
@@ -445,8 +470,10 @@ mod validate_namespace_against_allowed_tests {
     fn invalid_namespace_not_in_allowed_list() {
         let allowed = vec!["ui".to_string(), "errors".to_string()];
 
-        let err = validate_namespace_against_allowed("unknown", &allowed, None)
-            .expect_err("'unknown' should not be allowed");
+        let err = es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "unknown", &allowed, None,
+        )
+        .expect_err("'unknown' should not be allowed");
 
         assert_snapshot!(
             "validate_namespace_against_allowed_invalid_namespace_not_in_allowed_list",
@@ -459,8 +486,10 @@ mod validate_namespace_against_allowed_tests {
     fn empty_allowed_list_rejects_everything() {
         let allowed: Vec<String> = vec![];
 
-        let err = validate_namespace_against_allowed("anything", &allowed, None)
-            .expect_err("Empty allowed list should reject all namespaces");
+        let err = es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "anything", &allowed, None,
+        )
+        .expect_err("Empty allowed list should reject all namespaces");
 
         assert_snapshot!(
             "validate_namespace_against_allowed_empty_allowed_list_rejects_everything",
@@ -474,12 +503,14 @@ mod validate_namespace_against_allowed_tests {
         let allowed = vec!["UI".to_string(), "Errors".to_string()];
 
         // Exact case should pass
-        validate_namespace_against_allowed("UI", &allowed, None)
+        es_fluent_derive_core::validation::validate_namespace_against_allowed("UI", &allowed, None)
             .expect("'UI' should match exactly");
 
         // Different case should fail
-        let err = validate_namespace_against_allowed("ui", &allowed, None)
-            .expect_err("'ui' should not match 'UI'");
+        let err = es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "ui", &allowed, None,
+        )
+        .expect_err("'ui' should not match 'UI'");
         assert_snapshot!(
             "validate_namespace_against_allowed_namespace_matching_is_case_sensitive",
             err.to_string()
@@ -494,11 +525,23 @@ mod validate_namespace_against_allowed_tests {
             "my.namespace".to_string(),
         ];
 
-        validate_namespace_against_allowed("my-namespace", &allowed, None)
-            .expect("hyphenated namespace should be allowed");
-        validate_namespace_against_allowed("my_namespace", &allowed, None)
-            .expect("underscored namespace should be allowed");
-        validate_namespace_against_allowed("my.namespace", &allowed, None)
-            .expect("dotted namespace should be allowed");
+        es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "my-namespace",
+            &allowed,
+            None,
+        )
+        .expect("hyphenated namespace should be allowed");
+        es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "my_namespace",
+            &allowed,
+            None,
+        )
+        .expect("underscored namespace should be allowed");
+        es_fluent_derive_core::validation::validate_namespace_against_allowed(
+            "my.namespace",
+            &allowed,
+            None,
+        )
+        .expect("dotted namespace should be allowed");
     }
 }

@@ -6,11 +6,7 @@ use es_fluent_derive_core::options::{
 use es_fluent_shared::namer;
 
 use crate::macros::ir::LocalizeCallSpec;
-use crate::macros::utils::{
-    InventoryModuleInput, emit_message_inventory_impls, generate_field_argument,
-    generate_inventory_module, inventory_arg_name, inventory_variant_tokens, namespace_rule_tokens,
-    variant_ftl_key,
-};
+use crate::macros::utils::InventoryModuleInput;
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -78,7 +74,11 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         }
 
         let variant_ident = variant_opt.ident();
-        let ftl_key = variant_ftl_key(base_key.as_str(), variant_ident, variant_opt.key());
+        let ftl_key = crate::macros::utils::variant_ftl_key(
+            base_key.as_str(),
+            variant_ident,
+            variant_opt.key(),
+        );
 
         match variant_opt.style() {
             darling::ast::Style::Unit => {
@@ -113,7 +113,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
                     .map(|(tuple_index, field)| {
                         let binding_ident = namer::UnnamedItem::from(tuple_index).to_ident();
-                        generate_field_argument(
+                        crate::macros::utils::generate_field_argument(
                             field,
                             tuple_index,
                             quote! { #binding_ident },
@@ -146,7 +146,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     .enumerate()
                     .map(|(index, field_opt)| {
                         let arg_name = field_opt.ident().expect("named field");
-                        generate_field_argument(
+                        crate::macros::utils::generate_field_argument(
                             *field_opt,
                             index,
                             quote! { #arg_name },
@@ -205,7 +205,11 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             .filter(|v| !v.is_skipped())
             .map(|variant_opt| {
                 let variant_ident = variant_opt.ident();
-                let ftl_key = variant_ftl_key(base_key.as_str(), variant_ident, variant_opt.key());
+                let ftl_key = crate::macros::utils::variant_ftl_key(
+                    base_key.as_str(),
+                    variant_ident,
+                    variant_opt.key(),
+                );
 
                 // Get args based on variant style
                 let arg_names: Vec<String> = match variant_opt.style() {
@@ -215,32 +219,42 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                         .into_iter()
                         .enumerate()
                         .filter(|(_, field)| !<FluentFieldOpts as FluentField>::is_skipped(*field))
-                        .map(|(tuple_index, field)| inventory_arg_name(field, tuple_index))
+                        .map(|(tuple_index, field)| {
+                            crate::macros::utils::inventory_arg_name(field, tuple_index)
+                        })
                         .collect(),
                     darling::ast::Style::Struct => variant_opt
                         .fields()
                         .iter()
                         .enumerate()
-                        .map(|(index, field)| inventory_arg_name(*field, index))
+                        .map(|(index, field)| {
+                            crate::macros::utils::inventory_arg_name(*field, index)
+                        })
                         .collect(),
                 };
 
-                inventory_variant_tokens(variant_ident.to_string(), ftl_key, arg_names)
+                crate::macros::utils::inventory_variant_tokens(
+                    variant_ident.to_string(),
+                    ftl_key,
+                    arg_names,
+                )
             })
             .collect();
 
-        generate_inventory_module(InventoryModuleInput {
+        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
             ident: original_ident,
             module_name_prefix: "inventory",
             type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
             variants: static_variants,
-            namespace_expr: namespace_rule_tokens(opts.attr_args().namespace()),
+            namespace_expr: crate::macros::utils::namespace_rule_tokens(
+                opts.attr_args().namespace(),
+            ),
         })
     } else {
         quote! {}
     };
 
-    emit_message_inventory_impls(
+    crate::macros::utils::emit_message_inventory_impls(
         original_ident,
         opts.generics(),
         fluent_message_body,

@@ -4,11 +4,7 @@ use es_fluent_shared::{namer, namespace::NamespaceRule};
 use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
-use crate::macros::utils::{
-    InventoryModuleInput, generate_inventory_module, generate_localize_label_impl,
-    inherited_fluent_domain, inherited_fluent_namespace, namespace_rule_tokens,
-    preferred_namespace,
-};
+use crate::macros::utils::InventoryModuleInput;
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -36,11 +32,11 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         );
     }
 
-    let fluent_namespace = match inherited_fluent_namespace(&input) {
+    let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace(&input) {
         Ok(namespace) => namespace,
         Err(err) => return err.write_errors(),
     };
-    let fluent_domain = match inherited_fluent_domain(&input) {
+    let fluent_domain = match crate::macros::utils::inherited_fluent_domain(&input) {
         Ok(domain) => domain,
         Err(err) => return err.write_errors(),
     };
@@ -53,7 +49,7 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         None
     };
 
-    let localize_label_impl = generate_localize_label_impl(
+    let localize_label_impl = crate::macros::utils::generate_localize_label_impl(
         original_ident,
         generics,
         ftl_key.as_deref(),
@@ -69,10 +65,12 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
     // FTL metadata is purely structural and doesn't depend on generic type parameters
     let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
         let type_name = original_ident.to_string();
-        let namespace =
-            preferred_namespace([fluent_namespace.as_ref(), opts.attr_args().namespace()]);
+        let namespace = crate::macros::utils::preferred_namespace([
+            fluent_namespace.as_ref(),
+            opts.attr_args().namespace(),
+        ]);
         validate_namespace(namespace, original_ident.span());
-        let namespace_expr = namespace_rule_tokens(namespace);
+        let namespace_expr = crate::macros::utils::namespace_rule_tokens(namespace);
         let this_variant = quote! {
             ::es_fluent::registry::FtlVariant {
                 name: #type_name,
@@ -83,7 +81,7 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
             }
         };
 
-        generate_inventory_module(InventoryModuleInput {
+        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
             ident: original_ident,
             module_name_prefix: "label_inventory",
             type_kind,
@@ -104,8 +102,6 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
-    use super::expand_es_fluent_label;
-    use crate::snapshot_support::pretty_file_tokens;
     use insta::assert_snapshot;
     use syn::parse_quote;
 
@@ -117,7 +113,8 @@ mod tests {
             struct LoginForm;
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
             "expand_es_fluent_label_generates_inventory_when_origin_is_enabled",
             tokens
@@ -133,7 +130,8 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
             "expand_es_fluent_label_skips_inventory_when_origin_is_disabled",
             tokens
@@ -146,7 +144,9 @@ mod tests {
             #[fluent_label(origin = "nope")]
             struct InvalidLabelOpts;
         };
-        let this_opts_tokens = pretty_file_tokens(expand_es_fluent_label(this_opts_error));
+        let this_opts_tokens = crate::snapshot_support::pretty_file_tokens(
+            super::expand_es_fluent_label(this_opts_error),
+        );
         assert_snapshot!(
             "expand_es_fluent_label_returns_compile_errors_for_invalid_label_opts",
             this_opts_tokens
@@ -157,7 +157,9 @@ mod tests {
             #[fluent(namespace = 123)]
             struct InvalidStructNamespace;
         };
-        let struct_tokens = pretty_file_tokens(expand_es_fluent_label(struct_namespace_error));
+        let struct_tokens = crate::snapshot_support::pretty_file_tokens(
+            super::expand_es_fluent_label(struct_namespace_error),
+        );
         assert_snapshot!(
             "expand_es_fluent_label_returns_compile_errors_for_invalid_struct_namespace",
             struct_tokens
@@ -170,7 +172,9 @@ mod tests {
                 A
             }
         };
-        let enum_tokens = pretty_file_tokens(expand_es_fluent_label(enum_namespace_error));
+        let enum_tokens = crate::snapshot_support::pretty_file_tokens(
+            super::expand_es_fluent_label(enum_namespace_error),
+        );
         assert_snapshot!(
             "expand_es_fluent_label_returns_compile_errors_for_invalid_enum_namespace",
             enum_tokens
@@ -185,7 +189,8 @@ mod tests {
             struct NamespacedLabel;
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
             "expand_es_fluent_label_prefers_parent_fluent_namespace_over_label_namespace",
             tokens
@@ -199,7 +204,8 @@ mod tests {
             struct LoginForm;
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
             "expand_es_fluent_label_uses_struct_type_kind_for_structs",
             tokens
@@ -215,7 +221,8 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_es_fluent_label(input));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
             "expand_es_fluent_label_uses_enum_type_kind_for_enums",
             tokens

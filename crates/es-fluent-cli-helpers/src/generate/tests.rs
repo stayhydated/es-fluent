@@ -1,11 +1,9 @@
-use super::inventory::collect_type_infos;
 use super::*;
 use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
 use es_fluent_shared::meta::TypeKind;
 use fs_err as fs;
 use std::borrow::Cow;
 use std::path::Path;
-use tempfile::tempdir;
 use toml::Value;
 
 static EMPTY_VARIANTS: &[FtlVariant] = &[];
@@ -101,7 +99,7 @@ fn write_basic_i18n_config(manifest_dir: &Path) {
 
 #[test]
 fn resolve_helpers_use_overrides_and_config_defaults() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
 
     let output_override = temp.path().join("custom-output");
@@ -134,7 +132,7 @@ fn resolve_helpers_use_overrides_and_config_defaults() {
 #[test]
 #[serial_test::serial(process)]
 fn resolve_helpers_can_load_defaults_from_manifest_environment() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
 
     with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
@@ -175,7 +173,7 @@ fn resolve_manifest_dir_reports_missing_environment() {
 
 #[test]
 fn resolve_helpers_report_config_errors_when_manifest_lacks_i18n_toml() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
         .manifest_dir(temp.path())
@@ -194,7 +192,7 @@ fn resolve_helpers_report_config_errors_when_manifest_lacks_i18n_toml() {
 
 #[test]
 fn resolve_clean_paths_supports_single_or_all_locales() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
 
     let generator = EsFluentGenerator::builder()
@@ -218,7 +216,7 @@ fn resolve_clean_paths_supports_single_or_all_locales() {
 
 #[test]
 fn resolve_clean_paths_rejects_noncanonical_locale_directory_names() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
     fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
     write_toml(
@@ -239,7 +237,7 @@ fn resolve_clean_paths_rejects_noncanonical_locale_directory_names() {
 
 #[test]
 fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
 
     let override_assets = temp.path().join("custom-assets");
@@ -263,7 +261,7 @@ fn resolve_clean_paths_honors_assets_dir_override_for_all_locales() {
 
 #[test]
 fn resolve_clean_paths_rejects_invalid_locale_directory_names() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     fs::create_dir_all(temp.path().join("i18n/en-US")).expect("mkdir en-US");
     fs::create_dir_all(temp.path().join("i18n/fr")).expect("mkdir fr");
     fs::create_dir_all(temp.path().join("i18n/not_a_locale")).expect("mkdir invalid");
@@ -285,7 +283,7 @@ fn resolve_clean_paths_rejects_invalid_locale_directory_names() {
 
 #[test]
 fn resolve_clean_paths_reports_missing_assets_dir_for_all_locales() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     let fallback_output = temp.path().join("fallback-output");
     let generator = EsFluentGenerator::builder()
         .crate_name("missing-crate")
@@ -302,12 +300,13 @@ fn resolve_clean_paths_reports_missing_assets_dir_for_all_locales() {
 
 #[test]
 fn validate_namespaces_allows_configured_namespaces_only() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
 
-    validate_namespaces(&[&ALLOWED_INFO], temp.path()).expect("allowed namespace should pass");
+    super::inventory::validate_namespaces(&[&ALLOWED_INFO], temp.path())
+        .expect("allowed namespace should pass");
 
-    let err = validate_namespaces(&[&DISALLOWED_INFO], temp.path())
+    let err = super::inventory::validate_namespaces(&[&DISALLOWED_INFO], temp.path())
         .expect_err("disallowed namespace should fail");
     assert!(matches!(
         err,
@@ -321,7 +320,7 @@ fn validate_namespaces_allows_configured_namespaces_only() {
 
 #[test]
 fn generate_and_clean_handle_empty_inventory() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
 
     let generator = EsFluentGenerator::builder()
@@ -341,7 +340,7 @@ fn generate_and_clean_handle_empty_inventory() {
 
 #[test]
 fn clean_marks_changes_when_cleaner_rewrites_files() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
     write_basic_i18n_config(temp.path());
 
     let target_file = temp.path().join("i18n/en-US/coverage-test-crate.ftl");
@@ -378,7 +377,7 @@ fn detect_crate_name_works_in_test_environment() {
 #[test]
 #[serial_test::serial(process)]
 fn detect_crate_name_uses_env_fallback_or_errors_when_unavailable() {
-    let temp = tempdir().expect("tempdir");
+    let temp = tempfile::tempdir().expect("tempdir");
 
     with_env_vars(
         &[
@@ -436,6 +435,6 @@ fn env_helpers_restore_unset_variables() {
 
 #[test]
 fn collect_type_infos_returns_empty_for_unknown_crate() {
-    let infos = collect_type_infos("definitely_unknown_crate_name");
+    let infos = super::inventory::collect_type_infos("definitely_unknown_crate_name");
     assert!(infos.is_empty());
 }

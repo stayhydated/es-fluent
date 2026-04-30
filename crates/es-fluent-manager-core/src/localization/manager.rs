@@ -1,6 +1,6 @@
 use super::{
     I18nModuleRegistration, LanguageSelectionPolicy, Localizer, ModuleDiscoveryError,
-    ModuleRegistrationKind, try_filter_module_registry,
+    ModuleRegistrationKind,
 };
 use crate::asset_localization::ModuleData;
 use fluent_bundle::FluentValue;
@@ -170,7 +170,7 @@ impl FluentManager {
     /// Discovers, validates, and caches runtime-capable i18n modules.
     pub fn try_discover_runtime_modules()
     -> Result<DiscoveredRuntimeI18nModules, Vec<ModuleDiscoveryError>> {
-        let discovered_modules = try_filter_module_registry(
+        let discovered_modules = super::try_filter_module_registry(
             inventory::iter::<&'static dyn I18nModuleRegistration>()
                 .copied()
                 .collect::<Vec<_>>(),

@@ -1,6 +1,4 @@
-use super::runner::run_monolithic;
 use crate::core::{CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
-use crate::utils::count_ftl_resources;
 use anyhow::{Result, bail};
 use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
 use std::time::Instant;
@@ -73,7 +71,7 @@ impl<'a> MonolithicExecutor<'a> {
         request: &RunnerRequest,
         force_run: bool,
     ) -> Result<RunnerExecution> {
-        let output = run_monolithic(self.workspace, request, force_run)?;
+        let output = super::runner::run_monolithic(self.workspace, request, force_run)?;
         let changed = match request {
             RunnerRequest::Generate { crate_name, .. }
             | RunnerRequest::Clean { crate_name, .. } => {
@@ -99,7 +97,7 @@ impl<'a> MonolithicExecutor<'a> {
             Ok(execution) => GenerateResult::success(
                 krate.name.clone(),
                 duration,
-                count_ftl_resources(&krate.ftl_output_dir, &krate.name),
+                crate::utils::count_ftl_resources(&krate.ftl_output_dir, &krate.name),
                 normalize_output(execution.output),
                 execution.changed,
             ),
@@ -135,7 +133,6 @@ mod tests {
     use crate::core::FluentParseMode;
     use std::fs;
     use std::path::PathBuf;
-    use tempfile::tempdir;
 
     fn test_crate_info(has_lib_rs: bool) -> CrateInfo {
         CrateInfo {
@@ -210,7 +207,7 @@ mod tests {
 
     #[test]
     fn metadata_store_handles_missing_invalid_and_valid_changed_status() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let crate_name = "demo";
         let store = RunnerMetadataStore::new(temp.path());
         let result_path = store.result_path(crate_name);

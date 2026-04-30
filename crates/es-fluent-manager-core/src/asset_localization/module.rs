@@ -1,5 +1,4 @@
-use super::resource::{ModuleResourceSpec, resource_plan_for};
-use es_fluent_shared::namespace::validate_namespace_path;
+use super::resource::ModuleResourceSpec;
 use std::collections::HashSet;
 use std::fmt;
 use unic_langid::LanguageIdentifier;
@@ -26,7 +25,7 @@ pub struct ModuleData {
 impl ModuleData {
     /// Returns the canonical resource plan for this module.
     pub fn resource_plan(&self) -> Vec<ModuleResourceSpec> {
-        resource_plan_for(self.domain, self.namespaces)
+        super::resource::resource_plan_for(self.domain, self.namespaces)
     }
 }
 
@@ -143,7 +142,7 @@ pub fn validate_module_registry<'a>(
         let mut seen_namespaces = HashSet::new();
         for namespace in data.namespaces {
             let trimmed = namespace.trim();
-            if let Err(details) = validate_namespace_path(namespace) {
+            if let Err(details) = es_fluent_shared::namespace::validate_namespace_path(namespace) {
                 errors.push(ModuleRegistryError::InvalidNamespace {
                     module: data.name.to_string(),
                     namespace: namespace.to_string(),

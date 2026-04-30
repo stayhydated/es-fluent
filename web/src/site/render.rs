@@ -1,11 +1,9 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use crate::site::constants::SITE_URL;
-use crate::site::routing::all_routes;
 use std::fmt::Write as _;
 
 #[cfg(test)]
-use crate::pages::route_content;
 #[cfg(test)]
 use crate::site::routing::SiteRoute;
 #[cfg(test)]
@@ -33,7 +31,7 @@ pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
     Ok(i18n.render_element(rsx! {
         SsrI18nProvider {
             i18n: i18n.clone(),
-            {route_content(route)}
+            {crate::pages::route_content(route)}
         }
     }))
 }
@@ -41,7 +39,7 @@ pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
 pub(crate) fn render_sitemap() -> String {
     let mut entries = String::new();
 
-    for route in all_routes() {
+    for route in crate::site::routing::all_routes() {
         let path = route.path();
         let url = if path == "/" {
             SITE_URL.to_string()

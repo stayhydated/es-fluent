@@ -1,5 +1,4 @@
 use crate::core::{CrateInfo, WorkspaceInfo};
-use crate::ftl::{discover_crate_ftl_files_in_locale_dir, parse_ftl_file};
 use anyhow::{Context as _, Result};
 use cargo_metadata::MetadataCommand;
 use es_fluent_toml::ResolvedI18nLayout;
@@ -69,13 +68,14 @@ pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
 
 /// Counts the number of FTL resources (message keys) for a specific crate.
 pub fn count_ftl_resources(ftl_output_dir: &Path, crate_name: &str) -> usize {
-    let Ok(files) = discover_crate_ftl_files_in_locale_dir(ftl_output_dir, crate_name) else {
+    let Ok(files) = crate::ftl::discover_crate_ftl_files_in_locale_dir(ftl_output_dir, crate_name)
+    else {
         return 0;
     };
 
     files
         .into_iter()
-        .filter_map(|file| parse_ftl_file(&file.abs_path).ok())
+        .filter_map(|file| crate::ftl::parse_ftl_file(&file.abs_path).ok())
         .map(|resource| {
             resource
                 .body
@@ -95,12 +95,11 @@ pub fn count_ftl_resources(ftl_output_dir: &Path, crate_name: &str) -> usize {
 mod tests {
     use super::*;
     use std::fs;
-    use tempfile::tempdir;
 
-    use crate::test_fixtures::{LIB_RS, WORKSPACE_CARGO_TOML, create_test_crate_workspace};
+    use crate::test_fixtures::{LIB_RS, WORKSPACE_CARGO_TOML};
 
     fn create_workspace_without_i18n_toml() -> tempfile::TempDir {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(temp.path().join("src")).expect("create src");
         fs::write(
             temp.path().join("Cargo.toml"),
@@ -127,7 +126,7 @@ mod tests {
 
     #[test]
     fn discover_workspace_finds_i18n_enabled_crate() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         let ws = discover_workspace(temp.path()).expect("discover workspace");
 
         assert_eq!(ws.crates.len(), 1);
@@ -161,14 +160,14 @@ mod tests {
 
     #[test]
     fn discover_workspace_errors_without_cargo_manifest() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let err = discover_workspace(temp.path()).expect_err("expected cargo metadata failure");
         assert!(err.to_string().contains("cargo metadata") || err.to_string().contains("manifest"));
     }
 
     #[test]
     fn discover_workspace_errors_for_invalid_i18n_toml() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
         fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write invalid i18n");
 
         let err = discover_workspace(temp.path()).expect_err("expected i18n parse failure");
@@ -177,7 +176,7 @@ mod tests {
 
     #[test]
     fn discover_workspace_collects_fluent_features_and_sorts_crates() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         fs::write(temp.path().join("Cargo.toml"), WORKSPACE_CARGO_TOML)
             .expect("write workspace Cargo.toml");
 
@@ -209,7 +208,7 @@ mod tests {
 
     #[test]
     fn count_ftl_resources_returns_zero_when_ftl_path_is_directory() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let locale_dir = temp.path().join("en");
         fs::create_dir_all(locale_dir.join("test-crate.ftl")).expect("create fake ftl dir");
 

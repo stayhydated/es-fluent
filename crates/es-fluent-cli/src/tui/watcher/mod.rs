@@ -9,12 +9,11 @@ mod tests;
 
 use self::runtime::WatchRuntime;
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
-use crate::generation::prepare_monolithic_runner_crate;
 use crate::tui::{self, TuiApp};
 use anyhow::{Context as _, Result};
-use crossbeam_channel::{Receiver, RecvTimeoutError, unbounded};
+use crossbeam_channel::{Receiver, RecvTimeoutError};
 use notify::{RecommendedWatcher, RecursiveMode};
-use notify_debouncer_full::{DebounceEventResult, RecommendedCache, new_debouncer};
+use notify_debouncer_full::{DebounceEventResult, RecommendedCache};
 use ratatui::{Terminal, backend::Backend};
 use std::time::Duration;
 
@@ -28,7 +27,7 @@ pub fn watch_all(
         anyhow::bail!("No crates to watch");
     }
 
-    prepare_monolithic_runner_crate(workspace)?;
+    crate::generation::prepare_monolithic_runner_crate(workspace)?;
 
     let mut terminal = ratatui::init();
     let poll = tui::poll_quit_event;
@@ -145,9 +144,10 @@ fn configure_file_watcher(
     notify_debouncer_full::Debouncer<RecommendedWatcher, RecommendedCache>,
     Receiver<DebounceEventResult>,
 )> {
-    let (file_tx, file_rx) = unbounded();
-    let mut debouncer = new_debouncer(Duration::from_millis(300), None, file_tx)
-        .context("Failed to create file watcher")?;
+    let (file_tx, file_rx) = crossbeam_channel::unbounded();
+    let mut debouncer =
+        notify_debouncer_full::new_debouncer(Duration::from_millis(300), None, file_tx)
+            .context("Failed to create file watcher")?;
 
     for krate in valid_crates {
         debouncer

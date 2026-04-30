@@ -429,16 +429,14 @@ mod ssr_tests {
 #[cfg(feature = "client")]
 mod client_tests {
     use super::*;
-    use crate::{try_use_i18n, use_init_i18n, use_provide_i18n};
     use dioxus_core::{Element, Event, Mutation, Mutations, VirtualDom};
     use dioxus_core_macro::rsx;
     #[allow(unused_imports)]
     use dioxus_html as dioxus_elements;
+    use dioxus_html::geometry::{ClientPoint, Coordinates, ElementPoint, PagePoint, ScreenPoint};
+    use dioxus_html::input_data::{MouseButton, MouseButtonSet};
     use dioxus_html::{
         Modifiers, PlatformEventData, SerializedHtmlEventConverter, SerializedMouseData,
-        geometry::{ClientPoint, Coordinates, ElementPoint, PagePoint, ScreenPoint},
-        input_data::{MouseButton, MouseButtonSet},
-        set_event_converter,
     };
     use dioxus_signals::{Signal, WritableExt as _};
     use serial_test::serial;
@@ -453,7 +451,7 @@ mod client_tests {
     #[allow(non_snake_case)]
     fn ReactiveMessage() -> Element {
         force_inventory_link();
-        let i18n = match use_init_i18n(langid!("en-US")) {
+        let i18n = match crate::use_init_i18n(langid!("en-US")) {
             Ok(i18n) => i18n,
             Err(error) => return rsx! { div { "failed: {error}" } },
         };
@@ -469,7 +467,7 @@ mod client_tests {
 
     #[allow(non_snake_case)]
     fn OptionalI18nMessage() -> Element {
-        let message = match try_use_i18n() {
+        let message = match crate::try_use_i18n() {
             Ok(Some(_)) => "present",
             Ok(None) => "missing",
             Err(_) => "failed",
@@ -609,7 +607,7 @@ mod client_tests {
         };
         let managed = ManagedI18n::new_with_discovered_modules(lang)
             .expect("managed dioxus i18n should initialize");
-        let i18n = match use_provide_i18n(managed) {
+        let i18n = match crate::use_provide_i18n(managed) {
             Ok(i18n) => i18n,
             Err(error) => return rsx! { div { "failed: {error}" } },
         };
@@ -626,7 +624,7 @@ mod client_tests {
     #[allow(non_snake_case)]
     fn ButtonLanguageSwitchMessage() -> Element {
         force_inventory_link();
-        let i18n = match use_init_i18n(langid!("en-US")) {
+        let i18n = match crate::use_init_i18n(langid!("en-US")) {
             Ok(i18n) => i18n,
             Err(error) => return rsx! { button { "failed: {error}" } },
         };
@@ -689,7 +687,7 @@ mod client_tests {
     #[test]
     #[serial]
     fn dioxus_button_event_switches_language_and_rerenders() {
-        set_event_converter(Box::new(SerializedHtmlEventConverter));
+        dioxus_html::set_event_converter(Box::new(SerializedHtmlEventConverter));
 
         let mut dom = VirtualDom::new(ButtonLanguageSwitchMessage);
         let mutations = dom.rebuild_to_vec();

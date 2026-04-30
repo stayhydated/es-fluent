@@ -119,10 +119,9 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
-    use tempfile::tempdir;
 
     fn create_test_crate() -> (tempfile::TempDir, CrateInfo) {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let assets = temp_dir.path().join("i18n");
         fs::create_dir(&assets).unwrap();
         fs::create_dir(assets.join("en")).unwrap();
@@ -151,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_collect_all_available_locales() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let assets = temp_dir.path().join("i18n");
         fs::create_dir(&assets).unwrap();
         fs::create_dir(assets.join("en")).unwrap();
@@ -243,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_locale_context_rejects_noncanonical_locale_directory_names() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let assets = temp_dir.path().join("i18n");
         fs::create_dir(&assets).unwrap();
         fs::create_dir(assets.join("en-us")).unwrap();

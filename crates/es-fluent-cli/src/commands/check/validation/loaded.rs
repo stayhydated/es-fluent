@@ -1,6 +1,6 @@
 use super::context::ValidationContext;
 use crate::core::ValidationIssue;
-use crate::ftl::{LoadedFtlFile, extract_variables_from_message};
+use crate::ftl::LoadedFtlFile;
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -87,7 +87,7 @@ fn collect_actual_keys(
                 actual_keys.insert(
                     key,
                     ActualKeyInfo {
-                        variables: extract_variables_from_message(msg),
+                        variables: crate::ftl::extract_variables_from_message(msg),
                         file_path: relative_path.clone(),
                         header_link: header_link.clone(),
                     },

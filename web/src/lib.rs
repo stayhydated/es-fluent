@@ -20,20 +20,18 @@ pub fn mark_generated_route_cache(public_dir: impl AsRef<Path>) -> std::io::Resu
 #[cfg(test)]
 mod tests {
     use crate::site::i18n::SiteLanguage;
-    use crate::site::render::render_route_body;
-    use crate::site::routing::{
-        PageKind, SiteRoute, site_root_prefix, site_route_from_path,
-        site_route_from_path_with_base_path,
-    };
+    use crate::site::routing::{PageKind, SiteRoute};
     use serial_test::serial;
     use std::fs;
-    use tempfile::tempdir;
 
     #[test]
     #[serial]
     fn renders_english_home_page() {
-        let html = render_route_body(SiteRoute::new(SiteLanguage::EnUs, PageKind::Home))
-            .expect("page should render");
+        let html = crate::site::render::render_route_body(SiteRoute::new(
+            SiteLanguage::EnUs,
+            PageKind::Home,
+        ))
+        .expect("page should render");
         assert!(html.contains(
             "Define Fluent messages from Rust types, validate locale assets in CI, and reuse the same message model across embedded, Bevy, and Dioxus runtimes."
         ));
@@ -45,8 +43,11 @@ mod tests {
     #[test]
     #[serial]
     fn renders_simplified_chinese_demos_page() {
-        let html = render_route_body(SiteRoute::new(SiteLanguage::ZhCn, PageKind::Demos))
-            .expect("page should render");
+        let html = crate::site::render::render_route_body(SiteRoute::new(
+            SiteLanguage::ZhCn,
+            PageKind::Demos,
+        ))
+        .expect("page should render");
         assert!(html.contains("href=\"/zh/bevy-example/\""));
         assert!(html.contains("打开演示"));
         assert!(!html.contains("Lancer la démo"));
@@ -55,41 +56,50 @@ mod tests {
     #[test]
     #[serial]
     fn renders_bevy_pages_with_relative_demo_bundle_paths() {
-        let english = render_route_body(SiteRoute::new(SiteLanguage::EnUs, PageKind::Bevy))
-            .expect("page should render");
+        let english = crate::site::render::render_route_body(SiteRoute::new(
+            SiteLanguage::EnUs,
+            PageKind::Bevy,
+        ))
+        .expect("page should render");
         assert!(english.contains("src=\"../bevy-demo/\""));
 
-        let chinese = render_route_body(SiteRoute::new(SiteLanguage::ZhCn, PageKind::Bevy))
-            .expect("page should render");
+        let chinese = crate::site::render::render_route_body(SiteRoute::new(
+            SiteLanguage::ZhCn,
+            PageKind::Bevy,
+        ))
+        .expect("page should render");
         assert!(chinese.contains("src=\"../../bevy-demo/\""));
     }
 
     #[test]
     fn computes_site_root_prefixes() {
-        assert_eq!(site_root_prefix(""), "./");
-        assert_eq!(site_root_prefix("demos"), "../");
-        assert_eq!(site_root_prefix("zh/demos"), "../../");
+        assert_eq!(crate::site::routing::site_root_prefix(""), "./");
+        assert_eq!(crate::site::routing::site_root_prefix("demos"), "../");
+        assert_eq!(crate::site::routing::site_root_prefix("zh/demos"), "../../");
     }
 
     #[test]
     fn parses_site_routes() {
         assert_eq!(
-            site_route_from_path_with_base_path("/your_repo/zh/demos/", Some("your_repo")),
+            crate::site::routing::site_route_from_path_with_base_path(
+                "/your_repo/zh/demos/",
+                Some("your_repo")
+            ),
             SiteRoute::new(SiteLanguage::ZhCn, PageKind::Demos)
         );
         assert_eq!(
-            site_route_from_path("/bevy-example/"),
+            crate::site::routing::site_route_from_path("/bevy-example/"),
             SiteRoute::new(SiteLanguage::EnUs, PageKind::Bevy)
         );
         assert_eq!(
-            site_route_from_path("/unknown"),
+            crate::site::routing::site_route_from_path("/unknown"),
             SiteRoute::new(SiteLanguage::EnUs, PageKind::Home)
         );
     }
 
     #[test]
     fn cleans_generated_route_cache_without_touching_static_assets() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let public_dir = temp.path();
 
         fs::write(public_dir.join("index.html"), "root").expect("write root index");

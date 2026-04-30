@@ -2,8 +2,7 @@ use bevy::asset::{Asset, AssetLoader, AsyncReadExt as _, LoadContext};
 use bevy::prelude::*;
 use es_fluent_manager_core::{
     FluentManager, LocaleLoadReport, LocalizationError, ModuleResourceSpec, ResourceKey,
-    ResourceLoadError, SyncFluentBundle, build_locale_load_report, fallback_errors_are_fatal,
-    locale_candidates, localize_with_fallback_resources,
+    ResourceLoadError, SyncFluentBundle,
 };
 use fluent_bundle::{FluentResource, FluentValue};
 use serde::{Deserialize, Serialize};
@@ -154,7 +153,7 @@ impl I18nAssets {
 
     /// Returns a detailed load report for a language.
     pub fn language_load_report(&self, lang: &LanguageIdentifier) -> LocaleLoadReport {
-        build_locale_load_report(
+        es_fluent_manager_core::build_locale_load_report(
             &self.resource_specs,
             &self.loaded_resources,
             &self.load_errors,
@@ -235,7 +234,7 @@ impl I18nBundle {
         &self,
         requested: &LanguageIdentifier,
     ) -> Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)> {
-        locale_candidates(requested)
+        es_fluent_manager_core::locale_candidates(requested)
             .into_iter()
             .filter_map(|candidate| {
                 self.locale_resources
@@ -278,7 +277,7 @@ impl I18nDomainBundles {
         requested: &LanguageIdentifier,
         domain: &str,
     ) -> Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)> {
-        locale_candidates(requested)
+        es_fluent_manager_core::locale_candidates(requested)
             .into_iter()
             .filter_map(|candidate| {
                 self.locale_resources
@@ -396,9 +395,12 @@ impl I18nResource {
         i18n_bundle: &I18nBundle,
     ) -> Option<String> {
         let locale_resources = i18n_bundle.fallback_locale_resources(&self.active_language);
-        let (value, errors) =
-            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
-        if fallback_errors_are_fatal(&errors) {
+        let (value, errors) = es_fluent_manager_core::localize_with_fallback_resources(
+            locale_resources.as_slice(),
+            id,
+            args,
+        );
+        if es_fluent_manager_core::fallback_errors_are_fatal(&errors) {
             error!(
                 "Fluent fallback formatting errors for '{}': {:?}",
                 id, errors
@@ -436,9 +438,12 @@ impl I18nResource {
     ) -> Option<String> {
         let locale_resources =
             i18n_domain_bundles.fallback_locale_resources(&self.active_language, domain);
-        let (value, errors) =
-            localize_with_fallback_resources(locale_resources.as_slice(), id, args);
-        if fallback_errors_are_fatal(&errors) {
+        let (value, errors) = es_fluent_manager_core::localize_with_fallback_resources(
+            locale_resources.as_slice(),
+            id,
+            args,
+        );
+        if es_fluent_manager_core::fallback_errors_are_fatal(&errors) {
             error!(
                 "Fluent fallback formatting errors for '{}' in domain '{}': {:?}",
                 id, domain, errors

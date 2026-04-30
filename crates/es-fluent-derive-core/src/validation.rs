@@ -6,7 +6,7 @@ use crate::options::r#struct::StructOpts;
 use crate::options::{
     EnumDataOptions as _, FluentField as _, StructDataOptions as _, VariantFields as _,
 };
-use es_fluent_shared::namespace::{NamespaceRule, validate_namespace_path};
+use es_fluent_shared::namespace::NamespaceRule;
 use es_fluent_toml::{I18nConfig, I18nConfigError};
 
 /// Validates the `es-fluent` attributes on a struct.
@@ -186,7 +186,7 @@ pub fn validate_namespace(
         | NamespaceRule::FolderRelative => return Ok(()),
     };
 
-    if let Err(error) = validate_namespace_path(literal_value) {
+    if let Err(error) = es_fluent_shared::namespace::validate_namespace_path(literal_value) {
         return Err(EsFluentCoreError::AttributeError {
             message: format!("invalid namespace '{}': {}", literal_value, error),
             span,

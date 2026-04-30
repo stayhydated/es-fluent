@@ -1,4 +1,4 @@
-use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use es_fluent_shared::CanonicalLanguageIdentifierError;
 use path_slash::PathExt as _;
 use quote::quote;
 use std::{
@@ -127,7 +127,7 @@ fn discover_namespaces(namespace_root: &Path) -> syn::Result<BTreeSet<String>> {
 fn canonical_locale_dir_name(path: &Path, raw_name: &str) -> syn::Result<String> {
     let display_path = path.to_slash_lossy();
 
-    parse_canonical_language_identifier(raw_name)
+    es_fluent_shared::parse_canonical_language_identifier(raw_name)
         .map(|language| language.to_string())
         .map_err(|error| match error {
             CanonicalLanguageIdentifierError::Invalid { source, .. } => macro_error(format!(
@@ -334,7 +334,6 @@ mod tests {
     use super::*;
     use insta::{assert_debug_snapshot, assert_snapshot};
     use quote::quote;
-    use tempfile::tempdir;
 
     fn with_env_var<T>(key: &str, value: Option<&str>, f: impl FnOnce() -> T) -> T {
         temp_env::with_var(key, value, f)
@@ -390,7 +389,7 @@ mod tests {
 
     #[test]
     fn i18n_assets_load_discovers_languages_and_namespaces() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         write_manifest(temp.path(), "i18n");
 
         std::fs::create_dir_all(temp.path().join("i18n/en")).expect("mkdir en");
@@ -423,7 +422,7 @@ mod tests {
 
     #[test]
     fn i18n_assets_load_discovers_nested_namespaces_recursively() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         write_manifest(temp.path(), "i18n");
 
         std::fs::create_dir_all(temp.path().join("i18n/en")).expect("mkdir en");
@@ -443,7 +442,7 @@ mod tests {
 
     #[test]
     fn i18n_assets_load_keeps_base_files_optional_for_namespaced_locales() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         write_manifest(temp.path(), "i18n");
 
         std::fs::create_dir_all(temp.path().join("i18n/en/my-crate")).expect("mkdir en crate");
@@ -461,7 +460,7 @@ mod tests {
 
     #[test]
     fn i18n_assets_load_reports_configuration_errors() {
-        let missing_temp = tempdir().expect("tempdir");
+        let missing_temp = tempfile::tempdir().expect("tempdir");
         with_env_var("CARGO_MANIFEST_DIR", missing_temp.path().to_str(), || {
             let err = I18nAssets::load("my-crate").expect_err("missing config should fail");
             assert_snapshot!(
@@ -470,7 +469,7 @@ mod tests {
             );
         });
 
-        let invalid_temp = tempdir().expect("tempdir");
+        let invalid_temp = tempfile::tempdir().expect("tempdir");
         write_manifest(invalid_temp.path(), "missing-assets");
         with_env_var("CARGO_MANIFEST_DIR", invalid_temp.path().to_str(), || {
             let err = I18nAssets::load("my-crate").expect_err("invalid assets should fail");
@@ -483,7 +482,7 @@ mod tests {
 
     #[test]
     fn i18n_assets_load_rejects_noncanonical_locale_directories() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         write_manifest(temp.path(), "i18n");
 
         std::fs::create_dir_all(temp.path().join("i18n/en-us")).expect("mkdir en-us");
@@ -505,7 +504,7 @@ mod tests {
         use std::ffi::OsString;
         use std::os::unix::ffi::OsStringExt;
 
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let namespace_root = temp.path().join("namespaces");
         std::fs::create_dir_all(&namespace_root).expect("mkdir namespaces");
 
@@ -548,7 +547,7 @@ mod tests {
 
     #[test]
     fn i18n_assets_load_reports_malformed_config_and_invalid_locale_names() {
-        let malformed = tempdir().expect("tempdir");
+        let malformed = tempfile::tempdir().expect("tempdir");
         std::fs::write(
             malformed.path().join("i18n.toml"),
             "fallback_language = [\nassets_dir = \"i18n\"\n",
@@ -562,7 +561,7 @@ mod tests {
             );
         });
 
-        let invalid_locale = tempdir().expect("tempdir");
+        let invalid_locale = tempfile::tempdir().expect("tempdir");
         write_manifest(invalid_locale.path(), "i18n");
         std::fs::create_dir_all(invalid_locale.path().join("i18n/not-a-locale"))
             .expect("mkdir invalid locale");

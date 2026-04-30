@@ -1,9 +1,5 @@
 use super::*;
 use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
-use crate::localization::manager::{
-    format_module_names, format_module_support, format_module_support_list,
-    format_supported_languages,
-};
 use fluent_bundle::FluentResource;
 use parking_lot::RwLock;
 use serial_test::serial;
@@ -587,7 +583,7 @@ fn manager_keeps_previous_localizers_when_strict_selection_fails() {
 #[test]
 fn format_supported_languages_truncates_long_lists_for_diagnostics() {
     assert_eq!(
-        format_supported_languages(DIAGNOSTIC_SUPPORTED_LANGUAGES),
+        crate::localization::manager::format_supported_languages(DIAGNOSTIC_SUPPORTED_LANGUAGES),
         "en, fr, de, es, it, ja, +1 more"
     );
 }
@@ -595,7 +591,7 @@ fn format_supported_languages_truncates_long_lists_for_diagnostics() {
 #[test]
 fn format_module_support_includes_domain_when_it_differs() {
     assert_eq!(
-        format_module_support(&DIAGNOSTIC_MODULE_DATA),
+        crate::localization::manager::format_module_support(&DIAGNOSTIC_MODULE_DATA),
         "diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
     );
 }
@@ -603,25 +599,34 @@ fn format_module_support_includes_domain_when_it_differs() {
 #[test]
 fn format_module_support_reports_missing_declared_languages() {
     assert_eq!(
-        format_module_support(&MODULE_ERR_DATA),
+        crate::localization::manager::format_module_support(&MODULE_ERR_DATA),
         "module-err (supports: none declared)"
     );
 }
 
 #[test]
 fn format_module_names_reports_empty_and_joined_module_lists() {
-    assert_eq!(format_module_names(&[]), "<none>");
     assert_eq!(
-        format_module_names(&[&MODULE_OK_DATA, &MODULE_ERR_DATA]),
+        crate::localization::manager::format_module_names(&[]),
+        "<none>"
+    );
+    assert_eq!(
+        crate::localization::manager::format_module_names(&[&MODULE_OK_DATA, &MODULE_ERR_DATA]),
         "module-ok, module-err"
     );
 }
 
 #[test]
 fn format_module_support_list_reports_empty_and_joined_support_details() {
-    assert_eq!(format_module_support_list(&[]), "<none>");
     assert_eq!(
-        format_module_support_list(&[&MODULE_ERR_DATA, &DIAGNOSTIC_MODULE_DATA]),
+        crate::localization::manager::format_module_support_list(&[]),
+        "<none>"
+    );
+    assert_eq!(
+        crate::localization::manager::format_module_support_list(&[
+            &MODULE_ERR_DATA,
+            &DIAGNOSTIC_MODULE_DATA
+        ]),
         "module-err (supports: none declared), diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
     );
 }
