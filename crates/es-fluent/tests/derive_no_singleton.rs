@@ -1,4 +1,4 @@
-use es_fluent::{EsFluent, FluentLocalizer, FluentLocalizerExt, FluentValue};
+use es_fluent::{EsFluent, FluentLocalizer, FluentLocalizerExt as _, FluentValue};
 use std::collections::HashMap;
 
 #[derive(EsFluent)]

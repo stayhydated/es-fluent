@@ -149,7 +149,6 @@ impl FluentLocalizer for ManagedI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let _selection = self.selection_lock.lock();
         self.manager.localize(id, args)
     }
 
@@ -159,7 +158,6 @@ impl FluentLocalizer for ManagedI18n {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        let _selection = self.selection_lock.lock();
         self.manager.localize_in_domain(domain, id, args)
     }
 
@@ -173,7 +171,6 @@ impl FluentLocalizer for ManagedI18n {
             ) -> Option<String>,
         ),
     ) {
-        let _selection = self.selection_lock.lock();
         self.manager.with_lookup(f);
     }
 }

@@ -46,6 +46,15 @@ impl<T: FluentMessage + ?Sized> FluentMessage for &T {
 /// lookup. Managers and framework adapters implement this trait so callers
 /// can keep typed message values while passing the active localization context
 /// explicitly.
+///
+/// # Implementing `FluentLocalizer`
+///
+/// Custom localizers should either use the default [`Self::with_lookup`]
+/// implementation or override it to provide one render-scoped snapshot. If
+/// `with_lookup(...)` is overridden, it must invoke the callback exactly once
+/// before returning. Failing to do so is a logic error and will panic in
+/// [`FluentLocalizerExt::localize_message`] and
+/// [`FluentLocalizerExt::try_localize_message`].
 pub trait FluentLocalizer {
     /// Localizes a message by ID using the localizer's default lookup behavior.
     fn localize<'a>(
@@ -77,6 +86,8 @@ pub trait FluentLocalizer {
     /// The default implementation delegates each lookup independently. Managers
     /// with mutable language selection should override this to hold the relevant
     /// lock or snapshot for the whole callback.
+    ///
+    /// # Example
     ///
     /// ```
     /// # use es_fluent::{FluentLocalizer, FluentValue};
@@ -243,7 +254,11 @@ impl<T: FluentLocalizer + ?Sized> FluentLocalizer for Arc<T> {
     }
 }
 
-/// Convenience methods for explicit localization contexts.
+/// Public extension methods for generic explicit localization contexts.
+///
+/// Concrete manager crates expose inherent `localize_message(...)` methods for
+/// application code. Import this trait when integration code works with a
+/// generic [`FluentLocalizer`] and still needs typed message rendering.
 pub trait FluentLocalizerExt: FluentLocalizer {
     /// Attempts to render a derived typed message through this explicit
     /// localizer.

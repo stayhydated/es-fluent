@@ -8,7 +8,7 @@
 2. Define the runtime traits used by managers:
    - `FluentMessage` for generated typed messages.
    - `FluentLocalizer` for explicit localization contexts.
-   - `FluentLocalizerExt` as hidden workspace plumbing for manager crates that expose `localize_message(...)`.
+   - `FluentLocalizerExt` as a public extension trait for generic explicit contexts that need typed message rendering.
    - `FluentLabel` for type-level Fluent keys rendered through an explicit context.
 3. Re-export hidden inventory and asset dependencies needed by generated code.
 
@@ -21,6 +21,11 @@ Derived messages call a caller-provided closure. `FluentLocalizerExt` obtains
 that closure through `FluentLocalizer::with_lookup(...)` so a manager can hold a
 single render-scoped snapshot or lock while nested message arguments and the
 outer message are resolved.
+
+`FluentLocalizer::with_lookup(...)` is part of the public implementation
+contract. Custom localizers must call the supplied callback exactly once before
+returning; `FluentLocalizerExt::localize_message(...)` and
+`try_localize_message(...)` panic if that callback is skipped.
 
 ```rust
 let mut rendered = None;

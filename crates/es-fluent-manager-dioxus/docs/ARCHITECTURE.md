@@ -12,9 +12,9 @@ The crate has no default runtime feature.
 
 ## ManagedI18n
 
-`ManagedI18n` owns an `Arc<FluentManager>` plus shared requested-language state. It is cloneable so SSR props and app-owned contexts can pass the same request manager through a component tree. Equality is identity equality over the shared manager and requested-language state.
+`ManagedI18n` owns an `Arc<FluentManager>` plus shared requested-language state. It is cloneable so SSR props and app-owned contexts can pass the same request manager through a component tree. Equality is identity equality over the shared manager, requested-language state, and selection lock.
 
-Typed lookup is provided by `ManagedI18n::localize_message(...)`, which accepts `es_fluent::FluentMessage`. This keeps derive-generated message IDs and arguments while routing every lookup through the explicit manager. `ManagedI18n` clones share the same manager and selection lock. The manager holds that lock for the whole typed render, so nested message lookups cannot mix locales when another task switches language concurrently; direct raw lookup calls are serialized by the same lock. Raw string-ID lookup remains behind the `FluentLocalizer` trait for integration plumbing rather than inherent user-facing methods.
+Typed lookup is provided by `ManagedI18n::localize_message(...)`, which accepts `es_fluent::FluentMessage`. This keeps derive-generated message IDs and arguments while routing every lookup through the explicit manager. Localization reads delegate directly to `FluentManager`, whose render-scoped lookup snapshots keep nested message lookups on one active localizer set without serializing independent concurrent renders. The selection lock is reserved for language selection and requested-language updates. Raw string-ID lookup remains behind the `FluentLocalizer` trait for integration plumbing rather than inherent user-facing methods.
 
 ## Client context
 

@@ -6,7 +6,8 @@ use es_fluent_manager_core::{
 use parking_lot::RwLock;
 use serial_test::serial;
 use std::collections::HashMap;
-use std::sync::Once;
+use std::sync::{Once, mpsc};
+use std::time::Duration;
 use unic_langid::{LanguageIdentifier, langid};
 
 static TEST_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
@@ -108,6 +109,10 @@ crate::__inventory::submit!(&PARTIAL_TEST_MODULE as &dyn I18nModuleRegistration)
 struct TestMessage;
 struct MissingMessage;
 struct TestLabelMessage;
+struct BlockingRenderMessage {
+    entered: mpsc::Sender<()>,
+    release: mpsc::Receiver<()>,
+}
 
 impl es_fluent::FluentMessage for TestMessage {
     fn to_fluent_string_with(
@@ -138,6 +143,25 @@ impl es_fluent::FluentMessage for MissingMessage {
 impl es_fluent::FluentLabel for TestLabelMessage {
     fn localize_label<L: es_fluent::FluentLocalizer + ?Sized>(localizer: &L) -> String {
         es_fluent::__private::localize_label(localizer, "dioxus-test-module", "hello")
+    }
+}
+
+impl es_fluent::FluentMessage for BlockingRenderMessage {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'a> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, es_fluent::FluentValue<'a>>>,
+        ) -> String,
+    ) -> String {
+        self.entered
+            .send(())
+            .expect("test should observe the blocked render");
+        self.release
+            .recv()
+            .expect("test should release the blocked render");
+        localize("dioxus-test-module", "hello", None)
     }
 }
 
@@ -277,6 +301,56 @@ fn managed_i18n_fluent_localizer_impl_delegates_to_manager() {
         <TestLabelMessage as es_fluent::FluentLabel>::localize_label(&i18n),
         "Hello"
     );
+}
+
+#[test]
+#[serial]
+fn managed_i18n_allows_concurrent_render_scoped_lookups() {
+    force_inventory_link();
+    let i18n = ManagedI18n::new_with_discovered_modules(langid!("en-US"))
+        .expect("managed dioxus i18n should initialize");
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let blocking_i18n = i18n.clone();
+
+    let blocking_render = std::thread::spawn(move || {
+        blocking_i18n.localize_message(&BlockingRenderMessage {
+            entered: entered_tx,
+            release: release_rx,
+        })
+    });
+
+    entered_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("first render should enter the render-scoped lookup");
+
+    let (localized_tx, localized_rx) = mpsc::channel();
+    let concurrent_i18n = i18n;
+    let concurrent_render = std::thread::spawn(move || {
+        localized_tx
+            .send(concurrent_i18n.localize_message(&TestMessage))
+            .expect("test should receive concurrent render result");
+    });
+
+    assert_eq!(
+        localized_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("independent render should not wait for the first render"),
+        "Hello"
+    );
+
+    release_tx
+        .send(())
+        .expect("test should release blocked render");
+    assert_eq!(
+        blocking_render
+            .join()
+            .expect("blocking render thread should finish"),
+        "Hello"
+    );
+    concurrent_render
+        .join()
+        .expect("concurrent render thread should finish");
 }
 
 #[cfg(feature = "ssr")]
