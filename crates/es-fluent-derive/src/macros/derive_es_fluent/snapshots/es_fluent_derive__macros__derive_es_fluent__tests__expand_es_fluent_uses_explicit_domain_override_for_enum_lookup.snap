@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 268
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for Languages {
@@ -23,7 +22,8 @@ impl ::es_fluent::FluentMessage for Languages {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_languages {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_Languages {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {

@@ -70,10 +70,24 @@ fn rebuild_bundle_for_language(
 ) {
     let resources = i18n_assets.get_language_resource_entries(lang);
     if resources.is_empty() {
-        i18n_bundle.remove(lang);
         i18n_domain_bundles.remove(lang);
         bundle_build_failures.0.remove(lang);
-        debug!("Removed fluent resource cache for {}", lang);
+
+        if i18n_assets
+            .assets
+            .keys()
+            .any(|(language, _)| language == lang)
+            && i18n_assets.is_language_loaded(lang)
+        {
+            i18n_bundle.mark_ready_without_unscoped_bundle(lang.clone());
+            i18n_domain_bundles.set_locale_resources(lang.clone(), HashMap::new());
+            i18n_domain_bundles.set_bundles(lang.clone(), HashMap::new());
+            debug!("Marked empty ready fluent resource cache for {}", lang);
+        } else {
+            i18n_bundle.remove(lang);
+            debug!("Removed fluent resource cache for {}", lang);
+        }
+
         return;
     }
 
@@ -483,6 +497,58 @@ mod tests {
         assert!(!i18n_bundle.locale_resources.contains_key(&lang));
         assert!(!i18n_domain_bundles.bundles.contains_key(&lang));
         assert!(!i18n_domain_bundles.locale_resources.contains_key(&lang));
+        assert!(!bundle_build_failures.0.contains_key(&lang));
+    }
+
+    #[test]
+    fn rebuild_bundle_for_language_marks_optional_only_language_ready_without_resources() {
+        let lang = langid!("en");
+        let optional_spec = spec("app", false);
+        let mut i18n_assets = I18nAssets::new();
+        let mut i18n_bundle = I18nBundle::default();
+        let mut i18n_domain_bundles = I18nDomainBundles::default();
+        let mut bundle_build_failures = BundleBuildFailures::default();
+
+        i18n_assets.add_optional_asset_spec(lang.clone(), optional_spec, Handle::default());
+        i18n_bundle.set_bundle(lang.clone(), empty_bundle(&lang));
+        i18n_bundle.set_locale_resources(lang.clone(), vec![resource("old = Old")]);
+        i18n_domain_bundles.set_bundles(
+            lang.clone(),
+            HashMap::from([("app".to_string(), empty_bundle(&lang))]),
+        );
+        i18n_domain_bundles.set_locale_resources(
+            lang.clone(),
+            HashMap::from([("app".to_string(), vec![resource("old = Old")])]),
+        );
+        bundle_build_failures
+            .0
+            .insert(lang.clone(), vec!["old failure".to_string()]);
+
+        rebuild_bundle_for_language(
+            &mut i18n_bundle,
+            &mut i18n_domain_bundles,
+            &mut bundle_build_failures,
+            &i18n_assets,
+            &lang,
+        );
+
+        assert!(i18n_bundle.get(&lang).is_none());
+        assert_eq!(i18n_bundle.languages().collect::<Vec<_>>(), vec![&lang]);
+        assert!(!i18n_bundle.locale_resources.contains_key(&lang));
+        assert!(
+            i18n_domain_bundles
+                .bundles
+                .get(&lang)
+                .expect("ready empty domain bundle map should be published")
+                .is_empty()
+        );
+        assert!(
+            i18n_domain_bundles
+                .locale_resources
+                .get(&lang)
+                .expect("ready empty domain resource map should be published")
+                .is_empty()
+        );
         assert!(!bundle_build_failures.0.contains_key(&lang));
     }
 

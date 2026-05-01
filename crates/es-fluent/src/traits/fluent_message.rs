@@ -67,6 +67,59 @@ pub trait FluentLocalizer {
     /// The default implementation delegates each lookup independently. Managers
     /// with mutable language selection should override this to hold the relevant
     /// lock or snapshot for the whole callback.
+    ///
+    /// ```
+    /// # use es_fluent::{FluentLocalizer, FluentValue};
+    /// # use std::collections::HashMap;
+    /// struct MyLocalizer;
+    ///
+    /// impl MyLocalizer {
+    ///     fn lookup<'a>(
+    ///         &self,
+    ///         domain: &str,
+    ///         id: &str,
+    ///         _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ///     ) -> Option<String> {
+    ///         Some(format!("{domain}:{id}"))
+    ///     }
+    /// }
+    ///
+    /// impl FluentLocalizer for MyLocalizer {
+    ///     fn localize<'a>(
+    ///         &self,
+    ///         id: &str,
+    ///         args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ///     ) -> Option<String> {
+    ///         self.localize_in_domain(env!("CARGO_PKG_NAME"), id, args)
+    ///     }
+    ///
+    ///     fn localize_in_domain<'a>(
+    ///         &self,
+    ///         domain: &str,
+    ///         id: &str,
+    ///         args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ///     ) -> Option<String> {
+    ///         self.lookup(domain, id, args)
+    ///     }
+    ///
+    ///     fn with_lookup(
+    ///         &self,
+    ///         f: &mut dyn FnMut(
+    ///             &mut dyn for<'a> FnMut(
+    ///                 &str,
+    ///                 &str,
+    ///                 Option<&HashMap<&str, FluentValue<'a>>>,
+    ///             ) -> Option<String>,
+    ///         ),
+    ///     ) {
+    ///         let mut lookup =
+    ///             |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+    ///                 self.localize_in_domain(domain, id, args)
+    ///             };
+    ///         f(&mut lookup);
+    ///     }
+    /// }
+    /// ```
     fn with_lookup(
         &self,
         f: &mut dyn FnMut(

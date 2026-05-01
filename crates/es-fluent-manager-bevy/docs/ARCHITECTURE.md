@@ -56,6 +56,9 @@ requested locale for change events and ECS resources while using the resolved
 locale for ready bundle lookup. Runtime fallback managers are asked to select
 the requested locale first, then the resolved locale. Rejection by the runtime
 fallback manager does not block Bevy asset-backed locale publication.
+Locales with only optional resources, or only missing optional resources, are
+ready as empty Bevy caches because optional resources do not participate in
+readiness.
 Fallback selection tells `FluentManager` that Bevy assets have already proved
 application locale support, so follower-only utility modules can be committed
 without making runtime-only locales selectable.

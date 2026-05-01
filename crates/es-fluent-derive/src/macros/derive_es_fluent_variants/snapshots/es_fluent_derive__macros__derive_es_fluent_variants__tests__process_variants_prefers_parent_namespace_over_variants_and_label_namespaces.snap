@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
-assertion_line: 255
 expression: tokens
 ---
 ///Variants of [`NamespaceHolder`].
@@ -30,7 +29,8 @@ impl ::es_fluent::FluentMessage for NamespaceHolderVariants {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_namespace_holder_variants {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_NamespaceHolderVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
@@ -69,7 +69,8 @@ impl ::es_fluent::FluentLabel for NamespaceHolderVariants {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_label_inventory_namespace_holder_variants {
+#[allow(non_snake_case)]
+mod __es_fluent_label_inventory_NamespaceHolderVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {

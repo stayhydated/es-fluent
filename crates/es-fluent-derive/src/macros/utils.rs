@@ -3,7 +3,6 @@ use es_fluent_derive_core::options::{
     FluentField, GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
 };
 use es_fluent_shared::{namer, namespace::NamespaceRule};
-use heck::ToSnakeCase as _;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput};
@@ -330,14 +329,12 @@ pub fn generate_inventory_module(input: InventoryModuleInput<'_>) -> TokenStream
     } = input;
 
     let type_name = ident.to_string();
-    let mod_name = format_ident!(
-        "__es_fluent_{}_{}",
-        module_name_prefix,
-        type_name.to_snake_case()
-    );
+    let module_type_name = type_name.strip_prefix("r#").unwrap_or(&type_name);
+    let mod_name = format_ident!("__es_fluent_{}_{}", module_name_prefix, module_type_name);
 
     quote! {
         #[doc(hidden)]
+        #[allow(non_snake_case)]
         mod #mod_name {
             use super::*;
 

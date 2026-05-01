@@ -86,6 +86,10 @@ Generated message lookup is domain-scoped. If separate domains define the same
 message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
 unscoped lookup unavailable for the ambiguous merged locale.
 
+Locales with only optional resources, or with missing optional resources, are
+still treated as ready. They publish an empty Bevy cache instead of remaining
+pending indefinitely.
+
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
 `ActiveLanguageId`, not merely the latest request. When a requested locale

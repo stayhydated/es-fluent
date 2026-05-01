@@ -198,7 +198,10 @@ pub(crate) fn handle_locale_changes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{FtlAsset, I18nDomainBundles};
+    use bevy::asset::{AssetEvent, AssetLoadFailedEvent};
     use es_fluent_manager_core::SyncFluentBundle;
+    use es_fluent_manager_core::{ModuleResourceSpec, ResourceKey};
     use std::sync::Arc;
     use unic_langid::langid;
 
@@ -490,6 +493,54 @@ mod tests {
             Some(LanguageSelection::new(fr.clone(), fr))
         );
         assert!(app.world().resource::<ObservedLocaleChanges>().0.is_empty());
+    }
+
+    #[test]
+    fn optional_only_language_rebuilds_ready_and_applies_without_pending_change() {
+        let fr = langid!("fr");
+        let optional_spec = ModuleResourceSpec {
+            key: ResourceKey::new("app"),
+            locale_relative_path: "app.ftl".to_string(),
+            required: false,
+        };
+        let mut i18n_assets = I18nAssets::new();
+        i18n_assets.add_optional_asset_spec(fr.clone(), optional_spec, Handle::default());
+
+        let mut app = App::new();
+        app.add_message::<AssetEvent<FtlAsset>>()
+            .add_message::<AssetLoadFailedEvent<FtlAsset>>()
+            .add_message::<LocaleChangeEvent>()
+            .add_message::<LocaleChangedEvent>()
+            .insert_resource(I18nResource::new(langid!("en")))
+            .insert_resource(RequestedLanguageId(langid!("en")))
+            .insert_resource(ActiveLanguageId(langid!("en")))
+            .insert_resource(I18nBundle::default())
+            .insert_resource(I18nDomainBundles::default())
+            .insert_resource(i18n_assets)
+            .insert_resource(BundleBuildFailures::default())
+            .insert_resource(PendingLanguageChange::default())
+            .insert_resource(ObservedLocaleChanges::default())
+            .add_systems(
+                Update,
+                (
+                    crate::plugin::runtime::bundles::build_fluent_bundles,
+                    handle_locale_changes,
+                    observe_locale_changes,
+                )
+                    .chain(),
+            );
+
+        app.world_mut().write_message(LocaleChangeEvent(fr.clone()));
+        app.update();
+
+        assert_eq!(app.world().resource::<RequestedLanguageId>().0, fr);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, fr);
+        assert_eq!(
+            app.world().resource::<I18nResource>().active_language(),
+            &fr
+        );
+        assert!(app.world().resource::<PendingLanguageChange>().0.is_none());
+        assert_eq!(app.world().resource::<ObservedLocaleChanges>().0, vec![fr]);
     }
 
     #[test]

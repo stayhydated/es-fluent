@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
-assertion_line: 232
 expression: tokens
 ---
 ///Variants of [`Status`].
@@ -35,7 +34,8 @@ impl ::es_fluent::FluentMessage for StatusVariants {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_status_variants {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_StatusVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
@@ -81,7 +81,8 @@ impl ::es_fluent::FluentLabel for StatusVariants {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_label_inventory_status_variants {
+#[allow(non_snake_case)]
+mod __es_fluent_label_inventory_StatusVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {

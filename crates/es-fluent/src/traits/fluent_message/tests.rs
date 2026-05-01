@@ -261,6 +261,77 @@ fn localizer_extension_can_return_missing_typed_messages_without_id_fallback() {
     assert_eq!(localizer.try_localize_message(&MissingMessage), None);
 }
 
+struct MinimalScopedLocalizer;
+
+impl MinimalScopedLocalizer {
+    fn lookup<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        Some(format!("{domain}:{id}"))
+    }
+}
+
+impl FluentLocalizer for MinimalScopedLocalizer {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.localize_in_domain(env!("CARGO_PKG_NAME"), id, args)
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.lookup(domain, id, args)
+    }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        let mut lookup = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+            self.localize_in_domain(domain, id, args)
+        };
+        f(&mut lookup);
+    }
+}
+
+struct ScopedMessage;
+
+impl FluentMessage for ScopedMessage {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'a> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> String,
+    ) -> String {
+        localize("custom-domain", "scoped-message", None)
+    }
+}
+
+#[test]
+fn custom_localizer_with_lookup_invokes_callback_and_renders_typed_message() {
+    assert_eq!(
+        MinimalScopedLocalizer.localize_message(&ScopedMessage),
+        "custom-domain:scoped-message"
+    );
+}
+
 struct BlockingSwitchLocalizer {
     selected: RwLock<&'static str>,
     child_seen: Mutex<mpsc::Sender<()>>,

@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
-assertion_line: 209
 expression: tokens
 ---
 ///`label` variants of [`LoginForm`].
@@ -44,7 +43,8 @@ impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_login_form_label_variants {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_LoginFormLabelVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
@@ -119,7 +119,8 @@ impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_login_form_placeholder_variants {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_LoginFormPlaceholderVariants {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {

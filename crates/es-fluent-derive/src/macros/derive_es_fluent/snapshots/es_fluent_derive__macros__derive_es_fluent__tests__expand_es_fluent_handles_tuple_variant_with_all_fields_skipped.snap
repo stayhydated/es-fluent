@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 284
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for LoginError {
@@ -25,7 +24,8 @@ impl ::es_fluent::FluentMessage for LoginError {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_login_error {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_LoginError {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {

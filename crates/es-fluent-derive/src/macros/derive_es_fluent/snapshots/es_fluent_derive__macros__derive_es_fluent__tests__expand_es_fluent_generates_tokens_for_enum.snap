@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 131
 expression: enum_tokens
 ---
 impl ::es_fluent::FluentMessage for Status {
@@ -23,7 +22,8 @@ impl ::es_fluent::FluentMessage for Status {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_status {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_Status {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {

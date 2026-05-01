@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
-assertion_line: 174
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for NamespacedLabel {
@@ -15,7 +14,8 @@ impl ::es_fluent::FluentLabel for NamespacedLabel {
     }
 }
 #[doc(hidden)]
-mod __es_fluent_label_inventory_namespaced_label {
+#[allow(non_snake_case)]
+mod __es_fluent_label_inventory_NamespacedLabel {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
