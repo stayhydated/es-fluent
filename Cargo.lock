@@ -3921,7 +3921,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "similar",
+ "similar 3.1.0",
  "temp-env",
  "tempfile",
  "terminal-link",
@@ -4014,7 +4014,7 @@ dependencies = [
  "indexmap",
  "insta",
  "proc-macro2",
- "similar",
+ "similar 3.1.0",
  "strum",
  "syn 2.0.117",
  "tempfile",
@@ -5180,13 +5180,13 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/zed-industries/zed#adfcb45abeceb797dff3b868efc8147f53c0068f"
+source = "git+https://github.com/zed-industries/zed#950161ff0ff34d313c795eef6c28b958cb487039"
 replace = "gpui 0.2.2 (git+https://github.com/zed-industries/zed?rev=15d8660748b508b3525d3403e5d172f1a557bfa5)"
 
 [[package]]
 name = "gpui-component"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#564f9fa83145ac8439989242e203471ac86dad11"
+source = "git+https://github.com/longbridge/gpui-component#41f51428c563597af4f04fb476141d3311a1c0c4"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -5229,7 +5229,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#564f9fa83145ac8439989242e203471ac86dad11"
+source = "git+https://github.com/longbridge/gpui-component#41f51428c563597af4f04fb476141d3311a1c0c4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5352,7 +5352,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/zed-industries/zed#adfcb45abeceb797dff3b868efc8147f53c0068f"
+source = "git+https://github.com/zed-industries/zed#950161ff0ff34d313c795eef6c28b958cb487039"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -6327,7 +6327,7 @@ checksum = "7b4a6248eb93a4401ed2f37dfe8ea592d3cf05b7cf4f8efa867b6895af7e094e"
 dependencies = [
  "console",
  "once_cell",
- "similar",
+ "similar 2.7.0",
  "tempfile",
 ]
 
@@ -10037,6 +10037,15 @@ name = "similar"
 version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
+
+[[package]]
+name = "similar"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d93e861ede2e497b47833469b8ec9d5c07fa4c78ce7a00f6eb7dd8168b4b3f"
+dependencies = [
+ "bstr",
+]
 
 [[package]]
 name = "simplecss"
