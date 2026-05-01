@@ -54,8 +54,9 @@ impl Plugin for EsFluentBevyPlugin {
 
 /// Trait for auto-registering FluentText systems with Bevy.
 ///
-/// This trait is implemented by the `#[derive(EsFluent)]` macro when using
-/// `#[fluent(bevy)]` or `#[fluent(bevy_locale)]` attributes.
+/// This trait is implemented by the `#[derive(BevyFluentText)]` macro. Fields
+/// marked with `#[locale]` cause the generated registration to use the
+/// locale-aware refresh path.
 pub trait BevyFluentTextRegistration: Send + Sync {
     /// Registers the FluentText systems for this type with the Bevy app.
     fn register(&self, app: &mut App);

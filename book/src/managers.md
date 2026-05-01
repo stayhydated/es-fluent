@@ -283,7 +283,7 @@ SSR components should receive a cloned `SsrI18n` as a prop or through app-owned 
 
 ## Bevy Manager (`es-fluent-manager-bevy`)
 
-Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugin connects type-safe localization with Bevy's ECS and Asset system, allowing `#[derive(EsFluent)]` types to serve as components that automatically update when the language changes.
+Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`. This plugin connects type-safe localization with Bevy's ECS and Asset system. Use `#[derive(EsFluent)]` for typed messages, wrap them in `FluentText<T>` for UI text, and derive `BevyFluentText` on message types used with `FluentText<T>` to register automatic updates when the language changes.
 
 ### Features
 

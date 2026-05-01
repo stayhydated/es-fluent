@@ -3,29 +3,30 @@ use es_fluent::FluentMessage;
 
 /// A Bevy component that holds localized text content.
 ///
-/// `FluentText` is a generic component that wraps any type implementing `FluentMessage`
-/// and `Clone`. It's designed to work with the `es-fluent` localization system in Bevy
-/// applications.
+/// `FluentText` is a generic component that wraps any type implementing
+/// `FluentMessage` and `Clone`. It's designed to work with the `es-fluent`
+/// localization system in Bevy applications.
 ///
-/// When used with Bevy's text rendering systems, `FluentText` automatically handles
-/// localization and text updates when the application locale changes.
+/// When its message type is registered through `#[derive(BevyFluentText)]` or
+/// manual registration, `FluentText` updates Bevy `Text` components when the
+/// application locale changes.
 ///
 /// # Examples
 ///
 /// ```ignore
 /// use bevy::prelude::*;
-/// use es_fluent_manager_bevy::FluentText;
 /// use es_fluent::EsFluent;
+/// use es_fluent_manager_bevy::{BevyFluentText, FluentText};
 ///
 /// // The message key is derived from the struct name: "simple-message"
-/// #[derive(Clone, EsFluent)]
+/// #[derive(BevyFluentText, Clone, EsFluent)]
 /// struct SimpleMessage {
 ///     name: String,
 /// }
 ///
 /// fn setup_text(mut commands: Commands) {
 ///     let content = SimpleMessage { name: "World".to_string() };
-///     commands.spawn(FluentText::new(content));
+///     commands.spawn((FluentText::new(content), Text::new("")));
 /// }
 /// ```
 #[derive(Clone, Component)]

@@ -7,7 +7,11 @@
 
 Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`.
 
-This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and Asset system. It allows standard `#[derive(EsFluent)]` types to serve as components that automatically update when the app/game's language changes.
+This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and
+Asset system. Use `#[derive(EsFluent)]` for typed messages, wrap them in
+`FluentText<T>` for UI text, and derive `BevyFluentText` on message types used
+with `FluentText<T>` to register automatic updates when the app/game's language
+changes.
 
 | `es-fluent-manager-bevy` | `bevy`   |
 | :----------------------- | :------- |
