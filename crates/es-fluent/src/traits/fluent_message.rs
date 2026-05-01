@@ -506,9 +506,7 @@ impl<'a> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<&bool> {
     }
 }
 
-impl<'a, 'outer, 'inner> IntoFluentArgumentValue<'a>
-    for FluentOptionalArgumentValue<&'outer &'inner bool>
-{
+impl<'a> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<&&bool> {
     fn into_fluent_argument_value(
         self,
         _localize: &mut dyn for<'b> FnMut(

@@ -42,7 +42,7 @@ fn expand_es_fluent_variants(input: DeriveInput) -> TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    let tokens = match &input.data {
+    match &input.data {
         Data::Struct(_) => {
             let opts = match StructVariantsOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
@@ -70,9 +70,7 @@ fn expand_es_fluent_variants(input: DeriveInput) -> TokenStream {
             )
         },
         Data::Union(_) => unreachable!("EsFluentVariants does not support unions"),
-    };
-
-    tokens
+    }
 }
 
 fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
