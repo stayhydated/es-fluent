@@ -10,6 +10,12 @@ struct DerivedBoolStruct {
 }
 
 #[derive(EsFluent)]
+struct DerivedBorrowedBoolStruct<'a> {
+    enabled: &'a bool,
+    maybe_enabled: Option<&'a bool>,
+}
+
+#[derive(EsFluent)]
 #[allow(dead_code)]
 enum DerivedBoolEnum {
     Named {
@@ -17,6 +23,16 @@ enum DerivedBoolEnum {
         maybe_enabled: Option<bool>,
     },
     Tuple(bool, Option<bool>),
+}
+
+#[derive(EsFluent)]
+#[allow(dead_code)]
+enum DerivedBorrowedBoolEnum<'a> {
+    Named {
+        enabled: &'a bool,
+        maybe_enabled: Option<&'a bool>,
+    },
+    Tuple(&'a bool, Option<&'a bool>),
 }
 
 fn describe_arg(value: &FluentValue<'_>) -> String {
@@ -67,10 +83,45 @@ fn derived_struct_bool_and_optional_bool_fields_compile_and_render() {
 }
 
 #[test]
+fn derived_struct_borrowed_bool_and_optional_borrowed_bool_fields_compile_and_render() {
+    let enabled = true;
+    let maybe_enabled = false;
+    let args = render_args(&DerivedBorrowedBoolStruct {
+        enabled: &enabled,
+        maybe_enabled: Some(&maybe_enabled),
+    });
+
+    assert_eq!(args["enabled"], "true");
+    assert_eq!(args["maybe_enabled"], "false");
+
+    let disabled = false;
+    let missing = render_args(&DerivedBorrowedBoolStruct {
+        enabled: &disabled,
+        maybe_enabled: None,
+    });
+
+    assert_eq!(missing["enabled"], "false");
+    assert_eq!(missing["maybe_enabled"], "<none>");
+}
+
+#[test]
 fn derived_enum_named_bool_and_optional_bool_fields_compile_and_render() {
     let args = render_args(&DerivedBoolEnum::Named {
         enabled: true,
         maybe_enabled: Some(false),
+    });
+
+    assert_eq!(args["enabled"], "true");
+    assert_eq!(args["maybe_enabled"], "false");
+}
+
+#[test]
+fn derived_enum_named_borrowed_bool_and_optional_borrowed_bool_fields_compile_and_render() {
+    let enabled = true;
+    let maybe_enabled = false;
+    let args = render_args(&DerivedBorrowedBoolEnum::Named {
+        enabled: &enabled,
+        maybe_enabled: Some(&maybe_enabled),
     });
 
     assert_eq!(args["enabled"], "true");
@@ -85,6 +136,25 @@ fn derived_enum_tuple_bool_and_optional_bool_fields_compile_and_render() {
     assert!(args.values().any(|value| value == "false"));
 
     let missing = render_args(&DerivedBoolEnum::Tuple(false, None));
+
+    assert!(missing.values().any(|value| value == "false"));
+    assert!(missing.values().any(|value| value == "<none>"));
+}
+
+#[test]
+fn derived_enum_tuple_borrowed_bool_and_optional_borrowed_bool_fields_compile_and_render() {
+    let enabled = true;
+    let maybe_enabled = false;
+    let args = render_args(&DerivedBorrowedBoolEnum::Tuple(
+        &enabled,
+        Some(&maybe_enabled),
+    ));
+
+    assert!(args.values().any(|value| value == "true"));
+    assert!(args.values().any(|value| value == "false"));
+
+    let disabled = false;
+    let missing = render_args(&DerivedBorrowedBoolEnum::Tuple(&disabled, None));
 
     assert!(missing.values().any(|value| value == "false"));
     assert!(missing.values().any(|value| value == "<none>"));

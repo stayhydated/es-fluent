@@ -471,6 +471,21 @@ impl<'a, 'value> IntoFluentArgumentValue<'a> for FluentBorrowedArgumentValue<'va
     }
 }
 
+impl<'a, 'value, 'inner> IntoFluentArgumentValue<'a>
+    for FluentBorrowedArgumentValue<'value, &'inner bool>
+{
+    fn into_fluent_argument_value(
+        self,
+        _localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        bool_fluent_value(**self.value)
+    }
+}
+
 fn bool_fluent_value<'a>(value: bool) -> FluentValue<'a> {
     if value { "true" } else { "false" }.into()
 }
@@ -486,6 +501,24 @@ impl<'a> IntoFluentArgumentValue<'a> for FluentOptionalArgumentValue<&bool> {
     ) -> FluentValue<'a> {
         match self.value {
             Some(value) => bool_fluent_value(*value),
+            None => FluentValue::None,
+        }
+    }
+}
+
+impl<'a, 'outer, 'inner> IntoFluentArgumentValue<'a>
+    for FluentOptionalArgumentValue<&'outer &'inner bool>
+{
+    fn into_fluent_argument_value(
+        self,
+        _localize: &mut dyn for<'b> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'b>>>,
+        ) -> String,
+    ) -> FluentValue<'a> {
+        match self.value {
+            Some(value) => bool_fluent_value(**value),
             None => FluentValue::None,
         }
     }

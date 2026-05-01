@@ -18,27 +18,40 @@ use crate::macros::utils::GeneratedUnitEnumInput;
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    expand_es_fluent_variants(input).into()
+}
 
-    let label_opts = LabelOpts::from_derive_input(&input).ok();
+fn expand_es_fluent_variants(input: DeriveInput) -> TokenStream {
+    if matches!(&input.data, Data::Union(_)) {
+        proc_macro_error2::abort!(
+            input.ident.span(),
+            "EsFluentVariants can only be derived for structs and enums"
+        );
+    }
+
+    let label_opts = match LabelOpts::from_derive_input(&input) {
+        Ok(opts) => opts,
+        Err(err) => return err.write_errors(),
+    };
     let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace(&input) {
         Ok(namespace) => namespace,
-        Err(err) => return err.write_errors().into(),
+        Err(err) => return err.write_errors(),
     };
     let fluent_domain = match crate::macros::utils::inherited_fluent_domain(&input) {
         Ok(domain) => domain,
-        Err(err) => return err.write_errors().into(),
+        Err(err) => return err.write_errors(),
     };
 
     let tokens = match &input.data {
         Data::Struct(_) => {
             let opts = match StructVariantsOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
-                Err(err) => return err.write_errors().into(),
+                Err(err) => return err.write_errors(),
             };
 
             process_struct(
                 &opts,
-                label_opts.as_ref(),
+                Some(&label_opts),
                 fluent_namespace.as_ref(),
                 fluent_domain.as_deref(),
             )
@@ -46,23 +59,20 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         Data::Enum(_) => {
             let opts = match EnumVariantsOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
-                Err(err) => return err.write_errors().into(),
+                Err(err) => return err.write_errors(),
             };
 
             process_enum(
                 &opts,
-                label_opts.as_ref(),
+                Some(&label_opts),
                 fluent_namespace.as_ref(),
                 fluent_domain.as_deref(),
             )
         },
-        Data::Union(_) => proc_macro_error2::abort!(
-            input.ident.span(),
-            "EsFluentVariants can only be derived for structs and enums"
-        ),
+        Data::Union(_) => unreachable!("EsFluentVariants does not support unions"),
     };
 
-    tokens.into()
+    tokens
 }
 
 fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
@@ -228,6 +238,21 @@ mod tests {
     };
     use insta::assert_snapshot;
     use syn::parse_quote;
+
+    #[test]
+    fn expand_es_fluent_variants_reports_invalid_fluent_label_attribute() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_label(variantz)]
+            struct LoginForm {
+                username: String,
+            }
+        };
+
+        let tokens = super::expand_es_fluent_variants(input).to_string();
+
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("variantz"));
+    }
 
     #[test]
     fn process_struct_emits_keyed_generated_enums() {
