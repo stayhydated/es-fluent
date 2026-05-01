@@ -20,7 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         uses: rui314/setup-mold@v1
@@ -48,7 +48,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         if: runner.os == 'Linux'
@@ -85,7 +85,7 @@ jobs:
           components: clippy
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         uses: rui314/setup-mold@v1
@@ -114,7 +114,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         uses: rui314/setup-mold@v1
