@@ -1,6 +1,6 @@
 ## GenderLabelOnly
 
-gender_label_only_label = Genre (this uniquement)
+gender_label_only_label = Genre (étiquette uniquement)
 
 ## LoginFormCombined
 

@@ -486,7 +486,7 @@ mod tests {
             crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
                 &parse_quote!(Languages),
                 &parse_quote!(),
-                Some("es-fluent-lang-this"),
+                Some("es-fluent-lang-label"),
                 Some("es-fluent-lang"),
             ));
 

@@ -1,6 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
-expression: this_opts_tokens
+expression: label_opts_tokens
 ---
 ::core::compile_error! {
     "Unknown value: `nope`"

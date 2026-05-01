@@ -202,7 +202,7 @@ fn test_derive_label_and_variants_share_fluent_namespace() {
     assert_eq!(
         infos.len(),
         3,
-        "Expected origin + variants + variants-this registrations"
+        "Expected origin + variants + variants-label registrations"
     );
     assert!(
         infos

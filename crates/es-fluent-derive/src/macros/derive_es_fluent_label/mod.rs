@@ -140,16 +140,16 @@ mod tests {
 
     #[test]
     fn expand_es_fluent_label_returns_compile_errors_for_parse_failures() {
-        let this_opts_error: syn::DeriveInput = parse_quote! {
+        let label_opts_error: syn::DeriveInput = parse_quote! {
             #[fluent_label(origin = "nope")]
             struct InvalidLabelOpts;
         };
-        let this_opts_tokens = crate::snapshot_support::pretty_file_tokens(
-            super::expand_es_fluent_label(this_opts_error),
+        let label_opts_tokens = crate::snapshot_support::pretty_file_tokens(
+            super::expand_es_fluent_label(label_opts_error),
         );
         assert_snapshot!(
             "expand_es_fluent_label_returns_compile_errors_for_invalid_label_opts",
-            this_opts_tokens
+            label_opts_tokens
         );
 
         let struct_namespace_error: syn::DeriveInput = parse_quote! {

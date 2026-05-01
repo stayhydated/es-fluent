@@ -1,6 +1,6 @@
 ## GenderLabelOnly
 
-gender_label_only_label = 性别（仅 this）
+gender_label_only_label = 性别（仅标签）
 
 ## LoginFormCombined
 

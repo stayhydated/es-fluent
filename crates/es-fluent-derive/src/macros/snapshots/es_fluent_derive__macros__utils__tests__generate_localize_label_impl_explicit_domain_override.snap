@@ -10,7 +10,7 @@ impl ::es_fluent::FluentLabel for Languages {
         ::es_fluent::__private::localize_label(
             localizer,
             "es-fluent-lang",
-            "es-fluent-lang-this",
+            "es-fluent-lang-label",
         )
     }
 }
