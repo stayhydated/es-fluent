@@ -219,10 +219,6 @@ Additional rules:
 - Run the narrowest command that proves the edited behavior works.
 - Prefer targeted crate, example, docs, or web checks before full-workspace validation.
 - Use `just check`, `just test`, or a more specific `justfile` recipe when the change spans multiple surfaces.
-- For Rust-only changes, prefer targeted `cargo check`, `cargo test`, or crate-specific commands.
-- For documentation changes, prefer the smallest relevant executable example, mdBook, or docs build check when practical.
-- For JavaScript or web-only changes, prefer targeted Bun/Turbo scripts such as `bun run check`, `bun run test`, or a package-specific script.
-- If validation depends on external services, generated files, secrets, or long-running containers, state the dependency and use the relevant `justfile` recipe when practical.
 - Do not claim a change works unless it was validated, generated from a source of truth, or the remaining risk is explicitly documented.
 
 ### When editing docs
@@ -246,7 +242,6 @@ Additional rules:
 - Prefer [insta](https://insta.rs/) for snapshot tests when it fits better than assertion-heavy unit tests.
 - Prefer raw multiline strings, or `quote! { ... }` in macro contexts, over escaped single-line literals for embedded Rust code.
 
-### When editing JavaScript or web tooling
+### When editing JavaScript/Typescript
 
-- Use [bun](https://bun.com/) for dependency management.
-- Use [turborepo](https://turborepo.org/) as the build system.
+- Use [bun](https://bun.com/) for dependency management and running scripts.

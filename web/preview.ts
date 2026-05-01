@@ -8,7 +8,7 @@ const port = Number(process.env.PORT ?? "8081");
 
 if (!existsSync(distDir)) {
   console.error(`Missing build output at ${distDir}`);
-  console.error("Run `bun run build` first.");
+  console.error("Run `just web-build` first.");
   process.exit(1);
 }
 

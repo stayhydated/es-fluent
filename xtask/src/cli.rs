@@ -14,6 +14,15 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Build generated workspace artifacts
+    Build {
+        #[command(subcommand)]
+        target: BuildCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BuildCommand {
     /// Build the Trunk-hosted Bevy demo into web/public/bevy-demo
     BevyDemo,
     /// Build mdBook documentation to web/public/book

@@ -1,8 +1,8 @@
 use crate::DioxusInitError;
 use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
-use es_fluent_manager_core::{FluentManager, LanguageSelectionPolicy, LocalizationError};
 #[cfg(any(feature = "ssr", test))]
 use es_fluent_manager_core::DiscoveredRuntimeI18nModules;
+use es_fluent_manager_core::{FluentManager, LanguageSelectionPolicy, LocalizationError};
 use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::sync::Arc;

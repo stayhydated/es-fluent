@@ -41,7 +41,7 @@ flowchart TD
 
 The macro automates language discovery based on the project structure:
 
-```
+```text
 crate_root/
 ├── i18n.toml          # Specifies: `assets_dir = "assets/locales"`
 └── assets/
