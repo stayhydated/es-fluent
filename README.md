@@ -112,7 +112,7 @@ fn main() -> Result<(), String> {
 Prefer `localize_message(...)` on the concrete manager handle. Raw string-ID
 lookup remains available in `es-fluent-manager-core` for integration code.
 Application-facing APIs are intentionally enum-first. Custom integrations that
-need to distinguish missing lookups from display fallback can use
+need to distinguish missing lookups from message ID fallback can use
 `FluentLocalizerExt::try_localize_message(...)`.
 
 For custom runtime integrations, create a `FluentManager`, select the initial

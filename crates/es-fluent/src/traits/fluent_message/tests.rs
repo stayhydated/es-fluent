@@ -365,6 +365,90 @@ fn custom_localizer_with_lookup_invokes_callback_and_renders_typed_message() {
     );
 }
 
+struct SkippingCallbackLocalizer;
+
+impl FluentLocalizer for SkippingCallbackLocalizer {
+    fn localize<'a>(
+        &self,
+        _id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        None
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        _domain: &str,
+        _id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        None
+    }
+
+    fn with_lookup(
+        &self,
+        _f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+    }
+}
+
+struct DoubleCallbackLocalizer;
+
+impl FluentLocalizer for DoubleCallbackLocalizer {
+    fn localize<'a>(
+        &self,
+        id: &str,
+        _args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        Some(id.to_string())
+    }
+
+    fn localize_in_domain<'a>(
+        &self,
+        _domain: &str,
+        id: &str,
+        args: Option<&HashMap<&str, FluentValue<'a>>>,
+    ) -> Option<String> {
+        self.localize(id, args)
+    }
+
+    fn with_lookup(
+        &self,
+        f: &mut dyn FnMut(
+            &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> Option<String>,
+        ),
+    ) {
+        let mut lookup =
+            |_domain: &str, id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
+                Some(id.to_string())
+            };
+        f(&mut lookup);
+        f(&mut lookup);
+    }
+}
+
+#[test]
+#[should_panic(expected = "FluentLocalizer::with_lookup must invoke its callback exactly once")]
+fn localize_message_panics_when_with_lookup_skips_callback() {
+    SkippingCallbackLocalizer.localize_message(&NestedMessage);
+}
+
+#[test]
+#[should_panic(expected = "FluentLocalizer::with_lookup must invoke its callback exactly once")]
+fn try_localize_message_panics_when_with_lookup_invokes_callback_twice() {
+    let _ = DoubleCallbackLocalizer.try_localize_message(&NestedMessage);
+}
+
 struct BlockingSwitchLocalizer {
     selected: RwLock<&'static str>,
     child_seen: Mutex<mpsc::Sender<()>>,

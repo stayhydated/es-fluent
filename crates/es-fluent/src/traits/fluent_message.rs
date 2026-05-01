@@ -3,6 +3,9 @@ use es_fluent_manager_core::FluentManager;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+const WITH_LOOKUP_CALLBACK_COUNT_ERROR: &str =
+    "FluentLocalizer::with_lookup must invoke its callback exactly once";
+
 /// A typed Fluent message that can be resolved by an explicit localization
 /// backend.
 ///
@@ -264,7 +267,7 @@ pub trait FluentLocalizerExt: FluentLocalizer {
     /// localizer.
     ///
     /// Returns `None` if any lookup in the message tree is missing. Use
-    /// `localize_message(...)` when a display fallback to the message ID is
+    /// `localize_message(...)` when a message ID fallback is
     /// desired instead.
     fn try_localize_message<T>(&self, message: &T) -> Option<String>
     where
@@ -272,8 +275,16 @@ pub trait FluentLocalizerExt: FluentLocalizer {
     {
         let mut missing = false;
         let mut value = None;
+        let mut callback_invocations = 0;
 
         self.with_lookup(&mut |lookup| {
+            assert!(
+                callback_invocations == 0,
+                "{}",
+                WITH_LOOKUP_CALLBACK_COUNT_ERROR
+            );
+            callback_invocations = 1;
+
             value = Some(message.to_fluent_string_with(&mut |domain, id, args| {
                 lookup(domain, id, args).unwrap_or_else(|| {
                     missing = true;
@@ -282,7 +293,12 @@ pub trait FluentLocalizerExt: FluentLocalizer {
             }));
         });
 
-        let value = value.expect("FluentLocalizer::with_lookup must invoke its callback");
+        assert!(
+            callback_invocations == 1,
+            "{}",
+            WITH_LOOKUP_CALLBACK_COUNT_ERROR
+        );
+        let value = value.expect(WITH_LOOKUP_CALLBACK_COUNT_ERROR);
         if missing { None } else { Some(value) }
     }
 
@@ -292,8 +308,16 @@ pub trait FluentLocalizerExt: FluentLocalizer {
         T: FluentMessage + ?Sized,
     {
         let mut value = None;
+        let mut callback_invocations = 0;
 
         self.with_lookup(&mut |lookup| {
+            assert!(
+                callback_invocations == 0,
+                "{}",
+                WITH_LOOKUP_CALLBACK_COUNT_ERROR
+            );
+            callback_invocations = 1;
+
             value = Some(message.to_fluent_string_with(&mut |domain, id, args| {
                 lookup(domain, id, args).unwrap_or_else(|| {
                     tracing::warn!(domain, message_id = id, "missing Fluent message");
@@ -302,7 +326,12 @@ pub trait FluentLocalizerExt: FluentLocalizer {
             }));
         });
 
-        value.expect("FluentLocalizer::with_lookup must invoke its callback")
+        assert!(
+            callback_invocations == 1,
+            "{}",
+            WITH_LOOKUP_CALLBACK_COUNT_ERROR
+        );
+        value.expect(WITH_LOOKUP_CALLBACK_COUNT_ERROR)
     }
 }
 

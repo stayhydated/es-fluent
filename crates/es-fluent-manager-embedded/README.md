@@ -73,7 +73,7 @@ i18n.select_language(langid!("fr-FR"))?;
 ```
 
 Before a language is selected, raw lookup returns `None`. Typed
-`localize_message(...)` uses its display fallback and returns the message ID for
+`localize_message(...)` uses its message ID fallback and returns the message ID for
 missing messages until `select_language(...)` succeeds.
 
 `select_language(...)` returns an error if no discovered module can serve the
