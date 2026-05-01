@@ -34,8 +34,6 @@ pub enum DioxusScreenMessages {
 }
 
 pub fn render_showcase() -> String {
-    example_shared_lib::force_link();
-
     let runtime = SsrI18nRuntime::new();
     let mut output = String::new();
 
@@ -63,8 +61,6 @@ fn render_ssr_preview_with_runtime(
     runtime: &SsrI18nRuntime,
     initial_language: Languages,
 ) -> String {
-    example_shared_lib::force_link();
-
     let i18n = runtime
         .request(initial_language)
         .expect("Dioxus SSR example should initialize");

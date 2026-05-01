@@ -55,7 +55,7 @@ provide the labels.
 
 - `macros` (default): Enables the `#[es_fluent_language]` macro.
 - `localized-langs`: Format language names in the currently selected UI language instead of as autonyms.
-- `bevy`: Enables Bevy engine integration and force-link keepalive for module registration.
+- `bevy`: Backward-compatible feature for Bevy projects. The WASM force-link keepalive is no longer Bevy-specific.
 
 ## Standard Translations
 
@@ -84,4 +84,6 @@ The built-in language-name module follows successful manager locale switches
 but does not count as application content support. A manager still reports an
 unsupported locale when no application translation module can serve it.
 
-When the `bevy` feature is enabled, this crate uses the same standard module registration as other managers and provides a small force-link keepalive hook for Bevy/WASM builds.
+For `wasm32` builds, default `#[es_fluent_language]` enums emit a small
+force-link keepalive hook so the built-in language-name module is retained
+across managers, including Dioxus and Bevy.

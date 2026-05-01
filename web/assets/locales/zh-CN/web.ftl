@@ -7,6 +7,7 @@ bevy_page_message-Title = Bevy 示例
 ## Demos page
 
 demos_page_message-BevyAction = 打开演示
+demos_page_message-BevyBody = 体验以浏览器 wasm 形式运行的 Bevy 集成演示。
 demos_page_message-BevyLabel = 在线 wasm
 demos_page_message-BevyTitle = Bevy 示例
 

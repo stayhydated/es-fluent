@@ -7,22 +7,14 @@ pub use unic_langid::{LanguageIdentifier, langid};
 /// This is used by WASM examples where localization inventory registration can be
 /// stripped by aggressive release optimization.
 #[doc(hidden)]
-#[cfg(feature = "bevy")]
+#[cfg(target_arch = "wasm32")]
 #[used]
-static FORCE_LINK_KEEPALIVE: fn() -> usize = bevy_support::force_link;
+static FORCE_LINK_KEEPALIVE: fn() -> usize = force_link_support::force_link;
 
 #[doc(hidden)]
 #[inline(never)]
 pub fn force_link() -> usize {
-    #[cfg(feature = "bevy")]
-    {
-        bevy_support::force_link()
-    }
-
-    #[cfg(not(feature = "bevy"))]
-    {
-        0
-    }
+    force_link_support::force_link()
 }
 
 #[cfg(feature = "macros")]
@@ -172,9 +164,8 @@ inventory::submit! {
 
 static ES_FLUENT_LANGUAGE_MODULE: EsFluentLanguageModule = EsFluentLanguageModule;
 
-#[cfg(feature = "bevy")]
 #[doc(hidden)]
-mod bevy_support {
+mod force_link_support {
     use super::*;
 
     pub(crate) fn force_link() -> usize {

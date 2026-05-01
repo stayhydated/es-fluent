@@ -34,8 +34,6 @@ pub enum DioxusScreenMessages {
 }
 
 pub fn render_showcase() -> String {
-    example_shared_lib::force_link();
-
     let mut output = String::new();
 
     let language = Languages::iter()
@@ -55,8 +53,6 @@ pub fn render_showcase() -> String {
 }
 
 pub fn render_client_preview(initial_language: Languages) -> String {
-    example_shared_lib::force_link();
-
     let mut dom =
         VirtualDom::new_with_props(ClientPreview, ClientPreviewProps { initial_language });
     dom.rebuild_in_place();

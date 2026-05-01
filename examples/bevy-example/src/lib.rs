@@ -33,8 +33,6 @@ const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
 pub fn run() {
-    example_shared_lib::force_link();
-
     let mut app = App::new();
 
     #[cfg(not(target_arch = "wasm32"))]

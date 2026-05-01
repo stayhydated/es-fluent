@@ -16,7 +16,9 @@ Feature flags:
 - `macros` is enabled by default and provides `#[es_fluent_language]`.
 - `localized-langs` formats language names in the currently selected UI
   language instead of as autonyms.
-- `bevy` enables the Bevy/WASM force-link keepalive used by the Bevy manager.
+- `bevy` is retained for compatibility with existing Bevy projects. The
+  `wasm32` force-link keepalive is emitted for default generated language enums
+  across managers.
 
 ## Usage
 

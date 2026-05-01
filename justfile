@@ -43,10 +43,10 @@ book:
     mdbook serve book
 
 web-build:
-    env -u RUSTC_WRAPPER cargo xtask build bevy-demo
+    cargo xtask build bevy-demo
     cargo xtask build book
     cargo xtask build llms-txt
     cargo xtask build web
 
 web: web-build
-    dx serve
+    dx serve --package web
