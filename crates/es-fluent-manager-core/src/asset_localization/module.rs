@@ -16,14 +16,21 @@ pub struct ModuleData {
     /// Languages that this module can provide.
     pub supported_languages: &'static [LanguageIdentifier],
     /// Namespaces used by the module (e.g., "ui", "ui/button").
-    /// If empty, only the main `{domain}.ftl` file is used.
-    /// If non-empty, only the configured namespace files are canonical
-    /// resources for the domain.
+    ///
+    /// This is the global namespace set for the module. Individual locales may
+    /// provide only a sparse subset through
+    /// [`crate::I18nModuleRegistration::resource_plan_for_language`].
     pub namespaces: &'static [&'static str],
 }
 
 impl ModuleData {
-    /// Returns the canonical resource plan for this module.
+    /// Returns the global/default canonical resource plan for this module.
+    ///
+    /// Without namespaces, this plan requires `{domain}.ftl`. With namespaces,
+    /// the base file remains optional and every namespace in [`Self::namespaces`]
+    /// is required. Managers should prefer
+    /// [`crate::I18nModuleRegistration::resource_plan_for_language`] when a
+    /// registration provides a sparse per-language manifest plan.
     pub fn resource_plan(&self) -> Vec<ModuleResourceSpec> {
         super::resource::resource_plan_for(self.domain, self.namespaces)
     }

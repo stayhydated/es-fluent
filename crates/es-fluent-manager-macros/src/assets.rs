@@ -459,6 +459,49 @@ mod tests {
     }
 
     #[test]
+    fn i18n_assets_load_keeps_per_language_resource_plans_sparse() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        write_manifest(temp.path(), "i18n");
+
+        std::fs::create_dir_all(temp.path().join("i18n/en/my-crate")).expect("mkdir en crate");
+        std::fs::create_dir_all(temp.path().join("i18n/fr/my-crate")).expect("mkdir fr crate");
+        std::fs::write(temp.path().join("i18n/en/my-crate/ui.ftl"), "title = UI")
+            .expect("write en ui");
+        std::fs::write(temp.path().join("i18n/fr/my-crate.ftl"), "hello = Base")
+            .expect("write fr base");
+        std::fs::write(
+            temp.path().join("i18n/fr/my-crate/errors.ftl"),
+            "error = Erreur",
+        )
+        .expect("write fr errors");
+
+        with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
+            let assets = I18nAssets::load("my-crate").expect("load assets");
+            assert_eq!(assets.namespaces, vec!["errors", "ui"]);
+
+            let plans = assets
+                .resource_specs_by_language
+                .iter()
+                .map(|(lang, specs)| {
+                    (
+                        lang.as_str(),
+                        specs
+                            .iter()
+                            .map(|spec| (spec.key.as_str(), spec.required))
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+
+            assert_eq!(plans.get("en"), Some(&vec![("my-crate/ui", true)]));
+            assert_eq!(
+                plans.get("fr"),
+                Some(&vec![("my-crate", false), ("my-crate/errors", true)])
+            );
+        });
+    }
+
+    #[test]
     fn i18n_assets_load_reports_configuration_errors() {
         let missing_temp = tempfile::tempdir().expect("tempdir");
         with_env_var("CARGO_MANIFEST_DIR", missing_temp.path().to_str(), || {

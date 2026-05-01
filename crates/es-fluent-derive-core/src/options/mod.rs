@@ -10,8 +10,8 @@ use quote::format_ident;
 
 pub mod choice;
 pub mod r#enum;
+pub mod label;
 pub mod r#struct;
-pub mod this;
 
 /// Validate that a key is lowercase snake_case and return its PascalCase version.
 ///

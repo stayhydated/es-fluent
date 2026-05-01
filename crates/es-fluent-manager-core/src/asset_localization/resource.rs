@@ -81,12 +81,15 @@ fn module_resource_spec(
     }
 }
 
-/// Builds a canonical resource plan for a domain.
+/// Builds the global/default canonical resource plan for a domain.
 ///
 /// Contract:
 /// - Without namespaces, `{domain}.ftl` is required.
 /// - With namespaces, `{domain}.ftl` remains an optional mixed-mode resource
 ///   and `{domain}/{namespace}.ftl` entries are required.
+/// - Compile-time registrations may provide a sparse per-language plan through
+///   `I18nModuleRegistration::resource_plan_for_language`; managers should use
+///   that plan directly when it is available.
 /// - Invalid namespace paths panic before any resource paths are produced.
 pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourceSpec> {
     if namespaces.is_empty() {

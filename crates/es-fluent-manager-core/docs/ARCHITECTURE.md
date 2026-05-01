@@ -96,7 +96,12 @@ Unified inventory contract used by managers.
 - `FluentManager::select_language_for_supported_locale()` lets integrations
   commit runtime utility modules after another backend has already proved
   application locale support.
-- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
+- `ModuleData::resource_plan()` is the global/default canonical plan: with
+  namespaces, the base file is optional and every known namespace is required.
+- `resource_plan_for_language()` is the authoritative sparse per-language plan
+  when a registration provides one. Manager macros use this for locales that
+  only ship a subset of the global namespace set, so managers do not require
+  namespace files that were never discovered for that locale.
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
 - Successful strict discovery still normalizes one metadata-only registration
   plus one runtime-localizer registration for the same exact identity into a

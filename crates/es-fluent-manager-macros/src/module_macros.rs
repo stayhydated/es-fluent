@@ -56,6 +56,18 @@ type ModuleTokenGenerator = fn(
     &ManagerPaths,
 ) -> syn::Result<TokenStream>;
 
+fn reject_unexpected_input(input: TokenStream) -> Option<TokenStream> {
+    (!input.is_empty()).then(|| {
+        TokenStream::from(
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "`define_i18n_module!` does not accept arguments",
+            )
+            .to_compile_error(),
+        )
+    })
+}
+
 fn expand_define_i18n_module(
     manager_paths: ManagerPaths,
     generate_tokens: ModuleTokenGenerator,
@@ -102,15 +114,27 @@ fn expand_define_i18n_module(
     }
 }
 
-pub(crate) fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
+pub(crate) fn define_embedded_i18n_module(input: TokenStream) -> TokenStream {
+    if let Some(error) = reject_unexpected_input(input) {
+        return error;
+    }
+
     expand_define_i18n_module(ManagerPaths::embedded(), generate_embedded_tokens)
 }
 
-pub(crate) fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
+pub(crate) fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
+    if let Some(error) = reject_unexpected_input(input) {
+        return error;
+    }
+
     expand_define_i18n_module(ManagerPaths::bevy(), generate_bevy_tokens)
 }
 
-pub(crate) fn define_dioxus_i18n_module(_input: TokenStream) -> TokenStream {
+pub(crate) fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {
+    if let Some(error) = reject_unexpected_input(input) {
+        return error;
+    }
+
     expand_define_i18n_module(ManagerPaths::dioxus(), generate_embedded_tokens)
 }
 

@@ -1,5 +1,5 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{options::this::LabelOpts, validation};
+use es_fluent_derive_core::{options::label::LabelOpts, validation};
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};

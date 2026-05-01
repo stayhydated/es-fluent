@@ -68,7 +68,9 @@ language before lookup:
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;
 
-let manager = FluentManager::try_new_with_discovered_modules()?;
+let manager = FluentManager::try_new_with_discovered_modules().map_err(|errors| {
+    std::io::Error::other(format!("module discovery failed: {errors:?}"))
+})?;
 manager.select_language(&langid!("en"))?;
 
 let value = manager.localize_in_domain("app", "hello", None);

@@ -79,8 +79,12 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
 
     /// Returns an optional manifest-derived resource plan for a specific language.
     ///
-    /// When this returns `Some`, managers should use this plan directly instead of
-    /// inferring optional resource existence at runtime.
+    /// This per-language plan is authoritative when present. It can be sparse:
+    /// if a module has global namespaces `["ui", "errors"]` but a locale only
+    /// ships `ui.ftl`, the returned plan should list only that locale's actual
+    /// files. When this returns `Some`, managers should use it directly instead
+    /// of expanding [`crate::asset_localization::ModuleData::resource_plan`] or
+    /// probing for optional files.
     fn resource_plan_for_language(
         &self,
         _lang: &LanguageIdentifier,

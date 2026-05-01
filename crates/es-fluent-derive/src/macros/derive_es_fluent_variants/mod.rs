@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
+use es_fluent_derive_core::options::label::LabelOpts;
 use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
-use es_fluent_derive_core::options::this::LabelOpts;
 use es_fluent_derive_core::options::{
     FilteredEnumDataOptions as _, GeneratedVariantsOptions, StructDataOptions as _,
 };
@@ -224,7 +224,7 @@ fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed
 mod tests {
     use darling::FromDeriveInput as _;
     use es_fluent_derive_core::options::{
-        r#enum::EnumVariantsOpts, r#struct::StructVariantsOpts, this::LabelOpts,
+        r#enum::EnumVariantsOpts, label::LabelOpts, r#struct::StructVariantsOpts,
     };
     use insta::assert_snapshot;
     use syn::parse_quote;

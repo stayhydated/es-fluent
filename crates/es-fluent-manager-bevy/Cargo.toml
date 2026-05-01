@@ -29,5 +29,8 @@ inventory = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
 
+[dev-dependencies]
+trybuild = { workspace = true }
+
 [lints]
 workspace = true

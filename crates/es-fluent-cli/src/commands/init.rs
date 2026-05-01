@@ -451,6 +451,14 @@ fn prepare_cargo_toml_update(
     )?;
     let (manager_name, manager_spec) = manager_dependency(manager, version, dioxus_runtime);
     ensure_manifest_dependency(&mut manifest, "dependencies", manager_name, manager_spec)?;
+    if manager == InitManager::Dioxus {
+        ensure_manifest_dependency_features(
+            &mut manifest,
+            "dependencies",
+            manager_name,
+            &dioxus_runtime_features(dioxus_runtime),
+        )?;
+    }
 
     if build_rs {
         ensure_manifest_dependency(
@@ -551,7 +559,7 @@ fn ensure_manifest_dependency_feature(
         .ok_or_else(|| CliError::Other(format!("Cargo.toml [{section}] is missing {name}")))?;
 
     if let Some(dependency) = dependency.as_table_like_mut() {
-        return ensure_table_like_dependency_feature(dependency, feature);
+        return ensure_table_like_dependency_feature(section, name, dependency, feature);
     }
 
     if let Some(version) = dependency
@@ -572,7 +580,22 @@ fn ensure_manifest_dependency_feature(
     )))
 }
 
+fn ensure_manifest_dependency_features(
+    manifest: &mut DocumentMut,
+    section: &str,
+    name: &str,
+    features: &[&str],
+) -> Result<bool, CliError> {
+    let mut updated = false;
+    for feature in features {
+        updated |= ensure_manifest_dependency_feature(manifest, section, name, feature)?;
+    }
+    Ok(updated)
+}
+
 fn ensure_table_like_dependency_feature(
+    section: &str,
+    name: &str,
     dependency: &mut dyn TableLike,
     feature: &str,
 ) -> Result<bool, CliError> {
@@ -581,9 +604,9 @@ fn ensure_table_like_dependency_feature(
             .as_value_mut()
             .and_then(Value::as_array_mut)
             .ok_or_else(|| {
-                CliError::Other(
-                    "Cargo.toml es-fluent dependency features must be an array".to_string(),
-                )
+                CliError::Other(format!(
+                    "Cargo.toml [{section}] dependency {name} features must be an array"
+                ))
             })?;
 
         if features
@@ -690,6 +713,20 @@ mod tests {
 
     fn write_manifest(root: &Path, manifest: &str) {
         test_fs::write(root.join("Cargo.toml"), manifest).expect("temp manifest should be written");
+    }
+
+    fn dependency_features(manifest: &str, section: &str, dependency: &str) -> BTreeSet<String> {
+        let parsed = toml::from_str::<toml::Value>(manifest).expect("manifest should parse");
+        parsed
+            .get(section)
+            .and_then(|deps| deps.get(dependency))
+            .and_then(|dep| dep.get("features"))
+            .and_then(toml::Value::as_array)
+            .expect("dependency should have features")
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .map(str::to_string)
+            .collect()
     }
 
     #[test]
@@ -866,11 +903,38 @@ es-fluent-manager-embedded.workspace = true
     }
 
     #[test]
-    fn run_init_manifest_update_preserves_existing_manager_features() {
-        let project = TempProject::new("manager_features", false);
-        write_manifest(
-            project.path(),
-            r#"[package]
+    fn run_init_manifest_update_adds_requested_dioxus_features_to_existing_manager_dependency() {
+        for (name, dependency, dioxus_runtime, expected_features) in [
+            (
+                "dioxus_existing_client_default",
+                r#"es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }"#,
+                Vec::new(),
+                BTreeSet::from(["client".to_string(), "ssr".to_string()]),
+            ),
+            (
+                "dioxus_existing_client_requested_ssr",
+                r#"es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }"#,
+                vec![InitDioxusRuntime::Ssr],
+                BTreeSet::from(["client".to_string(), "ssr".to_string()]),
+            ),
+            (
+                "dioxus_existing_string_requested_ssr",
+                r#"es-fluent-manager-dioxus = "0.7""#,
+                vec![InitDioxusRuntime::Ssr],
+                BTreeSet::from(["ssr".to_string()]),
+            ),
+            (
+                "dioxus_existing_workspace_requested_client",
+                r#"es-fluent-manager-dioxus.workspace = true"#,
+                vec![InitDioxusRuntime::Client],
+                BTreeSet::from(["client".to_string()]),
+            ),
+        ] {
+            let project = TempProject::new(name, false);
+            write_manifest(
+                project.path(),
+                &format!(
+                    r#"[package]
 name = "init-test"
 version = "0.1.0"
 edition = "2021"
@@ -878,24 +942,25 @@ edition = "2021"
 [dependencies]
 es-fluent = "0.16"
 unic-langid = "0.9"
-es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
-"#,
-        );
-        let mut args = default_args(project.path());
-        args.manager = InitManager::Dioxus;
-        args.update_cargo_toml = true;
+{dependency}
+"#
+                ),
+            );
+            let mut args = default_args(project.path());
+            args.manager = InitManager::Dioxus;
+            args.dioxus_runtime = dioxus_runtime;
+            args.update_cargo_toml = true;
 
-        run_init(args).expect("existing Dioxus manager dependency should be left unchanged");
+            run_init(args)
+                .expect("existing Dioxus manager dependency should gain runtime features");
 
-        let manifest = test_fs::read_to_string(project.path().join("Cargo.toml"))
-            .expect("manifest should remain valid");
-        assert!(
-            manifest.contains(
-                r#"es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }"#
-            )
-        );
-        assert_eq!(manifest.matches("\nes-fluent-manager-dioxus =").count(), 1);
-        assert!(!manifest.contains(r#"features = ["client", "ssr"]"#));
+            let manifest = test_fs::read_to_string(project.path().join("Cargo.toml"))
+                .expect("manifest should remain valid");
+            assert_eq!(
+                dependency_features(&manifest, "dependencies", "es-fluent-manager-dioxus"),
+                expected_features
+            );
+        }
     }
 
     #[test]
