@@ -12,6 +12,11 @@ use std::sync::Arc;
 pub trait FluentMessage {
     /// Converts the message into a localized string using the supplied lookup
     /// callback.
+    ///
+    /// Manual implementations should treat `localize` as the only lookup path
+    /// during rendering. Do not re-enter the same localizer to select a
+    /// language or perform other lock-taking lookups from this method; managers
+    /// may hold snapshot locks while invoking it.
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'a> FnMut(
@@ -63,6 +68,11 @@ pub trait FluentLocalizer {
     /// after `with_lookup(...)` returns, and should provide a stable lookup
     /// snapshot for the duration of that callback. The extension methods rely
     /// on this contract when rendering nested typed messages.
+    ///
+    /// The callback is the only supported lookup path inside a typed message
+    /// render. Custom `FluentMessage` implementations must not re-enter the
+    /// same localizer for language selection or other lock-taking operations
+    /// while this callback is active.
     ///
     /// The default implementation delegates each lookup independently. Managers
     /// with mutable language selection should override this to hold the relevant

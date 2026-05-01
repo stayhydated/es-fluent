@@ -146,7 +146,7 @@ pub fn variant_ftl_key(
 ) -> String {
     let variant_key_suffix = override_key
         .map(str::to_owned)
-        .unwrap_or_else(|| variant_ident.to_string());
+        .unwrap_or_else(|| namer::rust_ident_name(variant_ident));
     namer::FluentKey::from(base_key)
         .join(&variant_key_suffix)
         .to_string()
@@ -235,8 +235,11 @@ pub fn generate_optional_label_inventory_module(
         return quote! {};
     };
 
-    let label_variant =
-        inventory_variant_tokens(ident.to_string(), label_key.to_string(), Vec::new());
+    let label_variant = inventory_variant_tokens(
+        namer::rust_ident_name(ident),
+        label_key.to_string(),
+        Vec::new(),
+    );
 
     generate_inventory_module(InventoryModuleInput {
         ident,
@@ -328,9 +331,8 @@ pub fn generate_inventory_module(input: InventoryModuleInput<'_>) -> TokenStream
         namespace_expr,
     } = input;
 
-    let type_name = ident.to_string();
-    let module_type_name = type_name.strip_prefix("r#").unwrap_or(&type_name);
-    let mod_name = format_ident!("__es_fluent_{}_{}", module_name_prefix, module_type_name);
+    let type_name = namer::rust_ident_name(ident);
+    let mod_name = format_ident!("__es_fluent_{}_{}", module_name_prefix, type_name);
 
     quote! {
         #[doc(hidden)]

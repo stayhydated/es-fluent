@@ -64,7 +64,7 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
     let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
-        let type_name = original_ident.to_string();
+        let type_name = namer::rust_ident_name(original_ident);
         let namespace = crate::macros::utils::preferred_namespace([
             fluent_namespace.as_ref(),
             opts.attr_args().namespace(),

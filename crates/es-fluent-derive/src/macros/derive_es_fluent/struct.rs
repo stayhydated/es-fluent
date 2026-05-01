@@ -54,7 +54,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
             .map(|(index, field_opt)| crate::macros::utils::inventory_arg_name(*field_opt, *index))
             .collect();
         let static_variant = crate::macros::utils::inventory_variant_tokens(
-            original_ident.to_string(),
+            namer::rust_ident_name(original_ident),
             ftl_key,
             arg_names,
         );

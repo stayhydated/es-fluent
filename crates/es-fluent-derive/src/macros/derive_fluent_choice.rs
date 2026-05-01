@@ -2,6 +2,7 @@
 
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::choice::{CaseStyle, ChoiceOpts};
+use es_fluent_shared::namer;
 use quote::quote;
 use strum::IntoEnumIterator as _;
 use syn::{DeriveInput, parse_macro_input};
@@ -48,7 +49,7 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
 
     let match_arms = variants.iter().map(|variant| {
         let variant_ident = &variant.ident;
-        let serialized_name = serialize_fn(&variant_ident.to_string());
+        let serialized_name = serialize_fn(&namer::rust_ident_name(variant_ident));
         quote! {
             Self::#variant_ident => #serialized_name
         }

@@ -146,6 +146,25 @@ mod tests {
     }
 
     #[test]
+    fn expand_es_fluent_normalizes_raw_identifiers_in_inventory_metadata() {
+        let struct_input: syn::DeriveInput = parse_quote! {
+            struct r#type {
+                r#match: String,
+            }
+        };
+
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
+
+        assert!(tokens.contains("mod __es_fluent_inventory_type"));
+        assert!(tokens.contains("localize(env!(\"CARGO_PKG_NAME\"), \"type\", Some(&args))"));
+        assert!(tokens.contains("type_name: \"type\""));
+        assert!(tokens.contains("name: \"type\""));
+        assert!(tokens.contains("ftl_key: \"type\""));
+        assert!(tokens.contains("args: &[\"match\"]"));
+    }
+
+    #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_returns_compile_errors_for_attribute_parse_failures() {
         let enum_input: syn::DeriveInput = parse_quote! {

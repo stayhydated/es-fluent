@@ -1,5 +1,6 @@
 use super::*;
 use rust_embed::RustEmbed;
+use std::borrow::Cow;
 use unic_langid::langid;
 
 #[derive(RustEmbed)]
@@ -96,6 +97,32 @@ impl EmbeddedAssets for PartialFallbackAssets {
     }
 }
 
+struct OptionalOnlyAssets;
+
+impl RustEmbed for OptionalOnlyAssets {
+    fn get(_file_path: &str) -> Option<rust_embed::EmbeddedFile> {
+        None
+    }
+
+    fn iter() -> impl Iterator<Item = Cow<'static, str>> + 'static {
+        std::iter::empty()
+    }
+}
+
+impl EmbeddedAssets for OptionalOnlyAssets {
+    fn domain() -> &'static str {
+        "test-domain"
+    }
+
+    fn resource_plan_for_language(_lang: &LanguageIdentifier) -> Option<Vec<ModuleResourceSpec>> {
+        Some(vec![ModuleResourceSpec {
+            key: ResourceKey::new("test-domain"),
+            locale_relative_path: "test-domain.ftl".to_string(),
+            required: false,
+        }])
+    }
+}
+
 #[test]
 fn embedded_asset_test_types_expose_expected_domains_and_namespaces() {
     assert_eq!(TestAssets::domain(), "test-domain");
@@ -170,6 +197,13 @@ static PARTIAL_FALLBACK_MODULE_DATA: ModuleData = ModuleData {
     domain: "test-domain",
     supported_languages: PARTIAL_FALLBACK_SUPPORTED_LANGUAGES,
     namespaces: NAMESPACES,
+};
+static OPTIONAL_ONLY_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
+static OPTIONAL_ONLY_MODULE_DATA: ModuleData = ModuleData {
+    name: "optional-only-module",
+    domain: "test-domain",
+    supported_languages: OPTIONAL_ONLY_SUPPORTED_LANGUAGES,
+    namespaces: &[],
 };
 
 #[test]
@@ -351,6 +385,21 @@ fn embedded_localizer_uses_fluent_fallback_for_missing_messages() {
         localizer.localize("ui-title", None),
         Some("Shared UI Title".to_string())
     );
+}
+
+#[test]
+fn embedded_localizer_treats_missing_optional_only_resources_as_ready() {
+    let localizer = EmbeddedLocalizer::<OptionalOnlyAssets>::new(&OPTIONAL_ONLY_MODULE_DATA);
+
+    localizer
+        .select_language(&langid!("en"))
+        .expect("missing optional-only resources should still make the locale ready");
+
+    assert_eq!(
+        localizer.current_lang.read().as_ref().cloned(),
+        Some(langid!("en"))
+    );
+    assert_eq!(localizer.localize("missing-message", None), None);
 }
 
 #[test]

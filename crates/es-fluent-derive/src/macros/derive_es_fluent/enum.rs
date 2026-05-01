@@ -16,7 +16,7 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
 
 fn skipped_variant_message_match_arm(variant_opt: &VariantOpts) -> TokenStream {
     let variant_ident = variant_opt.ident();
-    let variant_name = variant_ident.to_string();
+    let variant_name = namer::rust_ident_name(variant_ident);
 
     match variant_opt.style() {
         darling::ast::Style::Unit => {
@@ -234,7 +234,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                 };
 
                 crate::macros::utils::inventory_variant_tokens(
-                    variant_ident.to_string(),
+                    namer::rust_ident_name(variant_ident),
                     ftl_key,
                     arg_names,
                 )

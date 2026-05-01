@@ -48,7 +48,12 @@ pub fn keyed_variant_idents(
             keys.into_iter()
                 .map(|key| {
                     let pascal_key = validate_snake_case_key(&key)?;
-                    Ok(format_ident!("{}{}{}", ident, pascal_key, suffix))
+                    Ok(format_ident!(
+                        "{}{}{}",
+                        namer::rust_ident_name(ident),
+                        pascal_key,
+                        suffix
+                    ))
                 })
                 .collect()
         },
@@ -65,7 +70,11 @@ pub fn keyed_base_idents(
             keys.into_iter()
                 .map(|key| {
                     let pascal_key = validate_snake_case_key(&key)?;
-                    Ok(format_ident!("{}{}", ident, pascal_key))
+                    Ok(format_ident!(
+                        "{}{}",
+                        namer::rust_ident_name(ident),
+                        pascal_key
+                    ))
                 })
                 .collect()
         },
@@ -73,7 +82,7 @@ pub fn keyed_base_idents(
 }
 
 pub fn variants_enum_ident(ident: &syn::Ident, suffix: &str) -> syn::Ident {
-    format_ident!("{}{}", ident, suffix)
+    format_ident!("{}{}", namer::rust_ident_name(ident), suffix)
 }
 
 pub fn key_strings(keys: Option<&[syn::LitStr]>) -> Option<Vec<String>> {
@@ -327,7 +336,7 @@ pub trait FluentField {
     /// Resolves the Fluent argument name for this field.
     fn fluent_arg_name(&self, index: usize) -> String {
         self.arg_name()
-            .or_else(|| self.ident().map(|ident| ident.to_string()))
+            .or_else(|| self.ident().map(namer::rust_ident_name))
             .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
     }
 }

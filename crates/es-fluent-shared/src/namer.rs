@@ -4,6 +4,11 @@ use derive_more::{Debug, Deref, Display};
 use heck::ToSnakeCase as _;
 use quote::format_ident;
 
+pub fn rust_ident_name(ident: &syn::Ident) -> String {
+    let name = ident.to_string();
+    name.strip_prefix("r#").unwrap_or(&name).to_string()
+}
+
 #[derive(Clone, Debug, Deref, Display, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Serialize)]
 pub struct FluentKey(pub String);
 
@@ -21,7 +26,7 @@ impl From<&str> for FluentKey {
 
 impl From<&syn::Ident> for FluentKey {
     fn from(ident: &syn::Ident) -> Self {
-        Self(ident.to_string().to_snake_case())
+        Self(rust_ident_name(ident).to_snake_case())
     }
 }
 
@@ -39,7 +44,8 @@ impl FluentKey {
     }
 
     pub fn new_label(ftl_name: &syn::Ident) -> Self {
-        let label_ident = quote::format_ident!("{}{}", ftl_name, Self::LABEL_SUFFIX);
+        let label_ident =
+            quote::format_ident!("{}{}", rust_ident_name(ftl_name), Self::LABEL_SUFFIX);
         Self::from(&label_ident)
     }
 }
@@ -102,10 +108,14 @@ mod tests {
             "HelloWorld",
             proc_macro2::Span::call_site(),
         ));
+        let raw_ident: syn::Ident = syn::parse_str("r#type").expect("raw ident");
+        let from_raw_ident = FluentKey::from(&raw_ident);
 
         assert_eq!(from_string.to_string(), "hello_world");
         assert_eq!(from_str.to_string(), "hello_world");
         assert_eq!(from_ident.to_string(), "hello_world");
+        assert_eq!(rust_ident_name(&raw_ident), "type");
+        assert_eq!(from_raw_ident.to_string(), "type");
 
         assert_eq!(from_ident.join("suffix").to_string(), "hello_world-suffix");
         assert_eq!(from_ident.join("").to_string(), "hello_world");

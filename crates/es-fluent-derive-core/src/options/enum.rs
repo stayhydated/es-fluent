@@ -1,8 +1,7 @@
 use bon::Builder;
 use darling::{FromDeriveInput, FromMeta, FromVariant};
-use es_fluent_shared::namespace::NamespaceRule;
+use es_fluent_shared::{namer, namespace::NamespaceRule};
 use getset::Getters;
-use heck::ToSnakeCase as _;
 
 use crate::options::{
     EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantsOptions, KeyedVariant, Skippable,
@@ -61,7 +60,7 @@ impl EnumOpts {
         if let Some(resource) = self.attr_args().resource() {
             resource.to_string()
         } else {
-            self.ident().to_string().to_snake_case()
+            namer::FluentKey::from(self.ident()).to_string()
         }
     }
 }

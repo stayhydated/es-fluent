@@ -199,6 +199,21 @@ impl FluentMessage for MissingMessage {
     }
 }
 
+struct CallbackOnlyMessage;
+
+impl FluentMessage for CallbackOnlyMessage {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'a> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> String,
+    ) -> String {
+        localize("callback-domain", "callback-id", None)
+    }
+}
+
 #[test]
 fn fluent_message_reference_impl_delegates_to_inner_message() {
     let message = NestedMessage;
@@ -211,6 +226,24 @@ fn fluent_message_reference_impl_delegates_to_inner_message() {
         FluentMessage::to_fluent_string_with(&message_ref, &mut localize),
         "nested-domain:nested-id"
     );
+}
+
+#[test]
+fn manual_fluent_message_uses_supplied_callback_for_lookup() {
+    let mut called = false;
+    let mut localize = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
+        called = true;
+        assert_eq!(domain, "callback-domain");
+        assert_eq!(id, "callback-id");
+        assert!(args.is_none());
+        "callback result".to_string()
+    };
+
+    assert_eq!(
+        CallbackOnlyMessage.to_fluent_string_with(&mut localize),
+        "callback result"
+    );
+    assert!(called);
 }
 
 #[test]

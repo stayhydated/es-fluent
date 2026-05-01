@@ -211,11 +211,7 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
             return Err(LocalizationError::LanguageNotSupported(lang.clone()));
         }
 
-        if resources.is_empty() {
-            Err(LocalizationError::LanguageNotSupported(lang.clone()))
-        } else {
-            Ok(resources)
-        }
+        Ok(resources)
     }
 }
 

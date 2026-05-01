@@ -104,7 +104,7 @@ impl GeneratedUnitEnumVariant {
 
     pub(crate) fn inventory_variant_tokens(&self) -> TokenStream {
         InventoryVariantSpec {
-            name: self.ident.to_string(),
+            name: es_fluent_shared::namer::rust_ident_name(&self.ident),
             ftl_key: self.ftl_key.clone(),
             arg_names: Vec::new(),
         }

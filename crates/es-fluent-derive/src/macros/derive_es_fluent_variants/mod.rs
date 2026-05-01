@@ -177,13 +177,13 @@ fn build_struct_variant_seeds(opts: &StructVariantsOpts) -> Vec<GeneratedVariant
         .iter()
         .map(|field_opt| {
             let field_ident = field_opt.ident().expect("named field");
-            let original_field_name = field_ident.to_string();
+            let original_field_name = namer::rust_ident_name(field_ident);
             let pascal_case_name = original_field_name.to_pascal_case();
             let variant_ident = syn::Ident::new(&pascal_case_name, field_ident.span());
             GeneratedVariantSeed {
                 ident: variant_ident,
                 doc_name: original_field_name,
-                key_fragment: field_ident.to_string(),
+                key_fragment: namer::rust_ident_name(field_ident),
             }
         })
         .collect()
@@ -210,7 +210,7 @@ fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed
         .iter()
         .map(|variant_opt| {
             let variant_ident = variant_opt.ident();
-            let variant_key = variant_ident.to_string();
+            let variant_key = namer::rust_ident_name(variant_ident);
             GeneratedVariantSeed {
                 ident: variant_ident.clone(),
                 doc_name: variant_key.clone(),
