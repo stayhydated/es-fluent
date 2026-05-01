@@ -356,15 +356,15 @@ fn embedded_localizer_preserves_requested_locale_in_bundle_metadata() {
         .expect("fallback to en should work");
 
     assert_eq!(
-        localizer.current_lang.read().as_ref().cloned(),
+        localizer.state.read().current_lang.clone(),
         Some(langid!("en-US"))
     );
 
     let bundle = localizer
-        .current_bundle
+        .state
         .read()
-        .as_ref()
-        .cloned()
+        .current_bundle
+        .clone()
         .expect("bundle should be built");
     assert_eq!(bundle.locales, vec![langid!("en-US"), langid!("en")]);
 }
@@ -396,7 +396,7 @@ fn embedded_localizer_treats_missing_optional_only_resources_as_ready() {
         .expect("missing optional-only resources should still make the locale ready");
 
     assert_eq!(
-        localizer.current_lang.read().as_ref().cloned(),
+        localizer.state.read().current_lang.clone(),
         Some(langid!("en"))
     );
     assert_eq!(localizer.localize("missing-message", None), None);

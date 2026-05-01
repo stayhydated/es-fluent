@@ -173,6 +173,21 @@ The crate has no default runtime feature. The `define_i18n_module!` macro is alw
 - `client`: Dioxus provider, hook/context runtime, and signal-backed locale state for interactive rendering.
 - `ssr`: request-scoped Dioxus SSR runtime with cached module discovery.
 
+### Define the Module
+
+Prefer a library-reachable module, usually `src/i18n.rs` declared from
+`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
+the library target:
+
+```rust
+// a i18n.toml file must exist in the root of the crate
+es_fluent_manager_dioxus::define_i18n_module!();
+```
+
+Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
+when derived message types are still reachable from a library target, or when
+you accept that binary-only derived types are not discovered by the CLI.
+
 ### Client Quick Start
 
 ```rust
@@ -180,8 +195,6 @@ use dioxus::prelude::*;
 use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
 use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
 use unic_langid::langid;
-
-es_fluent_manager_dioxus::define_i18n_module!();
 
 fn app() -> Element {
     rsx! {
@@ -234,8 +247,6 @@ use dioxus::prelude::*;
 use es_fluent::EsFluent;
 use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 use unic_langid::langid;
-
-es_fluent_manager_dioxus::define_i18n_module!();
 
 #[derive(Clone, Copy, EsFluent)]
 #[fluent(namespace = "site")]

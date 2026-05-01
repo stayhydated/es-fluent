@@ -42,14 +42,12 @@ you accept that binary-only derived types are not discovered by the CLI.
 
 ### 2. Initialize & Use
 
-Add the plugin to your `App` and define your I18n module:
+Add the plugin to your `App`:
 
 ```rs
 use bevy::prelude::*;
 use es_fluent_manager_bevy::I18nPlugin;
 use unic_langid::langid;
-
-es_fluent_manager_bevy::define_i18n_module!();
 
 fn main() {
     App::new()

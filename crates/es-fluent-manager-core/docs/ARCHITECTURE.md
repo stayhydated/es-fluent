@@ -135,6 +135,10 @@ Responsible for the actual string formatting logic.
 - `EmbeddedLocalizer::select_language()` now rejects bundle-add conflicts (for
   example duplicate message IDs across loaded files) and keeps the previous
   ready locale active on failure.
+- `EmbeddedLocalizer` stores the active bundle, requested language, and fallback
+  resources in one state snapshot. Localization clones the resource `Arc`s from
+  that snapshot before formatting so direct concurrent callers cannot observe a
+  mixed locale state during language selection.
 - Embedded locale/resource discovery only accepts canonical locale directory
   names, so compile-time discovery and runtime lookup use the same path keys.
 - Embedded runtime modules can derive an exact resource plan from embedded

@@ -5,7 +5,7 @@ use crate::asset_localization::{
 };
 use crate::localization::{I18nModule, LocalizationError, Localizer, SyncFluentBundle};
 use fluent_bundle::{FluentError, FluentResource, FluentValue};
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use rust_embed::RustEmbed;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io;
@@ -86,10 +86,16 @@ pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
 
 pub struct EmbeddedLocalizer<T: EmbeddedAssets> {
     data: &'static ModuleData,
-    current_bundle: RwLock<Option<Arc<SyncFluentBundle>>>,
-    current_lang: RwLock<Option<LanguageIdentifier>>,
-    current_locale_resources: RwLock<Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)>>,
+    state: RwLock<EmbeddedLocalizerState>,
+    selection_lock: Mutex<()>,
     _phantom: std::marker::PhantomData<T>,
+}
+
+#[derive(Clone, Default)]
+struct EmbeddedLocalizerState {
+    current_bundle: Option<Arc<SyncFluentBundle>>,
+    current_lang: Option<LanguageIdentifier>,
+    current_locale_resources: Vec<(LanguageIdentifier, Vec<Arc<FluentResource>>)>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -156,9 +162,8 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
     pub fn new(data: &'static ModuleData) -> Self {
         Self {
             data,
-            current_bundle: RwLock::new(None),
-            current_lang: RwLock::new(None),
-            current_locale_resources: RwLock::new(Vec::new()),
+            state: RwLock::new(EmbeddedLocalizerState::default()),
+            selection_lock: Mutex::new(()),
             _phantom: std::marker::PhantomData,
         }
     }
@@ -217,9 +222,9 @@ impl<T: EmbeddedAssets> EmbeddedLocalizer<T> {
 
 impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
     fn select_language(&self, lang: &LanguageIdentifier) -> Result<(), LocalizationError> {
-        let mut current_lang_guard = self.current_lang.write();
+        let _selection_guard = self.selection_lock.lock();
 
-        if current_lang_guard.as_ref() == Some(lang) {
+        if self.state.read().current_lang.as_ref() == Some(lang) {
             return Ok(());
         }
 
@@ -262,9 +267,11 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         }
 
         if let Some(bundle) = current_bundle {
-            *self.current_bundle.write() = Some(bundle);
-            *self.current_locale_resources.write() = locale_resources;
-            *current_lang_guard = Some(lang.clone());
+            *self.state.write() = EmbeddedLocalizerState {
+                current_bundle: Some(bundle),
+                current_lang: Some(lang.clone()),
+                current_locale_resources: locale_resources,
+            };
             return Ok(());
         }
 
@@ -278,7 +285,15 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
         id: &str,
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
-        if let Some(bundle) = self.current_bundle.read().as_ref()
+        let (bundle, locale_resources) = {
+            let state = self.state.read();
+            (
+                state.current_bundle.clone(),
+                state.current_locale_resources.clone(),
+            )
+        };
+
+        if let Some(bundle) = bundle.as_ref()
             && let Some((value, errors)) =
                 crate::localization::localize_with_bundle(bundle.as_ref(), id, args)
         {
@@ -290,7 +305,6 @@ impl<T: EmbeddedAssets> Localizer for EmbeddedLocalizer<T> {
             return Some(value);
         }
 
-        let locale_resources = self.current_locale_resources.read();
         let (value, errors) = crate::localization::localize_with_fallback_resources(
             locale_resources.as_slice(),
             id,
