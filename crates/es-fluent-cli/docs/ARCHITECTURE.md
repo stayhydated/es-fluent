@@ -9,7 +9,7 @@ support crates around it.
 
 1. **Runner-backed commands**: `generate`, `clean`, `check`, `status`, and the
    generation loop inside `watch`
-1. **Direct FTL commands**: `format`, `sync`, `add-locale`, `tree`, and `doctor`
+1. **Direct FTL commands**: `fmt`, `sync`, `add-locale`, `tree`, and `doctor`
 
 Runner-backed commands need access to inventory registrations emitted by user
 crates, so the CLI prepares a monolithic `.es-fluent/` runner workspace and
@@ -28,7 +28,7 @@ flowchart TD
     subgraph CLI["es-fluent-cli"]
         DISCOVER["workspace discovery"]
         RUNNERCMDS["generate / clean / check / watch"]
-        DIRECT["format / sync / tree"]
+        DIRECT["fmt / sync / tree"]
         CACHE["runner + metadata caches"]
     end
 
@@ -66,8 +66,8 @@ flowchart TD
 | `clean`      | Yes               | Runner-backed       | Uses the same runner workspace and reads `result.json`                                        |
 | `check`      | Yes               | Mixed               | Runner collects inventory into `inventory.json`; the CLI then validates `.ftl` files directly |
 | `watch`      | Yes               | Runner-backed + TUI | Reuses `generate` requests behind a debounced file watcher                                    |
-| `status`     | Yes               | Mixed               | Runs read-only generate/check probes plus direct format/sync/orphan probes                    |
-| `format`     | No                | Direct              | Parses existing `.ftl` files and rewrites them with shared formatting logic                   |
+| `status`     | Yes               | Mixed               | Runs read-only generate/check probes plus direct formatting/sync/orphan probes                |
+| `fmt`        | No                | Direct              | Parses existing `.ftl` files and rewrites them with shared formatting logic                   |
 | `sync`       | No                | Direct              | Copies missing keys from the fallback locale into target locales                              |
 | `add-locale` | No                | Direct              | Creates target locale directories and seeds them via the sync merge path                      |
 | `tree`       | No                | Direct              | Parses `.ftl` files and renders a structural tree view                                        |
@@ -111,7 +111,7 @@ staleness cache when needed.
 
 The direct commands stay entirely inside `es-fluent-cli`:
 
-- `format` walks crate-local `.ftl` files and uses `es-fluent-generate::formatting`
+- `fmt` walks crate-local `.ftl` files and uses `es-fluent-generate::formatting`
   to sort and normalize entries, with dry-run diffs produced in the CLI process
 - `sync` reads fallback-locale files and fills missing keys in target locales
   only when the caller chooses `--locale` or `--all`; `--create` allows missing
@@ -124,7 +124,7 @@ The direct commands stay entirely inside `es-fluent-cli`:
 - `doctor` reads manifests and scaffolded files to report setup issues without
   running user code
 
-`check`, `format`, `sync`, `tree`, `doctor`, and `status` support
+`check`, `fmt`, `sync`, `tree`, `doctor`, and `status` support
 `--output json` for CI and editor integrations. JSON mode suppresses human
 headers and progress output so stdout remains machine-readable.
 
@@ -180,7 +180,7 @@ A few implementation areas are intentionally split into smaller modules:
 - `commands/check/validation/`: loaded-FTL validation and diagnostic formatting
 - `tui/watcher/`: watch-mode event filtering, runtime state, and background
   generation scheduling
-- `ftl/`: direct file-discovery and parsing utilities used by `format`, `sync`,
+- `ftl/`: direct file-discovery and parsing utilities used by `fmt`, `sync`,
   `tree`, and parts of `check`
 
 ## Limitations

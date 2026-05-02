@@ -181,12 +181,12 @@ This compares files in non-fallback locales against the configured fallback loca
 
 Use `--dry-run` to preview which files would be removed without actually deleting them.
 
-### Format
+### Fmt
 
 Standardize the formatting of your FTL files using `fluent-syntax` rules:
 
 ```sh
-cargo es-fluent format
+cargo es-fluent fmt
 ```
 
 Use `--dry-run` to preview changes and print diffs without writing them. Use
@@ -264,7 +264,7 @@ cargo es-fluent check --all --output json
 cargo es-fluent status --all --output json
 ```
 
-`--output json` is supported by `check`, `format`, `sync`, `tree`, `doctor`,
+`--output json` is supported by `check`, `fmt`, `sync`, `tree`, `doctor`,
 and `status`.
 
 ## CI/CD Integration

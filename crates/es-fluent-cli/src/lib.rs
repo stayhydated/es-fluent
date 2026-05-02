@@ -54,7 +54,7 @@ enum Commands {
     Clean(CleanArgs),
 
     /// Format FTL files (sort keys A-Z)
-    #[command(name = "format")]
+    #[command(name = "fmt")]
     Fmt(FormatArgs),
 
     /// Check FTL files for missing keys and variables
@@ -158,11 +158,20 @@ mod tests {
     }
 
     #[test]
-    fn cli_parses_format_command() {
-        let cli = Cli::try_parse_from(["cargo", "es-fluent", "format"]).expect("parse");
+    fn cli_parses_fmt_command() {
+        let cli = Cli::try_parse_from(["cargo", "es-fluent", "fmt"]).expect("parse");
         let CargoCommand::EsFluent { command, e2e } = cli.command;
         assert!(!e2e);
         assert!(matches!(command, Commands::Fmt(_)));
+    }
+
+    #[test]
+    fn cli_rejects_old_format_command_name() {
+        let error = match Cli::try_parse_from(["cargo", "es-fluent", "format"]) {
+            Ok(_) => panic!("old format command name should be rejected"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
     }
 
     #[test]

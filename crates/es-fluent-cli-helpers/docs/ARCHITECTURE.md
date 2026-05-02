@@ -13,7 +13,7 @@ logic for the runner-backed commands:
 - `clean`
 - `check`
 
-It does not implement the CLI's direct filesystem commands such as `format`,
+It does not implement the CLI's direct filesystem commands such as `fmt`,
 `sync`, or `tree`.
 
 ## Architecture

@@ -7,7 +7,7 @@
 
 This crate turns `FtlTypeInfo` inventories into deterministic `.ftl` files. It
 powers the CLI's runner-backed `generate` and `clean` flows and also exposes the
-formatting helpers used by the CLI's direct `format` command.
+formatting helpers used by the CLI's direct `fmt` command.
 
 ## What it does
 

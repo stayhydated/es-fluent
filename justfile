@@ -6,7 +6,7 @@ default:
 fmt:
     cargo sort-derives
     cargo fmt
-    cargo es-fluent-local format --all
+    cargo es-fluent-local fmt --all
     bun run fmt
     taplo fmt
     rumdl fmt .
