@@ -8,6 +8,7 @@ use gpui::{
 };
 use gpui_component::{button::Button, label::Label};
 use gpui_example::{GpuiScreenMessages, i18n};
+use tracing_subscriber::{EnvFilter, filter::LevelFilter};
 
 mod i18n_global {
     use super::i18n;
@@ -20,6 +21,8 @@ mod i18n_global {
 actions!(gpui_example, [CycleLocale]);
 
 fn main() {
+    init_tracing();
+
     let app = gpui_platform::application();
     app.run(|cx: &mut App| {
         let default_language = Languages::default();
@@ -43,6 +46,13 @@ fn main() {
         )
         .unwrap();
     });
+}
+
+fn init_tracing() {
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy();
+    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
 struct GpuiExampleView {

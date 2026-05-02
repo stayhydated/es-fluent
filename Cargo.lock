@@ -5131,6 +5131,7 @@ dependencies = [
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
  "tempfile",
+ "tracing",
  "trybuild",
  "unic-langid",
 ]
@@ -6336,6 +6337,7 @@ dependencies = [
  "gpui 0.2.2 (git+https://github.com/zed-industries/zed?rev=f7d46cf7d02c88d3d71ec495a31d7f19bd5eb96b)",
  "gpui-component",
  "gpui_platform",
+ "tracing-subscriber",
 ]
 
 [[package]]

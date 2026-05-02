@@ -4,6 +4,7 @@ use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue}
 use es_fluent_manager_core::{FluentManager, ModuleDiscoveryError};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::info;
 use unic_langid::LanguageIdentifier;
 
 #[doc(hidden)]
@@ -111,7 +112,9 @@ impl EmbeddedI18n {
         &self,
         lang: L,
     ) -> Result<(), LocalizationError> {
-        self.manager.select_language(&lang.into())
+        let lang = lang.into();
+        info!("Changing locale to: {}", lang);
+        self.manager.select_language(&lang)
     }
 
     /// Selects the active language for this context and fails if any runtime
@@ -120,7 +123,9 @@ impl EmbeddedI18n {
         &self,
         lang: L,
     ) -> Result<(), LocalizationError> {
-        self.manager.select_language_strict(&lang.into())
+        let lang = lang.into();
+        info!("Changing locale to: {}", lang);
+        self.manager.select_language_strict(&lang)
     }
 
     /// Renders a derived typed message through this context.

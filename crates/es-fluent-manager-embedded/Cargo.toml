@@ -19,6 +19,7 @@ macros = [ "es-fluent-manager-macros" ]
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
+tracing = { workspace = true }
 unic-langid = { workspace = true }
 
 [dev-dependencies]

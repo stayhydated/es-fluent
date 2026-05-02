@@ -287,8 +287,8 @@ impl FluentManager {
                     if module.contributes_to_language_selection() {
                         any_contributing_selected = true;
                     } else {
-                        tracing::debug!(
-                            "Module '{}' follows language '{}' but does not count toward locale support",
+                        tracing::trace!(
+                            "Activated non-selecting i18n module '{}' for language '{}'",
                             data.name,
                             lang
                         );
