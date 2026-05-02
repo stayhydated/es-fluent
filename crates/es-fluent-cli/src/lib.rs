@@ -132,8 +132,9 @@ pub(crate) mod test_fixtures;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::{OutputFormat, WorkspaceArgs};
+    use crate::commands::{InitManager, OutputFormat, WorkspaceArgs};
     use crate::core::FluentParseMode;
+    use clap::CommandFactory as _;
     mod fixtures {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -141,10 +142,92 @@ mod tests {
         ));
     }
 
+    const EXPECTED_SUBCOMMANDS: &[&str] = &[
+        "generate",
+        "init",
+        "watch",
+        "clean",
+        "fmt",
+        "check",
+        "doctor",
+        "status",
+        "sync",
+        "add-locale",
+        "tree",
+    ];
+
     fn missing_package_workspace_args(path: &std::path::Path) -> WorkspaceArgs {
         WorkspaceArgs {
             path: Some(path.to_path_buf()),
             package: Some("missing-package".to_string()),
+        }
+    }
+
+    fn parsed_subcommand_name(args: &[&str]) -> &'static str {
+        let cli = Cli::try_parse_from(
+            ["cargo", "es-fluent"]
+                .into_iter()
+                .chain(args.iter().copied()),
+        )
+        .expect("subcommand should parse");
+
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(!e2e);
+
+        match command {
+            Commands::Generate(_) => "generate",
+            Commands::Init(_) => "init",
+            Commands::Watch(_) => "watch",
+            Commands::Clean(_) => "clean",
+            Commands::Fmt(_) => "fmt",
+            Commands::Check(_) => "check",
+            Commands::Doctor(_) => "doctor",
+            Commands::Status(_) => "status",
+            Commands::Sync(_) => "sync",
+            Commands::AddLocale(_) => "add-locale",
+            Commands::Tree(_) => "tree",
+        }
+    }
+
+    #[test]
+    fn clap_help_exposes_the_expected_subcommand_surface() {
+        let cli = Cli::command();
+        let es_fluent = cli
+            .get_subcommands()
+            .find(|command| command.get_name() == "es-fluent")
+            .expect("cargo es-fluent subcommand should exist");
+        let actual = es_fluent
+            .get_subcommands()
+            .map(clap::Command::get_name)
+            .collect::<Vec<_>>();
+
+        assert_eq!(actual, EXPECTED_SUBCOMMANDS);
+    }
+
+    #[test]
+    fn cli_parses_every_public_subcommand() {
+        let cases: &[(&[&str], &str)] = &[
+            (&["generate"], "generate"),
+            (&["init"], "init"),
+            (&["watch"], "watch"),
+            (&["clean"], "clean"),
+            (&["fmt"], "fmt"),
+            (&["check"], "check"),
+            (&["doctor"], "doctor"),
+            (&["status"], "status"),
+            (&["sync", "--all"], "sync"),
+            (&["add-locale", "fr-FR"], "add-locale"),
+            (&["tree"], "tree"),
+        ];
+
+        let parsed = cases
+            .iter()
+            .map(|(args, _)| parsed_subcommand_name(args))
+            .collect::<Vec<_>>();
+
+        assert_eq!(parsed, EXPECTED_SUBCOMMANDS);
+        for (args, expected) in cases {
+            assert_eq!(parsed_subcommand_name(args), *expected);
         }
     }
 
@@ -175,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_handles_all_commands_without_matching_packages() {
+    fn dispatch_handles_all_commands_on_noninteractive_paths() {
         let temp = fixtures::create_workspace();
         let workspace = missing_package_workspace_args(temp.path());
 
@@ -185,6 +268,24 @@ mod tests {
                 mode: FluentParseMode::default(),
                 dry_run: false,
                 force_run: false,
+            }))
+            .is_ok()
+        );
+
+        let init_root = tempfile::tempdir().expect("init tempdir");
+        assert!(
+            dispatch(Commands::Init(InitArgs {
+                path: Some(init_root.path().to_path_buf()),
+                fallback_language: "en".to_string(),
+                locales: vec!["fr-FR".to_string()],
+                assets_dir: std::path::PathBuf::from("assets/locales"),
+                namespaces: vec!["ui".to_string()],
+                manager: InitManager::Embedded,
+                dioxus_runtime: Vec::new(),
+                build_rs: true,
+                update_cargo_toml: false,
+                dry_run: true,
+                force: false,
             }))
             .is_ok()
         );
@@ -232,6 +333,16 @@ mod tests {
         assert!(
             dispatch(Commands::Doctor(DoctorArgs {
                 workspace: workspace.clone(),
+                output: OutputFormat::Text,
+            }))
+            .is_ok()
+        );
+
+        assert!(
+            dispatch(Commands::Status(StatusArgs {
+                workspace: workspace.clone(),
+                all: false,
+                force_run: false,
                 output: OutputFormat::Text,
             }))
             .is_ok()
