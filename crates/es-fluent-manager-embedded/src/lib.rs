@@ -3,7 +3,7 @@
 use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
 use es_fluent_manager_core::{FluentManager, ModuleDiscoveryError};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tracing::info;
 use unic_langid::LanguageIdentifier;
 
@@ -56,6 +56,18 @@ impl std::error::Error for EmbeddedInitError {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum EmbeddedSelectionPolicy {
+    BestEffort,
+    Strict,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ActiveSelection {
+    language: LanguageIdentifier,
+    policy: EmbeddedSelectionPolicy,
+}
+
 /// Explicit embedded localization context.
 ///
 /// Construct this once during application startup, keep it in application state,
@@ -64,13 +76,49 @@ impl std::error::Error for EmbeddedInitError {
 #[derive(Clone)]
 pub struct EmbeddedI18n {
     manager: Arc<FluentManager>,
+    active_selection: Arc<RwLock<Option<ActiveSelection>>>,
 }
 
 impl EmbeddedI18n {
     fn from_manager(manager: FluentManager) -> Self {
+        Self::from_manager_with_active_selection(manager, None)
+    }
+
+    fn from_manager_with_active_selection(
+        manager: FluentManager,
+        active_selection: Option<ActiveSelection>,
+    ) -> Self {
         Self {
             manager: Arc::new(manager),
+            active_selection: Arc::new(RwLock::new(active_selection)),
         }
+    }
+
+    fn language_is_active(
+        &self,
+        lang: &LanguageIdentifier,
+        policy: EmbeddedSelectionPolicy,
+    ) -> bool {
+        let active_selection = self
+            .active_selection
+            .read()
+            .unwrap_or_else(|error| error.into_inner());
+
+        active_selection
+            .as_ref()
+            .is_some_and(|selection| selection.language == *lang && selection.policy == policy)
+    }
+
+    fn store_active_language(&self, lang: LanguageIdentifier, policy: EmbeddedSelectionPolicy) {
+        let mut active_selection = self
+            .active_selection
+            .write()
+            .unwrap_or_else(|error| error.into_inner());
+
+        *active_selection = Some(ActiveSelection {
+            language: lang,
+            policy,
+        });
     }
 
     /// Builds an embedded context without selecting a language.
@@ -90,7 +138,13 @@ impl EmbeddedI18n {
         manager
             .select_language(&lang)
             .map_err(EmbeddedInitError::LanguageSelection)?;
-        Ok(Self::from_manager(manager))
+        Ok(Self::from_manager_with_active_selection(
+            manager,
+            Some(ActiveSelection {
+                language: lang,
+                policy: EmbeddedSelectionPolicy::BestEffort,
+            }),
+        ))
     }
 
     /// Builds an embedded context and selects the initial active language,
@@ -104,7 +158,13 @@ impl EmbeddedI18n {
         manager
             .select_language_strict(&lang)
             .map_err(EmbeddedInitError::LanguageSelection)?;
-        Ok(Self::from_manager(manager))
+        Ok(Self::from_manager_with_active_selection(
+            manager,
+            Some(ActiveSelection {
+                language: lang,
+                policy: EmbeddedSelectionPolicy::Strict,
+            }),
+        ))
     }
 
     /// Selects the active language for this context.
@@ -113,8 +173,14 @@ impl EmbeddedI18n {
         lang: L,
     ) -> Result<(), LocalizationError> {
         let lang = lang.into();
+        if self.language_is_active(&lang, EmbeddedSelectionPolicy::BestEffort) {
+            return Ok(());
+        }
+
         info!("Changing locale to: {}", lang);
-        self.manager.select_language(&lang)
+        self.manager.select_language(&lang)?;
+        self.store_active_language(lang, EmbeddedSelectionPolicy::BestEffort);
+        Ok(())
     }
 
     /// Selects the active language for this context and fails if any runtime
@@ -124,8 +190,14 @@ impl EmbeddedI18n {
         lang: L,
     ) -> Result<(), LocalizationError> {
         let lang = lang.into();
+        if self.language_is_active(&lang, EmbeddedSelectionPolicy::Strict) {
+            return Ok(());
+        }
+
         info!("Changing locale to: {}", lang);
-        self.manager.select_language_strict(&lang)
+        self.manager.select_language_strict(&lang)?;
+        self.store_active_language(lang, EmbeddedSelectionPolicy::Strict);
+        Ok(())
     }
 
     /// Renders a derived typed message through this context.
