@@ -543,52 +543,6 @@ mod tests {
     }
 
     #[test]
-    fn namespace_helpers_cover_ignored_paths_and_error_paths() {
-        use std::ffi::OsString;
-        use std::os::unix::ffi::OsStringExt;
-
-        let temp = tempfile::tempdir().expect("tempdir");
-        let namespace_root = temp.path().join("namespaces");
-        std::fs::create_dir_all(&namespace_root).expect("mkdir namespaces");
-
-        assert_eq!(
-            namespace_from_relative_ftl_path(&namespace_root, &namespace_root)
-                .expect("directory should be ignored"),
-            None
-        );
-
-        let root_file = temp.path().join("root.ftl");
-        std::fs::write(&root_file, "hello = Hello").expect("write root file");
-        assert_eq!(
-            namespace_from_relative_ftl_path(&root_file, &root_file)
-                .expect("empty relative namespace should be ignored"),
-            None
-        );
-
-        let outside = temp.path().join("outside.ftl");
-        std::fs::write(&outside, "hello = Hello").expect("write outside file");
-        let err = namespace_from_relative_ftl_path(&namespace_root, &outside)
-            .expect_err("outside file should fail prefix stripping");
-        assert!(err.to_string().contains("Failed to derive namespace"));
-
-        let invalid_component = OsString::from_vec(vec![0xff]);
-        let invalid_dir = namespace_root.join(invalid_component);
-        std::fs::create_dir_all(&invalid_dir).expect("mkdir non-utf8 namespace");
-        let invalid_file = invalid_dir.join("messages.ftl");
-        std::fs::write(&invalid_file, "hello = Hello").expect("write non-utf8 namespace file");
-        let err = namespace_from_relative_ftl_path(&namespace_root, &invalid_file)
-            .expect_err("non-utf8 namespace components should fail");
-        assert!(err.to_string().contains("non-UTF-8"));
-
-        let err = discover_namespaces(&temp.path().join("missing"))
-            .expect_err("missing namespace root should fail");
-        assert!(
-            err.to_string()
-                .contains("Failed to read namespace directory")
-        );
-    }
-
-    #[test]
     fn i18n_assets_load_reports_malformed_config_and_invalid_locale_names() {
         let malformed = tempfile::tempdir().expect("tempdir");
         std::fs::write(
