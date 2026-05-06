@@ -19,7 +19,6 @@ file_watcher = [ "bevy/file_watcher" ]
 macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
-arc-swap = { workspace = true }
 bevy = { workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }

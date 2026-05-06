@@ -25,7 +25,6 @@ test-dioxus-manager-feature-matrix:
     cargo test -p es-fluent-manager-dioxus --no-default-features --features client
     cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
     cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
-    cargo check -p dioxus-client-example --target wasm32-unknown-unknown
 
 cov:
     cargo llvm-cov --workspace --exclude xtask --exclude web --all-features --all-targets

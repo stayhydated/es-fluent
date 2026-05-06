@@ -16,14 +16,9 @@ members = [
   "crates/es-fluent-manager-embedded",
   "crates/es-fluent-manager-bevy",
   "crates/es-fluent-manager-dioxus",
-  "examples/first-example",
-  "examples/thiserror-example",
   "examples/example-shared-lib",
-  "examples/feature-gated-example",
   "examples/bevy-example",
   "examples/gpui-example",
-  "examples/dioxus-client-example",
-  "examples/dioxus-ssr-example",
   "examples/readme",
   "web",
   "xtask",
@@ -41,8 +36,7 @@ version = "0.16.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
-arc-swap = "1.8"
-askama = "0.15"
+askama = "0.16"
 assert_cmd = "2.1"
 assert_fs = "1.1"
 bevy = "0.18"
@@ -126,16 +120,16 @@ schemars = "1.1"
 serde = "1.0"
 serde_json = "1.0"
 serial_test = "3.4"
-similar = "2.7"
-strum = "0.27"
+similar = "3.1"
+strum = "0.28"
 syn = "2.0"
 temp-env = "0.3"
 tempfile = "3"
 terminal-link = "0.1"
 thiserror = "2.0"
-throbber-widgets-tui = "0.10"
+throbber-widgets-tui = "0.11"
 toml = "1.0"
-toml_edit = "0.23"
+toml_edit = "0.25"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 treelog = "0.0.6"

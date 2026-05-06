@@ -20,8 +20,6 @@ This framework gives you:
 ## Examples
 
 - [bevy](../../examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
-- [dioxus client](../../examples/dioxus-client-example)
-- [dioxus SSR](../../examples/dioxus-ssr-example)
 - [gpui](../../examples/gpui-example)
 
 ## Used in

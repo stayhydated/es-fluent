@@ -9,6 +9,5 @@ anyhow = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 mdbook-driver = { workspace = true }
 path-slash = { workspace = true }
-tempfile = { workspace = true }
 walkdir = { workspace = true }
 web = { workspace = true }

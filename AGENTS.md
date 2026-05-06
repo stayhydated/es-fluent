@@ -170,26 +170,11 @@ Additional rules:
 
 ### Examples and web surfaces
 
-- `examples/first-example`
-  Minimal getting-started example using the embedded manager.
-
-- `examples/thiserror-example`
-  Demonstrates `thiserror` integration with localizable error types.
-
 - `examples/example-shared-lib`
   Shared example library used by multiple examples.
 
-- `examples/feature-gated-example`
-  Demonstrates feature-gated `es-fluent` derives and configuration.
-
 - `examples/bevy-example`
   Bevy integration example using `es-fluent-manager-bevy`.
-
-- `examples/dioxus-client-example`
-  Dioxus client integration example using the hook runtime.
-
-- `examples/dioxus-ssr-example`
-  Dioxus SSR integration example using the request-scoped runtime.
 
 - `examples/gpui-example`
   GPUI integration example using `es-fluent-manager-embedded`.

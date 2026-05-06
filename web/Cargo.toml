@@ -18,9 +18,8 @@ dioxus-server = { optional = true, workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { features = [ "localized-langs" ], workspace = true }
 es-fluent-manager-dioxus = { features = [ "client", "ssr" ], workspace = true }
-rust-embed = { features = [ "debug-embed" ], workspace = true }
+#rust-embed = { features = [ "debug-embed" ], workspace = true }
 strum = { features = [ "derive" ], workspace = true }
-unic-langid = { workspace = true }
 
 [build-dependencies]
 es-fluent = { features = [ "build" ], workspace = true }
