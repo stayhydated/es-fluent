@@ -1,6 +1,7 @@
-use darling::FromDeriveInput;
+use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
-    EnumDataOptions, FluentField, GeneratedVariantsOptions, StructDataOptions, VariantFields,
+    EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
+    VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
@@ -62,7 +63,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
     let data = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Data")
+        .find(|variant| *variant.ident() == "Data")
         .expect("Data variant should exist");
     assert!(matches!(data.style(), darling::ast::Style::Struct));
     assert_eq!(data.fields().len(), 1);
@@ -76,7 +77,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
     let tuple = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "TupleVariant")
+        .find(|variant| *variant.ident() == "TupleVariant")
         .expect("TupleVariant should exist");
     assert!(matches!(tuple.style(), darling::ast::Style::Tuple));
     assert_eq!(tuple.fields().len(), 1);
@@ -86,7 +87,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
 }
 
 #[test]
-fn es_fluent_enum_attributes_this_choice_snapshot() {
+fn es_fluent_enum_attributes_label_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         enum Status {
@@ -108,7 +109,7 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
     let mixed = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Mixed")
+        .find(|variant| *variant.ident() == "Mixed")
         .expect("Mixed variant should exist");
     assert!(matches!(mixed.style(), darling::ast::Style::Tuple));
     assert_eq!(mixed.fields().len(), 1);
@@ -119,7 +120,7 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
     let info = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Info")
+        .find(|variant| *variant.ident() == "Info")
         .expect("Info variant should exist");
     assert!(matches!(info.style(), darling::ast::Style::Struct));
     assert_eq!(info.fields().len(), 2);
@@ -136,7 +137,7 @@ fn es_fluent_enum_attributes_this_choice_snapshot() {
 }
 
 #[test]
-fn es_fluent_struct_attributes_this_with_derive_snapshot() {
+fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         #[fluent(derive(Debug, Clone))]
@@ -225,7 +226,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
             host: String,
             port: u16,
             #[fluent_variants(skip)]
-            deprecated: bool,
+            archived: bool,
         }
     };
 
@@ -252,13 +253,13 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
     assert_eq!(all_fields.len(), 3);
     assert_eq!(
         all_fields[2].1.ident().expect("named field").to_string(),
-        "deprecated"
+        "archived"
     );
     assert!(all_fields[2].1.is_skipped());
 }
 
 #[test]
-fn es_fluent_variants_attributes_keys_this_derive_default_snapshot() {
+fn es_fluent_variants_attributes_keys_label_derive_default_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentVariants)]
         #[fluent_variants(keys = ["primary", "secondary"], derive(Debug, PartialEq))]

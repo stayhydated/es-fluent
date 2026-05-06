@@ -1,0 +1,9 @@
+---
+source: crates/es-fluent-generate/tests/generate_tests.rs
+expression: content
+---
+## Fruit
+
+fruit_label = Label
+fruit-Apple = Apple
+fruit-Banana = Banana

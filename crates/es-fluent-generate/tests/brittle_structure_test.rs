@@ -1,8 +1,6 @@
 mod common;
 mod fixtures;
-
-use common::{enum_type, ftl_key, leak_slice, variant};
-use es_fluent_generate::{FluentParseMode, generate};
+use es_fluent_generate::FluentParseMode;
 use fixtures::GROUP_ORDERING;
 use std::fs;
 use tempfile::TempDir;
@@ -20,17 +18,17 @@ fn test_conservative_mode_preserves_structure() {
 
     // Define items corresponding to GroupA and GroupB
     // Add a NEW key to GroupA (Key2)
-    let key_a_1 = variant("Key1", &ftl_key("GroupA", "Key1"));
-    let key_a_2 = variant("Key2", &ftl_key("GroupA", "Key2"));
-    let group_a = enum_type("GroupA", vec![key_a_1, key_a_2]);
+    let key_a_1 = common::variant("Key1", &common::ftl_key("GroupA", "Key1"));
+    let key_a_2 = common::variant("Key2", &common::ftl_key("GroupA", "Key2"));
+    let group_a = common::enum_type("GroupA", vec![key_a_1, key_a_2]);
 
-    let key_b_1 = variant("Key1", &ftl_key("GroupB", "Key1"));
-    let group_b = enum_type("GroupB", vec![key_b_1]);
+    let key_b_1 = common::variant("Key1", &common::ftl_key("GroupB", "Key1"));
+    let group_b = common::enum_type("GroupB", vec![key_b_1]);
 
-    let items = leak_slice(vec![group_a, group_b]);
+    let items = common::leak_slice(vec![group_a, group_b]);
 
     // Run generate in Conservative mode
-    generate(
+    es_fluent_generate::generate(
         crate_name,
         &i18n_path,
         temp_dir.path(),

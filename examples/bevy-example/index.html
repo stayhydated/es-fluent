@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>es-fluent Bevy demo</title>
+    <base data-trunk-public-url />
+    <link data-trunk rel="copy-dir" href="../assets" data-target-path="assets" />
+    <link data-trunk rel="rust" data-bin="bevy-example" data-initializer="trunk-init.js" />
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at top, rgba(74, 142, 255, 0.26), transparent 50%),
+          linear-gradient(180deg, #0a1420 0%, #050b14 100%);
+      }
+
+      canvas {
+        position: fixed;
+        inset: 0;
+        width: 100vw !important;
+        height: 100vh !important;
+        display: block;
+      }
+
+      #bevy-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        padding: 1.5rem;
+        transition: opacity 180ms ease;
+      }
+
+      #bevy-loader[data-state="ready"] {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .loader-card {
+        width: min(24rem, 100%);
+        padding: 1.5rem;
+        border: 1px solid rgba(142, 178, 255, 0.18);
+        border-radius: 1.25rem;
+        background: rgba(8, 16, 28, 0.84);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+        text-align: center;
+        backdrop-filter: blur(18px);
+      }
+
+      .loader-kicker {
+        font-size: 0.78rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #8eb2ff;
+      }
+
+      .loader-title {
+        margin: 0.5rem 0 0;
+        font-size: clamp(1.9rem, 6vw, 2.5rem);
+      }
+
+      .loader-copy {
+        margin: 0.75rem 0 0;
+        color: rgba(232, 239, 250, 0.78);
+      }
+
+      .status-line {
+        display: none;
+        margin: 0.6rem 0 0;
+        color: #f5f8ff;
+      }
+
+      #bevy-loader[data-state="loading"] .status-line[data-state="loading"],
+      #bevy-loader[data-state="error"] .status-line[data-state="error"] {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bevy-loader" data-state="loading">
+      <div class="loader-card">
+        <div class="loader-kicker">Browser demo</div>
+        <h1 class="loader-title">Bevy</h1>
+        <p class="loader-copy">Launching the localized Bevy example with Trunk-managed assets.</p>
+        <p class="status-line" data-state="loading" id="bevy-progress">Loading demo...</p>
+        <p class="status-line" data-state="error">The demo failed to start.</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,10 +1,8 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::options::namespace::NamespaceValue;
 use es_fluent_derive_core::options::{
     FluentField, GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
 };
-use es_fluent_shared::namer;
-use heck::ToSnakeCase as _;
+use es_fluent_shared::{namer, namespace::NamespaceRule};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput};
@@ -23,10 +21,11 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub ident: &'a syn::Ident,
     pub origin_ident: &'a syn::Ident,
     pub key_name: Option<&'a str>,
+    pub domain_override: Option<&'a str>,
     pub derives: &'a [syn::Path],
     pub variants: &'a [GeneratedUnitEnumVariant],
     pub namespace_expr: TokenStream,
-    pub this_key: Option<String>,
+    pub label_key: Option<String>,
 }
 
 pub fn keyed_variant_idents_or_abort(opts: &impl GeneratedVariantsOptions) -> Vec<syn::Ident> {
@@ -56,8 +55,8 @@ pub fn emit_default_or_keyed_items(
     }
 }
 
-/// Generates the `ThisFtl` trait implementation.
-pub fn generate_this_ftl_impl(
+/// Generates the `FluentLabel` trait implementation.
+pub fn generate_localize_label_impl(
     ident: &syn::Ident,
     generics: &syn::Generics,
     ftl_key: Option<&str>,
@@ -73,27 +72,53 @@ pub fn generate_this_ftl_impl(
         None => quote! { env!("CARGO_PKG_NAME") },
     };
     quote! {
-        impl #impl_generics ::es_fluent::ThisFtl for #ident #ty_generics #where_clause {
-            fn this_ftl() -> String {
-                ::es_fluent::localize_in_domain(#domain_expr, #ftl_key, None)
+        impl #impl_generics ::es_fluent::FluentLabel for #ident #ty_generics #where_clause {
+            fn localize_label<__EsFluentLocalizer: ::es_fluent::FluentLocalizer + ?Sized>(
+                localizer: &__EsFluentLocalizer,
+            ) -> String {
+                ::es_fluent::__private::localize_label(localizer, #domain_expr, #ftl_key)
             }
         }
     }
 }
 
 pub fn generate_field_value_expr(
+    field: &impl FluentField,
     access_expr: TokenStream,
     transform_arg_expr: TokenStream,
-    value_expr: Option<&syn::Expr>,
-    is_choice: bool,
 ) -> TokenStream {
-    if let Some(expr) = value_expr {
-        quote! { (#expr)(#transform_arg_expr) }
-    } else if is_choice {
-        quote! { { use ::es_fluent::EsFluentChoice as _; (#access_expr).as_fluent_choice() } }
+    if let Some(expr) = field.value() {
+        quote! {
+            ::es_fluent::__private::FluentArgumentValue::new((#expr)(#transform_arg_expr))
+        }
+    } else if field.is_choice() {
+        quote! {
+            ::es_fluent::__private::FluentArgumentValue::new({
+                use ::es_fluent::EsFluentChoice as _;
+                (#access_expr).as_fluent_choice()
+            })
+        }
+    } else if is_option_type(field.ty()) {
+        quote! {
+            ::es_fluent::__private::FluentOptionalArgumentValue::new((#transform_arg_expr).as_ref())
+        }
     } else {
-        quote! { (#access_expr).clone() }
+        quote! {
+            ::es_fluent::__private::FluentBorrowedArgumentValue::new(#transform_arg_expr)
+        }
     }
+}
+
+fn is_option_type(ty: &syn::Type) -> bool {
+    let syn::Type::Path(type_path) = ty else {
+        return false;
+    };
+
+    type_path
+        .path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "Option")
 }
 
 pub fn generate_field_argument(
@@ -102,12 +127,7 @@ pub fn generate_field_argument(
     access_expr: TokenStream,
     transform_arg_expr: TokenStream,
 ) -> FluentArgument {
-    let value_expr = generate_field_value_expr(
-        access_expr,
-        transform_arg_expr,
-        field.value(),
-        field.is_choice(),
-    );
+    let value_expr = generate_field_value_expr(field, access_expr, transform_arg_expr);
 
     FluentArgument {
         key: field.fluent_arg_name(index),
@@ -126,7 +146,7 @@ pub fn variant_ftl_key(
 ) -> String {
     let variant_key_suffix = override_key
         .map(str::to_owned)
-        .unwrap_or_else(|| variant_ident.to_string());
+        .unwrap_or_else(|| namer::rust_ident_name(variant_ident));
     namer::FluentKey::from(base_key)
         .join(&variant_key_suffix)
         .to_string()
@@ -145,37 +165,23 @@ pub fn inventory_variant_tokens(
     .tokens()
 }
 
-pub fn generate_from_impls(ident: &syn::Ident, generics: &syn::Generics) -> TokenStream {
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    quote! {
-        impl #impl_generics From<&#ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: &#ident #ty_generics) -> Self {
-                use ::es_fluent::ToFluentString as _;
-                value.to_fluent_string().into()
-            }
-        }
-
-        impl #impl_generics From<#ident #ty_generics> for ::es_fluent::FluentValue<'_> #where_clause {
-            fn from(value: #ident #ty_generics) -> Self {
-                (&value).into()
-            }
-        }
-    }
-}
-
-pub fn generate_fluent_display_impl(
+pub fn generate_fluent_message_impl(
     ident: &syn::Ident,
     generics: &syn::Generics,
     body: TokenStream,
 ) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let trait_impl = quote! { ::es_fluent::FluentDisplay };
-    let trait_fmt_fn_ident = quote! { fluent_fmt };
 
     quote! {
-        impl #impl_generics #trait_impl for #ident #ty_generics #where_clause {
-            fn #trait_fmt_fn_ident(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        impl #impl_generics ::es_fluent::FluentMessage for #ident #ty_generics #where_clause {
+            fn to_fluent_string_with(
+                &self,
+                localize: &mut dyn for<'__es_fluent_message> FnMut(
+                    &str,
+                    &str,
+                    Option<&::std::collections::HashMap<&str, ::es_fluent::FluentValue<'__es_fluent_message>>>,
+                ) -> String,
+            ) -> String {
                 #body
             }
         }
@@ -220,23 +226,26 @@ pub fn generate_unit_enum_definition(
     }
 }
 
-pub fn generate_optional_this_inventory_module(
+pub fn generate_optional_label_inventory_module(
     ident: &syn::Ident,
     namespace_expr: TokenStream,
-    this_key: Option<&str>,
+    label_key: Option<&str>,
 ) -> TokenStream {
-    let Some(this_key) = this_key else {
+    let Some(label_key) = label_key else {
         return quote! {};
     };
 
-    let this_variant =
-        inventory_variant_tokens(ident.to_string(), this_key.to_string(), Vec::new());
+    let label_variant = inventory_variant_tokens(
+        namer::rust_ident_name(ident),
+        label_key.to_string(),
+        Vec::new(),
+    );
 
     generate_inventory_module(InventoryModuleInput {
         ident,
-        module_name_prefix: "this_inventory",
+        module_name_prefix: "label_inventory",
         type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
-        variants: vec![this_variant],
+        variants: vec![label_variant],
         namespace_expr,
     })
 }
@@ -246,23 +255,24 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         ident,
         origin_ident,
         key_name,
+        domain_override,
         derives,
         variants,
         namespace_expr,
-        this_key,
+        label_key,
     } = input;
 
     let empty_generics = syn::Generics::default();
     let new_enum = generate_unit_enum_definition(ident, origin_ident, key_name, derives, variants);
-    let match_arms = variants
+    let localize_with_match_arms = variants
         .iter()
-        .map(GeneratedUnitEnumVariant::display_match_arm);
-    let display_impl = generate_fluent_display_impl(
+        .map(|variant| variant.localize_with_match_arm(domain_override));
+    let message_impl = generate_fluent_message_impl(
         ident,
         &empty_generics,
         quote! {
             match self {
-                #(#match_arms),*
+                #(#localize_with_match_arms),*
             }
         },
     );
@@ -276,40 +286,39 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
             .collect(),
         namespace_expr: namespace_expr.clone(),
     });
-    let this_impl = generate_this_ftl_impl(ident, &empty_generics, this_key.as_deref(), None);
-    let this_inventory =
-        generate_optional_this_inventory_module(ident, namespace_expr, this_key.as_deref());
-    let from_impls = generate_from_impls(ident, &empty_generics);
+    let label_impl = generate_localize_label_impl(
+        ident,
+        &empty_generics,
+        label_key.as_deref(),
+        domain_override,
+    );
+    let label_inventory =
+        generate_optional_label_inventory_module(ident, namespace_expr, label_key.as_deref());
 
     quote! {
         #new_enum
 
-        #display_impl
+        #message_impl
 
         #inventory_submit
 
-        #this_impl
-        #this_inventory
-
-        #from_impls
+        #label_impl
+        #label_inventory
     }
 }
 
-pub fn emit_display_inventory_and_from_impls(
+pub fn emit_message_inventory_impls(
     ident: &syn::Ident,
     generics: &syn::Generics,
-    display_body: TokenStream,
+    fluent_message_body: TokenStream,
     inventory_submit: TokenStream,
 ) -> TokenStream {
-    let display_impl = generate_fluent_display_impl(ident, generics, display_body);
-    let from_impls = generate_from_impls(ident, generics);
+    let message_impl = generate_fluent_message_impl(ident, generics, fluent_message_body);
 
     quote! {
-        #display_impl
+        #message_impl
 
         #inventory_submit
-
-        #from_impls
     }
 }
 
@@ -322,15 +331,12 @@ pub fn generate_inventory_module(input: InventoryModuleInput<'_>) -> TokenStream
         namespace_expr,
     } = input;
 
-    let type_name = ident.to_string();
-    let mod_name = format_ident!(
-        "__es_fluent_{}_{}",
-        module_name_prefix,
-        type_name.to_snake_case()
-    );
+    let type_name = namer::rust_ident_name(ident);
+    let mod_name = format_ident!("__es_fluent_{}_{}", module_name_prefix, type_name);
 
     quote! {
         #[doc(hidden)]
+        #[allow(non_snake_case)]
         mod #mod_name {
             use super::*;
 
@@ -353,23 +359,23 @@ pub fn generate_inventory_module(input: InventoryModuleInput<'_>) -> TokenStream
     }
 }
 
-pub fn namespace_rule_tokens(namespace: Option<&NamespaceValue>) -> TokenStream {
+pub fn namespace_rule_tokens(namespace: Option<&NamespaceRule>) -> TokenStream {
     match namespace {
-        Some(NamespaceValue::Literal(s)) => {
+        Some(NamespaceRule::Literal(s)) => {
             quote! {
                 Some(::es_fluent::registry::NamespaceRule::Literal(::std::borrow::Cow::Borrowed(#s)))
             }
         },
-        Some(NamespaceValue::File) => {
+        Some(NamespaceRule::File) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::File) }
         },
-        Some(NamespaceValue::FileRelative) => {
+        Some(NamespaceRule::FileRelative) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::FileRelative) }
         },
-        Some(NamespaceValue::Folder) => {
+        Some(NamespaceRule::Folder) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::Folder) }
         },
-        Some(NamespaceValue::FolderRelative) => {
+        Some(NamespaceRule::FolderRelative) => {
             quote! { Some(::es_fluent::registry::NamespaceRule::FolderRelative) }
         },
         None => quote! { None },
@@ -378,7 +384,7 @@ pub fn namespace_rule_tokens(namespace: Option<&NamespaceValue>) -> TokenStream 
 
 pub fn inherited_fluent_namespace(
     input: &DeriveInput,
-) -> Result<Option<NamespaceValue>, darling::Error> {
+) -> Result<Option<NamespaceRule>, darling::Error> {
     match &input.data {
         Data::Struct(_) => {
             StructOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
@@ -386,7 +392,9 @@ pub fn inherited_fluent_namespace(
         Data::Enum(_) => {
             EnumOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
         },
-        Data::Union(_) => panic!("namespace lookup is not supported for unions"),
+        Data::Union(_) => Err(darling::Error::custom(
+            "namespace lookup is not supported for unions",
+        )),
     }
 }
 
@@ -395,24 +403,21 @@ pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<String>, da
         Data::Struct(_) => Ok(None),
         Data::Enum(_) => EnumOpts::from_derive_input(input)
             .map(|opts| opts.attr_args().domain().map(str::to_owned)),
-        Data::Union(_) => panic!("domain lookup is not supported for unions"),
+        Data::Union(_) => Err(darling::Error::custom(
+            "domain lookup is not supported for unions",
+        )),
     }
 }
 
 pub fn preferred_namespace<'a>(
-    namespaces: impl IntoIterator<Item = Option<&'a NamespaceValue>>,
-) -> Option<&'a NamespaceValue> {
+    namespaces: impl IntoIterator<Item = Option<&'a NamespaceRule>>,
+) -> Option<&'a NamespaceRule> {
     namespaces.into_iter().flatten().next()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        generate_this_ftl_impl, inherited_fluent_domain, inherited_fluent_namespace,
-        preferred_namespace,
-    };
-    use crate::snapshot_support::pretty_file_tokens;
-    use es_fluent_derive_core::options::namespace::NamespaceValue;
+    use es_fluent_shared::namespace::NamespaceRule;
     use insta::assert_snapshot;
     use syn::parse_quote;
 
@@ -430,60 +435,65 @@ mod tests {
         };
 
         assert!(matches!(
-            inherited_fluent_namespace(&struct_input).expect("struct namespace"),
-            Some(NamespaceValue::Literal(value)) if value == "ui"
+            super::inherited_fluent_namespace(&struct_input).expect("struct namespace"),
+            Some(NamespaceRule::Literal(value)) if value == "ui"
         ));
         assert!(matches!(
-            inherited_fluent_namespace(&enum_input).expect("enum namespace"),
-            Some(NamespaceValue::Literal(value)) if value == "errors"
+            super::inherited_fluent_namespace(&enum_input).expect("enum namespace"),
+            Some(NamespaceRule::Literal(value)) if value == "errors"
         ));
     }
 
     #[test]
     fn preferred_namespace_picks_the_first_available_namespace() {
-        let parent = NamespaceValue::Literal("parent".into());
-        let child = NamespaceValue::Literal("child".into());
-        let fallback = NamespaceValue::Literal("fallback".into());
+        let parent = NamespaceRule::Literal("parent".into());
+        let child = NamespaceRule::Literal("child".into());
+        let fallback = NamespaceRule::Literal("fallback".into());
 
         assert_eq!(
-            preferred_namespace([Some(&parent), Some(&child), Some(&fallback)]),
+            super::preferred_namespace([Some(&parent), Some(&child), Some(&fallback)]),
             Some(&parent)
         );
         assert_eq!(
-            preferred_namespace([None, Some(&child), Some(&fallback)]),
+            super::preferred_namespace([None, Some(&child), Some(&fallback)]),
             Some(&child)
         );
         assert_eq!(
-            preferred_namespace([None, None, Some(&fallback)]),
+            super::preferred_namespace([None, None, Some(&fallback)]),
             Some(&fallback)
         );
-        assert_eq!(preferred_namespace([None, None, None]), None);
+        assert_eq!(super::preferred_namespace([None, None, None]), None);
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn generate_this_ftl_impl_routes_through_the_current_crate_domain() {
-        let tokens = pretty_file_tokens(generate_this_ftl_impl(
-            &parse_quote!(Greeting),
-            &parse_quote!(),
-            Some("hello"),
-            None,
-        ));
+    fn generate_localize_label_impl_routes_through_the_current_crate_domain() {
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
+                &parse_quote!(Greeting),
+                &parse_quote!(),
+                Some("hello"),
+                None,
+            ));
 
-        assert_snapshot!("generate_this_ftl_impl_current_crate_domain", tokens);
+        assert_snapshot!("generate_localize_label_impl_current_crate_domain", tokens);
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn generate_this_ftl_impl_uses_explicit_domain_override_when_present() {
-        let tokens = pretty_file_tokens(generate_this_ftl_impl(
-            &parse_quote!(Languages),
-            &parse_quote!(),
-            Some("es-fluent-lang-this"),
-            Some("es-fluent-lang"),
-        ));
+    fn generate_localize_label_impl_uses_explicit_domain_override_when_present() {
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
+                &parse_quote!(Languages),
+                &parse_quote!(),
+                Some("es-fluent-lang-label"),
+                Some("es-fluent-lang"),
+            ));
 
-        assert_snapshot!("generate_this_ftl_impl_explicit_domain_override", tokens);
+        assert_snapshot!(
+            "generate_localize_label_impl_explicit_domain_override",
+            tokens
+        );
     }
 
     #[test]
@@ -499,11 +509,11 @@ mod tests {
         };
 
         assert_eq!(
-            inherited_fluent_domain(&enum_input).expect("enum domain"),
+            super::inherited_fluent_domain(&enum_input).expect("enum domain"),
             Some("es-fluent-lang".to_string())
         );
         assert_eq!(
-            inherited_fluent_domain(&struct_input).expect("struct domain"),
+            super::inherited_fluent_domain(&struct_input).expect("struct domain"),
             None
         );
     }

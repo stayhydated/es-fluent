@@ -16,6 +16,14 @@ pub enum CanonicalLanguageIdentifierError {
         #[source]
         source: LanguageIdentifierError,
     },
+    /// The identifier parsed as a `unic-langid` identifier but could not be converted to ICU.
+    #[error("Language identifier '{name}' could not be parsed as an ICU locale: {details}")]
+    IcuInvalid {
+        /// The invalid identifier.
+        name: String,
+        /// The ICU parsing error.
+        details: String,
+    },
     /// The identifier parsed successfully but was not written in canonical form.
     #[error("Locale directory '{name}' must use canonical BCP-47 form '{canonical}'")]
     NonCanonical {
@@ -36,9 +44,12 @@ pub fn parse_canonical_language_identifier(
             source,
         }
     })?;
-    let mut locale = name
-        .parse::<Locale>()
-        .expect("valid unic-langid value should also be valid ICU locale");
+    let mut locale =
+        name.parse::<Locale>()
+            .map_err(|source| CanonicalLanguageIdentifierError::IcuInvalid {
+                name: name.to_string(),
+                details: source.to_string(),
+            })?;
     LocaleCanonicalizer::new_extended().canonicalize(&mut locale);
 
     let canonical = locale.to_string();
@@ -85,9 +96,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_aliases_that_are_not_canonicalized() {
-        let err =
-            parse_canonical_language_identifier("iw").expect_err("deprecated aliases should fail");
+    fn rejects_noncanonical_language_identifiers() {
+        let err = parse_canonical_language_identifier("iw")
+            .expect_err("noncanonical identifiers should fail");
         assert!(matches!(
             err,
             CanonicalLanguageIdentifierError::NonCanonical { name, canonical }

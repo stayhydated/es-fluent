@@ -2,11 +2,11 @@
 
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::options::r#enum::EnumOpts;
-use crate::options::namespace::NamespaceValue;
 use crate::options::r#struct::StructOpts;
 use crate::options::{
     EnumDataOptions as _, FluentField as _, StructDataOptions as _, VariantFields as _,
 };
+use es_fluent_shared::namespace::NamespaceRule;
 use es_fluent_toml::{I18nConfig, I18nConfigError};
 
 /// Validates the `es-fluent` attributes on a struct.
@@ -165,27 +165,38 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
 /// Validates that a namespace is in the allowed list from `i18n.toml`.
 ///
 /// - If `i18n.toml` doesn't exist or doesn't specify `namespaces`, validation passes.
-/// - For `NamespaceValue::Literal`, validates against the configured namespaces.
+/// - For `NamespaceRule::Literal`, validates namespace path safety and then validates against
+///   configured namespaces when an allowlist exists.
 /// - For path-derived namespaces (`File`, `FileRelative`, `Folder`, `FolderRelative`),
 ///   validation is deferred to the CLI since the source file path isn't reliably available at
 ///   macro expansion time.
 ///
 /// Returns `Ok(())` if validation passes or should be deferred.
 pub fn validate_namespace(
-    namespace: &NamespaceValue,
+    namespace: &NamespaceRule,
     span: Option<proc_macro2::Span>,
 ) -> EsFluentCoreResult<()> {
     // Only validate literal namespaces at compile time
     let literal_value = match namespace {
-        NamespaceValue::Literal(s) => s.as_ref(),
+        NamespaceRule::Literal(s) => s.as_ref(),
         // File-based namespaces need runtime/CLI validation
-        NamespaceValue::File
-        | NamespaceValue::FileRelative
-        | NamespaceValue::Folder
-        | NamespaceValue::FolderRelative => return Ok(()),
+        NamespaceRule::File
+        | NamespaceRule::FileRelative
+        | NamespaceRule::Folder
+        | NamespaceRule::FolderRelative => return Ok(()),
     };
 
-    // Try to read the config; if it doesn't exist, skip validation
+    if let Err(error) = es_fluent_shared::namespace::validate_namespace_path(literal_value) {
+        return Err(EsFluentCoreError::AttributeError {
+            message: format!("invalid namespace '{}': {}", literal_value, error),
+            span,
+        }
+        .with_help(
+            "use a relative namespace path such as \"ui\" or \"user/profile\"".to_string(),
+        ));
+    }
+
+    // Try to read the config; if it doesn't exist, skip allowlist validation
     let config = match I18nConfig::read_from_manifest_dir() {
         Ok(c) => c,
         Err(I18nConfigError::NotFound) => return Ok(()),
@@ -204,7 +215,7 @@ pub fn validate_namespace(
         },
     };
 
-    // If namespaces aren't configured, allow any value
+    // If namespaces aren't configured, allow any safe namespace value
     let allowed = match &config.namespaces {
         Some(ns) => ns,
         None => return Ok(()),
@@ -293,29 +304,38 @@ mod tests {
 
         #[test]
         fn file_namespace_deferred() {
-            let ns = NamespaceValue::File;
+            let ns = NamespaceRule::File;
             validate_namespace(&ns, None).expect("File namespace should be deferred (always pass)");
         }
 
         #[test]
         fn file_relative_namespace_deferred() {
-            let ns = NamespaceValue::FileRelative;
+            let ns = NamespaceRule::FileRelative;
             validate_namespace(&ns, None)
                 .expect("FileRelative namespace should be deferred (always pass)");
         }
 
         #[test]
         fn folder_namespace_deferred() {
-            let ns = NamespaceValue::Folder;
+            let ns = NamespaceRule::Folder;
             validate_namespace(&ns, None)
                 .expect("Folder namespace should be deferred (always pass)");
         }
 
         #[test]
         fn folder_relative_namespace_deferred() {
-            let ns = NamespaceValue::FolderRelative;
+            let ns = NamespaceRule::FolderRelative;
             validate_namespace(&ns, None)
                 .expect("FolderRelative namespace should be deferred (always pass)");
+        }
+
+        #[test]
+        fn literal_namespace_rejects_unsafe_path() {
+            let ns = NamespaceRule::Literal("../outside".into());
+            let err = validate_namespace(&ns, None)
+                .expect_err("Literal namespaces should reject unsafe paths");
+
+            assert!(err.to_string().contains("invalid namespace"));
         }
     }
 }

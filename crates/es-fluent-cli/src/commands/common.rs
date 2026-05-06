@@ -1,8 +1,9 @@
 use crate::core::{CliError, CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
-use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
-use crate::utils::{filter_crates_by_package, partition_by_lib_rs, ui};
-use clap::Args;
+use crate::generation::MonolithicExecutor;
+use crate::utils::ui;
+use clap::{Args, ValueEnum};
 use colored::Colorize as _;
+use serde::Serialize;
 use std::path::PathBuf;
 
 #[derive(Args, Clone, Debug)]
@@ -13,6 +14,31 @@ pub struct WorkspaceArgs {
     /// Package name to filter (if in a workspace, only process this package).
     #[arg(short = 'P', long)]
     pub package: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+}
+
+impl OutputFormat {
+    pub fn is_json(self) -> bool {
+        matches!(self, Self::Json)
+    }
+
+    pub fn print_json<T: Serialize>(self, value: &T) -> Result<(), CliError> {
+        if self.is_json() {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(value)
+                    .map_err(|error| CliError::Other(error.to_string()))?
+            );
+        }
+
+        Ok(())
+    }
 }
 
 /// Represents a resolved set of crates for a command to operate on.
@@ -31,12 +57,13 @@ pub struct WorkspaceCrates {
 impl WorkspaceCrates {
     /// Discover crates for a command, applying the common filtering and partitioning logic.
     pub fn discover(args: WorkspaceArgs) -> Result<Self, CliError> {
-        use crate::utils::discover_workspace;
-
         let path = args.path.unwrap_or_else(|| PathBuf::from("."));
-        let workspace_info = discover_workspace(&path)?;
-        let crates = filter_crates_by_package(workspace_info.crates.clone(), args.package.as_ref());
-        let (valid_refs, skipped_refs) = partition_by_lib_rs(&crates);
+        let workspace_info = crate::utils::discover_workspace(&path)?;
+        let crates = crate::utils::filter_crates_by_package(
+            workspace_info.crates.clone(),
+            args.package.as_ref(),
+        );
+        let (valid_refs, skipped_refs) = crate::utils::partition_by_lib_rs(&crates);
         let valid = valid_refs.into_iter().cloned().collect();
         let skipped = skipped_refs.into_iter().cloned().collect();
 
@@ -72,17 +99,18 @@ impl WorkspaceCrates {
 /// Run generation-like work using the monolithic temp crate approach.
 ///
 /// This prepares a single temp crate at workspace root that links all workspace crates,
-/// then runs the binary for each crate. Much faster on subsequent runs.
+/// then runs the binary sequentially for each crate. Much faster on subsequent runs.
 ///
 /// If `force_run` is true, the staleness check is skipped and the runner is always rebuilt.
-pub fn parallel_generate(
+pub fn run_generation_for_crates(
     workspace: &WorkspaceInfo,
     crates: &[CrateInfo],
     action: &GenerationAction,
     force_run: bool,
+    show_progress: bool,
 ) -> Vec<GenerateResult> {
     // Prepare the monolithic temp crate once upfront
-    if let Err(e) = prepare_monolithic_runner_crate(workspace) {
+    if let Err(e) = crate::generation::prepare_monolithic_runner_crate(workspace) {
         // If preparation fails, return error results for all crates
         return crates
             .iter()
@@ -93,7 +121,11 @@ pub fn parallel_generate(
     }
 
     let executor = MonolithicExecutor::new(workspace);
-    let pb = ui::Ui::create_progress_bar(crates.len() as u64, "Processing crates...");
+    let pb = if show_progress {
+        ui::Ui::create_progress_bar(crates.len() as u64, "Processing crates...")
+    } else {
+        indicatif::ProgressBar::hidden()
+    };
 
     // Process sequentially since they share the same binary
     // (parallel could cause contention on first build)
@@ -121,16 +153,19 @@ pub fn run_generation_command(
         return Ok(());
     }
 
-    let results = parallel_generate(
+    let results = run_generation_for_crates(
         &workspace.workspace_info,
         &workspace.valid,
         &action,
         force_run,
+        true,
     );
     let has_errors = render_generation_results_with_dry_run(&results, dry_run, verb);
 
     if has_errors {
-        std::process::exit(1);
+        return Err(CliError::Other(
+            "generation command failed; see diagnostics above".to_string(),
+        ));
     }
 
     Ok(())
@@ -222,14 +257,11 @@ pub fn render_generation_results_with_dry_run(
 mod tests {
     use super::*;
     use crate::core::{CrateInfo, FluentParseMode, GenerationAction, WorkspaceInfo};
-    use crate::test_fixtures::{
-        FakeRunnerBehavior, create_test_crate_workspace_without_ftl, setup_fake_runner_and_cache,
-    };
+    use crate::test_fixtures::FakeRunnerBehavior;
     use std::cell::Cell;
     use std::fs;
     use std::path::PathBuf;
     use std::time::Duration;
-    use tempfile::tempdir;
 
     fn create_workspace_info(temp: &tempfile::TempDir) -> WorkspaceInfo {
         let manifest_dir = temp.path().to_path_buf();
@@ -254,7 +286,7 @@ mod tests {
 
     #[test]
     fn read_changed_status_handles_missing_invalid_and_valid_json() {
-        let temp = tempdir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
         let crate_name = "demo";
         let store = es_fluent_runner::RunnerMetadataStore::new(temp.path());
         let result_path = store.result_path(crate_name);
@@ -309,7 +341,7 @@ mod tests {
 
     #[test]
     fn workspace_discover_supports_package_filtering() {
-        let temp = create_test_crate_workspace_without_ftl();
+        let temp = crate::test_fixtures::create_test_crate_workspace_without_ftl();
 
         let all = WorkspaceCrates::discover(WorkspaceArgs {
             path: Some(temp.path().to_path_buf()),
@@ -329,12 +361,12 @@ mod tests {
     }
 
     #[test]
-    fn parallel_generate_uses_cached_runner_and_reads_changed_status() {
-        let temp = create_test_crate_workspace_without_ftl();
+    fn run_generation_for_crates_uses_cached_runner_and_reads_changed_status() {
+        let temp = crate::test_fixtures::create_test_crate_workspace_without_ftl();
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        setup_fake_runner_and_cache(
+        crate::test_fixtures::setup_fake_runner_and_cache(
             &temp,
             FakeRunnerBehavior::stdout("generated-from-fake-runner\n"),
         );
@@ -345,13 +377,14 @@ mod tests {
         fs::create_dir_all(result_json.parent().unwrap()).expect("create metadata dir");
         fs::write(&result_json, r#"{"changed":true}"#).expect("write result json");
 
-        let results = parallel_generate(
+        let results = run_generation_for_crates(
             &workspace,
             std::slice::from_ref(&krate),
             &GenerationAction::Generate {
                 mode: FluentParseMode::default(),
                 dry_run: false,
             },
+            false,
             false,
         );
 
@@ -404,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn parallel_generate_returns_failures_when_runner_preparation_fails() {
+    fn run_generation_for_crates_returns_failures_when_runner_preparation_fails() {
         let krate = CrateInfo {
             name: "broken".to_string(),
             manifest_dir: PathBuf::from("/dev/null"),
@@ -420,13 +453,14 @@ mod tests {
             crates: vec![krate.clone()],
         };
 
-        let results = parallel_generate(
+        let results = run_generation_for_crates(
             &workspace,
             std::slice::from_ref(&krate),
             &GenerationAction::Generate {
                 mode: FluentParseMode::default(),
                 dry_run: false,
             },
+            false,
             false,
         );
 
@@ -435,20 +469,24 @@ mod tests {
     }
 
     #[test]
-    fn parallel_generate_handles_empty_output_and_dry_run_render_paths() {
-        let temp = create_test_crate_workspace_without_ftl();
+    fn run_generation_for_crates_handles_empty_output_and_dry_run_render_paths() {
+        let temp = crate::test_fixtures::create_test_crate_workspace_without_ftl();
         let workspace = create_workspace_info(&temp);
         let krate = workspace.crates[0].clone();
 
-        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::silent_success());
+        crate::test_fixtures::setup_fake_runner_and_cache(
+            &temp,
+            FakeRunnerBehavior::silent_success(),
+        );
 
-        let results = parallel_generate(
+        let results = run_generation_for_crates(
             &workspace,
             std::slice::from_ref(&krate),
             &GenerationAction::Generate {
                 mode: FluentParseMode::default(),
                 dry_run: true,
             },
+            false,
             false,
         );
         assert_eq!(results.len(), 1);

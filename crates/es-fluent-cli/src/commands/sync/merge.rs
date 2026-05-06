@@ -1,4 +1,3 @@
-use es_fluent_generate::ftl::{entry_key, group_comment_name, is_section_comment};
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -21,7 +20,7 @@ enum EntryKind<'a> {
 
 /// Classify an FTL entry for merge operations.
 fn classify_entry(entry: &ast::Entry<String>) -> EntryKind<'_> {
-    if is_section_comment(entry) {
+    if es_fluent_generate::ftl::is_section_comment(entry) {
         return EntryKind::SectionComment;
     }
 
@@ -29,7 +28,7 @@ fn classify_entry(entry: &ast::Entry<String>) -> EntryKind<'_> {
         return EntryKind::Comment;
     }
 
-    if let Some(key) = entry_key(entry) {
+    if let Some(key) = es_fluent_generate::ftl::entry_key(entry) {
         return match entry {
             ast::Entry::Message(_) => EntryKind::Message(key),
             ast::Entry::Term(_) => EntryKind::Term(key),
@@ -63,7 +62,7 @@ pub(super) fn merge_missing_keys(
     for entry in &existing.body {
         if let ast::Entry::GroupComment(comment) = entry {
             extend_group_bundles(&mut body, &mut pending_by_group, current_group.take());
-            current_group = group_comment_name(comment);
+            current_group = es_fluent_generate::ftl::group_comment_name(comment);
         }
 
         body.push(entry.clone());
@@ -95,7 +94,7 @@ fn collect_missing_entry_bundles(
         match classify_entry(entry) {
             EntryKind::SectionComment => {
                 if let ast::Entry::GroupComment(comment) = entry {
-                    current_group = group_comment_name(comment);
+                    current_group = es_fluent_generate::ftl::group_comment_name(comment);
                     fallback_comments.clear();
                     let keep_group = current_group.as_ref().is_none_or(|name| {
                         !existing_groups.contains(name) && !inserted_groups.contains(name)
@@ -115,7 +114,7 @@ fn collect_missing_entry_bundles(
                     bundle.push(entry.clone());
                     for bundle_entry in &bundle {
                         if let ast::Entry::GroupComment(comment) = bundle_entry
-                            && let Some(name) = group_comment_name(comment)
+                            && let Some(name) = es_fluent_generate::ftl::group_comment_name(comment)
                         {
                             inserted_groups.insert(name);
                         }
@@ -151,7 +150,7 @@ fn collect_group_comments(resource: &ast::Resource<String>) -> HashSet<String> {
     let mut groups = HashSet::new();
     for entry in &resource.body {
         if let ast::Entry::GroupComment(comment) = entry
-            && let Some(name) = group_comment_name(comment)
+            && let Some(name) = es_fluent_generate::ftl::group_comment_name(comment)
         {
             groups.insert(name);
         }
@@ -208,7 +207,10 @@ mod tests {
             ast::Entry::GroupComment(comment) => comment,
             _ => panic!("expected group comment"),
         };
-        assert_eq!(group_comment_name(first).as_deref(), Some("Header Name"));
+        assert_eq!(
+            es_fluent_generate::ftl::group_comment_name(first).as_deref(),
+            Some("Header Name")
+        );
 
         let second = parsed
             .body
@@ -225,7 +227,7 @@ mod tests {
                 _ => None,
             })
             .expect("blank group comment");
-        assert!(group_comment_name(second).is_none());
+        assert!(es_fluent_generate::ftl::group_comment_name(second).is_none());
 
         let groups = collect_group_comments(&parsed);
         assert!(groups.contains("Header Name"));

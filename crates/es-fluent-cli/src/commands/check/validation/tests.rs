@@ -1,13 +1,10 @@
 use super::context::ValidationContext;
-use super::loaded::validate_loaded_ftl_files;
 use super::*;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
-use crate::test_fixtures::toml_helpers::{i18n_config, write_toml};
 use fs_err as fs;
 use indexmap::IndexMap;
 use std::path::PathBuf;
-use tempfile::tempdir;
 
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
     KeyInfo {
@@ -27,7 +24,7 @@ fn missing_file_issues_returns_issue_for_each_expected_key() {
     expected_keys.insert("first".to_string(), key_info(&[], None, None));
     expected_keys.insert("second".to_string(), key_info(&[], None, None));
 
-    let temp = tempdir().unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let ctx = ValidationContext {
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
@@ -50,17 +47,17 @@ fn missing_file_issues_returns_issue_for_each_expected_key() {
 
 #[test]
 fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
-    let temp = tempdir().unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let ftl_path = temp.path().join("i18n/en/test-app.ftl");
     fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
     fs::write(&ftl_path, "hello = Hello\n").unwrap();
 
     let resource = fluent_syntax::parser::parse("hello = Hello\n".to_string()).unwrap();
     let loaded_files = vec![LoadedFtlFile {
-        abs_path: ftl_path.clone(),
+        abs_path: ftl_path,
         relative_path: PathBuf::from("test-app.ftl"),
         resource,
-        keys: ["hello".to_string()].into_iter().collect(),
+        keys: std::iter::once("hello".to_string()).collect(),
     }];
 
     let mut expected_keys = IndexMap::new();
@@ -76,7 +73,7 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
         manifest_dir: temp.path(),
     };
 
-    let issues = validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
     assert!(issues.iter().any(|issue| {
         matches!(
             issue,
@@ -92,10 +89,94 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
 }
 
 #[test]
+fn validate_loaded_ftl_files_reports_unexpected_variable_as_error() {
+    let temp = tempfile::tempdir().unwrap();
+    let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+    fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+    fs::write(&ftl_path, "hello = Hello { $name } { $extra }\n").unwrap();
+
+    let resource =
+        fluent_syntax::parser::parse("hello = Hello { $name } { $extra }\n".to_string()).unwrap();
+    let loaded_files = vec![LoadedFtlFile {
+        abs_path: ftl_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource,
+        keys: std::iter::once("hello".to_string()).collect(),
+    }];
+
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert("hello".to_string(), key_info(&["name"], None, None));
+
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+
+    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    assert!(issues.iter().any(|issue| {
+        matches!(
+            issue,
+            ValidationIssue::UnexpectedVariable(err)
+                if err.key == "hello" && err.variable == "extra"
+        )
+    }));
+}
+
+#[test]
+fn validate_loaded_ftl_files_reports_duplicate_keys_and_ignores_non_messages() {
+    let temp = tempfile::tempdir().unwrap();
+    let first_path = temp.path().join("i18n/en/first.ftl");
+    let duplicate_path = temp.path().join("i18n/en/duplicate.ftl");
+    fs::create_dir_all(first_path.parent().unwrap()).unwrap();
+    fs::write(&first_path, "hello = Hello\n-term = Term\n").unwrap();
+    fs::write(&duplicate_path, "hello = Duplicate\n").unwrap();
+
+    let first_resource =
+        fluent_syntax::parser::parse("hello = Hello\n-term = Term\n".to_string()).unwrap();
+    let duplicate_resource =
+        fluent_syntax::parser::parse("hello = Duplicate\n".to_string()).unwrap();
+    let loaded_files = vec![
+        LoadedFtlFile {
+            abs_path: first_path,
+            relative_path: PathBuf::from("first.ftl"),
+            resource: first_resource,
+            keys: std::iter::once("hello".to_string()).collect(),
+        },
+        LoadedFtlFile {
+            abs_path: duplicate_path,
+            relative_path: PathBuf::from("duplicate.ftl"),
+            resource: duplicate_resource,
+            keys: std::iter::once("hello".to_string()).collect(),
+        },
+    ];
+
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert("hello".to_string(), key_info(&[], None, None));
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+
+    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    assert!(issues.iter().any(|issue| {
+        matches!(
+            issue,
+            ValidationIssue::DuplicateKey(err)
+                if err.key == "hello" && err.first_file.ends_with("first.ftl")
+        )
+    }));
+}
+
+#[test]
 fn validate_crate_reports_missing_main_file_as_missing_key() {
-    let temp = tempdir().unwrap();
+    let temp = tempfile::tempdir().unwrap();
     fs::create_dir_all(temp.path().join("src")).unwrap();
-    write_toml(&temp.path().join("i18n.toml"), &i18n_config("en", "i18n"));
+    crate::test_fixtures::toml_helpers::write_toml(
+        &temp.path().join("i18n.toml"),
+        &crate::test_fixtures::toml_helpers::i18n_config("en", "i18n"),
+    );
 
     let inventory_path =
         es_fluent_runner::RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
@@ -138,7 +219,7 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
 #[serial_test::serial(process)]
 fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
     with_force_hyperlink("1", || {
-        let temp = tempdir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
         let ftl_path = temp.path().join("i18n/en/test-app.ftl");
         fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
         fs::write(&ftl_path, "hello = Hello\nbye = Bye\nraw = Raw\n").unwrap();
@@ -178,7 +259,7 @@ fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
             manifest_dir: temp.path(),
         };
 
-        let issues = validate_loaded_ftl_files(&ctx, loaded_files, "en");
+        let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
 
         assert!(issues.iter().any(|issue| {
             matches!(
@@ -206,7 +287,7 @@ fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
 
 #[test]
 fn validate_loaded_ftl_files_falls_back_to_unknown_when_no_actual_files() {
-    let temp = tempdir().unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let mut expected_keys = IndexMap::new();
     expected_keys.insert("missing".to_string(), key_info(&[], None, None));
 
@@ -216,7 +297,7 @@ fn validate_loaded_ftl_files_falls_back_to_unknown_when_no_actual_files() {
         manifest_dir: temp.path(),
     };
 
-    let issues = validate_loaded_ftl_files(&ctx, Vec::new(), "en");
+    let issues = super::loaded::validate_loaded_ftl_files(&ctx, Vec::new(), "en");
     assert_eq!(issues.len(), 1);
     assert!(matches!(
         &issues[0],
@@ -226,11 +307,14 @@ fn validate_loaded_ftl_files_falls_back_to_unknown_when_no_actual_files() {
 
 #[test]
 fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
-    let temp = tempdir().unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).unwrap();
     fs::write(src_dir.join("lib.rs"), "pub struct Demo;\n").unwrap();
-    write_toml(&temp.path().join("i18n.toml"), &i18n_config("en", "i18n"));
+    crate::test_fixtures::toml_helpers::write_toml(
+        &temp.path().join("i18n.toml"),
+        &crate::test_fixtures::toml_helpers::i18n_config("en", "i18n"),
+    );
 
     let broken_dir = temp.path().join("i18n/en/test-crate");
     fs::create_dir_all(broken_dir.parent().unwrap()).unwrap();
@@ -255,21 +339,21 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
 
 #[test]
 fn to_relative_path_uses_non_canonical_strip_fallback() {
-    let temp = tempdir().unwrap();
+    let temp = tempfile::tempdir().unwrap();
     let real_root = temp.path().join("workspace-real");
     fs::create_dir_all(&real_root).unwrap();
-    let alias_parent = temp.path().join("alias-parent");
-    fs::create_dir_all(&alias_parent).unwrap();
-    let alias_root = alias_parent.join("..").join("workspace-real");
+    let alternate_parent = temp.path().join("alternate-parent");
+    fs::create_dir_all(&alternate_parent).unwrap();
+    let alternate_root = alternate_parent.join("..").join("workspace-real");
 
     let expected_keys = IndexMap::new();
     let ctx = ValidationContext {
         expected_keys: &expected_keys,
-        workspace_root: &alias_root,
-        manifest_dir: &alias_root,
+        workspace_root: &alternate_root,
+        manifest_dir: &alternate_root,
     };
 
-    let virtual_path = alias_root.join("i18n/en/missing.ftl");
+    let virtual_path = alternate_root.join("i18n/en/missing.ftl");
     let rel = ctx.to_relative_path(&virtual_path);
     assert_eq!(rel, "i18n/en/missing.ftl");
 

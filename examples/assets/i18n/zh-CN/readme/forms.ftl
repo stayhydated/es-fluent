@@ -1,6 +1,6 @@
-## GenderThis
+## GenderLabel
 
-gender_this_this = 性别
+gender_label_label = 性别
 
 ## LoginFormDescriptionVariants
 

@@ -4,7 +4,7 @@ This document details the architecture of the `es-fluent-manager-core` crate, wh
 
 ## Overview
 
-`es-fluent-manager-core` defines the traits and types necessary to decouple the _management_ of localization data (how it's loaded and stored) from the _consumption_ of it (how it's used to format strings). It also includes standard implementations for embedded and asset-based workflows.
+`es-fluent-manager-core` defines the traits and types necessary to decouple the _management_ of localization data (how it's loaded and stored) from the _consumption_ of it (how it's used to format strings). It also includes the standard embedded and asset-loading implementations used by concrete managers, including the Dioxus manager's embedded runtime path.
 
 ## Architecture
 
@@ -15,9 +15,17 @@ classDiagram
     class FluentManager {
         +new_with_discovered_modules()
         +try_new_with_discovered_modules()
+        +try_discover_runtime_modules()
+        +from_discovered_modules(modules)
         +select_language(lang)
         +select_language_strict(lang)
         +localize(id, args)
+        +with_lookup(callback)
+    }
+
+    class DiscoveredRuntimeI18nModules {
+        +len()
+        +is_empty()
     }
 
     class I18nModuleDescriptor {
@@ -45,7 +53,9 @@ classDiagram
     }
 
     I18nModule --|> I18nModuleDescriptor
+    DiscoveredRuntimeI18nModules "1" o-- "*" I18nModule : caches
     FluentManager "1" *-- "*" I18nModule : manages
+    FluentManager ..> DiscoveredRuntimeI18nModules : constructs from
     I18nModule ..> Localizer : creates
     StaticModuleDescriptor --|> I18nModuleDescriptor
     EmbeddedI18nModule --|> I18nModule
@@ -80,7 +90,18 @@ Unified inventory contract used by managers.
 - `create_localizer()` supports runtime localization backends.
 - `registration_kind()` is explicit metadata, so discovery does not infer
   module kind by constructing a localizer.
-- `resource_plan_for_language()` allows compile-time manifest-driven resource plans (used by Bevy to avoid speculative optional asset loads when build-time metadata has exact per-locale resource lists).
+- `contributes_to_language_selection()` lets runtime utility modules follow
+  successful locale switches without counting as content support for best-effort
+  locale selection.
+- `FluentManager::select_language_for_supported_locale()` lets integrations
+  commit runtime utility modules after another backend has already proved
+  application locale support.
+- `ModuleData::resource_plan()` is the global/default canonical plan: with
+  namespaces, the base file is optional and every known namespace is required.
+- `resource_plan_for_language()` is the authoritative sparse per-language plan
+  when a registration provides one. Manager macros use this for locales that
+  only ship a subset of the global namespace set, so managers do not require
+  namespace files that were never discovered for that locale.
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
 - Successful strict discovery still normalizes one metadata-only registration
   plus one runtime-localizer registration for the same exact identity into a
@@ -97,14 +118,32 @@ Responsible for the actual string formatting logic.
   first populated locale instead of hand-rolled subtag stripping.
 - `FluentManager::select_language()` is best-effort for unsupported locales:
   modules that reject a locale with `LanguageNotSupported` are skipped as long
-  as at least one module accepts it.
+  as at least one content-supporting module accepts it.
 - `FluentManager::select_language_strict()` preserves transactional switching
   when callers need all modules to agree.
+- `FluentManager::with_lookup(...)` holds the active localizer list for an
+  entire typed render, so nested message lookups cannot mix old and new
+  localizer sets during concurrent language switches. Custom `FluentLocalizer`
+  implementations must invoke their `with_lookup(...)` callback exactly once,
+  must not retain it after returning, and should provide a stable lookup
+  snapshot for the whole callback.
+- `FluentManager::try_discover_runtime_modules()` returns
+  `DiscoveredRuntimeI18nModules`, allowing integrations such as request-scoped
+  SSR to cache strict inventory validation and create fresh managers from the
+  cached runtime-capable module list. Metadata-only registrations are validated
+  during discovery but skipped for this runtime manager cache.
 - `EmbeddedLocalizer::select_language()` now rejects bundle-add conflicts (for
   example duplicate message IDs across loaded files) and keeps the previous
   ready locale active on failure.
+- `EmbeddedLocalizer` stores the active bundle, requested language, and fallback
+  resources in one state snapshot. Localization clones the resource `Arc`s from
+  that snapshot before formatting so direct concurrent callers cannot observe a
+  mixed locale state during language selection.
 - Embedded locale/resource discovery only accepts canonical locale directory
   names, so compile-time discovery and runtime lookup use the same path keys.
+- Embedded runtime modules can derive an exact resource plan from embedded
+  files for each locale, allowing partially translated locales to load the
+  files they have and fall back for missing messages.
 
 ### `EmbeddedAssets`
 
@@ -123,7 +162,7 @@ Simple wrapper used for metadata-only registrations.
 ## Modules
 
 - `localization`: Core traits (`FluentManager`, `I18nModule`, `Localizer`).
-- `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`).
+- `embedded_localization`: Implementation for statically embedded assets (`EmbeddedI18nModule`, `EmbeddedAssets`) used by embedded and Dioxus managers.
 - `asset_localization`: Shared module metadata contracts (`ModuleData`, `I18nModuleDescriptor`, `StaticModuleDescriptor`).
 
 ## Usage
@@ -131,4 +170,5 @@ Simple wrapper used for metadata-only registrations.
 This crate is the common dependency for:
 
 - `es-fluent-manager-embedded` (Wraps `EmbeddedI18nModule` setup).
+- `es-fluent-manager-dioxus` (Uses embedded runtime modules for client context and request-scoped SSR managers).
 - `es-fluent-manager-bevy` (Wraps `I18nModuleRegistration` setup).

@@ -1,7 +1,0 @@
----
-source: crates/es-fluent-derive/src/macros/derive_es_fluent_this/mod.rs
-expression: this_opts_tokens
----
-::core::compile_error! {
-    "Unknown value: `nope`"
-}

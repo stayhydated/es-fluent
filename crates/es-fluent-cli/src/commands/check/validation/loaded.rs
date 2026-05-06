@@ -1,6 +1,6 @@
 use super::context::ValidationContext;
 use crate::core::ValidationIssue;
-use crate::ftl::{LoadedFtlFile, extract_variables_from_message};
+use crate::ftl::LoadedFtlFile;
 use fluent_syntax::ast;
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -17,8 +17,8 @@ pub(super) fn validate_loaded_ftl_files(
     loaded_files: Vec<LoadedFtlFile>,
     locale: &str,
 ) -> Vec<ValidationIssue> {
-    let actual_keys = collect_actual_keys(ctx, loaded_files);
     let mut issues = Vec::new();
+    let actual_keys = collect_actual_keys(ctx, loaded_files, locale, &mut issues);
 
     for (key, key_info) in ctx.expected_keys {
         let Some(actual) = actual_keys.get(key) else {
@@ -42,6 +42,14 @@ pub(super) fn validate_loaded_ftl_files(
                 key_info.source_line,
             ));
         }
+
+        for variable in &actual.variables {
+            if key_info.variables.contains(variable) {
+                continue;
+            }
+
+            issues.push(ctx.unexpected_variable_issue(key, variable, locale, &actual.header_link));
+        }
     }
 
     issues
@@ -50,8 +58,10 @@ pub(super) fn validate_loaded_ftl_files(
 fn collect_actual_keys(
     ctx: &ValidationContext<'_>,
     loaded_files: Vec<LoadedFtlFile>,
+    locale: &str,
+    issues: &mut Vec<ValidationIssue>,
 ) -> IndexMap<String, ActualKeyInfo> {
-    let mut actual_keys = IndexMap::new();
+    let mut actual_keys: IndexMap<String, ActualKeyInfo> = IndexMap::new();
 
     for file in loaded_files {
         let relative_path = ctx.to_relative_path(&file.abs_path);
@@ -62,10 +72,22 @@ fn collect_actual_keys(
 
         for entry in &file.resource.body {
             if let ast::Entry::Message(msg) = entry {
+                let key = msg.id.name.clone();
+                if let Some(previous) = actual_keys.get(&key) {
+                    issues.push(ctx.duplicate_key_issue(
+                        &key,
+                        locale,
+                        &previous.file_path,
+                        &relative_path,
+                        &header_link,
+                    ));
+                    continue;
+                }
+
                 actual_keys.insert(
-                    msg.id.name.clone(),
+                    key,
                     ActualKeyInfo {
-                        variables: extract_variables_from_message(msg),
+                        variables: crate::ftl::extract_variables_from_message(msg),
                         file_path: relative_path.clone(),
                         header_link: header_link.clone(),
                     },

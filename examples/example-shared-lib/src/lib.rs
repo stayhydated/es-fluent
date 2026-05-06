@@ -1,4 +1,4 @@
-use es_fluent::{EsFluent, EsFluentThis, EsFluentVariants};
+use es_fluent::{EsFluent, EsFluentLabel, EsFluentVariants};
 use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
@@ -8,13 +8,8 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy")]
 es_fluent_manager_bevy::define_i18n_module!();
 
-#[cfg(any(feature = "embedded", feature = "gpui"))]
+#[cfg(any(feature = "dioxus", feature = "embedded", feature = "gpui"))]
 es_fluent_manager_embedded::define_i18n_module!();
-
-/// Force the linker to include this crate and its dependencies.
-pub fn force_link() {
-    es_fluent_lang::force_link();
-}
 
 #[derive(Clone, Copy, Debug, Default, Eq, EsFluent, PartialEq)]
 #[cfg_attr(
@@ -46,36 +41,36 @@ impl Languages {
 
 pub struct CurrentLanguage(pub Languages);
 
-#[derive(Clone, Debug, Default, EsFluent, EsFluentThis)]
+#[derive(Clone, Debug, Default, EsFluent, EsFluentLabel)]
 pub struct EmptyStruct;
 
-#[derive(Clone, Debug, Default, EsFluentThis, EsFluentVariants)]
+#[derive(Clone, Debug, Default, EsFluentLabel, EsFluentVariants)]
 pub struct EmptyStructVariants;
 
-#[derive(Clone, Copy, Debug, EsFluent, EsFluentThis)]
+#[derive(Clone, Copy, Debug, EsFluent, EsFluentLabel)]
 pub enum EmptyEnum {}
 
-#[derive(Clone, EsFluent, EsFluentThis, EsFluentVariants)]
-#[fluent_this(origin)]
+#[derive(Clone, EsFluent, EsFluentLabel, EsFluentVariants)]
+#[fluent_label(origin)]
 #[fluent_variants(keys = ["description", "label"])]
 pub enum Country {
     USA(USAState),
     Canada(CanadaProvince),
 }
 
-#[derive(Clone, EsFluent, EsFluentThis)]
+#[derive(Clone, EsFluent, EsFluentLabel)]
 pub enum USAState {
     A,
 }
 
-#[derive(Clone, EsFluent, EsFluentThis)]
+#[derive(Clone, EsFluent, EsFluentLabel)]
 pub enum CanadaProvince {
     A,
     B,
 }
 
-#[derive(EsFluent, EsFluentThis, EsFluentVariants)]
-#[fluent_this(variants)]
+#[derive(EsFluent, EsFluentLabel, EsFluentVariants)]
+#[fluent_label(variants)]
 #[fluent_variants(keys = ["description", "label"])]
 pub struct SplitVariants {
     pub country: Country,

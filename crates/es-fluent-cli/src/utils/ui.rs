@@ -1,5 +1,5 @@
 // CLI output formatting with consistent styling using indicatif and colored.
-// We stick to standard println!/eprintln! for textual output to ensure ANSI color compatibility.
+// Textual output uses println!/eprintln! so raw ANSI sequences pass through unchanged.
 
 use crate::core::CrateInfo;
 use colored::Colorize as _;
@@ -88,8 +88,7 @@ impl Ui {
         pb
     }
 
-    // Deprecated/Legacy output helpers - redirected to println/eprintln to preserve formatting
-    // Tracing proved problematic for raw ANSI passthrough in some environments or configs.
+    // Output helpers use println!/eprintln! for raw ANSI passthrough.
 
     pub fn print_header() {
         println!("{}", "Fluent FTL Generator".dimmed());

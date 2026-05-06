@@ -15,10 +15,23 @@ Used by `es-fluent-manager-embedded`.
 1. **Scans**: The configured `assets_dir` from `i18n.toml`.
 1. **Generates**:
    - A struct deriving `RustEmbed` (from `rust-embed` crate), embedding files into the binary.
-   - Static `ModuleData` listing supported languages from canonical locale files. Non-canonical locale directory names are rejected at macro expansion time instead of being normalized at runtime:
-     `{lang}/{crate}.ftl` for non-namespaced modules, or recursively discovered
-     `{lang}/{crate}/**/*.ftl` namespace files for namespaced modules.
+   - Static `ModuleData` listing supported canonical locale directories and discovered namespace paths. Non-canonical locale directory names are rejected at macro expansion time instead of being normalized at runtime.
+   - For non-namespaced modules, the generated resource plan requires `{lang}/{crate}.ftl`.
+   - For namespaced modules, namespace files such as `{lang}/{crate}/ui.ftl` or `{lang}/{crate}/ui/button.ftl` are required, while `{lang}/{crate}.ftl` remains an optional mixed-mode base resource.
    - `inventory::submit!` block to register the module.
+
+### `define_dioxus_i18n_module!`
+
+Used by `es-fluent-manager-dioxus`.
+
+1. **Scans**: The configured `assets_dir` from `i18n.toml`.
+1. **Generates**:
+   - The same `RustEmbed`-backed module registration shape used by the embedded
+     manager.
+   - Static `ModuleData` listing supported canonical locale directories and discovered namespace paths.
+   - The same embedded resource-plan semantics as `define_embedded_i18n_module!`.
+   - `inventory::submit!` block to register an embedded runtime localizer for
+     Dioxus client and SSR integrations.
 
 ### `define_bevy_i18n_module!`
 
@@ -29,7 +42,7 @@ Used by `es-fluent-manager-bevy`.
    - Static `ModuleData` listing supported languages from canonical locale directories.
    - `inventory::submit!` block to register an `I18nModuleRegistration`.
    - A per-language resource plan manifest (`resource_plan_for_language`) so each locale only queues the canonical resource files that actually exist, including nested namespace paths like `{crate}/ui/button.ftl`.
-   - For namespaced modules, the generated plan contains only `{crate}/{namespace}.ftl` entries. A stray `{crate}.ftl` base file is ignored for that namespaced locale plan.
+   - For namespaced modules, an exact per-language plan contains the discovered namespace resources for that locale. If `{crate}.ftl` exists for that locale, the plan includes it as an optional mixed-mode base resource.
    - _Note_: Does not embed files; Bevy still loads assets at runtime.
 
 ## Rationale

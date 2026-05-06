@@ -20,7 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         uses: rui314/setup-mold@v1
@@ -48,7 +48,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         if: runner.os == 'Linux'
@@ -60,6 +60,41 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace --all-features
+
+  dioxus-manager-feature-matrix:
+    name: dioxus manager (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: no-features
+            command: cargo check -p es-fluent-manager-dioxus --no-default-features
+          - name: client-test
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client
+          - name: ssr-test
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
+          - name: client-wasm-check
+            command: cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Setup mold
+        uses: rui314/setup-mold@v1
+
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+
+      - name: Run check
+        run: ${{ matrix.command }}
 
   fmt:
     runs-on: ubuntu-latest
@@ -85,7 +120,7 @@ jobs:
           components: clippy
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         uses: rui314/setup-mold@v1
@@ -114,7 +149,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Setup mold
         uses: rui314/setup-mold@v1
@@ -133,7 +168,7 @@ jobs:
         shell: bash
         run: |
           cargo llvm-cov clean --workspace
-          cargo llvm-cov --workspace --all-features --cobertura --output-path=target/cobertura.xml
+          cargo llvm-cov --workspace --all-features --cobertura --output-path=target/cobertura.xml --exclude xtask --exclude web
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v7

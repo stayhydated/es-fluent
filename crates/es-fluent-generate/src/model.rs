@@ -36,18 +36,18 @@ impl From<&FtlTypeInfo> for OwnedTypeInfo {
     }
 }
 
-/// Compare two type infos, putting `this` entries first.
+/// Compare two type infos, putting label entries first.
 pub(crate) fn compare_type_infos(a: &OwnedTypeInfo, b: &OwnedTypeInfo) -> std::cmp::Ordering {
-    let a_is_this = a
+    let a_is_label = a
         .variants
         .iter()
-        .any(|v| v.ftl_key.ends_with(FluentKey::THIS_SUFFIX));
-    let b_is_this = b
+        .any(|v| v.ftl_key.ends_with(FluentKey::LABEL_SUFFIX));
+    let b_is_label = b
         .variants
         .iter()
-        .any(|v| v.ftl_key.ends_with(FluentKey::THIS_SUFFIX));
+        .any(|v| v.ftl_key.ends_with(FluentKey::LABEL_SUFFIX));
 
-    formatting::compare_with_this_priority(a_is_this, &a.type_name, b_is_this, &b.type_name)
+    formatting::compare_with_label_priority(a_is_label, &a.type_name, b_is_label, &b.type_name)
 }
 
 /// Merge duplicate `FtlTypeInfo` entries into a stable owned representation.
@@ -65,9 +65,9 @@ pub(crate) fn merge_ftl_type_infos(items: &[&FtlTypeInfo]) -> Vec<OwnedTypeInfo>
         .into_iter()
         .map(|(type_name, mut variants)| {
             variants.sort_by(|a, b| {
-                let a_is_this = a.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
-                let b_is_this = b.ftl_key.ends_with(FluentKey::THIS_SUFFIX);
-                formatting::compare_with_this_priority(a_is_this, &a.name, b_is_this, &b.name)
+                let a_is_label = a.ftl_key.ends_with(FluentKey::LABEL_SUFFIX);
+                let b_is_label = b.ftl_key.ends_with(FluentKey::LABEL_SUFFIX);
+                formatting::compare_with_label_priority(a_is_label, &a.name, b_is_label, &b.name)
             });
             variants.dedup();
 

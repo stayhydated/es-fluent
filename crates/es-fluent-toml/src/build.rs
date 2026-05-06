@@ -32,12 +32,10 @@ pub fn track_i18n_assets() {
 #[serial_test::serial(manifest)]
 mod tests {
     use super::*;
-    use crate::test_utils::with_manifest_env;
     use path_slash::PathExt as _;
     use std::fs;
     use std::path::Path;
     use std::process::Command;
-    use tempfile::tempdir;
 
     fn toml_path(path: &Path) -> String {
         path.to_slash_lossy().into_owned()
@@ -45,7 +43,7 @@ mod tests {
 
     #[test]
     fn track_i18n_assets_reads_config_and_assets_path() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(temp.path().join("i18n")).expect("create assets dir");
         fs::write(
             temp.path().join("i18n.toml"),
@@ -53,14 +51,14 @@ mod tests {
         )
         .expect("write config");
 
-        with_manifest_env(Some(temp.path()), || {
+        crate::test_utils::with_manifest_env(Some(temp.path()), || {
             track_i18n_assets();
         });
     }
 
     #[test]
     fn track_i18n_assets_does_not_create_stamp_file() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let i18n_dir = temp.path().join("i18n");
         fs::create_dir_all(i18n_dir.join("en")).expect("create en dir");
         fs::create_dir_all(i18n_dir.join("fr")).expect("create fr dir");
@@ -72,7 +70,7 @@ mod tests {
         )
         .expect("write config");
 
-        with_manifest_env(Some(temp.path()), || {
+        crate::test_utils::with_manifest_env(Some(temp.path()), || {
             track_i18n_assets();
         });
 
@@ -82,7 +80,7 @@ mod tests {
 
     #[test]
     fn track_i18n_assets_does_not_create_stamp_file_for_external_assets_dir() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let crate_dir = temp.path().join("my-crate");
         let assets_dir = temp.path().join("assets").join("i18n");
         fs::create_dir_all(&crate_dir).expect("create crate dir");
@@ -94,7 +92,7 @@ mod tests {
         )
         .expect("write config");
 
-        with_manifest_env(Some(&crate_dir), || {
+        crate::test_utils::with_manifest_env(Some(&crate_dir), || {
             track_i18n_assets();
         });
 
@@ -111,7 +109,7 @@ mod tests {
 
     #[test]
     fn track_i18n_assets_rebuilds_when_locale_folder_deleted() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let crate_dir = temp.path().join("sample-crate");
         let i18n_dir = crate_dir.join("i18n");
         let src_dir = crate_dir.join("src");
@@ -166,7 +164,9 @@ es-fluent-toml = {{ path = "{}" }}
 
     #[test]
     fn track_i18n_assets_panics_without_manifest_dir() {
-        let panic = with_manifest_env(None, || std::panic::catch_unwind(track_i18n_assets));
+        let panic = crate::test_utils::with_manifest_env(None, || {
+            std::panic::catch_unwind(track_i18n_assets)
+        });
         assert!(panic.is_err());
     }
 

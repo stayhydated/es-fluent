@@ -1,5 +1,5 @@
 use crate::I18nConfigError;
-use es_fluent_shared::{CanonicalLanguageIdentifierError, parse_canonical_language_identifier};
+use es_fluent_shared::CanonicalLanguageIdentifierError;
 use fs_err as fs;
 use std::io;
 use unic_langid::LanguageIdentifier;
@@ -32,20 +32,27 @@ pub(crate) fn parse_language_entry(
         ))
     })?;
 
-    let lang = parse_canonical_language_identifier(&name).map_err(|err| match err {
-        CanonicalLanguageIdentifierError::Invalid { source, .. } => {
-            I18nConfigError::InvalidLanguageIdentifier {
-                name: name.clone(),
-                source,
-            }
-        },
-        CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
-            I18nConfigError::NonCanonicalLanguageIdentifier {
-                name: name.clone(),
-                canonical,
-            }
-        },
-    })?;
+    let lang =
+        es_fluent_shared::parse_canonical_language_identifier(&name).map_err(|err| match err {
+            CanonicalLanguageIdentifierError::Invalid { source, .. } => {
+                I18nConfigError::InvalidLanguageIdentifier {
+                    name: name.clone(),
+                    source,
+                }
+            },
+            CanonicalLanguageIdentifierError::IcuInvalid { details, .. } => {
+                I18nConfigError::IcuLanguageIdentifier {
+                    name: name.clone(),
+                    details,
+                }
+            },
+            CanonicalLanguageIdentifierError::NonCanonical { canonical, .. } => {
+                I18nConfigError::NonCanonicalLanguageIdentifier {
+                    name: name.clone(),
+                    canonical,
+                }
+            },
+        })?;
 
     Ok(Some(ParsedLanguageEntry {
         raw_name: name,
@@ -85,5 +92,29 @@ mod tests {
             .expect("directory entry should be parsed");
         assert_eq!(parsed.raw_name, "en-US");
         assert_eq!(parsed.language.to_string(), "en-US");
+    }
+
+    #[test]
+    fn parse_language_entry_rejects_invalid_language_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join("not_a_language")).expect("create locale dir");
+
+        let error = parse_language_entry(first_entry(temp.path())).unwrap_err();
+        assert!(matches!(
+            error,
+            I18nConfigError::InvalidLanguageIdentifier { .. }
+        ));
+    }
+
+    #[test]
+    fn parse_language_entry_rejects_non_canonical_language_directories() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::create_dir(temp.path().join("en-us")).expect("create locale dir");
+
+        let error = parse_language_entry(first_entry(temp.path())).unwrap_err();
+        assert!(matches!(
+            error,
+            I18nConfigError::NonCanonicalLanguageIdentifier { .. }
+        ));
     }
 }

@@ -3,16 +3,15 @@
 //! This module provides functionality to display a tree view of FTL items
 //! for each FTL file associated with a crate.
 
-use super::common::{WorkspaceArgs, WorkspaceCrates};
+use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
 use crate::core::CliError;
-use crate::ftl::{
-    CrateFtlLayout, LocaleContext, extract_variables_from_value_and_attributes, parse_ftl_file,
-};
+use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::utils::ui;
 use anyhow::Result;
 use clap::Parser;
 use colored::Colorize as _;
 use fluent_syntax::ast;
+use serde::Serialize;
 use std::path::Path;
 use treelog::Tree;
 
@@ -32,7 +31,7 @@ impl TreeRenderer {
 
     /// Build a tree for a single FTL file.
     fn build_file_tree(&self, relative_path: &str, abs_path: &Path) -> Tree {
-        let resource = match parse_ftl_file(abs_path) {
+        let resource = match crate::ftl::parse_ftl_file(abs_path) {
             Ok(res) => res,
             Err(_) => {
                 return Tree::Node(
@@ -98,7 +97,7 @@ impl TreeRenderer {
 
         if self.show_variables {
             let mut variables: Vec<_> =
-                extract_variables_from_value_and_attributes(value, attributes)
+                crate::ftl::extract_variables_from_value_and_attributes(value, attributes)
                     .into_iter()
                     .collect();
 
@@ -134,16 +133,67 @@ pub struct TreeArgs {
     /// Show variables used in each message.
     #[arg(long)]
     pub variables: bool,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::default())]
+    pub output: OutputFormat,
+}
+
+#[derive(Serialize)]
+struct TreeJsonReport {
+    crates: Vec<TreeCrateJson>,
+}
+
+#[derive(Serialize)]
+struct TreeCrateJson {
+    name: String,
+    locales: Vec<TreeLocaleJson>,
+}
+
+#[derive(Serialize)]
+struct TreeLocaleJson {
+    locale: String,
+    files: Vec<TreeFileJson>,
+}
+
+#[derive(Serialize)]
+struct TreeFileJson {
+    path: String,
+    parse_error: bool,
+    entries: Vec<TreeEntryJson>,
+}
+
+#[derive(Serialize)]
+struct TreeEntryJson {
+    id: String,
+    kind: &'static str,
+    attributes: Vec<String>,
+    variables: Vec<String>,
 }
 
 /// Run the tree command.
 pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
     let workspace = WorkspaceCrates::discover(args.workspace)?;
+    let show_text = !args.output.is_json();
 
-    ui::Ui::print_tree_header();
+    if show_text {
+        ui::Ui::print_tree_header();
+    }
 
     if workspace.crates.is_empty() {
-        ui::Ui::print_no_crates_found();
+        if show_text {
+            ui::Ui::print_no_crates_found();
+        }
+        return Ok(());
+    }
+
+    if args.output.is_json() {
+        let crates = workspace
+            .crates
+            .iter()
+            .map(|krate| build_crate_tree_json(krate, args.all))
+            .collect::<Result<Vec<_>>>()?;
+        args.output.print_json(&TreeJsonReport { crates })?;
         return Ok(());
     }
 
@@ -152,6 +202,105 @@ pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
     }
 
     Ok(())
+}
+
+fn build_crate_tree_json(
+    krate: &crate::core::CrateInfo,
+    all_locales: bool,
+) -> Result<TreeCrateJson> {
+    let ctx = LocaleContext::from_crate(krate, all_locales)?;
+    let mut locales = Vec::new();
+
+    for locale in &ctx.locales {
+        let locale_dir = ctx.locale_dir(locale);
+        if !locale_dir.exists() {
+            continue;
+        }
+
+        let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
+            .discover_files()?;
+        let files = ftl_files
+            .iter()
+            .map(|file_info| {
+                build_file_tree_json(
+                    &file_info.relative_path.display().to_string(),
+                    &file_info.abs_path,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        locales.push(TreeLocaleJson {
+            locale: locale.clone(),
+            files,
+        });
+    }
+
+    Ok(TreeCrateJson {
+        name: krate.name.clone(),
+        locales,
+    })
+}
+
+fn build_file_tree_json(relative_path: &str, abs_path: &Path) -> TreeFileJson {
+    let Ok(resource) = crate::ftl::parse_ftl_file(abs_path) else {
+        return TreeFileJson {
+            path: relative_path.to_string(),
+            parse_error: true,
+            entries: Vec::new(),
+        };
+    };
+
+    let entries = resource
+        .body
+        .iter()
+        .filter_map(|entry| match entry {
+            ast::Entry::Message(message) => Some(TreeEntryJson {
+                id: message.id.name.clone(),
+                kind: "message",
+                attributes: message
+                    .attributes
+                    .iter()
+                    .map(|attribute| attribute.id.name.clone())
+                    .collect(),
+                variables: {
+                    let mut variables = crate::ftl::extract_variables_from_value_and_attributes(
+                        message.value.as_ref(),
+                        &message.attributes,
+                    )
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                    variables.sort();
+                    variables
+                },
+            }),
+            ast::Entry::Term(term) => Some(TreeEntryJson {
+                id: format!("-{}", term.id.name),
+                kind: "term",
+                attributes: term
+                    .attributes
+                    .iter()
+                    .map(|attribute| attribute.id.name.clone())
+                    .collect(),
+                variables: {
+                    let mut variables = crate::ftl::extract_variables_from_value_and_attributes(
+                        Some(&term.value),
+                        &term.attributes,
+                    )
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                    variables.sort();
+                    variables
+                },
+            }),
+            _ => None,
+        })
+        .collect();
+
+    TreeFileJson {
+        path: relative_path.to_string(),
+        parse_error: false,
+        entries,
+    }
 }
 
 /// Print the tree for a single crate.
@@ -204,7 +353,6 @@ mod tests {
     use crate::core::CrateInfo;
     use fluent_syntax::parser;
     use std::fs;
-    use tempfile::tempdir;
 
     fn parse_ftl(content: &str) -> ast::Resource<String> {
         parser::parse(content.to_string()).unwrap()
@@ -229,16 +377,16 @@ mod tests {
     }
 
     fn create_workspace_with_tree_data() -> tempfile::TempDir {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         fs::create_dir_all(temp.path().join("src")).expect("create src");
         fs::create_dir_all(temp.path().join("i18n/en/test-app")).expect("create i18n dirs");
         fs::write(
             temp.path().join("Cargo.toml"),
             r#"[package]
-name = "test-app"
-version = "0.1.0"
-edition = "2024"
-"#,
+    name = "test-app"
+    version = "0.1.0"
+    edition = "2024"
+    "#,
         )
         .expect("write Cargo.toml");
         fs::write(temp.path().join("src/lib.rs"), "pub struct Demo;\n").expect("write lib.rs");
@@ -278,10 +426,12 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "hello").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["name"]);
@@ -293,10 +443,12 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "greeting").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["count", "name"]);
@@ -306,15 +458,17 @@ edition = "2024"
     fn test_extract_variables_select() {
         let content = r#"count = { $num ->
     [one] One item
-   *[other] { $num } items
-}"#;
+       *[other] { $num } items
+    }"#;
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "count").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["num"]);
@@ -326,10 +480,12 @@ edition = "2024"
         let resource = parse_ftl(content);
         let msg = get_message(&resource, "message").unwrap();
 
-        let mut variables: Vec<_> =
-            extract_variables_from_value_and_attributes(msg.value.as_ref(), &msg.attributes)
-                .into_iter()
-                .collect();
+        let mut variables: Vec<_> = crate::ftl::extract_variables_from_value_and_attributes(
+            msg.value.as_ref(),
+            &msg.attributes,
+        )
+        .into_iter()
+        .collect();
         variables.sort();
 
         assert_eq!(variables, vec!["date", "user"]);
@@ -489,7 +645,84 @@ edition = "2024"
             all: false,
             attributes: false,
             variables: false,
+            output: OutputFormat::Text,
         });
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn build_file_tree_json_reports_messages_terms_variables_and_parse_errors() {
+        let temp = create_workspace_with_tree_data();
+        let valid = build_file_tree_json("test-app.ftl", &temp.path().join("i18n/en/test-app.ftl"));
+
+        assert!(!valid.parse_error);
+        assert_eq!(valid.path, "test-app.ftl");
+        assert!(valid.entries.iter().any(|entry| {
+            entry.id == "hello" && entry.kind == "message" && entry.variables == ["name"]
+        }));
+        assert!(
+            valid
+                .entries
+                .iter()
+                .any(|entry| { entry.id == "-term" && entry.kind == "term" })
+        );
+
+        let invalid = temp.path().join("i18n/en/broken.ftl");
+        fs::write(&invalid, "broken = {").expect("write invalid ftl");
+        let broken = build_file_tree_json("broken.ftl", &invalid);
+        assert!(broken.parse_error);
+        assert!(broken.entries.is_empty());
+    }
+
+    #[test]
+    fn build_crate_tree_json_collects_locale_files_and_skips_missing_locales() {
+        let temp = create_workspace_with_tree_data();
+        fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
+        let krate = crate_info_from_temp(&temp);
+
+        let json = build_crate_tree_json(&krate, true).expect("tree json should build");
+
+        assert_eq!(json.name, "test-app");
+        assert!(json.locales.iter().any(|locale| locale.locale == "en"));
+        assert!(
+            json.locales
+                .iter()
+                .any(|locale| { locale.locale == "fr" && locale.files.is_empty() })
+        );
+        assert!(json.locales.iter().any(|locale| {
+            locale
+                .files
+                .iter()
+                .any(|file| file.path.contains("test-app.ftl"))
+        }));
+    }
+
+    #[test]
+    fn run_tree_covers_json_and_text_command_paths() {
+        let temp = create_workspace_with_tree_data();
+
+        let json = run_tree(TreeArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            all: true,
+            attributes: true,
+            variables: true,
+            output: OutputFormat::Json,
+        });
+        assert!(json.is_ok());
+
+        let text = run_tree(TreeArgs {
+            workspace: WorkspaceArgs {
+                path: Some(temp.path().to_path_buf()),
+                package: None,
+            },
+            all: false,
+            attributes: true,
+            variables: true,
+            output: OutputFormat::Text,
+        });
+        assert!(text.is_ok());
     }
 }

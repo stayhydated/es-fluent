@@ -3,72 +3,101 @@
 
 # es-fluent-manager-embedded
 
-A zero-setup, global localization manager for `es-fluent`.
+A zero-setup embedded localization manager for `es-fluent`.
 
-This crate provides a "Just Works" experience for adding localization to standard Rust applications (CLIs, TUIs, desktop apps). It bundles your translations directly into the binary and provides a global singleton for access.
+This crate is for standard Rust applications such as CLIs, TUIs, and desktop apps. It bundles your translations directly into the binary and returns an explicit `EmbeddedI18n` handle for runtime lookup. Most framework applications should use their framework-specific manager instead.
 
 ## Features
 
 - **Embedded Assets**: Compiles your FTL files into the binary.
-- **Global Access**: Once initialized, you can call `to_fluent_string()` anywhere in your code without passing context around.
-- **Thread Safe**: Safe to use from multiple threads after initialization.
+- **Explicit Context**: Keep an `EmbeddedI18n` handle in application state and pass it to code that localizes messages.
+- **Thread Safe**: Safe to clone and share after initialization.
+
+Enable the `debug-embed` Cargo feature for debug targets that cannot read
+locale files from the filesystem. It forwards `rust-embed`'s debug embedding
+mode through the manager crate.
 
 ## Quick Start
 
 ### 1. Define the Module
 
-In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+Prefer a library-reachable module, usually `src/i18n.rs` declared from
+`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
+the library target:
 
 ```rs
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_embedded::define_i18n_module!();
 ```
 
+Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
+when derived message types are still reachable from a library target, or when
+you accept that binary-only derived types are not discovered by the CLI.
+
 ### 2. Initialize & Use
 
 In your application entry point:
 
 ```rs
-use es_fluent::ToFluentString;
+use es_fluent::{EsFluent, EsFluentLabel};
+use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
-fn main() {
-    // 1. Initialize the global manager with the active language
-    es_fluent_manager_embedded::init_with_language(langid!("en-US"));
+#[derive(EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
+enum MyMessage {
+    Hello { name: String },
+}
 
-    // 2. Localize things!
-    let msg = MyMessage::Hello { name: "World" };
-    println!("{}", msg.to_fluent_string());
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let i18n = EmbeddedI18n::try_new_with_language(langid!("en"))?;
+
+    let msg = MyMessage::Hello { name: "World".to_string() };
+    println!("{}", i18n.localize_message(&msg));
+
+    Ok(())
 }
 ```
 
-If you prefer to initialize first and decide the locale later, `init()` and
-`select_language(...)` remain available:
+For types that derive `EsFluentLabel`, pass the same explicit context to
+`localize_label(...)`:
 
 ```rs
-es_fluent_manager_embedded::init();
-es_fluent_manager_embedded::select_language(langid!("fr"))
-    .expect("manager initialized and locale is available");
+use es_fluent::FluentLabel as _;
+
+let title = MyMessage::localize_label(&i18n);
 ```
 
-`select_language(...)` returns an error if initialization was skipped, if no
-discovered module can serve the requested locale, or if a supported locale's
-resources would build a broken Fluent bundle (for example duplicate message
-definitions across loaded files). When some modules support the requested
-locale and others do not, the default switch keeps the supporting modules
-active. Failed switches keep the previous ready locale active.
-
-`init()` and `init_with_language(...)` use the same strict discovery path as
-the fallible entry points. They log initialization errors instead of returning
-them.
-
-If you want the initialization error back before the singleton is published,
-use the fallible entry points instead:
+If you prefer to initialize first and decide the locale later, create the
+context and call `select_language(...)` on that context:
 
 ```rs
-es_fluent_manager_embedded::try_init_with_language(langid!("fr"))
-    .expect("embedded i18n manager should initialize");
+let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new()?;
+i18n.select_language(langid!("fr-FR"))?;
 ```
 
-Both `init_with_language(...)` and `try_init_with_language(...)` only publish
-the singleton after the requested language has been selected successfully.
+Before a language is selected, raw lookup returns `None`. Typed
+`localize_message(...)` uses its message ID fallback and returns the message ID for
+missing messages until `select_language(...)` succeeds.
+
+`select_language(...)` returns an error if no discovered module can serve the
+requested locale, or if a supported locale's resources would build a broken
+Fluent bundle. When some modules support the requested locale and others do
+not, the default switch keeps the supporting modules active. Failed switches
+keep the previous ready locale active.
+
+When a locale has only some of a module's files, the available files can still
+activate and missing messages fall back through the ICU4X locale fallback chain.
+Utility modules such as localized language-name display follow successful
+switches but do not make an otherwise unsupported locale count as supported.
+
+Use `try_new_with_language_strict(...)` during startup or
+`select_language_strict(...)` at runtime when every discovered module must
+support the requested locale for selection to succeed.
+
+`EmbeddedI18n` clones are cheap shared handles. Calling
+`select_language(...)` through one clone changes the active language observed
+by the other clones. Construct a separate `EmbeddedI18n` value when you need
+isolated language state.
+
+`EmbeddedI18n` intentionally exposes enum-first `localize_message(...)` for application lookup. It also implements `FluentLocalizer` so generated labels and integration code can resolve through the same explicit context.

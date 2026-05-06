@@ -1,12 +1,10 @@
 //! Clean command implementation.
 
-mod orphaned;
+pub(crate) mod orphaned;
 
-use super::common::{GenerationVerb, WorkspaceArgs, WorkspaceCrates, run_generation_command};
+use super::common::{GenerationVerb, WorkspaceArgs, WorkspaceCrates};
 use crate::core::{CliError, GenerationAction};
 use clap::Parser;
-
-use orphaned::clean_orphaned_files;
 
 /// Arguments for the clean command.
 #[derive(Parser)]
@@ -22,7 +20,7 @@ pub struct CleanArgs {
     #[arg(long)]
     pub dry_run: bool,
 
-    /// Force rebuild of the runner, ignoring the staleness cache.
+    /// Run the generated runner through Cargo, ignoring the staleness cache.
     #[arg(long)]
     pub force_run: bool,
 
@@ -41,10 +39,10 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
         if !workspace.print_discovery(crate::utils::ui::Ui::print_header) {
             return Ok(());
         }
-        return clean_orphaned_files(&workspace, args.all, args.dry_run);
+        return orphaned::clean_orphaned_files(&workspace, args.all, args.dry_run);
     }
 
-    run_generation_command(
+    super::common::run_generation_command(
         args.workspace,
         GenerationAction::Clean {
             all_locales: args.all,
@@ -59,13 +57,11 @@ pub fn run_clean(args: CleanArgs) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_fixtures::{
-        FakeRunnerBehavior, create_test_crate_workspace, setup_fake_runner_and_cache,
-    };
+    use crate::test_fixtures::FakeRunnerBehavior;
 
     #[test]
     fn run_clean_returns_ok_when_package_filter_matches_nothing() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
 
         let result = run_clean(CleanArgs {
             workspace: WorkspaceArgs {
@@ -83,8 +79,11 @@ mod tests {
 
     #[test]
     fn run_clean_executes_with_fake_runner() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp, FakeRunnerBehavior::stdout("cleaned\n"));
+        let temp = crate::test_fixtures::create_test_crate_workspace();
+        crate::test_fixtures::setup_fake_runner_and_cache(
+            &temp,
+            FakeRunnerBehavior::stdout("cleaned\n"),
+        );
 
         let result = run_clean(CleanArgs {
             workspace: WorkspaceArgs {
@@ -102,7 +101,7 @@ mod tests {
 
     #[test]
     fn run_clean_orphaned_returns_ok_when_package_filter_matches_nothing() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
 
         let result = run_clean(CleanArgs {
             workspace: WorkspaceArgs {
@@ -120,7 +119,7 @@ mod tests {
 
     #[test]
     fn run_clean_orphaned_handles_workspace_without_orphans() {
-        let temp = create_test_crate_workspace();
+        let temp = crate::test_fixtures::create_test_crate_workspace();
 
         let result = run_clean(CleanArgs {
             workspace: WorkspaceArgs {

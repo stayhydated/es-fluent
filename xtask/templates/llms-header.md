@@ -4,7 +4,7 @@
 
 Key features:
 
-- Derive macros (`EsFluent`, `EsFluentChoice`, `EsFluentVariants`, `EsFluentThis`) for strongly typed message keys and arguments
+- Derive macros (`EsFluent`, `EsFluentChoice`, `EsFluentVariants`, `EsFluentLabel`) for strongly typed message keys and arguments
 - `cargo es-fluent` CLI support for checking and generating FTL skeletons
 - Compile-time namespace and argument validation aligned with `i18n.toml`
 - Language enum generation from locale assets via `es-fluent-lang-macro`

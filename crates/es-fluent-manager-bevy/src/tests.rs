@@ -1,8 +1,9 @@
 use crate::*;
-use bevy::asset::AssetLoader;
+use bevy::asset::AssetLoader as _;
 use bevy::prelude::*;
+use es_fluent::FluentValue;
 use es_fluent_manager_core::{ModuleResourceSpec, ResourceKey, ResourceLoadError};
-use fluent_bundle::{FluentResource, FluentValue};
+use fluent_bundle::FluentResource;
 use std::collections::HashMap;
 use std::sync::Arc;
 use unic_langid::{LanguageIdentifier, langid};
@@ -25,10 +26,54 @@ impl RefreshForLocale for RefreshableMessage {
     }
 }
 
-impl ToFluentString for RefreshableMessage {
-    fn to_fluent_string(&self) -> String {
+impl FluentMessage for RefreshableMessage {
+    fn to_fluent_string_with(
+        &self,
+        _localize: &mut dyn for<'a> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> String,
+    ) -> String {
         self.0.clone()
     }
+}
+
+struct DomainMessage(&'static str);
+
+impl FluentMessage for DomainMessage {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'a> FnMut(
+            &str,
+            &str,
+            Option<&HashMap<&str, FluentValue<'a>>>,
+        ) -> String,
+    ) -> String {
+        localize("app", self.0, None)
+    }
+}
+
+#[derive(Default, Resource)]
+struct CapturedBevyI18n {
+    active_language: Option<LanguageIdentifier>,
+    resolved_language: Option<LanguageIdentifier>,
+    bundle_changed: bool,
+    localized: Option<String>,
+    domain_localized: Option<String>,
+    message: String,
+    missing_message: String,
+}
+
+fn capture_bevy_i18n(i18n: BevyI18n, mut captured: ResMut<CapturedBevyI18n>) {
+    captured.active_language = Some(i18n.active_language().clone());
+    captured.resolved_language = Some(i18n.resolved_language().clone());
+    captured.bundle_changed = i18n.is_bundle_changed();
+    captured.localized = es_fluent::FluentLocalizer::localize(&i18n, "hello", None);
+    captured.domain_localized =
+        es_fluent::FluentLocalizer::localize_in_domain(&i18n, "app", "hello", None);
+    captured.message = i18n.localize_message(&DomainMessage("hello"));
+    captured.missing_message = i18n.localize_message(&DomainMessage("missing"));
 }
 
 #[test]
@@ -133,7 +178,7 @@ fn i18n_assets_namespace_contract_matrix() {
 }
 
 #[test]
-fn i18n_resource_localizes_and_falls_back_to_id() {
+fn i18n_resource_localizes_and_falls_back_to_parent_locale() {
     let requested = langid!("en-US");
     let resolved = requested.clone();
     let requested_resource = Arc::new(
@@ -157,16 +202,10 @@ fn i18n_resource_localizes_and_falls_back_to_id() {
         .expect("add resource");
 
     let mut i18n_bundle = I18nBundle::default();
-    i18n_bundle.insert(
-        requested.clone(),
-        Arc::new(requested_bundle),
-        vec![requested_resource],
-    );
-    i18n_bundle.insert(
-        parent.clone(),
-        Arc::new(parent_bundle),
-        vec![parent_resource],
-    );
+    i18n_bundle.set_bundle(requested.clone(), Arc::new(requested_bundle));
+    i18n_bundle.set_locale_resources(requested.clone(), vec![requested_resource]);
+    i18n_bundle.set_bundle(parent.clone(), Arc::new(parent_bundle));
+    i18n_bundle.set_locale_resources(parent, vec![parent_resource]);
     let i18n_resource =
         I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
 
@@ -207,11 +246,8 @@ fn i18n_resource_uses_resolved_bundle_when_requested_locale_is_unavailable() {
         .expect("add resource");
 
     let mut i18n_bundle = I18nBundle::default();
-    i18n_bundle.insert(
-        resolved.clone(),
-        Arc::new(resolved_bundle),
-        vec![resolved_resource],
-    );
+    i18n_bundle.set_bundle(resolved.clone(), Arc::new(resolved_bundle));
+    i18n_bundle.set_locale_resources(resolved.clone(), vec![resolved_resource]);
     let i18n_resource =
         I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
 
@@ -251,14 +287,10 @@ fn i18n_resource_prefers_partial_requested_locale_resources_over_resolved_parent
 
     let mut i18n_bundle = I18nBundle::default();
     i18n_bundle.set_locale_resources(requested.clone(), vec![requested_resource]);
-    i18n_bundle.insert(
-        resolved.clone(),
-        Arc::new(resolved_bundle),
-        vec![resolved_resource],
-    );
+    i18n_bundle.set_bundle(resolved.clone(), Arc::new(resolved_bundle));
+    i18n_bundle.set_locale_resources(resolved.clone(), vec![resolved_resource]);
 
-    let i18n_resource =
-        I18nResource::new_with_resolved_language(requested.clone(), resolved.clone());
+    let i18n_resource = I18nResource::new_with_resolved_language(requested, resolved);
 
     assert_eq!(
         i18n_resource.localize("hello", None, &i18n_bundle),
@@ -268,6 +300,50 @@ fn i18n_resource_prefers_partial_requested_locale_resources_over_resolved_parent
         i18n_resource.localize("shared", None, &i18n_bundle),
         Some("Shared fallback".to_string())
     );
+}
+
+#[test]
+fn bevy_i18n_system_param_exposes_context_bound_localization() {
+    let lang = langid!("en");
+    let resource =
+        Arc::new(FluentResource::try_new("hello = Hello Bevy".to_string()).expect("valid ftl"));
+    let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
+    bundle.add_resource(resource.clone()).expect("add resource");
+    let mut domain_bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
+    domain_bundle
+        .add_resource(resource.clone())
+        .expect("add domain resource");
+
+    let mut i18n_bundle = I18nBundle::default();
+    i18n_bundle.set_bundle(lang.clone(), Arc::new(bundle));
+    i18n_bundle.set_locale_resources(lang.clone(), vec![resource.clone()]);
+    let mut i18n_domain_bundles = I18nDomainBundles::default();
+    i18n_domain_bundles.set_bundles(
+        lang.clone(),
+        HashMap::from([("app".to_string(), Arc::new(domain_bundle))]),
+    );
+    i18n_domain_bundles.set_locale_resources(
+        lang.clone(),
+        HashMap::from([("app".to_string(), vec![resource])]),
+    );
+
+    let mut app = App::new();
+    app.insert_resource(I18nResource::new(lang.clone()));
+    app.insert_resource(i18n_bundle);
+    app.insert_resource(i18n_domain_bundles);
+    app.insert_resource(CapturedBevyI18n::default());
+    app.add_systems(Update, capture_bevy_i18n);
+
+    app.update();
+
+    let captured = app.world().resource::<CapturedBevyI18n>();
+    assert_eq!(captured.active_language.as_ref(), Some(&lang));
+    assert_eq!(captured.resolved_language.as_ref(), Some(&lang));
+    assert!(captured.bundle_changed);
+    assert_eq!(captured.localized, Some("Hello Bevy".to_string()));
+    assert_eq!(captured.domain_localized, Some("Hello Bevy".to_string()));
+    assert_eq!(captured.message, "Hello Bevy");
+    assert_eq!(captured.missing_message, "missing");
 }
 
 #[test]
@@ -302,6 +378,7 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
     app.add_message::<LocaleChangedEvent>();
     app.insert_resource(i18n_assets);
     app.insert_resource(I18nBundle::default());
+    app.insert_resource(I18nDomainBundles::default());
     app.insert_resource(I18nResource::new(lang.clone()));
     app.insert_resource(RequestedLanguageId(lang.clone()));
     app.insert_resource(ActiveLanguageId(lang.clone()));
@@ -330,9 +407,9 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
 
     let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
     bundle.add_resource(resource.clone()).expect("add resource");
-    app.world_mut()
-        .resource_mut::<I18nBundle>()
-        .insert(lang, Arc::new(bundle), vec![resource]);
+    let mut i18n_bundle = app.world_mut().resource_mut::<I18nBundle>();
+    i18n_bundle.set_bundle(lang.clone(), Arc::new(bundle));
+    i18n_bundle.set_locale_resources(lang, vec![resource]);
 
     app.update();
 
@@ -341,6 +418,19 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
         "initial",
         "without a LocaleChangedEvent, locale-aware values should remain unchanged"
     );
+}
+
+#[test]
+fn registration_helpers_are_idempotent_per_message_type() {
+    let mut app = App::new();
+    app.register_fluent_text::<RefreshableMessage>();
+    app.register_fluent_text::<RefreshableMessage>();
+    app.register_fluent_text_from_locale::<RefreshableMessage>();
+    app.register_fluent_text_from_locale::<RefreshableMessage>();
+
+    let registered = app.world().resource::<RegisteredFluentTextTypes>();
+    assert_eq!(registered.text_system_count(), 1);
+    assert_eq!(registered.locale_refresh_system_count(), 1);
 }
 
 #[test]

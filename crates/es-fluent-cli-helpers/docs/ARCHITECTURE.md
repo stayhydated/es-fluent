@@ -13,7 +13,7 @@ logic for the runner-backed commands:
 - `clean`
 - `check`
 
-It does not implement the CLI's direct filesystem commands such as `format`,
+It does not implement the CLI's direct filesystem commands such as `fmt`,
 `sync`, or `tree`.
 
 ## Architecture
@@ -69,7 +69,7 @@ sequenceDiagram
     Runner->>Helpers: run(request)
 
     alt Generate or Clean
-        Helpers->>Helpers: resolve i18n.toml and build generator
+        Helpers->>Helpers: resolve i18n.toml, parse mode/scope, and build generator
         Helpers->>Helpers: collect inventory and run generation/clean
         Helpers->>Meta: write result.json
     else Check
@@ -86,5 +86,6 @@ sequenceDiagram
 - runner crate creation
 - Cargo invocation and staleness checks
 - user-facing reporting and diagnostics formatting
+- dry-run diff rendering for direct FTL commands
 
 That orchestration remains in `es-fluent-cli`.

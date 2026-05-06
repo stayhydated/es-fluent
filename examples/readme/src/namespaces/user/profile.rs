@@ -1,4 +1,4 @@
-use es_fluent::{EsFluent, EsFluentThis};
+use es_fluent::{EsFluent, EsFluentLabel};
 
 #[derive(EsFluent)]
 #[fluent(namespace(file(relative)))]
@@ -9,20 +9,20 @@ pub enum Gender {
     Helicopter { type_: String },
 }
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace(file(relative)))]
 pub struct UserProfile;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus {
     Active,
     Inactive,
 }
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace(folder(relative)))]
 pub struct FolderUserProfile;

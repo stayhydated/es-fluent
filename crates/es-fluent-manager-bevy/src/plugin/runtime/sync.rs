@@ -1,5 +1,3 @@
-use super::super::state::update_global_bundle;
-use super::locale::apply_selected_language;
 use crate::{
     ActiveLanguageId, I18nBundle, I18nDomainBundles, I18nResource, LocaleChangedEvent,
     PendingLanguageChange,
@@ -10,13 +8,11 @@ use bevy::window::RequestRedraw;
 use unic_langid::LanguageIdentifier;
 
 fn current_bundle_id(i18n_bundle: &I18nBundle, lang: &LanguageIdentifier) -> Option<usize> {
-    i18n_bundle
-        .get(lang)
-        .map(|bundle| std::sync::Arc::as_ptr(bundle) as *const () as usize)
+    i18n_bundle.ready_cache_id(lang)
 }
 
 #[derive(SystemParam)]
-pub(crate) struct SyncGlobalStateParams<'w, 's> {
+pub(crate) struct SyncLocaleStateParams<'w, 's> {
     i18n_bundle: Res<'w, I18nBundle>,
     i18n_domain_bundles: Res<'w, I18nDomainBundles>,
     i18n_resource: ResMut<'w, I18nResource>,
@@ -28,7 +24,7 @@ pub(crate) struct SyncGlobalStateParams<'w, 's> {
 }
 
 #[doc(hidden)]
-pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
+pub(crate) fn sync_locale_state(mut params: SyncLocaleStateParams) {
     let current_lang = params.i18n_resource.active_language().clone();
     let current_resolved_lang = params.i18n_resource.resolved_language().clone();
     let current_bundle_ptr_id = current_bundle_id(&params.i18n_bundle, &current_resolved_lang);
@@ -48,16 +44,11 @@ pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
     );
 
     if params.i18n_bundle.is_changed() || params.i18n_domain_bundles.is_changed() {
-        update_global_bundle(
-            (*params.i18n_bundle).clone(),
-            (*params.i18n_domain_bundles).clone(),
-        );
-
         if let Some(pending_language) = params.pending_language_change.0.clone() {
             let pending_bundle_id =
                 current_bundle_id(&params.i18n_bundle, &pending_language.resolved);
             if pending_bundle_id.is_some() {
-                let published = apply_selected_language(
+                let published = super::locale::apply_selected_language(
                     &pending_language,
                     &mut params.i18n_resource,
                     &mut params.active_language_id,
@@ -99,297 +90,117 @@ pub(crate) fn sync_global_state(mut params: SyncGlobalStateParams) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::lock_bevy_global_state;
-    use crate::{
-        ActiveLanguageId, BundleBuildFailures, FluentText, FluentTextRegistration, I18nAssets,
-        PendingLanguageChange, RefreshForLocale, RequestedLanguageId, ToFluentString,
-    };
-    use bevy::ecs::message::Messages;
-    use es_fluent_manager_core::ResourceKey;
-    use fluent_bundle::FluentResource;
-    use std::collections::HashMap;
+    use es_fluent_manager_core::SyncFluentBundle;
     use std::sync::Arc;
-    use unic_langid::{LanguageIdentifier, langid};
+    use unic_langid::langid;
 
-    #[derive(Clone, Component, Debug, Eq, PartialEq)]
-    struct RefreshableMessage(String);
-
-    impl RefreshForLocale for RefreshableMessage {
-        fn refresh_for_locale(&mut self, lang: &LanguageIdentifier) {
-            self.0 = lang.to_string();
-        }
+    #[derive(Default, Resource)]
+    struct ObservedSyncEvents {
+        locale_changed: Vec<LanguageIdentifier>,
+        redraw_count: usize,
     }
 
-    impl ToFluentString for RefreshableMessage {
-        fn to_fluent_string(&self) -> String {
-            self.0.clone()
-        }
+    fn bundle_for(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
+        Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()]))
+    }
+
+    fn observe_sync_events(
+        mut locale_changed_events: MessageReader<LocaleChangedEvent>,
+        mut redraw_events: MessageReader<RequestRedraw>,
+        mut observed: ResMut<ObservedSyncEvents>,
+    ) {
+        observed
+            .locale_changed
+            .extend(locale_changed_events.read().map(|event| event.0.clone()));
+        observed.redraw_count += redraw_events.read().count();
+    }
+
+    fn app_with_sync_systems(
+        i18n_bundle: I18nBundle,
+        i18n_domain_bundles: I18nDomainBundles,
+        i18n_resource: I18nResource,
+        active_language_id: ActiveLanguageId,
+        pending_language_change: PendingLanguageChange,
+    ) -> App {
+        let mut app = App::new();
+        app.add_message::<LocaleChangedEvent>()
+            .add_message::<RequestRedraw>()
+            .insert_resource(i18n_bundle)
+            .insert_resource(i18n_domain_bundles)
+            .insert_resource(i18n_resource)
+            .insert_resource(active_language_id)
+            .insert_resource(pending_language_change)
+            .insert_resource(ObservedSyncEvents::default())
+            .add_systems(Update, (sync_locale_state, observe_sync_events).chain());
+        app
     }
 
     #[test]
-    fn sync_global_state_re_emits_locale_changed_when_current_bundle_becomes_ready() {
-        let _guard = lock_bevy_global_state();
+    fn current_bundle_id_tracks_ready_cache_identity() {
         let lang = langid!("en");
-        let mut app = App::new();
-        let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset(lang.clone(), "app".to_string(), Handle::default());
+        let mut i18n_bundle = I18nBundle::default();
+        assert_eq!(current_bundle_id(&i18n_bundle, &lang), None);
 
-        app.add_message::<LocaleChangedEvent>();
-        app.add_message::<RequestRedraw>();
-        app.insert_resource(i18n_assets);
-        app.insert_resource(I18nBundle::default());
-        app.insert_resource(I18nDomainBundles::default());
-        app.insert_resource(I18nResource::new(lang.clone()));
-        app.insert_resource(RequestedLanguageId(lang.clone()));
-        app.insert_resource(ActiveLanguageId(lang.clone()));
-        app.insert_resource(PendingLanguageChange::default());
-        app.register_fluent_text_from_locale::<RefreshableMessage>();
-        app.add_systems(Update, sync_global_state);
+        i18n_bundle.set_bundle(
+            lang.clone(),
+            Arc::new(SyncFluentBundle::new_concurrent(vec![lang.clone()])),
+        );
+        let first_id = current_bundle_id(&i18n_bundle, &lang).expect("ready cache id");
 
-        let entity = app
-            .world_mut()
-            .spawn((
-                FluentText::new(RefreshableMessage("initial".to_string())),
-                Text::new("old"),
-            ))
-            .id();
+        i18n_bundle.mark_ready_without_unscoped_bundle(lang.clone());
+        assert_ne!(
+            current_bundle_id(&i18n_bundle, &lang),
+            Some(first_id),
+            "domain-only readiness should publish a new cache identity"
+        );
+    }
 
-        let mut locale_cursor = {
-            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
-            messages.get_cursor_current()
-        };
-        let mut redraw_cursor = {
-            let messages = app.world().resource::<Messages<RequestRedraw>>();
-            messages.get_cursor_current()
-        };
+    #[test]
+    fn sync_locale_state_emits_locale_changed_and_redraw_when_current_bundle_becomes_ready() {
+        let lang = langid!("en");
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.set_bundle(lang.clone(), bundle_for(&lang));
+
+        let mut app = app_with_sync_systems(
+            i18n_bundle,
+            I18nDomainBundles::default(),
+            I18nResource::new(lang.clone()),
+            ActiveLanguageId(lang.clone()),
+            PendingLanguageChange::default(),
+        );
 
         app.update();
+
+        let observed = app.world().resource::<ObservedSyncEvents>();
+        assert_eq!(observed.locale_changed, vec![lang]);
+        assert_eq!(observed.redraw_count, 1);
+    }
+
+    #[test]
+    fn sync_locale_state_publishes_pending_language_once_bundle_is_ready() {
+        let en = langid!("en");
+        let fr = langid!("fr");
+        let mut i18n_bundle = I18nBundle::default();
+        i18n_bundle.set_bundle(fr.clone(), bundle_for(&fr));
+
+        let mut app = app_with_sync_systems(
+            i18n_bundle,
+            I18nDomainBundles::default(),
+            I18nResource::new(en.clone()),
+            ActiveLanguageId(en),
+            PendingLanguageChange(Some(crate::LanguageSelection::new(fr.clone(), fr.clone()))),
+        );
+
+        app.update();
+
         assert_eq!(
-            &app.world().get::<Text>(entity).expect("text").0,
-            "old",
-            "text should stay untouched until the language is ready"
+            app.world().resource::<I18nResource>().active_language(),
+            &fr
         );
-
-        let resource = Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("ftl"));
-        app.world_mut()
-            .resource_mut::<I18nAssets>()
-            .loaded_resources
-            .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
-
-        let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
-        bundle.add_resource(resource.clone()).expect("add resource");
-        app.world_mut().resource_mut::<I18nBundle>().insert(
-            lang.clone(),
-            Arc::new(bundle),
-            vec![resource],
-        );
-
-        app.update();
-
-        let locale_changes = {
-            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
-            locale_cursor
-                .read(&messages)
-                .map(|message| message.0.clone())
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(locale_changes, vec![lang.clone()]);
-
-        let redraw_count = {
-            let messages = app.world().resource::<Messages<RequestRedraw>>();
-            redraw_cursor.read(&messages).count()
-        };
-        assert_eq!(redraw_count, 1);
-
-        let fluent_text = app
-            .world()
-            .get::<FluentText<RefreshableMessage>>(entity)
-            .expect("fluent text");
-        assert_eq!(fluent_text.value.0, "en");
-        assert_eq!(&app.world().get::<Text>(entity).expect("text").0, "en");
-    }
-
-    #[test]
-    fn sync_global_state_does_not_re_emit_locale_changed_when_current_bundle_is_missing() {
-        let _guard = lock_bevy_global_state();
-        let lang = langid!("en");
-        let mut app = App::new();
-        let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset(lang.clone(), "app".to_string(), Handle::default());
-        i18n_assets.loaded_resources.insert(
-            (lang.clone(), ResourceKey::new("app")),
-            Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("ftl")),
-        );
-
-        app.add_message::<LocaleChangedEvent>();
-        app.add_message::<RequestRedraw>();
-        app.insert_resource(i18n_assets);
-        app.insert_resource(I18nBundle::default());
-        app.insert_resource(I18nDomainBundles::default());
-        app.insert_resource(BundleBuildFailures(HashMap::from([(
-            lang.clone(),
-            vec!["resource 'app': duplicate message id 'hello'".to_string()],
-        )])));
-        app.insert_resource(I18nResource::new(lang.clone()));
-        app.insert_resource(RequestedLanguageId(lang.clone()));
-        app.insert_resource(ActiveLanguageId(lang.clone()));
-        app.insert_resource(PendingLanguageChange::default());
-        app.add_systems(Update, sync_global_state);
-        app.add_systems(
-            PostUpdate,
-            crate::update_values_on_locale_change::<RefreshableMessage>,
-        );
-
-        let entity = app
-            .world_mut()
-            .spawn(FluentText::new(RefreshableMessage("initial".to_string())))
-            .id();
-
-        let mut locale_cursor = {
-            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
-            messages.get_cursor_current()
-        };
-        let mut redraw_cursor = {
-            let messages = app.world().resource::<Messages<RequestRedraw>>();
-            messages.get_cursor_current()
-        };
-
-        app.update();
-
-        assert!(
-            !app.world()
-                .resource::<I18nBundle>()
-                .bundles
-                .contains_key(&lang),
-            "a recorded build failure must not look like a ready bundle"
-        );
-
-        let locale_changes = {
-            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
-            locale_cursor
-                .read(&messages)
-                .map(|message| message.0.clone())
-                .collect::<Vec<_>>()
-        };
-        assert!(locale_changes.is_empty());
-
-        let redraw_count = {
-            let messages = app.world().resource::<Messages<RequestRedraw>>();
-            redraw_cursor.read(&messages).count()
-        };
-        assert_eq!(redraw_count, 0);
-
-        let fluent_text = app
-            .world()
-            .get::<FluentText<RefreshableMessage>>(entity)
-            .expect("fluent text");
-        assert_eq!(fluent_text.value.0, "initial");
-    }
-
-    #[test]
-    fn sync_global_state_ignores_unrelated_bundle_changes() {
-        let _guard = lock_bevy_global_state();
-        let current_lang = langid!("en");
-        let other_lang = langid!("fr");
-        let mut app = App::new();
-        let mut i18n_assets = I18nAssets::new();
-        i18n_assets.add_asset(current_lang.clone(), "app".to_string(), Handle::default());
-        i18n_assets.add_asset(other_lang.clone(), "app".to_string(), Handle::default());
-
-        app.add_message::<LocaleChangedEvent>();
-        app.add_message::<RequestRedraw>();
-        app.insert_resource(i18n_assets);
-        app.insert_resource(I18nBundle::default());
-        app.insert_resource(I18nDomainBundles::default());
-        app.insert_resource(I18nResource::new(current_lang.clone()));
-        app.insert_resource(RequestedLanguageId(current_lang.clone()));
-        app.insert_resource(ActiveLanguageId(current_lang.clone()));
-        app.insert_resource(PendingLanguageChange::default());
-        app.add_systems(Update, sync_global_state);
-
-        let current_resource =
-            Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("ftl"));
-        app.world_mut()
-            .resource_mut::<I18nAssets>()
-            .loaded_resources
-            .insert(
-                (current_lang.clone(), ResourceKey::new("app")),
-                current_resource.clone(),
-            );
-
-        let mut current_bundle =
-            fluent_bundle::bundle::FluentBundle::new_concurrent(vec![current_lang.clone()]);
-        current_bundle
-            .add_resource(current_resource.clone())
-            .expect("add resource");
-        app.world_mut().resource_mut::<I18nBundle>().insert(
-            current_lang.clone(),
-            Arc::new(current_bundle),
-            vec![current_resource],
-        );
-
-        let mut locale_cursor = {
-            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
-            messages.get_cursor_current()
-        };
-        let mut redraw_cursor = {
-            let messages = app.world().resource::<Messages<RequestRedraw>>();
-            messages.get_cursor_current()
-        };
-
-        app.update();
-
-        let initial_locale_changes = {
-            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
-            locale_cursor
-                .read(&messages)
-                .map(|message| message.0.clone())
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(initial_locale_changes, vec![current_lang.clone()]);
-
-        let initial_redraw_count = {
-            let messages = app.world().resource::<Messages<RequestRedraw>>();
-            redraw_cursor.read(&messages).count()
-        };
-        assert_eq!(initial_redraw_count, 1);
-
-        let other_resource =
-            Arc::new(FluentResource::try_new("bonjour = salut".to_string()).expect("ftl"));
-        app.world_mut()
-            .resource_mut::<I18nAssets>()
-            .loaded_resources
-            .insert(
-                (other_lang.clone(), ResourceKey::new("app")),
-                other_resource.clone(),
-            );
-
-        let mut other_bundle =
-            fluent_bundle::bundle::FluentBundle::new_concurrent(vec![other_lang.clone()]);
-        other_bundle
-            .add_resource(other_resource.clone())
-            .expect("add resource");
-        app.world_mut().resource_mut::<I18nBundle>().insert(
-            other_lang.clone(),
-            Arc::new(other_bundle),
-            vec![other_resource],
-        );
-
-        app.update();
-
-        let locale_changes = {
-            let messages = app.world().resource::<Messages<LocaleChangedEvent>>();
-            locale_cursor
-                .read(&messages)
-                .map(|message| message.0.clone())
-                .collect::<Vec<_>>()
-        };
-        assert!(locale_changes.is_empty());
-
-        let redraw_count = {
-            let messages = app.world().resource::<Messages<RequestRedraw>>();
-            redraw_cursor.read(&messages).count()
-        };
-        assert_eq!(redraw_count, 0);
+        assert_eq!(app.world().resource::<ActiveLanguageId>().0, fr);
+        assert!(app.world().resource::<PendingLanguageChange>().0.is_none());
+        let observed = app.world().resource::<ObservedSyncEvents>();
+        assert_eq!(observed.locale_changed, vec![fr]);
+        assert_eq!(observed.redraw_count, 1);
     }
 }

@@ -107,6 +107,25 @@ fn run_generate_entrypoint_supports_generate_and_clean_subcommands() {
 }
 
 #[test]
+fn run_generate_entrypoint_reports_generate_errors() {
+    let temp = TempDir::new().expect("tempdir");
+    let missing_manifest = temp.path().join("missing-i18n.toml");
+
+    Command::cargo_bin("cli_helpers_run_generate")
+        .expect("binary exists")
+        .current_dir(temp.path())
+        .env(
+            "ES_FLUENT_TEST_I18N",
+            missing_manifest.to_str().expect("path"),
+        )
+        .env("ES_FLUENT_TEST_CRATE", "unknown-crate")
+        .args(["generate", "--dry-run"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Configuration error"));
+}
+
+#[test]
 fn run_entrypoint_reports_invalid_config_without_panicking() {
     let temp = TempDir::new().expect("tempdir");
     temp.child("i18n.toml")

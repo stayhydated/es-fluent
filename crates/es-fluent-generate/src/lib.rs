@@ -17,7 +17,7 @@ pub mod error;
 pub mod formatting;
 pub mod value;
 
-use pipeline::{OutputOperation, apply_output_operation, plan_outputs};
+use pipeline::OutputOperation;
 
 #[cfg(test)]
 pub(crate) use ast_build::{create_group_comment_entry, create_message_entry};
@@ -58,8 +58,8 @@ pub fn generate<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     let mut any_changed = false;
 
     let operation = OutputOperation::Generate(mode);
-    for output in plan_outputs(crate_name, i18n_path, manifest_dir, items)? {
-        if apply_output_operation(output, &operation, dry_run)? {
+    for output in pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)? {
+        if pipeline::apply_output_operation(output, &operation, dry_run)? {
             any_changed = true;
         }
     }

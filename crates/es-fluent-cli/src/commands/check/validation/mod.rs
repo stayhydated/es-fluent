@@ -7,7 +7,7 @@ mod tests;
 use self::context::ValidationContext;
 use super::inventory::KeyInfo;
 use crate::core::{CrateInfo, ValidationIssue};
-use crate::ftl::{LocaleContext, discover_and_load_ftl_files, main_ftl_path};
+use crate::ftl::LocaleContext;
 use anyhow::Result;
 use indexmap::IndexMap;
 use std::path::Path;
@@ -38,10 +38,17 @@ fn validate_ftl_files(
     let mut issues = Vec::new();
 
     for locale in &locale_ctx.locales {
-        match discover_and_load_ftl_files(&locale_ctx.assets_dir, locale, &locale_ctx.crate_name) {
+        match crate::ftl::discover_and_load_ftl_files(
+            &locale_ctx.assets_dir,
+            locale,
+            &locale_ctx.crate_name,
+        ) {
             Ok(loaded_files) if loaded_files.is_empty() => {
-                let ftl_abs_path =
-                    main_ftl_path(&locale_ctx.assets_dir, locale, &locale_ctx.crate_name);
+                let ftl_abs_path = crate::ftl::main_ftl_path(
+                    &locale_ctx.assets_dir,
+                    locale,
+                    &locale_ctx.crate_name,
+                );
                 let ftl_relative_path = ctx.to_relative_path(&ftl_abs_path);
                 let ftl_header_link = ctx.format_terminal_link(
                     &ftl_relative_path,
@@ -58,8 +65,11 @@ fn validate_ftl_files(
                 ));
             },
             Err(error) => {
-                let ftl_abs_path =
-                    main_ftl_path(&locale_ctx.assets_dir, locale, &locale_ctx.crate_name);
+                let ftl_abs_path = crate::ftl::main_ftl_path(
+                    &locale_ctx.assets_dir,
+                    locale,
+                    &locale_ctx.crate_name,
+                );
                 issues.push(ctx.syntax_error_issue(
                     locale,
                     &ftl_abs_path,

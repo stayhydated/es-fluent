@@ -1,6 +1,6 @@
 use super::super::common::WorkspaceCrates;
 use crate::core::CliError;
-use crate::ftl::{CrateFtlLayout, LocaleContext, discover_locale_ftl_files};
+use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::utils::ui;
 use colored::Colorize as _;
 use fs_err as fs;
@@ -43,7 +43,7 @@ impl<'a> OrphanedCleaner<'a> {
 
     #[cfg(test)]
     fn find_all_ftl_files(&self, dir: &std::path::Path) -> Result<Vec<PathBuf>, CliError> {
-        Ok(discover_locale_ftl_files(dir)?
+        Ok(crate::ftl::discover_locale_ftl_files(dir)?
             .into_iter()
             .map(|info| info.abs_path)
             .collect())
@@ -83,7 +83,7 @@ pub(super) fn clean_orphaned_files(
         let expected_files =
             cleaner.expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir)?;
 
-        for file_info in discover_locale_ftl_files(&target.locale_dir)? {
+        for file_info in crate::ftl::discover_locale_ftl_files(&target.locale_dir)? {
             total_files_checked += 1;
 
             if !expected_files.contains(&file_info.abs_path) {
@@ -133,6 +133,43 @@ pub(super) fn clean_orphaned_files(
     }
 
     Ok(())
+}
+
+pub(crate) fn find_orphaned_files(
+    workspace: &WorkspaceCrates,
+    all_locales: bool,
+) -> Result<Vec<PathBuf>, CliError> {
+    let crate_names: HashSet<&str> = workspace.crates.iter().map(|c| c.name.as_str()).collect();
+    let cleaner = OrphanedCleaner::new(crate_names);
+    let mut cleanup_targets = BTreeSet::new();
+    let mut orphaned = Vec::new();
+
+    for krate in &workspace.crates {
+        let ctx = LocaleContext::from_crate(krate, all_locales)
+            .map_err(|e| CliError::from(std::io::Error::other(e)))?;
+        let fallback_locale_dir = ctx.locale_dir(&ctx.fallback);
+
+        for (locale, _ftl_path) in ctx.iter_non_fallback() {
+            cleanup_targets.insert(LocaleCleanupTarget {
+                fallback_locale_dir: fallback_locale_dir.clone(),
+                locale_dir: ctx.locale_dir(locale),
+            });
+        }
+    }
+
+    for target in cleanup_targets {
+        let expected_files =
+            cleaner.expected_files_for_locale(&target.locale_dir, &target.fallback_locale_dir)?;
+
+        for file_info in crate::ftl::discover_locale_ftl_files(&target.locale_dir)? {
+            if !expected_files.contains(&file_info.abs_path) {
+                orphaned.push(file_info.abs_path);
+            }
+        }
+    }
+
+    orphaned.sort();
+    Ok(orphaned)
 }
 
 #[cfg(test)]

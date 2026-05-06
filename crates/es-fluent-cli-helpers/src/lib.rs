@@ -208,11 +208,10 @@ pub fn run() {
 #[serial_test::serial(process)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     fn with_temp_cwd<T>(f: impl FnOnce(&Path) -> T) -> T {
         let original = std::env::current_dir().expect("cwd");
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         std::env::set_current_dir(temp.path()).expect("set cwd");
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(temp.path())));
         std::env::set_current_dir(original).expect("restore cwd");

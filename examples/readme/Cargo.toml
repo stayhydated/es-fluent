@@ -7,9 +7,9 @@ license = "Unlicense"
 publish = false
 
 [dependencies]
-es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent = { workspace = true }
 es-fluent-manager-embedded = { workspace = true }
-example-shared-lib = { features = [ "gpui" ], path = "../example-shared-lib" }
+example-shared-lib = { features = [ "embedded" ], path = "../example-shared-lib" }
 strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]

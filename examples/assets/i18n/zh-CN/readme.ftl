@@ -1,10 +1,10 @@
-## GenderThisOnly
+## GenderLabelOnly
 
-gender_this_only_this = 性别（仅 this）
+gender_label_only_label = 性别（仅标签）
 
 ## LoginFormCombined
 
-login_form_combined_this = 组合登录表单
+login_form_combined_label = 组合登录表单
 
 ## GenderChoice
 
@@ -30,13 +30,13 @@ login_error-UserNotFound = 未找到用户 { $username }
 
 ## LoginFormCombinedDescriptionVariants
 
-login_form_combined_description_variants_this = 组合登录表单描述变体
+login_form_combined_description_variants_label = 组合登录表单描述变体
 login_form_combined_description_variants-password = 密码
 login_form_combined_description_variants-username = 用户名
 
 ## LoginFormCombinedLabelVariants
 
-login_form_combined_label_variants_this = 组合登录表单标签变体
+login_form_combined_label_variants_label = 组合登录表单标签变体
 login_form_combined_label_variants-password = 密码
 login_form_combined_label_variants-username = 用户名
 

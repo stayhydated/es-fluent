@@ -1,7 +1,8 @@
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*, winit::WinitSettings};
 use es_fluent::EsFluent;
 use es_fluent_manager_bevy::{
-    BevyFluentText, FluentText, I18nPlugin, LocaleChangeEvent, RequestedLanguageId,
+    BevyFluentText, FluentText, I18nPlugin, I18nPluginConfig, LocaleChangeEvent,
+    RequestedLanguageId,
 };
 use example_shared_lib::{ButtonState, Languages};
 
@@ -32,8 +33,6 @@ const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
 
 pub fn run() {
-    example_shared_lib::force_link();
-
     let mut app = App::new();
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -56,20 +55,16 @@ pub fn run() {
     #[cfg(target_arch = "wasm32")]
     app.insert_resource(WinitSettings::game());
 
-    app.add_plugins(I18nPlugin::with_language(Languages::default().into()))
-        .init_resource::<InputFocus>()
-        .add_systems(Startup, setup)
-        .add_systems(
-            PostUpdate,
-            (button_system, locale_change_system, locale_button_system),
-        )
-        .run();
-}
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen::prelude::wasm_bindgen(start)]
-pub fn wasm_main() {
-    run();
+    app.add_plugins(I18nPlugin::with_config(
+        I18nPluginConfig::new(Languages::default().into()).with_asset_path("i18n"),
+    ))
+    .init_resource::<InputFocus>()
+    .add_systems(Startup, setup)
+    .add_systems(
+        PostUpdate,
+        (button_system, locale_change_system, locale_button_system),
+    )
+    .run();
 }
 
 fn locale_change_system(

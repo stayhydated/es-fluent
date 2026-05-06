@@ -17,9 +17,7 @@ pub use bundle::{
     build_sync_bundle, fallback_errors_are_fatal, localize_with_bundle,
     localize_with_fallback_resources,
 };
-pub use manager::FluentManager;
-#[cfg(test)]
-pub(crate) use registry::normalize_module_registry;
+pub use manager::{DiscoveredRuntimeI18nModules, FluentManager};
 pub use registry::{ModuleDiscoveryError, ModuleRegistrationKind, try_filter_module_registry};
 
 pub type LocalizationErrorResult<T> = Result<T, LocalizationError>;
@@ -32,6 +30,11 @@ pub enum LanguageSelectionPolicy {
 
 pub trait Localizer: Send + Sync {
     /// Selects a language for the localizer.
+    ///
+    /// Implementations own their fallback behavior. Generated embedded
+    /// localizers resolve parent locales internally; custom localizers that
+    /// need the same behavior should perform that resolution here before
+    /// returning [`LocalizationError::LanguageNotSupported`].
     fn select_language(&self, lang: &LanguageIdentifier) -> es_fluent_shared::EsFluentResult<()>;
     /// Localizes a message by its ID.
     fn localize<'a>(
@@ -65,10 +68,23 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
         )
     }
 
+    /// Returns whether this registration should count as locale content support.
+    ///
+    /// Runtime utility modules can return `false` when they should follow the
+    /// selected locale but must not make an otherwise unsupported locale look
+    /// supported.
+    fn contributes_to_language_selection(&self) -> bool {
+        self.supports_runtime_localization()
+    }
+
     /// Returns an optional manifest-derived resource plan for a specific language.
     ///
-    /// When this returns `Some`, managers should use this plan directly instead of
-    /// inferring optional resource existence at runtime.
+    /// This per-language plan is authoritative when present. It can be sparse:
+    /// if a module has global namespaces `["ui", "errors"]` but a locale only
+    /// ships `ui.ftl`, the returned plan should list only that locale's actual
+    /// files. When this returns `Some`, managers should use it directly instead
+    /// of expanding [`crate::asset_localization::ModuleData::resource_plan`] or
+    /// probing for optional files.
     fn resource_plan_for_language(
         &self,
         _lang: &LanguageIdentifier,
@@ -80,6 +96,11 @@ pub trait I18nModuleRegistration: I18nModuleDescriptor {
 pub trait I18nModule: I18nModuleDescriptor {
     /// Creates a localizer for the module.
     fn create_localizer(&self) -> Box<dyn Localizer>;
+
+    /// Returns whether this module should count as locale content support.
+    fn contributes_to_language_selection(&self) -> bool {
+        true
+    }
 }
 
 impl<T: I18nModule> I18nModuleRegistration for T {
@@ -93,6 +114,10 @@ impl<T: I18nModule> I18nModuleRegistration for T {
 
     fn supports_runtime_localization(&self) -> bool {
         true
+    }
+
+    fn contributes_to_language_selection(&self) -> bool {
+        I18nModule::contributes_to_language_selection(self)
     }
 }
 

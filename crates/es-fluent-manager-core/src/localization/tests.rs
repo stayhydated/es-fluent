@@ -1,9 +1,10 @@
 use super::*;
 use crate::asset_localization::{I18nModuleDescriptor, ModuleData, StaticModuleDescriptor};
-use crate::localization::manager::{format_module_support, format_supported_languages};
 use fluent_bundle::FluentResource;
 use parking_lot::RwLock;
+use serial_test::serial;
 use std::collections::HashMap;
+use std::error::Error as _;
 use std::io;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -42,6 +43,12 @@ static HARD_FAIL_DATA: ModuleData = ModuleData {
     supported_languages: &[],
     namespaces: &[],
 };
+static MISSING_LOCALIZER_DATA: ModuleData = ModuleData {
+    name: "missing-localizer",
+    domain: "missing-localizer",
+    supported_languages: &[],
+    namespaces: &[],
+};
 static EXPLICIT_RUNTIME_DATA: ModuleData = ModuleData {
     name: "explicit-runtime",
     domain: "explicit-runtime",
@@ -50,18 +57,6 @@ static EXPLICIT_RUNTIME_DATA: ModuleData = ModuleData {
 };
 static FILTER_MODULE_DATA: ModuleData = ModuleData {
     name: "filter-module",
-    domain: "filter-domain",
-    supported_languages: &[],
-    namespaces: &[],
-};
-static FILTER_DUP_NAME_DATA: ModuleData = ModuleData {
-    name: "filter-module",
-    domain: "filter-domain-b",
-    supported_languages: &[],
-    namespaces: &[],
-};
-static FILTER_DUP_DOMAIN_DATA: ModuleData = ModuleData {
-    name: "filter-module-b",
     domain: "filter-domain",
     supported_languages: &[],
     namespaces: &[],
@@ -84,12 +79,6 @@ static FILTER_INVALID_NAMESPACE_DATA: ModuleData = ModuleData {
     supported_languages: &[],
     namespaces: &[" ../escape "],
 };
-static FILTER_DUP_LANGUAGE_DATA: ModuleData = ModuleData {
-    name: "filter-dup-language",
-    domain: "filter-dup-language",
-    supported_languages: &[langid!("en"), langid!("en")],
-    namespaces: &[],
-};
 static DIAGNOSTIC_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
     langid!("en"),
     langid!("fr"),
@@ -105,25 +94,19 @@ static DIAGNOSTIC_MODULE_DATA: ModuleData = ModuleData {
     supported_languages: DIAGNOSTIC_SUPPORTED_LANGUAGES,
     namespaces: &[],
 };
-static FILTER_DESCRIPTOR: StaticModuleDescriptor = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
-static FILTER_DUP_NAME_DESCRIPTOR: StaticModuleDescriptor =
-    StaticModuleDescriptor::new(&FILTER_DUP_NAME_DATA);
-static FILTER_DUP_DOMAIN_DESCRIPTOR: StaticModuleDescriptor =
-    StaticModuleDescriptor::new(&FILTER_DUP_DOMAIN_DATA);
 static FILTER_EXACT_DUP_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 static FILTER_EXACT_DUP_DESCRIPTOR_TWO: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_EXACT_DUP_DATA);
 static FILTER_INVALID_NAMESPACE_DESCRIPTOR: StaticModuleDescriptor =
     StaticModuleDescriptor::new(&FILTER_INVALID_NAMESPACE_DATA);
-static FILTER_DUP_LANGUAGE_DESCRIPTOR: StaticModuleDescriptor =
-    StaticModuleDescriptor::new(&FILTER_DUP_LANGUAGE_DATA);
 
 struct ModuleOk;
 struct ModuleErr;
 struct StatefulSuccessModule;
 struct StatefulFailModule;
 struct HardFailModule;
+struct MissingLocalizerModule;
 struct FilterRuntimeModule;
 struct FilterRuntimeModuleTwo;
 struct FilterRuntimeMismatchModule;
@@ -339,6 +322,22 @@ impl I18nModule for HardFailModule {
     }
 }
 
+impl I18nModuleDescriptor for MissingLocalizerModule {
+    fn data(&self) -> &'static ModuleData {
+        &MISSING_LOCALIZER_DATA
+    }
+}
+
+impl I18nModuleRegistration for MissingLocalizerModule {
+    fn create_localizer(&self) -> Option<Box<dyn Localizer>> {
+        None
+    }
+
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::RuntimeLocalizer
+    }
+}
+
 impl I18nModuleDescriptor for ExplicitRuntimeRegistration {
     fn data(&self) -> &'static ModuleData {
         &EXPLICIT_RUNTIME_DATA
@@ -361,6 +360,7 @@ static MODULE_ERR: ModuleErr = ModuleErr;
 static STATEFUL_SUCCESS_MODULE: StatefulSuccessModule = StatefulSuccessModule;
 static STATEFUL_FAIL_MODULE: StatefulFailModule = StatefulFailModule;
 static HARD_FAIL_MODULE: HardFailModule = HardFailModule;
+static MISSING_LOCALIZER_MODULE: MissingLocalizerModule = MissingLocalizerModule;
 static FILTER_RUNTIME_MODULE: FilterRuntimeModule = FilterRuntimeModule;
 static FILTER_RUNTIME_MODULE_TWO: FilterRuntimeModuleTwo = FilterRuntimeModuleTwo;
 static FILTER_RUNTIME_MISMATCH_MODULE: FilterRuntimeMismatchModule = FilterRuntimeMismatchModule;
@@ -417,6 +417,26 @@ fn manager_try_new_with_discovered_modules_succeeds_for_clean_inventory() {
 }
 
 #[test]
+fn discovered_modules_expose_len_empty_debug_clone_and_manager_construction() {
+    let discovered = FluentManager::try_discover_runtime_modules()
+        .expect("current test inventory should pass strict discovery");
+    let cloned = discovered.clone();
+    let manager = FluentManager::from_discovered_modules(&cloned);
+
+    assert!(!discovered.is_empty());
+    assert_eq!(cloned.len(), discovered.len());
+    assert_eq!(manager.modules.len(), discovered.len());
+    assert_eq!(
+        format!("{discovered:?}"),
+        format!(
+            "DiscoveredRuntimeI18nModules {{ len: {} }}",
+            discovered.len()
+        )
+    );
+}
+
+#[test]
+#[serial(explicit_runtime_create_calls)]
 fn registration_runtime_support_defaults_match_registration_kind() {
     let metadata_only = StaticModuleDescriptor::new(&FILTER_MODULE_DATA);
     assert_eq!(
@@ -473,7 +493,33 @@ fn manager_localize_returns_first_matching_message() {
         manager.localize_in_domain("module-err", "shared-id", None),
         Some("err-shared".to_string())
     );
+    assert_eq!(
+        manager.localize_in_domain("module-ok", "missing", None),
+        None
+    );
+    assert_eq!(
+        manager.localize_in_domain("missing-domain", "shared-id", None),
+        None
+    );
     assert_eq!(manager.localize("missing", None), None);
+}
+
+#[test]
+fn manager_select_language_reports_runtime_module_that_creates_no_localizer() {
+    let manager = FluentManager {
+        modules: vec![&MISSING_LOCALIZER_MODULE as &dyn I18nModuleRegistration],
+        localizers: RwLock::default(),
+    };
+
+    let err = manager
+        .select_language(&langid!("en"))
+        .expect_err("runtime registrations must create localizers");
+
+    assert!(matches!(err, LocalizationError::IoError(_)));
+    assert!(
+        err.to_string()
+            .contains("did not create a localizer during language selection")
+    );
 }
 
 #[test]
@@ -537,7 +583,7 @@ fn manager_keeps_previous_localizers_when_strict_selection_fails() {
 #[test]
 fn format_supported_languages_truncates_long_lists_for_diagnostics() {
     assert_eq!(
-        format_supported_languages(DIAGNOSTIC_SUPPORTED_LANGUAGES),
+        crate::localization::manager::format_supported_languages(DIAGNOSTIC_SUPPORTED_LANGUAGES),
         "en, fr, de, es, it, ja, +1 more"
     );
 }
@@ -545,7 +591,7 @@ fn format_supported_languages_truncates_long_lists_for_diagnostics() {
 #[test]
 fn format_module_support_includes_domain_when_it_differs() {
     assert_eq!(
-        format_module_support(&DIAGNOSTIC_MODULE_DATA),
+        crate::localization::manager::format_module_support(&DIAGNOSTIC_MODULE_DATA),
         "diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
     );
 }
@@ -553,8 +599,35 @@ fn format_module_support_includes_domain_when_it_differs() {
 #[test]
 fn format_module_support_reports_missing_declared_languages() {
     assert_eq!(
-        format_module_support(&MODULE_ERR_DATA),
+        crate::localization::manager::format_module_support(&MODULE_ERR_DATA),
         "module-err (supports: none declared)"
+    );
+}
+
+#[test]
+fn format_module_names_reports_empty_and_joined_module_lists() {
+    assert_eq!(
+        crate::localization::manager::format_module_names(&[]),
+        "<none>"
+    );
+    assert_eq!(
+        crate::localization::manager::format_module_names(&[&MODULE_OK_DATA, &MODULE_ERR_DATA]),
+        "module-ok, module-err"
+    );
+}
+
+#[test]
+fn format_module_support_list_reports_empty_and_joined_support_details() {
+    assert_eq!(
+        crate::localization::manager::format_module_support_list(&[]),
+        "<none>"
+    );
+    assert_eq!(
+        crate::localization::manager::format_module_support_list(&[
+            &MODULE_ERR_DATA,
+            &DIAGNOSTIC_MODULE_DATA
+        ]),
+        "module-err (supports: none declared), diagnostic-module (domain: diagnostic-domain, supports: en, fr, de, es, it, ja, +1 more)"
     );
 }
 
@@ -575,84 +648,20 @@ fn build_sync_bundle_reports_resource_add_errors() {
 }
 
 #[test]
-fn normalize_module_registry_skips_duplicate_name_and_domain() {
-    let filtered = normalize_module_registry([
-        &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_DUP_NAME_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_DUP_DOMAIN_DESCRIPTOR as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(filtered[0].data().name, "filter-module");
-}
-
-#[test]
-fn normalize_module_registry_prefers_runtime_localizer_for_exact_duplicate_identity() {
-    let filtered = normalize_module_registry([
-        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_some());
-}
-
-#[test]
-fn normalize_module_registry_keeps_metadata_only_registration_when_runtime_metadata_conflicts() {
-    let filtered = normalize_module_registry([
-        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_RUNTIME_MISMATCH_MODULE as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_none());
-    assert_eq!(filtered[0].data(), &FILTER_EXACT_DUP_DATA);
-}
-
-#[test]
-fn normalize_module_registry_keeps_runtime_localizer_when_metadata_duplicate_follows() {
-    let filtered = normalize_module_registry([
-        &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
-        &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_some());
-}
-
-#[test]
-fn normalize_module_registry_uses_explicit_registration_kind_without_constructing_localizers() {
-    EXPLICIT_RUNTIME_CREATE_CALLS.store(0, Ordering::Relaxed);
-
-    let filtered =
-        normalize_module_registry([&EXPLICIT_RUNTIME_REGISTRATION as &dyn I18nModuleRegistration]);
-
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(EXPLICIT_RUNTIME_CREATE_CALLS.load(Ordering::Relaxed), 0);
-}
-
-#[test]
-fn normalize_module_registry_skips_entries_with_invalid_metadata() {
-    let filtered = normalize_module_registry([
-        &FILTER_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_INVALID_NAMESPACE_DESCRIPTOR as &dyn I18nModuleRegistration,
-        &FILTER_DUP_LANGUAGE_DESCRIPTOR as &dyn I18nModuleRegistration,
-    ]);
-
-    assert_eq!(filtered.len(), 1);
-    assert_eq!(filtered[0].data().name, "filter-module");
-}
-
-#[test]
-fn try_filter_module_registry_allows_exact_runtime_and_metadata_pairing() {
+fn try_filter_module_registry_preserves_exact_runtime_and_metadata_pairing() {
     let filtered = try_filter_module_registry([
         &FILTER_EXACT_DUP_DESCRIPTOR as &dyn I18nModuleRegistration,
         &FILTER_RUNTIME_MODULE as &dyn I18nModuleRegistration,
     ])
     .expect("metadata plus runtime for one exact identity should remain valid");
 
-    assert_eq!(filtered.len(), 1);
-    assert!(filtered[0].create_localizer().is_some());
+    assert_eq!(filtered.len(), 2);
+    assert!(filtered.iter().any(|registration| {
+        registration.registration_kind() == ModuleRegistrationKind::MetadataOnly
+    }));
+    assert!(filtered.iter().any(|registration| {
+        registration.registration_kind() == ModuleRegistrationKind::RuntimeLocalizer
+    }));
 }
 
 #[test]
@@ -718,4 +727,51 @@ fn try_filter_module_registry_rejects_mismatched_metadata_runtime_pairing() {
                 if name == "filter-exact-module" && domain == "filter-exact-domain"
         )
     }));
+}
+
+#[test]
+fn module_registration_kind_and_discovery_errors_report_diagnostics() {
+    assert_eq!(
+        ModuleRegistrationKind::MetadataOnly.to_string(),
+        "metadata-only"
+    );
+    assert_eq!(
+        ModuleRegistrationKind::RuntimeLocalizer.to_string(),
+        "runtime-localizer"
+    );
+
+    let invalid_errors = match try_filter_module_registry(vec![
+        &FILTER_INVALID_NAMESPACE_DESCRIPTOR as &dyn I18nModuleRegistration,
+    ]) {
+        Ok(_) => panic!("invalid metadata should fail strict filtering"),
+        Err(errors) => errors,
+    };
+    let invalid = invalid_errors
+        .iter()
+        .find(|error| matches!(error, ModuleDiscoveryError::InvalidMetadata(_)))
+        .expect("invalid metadata error should be present");
+    assert!(invalid.source().is_some());
+    assert!(invalid.to_string().contains("namespace"));
+
+    let inconsistent = ModuleDiscoveryError::InconsistentModuleMetadata {
+        name: "module".to_string(),
+        domain: "domain".to_string(),
+    };
+    assert!(inconsistent.source().is_none());
+    assert_eq!(
+        inconsistent.to_string(),
+        "module 'module' (domain 'domain') has mismatched metadata between registrations"
+    );
+
+    let duplicate = ModuleDiscoveryError::DuplicateModuleRegistration {
+        name: "module".to_string(),
+        domain: "domain".to_string(),
+        kind: ModuleRegistrationKind::RuntimeLocalizer,
+        count: 2,
+    };
+    assert!(duplicate.source().is_none());
+    assert_eq!(
+        duplicate.to_string(),
+        "module 'module' (domain 'domain') has 2 duplicate runtime-localizer registrations"
+    );
 }

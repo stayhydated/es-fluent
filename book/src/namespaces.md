@@ -1,6 +1,6 @@
 # Namespaces & File Splitting
 
-By default, all your FTL keys land in a single `{crate}.ftl` file per locale. As a project grows, this gets unwieldy. Namespaces let you route specific types into separate `.ftl` files. Every derive macro (`EsFluent`, `EsFluentThis`, `EsFluentVariants`) supports the same namespace attribute.
+By default, all your FTL keys land in a single `{crate}.ftl` file per locale. As a project grows, this gets unwieldy. Namespaces let you route specific types into separate `.ftl` files. Every derive macro (`EsFluent`, `EsFluentLabel`, `EsFluentVariants`) supports the same namespace attribute.
 
 ## Output Layout
 
@@ -71,11 +71,11 @@ A type in `src/ui/button.rs` maps to namespace `ui/button`.
 `namespace = folder` uses the source file's parent folder.
 
 ```rust
-use es_fluent::EsFluentThis;
+use es_fluent::EsFluentLabel;
 
 // In src/user/profile.rs
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus {
     Active,
@@ -90,11 +90,11 @@ A type in `src/user/profile.rs` maps to namespace `user`.
 `namespace(folder(relative))` uses the parent folder path relative to the crate root, stripping `src/` when nested and keeping `src` for root module files.
 
 ```rust
-use es_fluent::EsFluentThis;
+use es_fluent::EsFluentLabel;
 
 // In src/user/profile.rs
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
+#[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace(folder(relative)))]
 pub struct FolderUserProfile;
 ```
@@ -113,4 +113,4 @@ A type in `src/user/profile.rs` maps to namespace `user`.
 
 ## Validation
 
-If `namespaces = [...]` is set in your `i18n.toml`, both the compiler (at compile-time) and the CLI will validate that explicit string-based namespaces used by your code match the provided allowlist. File-based and folder-based namespaces bypass validation since they're derived automatically from the source tree.
+Literal string namespaces are validated at compile time as safe relative namespace paths. If `namespaces = [...]` is set in your `i18n.toml`, both the compiler and the CLI validate that explicit string-based namespaces used by your code match the provided allowlist. File-based and folder-based namespaces bypass allowlist validation because they're derived automatically from the source tree.

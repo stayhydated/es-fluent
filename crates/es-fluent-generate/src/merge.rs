@@ -1,5 +1,4 @@
-use crate::ast_build::{create_group_comment_entry, create_message_entry};
-use crate::model::{OwnedTypeInfo, compare_type_infos, merge_ftl_type_infos};
+use crate::model::OwnedTypeInfo;
 use es_fluent_shared::namer::FluentKey;
 use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::ast;
@@ -19,8 +18,8 @@ pub(crate) fn smart_merge(
     items: &[&FtlTypeInfo],
     behavior: MergeBehavior,
 ) -> ast::Resource<String> {
-    let mut pending_items = merge_ftl_type_infos(items);
-    pending_items.sort_by(compare_type_infos);
+    let mut pending_items = crate::model::merge_ftl_type_infos(items);
+    pending_items.sort_by(crate::model::compare_type_infos);
 
     let mut item_map: IndexMap<String, _> = pending_items
         .into_iter()
@@ -58,7 +57,7 @@ pub(crate) fn smart_merge(
                             for variant in &info.variants {
                                 if !existing_keys.contains(&variant.ftl_key) {
                                     seen_keys.insert(variant.ftl_key.clone());
-                                    new_body.push(create_message_entry(variant));
+                                    new_body.push(crate::ast_build::create_message_entry(variant));
                                 }
                             }
                         }
@@ -150,7 +149,7 @@ pub(crate) fn smart_merge(
                 for variant in &info.variants {
                     if !existing_keys.contains(&variant.ftl_key) {
                         seen_keys.insert(variant.ftl_key.clone());
-                        new_body.push(create_message_entry(variant));
+                        new_body.push(crate::ast_build::create_message_entry(variant));
                     }
                 }
             }
@@ -160,7 +159,7 @@ pub(crate) fn smart_merge(
 
     if matches!(behavior, MergeBehavior::Append) {
         let mut remaining_groups: Vec<_> = item_map.into_iter().collect();
-        remaining_groups.sort_by(|(_, a), (_, b)| compare_type_infos(a, b));
+        remaining_groups.sort_by(|(_, a), (_, b)| crate::model::compare_type_infos(a, b));
 
         for (type_name, info) in remaining_groups {
             let relocated = relocated_by_group.shift_remove(&type_name);
@@ -169,14 +168,14 @@ pub(crate) fn smart_merge(
                 .iter()
                 .any(|variant| !existing_keys.contains(&variant.ftl_key));
             if has_missing || relocated.is_some() {
-                new_body.push(create_group_comment_entry(&type_name));
+                new_body.push(crate::ast_build::create_group_comment_entry(&type_name));
                 if let Some(entries) = relocated {
                     new_body.extend(entries);
                 }
                 for variant in info.variants {
                     if !existing_keys.contains(&variant.ftl_key) {
                         seen_keys.insert(variant.ftl_key.clone());
-                        new_body.push(create_message_entry(&variant));
+                        new_body.push(crate::ast_build::create_message_entry(&variant));
                     }
                 }
             }

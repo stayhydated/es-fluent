@@ -5,17 +5,33 @@
 
 The `es-fluent-manager-core` crate defines the runtime contracts shared by the
 `es-fluent` managers. It owns the common manager, module, localizer, fallback,
-and resource-planning abstractions used by both embedded and asset-based runtime
-integrations.
+and resource-planning abstractions used by embedded, Dioxus, and asset-based
+runtime integrations.
 
 ## Key API
 
 - `FluentManager`: central runtime entry point for selecting locales and formatting
-  messages, with optional domain-scoped lookup via `localize_in_domain`
+  messages after an initial `select_language(...)` call, with optional
+  domain-scoped lookup via `localize_in_domain`
+- `FluentManager::with_lookup(...)`: render-scoped domain lookup for custom
+  integration code that needs all nested typed-message lookups to use the same
+  active localizer set. Custom `FluentLocalizer` implementations must invoke
+  the callback exactly once, must not retain it after the method returns, and
+  should keep one stable lookup snapshot for the whole callback.
+- `DiscoveredRuntimeI18nModules`: cached, validated runtime-capable module
+  discovery for integrations that need many request-local managers without
+  repeating inventory validation. Metadata-only registrations are validated but
+  are not stored in this cache.
 - `LanguageSelectionPolicy` plus `FluentManager::select_language_strict()`: choose
   between best-effort locale switching and transactional switching
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts
   for localization modules
+- `I18nModuleRegistration::contributes_to_language_selection()`: lets utility
+  runtime modules follow locale changes without making unsupported locales look
+  supported
+- `FluentManager::select_language_for_supported_locale()`: lets integrations
+  commit runtime utility modules after another backend has already proved
+  application locale support
 - `FluentManager::new_with_discovered_modules()` and
   `FluentManager::try_new_with_discovered_modules()`: strict discovery helpers
   that fail fast on invalid metadata or repeated registrations of the same kind
@@ -31,20 +47,34 @@ integrations.
 Most applications should use a concrete manager crate instead:
 
 - [`es-fluent-manager-embedded`](../es-fluent-manager-embedded/README.md)
+- [`es-fluent-manager-dioxus`](../es-fluent-manager-dioxus/README.md)
 - [`es-fluent-manager-bevy`](../es-fluent-manager-bevy/README.md)
 
 Reach for `es-fluent-manager-core` directly when building a custom runtime
 integration or reusing the shared fallback and module-registration logic.
 
-`FluentManager::localize()` remains a first-match search across discovered
-localizers when you call it directly. Derived `es-fluent` messages route through
-their crate domain automatically; direct callers that need explicit routing
-should use `FluentManager::localize_in_domain()` and keep domains unique.
+`FluentManager::localize()` is a first-match search across discovered runtime
+localizers. Prefer typed `localize_message(...)` wrappers or
+`FluentManager::localize_in_domain()` for multi-module apps; use
+`localize(...)` directly only for simple single-domain apps or intentional
+first-match lookup.
 
-Strict discovery is now the default constructor behavior:
+Strict discovery is now the default constructor behavior. Construction does not
+select a language, so custom runtime integrations must select the initial
+language before lookup:
 
-```rust
+```rust,no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
 use es_fluent_manager_core::FluentManager;
+use unic_langid::langid;
 
-let manager = FluentManager::new_with_discovered_modules();
+let manager = FluentManager::try_new_with_discovered_modules().map_err(|errors| {
+    std::io::Error::other(format!("module discovery failed: {errors:?}"))
+})?;
+manager.select_language(&langid!("en"))?;
+
+let value = manager.localize_in_domain("app", "hello", None);
+# let _ = value;
+# Ok(())
+# }
 ```

@@ -1,0 +1,15 @@
+---
+source: crates/es-fluent-generate/tests/generate_tests.rs
+expression: content
+---
+## BananaLabel
+
+banana_label_label = Label
+
+## Apple
+
+apple-Red = Red
+
+## Banana
+
+banana-Yellow = Yellow

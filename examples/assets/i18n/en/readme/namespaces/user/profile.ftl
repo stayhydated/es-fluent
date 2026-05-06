@@ -1,6 +1,6 @@
 ## UserProfile
 
-user_profile_this = User Profile
+user_profile_label = User Profile
 
 ## Gender
 

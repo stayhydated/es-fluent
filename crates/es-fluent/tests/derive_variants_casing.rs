@@ -1,3 +1,5 @@
+#![cfg(feature = "derive")]
+
 //! Tests for EsFluentVariants key casing behavior.
 //!
 //! - Enum variants should preserve their original casing (PascalCase) in FTL keys

@@ -5,16 +5,19 @@
 //! - Parsing FTL files directly using fluent-syntax (for proper ParserError handling)
 //! - Comparing FTL files against the expected keys and variables from Rust code
 //! - Reporting missing keys as errors
-//! - Reporting missing variables as warnings
+//! - Reporting unexpected FTL variables as errors
+//! - Reporting Rust-declared variables omitted by translations as warnings
 
 mod inventory;
 mod validation;
 
-use super::common::{WorkspaceArgs, WorkspaceCrates};
-use crate::core::{CliError, ValidationIssue, ValidationReport};
-use crate::generation::{MonolithicExecutor, prepare_monolithic_runner_crate};
+use super::common::{OutputFormat, WorkspaceArgs, WorkspaceCrates};
+use crate::core::{CliError, ValidationExecutionError, ValidationIssue, ValidationReport};
+use crate::generation::MonolithicExecutor;
 use crate::utils::ui;
 use clap::Parser;
+use miette::NamedSource;
+use serde::Serialize;
 use std::collections::HashSet;
 
 /// Arguments for the check command.
@@ -32,22 +35,147 @@ pub struct CheckArgs {
     #[arg(long, value_delimiter = ',')]
     pub ignore: Vec<String>,
 
-    /// Force rebuild of the runner, ignoring the staleness cache.
+    /// Run the generated runner through Cargo, ignoring the staleness cache.
     #[arg(long)]
     pub force_run: bool,
+
+    /// Output format.
+    #[arg(long, value_enum, default_value_t = OutputFormat::default())]
+    pub output: OutputFormat,
 }
 
-/// Run the check command.
-pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
-    let workspace = WorkspaceCrates::discover(args.workspace)?;
+pub(crate) struct CheckRun {
+    pub(crate) crates_discovered: usize,
+    pub(crate) crates_checked: usize,
+    pub(crate) issues: Vec<ValidationIssue>,
+}
 
-    if !workspace.print_discovery(ui::Ui::print_check_header) {
-        return Ok(());
+#[derive(Serialize)]
+struct CheckJsonReport {
+    crates_discovered: usize,
+    crates_checked: usize,
+    error_count: usize,
+    warning_count: usize,
+    issues: Vec<CheckIssueJson>,
+}
+
+#[derive(Serialize)]
+struct CheckIssueJson {
+    severity: &'static str,
+    kind: &'static str,
+    source: String,
+    locale: String,
+    key: Option<String>,
+    variable: Option<String>,
+    help: String,
+}
+
+impl CheckJsonReport {
+    fn from_run(run: &CheckRun) -> Self {
+        let (error_count, warning_count) = count_issues(&run.issues);
+
+        Self {
+            crates_discovered: run.crates_discovered,
+            crates_checked: run.crates_checked,
+            error_count,
+            warning_count,
+            issues: run.issues.iter().map(CheckIssueJson::from).collect(),
+        }
     }
+}
 
+impl From<&ValidationIssue> for CheckIssueJson {
+    fn from(issue: &ValidationIssue) -> Self {
+        match issue {
+            ValidationIssue::MissingKey(error) => Self {
+                severity: "error",
+                kind: "missing_key",
+                source: error.src.name().to_string(),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: None,
+                help: error.help.clone(),
+            },
+            ValidationIssue::DuplicateKey(error) => Self {
+                severity: "error",
+                kind: "duplicate_key",
+                source: error.src.name().to_string(),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: None,
+                help: error.help.clone(),
+            },
+            ValidationIssue::MissingVariable(error) => Self {
+                severity: "warning",
+                kind: "missing_variable",
+                source: error.src.name().to_string(),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: Some(error.variable.clone()),
+                help: error.help.clone(),
+            },
+            ValidationIssue::UnexpectedVariable(error) => Self {
+                severity: "error",
+                kind: "unexpected_variable",
+                source: error.src.name().to_string(),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: Some(error.variable.clone()),
+                help: error.help.clone(),
+            },
+            ValidationIssue::ValidationExecution(error) => Self {
+                severity: "error",
+                kind: "validation_execution",
+                source: error.src.name().to_string(),
+                locale: String::new(),
+                key: None,
+                variable: None,
+                help: error.help.clone(),
+            },
+            ValidationIssue::SyntaxError(error) => Self {
+                severity: "error",
+                kind: "syntax_error",
+                source: error.src.name().to_string(),
+                locale: error.locale.clone(),
+                key: None,
+                variable: None,
+                help: error.help.clone(),
+            },
+        }
+    }
+}
+
+pub(crate) fn count_issues(issues: &[ValidationIssue]) -> (usize, usize) {
+    let error_count = issues
+        .iter()
+        .filter(|i| {
+            matches!(
+                i,
+                ValidationIssue::MissingKey(_)
+                    | ValidationIssue::DuplicateKey(_)
+                    | ValidationIssue::UnexpectedVariable(_)
+                    | ValidationIssue::ValidationExecution(_)
+                    | ValidationIssue::SyntaxError(_)
+            )
+        })
+        .count();
+    let warning_count = issues
+        .iter()
+        .filter(|i| matches!(i, ValidationIssue::MissingVariable(_)))
+        .count();
+
+    (error_count, warning_count)
+}
+
+pub(crate) fn collect_check_run(
+    workspace: &WorkspaceCrates,
+    all: bool,
+    ignore: &[String],
+    force_run: bool,
+    show_progress: bool,
+) -> Result<CheckRun, CliError> {
     // Convert ignore list to a HashSet for efficient lookups
-    let ignore_crates: HashSet<String> = args.ignore.into_iter().collect();
-    let force_run = args.force_run;
+    let ignore_crates: HashSet<String> = ignore.iter().cloned().collect();
 
     // Filter out ignored crates
     let crates_to_check: Vec<_> = workspace
@@ -82,12 +210,18 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     }
 
     if crates_to_check.is_empty() {
-        ui::Ui::print_no_crates_found();
-        return Ok(());
+        if show_progress {
+            ui::Ui::print_no_crates_found();
+        }
+        return Ok(CheckRun {
+            crates_discovered: workspace.crates.len(),
+            crates_checked: 0,
+            issues: Vec::new(),
+        });
     }
 
     // Prepare monolithic temp crate once for all checks
-    prepare_monolithic_runner_crate(&workspace.workspace_info)
+    crate::generation::prepare_monolithic_runner_crate(&workspace.workspace_info)
         .map_err(|e| CliError::Other(e.to_string()))?;
 
     // First pass: collect all expected keys from crates
@@ -96,7 +230,11 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     );
     let executor = MonolithicExecutor::new(&workspace.workspace_info);
 
-    let pb = ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...");
+    let pb = if show_progress {
+        ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Collecting keys...")
+    } else {
+        indicatif::ProgressBar::hidden()
+    };
 
     for krate in &crates_to_check {
         pb.set_message(format!("Scanning {}", krate.name));
@@ -112,7 +250,11 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     // Second pass: validate FTL files
     let mut all_issues: Vec<ValidationIssue> = Vec::new();
 
-    let pb = ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...");
+    let pb = if show_progress {
+        ui::Ui::create_progress_bar(crates_to_check.len() as u64, "Checking crates...")
+    } else {
+        indicatif::ProgressBar::hidden()
+    };
 
     for krate in &crates_to_check {
         pb.set_message(format!("Checking {}", krate.name));
@@ -121,16 +263,26 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
             krate,
             &workspace.workspace_info.root_dir,
             temp_store.base_dir(),
-            args.all,
+            all,
         ) {
             Ok(issues) => {
                 all_issues.extend(issues);
             },
             Err(e) => {
+                let error = e.to_string();
                 // If error, print above progress bar
-                pb.suspend(|| {
-                    ui::Ui::print_check_error(&krate.name, &e.to_string());
-                });
+                if show_progress {
+                    pb.suspend(|| {
+                        ui::Ui::print_check_error(&krate.name, &error);
+                    });
+                }
+                all_issues.push(ValidationIssue::ValidationExecution(
+                    ValidationExecutionError {
+                        src: NamedSource::new(krate.name.clone(), String::new()),
+                        crate_name: krate.name.clone(),
+                        help: error,
+                    },
+                ));
             },
         }
         pb.inc(1);
@@ -141,190 +293,50 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     // Sort issues for deterministic output
     all_issues.sort_by_cached_key(|issue| issue.sort_key());
 
-    let error_count = all_issues
-        .iter()
-        .filter(|i| {
-            matches!(
-                i,
-                ValidationIssue::MissingKey(_) | ValidationIssue::SyntaxError(_)
-            )
-        })
-        .count();
-    let warning_count = all_issues
-        .iter()
-        .filter(|i| matches!(i, ValidationIssue::MissingVariable(_)))
-        .count();
+    Ok(CheckRun {
+        crates_discovered: workspace.crates.len(),
+        crates_checked: crates_to_check.len(),
+        issues: all_issues,
+    })
+}
 
-    if all_issues.is_empty() {
+/// Run the check command.
+pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
+    let workspace = WorkspaceCrates::discover(args.workspace)?;
+    let show_text = !args.output.is_json();
+
+    if show_text && !workspace.print_discovery(ui::Ui::print_check_header) {
+        return Ok(());
+    }
+
+    let run = collect_check_run(
+        &workspace,
+        args.all,
+        &args.ignore,
+        args.force_run,
+        show_text,
+    )?;
+    let (error_count, warning_count) = count_issues(&run.issues);
+
+    if args.output.is_json() {
+        args.output.print_json(&CheckJsonReport::from_run(&run))?;
+        if !run.issues.is_empty() {
+            return Err(CliError::Exit(1));
+        }
+        return Ok(());
+    }
+
+    if run.issues.is_empty() {
         ui::Ui::print_check_success();
         Ok(())
     } else {
         Err(CliError::Validation(ValidationReport {
             error_count,
             warning_count,
-            issues: all_issues,
+            issues: run.issues,
         }))
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use fs_err as fs;
-
-    use crate::test_fixtures::{
-        FakeRunnerBehavior, INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY,
-        create_test_crate_workspace, setup_fake_runner_and_cache as setup_runner_cache,
-    };
-
-    fn setup_fake_runner_and_cache_with_behavior(
-        temp: &tempfile::TempDir,
-        behavior: FakeRunnerBehavior,
-    ) {
-        setup_runner_cache(temp, behavior);
-    }
-
-    fn setup_fake_runner_and_cache(temp: &tempfile::TempDir) {
-        setup_fake_runner_and_cache_with_behavior(temp, FakeRunnerBehavior::silent_success());
-    }
-
-    #[test]
-    fn run_check_returns_error_for_unknown_ignored_crate() {
-        let temp = create_test_crate_workspace();
-
-        let result = run_check(CheckArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: None,
-            },
-            all: false,
-            ignore: vec!["missing-crate".to_string()],
-            force_run: false,
-        });
-
-        assert!(
-            matches!(result, Err(CliError::Other(msg)) if msg.contains("Unknown crates passed to --ignore"))
-        );
-    }
-
-    #[test]
-    fn run_check_returns_ok_when_package_filter_matches_nothing() {
-        let temp = create_test_crate_workspace();
-
-        let result = run_check(CheckArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: Some("missing-crate".to_string()),
-            },
-            all: false,
-            ignore: Vec::new(),
-            force_run: false,
-        });
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn run_check_succeeds_with_fake_runner_and_matching_inventory() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp);
-
-        let inventory_path =
-            es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
-                .inventory_path("test-app");
-        fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
-        fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
-
-        let result = run_check(CheckArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: None,
-            },
-            all: false,
-            ignore: Vec::new(),
-            force_run: false,
-        });
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn run_check_returns_validation_error_for_missing_key() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp);
-
-        let inventory_path =
-            es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
-                .inventory_path("test-app");
-        fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
-        fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
-
-        let result = run_check(CheckArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: None,
-            },
-            all: false,
-            ignore: Vec::new(),
-            force_run: false,
-        });
-
-        assert!(matches!(result, Err(CliError::Validation(_))));
-    }
-
-    #[test]
-    fn run_check_returns_ok_when_all_crates_are_ignored() {
-        let temp = create_test_crate_workspace();
-        let result = run_check(CheckArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: None,
-            },
-            all: false,
-            ignore: vec!["test-app".to_string()],
-            force_run: false,
-        });
-
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn run_check_returns_other_error_when_runner_execution_fails() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache_with_behavior(&temp, FakeRunnerBehavior::failing("boom\n"));
-
-        let result = run_check(CheckArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: None,
-            },
-            all: false,
-            ignore: Vec::new(),
-            force_run: false,
-        });
-
-        assert!(matches!(result, Err(CliError::Other(_))));
-    }
-
-    #[test]
-    fn run_check_handles_validation_errors_per_crate_and_completes() {
-        let temp = create_test_crate_workspace();
-        setup_fake_runner_and_cache(&temp);
-        // Intentionally do not create inventory file so validation::validate_crate fails.
-
-        let result = run_check(CheckArgs {
-            workspace: WorkspaceArgs {
-                path: Some(temp.path().to_path_buf()),
-                package: None,
-            },
-            all: false,
-            ignore: Vec::new(),
-            force_run: false,
-        });
-
-        assert!(
-            result.is_ok(),
-            "per-crate validation errors should be reported and command should complete, got {result:?}"
-        );
-    }
-}
+mod tests;

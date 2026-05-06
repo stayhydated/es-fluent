@@ -12,9 +12,9 @@ The core philosophy:
 
 1. [**Workspace Crates**](workspace_map.md) — Which crates you depend on directly and which support crates you usually won't need directly.
 2. [**Getting Started**](getting_started.md) — Installation, configuration, and a working end-to-end example.
-3. [**Deriving Messages**](deriving_messages.md) — Mapping structs and enums to FTL message keys using `EsFluent`, `EsFluentChoice`, `EsFluentVariants`, and `EsFluentThis`.
+3. [**Deriving Messages**](deriving_messages.md) — Mapping structs and enums to FTL message keys using `EsFluent`, `EsFluentChoice`, `EsFluentVariants`, and `EsFluentLabel`.
 4. [**Namespaces & File Splitting**](namespaces.md) — Organizing translations into multiple FTL files.
 5. [**Language Enum**](language_enum.md) — Auto-generating a type-safe `Languages` enum from your locale folders.
-6. [**Runtime Managers**](managers.md) — Loading and resolving translations at runtime with the embedded or Bevy manager.
+6. [**Runtime Managers**](managers.md) — Loading and resolving translations at runtime with the embedded, Dioxus, or Bevy manager.
 7. [**CLI Tooling**](cli.md) — Generating, validating, syncing, cleaning, formatting, and inspecting FTL files from the command line.
 8. [**Incremental Builds**](incremental_builds.md) — Ensuring Cargo rebuilds when locale files change.

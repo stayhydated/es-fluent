@@ -201,7 +201,6 @@ pub fn group_comment_name(comment: &ast::Comment<String>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
 
     #[test]
     fn parse_ftl_file_nonexistent() {
@@ -222,24 +221,22 @@ mod tests {
 
     #[test]
     fn parse_ftl_file_rejects_parse_errors() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let file_path = temp.path().join("invalid.ftl");
         std::fs::write(&file_path, "broken = {\n").expect("write invalid");
 
-        let err = parse_ftl_file(&file_path)
-            .err()
-            .expect("expected parse error");
+        let err = parse_ftl_file(&file_path).expect_err("expected parse error");
         assert!(err.to_string().contains("Refusing to use"));
         assert!(err.to_string().contains("Fluent parse errors"));
     }
 
     #[test]
     fn parse_ftl_file_errors_when_path_is_directory() {
-        let temp = tempdir().expect("tempdir");
+        let temp = tempfile::tempdir().expect("tempdir");
         let dir_path = temp.path().join("not-a-file");
         std::fs::create_dir_all(&dir_path).expect("create dir");
 
-        let err = parse_ftl_file(&dir_path).err().expect("expected io error");
+        let err = parse_ftl_file(&dir_path).expect_err("expected io error");
         assert!(
             err.to_string().contains("Is a directory") || err.to_string().contains("directory")
         );

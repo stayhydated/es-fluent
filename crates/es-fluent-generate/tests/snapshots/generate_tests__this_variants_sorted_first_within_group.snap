@@ -1,9 +1,0 @@
----
-source: crates/es-fluent-generate/tests/generate_tests.rs
-expression: content
----
-## Fruit
-
-fruit_this = This
-fruit-Apple = Apple
-fruit-Banana = Banana
