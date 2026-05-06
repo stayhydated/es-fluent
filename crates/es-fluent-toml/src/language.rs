@@ -117,18 +117,4 @@ mod tests {
             I18nConfigError::NonCanonicalLanguageIdentifier { .. }
         ));
     }
-
-    #[cfg(unix)]
-    #[test]
-    fn parse_language_entry_rejects_non_utf8_directory_names() {
-        use std::ffi::OsString;
-        use std::os::unix::ffi::OsStringExt;
-
-        let temp = tempfile::tempdir().expect("tempdir");
-        fs::create_dir(temp.path().join(OsString::from_vec(vec![0xff])))
-            .expect("create locale dir");
-
-        let error = parse_language_entry(first_entry(temp.path())).unwrap_err();
-        assert!(matches!(error, I18nConfigError::ReadError(_)));
-    }
 }

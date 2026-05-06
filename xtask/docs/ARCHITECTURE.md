@@ -9,7 +9,7 @@
 - `build bevy-demo`: builds the Trunk-hosted Bevy demo into `web/public/bevy-demo`.
 - `build book`: builds mdBook documentation to `web/public/book`.
 - `build llms-txt`: concatenates mdBook sources into `web/public/llms.txt` for LLM consumption.
-- `build web`: bundles the Dioxus site for GitHub Pages into `web/dist`.
+- `build web`: builds the release SSG Dioxus site for GitHub Pages into `web/dist`.
 
 ### build bevy-demo
 
@@ -25,4 +25,4 @@
 
 ### build web
 
-- `xtask/src/commands/build_web.rs`: runs `dx bundle --platform web --ssg` into a temporary bundle directory, copies the generated `public` tree into `web/dist`, restores the stable root copies of `book/`, `bevy-demo/`, `llms.txt`, `llms-full.txt`, and `.nojekyll` that GitHub Pages and the site expect, overwrites `404.html` from `index.html` for router fallback, and writes a fresh sitemap from the `web` crate route list.
+- `xtask/src/commands/build_web.rs`: clears the previous Dioxus release `public` output, runs `dx build --platform web --ssg --release --debug-symbols false --force-sequential true`, copies the generated release `public` tree into `web/dist`, restores the stable root copies of `book/`, `bevy-demo/`, `llms.txt`, `llms-full.txt`, and `.nojekyll` that GitHub Pages and the site expect, overwrites `404.html` from `index.html` for router fallback, and writes a fresh sitemap from the `web` crate route list.

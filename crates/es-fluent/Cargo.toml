@@ -15,6 +15,7 @@ keywords = [ "fluent", "i18n", "locale" ]
 
 [features]
 build = [ "dep:es-fluent-toml" ]
+debug-embed = [ "rust-embed/debug-embed" ]
 default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
 

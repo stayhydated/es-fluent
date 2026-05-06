@@ -12,6 +12,7 @@ rust-version.workspace = true
 readme = "README.md"
 
 [features]
+debug-embed = [ "es-fluent/debug-embed" ]
 default = [ "macros" ]
 macros = [ "es-fluent-manager-macros" ]
 

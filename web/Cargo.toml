@@ -17,8 +17,7 @@ dioxus-motion = { features = [ "dioxus", "transitions" ], workspace = true }
 dioxus-server = { optional = true, workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { features = [ "localized-langs" ], workspace = true }
-es-fluent-manager-dioxus = { features = [ "client", "ssr" ], workspace = true }
-#rust-embed = { features = [ "debug-embed" ], workspace = true }
+es-fluent-manager-dioxus = { features = [ "client", "debug-embed", "ssr" ], workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]

@@ -17,11 +17,15 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 
 # Server-side rendering
 es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+
+# Browser WASM debug builds that use define_i18n_module!
+es-fluent-manager-dioxus = { version = "0.7", features = ["client", "debug-embed"] }
 ```
 
 The crate has no default runtime feature. `define_i18n_module!` is always re-exported.
 
 - `client`: Dioxus provider, hook/context runtime, and signal-backed locale state for interactive rendering.
+- `debug-embed`: embeds macro-discovered FTL files even in debug builds, which browser WASM clients need because they cannot use filesystem fallback lookup.
 - `ssr`: request-scoped Dioxus SSR runtime with cached module discovery.
 
 ## Define the Module

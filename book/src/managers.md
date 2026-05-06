@@ -22,6 +22,10 @@ Bundles your translations directly into the binary and returns an explicit manag
 - **Explicit Context**: Keep the manager handle in application state and pass it to code that localizes messages.
 - **Thread Safe**: Safe to use from multiple threads after initialization.
 
+Enable the `debug-embed` Cargo feature for debug targets that cannot read
+locale files from the filesystem. It forwards `rust-embed`'s debug embedding
+mode through the manager crate.
+
 ### Quick Start
 
 #### 1. Define the Module
@@ -166,11 +170,15 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 
 # SSR
 es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+
+# Browser WASM debug builds that use define_i18n_module!
+es-fluent-manager-dioxus = { version = "0.7", features = ["client", "debug-embed"] }
 ```
 
 The crate has no default runtime feature. The `define_i18n_module!` macro is always available.
 
 - `client`: Dioxus provider, hook/context runtime, and signal-backed locale state for interactive rendering.
+- `debug-embed`: embeds macro-discovered FTL files even in debug builds, which browser WASM clients need because they cannot use filesystem fallback lookup.
 - `ssr`: request-scoped Dioxus SSR runtime with cached module discovery.
 
 ### Define the Module

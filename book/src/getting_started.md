@@ -15,6 +15,8 @@ es-fluent-manager-embedded = "0.16"
 # For Dioxus apps, enable only the runtime surface you use.
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+# Browser WASM debug builds that use define_i18n_module! should add "debug-embed".
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "debug-embed"] }
 ```
 
 ## Project Configuration
