@@ -1,5 +1,8 @@
 use super::super::inventory::KeyInfo;
-use crate::core::{FtlSyntaxError, MissingKeyError, MissingVariableWarning, ValidationIssue};
+use crate::core::{
+    DuplicateKeyError, FtlSyntaxError, MissingKeyError, MissingVariableWarning,
+    UnexpectedVariableError, ValidationIssue,
+};
 use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
 use std::fs;
@@ -84,6 +87,45 @@ impl ValidationContext<'_> {
             key: key.to_string(),
             locale: locale.to_string(),
             help: self.missing_variable_help(variable, source_file, source_line),
+        })
+    }
+
+    pub(super) fn unexpected_variable_issue(
+        &self,
+        key: &str,
+        variable: &str,
+        locale: &str,
+        header_link: &str,
+    ) -> ValidationIssue {
+        ValidationIssue::UnexpectedVariable(UnexpectedVariableError {
+            src: NamedSource::new(header_link, String::new()),
+            span: SourceSpan::new(0_usize.into(), 1_usize),
+            variable: variable.to_string(),
+            key: key.to_string(),
+            locale: locale.to_string(),
+            help: format!("Remove variable '${variable}' from '{key}' or declare it in Rust code"),
+        })
+    }
+
+    pub(super) fn duplicate_key_issue(
+        &self,
+        key: &str,
+        locale: &str,
+        first_file: &str,
+        duplicate_file: &str,
+        duplicate_header_link: &str,
+    ) -> ValidationIssue {
+        ValidationIssue::DuplicateKey(DuplicateKeyError {
+            src: NamedSource::new(duplicate_header_link, String::new()),
+            span: SourceSpan::new(0_usize.into(), 1_usize),
+            key: key.to_string(),
+            locale: locale.to_string(),
+            first_file: first_file.to_string(),
+            duplicate_file: duplicate_file.to_string(),
+            help: format!(
+                "Remove one definition of '{}' from either {} or {}",
+                key, first_file, duplicate_file
+            ),
         })
     }
 

@@ -63,9 +63,12 @@ inventory::submit! {
 }
 ```
 
-### Bevy Support
+### WASM Force-Link Keepalive
 
-When the optional `bevy` feature is enabled, it reuses the same standard `I18nModuleRegistration` path as other managers. Bevy fallback localization comes directly from the module localizer.
+The crate uses the same standard `I18nModuleRegistration` path as other
+managers. For `wasm32` builds, default `#[es_fluent_language]` enum expansions
+reference `force_link()` so the built-in language-name module survives
+aggressive linker optimization across managers.
 
 ## Macro
 

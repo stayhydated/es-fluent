@@ -6,5 +6,5 @@ pub mod literals;
 pub mod user;
 
 pub use file_examples::{Dialog, Status, StatusVariants};
-pub use literals::{Button, GenderThis, LoginForm};
+pub use literals::{Button, GenderLabel, LoginForm};
 pub use user::{FolderStatus, FolderUserProfile, Gender, UserProfile};

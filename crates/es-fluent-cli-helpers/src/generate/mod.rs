@@ -8,19 +8,17 @@ mod inventory;
 mod tests;
 
 use self::args::Action;
-use self::inventory::{collect_type_infos, validate_namespaces};
 
 pub use self::args::GeneratorArgs;
 pub use self::error::GeneratorError;
 pub use es_fluent_generate::FluentParseMode;
 use es_fluent_toml::ResolvedI18nLayout;
-use fs_err as fs;
 use std::path::{Path, PathBuf};
 
 /// Builder for generating FTL files from registered types.
 ///
 /// Uses the `inventory` crate to collect all types registered via
-/// `#[derive(EsFluent)]`, `#[derive(EsFluentVariants)]`, or `#[derive(EsFluentThis)]`.
+/// `#[derive(EsFluent)]`, `#[derive(EsFluentVariants)]`, or `#[derive(EsFluentLabel)]`.
 #[derive(bon::Builder)]
 pub struct EsFluentGenerator {
     /// The parse mode (Conservative preserves existing translations, Aggressive overwrites).
@@ -80,6 +78,7 @@ impl EsFluentGenerator {
         Ok(self.resolve_layout()?.output_dir)
     }
 
+    #[cfg(test)]
     fn resolve_assets_dir(&self) -> Result<PathBuf, GeneratorError> {
         if let Some(path) = &self.assets_dir {
             return Ok(path.clone());
@@ -108,11 +107,16 @@ impl EsFluentGenerator {
             return Ok(vec![self.resolve_output_path()?]);
         }
 
-        let mut paths = self
-            .resolve_assets_dir()
-            .ok()
-            .map(|assets_dir| Self::resolve_clean_locale_dirs(&assets_dir))
-            .unwrap_or_default();
+        let mut paths = if let Some(assets_dir) = &self.assets_dir {
+            Self::resolve_clean_locale_dirs(assets_dir)?
+        } else {
+            let layout = self.resolve_layout()?;
+            layout
+                .available_locale_names()?
+                .into_iter()
+                .map(|locale| layout.locale_dir(&locale))
+                .collect()
+        };
 
         if paths.is_empty() {
             return Ok(vec![self.resolve_output_path()?]);
@@ -127,9 +131,9 @@ impl EsFluentGenerator {
         let crate_name = self.resolve_crate_name()?;
         let output_path = self.resolve_output_path()?;
         let manifest_dir = self.resolve_manifest_dir()?;
-        let type_infos = collect_type_infos(&crate_name);
+        let type_infos = self::inventory::collect_type_infos(&crate_name);
 
-        validate_namespaces(&type_infos, &manifest_dir)?;
+        self::inventory::validate_namespaces(&type_infos, &manifest_dir)?;
 
         tracing::info!(
             "Generating FTL files for {} types in crate '{}'",
@@ -154,7 +158,7 @@ impl EsFluentGenerator {
         let crate_name = self.resolve_crate_name()?;
         let paths = self.resolve_clean_paths(all_locales)?;
         let manifest_dir = self.resolve_manifest_dir()?;
-        let type_infos = collect_type_infos(&crate_name);
+        let type_infos = self::inventory::collect_type_infos(&crate_name);
 
         let mut any_changed = false;
         for output_path in paths {
@@ -181,14 +185,19 @@ impl EsFluentGenerator {
         Ok(any_changed)
     }
 
-    fn resolve_clean_locale_dirs(assets_dir: &Path) -> Vec<PathBuf> {
-        fs::read_dir(assets_dir)
-            .ok()
+    fn resolve_clean_locale_dirs(assets_dir: &Path) -> Result<Vec<PathBuf>, GeneratorError> {
+        let config = es_fluent_toml::I18nConfig {
+            fallback_language: "en".to_string(),
+            assets_dir: assets_dir.to_path_buf(),
+            fluent_feature: None,
+            namespaces: None,
+        };
+
+        Ok(config
+            .available_locale_names_from_base(Some(Path::new("")))?
             .into_iter()
-            .flat_map(|entries| entries.filter_map(Result::ok))
-            .map(|entry| entry.path())
-            .filter(|path| path.is_dir())
-            .collect()
+            .map(|locale| assets_dir.join(locale))
+            .collect())
     }
 
     fn detect_crate_name() -> Result<String, GeneratorError> {

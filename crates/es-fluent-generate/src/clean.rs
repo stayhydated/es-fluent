@@ -19,6 +19,10 @@ pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     let operation = crate::pipeline::OutputOperation::Clean;
     let planned_outputs =
         crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)?;
+    let main_file_path = i18n_path.join(format!("{}.ftl", crate_name));
+    let has_main_output = planned_outputs
+        .iter()
+        .any(|output| output.file_path == main_file_path);
     let expected_namespace_files = planned_outputs
         .iter()
         .map(|output| output.file_path.clone())
@@ -30,11 +34,32 @@ pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
             any_changed = true;
         }
     }
+    if !has_main_output && remove_stale_main_file(&main_file_path, dry_run)? {
+        any_changed = true;
+    }
     if remove_stale_namespace_files(crate_name, i18n_path, &expected_namespace_files, dry_run)? {
         any_changed = true;
     }
 
     Ok(any_changed)
+}
+
+fn remove_stale_main_file(file_path: &Path, dry_run: bool) -> EsFluentResult<bool> {
+    if !file_path.is_file() {
+        return Ok(false);
+    }
+
+    if dry_run {
+        let display_path = fs::canonicalize(file_path).unwrap_or_else(|_| file_path.to_path_buf());
+        println!(
+            "Would remove stale main FTL file: {}",
+            display_path.display()
+        );
+        return Ok(true);
+    }
+
+    fs::remove_file(file_path)?;
+    Ok(true)
 }
 
 fn remove_stale_namespace_files(

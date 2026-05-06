@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn core_error_span_and_message_mut_work_for_all_variants() {
         let span = proc_macro2::Span::call_site();
-        let mut errors = vec![
+        let mut errors = [
             EsFluentCoreError::AttributeError {
                 message: "a".to_string(),
                 span: Some(span),

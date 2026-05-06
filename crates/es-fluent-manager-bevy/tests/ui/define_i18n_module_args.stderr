@@ -1,0 +1,7 @@
+error: `define_i18n_module!` does not accept arguments
+ --> tests/ui/define_i18n_module_args.rs:1:1
+  |
+1 | es_fluent_manager_bevy::define_i18n_module!(unexpected);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `es_fluent_manager_bevy::define_i18n_module` (in Nightly builds, run with -Z macro-backtrace for more info)

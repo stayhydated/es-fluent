@@ -1,10 +1,11 @@
-use darling::FromDeriveInput;
+use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
-    EnumDataOptions, FluentField, GeneratedVariantsOptions, StructDataOptions, VariantFields,
+    EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
+    VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
-    namespace::NamespaceValue,
     r#struct::{StructOpts, StructVariantsOpts},
 };
+use es_fluent_shared::namespace::NamespaceRule;
 use syn::{DeriveInput, parse_quote};
 
 fn assert_no_generics(generics: &syn::Generics) {
@@ -49,7 +50,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
 
     let data = variants
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Data")
+        .find(|variant| *variant.ident() == "Data")
         .expect("Data variant present");
     assert!(matches!(data.style(), darling::ast::Style::Struct));
     let data_fields = data.fields();
@@ -67,7 +68,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
     let tuple = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Tuple")
+        .find(|variant| *variant.ident() == "Tuple")
         .expect("Tuple variant present");
     assert!(matches!(tuple.style(), darling::ast::Style::Tuple));
     assert_eq!(tuple.all_fields().len(), 2, "All tuple fields parsed");
@@ -77,7 +78,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
     let unit = opts
         .variants()
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Unit")
+        .find(|variant| *variant.ident() == "Unit")
         .expect("Unit variant present");
     assert!(matches!(unit.style(), darling::ast::Style::Unit));
     assert!(unit.fields().is_empty());
@@ -110,7 +111,7 @@ fn enum_tuple_field_arg_name_parsing() {
     let variants = opts.variants();
     let tuple = variants
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Tuple")
+        .find(|variant| *variant.ident() == "Tuple")
         .expect("Tuple variant present");
 
     let fields = tuple.all_fields();
@@ -134,7 +135,7 @@ fn enum_named_field_arg_name_parsing() {
     let variants = opts.variants();
     let named = variants
         .into_iter()
-        .find(|variant| variant.ident().to_string() == "Named")
+        .find(|variant| *variant.ident() == "Named")
         .expect("Named variant present");
 
     let fields = named.all_fields();
@@ -332,7 +333,7 @@ fn struct_fluent_with_namespace_literal() {
     );
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::Literal(value)) if value == "ui"
+        Some(NamespaceRule::Literal(value)) if value == "ui"
     ));
 }
 
@@ -356,7 +357,7 @@ fn struct_fluent_with_namespace_file() {
     );
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::File)
+        Some(NamespaceRule::File)
     ));
 }
 
@@ -380,7 +381,7 @@ fn struct_fluent_with_namespace_file_relative() {
     );
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::FileRelative)
+        Some(NamespaceRule::FileRelative)
     ));
 }
 
@@ -397,7 +398,7 @@ fn struct_fluent_with_namespace_folder() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::Folder)
+        Some(NamespaceRule::Folder)
     ));
 }
 
@@ -414,7 +415,7 @@ fn struct_fluent_with_namespace_folder_relative() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::FolderRelative)
+        Some(NamespaceRule::FolderRelative)
     ));
 }
 
@@ -436,7 +437,7 @@ fn enum_fluent_with_namespace_literal() {
     assert_eq!(opts.variants().len(), 2);
     assert!(matches!(
         opts.attr_args().namespace(),
-        Some(NamespaceValue::Literal(value)) if value == "errors"
+        Some(NamespaceRule::Literal(value)) if value == "errors"
     ));
     assert!(opts.attr_args().resource().is_none());
     assert!(opts.attr_args().domain().is_none());

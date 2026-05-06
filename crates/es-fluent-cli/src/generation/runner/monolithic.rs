@@ -1,6 +1,6 @@
+use super::CLI_VERSION;
 use super::config::TempCrateConfig;
 use super::exec::RunnerCrate;
-use super::{CLI_VERSION, utf8_path_string};
 use crate::core::WorkspaceInfo;
 use crate::generation::templates::{
     GitignoreTemplate, MonolithicCrateDep, MonolithicMainRsTemplate,
@@ -34,9 +34,7 @@ impl<'a> MonolithicRunner<'a> {
     }
 
     pub(super) fn is_stale(&self) -> bool {
-        use crate::generation::cache::{
-            RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
-        };
+        use crate::generation::cache::RunnerCache;
 
         let runner_mtime = match fs::metadata(&self.binary_path).and_then(|m| m.modified()) {
             Ok(t) => t,
@@ -47,12 +45,13 @@ impl<'a> MonolithicRunner<'a> {
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let workspace_inputs_hash = compute_workspace_inputs_hash(&self.workspace.root_dir);
+        let workspace_inputs_hash =
+            crate::generation::cache::compute_workspace_inputs_hash(&self.workspace.root_dir);
 
         let mut current_hashes = indexmap::IndexMap::new();
         for krate in &self.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = compute_crate_inputs_hash(
+                let hash = crate::generation::cache::compute_crate_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
@@ -114,7 +113,7 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
         .map(|c| {
             Ok(MonolithicCrateDep {
                 name: &c.name,
-                path: utf8_path_string(
+                path: super::utf8_path_string(
                     &c.manifest_dir,
                     &format!("workspace manifest directory for crate '{}'", c.name),
                 )?,
@@ -269,9 +268,7 @@ pub fn run_monolithic(
 }
 
 fn write_runner_cache(runner: &MonolithicRunner<'_>) {
-    use crate::generation::cache::{
-        RunnerCache, compute_crate_inputs_hash, compute_workspace_inputs_hash,
-    };
+    use crate::generation::cache::RunnerCache;
 
     if let Ok(meta) = fs::metadata(&runner.binary_path)
         && let Ok(mtime) = meta.modified()
@@ -284,7 +281,7 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
         let mut crate_hashes = indexmap::IndexMap::new();
         for krate in &runner.workspace.crates {
             if krate.src_dir.exists() {
-                let hash = compute_crate_inputs_hash(
+                let hash = crate::generation::cache::compute_crate_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
@@ -297,7 +294,9 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
             crate_hashes,
             runner_mtime: runner_mtime_secs,
             cli_version: CLI_VERSION.to_string(),
-            workspace_inputs_hash: compute_workspace_inputs_hash(&runner.workspace.root_dir),
+            workspace_inputs_hash: crate::generation::cache::compute_workspace_inputs_hash(
+                &runner.workspace.root_dir,
+            ),
         };
         let _ = cache.save(runner.temp_store.base_dir());
     }

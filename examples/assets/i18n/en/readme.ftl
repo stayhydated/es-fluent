@@ -1,10 +1,10 @@
-## GenderThisOnly
+## GenderLabelOnly
 
-gender_this_only_this = Gender This Only
+gender_label_only_label = Gender Label Only
 
 ## LoginFormCombined
 
-login_form_combined_this = Login Form Combined
+login_form_combined_label = Login Form Combined
 
 ## GenderChoice
 
@@ -30,13 +30,13 @@ login_error-UserNotFound = User Not Found { $username }
 
 ## LoginFormCombinedDescriptionVariants
 
-login_form_combined_description_variants_this = Login Form Combined Description Variants
+login_form_combined_description_variants_label = Login Form Combined Description Variants
 login_form_combined_description_variants-password = Password
 login_form_combined_description_variants-username = Username
 
 ## LoginFormCombinedLabelVariants
 
-login_form_combined_label_variants_this = Login Form Combined Label Variants
+login_form_combined_label_variants_label = Login Form Combined Label Variants
 login_form_combined_label_variants-password = Password
 login_form_combined_label_variants-username = Username
 

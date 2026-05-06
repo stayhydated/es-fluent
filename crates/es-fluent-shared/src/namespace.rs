@@ -1,8 +1,4 @@
 //! Shared namespace rules used by derive parsing and runtime registration.
-
-use crate::namespace_resolver::{
-    file_relative_namespace, file_stem_namespace, folder_namespace, folder_relative_namespace,
-};
 use darling::FromMeta;
 use std::{
     borrow::Cow,
@@ -29,10 +25,14 @@ impl NamespaceRule {
     pub fn resolve(&self, file_path: &str, manifest_dir: Option<&Path>) -> String {
         match self {
             Self::Literal(value) => value.to_string(),
-            Self::File => file_stem_namespace(file_path),
-            Self::FileRelative => file_relative_namespace(file_path, manifest_dir),
-            Self::Folder => folder_namespace(file_path),
-            Self::FolderRelative => folder_relative_namespace(file_path, manifest_dir),
+            Self::File => crate::namespace_resolver::file_stem_namespace(file_path),
+            Self::FileRelative => {
+                crate::namespace_resolver::file_relative_namespace(file_path, manifest_dir)
+            },
+            Self::Folder => crate::namespace_resolver::folder_namespace(file_path),
+            Self::FolderRelative => {
+                crate::namespace_resolver::folder_relative_namespace(file_path, manifest_dir)
+            },
         }
     }
 }
@@ -226,6 +226,27 @@ mod tests {
     }
 
     #[test]
+    fn namespace_rule_parses_list_and_name_value_relative_forms() {
+        let file_relative_meta: syn::Meta = parse_quote!(namespace = file(relative));
+        assert!(matches!(
+            NamespaceRule::from_meta(&file_relative_meta).unwrap(),
+            NamespaceRule::FileRelative
+        ));
+
+        let folder_meta: syn::Meta = parse_quote!(namespace(folder));
+        assert!(matches!(
+            NamespaceRule::from_meta(&folder_meta).unwrap(),
+            NamespaceRule::Folder
+        ));
+
+        let literal_meta: syn::Meta = parse_quote!(namespace("ui/list"));
+        assert!(matches!(
+            NamespaceRule::from_meta(&literal_meta).unwrap(),
+            NamespaceRule::Literal(ref value) if value == "ui/list"
+        ));
+    }
+
+    #[test]
     fn validate_namespace_path_rejects_unsafe_values() {
         assert!(validate_namespace_path("ui/button").is_ok());
         assert_eq!(
@@ -256,5 +277,38 @@ mod tests {
             validate_namespace_path("ui/button.ftl").unwrap_err(),
             "namespace must not include file extension"
         );
+    }
+
+    #[test]
+    fn namespace_rule_rejects_unsupported_meta_shapes() {
+        let unsupported_format: syn::Meta = parse_quote!(namespace);
+        assert!(NamespaceRule::from_meta(&unsupported_format).is_err());
+
+        let unknown_name_value_path: syn::Meta = parse_quote!(namespace = module);
+        assert!(NamespaceRule::from_meta(&unknown_name_value_path).is_err());
+
+        let unsupported_name_value_literal: syn::Meta = parse_quote!(namespace = 42);
+        assert!(NamespaceRule::from_meta(&unsupported_name_value_literal).is_err());
+
+        let unknown_list_path: syn::Meta = parse_quote!(namespace(module));
+        assert!(NamespaceRule::from_meta(&unknown_list_path).is_err());
+
+        let unsupported_list_literal: syn::Meta = parse_quote!(namespace(42));
+        assert!(NamespaceRule::from_meta(&unsupported_list_literal).is_err());
+    }
+
+    #[test]
+    fn relative_namespace_calls_require_supported_single_ident_arguments() {
+        let unknown_target: syn::Meta = parse_quote!(namespace(module(relative)));
+        assert!(NamespaceRule::from_meta(&unknown_target).is_err());
+
+        let unknown_argument: syn::Meta = parse_quote!(namespace(file(crate_root)));
+        assert!(NamespaceRule::from_meta(&unknown_argument).is_err());
+
+        let multiple_arguments: syn::Meta = parse_quote!(namespace(file(relative, extra)));
+        assert!(NamespaceRule::from_meta(&multiple_arguments).is_err());
+
+        let literal_argument: syn::Meta = parse_quote!(namespace(file("relative")));
+        assert!(NamespaceRule::from_meta(&literal_argument).is_err());
     }
 }

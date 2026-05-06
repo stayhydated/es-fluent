@@ -1,8 +1,6 @@
 mod common;
 mod fixtures;
-
-use common::{enum_type, ftl_key, leak_slice, struct_type, variant, variant_with_args};
-use es_fluent_generate::{FluentParseMode, generate};
+use es_fluent_generate::FluentParseMode;
 use fixtures::COMPLEX_STRUCTURE;
 use std::fs;
 use tempfile::TempDir;
@@ -23,47 +21,50 @@ fn test_complex_structure_preservation() {
     // And add a NEW key to "Shared".
 
     // 1. Gender Group (Complete)
-    let gender = enum_type(
+    let gender = common::enum_type(
         "Gender",
         vec![
-            variant("Female", &ftl_key("Gender", "Female")),
-            variant("Helicopter", &ftl_key("Gender", "Helicopter")),
-            variant("Male", &ftl_key("Gender", "Male")),
-            variant("Other", &ftl_key("Gender", "Other")),
+            common::variant("Female", &common::ftl_key("Gender", "Female")),
+            common::variant("Helicopter", &common::ftl_key("Gender", "Helicopter")),
+            common::variant("Male", &common::ftl_key("Gender", "Male")),
+            common::variant("Other", &common::ftl_key("Gender", "Other")),
         ],
     );
 
     // 2. HelloUser (Complete)
-    let hello_user = struct_type(
+    let hello_user = common::struct_type(
         "HelloUser",
-        vec![variant_with_args(
+        vec![common::variant_with_args(
             "hello_user",
-            &ftl_key("HelloUser", "hello_user"),
+            &common::ftl_key("HelloUser", "hello_user"),
             vec!["f0"],
         )],
     );
 
     // 3. Shared (Adding 'Videos' new key)
-    let shared = enum_type(
+    let shared = common::enum_type(
         "Shared",
         vec![
-            variant_with_args(
+            common::variant_with_args(
                 "Photos",
-                &ftl_key("Shared", "Photos"),
+                &common::ftl_key("Shared", "Photos"),
                 vec!["user_name", "photo_count", "user_gender"],
             ),
             // NEW KEY
-            variant("Videos", &ftl_key("Shared", "Videos")),
+            common::variant("Videos", &common::ftl_key("Shared", "Videos")),
         ],
     );
 
     // 4. What (Complete)
-    let what = enum_type("What", vec![variant("Hi", &ftl_key("What", "Hi"))]);
+    let what = common::enum_type(
+        "What",
+        vec![common::variant("Hi", &common::ftl_key("What", "Hi"))],
+    );
 
-    let items = leak_slice(vec![gender, hello_user, shared, what]);
+    let items = common::leak_slice(vec![gender, hello_user, shared, what]);
 
     // Run generate in Conservative mode
-    generate(
+    es_fluent_generate::generate(
         crate_name,
         &i18n_path,
         temp_dir.path(),

@@ -1,10 +1,6 @@
 mod common;
 mod fixtures;
-
-use common::{
-    enum_type, enum_type_with_namespace, ftl_key, leak_slice, struct_type, this_key, variant,
-};
-use es_fluent_generate::{FluentParseMode, generate};
+use es_fluent_generate::FluentParseMode;
 use fixtures::{EMPTY_GROUP, EMPTY_GROUPS_SIMILAR, ORPHAN_GROUPS, RELOCATE_GROUPS};
 use fs_err as fs;
 use insta::assert_snapshot;
@@ -21,7 +17,7 @@ fn test_generate_empty_items() {
     let i18n_path = temp_dir.path().join("i18n");
 
     let empty: &[es_fluent_shared::registry::FtlTypeInfo] = &[];
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -41,12 +37,15 @@ fn test_generate_with_items() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    let type_info = enum_type(
+    let type_info = common::enum_type(
         "TestEnum",
-        vec![variant("variant1", &ftl_key("TestEnum", "Variant1"))],
+        vec![common::variant(
+            "variant1",
+            &common::ftl_key("TestEnum", "Variant1"),
+        )],
     );
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -73,12 +72,15 @@ fn test_generate_aggressive_mode() {
     fs::create_dir_all(&i18n_path).unwrap();
     fs::write(&ftl_file_path, "existing-message = Existing Content").unwrap();
 
-    let type_info = enum_type(
+    let type_info = common::enum_type(
         "TestEnum",
-        vec![variant("variant1", &ftl_key("TestEnum", "Variant1"))],
+        vec![common::variant(
+            "variant1",
+            &common::ftl_key("TestEnum", "Variant1"),
+        )],
     );
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -102,12 +104,15 @@ fn test_generate_conservative_mode_preserves_existing() {
     fs::create_dir_all(&i18n_path).unwrap();
     fs::write(&ftl_file_path, "existing-message = Existing Content").unwrap();
 
-    let type_info = enum_type(
+    let type_info = common::enum_type(
         "TestEnum",
-        vec![variant("variant1", &ftl_key("TestEnum", "Variant1"))],
+        vec![common::variant(
+            "variant1",
+            &common::ftl_key("TestEnum", "Variant1"),
+        )],
     );
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -133,15 +138,15 @@ fn test_generate_inserts_variants_into_empty_group() {
 
     fs::write(&ftl_file_path, EMPTY_GROUP).unwrap();
 
-    let type_info = enum_type(
+    let type_info = common::enum_type(
         "CountryLabelVariants",
         vec![
-            variant("Canada", &ftl_key("CountryLabelVariants", "Canada")),
-            variant("USA", &ftl_key("CountryLabelVariants", "USA")),
+            common::variant("Canada", &common::ftl_key("CountryLabelVariants", "Canada")),
+            common::variant("USA", &common::ftl_key("CountryLabelVariants", "USA")),
         ],
     );
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         crate_name,
         &i18n_path,
         temp_dir.path(),
@@ -168,11 +173,17 @@ fn test_generate_relocates_late_group_keys_without_duplicates() {
 
     fs::write(&ftl_file_path, RELOCATE_GROUPS).unwrap();
 
-    let group_a = enum_type("GroupA", vec![variant("A1", &ftl_key("GroupA", "A1"))]);
-    let group_b = enum_type("GroupB", vec![variant("B1", &ftl_key("GroupB", "B1"))]);
-    let items = leak_slice(vec![group_a, group_b]);
+    let group_a = common::enum_type(
+        "GroupA",
+        vec![common::variant("A1", &common::ftl_key("GroupA", "A1"))],
+    );
+    let group_b = common::enum_type(
+        "GroupB",
+        vec![common::variant("B1", &common::ftl_key("GroupB", "B1"))],
+    );
+    let items = common::leak_slice(vec![group_a, group_b]);
 
-    generate(
+    es_fluent_generate::generate(
         crate_name,
         &i18n_path,
         temp_dir.path(),
@@ -182,7 +193,7 @@ fn test_generate_relocates_late_group_keys_without_duplicates() {
     )
     .unwrap();
 
-    generate(
+    es_fluent_generate::generate(
         crate_name,
         &i18n_path,
         temp_dir.path(),
@@ -218,19 +229,22 @@ fn test_generate_relocates_keys_between_similar_group_names() {
 
     fs::write(&ftl_file_path, EMPTY_GROUPS_SIMILAR).unwrap();
 
-    let empty_struct = enum_type(
+    let empty_struct = common::enum_type(
         "EmptyStruct",
         vec![
-            variant("This", &this_key("EmptyStruct")),
-            variant("empty_struct", &ftl_key("EmptyStruct", "")),
+            common::variant("Label", &common::label_key("EmptyStruct")),
+            common::variant("empty_struct", &common::ftl_key("EmptyStruct", "")),
         ],
     );
-    let empty_struct_variants = enum_type(
+    let empty_struct_variants = common::enum_type(
         "EmptyStructVariants",
-        vec![variant("This", &this_key("EmptyStructVariants"))],
+        vec![common::variant(
+            "Label",
+            &common::label_key("EmptyStructVariants"),
+        )],
     );
-    let items = leak_slice(vec![empty_struct, empty_struct_variants]);
-    generate(
+    let items = common::leak_slice(vec![empty_struct, empty_struct_variants]);
+    es_fluent_generate::generate(
         crate_name,
         &i18n_path,
         temp_dir.path(),
@@ -249,7 +263,7 @@ fn test_generate_relocates_keys_between_similar_group_names() {
         .find("## EmptyStruct\n")
         .expect("EmptyStruct group missing");
     let variants_key_pos = content
-        .find("empty_struct_variants_this")
+        .find("empty_struct_variants_label")
         .expect("variants key missing");
 
     assert!(
@@ -274,11 +288,11 @@ fn test_generate_clean_mode_removes_orphans() {
     fs::write(&ftl_file_path, ORPHAN_GROUPS).unwrap();
 
     // Define items that match ExistingGroup but NOT OrphanGroup
-    let type_info = enum_type(
+    let type_info = common::enum_type(
         "ExistingGroup",
-        vec![variant(
+        vec![common::variant(
             "ExistingKey",
-            &ftl_key("ExistingGroup", "ExistingKey"),
+            &common::ftl_key("ExistingGroup", "ExistingKey"),
         )],
     );
 
@@ -297,22 +311,31 @@ fn test_generate_clean_mode_removes_orphans() {
 
 #[test]
 #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-fn test_this_types_sorted_first() {
+fn test_label_types_sorted_first() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    // Create types: Apple, Banana, BananaThis (should come first)
-    let apple = enum_type("Apple", vec![variant("Red", &ftl_key("Apple", "Red"))]);
-    let banana = enum_type(
+    // Create types: Apple, Banana, BananaLabel (should come first)
+    let apple = common::enum_type(
+        "Apple",
+        vec![common::variant("Red", &common::ftl_key("Apple", "Red"))],
+    );
+    let banana = common::enum_type(
         "Banana",
-        vec![variant("Yellow", &ftl_key("Banana", "Yellow"))],
+        vec![common::variant(
+            "Yellow",
+            &common::ftl_key("Banana", "Yellow"),
+        )],
     );
     // This type should come first despite alphabetical order
-    let banana_this = struct_type("BananaThis", vec![variant("this", &this_key("BananaThis"))]);
+    let banana_label = common::struct_type(
+        "BananaLabel",
+        vec![common::variant("label", &common::label_key("BananaLabel"))],
+    );
 
-    let items = leak_slice(vec![apple, banana, banana_this]);
+    let items = common::leak_slice(vec![apple, banana, banana_label]);
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -325,41 +348,41 @@ fn test_this_types_sorted_first() {
     let ftl_file_path = i18n_path.join("test_crate.ftl");
     let content = read_ftl(&ftl_file_path);
 
-    // BananaThis (is_this=true) should come before Apple and Banana
-    let banana_this_pos = content.find("## BananaThis").expect("BananaThis missing");
+    // BananaLabel (is_label=true) should come before Apple and Banana
+    let banana_label_pos = content.find("## BananaLabel").expect("BananaLabel missing");
     let apple_pos = content.find("## Apple").expect("Apple missing");
     let banana_pos = content.find("## Banana\n").expect("Banana missing");
 
     assert!(
-        banana_this_pos < apple_pos,
-        "BananaThis (is_this=true) should come before Apple"
+        banana_label_pos < apple_pos,
+        "BananaLabel (is_label=true) should come before Apple"
     );
     assert!(
-        banana_this_pos < banana_pos,
-        "BananaThis (is_this=true) should come before Banana"
+        banana_label_pos < banana_pos,
+        "BananaLabel (is_label=true) should come before Banana"
     );
     // Apple should come before Banana alphabetically
     assert!(apple_pos < banana_pos, "Apple should come before Banana");
-    assert_snapshot!("this_types_sorted_first", content);
+    assert_snapshot!("label_types_sorted_first", content);
 }
 
 #[test]
 #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-fn test_this_variants_sorted_first_within_group() {
+fn test_label_variants_sorted_first_within_group() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    let fruit = enum_type(
+    let fruit = common::enum_type(
         "Fruit",
         // Deliberately put variants in wrong order
         vec![
-            variant("Banana", &ftl_key("Fruit", "Banana")),
-            variant("this", &this_key("Fruit")),
-            variant("Apple", &ftl_key("Fruit", "Apple")),
+            common::variant("Banana", &common::ftl_key("Fruit", "Banana")),
+            common::variant("label", &common::label_key("Fruit")),
+            common::variant("Apple", &common::ftl_key("Fruit", "Apple")),
         ],
     );
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -372,25 +395,25 @@ fn test_this_variants_sorted_first_within_group() {
     let ftl_file_path = i18n_path.join("test_crate.ftl");
     let content = read_ftl(&ftl_file_path);
 
-    // The "this" variant (fruit) should come first, then Apple, then Banana
-    let this_pos = content
-        .find("fruit_this =")
-        .expect("this variant (fruit_this) missing");
+    // The "label" variant (fruit) should come first, then Apple, then Banana
+    let label_pos = content
+        .find("fruit_label =")
+        .expect("label variant (fruit_label) missing");
     let apple_pos = content.find("fruit-Apple").expect("Apple variant missing");
     let banana_pos = content
         .find("fruit-Banana")
         .expect("Banana variant missing");
 
     assert!(
-        this_pos < apple_pos,
-        "This variant should come before Apple"
+        label_pos < apple_pos,
+        "Label variant should come before Apple"
     );
     assert!(
-        this_pos < banana_pos,
-        "This variant should come before Banana"
+        label_pos < banana_pos,
+        "Label variant should come before Banana"
     );
     assert!(apple_pos < banana_pos, "Apple should come before Banana");
-    assert_snapshot!("this_variants_sorted_first_within_group", content);
+    assert_snapshot!("label_variants_sorted_first_within_group", content);
 }
 
 #[test]
@@ -399,13 +422,16 @@ fn test_generate_with_namespace_creates_subdirectory() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    let type_info = enum_type_with_namespace(
+    let type_info = common::enum_type_with_namespace(
         "UiButton",
-        vec![variant("Click", &ftl_key("UiButton", "Click"))],
+        vec![common::variant(
+            "Click",
+            &common::ftl_key("UiButton", "Click"),
+        )],
         "ui",
     );
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -430,19 +456,25 @@ fn test_generate_mixed_namespaced_and_non_namespaced() {
     let i18n_path = temp_dir.path().join("i18n");
 
     // One type without namespace, one with namespace
-    let regular_type = enum_type(
+    let regular_type = common::enum_type(
         "GlobalError",
-        vec![variant("Unknown", &ftl_key("GlobalError", "Unknown"))],
+        vec![common::variant(
+            "Unknown",
+            &common::ftl_key("GlobalError", "Unknown"),
+        )],
     );
-    let namespaced_type = enum_type_with_namespace(
+    let namespaced_type = common::enum_type_with_namespace(
         "UiError",
-        vec![variant("InvalidInput", &ftl_key("UiError", "InvalidInput"))],
+        vec![common::variant(
+            "InvalidInput",
+            &common::ftl_key("UiError", "InvalidInput"),
+        )],
         "ui",
     );
 
-    let items = leak_slice(vec![regular_type, namespaced_type]);
+    let items = common::leak_slice(vec![regular_type, namespaced_type]);
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -477,20 +509,26 @@ fn test_generate_multiple_namespaces() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    let ui_type = enum_type_with_namespace(
+    let ui_type = common::enum_type_with_namespace(
         "Button",
-        vec![variant("Submit", &ftl_key("Button", "Submit"))],
+        vec![common::variant(
+            "Submit",
+            &common::ftl_key("Button", "Submit"),
+        )],
         "ui",
     );
-    let errors_type = enum_type_with_namespace(
+    let errors_type = common::enum_type_with_namespace(
         "ApiError",
-        vec![variant("NotFound", &ftl_key("ApiError", "NotFound"))],
+        vec![common::variant(
+            "NotFound",
+            &common::ftl_key("ApiError", "NotFound"),
+        )],
         "errors",
     );
 
-    let items = leak_slice(vec![ui_type, errors_type]);
+    let items = common::leak_slice(vec![ui_type, errors_type]);
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),
@@ -519,16 +557,16 @@ fn test_generate_nested_namespace_creates_parent_dirs() {
     let temp_dir = TempDir::new().unwrap();
     let i18n_path = temp_dir.path().join("i18n");
 
-    let nested_type = enum_type_with_namespace(
+    let nested_type = common::enum_type_with_namespace(
         "FormError",
-        vec![variant(
+        vec![common::variant(
             "InvalidEmail",
-            &ftl_key("FormError", "InvalidEmail"),
+            &common::ftl_key("FormError", "InvalidEmail"),
         )],
         "ui/forms",
     );
 
-    let result = generate(
+    let result = es_fluent_generate::generate(
         "test_crate",
         &i18n_path,
         temp_dir.path(),

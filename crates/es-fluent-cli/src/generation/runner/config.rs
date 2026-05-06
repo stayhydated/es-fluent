@@ -1,4 +1,4 @@
-use super::{CLI_VERSION, utf8_path_string};
+use super::CLI_VERSION;
 use anyhow::Result;
 use cargo_manifest::{Dependency, DependencyDetail};
 use es_fluent_runner::RunnerMetadataStore;
@@ -169,7 +169,7 @@ impl TempCrateConfig {
     }
 
     fn path_dep(path: &Path, context: &str) -> Result<Dependency> {
-        let path = utf8_path_string(path, context)?;
+        let path = super::utf8_path_string(path, context)?;
         Ok(Self::path_dep_utf8(&path))
     }
 
@@ -188,12 +188,6 @@ impl TempCrateConfig {
 #[cfg(test)]
 mod tests {
     use super::TempCrateConfig;
-    use crate::test_fixtures::{
-        toml_helpers::{
-            package_manifest as package_manifest_toml, string_value, workspace_manifest, write_toml,
-        },
-        write_file,
-    };
     use cargo_manifest::Dependency;
     use std::path::Path;
     use toml::Value;
@@ -212,28 +206,32 @@ mod tests {
     #[test]
     fn find_local_dep_returns_path_dependency_for_local_workspace_package() {
         let temp = tempfile::tempdir().expect("tempdir");
-        write_toml(
+        crate::test_fixtures::toml_helpers::write_toml(
             &temp.path().join("Cargo.toml"),
-            &workspace_manifest(&["app", "es-fluent", "es-fluent-cli-helpers"]),
+            &crate::test_fixtures::toml_helpers::workspace_manifest(&[
+                "app",
+                "es-fluent",
+                "es-fluent-cli-helpers",
+            ]),
         );
-        write_toml(
+        crate::test_fixtures::toml_helpers::write_toml(
             &temp.path().join("app/Cargo.toml"),
-            &package_manifest_toml("app", "0.1.0"),
+            &crate::test_fixtures::toml_helpers::package_manifest("app", "0.1.0"),
         );
-        write_file(&temp.path().join("app/src/lib.rs"), "pub struct App;\n");
-        write_toml(
+        crate::test_fixtures::write_file(&temp.path().join("app/src/lib.rs"), "pub struct App;\n");
+        crate::test_fixtures::toml_helpers::write_toml(
             &temp.path().join("es-fluent/Cargo.toml"),
-            &package_manifest_toml("es-fluent", "0.1.0"),
+            &crate::test_fixtures::toml_helpers::package_manifest("es-fluent", "0.1.0"),
         );
-        write_file(
+        crate::test_fixtures::write_file(
             &temp.path().join("es-fluent/src/lib.rs"),
             "pub struct EsFluent;\n",
         );
-        write_toml(
+        crate::test_fixtures::toml_helpers::write_toml(
             &temp.path().join("es-fluent-cli-helpers/Cargo.toml"),
-            &package_manifest_toml("es-fluent-cli-helpers", "0.1.0"),
+            &crate::test_fixtures::toml_helpers::package_manifest("es-fluent-cli-helpers", "0.1.0"),
         );
-        write_file(
+        crate::test_fixtures::write_file(
             &temp.path().join("es-fluent-cli-helpers/src/lib.rs"),
             "pub struct Helpers;\n",
         );
@@ -298,19 +296,19 @@ serde = { version = "1" }
 "#,
         )
         .expect("parse patch manifest fixture");
-        write_toml(&patch_manifest, &patch_value);
+        crate::test_fixtures::toml_helpers::write_toml(&patch_manifest, &patch_value);
         let overrides = TempCrateConfig::extract_manifest_overrides(&patch_manifest);
         assert!(overrides.contains_key("patch"));
         assert!(!overrides.contains_key("replace"));
 
         let invalid_manifest = temp.path().join("invalid.toml");
-        write_file(&invalid_manifest, "not = [valid");
+        crate::test_fixtures::write_file(&invalid_manifest, "not = [valid");
         assert!(TempCrateConfig::extract_manifest_overrides(&invalid_manifest).is_empty());
 
         let non_table_manifest = temp.path().join("scalar.toml");
-        write_file(
+        crate::test_fixtures::write_file(
             &non_table_manifest,
-            &string_value("scalar-value").to_string(),
+            &crate::test_fixtures::toml_helpers::string_value("scalar-value").to_string(),
         );
         assert!(TempCrateConfig::extract_manifest_overrides(&non_table_manifest).is_empty());
     }

@@ -1,8 +1,7 @@
-use super::events::{PathToCrateMap, build_path_to_crate, process_file_events};
-use super::generation::{compute_watch_inputs_hash, spawn_generation};
+use super::events::PathToCrateMap;
 use crate::core::{CrateInfo, CrateState, FluentParseMode, GenerateResult, WorkspaceInfo};
 use crate::tui::{Message, TuiApp};
-use crossbeam_channel::{Receiver, Sender, unbounded};
+use crossbeam_channel::{Receiver, Sender};
 use notify_debouncer_full::DebouncedEvent;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -27,7 +26,7 @@ impl<'a> WatchRuntime<'a> {
         mode: &FluentParseMode,
     ) -> Self {
         let valid_crates: Vec<_> = crates.iter().filter(|krate| krate.has_lib_rs).collect();
-        let path_to_crate = build_path_to_crate(&valid_crates);
+        let path_to_crate = super::events::build_path_to_crate(&valid_crates);
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
 
@@ -35,7 +34,7 @@ impl<'a> WatchRuntime<'a> {
             crates_by_name.insert(krate.name.clone(), *krate);
             observed_hashes.insert(
                 krate.name.clone(),
-                compute_watch_inputs_hash(
+                super::generation::compute_watch_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
                     &krate.i18n_config_path,
@@ -43,7 +42,7 @@ impl<'a> WatchRuntime<'a> {
             );
         }
 
-        let (result_tx, result_rx) = unbounded();
+        let (result_tx, result_rx) = crossbeam_channel::unbounded();
 
         Self {
             workspace: Arc::new(workspace.clone()),
@@ -88,12 +87,12 @@ impl<'a> WatchRuntime<'a> {
     }
 
     pub(super) fn handle_file_events(&mut self, app: &mut TuiApp<'_>, events: &[DebouncedEvent]) {
-        for crate_name in process_file_events(events, &self.path_to_crate) {
+        for crate_name in super::events::process_file_events(events, &self.path_to_crate) {
             let Some(krate) = self.crates_by_name.get(&crate_name).copied() else {
                 continue;
             };
 
-            let new_hash = compute_watch_inputs_hash(
+            let new_hash = super::generation::compute_watch_inputs_hash(
                 &krate.manifest_dir,
                 &krate.src_dir,
                 &krate.i18n_config_path,
@@ -127,7 +126,7 @@ impl<'a> WatchRuntime<'a> {
     }
 
     fn spawn_for(&self, krate: &CrateInfo) {
-        spawn_generation(
+        super::generation::spawn_generation(
             krate.clone(),
             self.workspace.clone(),
             self.mode.clone(),

@@ -1,10 +1,7 @@
 use crate::FluentParseMode;
-use crate::ast_build::build_target_resource;
 use crate::formatting;
-use crate::io::{read_existing_resource, write_updated_resource};
-use crate::merge::{MergeBehavior, smart_merge};
+use crate::merge::MergeBehavior;
 use es_fluent_shared::EsFluentResult;
-use es_fluent_shared::namespace::validate_namespace_path;
 use es_fluent_shared::registry::FtlTypeInfo;
 use fluent_syntax::{ast, serializer};
 use indexmap::IndexMap;
@@ -30,11 +27,15 @@ impl OutputOperation {
         items: &[&FtlTypeInfo],
     ) -> ast::Resource<String> {
         match self {
-            Self::Generate(FluentParseMode::Aggressive) => build_target_resource(items),
-            Self::Generate(FluentParseMode::Conservative) => {
-                smart_merge(existing_resource, items, MergeBehavior::Append)
+            Self::Generate(FluentParseMode::Aggressive) => {
+                crate::ast_build::build_target_resource(items)
             },
-            Self::Clean => smart_merge(existing_resource, items, MergeBehavior::Clean),
+            Self::Generate(FluentParseMode::Conservative) => {
+                crate::merge::smart_merge(existing_resource, items, MergeBehavior::Append)
+            },
+            Self::Clean => {
+                crate::merge::smart_merge(existing_resource, items, MergeBehavior::Clean)
+            },
         }
     }
 
@@ -58,7 +59,7 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
     for item in &items_ref {
         let namespace = item.resolved_namespace(manifest_dir);
         if let Some(ref namespace) = namespace {
-            validate_namespace_path(namespace).map_err(|reason| {
+            es_fluent_shared::namespace::validate_namespace_path(namespace).map_err(|reason| {
                 Error::new(
                     ErrorKind::InvalidInput,
                     format!(
@@ -104,10 +105,10 @@ pub(crate) fn apply_output_operation(
         fs::create_dir_all(&output.dir_path)?;
     }
 
-    let existing_resource = read_existing_resource(&output.file_path)?;
+    let existing_resource = crate::io::read_existing_resource(&output.file_path)?;
     let final_resource = operation.render_resource(existing_resource, &output.items);
 
-    write_updated_resource(
+    crate::io::write_updated_resource(
         &output.file_path,
         &final_resource,
         dry_run,

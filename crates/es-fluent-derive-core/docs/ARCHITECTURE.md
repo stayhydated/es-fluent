@@ -26,7 +26,7 @@ flowchart TD
 
 1. **Parsing (`src/options/`)**: The raw `syn` AST is parsed into structured options using `darling`. This step handles attribute extraction (`#[fluent(...)]`) and type conversion.
 1. **Validation (`src/validation.rs`)**: The parsed options are checked for semantic correctness (e.g., conflicting flags).
-1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`; this crate no longer mirrors them through top-level compatibility modules.
+1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`; this crate uses those shared types instead of defining local mirror types.
 
 ## Modules
 
@@ -36,10 +36,10 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 
 - **`mod.rs`**: Shared parsing helpers and traits. This now holds the common field/variant/container helper surface (`FluentField`, `VariantFields`, `StructDataOptions`, `EnumDataOptions`, `FilteredEnumDataOptions`, `GeneratedVariantsOptions`, `KeyedVariant`, `Skippable`) plus reusable attribute payload types.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
-- **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`).
+- **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`), including enum resource/domain overrides, inventory suppression, and variant key overrides.
 - **`choice.rs`**: Options for `#[fluent(choice)]` (nested enums).
-- **`namespace.rs`**: Parses `namespace` values from `#[fluent(...)]`.
-  - Supports literal namespaces (`namespace = "ui"`), file stems (`namespace = file`), file-relative paths (`namespace(file(relative))`), parent folder names (`namespace = folder`), and relative parent folder paths (`namespace(folder(relative))`).
+- Namespace parsing uses `es_fluent_shared::namespace::NamespaceRule` directly.
+  It supports literal namespaces (`namespace = "ui"`), file stems (`namespace = file`), file-relative paths (`namespace(file(relative))`), parent folder names (`namespace = folder`), and relative parent folder paths (`namespace(folder(relative))`).
 
 **Key Traits:**
 
@@ -50,6 +50,11 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - `StructDataOptions` / `EnumDataOptions` / `FilteredEnumDataOptions`: Shared container traits for struct and enum traversal.
 - `GeneratedVariantsOptions`: Shared naming/key helpers for `#[fluent_variants]` containers.
 - `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
+
+Field parsing supports `skip`, `arg_name`, `choice`, and `value` transforms.
+`#[fluent_variants]` parsing supports lowercase snake_case `keys`, generated
+enum `derive(...)`, namespaces, and `#[fluent_variants(skip)]` filtering for
+fields or enum variants.
 
 ### 2. Validation (`src/validation.rs`)
 

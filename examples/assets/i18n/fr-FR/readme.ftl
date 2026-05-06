@@ -1,10 +1,10 @@
-## GenderThisOnly
+## GenderLabelOnly
 
-gender_this_only_this = Genre (this uniquement)
+gender_label_only_label = Genre (étiquette uniquement)
 
 ## LoginFormCombined
 
-login_form_combined_this = Formulaire de connexion combiné
+login_form_combined_label = Formulaire de connexion combiné
 
 ## GenderChoice
 
@@ -30,13 +30,13 @@ login_error-UserNotFound = Utilisateur introuvable { $username }
 
 ## LoginFormCombinedDescriptionVariants
 
-login_form_combined_description_variants_this = Variantes de description du formulaire de connexion combiné
+login_form_combined_description_variants_label = Variantes de description du formulaire de connexion combiné
 login_form_combined_description_variants-password = Mot de passe
 login_form_combined_description_variants-username = Nom d'utilisateur
 
 ## LoginFormCombinedLabelVariants
 
-login_form_combined_label_variants_this = Variantes de libellé du formulaire de connexion combiné
+login_form_combined_label_variants_label = Variantes de libellé du formulaire de connexion combiné
 login_form_combined_label_variants-password = Mot de passe
 login_form_combined_label_variants-username = Nom d'utilisateur
 

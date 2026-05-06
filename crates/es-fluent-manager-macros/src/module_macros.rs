@@ -1,4 +1,4 @@
-use crate::assets::{I18nAssets, current_crate_name, module_data_static_tokens};
+use crate::assets::I18nAssets;
 use heck::ToPascalCase as _;
 use proc_macro::TokenStream;
 use quote::quote;
@@ -35,6 +35,17 @@ impl ManagerPaths {
             module_data_suffix: "BEVY_I18N_MODULE_DATA",
         }
     }
+
+    fn dioxus() -> Self {
+        Self {
+            manager_core_path: quote! { ::es_fluent_manager_dioxus::__manager_core },
+            langid_path: quote! { ::es_fluent_manager_dioxus::__unic_langid },
+            inventory_path: quote! { ::es_fluent_manager_dioxus::__inventory },
+            rust_embed_path: quote! { ::es_fluent_manager_dioxus::__rust_embed },
+            rust_embed_attr_path: "::es_fluent_manager_dioxus::__rust_embed",
+            module_data_suffix: "DIOXUS_I18N_MODULE_DATA",
+        }
+    }
 }
 
 type ModuleTokenGenerator = fn(
@@ -45,11 +56,23 @@ type ModuleTokenGenerator = fn(
     &ManagerPaths,
 ) -> syn::Result<TokenStream>;
 
+fn reject_unexpected_input(input: TokenStream) -> Option<TokenStream> {
+    (!input.is_empty()).then(|| {
+        TokenStream::from(
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "`define_i18n_module!` does not accept arguments",
+            )
+            .to_compile_error(),
+        )
+    })
+}
+
 fn expand_define_i18n_module(
     manager_paths: ManagerPaths,
     generate_tokens: ModuleTokenGenerator,
 ) -> TokenStream {
-    let crate_name = match current_crate_name() {
+    let crate_name = match crate::assets::current_crate_name() {
         Ok(name) => name,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
@@ -71,7 +94,7 @@ fn expand_define_i18n_module(
         proc_macro2::Span::call_site(),
     );
 
-    let module_data_static = module_data_static_tokens(
+    let module_data_static = crate::assets::module_data_static_tokens(
         &manager_paths.manager_core_path,
         &module_data_name,
         &crate_name,
@@ -91,12 +114,28 @@ fn expand_define_i18n_module(
     }
 }
 
-pub(crate) fn define_embedded_i18n_module(_input: TokenStream) -> TokenStream {
+pub(crate) fn define_embedded_i18n_module(input: TokenStream) -> TokenStream {
+    if let Some(error) = reject_unexpected_input(input) {
+        return error;
+    }
+
     expand_define_i18n_module(ManagerPaths::embedded(), generate_embedded_tokens)
 }
 
-pub(crate) fn define_bevy_i18n_module(_input: TokenStream) -> TokenStream {
+pub(crate) fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
+    if let Some(error) = reject_unexpected_input(input) {
+        return error;
+    }
+
     expand_define_i18n_module(ManagerPaths::bevy(), generate_bevy_tokens)
+}
+
+pub(crate) fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {
+    if let Some(error) = reject_unexpected_input(input) {
+        return error;
+    }
+
+    expand_define_i18n_module(ManagerPaths::dioxus(), generate_embedded_tokens)
 }
 
 fn generate_embedded_tokens(
@@ -239,4 +278,18 @@ fn utf8_folder_literal(path: &Path) -> syn::Result<syn::LitStr> {
         )
     })?;
     Ok(syn::LitStr::new(path, proc_macro2::Span::call_site()))
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt as _, path::PathBuf};
+
+    #[test]
+    fn utf8_folder_literal_rejects_non_utf8_paths() {
+        let path = PathBuf::from(OsString::from_vec(vec![b'i', b'1', 0xff]));
+        let err = utf8_folder_literal(&path).expect_err("non-UTF-8 paths should be rejected");
+
+        assert!(err.to_string().contains("valid UTF-8"));
+    }
 }

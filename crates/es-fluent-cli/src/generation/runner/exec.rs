@@ -46,7 +46,7 @@ impl RunnerCrate<'_> {
             .arg("--")
             .args(args)
             .current_dir(self.temp_dir)
-            .env("RUSTFLAGS", "-A warnings");
+            .env("RUSTFLAGS", runner_rustflags());
 
         if env::var("NO_COLOR").is_err() {
             cmd.env("CLICOLOR_FORCE", "1");
@@ -80,7 +80,7 @@ impl RunnerCrate<'_> {
             .arg("--")
             .args(args)
             .current_dir(self.temp_dir)
-            .env("RUSTFLAGS", "-A warnings");
+            .env("RUSTFLAGS", runner_rustflags());
 
         let output = cmd.output().context("Failed to run cargo")?;
 
@@ -90,6 +90,13 @@ impl RunnerCrate<'_> {
             let stderr = String::from_utf8_lossy(&output.stderr);
             bail!("Cargo run failed: {}", stderr)
         }
+    }
+}
+
+fn runner_rustflags() -> String {
+    match env::var("RUSTFLAGS") {
+        Ok(flags) if !flags.trim().is_empty() => format!("{flags} -A warnings"),
+        _ => "-A warnings".to_string(),
     }
 }
 

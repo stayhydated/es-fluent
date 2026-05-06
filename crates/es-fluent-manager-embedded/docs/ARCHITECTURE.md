@@ -1,107 +1,49 @@
 # es-fluent-manager-embedded Architecture
 
-This document details the architecture of the `es-fluent-manager-embedded` crate, which provides a simple, zero-setup runtime for localized applications.
+`es-fluent-manager-embedded` adapts embedded Fluent assets to an explicit runtime
+manager handle.
 
-## Overview
+## Runtime state
 
-`es-fluent-manager-embedded` is designed for CLI tools, desktop apps, and servers where:
+The crate returns `EmbeddedI18n`, which owns an `Arc<FluentManager>`. It does not
+publish that manager into `es-fluent` global state.
 
-- Localization files should be bundled into the single binary executable.
-- Hot-reloading is not required.
-- Global state access is preferred through the shared singleton.
-
-## Architecture
-
-```mermaid
-flowchart TD
-    subgraph INIT["Initialization"]
-        MACRO["define_i18n_module!"]
-        MAIN["main()"]
-        INIT_FN["init() / init_with_language()"]
-    end
-
-    subgraph GLOBAL["Global State"]
-        MGR["Generic Manager Singleton"]
-        CTX["Shared Context (es-fluent)"]
-    end
-
-    subgraph RUNTIME["Runtime"]
-        Display["Impl FluentDisplay"]
-        Localize["derive-generated lookup helpers"]
-    end
-
-    MACRO -->|registers modules| MGR
-    MAIN -->|calls| INIT_FN
-    INIT_FN -->|sets| MGR
-    INIT_FN -->|sets| CTX
-    Display -->|reads| CTX
-    Localize -->|reads| CTX
-    CTX -->|delegates| MGR
+```rust
+let i18n = EmbeddedI18n::try_new_with_language(langid!("en-US"))?;
+let text = i18n.localize_message(&message);
 ```
 
-## Global Singleton
+## Initialization
 
-The crate manages a static `GENERIC_MANAGER` using `OnceLock` with `ArcSwap` for lock-free reads.
+`EmbeddedI18n::try_new()` performs strict module discovery and builds a manager
+without selecting a locale.
 
-```rs
-static GENERIC_MANAGER: OnceLock<ArcSwap<FluentManager>> = OnceLock::new();
+`EmbeddedI18n::try_new_with_language(...)` performs strict discovery, selects the
+initial locale, and returns the initialized handle only after successful language
+selection.
+
+## Language changes
+
+Language changes are scoped to the `EmbeddedI18n` value:
+
+```rust
+i18n.select_language(langid!("fr"))?;
 ```
 
-Using `ArcSwap` instead of `Arc<RwLock<...>>` enables lock-free access to the manager during localization calls, which is ideal for the read-heavy, write-rare pattern of i18n lookups.
+Failed switches keep the previous ready locale active because the underlying
+`FluentManager` only publishes accepted localizers after successful selection.
 
-Calls to `init()` or `init_with_language()`:
+`select_language(...)` uses the shared best-effort policy, allowing modules that
+do not support the requested locale to be skipped when at least one module can
+serve it. `select_language_strict(...)` keeps transactional behavior for callers
+that require all discovered modules to accept the locale.
 
-1. Discover all registered modules (using `inventory`).
-1. Initialize the manager.
-1. Optionally select the initial language.
-1. Register it as the global context provider for `es-fluent`.
+## Lookup helpers
 
-For namespaced modules, namespace files are the canonical per-locale resources.
-`{domain}.ftl` is not part of the canonical resource plan when namespaces are present.
+`EmbeddedI18n` implements `FluentLocalizer`, but its inherent application API stays enum-first through `localize_message(...)`. Generated labels and workspace integrations use the trait path when they need explicit context-bound lookup.
 
-This enables derive-generated `to_fluent_string()` lookups anywhere in the application code without passing a manager context around.
+## Macro integration
 
-## Macro
-
-The `define_i18n_module!` macro is re-exported from `es-fluent-manager-macros::define_embedded_i18n_module`. See the [es-fluent-manager-macros architecture](../../es-fluent-manager-macros/docs/ARCHITECTURE.md) for details on how the macro discovers languages and generates module data.
-
-This macro requires the `macros` feature, which is enabled by default.
-
-## Initialization Behavior
-
-The initialization entry points are idempotent for manager setup:
-
-- `init()`
-  Uses strict discovery and logs initialization failures instead of
-  returning them.
-- `try_init()`
-  Uses strict discovery and returns a `Result`.
-- `init_with_language()`
-  Uses strict discovery, selects the requested language before publication,
-  applies the language to the live manager on repeated calls, and logs
-  initialization failures instead of returning them.
-- `try_init_with_language()`
-  Uses the strict discovered-manager path, selects the requested language
-  before publication, and returns any initialization error.
-
-`select_language()` returns an error if initialization was skipped or if no
-discovered module can serve the requested locale. When some modules support the
-requested locale and others do not, the default switch keeps the supporting
-modules active.
-
-## Usage
-
-```rs
-// In your library/crate root
-es_fluent_manager_embedded::define_i18n_module!();
-
-// In main.rs
-fn main() {
-    es_fluent_manager_embedded::init_with_language(unic_langid::langid!("en-US"));
-
-    println!("{}", MyMessage { ... }); // Automatically localized
-}
-```
-
-If the language is not known at startup, call `init()` first and
-`select_language(...)` later.
+`define_i18n_module!` is re-exported from
+`es-fluent-manager-macros::define_embedded_i18n_module`. It generates embedded
+asset registration and inventory metadata consumed by `FluentManager` discovery.

@@ -43,32 +43,37 @@ login_error-UserNotFound = User Not Found { $username }
 welcome_message = Welcome Message { $name } { $count }
 ```
 
-At runtime, call `to_fluent_string()` to resolve the translations:
+At runtime, call `i18n.localize_message(&value)` on an explicit manager to resolve translations:
 
 ```rust
-use es_fluent::ToFluentString;
-
-let _ = LoginError::InvalidPassword.to_fluent_string();
-let _ = LoginError::UserNotFound { username: "john".to_string() }.to_fluent_string();
-let _ = LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
-let _ = LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()).to_fluent_string();
+let _ = i18n.localize_message(&LoginError::InvalidPassword);
+let _ = i18n.localize_message(&LoginError::UserNotFound { username: "john".to_string() });
+let _ = i18n.localize_message(&LoginError::Something("a".to_string(), "b".to_string(), "c".to_string()));
+let _ = i18n.localize_message(&LoginError::SomethingArgNamed("a".to_string(), "b".to_string(), "c".to_string()));
 
 let welcome = WelcomeMessage { name: "John", count: 5 };
-let _ = welcome.to_fluent_string();
+let _ = i18n.localize_message(&welcome);
 ```
 
-Argument naming attributes:
+Common derive attributes:
 
 - `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+- `#[fluent(skip)]` on a field excludes that field from generated arguments.
+- `#[fluent(value = "...")]` or `#[fluent(value(...))]` transforms a field before inserting it as a Fluent argument.
+- `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
+- `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
+- `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.
+- Optional-argument omission is generated for direct `Option<T>` fields, including paths like `std::option::Option<T>`. Type aliases to `Option<T>` are treated like ordinary field types.
+- `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Skipped single-field enum variants:
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
-key and delegates `to_fluent_string()` to the wrapped value. This is useful for
+key and delegates context-bound rendering to the wrapped value. This is useful for
 transparent wrapper enums.
 
 ```rust
-use es_fluent::{EsFluent, ToFluentString};
+use es_fluent::{EsFluent, FluentMessage};
 
 #[derive(EsFluent)]
 pub enum NetworkError {
@@ -81,7 +86,7 @@ pub enum TransactionError {
     Network(NetworkError),
 }
 
-let _ = TransactionError::Network(NetworkError::ApiUnavailable).to_fluent_string();
+let _ = i18n.localize_message(&TransactionError::Network(NetworkError::ApiUnavailable));
 ```
 
 ```ftl
@@ -124,9 +129,9 @@ greeting = { $gender ->
 ```
 
 ```rust
-use es_fluent::ToFluentString;
+use es_fluent::FluentMessage;
 let greeting = Greeting { name: "John", gender: &GenderChoice::Male };
-let _ = greeting.to_fluent_string();
+let _ = i18n.localize_message(&greeting);
 ```
 
 ## Generating Variants
@@ -162,8 +167,8 @@ login_form_variants_description_variants-username = Username
 ```
 
 ```rust
-use es_fluent::ToFluentString;
-let _ = LoginFormVariantsLabelVariants::Username.to_fluent_string();
+use es_fluent::FluentMessage;
+let _ = i18n.localize_message(&LoginFormVariantsLabelVariants::Username);
 ```
 
 Enums are supported too. In that case, the derive generates a single
@@ -189,24 +194,31 @@ settings_tab_variants-Privacy = Privacy
 ```
 
 ```rust
-use es_fluent::ToFluentString;
-let _ = SettingsTabVariants::Notifications.to_fluent_string();
+use es_fluent::FluentMessage;
+let _ = i18n.localize_message(&SettingsTabVariants::Notifications);
 ```
 
-## Type-level Keys (This)
+`keys = [...]` values must be lowercase snake_case. Use
+`#[fluent_variants(skip)]` to omit a struct field or enum variant from the
+generated enums. Use `derive(Debug, Clone)` inside `#[fluent_variants(...)]` to
+add derives to the generated enums.
 
-`EsFluentThis` generates a `ThisFtl` implementation that registers the type's _name_ as a key. Where `EsFluentVariants` registers individual fields, `EsFluentThis` registers the parent type itself.
+## Type-level Labels
+
+`EsFluentLabel` generates a `FluentLabel` implementation that registers the type's _name_ as a key. Where `EsFluentVariants` registers individual fields, `EsFluentLabel` registers the parent type itself.
 
 ### Origin Only
 
-`#[fluent_this(origin)]` creates a single key for the type:
+`origin` is enabled by default, so `#[derive(EsFluentLabel)]` creates a single
+key for the type. `#[fluent_label(origin)]` is equivalent; use
+`#[fluent_label(origin = false)]` when deriving only variant labels through
+`EsFluentVariants`.
 
 ```rust
-use es_fluent::EsFluentThis;
+use es_fluent::EsFluentLabel;
 
-#[derive(EsFluentThis)]
-#[fluent_this(origin)]
-pub enum GenderThisOnly {
+#[derive(EsFluentLabel)]
+pub enum GenderLabelOnly {
     Male,
     Female,
     Other,
@@ -214,23 +226,23 @@ pub enum GenderThisOnly {
 ```
 
 ```ftl
-gender_this_only_this = Gender This Only
+gender_label_only_label = Gender Label Only
 ```
 
 ```rust
-use es_fluent::ThisFtl;
-let _ = GenderThisOnly::this_ftl();
+use es_fluent::FluentLabel;
+let _ = GenderLabelOnly::localize_label(&i18n);
 ```
 
 ### Combined with Variants
 
-`#[fluent_this(variants)]` can be combined with `EsFluentVariants` to generate `this_ftl()` keys for each generated variant enum:
+`#[fluent_label(variants)]` can be combined with `EsFluentVariants` to generate type-level keys for each generated variant enum:
 
 ```rust
-use es_fluent::{EsFluentThis, EsFluentVariants};
+use es_fluent::{EsFluentLabel, EsFluentVariants};
 
-#[derive(EsFluentThis, EsFluentVariants)]
-#[fluent_this(origin, variants)]
+#[derive(EsFluentLabel, EsFluentVariants)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,
@@ -239,11 +251,11 @@ pub struct LoginFormCombined {
 ```
 
 ```ftl
-login_form_combined_label_variants_this = Login Form Combined Label Variants
-login_form_combined_description_variants_this = Login Form Combined Description Variants
+login_form_combined_label_variants_label = Login Form Combined Label Variants
+login_form_combined_description_variants_label = Login Form Combined Description Variants
 ```
 
 ```rust
-use es_fluent::ThisFtl;
-let _ = LoginFormCombinedDescriptionVariants::this_ftl();
+use es_fluent::FluentLabel;
+let _ = LoginFormCombinedDescriptionVariants::localize_label(&i18n);
 ```

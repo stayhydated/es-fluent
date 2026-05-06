@@ -1,3 +1,3 @@
 ## FolderStatus
 
-folder_status_this = Folder Status
+folder_status_label = Folder Status

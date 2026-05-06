@@ -9,12 +9,11 @@ mod tests;
 
 use self::runtime::WatchRuntime;
 use crate::core::{CrateInfo, FluentParseMode, WorkspaceInfo};
-use crate::generation::prepare_monolithic_runner_crate;
 use crate::tui::{self, TuiApp};
 use anyhow::{Context as _, Result};
-use crossbeam_channel::{Receiver, RecvTimeoutError, unbounded};
+use crossbeam_channel::{Receiver, RecvTimeoutError};
 use notify::{RecommendedWatcher, RecursiveMode};
-use notify_debouncer_full::{DebounceEventResult, RecommendedCache, new_debouncer};
+use notify_debouncer_full::{DebounceEventResult, RecommendedCache};
 use ratatui::{Terminal, backend::Backend};
 use std::time::Duration;
 
@@ -28,29 +27,46 @@ pub fn watch_all(
         anyhow::bail!("No crates to watch");
     }
 
-    prepare_monolithic_runner_crate(workspace)?;
+    crate::generation::prepare_monolithic_runner_crate(workspace)?;
 
+    run_watch_terminal(crates, workspace, mode)
+}
+
+#[cfg(not(any(test, coverage)))]
+fn run_watch_terminal(
+    crates: &[CrateInfo],
+    workspace: &WorkspaceInfo,
+    mode: &FluentParseMode,
+) -> Result<()> {
     let mut terminal = ratatui::init();
-    let result = run_watch_loop(&mut terminal, crates, workspace, mode);
+    let poll = tui::poll_quit_event;
+    let result = run_watch_loop_with_poll(&mut terminal, crates, workspace, mode, poll, None);
     ratatui::restore();
 
     result
 }
 
-fn run_watch_loop(
-    terminal: &mut ratatui::DefaultTerminal,
+#[cfg(any(test, coverage))]
+fn run_watch_terminal(
     crates: &[CrateInfo],
     workspace: &WorkspaceInfo,
     mode: &FluentParseMode,
 ) -> Result<()> {
+    let backend = ratatui::backend::TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend)?;
     run_watch_loop_with_poll(
-        terminal,
+        &mut terminal,
         crates,
         workspace,
         mode,
-        tui::poll_quit_event,
-        None,
+        quit_immediately,
+        Some(1),
     )
+}
+
+#[cfg(any(test, coverage))]
+fn quit_immediately(_timeout: Duration) -> std::io::Result<bool> {
+    Ok(true)
 }
 
 fn run_watch_loop_with_poll<B: Backend>(
@@ -64,15 +80,55 @@ fn run_watch_loop_with_poll<B: Backend>(
     let mut app = TuiApp::new(crates);
     let mut runtime = WatchRuntime::new(crates, workspace, mode);
     let (_debouncer, file_rx) = configure_file_watcher(runtime.valid_crates())?;
+    run_watch_loop_with_runtime(
+        terminal,
+        &mut app,
+        &mut runtime,
+        file_rx,
+        poll_quit,
+        max_iterations,
+    )
+}
+
+#[cfg(test)]
+fn run_watch_loop_with_file_rx<B: Backend>(
+    terminal: &mut Terminal<B>,
+    crates: &[CrateInfo],
+    workspace: &WorkspaceInfo,
+    mode: &FluentParseMode,
+    file_rx: Receiver<DebounceEventResult>,
+    poll_quit: fn(Duration) -> std::io::Result<bool>,
+    max_iterations: Option<usize>,
+) -> Result<()> {
+    let mut app = TuiApp::new(crates);
+    let mut runtime = WatchRuntime::new(crates, workspace, mode);
+    run_watch_loop_with_runtime(
+        terminal,
+        &mut app,
+        &mut runtime,
+        file_rx,
+        poll_quit,
+        max_iterations,
+    )
+}
+
+fn run_watch_loop_with_runtime<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &mut TuiApp,
+    runtime: &mut WatchRuntime<'_>,
+    file_rx: Receiver<DebounceEventResult>,
+    poll_quit: fn(Duration) -> std::io::Result<bool>,
+    max_iterations: Option<usize>,
+) -> Result<()> {
     let mut iterations = 0usize;
 
     terminal
-        .draw(|f| tui::draw(f, &app))
+        .draw(|f| tui::draw(f, app))
         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
 
-    if runtime.spawn_initial_generations(&mut app) {
+    if runtime.spawn_initial_generations(app) {
         terminal
-            .draw(|f| tui::draw(f, &app))
+            .draw(|f| tui::draw(f, app))
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     }
 
@@ -91,10 +147,10 @@ fn run_watch_loop_with_poll<B: Backend>(
             break;
         }
 
-        runtime.handle_generation_results(&mut app);
+        runtime.handle_generation_results(app);
 
         match file_rx.recv_timeout(Duration::from_millis(16)) {
-            Ok(Ok(events)) => runtime.handle_file_events(&mut app, &events),
+            Ok(Ok(events)) => runtime.handle_file_events(app, &events),
             Ok(Err(errors)) => {
                 for error in errors {
                     app.update(tui::Message::WatchError {
@@ -107,7 +163,7 @@ fn run_watch_loop_with_poll<B: Backend>(
         }
 
         terminal
-            .draw(|f| tui::draw(f, &app))
+            .draw(|f| tui::draw(f, app))
             .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     }
 
@@ -120,9 +176,10 @@ fn configure_file_watcher(
     notify_debouncer_full::Debouncer<RecommendedWatcher, RecommendedCache>,
     Receiver<DebounceEventResult>,
 )> {
-    let (file_tx, file_rx) = unbounded();
-    let mut debouncer = new_debouncer(Duration::from_millis(300), None, file_tx)
-        .context("Failed to create file watcher")?;
+    let (file_tx, file_rx) = crossbeam_channel::unbounded();
+    let mut debouncer =
+        notify_debouncer_full::new_debouncer(Duration::from_millis(300), None, file_tx)
+            .context("Failed to create file watcher")?;
 
     for krate in valid_crates {
         debouncer

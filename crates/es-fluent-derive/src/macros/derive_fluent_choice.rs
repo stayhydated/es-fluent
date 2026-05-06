@@ -2,6 +2,7 @@
 
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::choice::{CaseStyle, ChoiceOpts};
+use es_fluent_shared::namer;
 use quote::quote;
 use strum::IntoEnumIterator as _;
 use syn::{DeriveInput, parse_macro_input};
@@ -48,7 +49,7 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
 
     let match_arms = variants.iter().map(|variant| {
         let variant_ident = &variant.ident;
-        let serialized_name = serialize_fn(&variant_ident.to_string());
+        let serialized_name = serialize_fn(&namer::rust_ident_name(variant_ident));
         quote! {
             Self::#variant_ident => #serialized_name
         }
@@ -69,8 +70,6 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
-    use super::expand_choice;
-    use crate::snapshot_support::pretty_file_tokens;
     use insta::assert_snapshot;
     use syn::parse_quote;
 
@@ -81,7 +80,8 @@ mod tests {
                 VeryHigh
             }
         };
-        let default_tokens = pretty_file_tokens(expand_choice(default_input));
+        let default_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_choice(default_input));
         assert_snapshot!(
             "expand_choice_generates_expected_tokens_for_default_mode",
             default_tokens
@@ -93,7 +93,8 @@ mod tests {
                 VeryHigh
             }
         };
-        let snake_tokens = pretty_file_tokens(expand_choice(snake_input));
+        let snake_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_choice(snake_input));
         assert_snapshot!(
             "expand_choice_generates_expected_tokens_for_snake_case_mode",
             snake_tokens
@@ -109,7 +110,7 @@ mod tests {
             }
         };
 
-        let tokens = pretty_file_tokens(expand_choice(input));
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_choice(input));
         assert_snapshot!(
             "expand_choice_emits_compile_error_for_invalid_serialize_all",
             tokens
@@ -122,7 +123,7 @@ mod tests {
             struct NotAnEnum;
         };
 
-        let tokens = pretty_file_tokens(expand_choice(input));
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_choice(input));
         assert_snapshot!(
             "expand_choice_returns_darling_errors_for_unsupported_input_shapes",
             tokens

@@ -1,8 +1,0 @@
----
-source: crates/es-fluent-derive/src/macros/ir.rs
-expression: rendered
----
-write!(
-    f, "{}", ::es_fluent::localize_in_domain("es-fluent-lang", "es-fluent-lang-en",
-    None)
-)

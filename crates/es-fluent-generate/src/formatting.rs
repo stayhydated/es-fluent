@@ -10,7 +10,7 @@ use heck::ToSnakeCase as _;
 /// Additionally, this function attempts to "repair" grouping by matching message keys
 /// to section headers (heuristically matching snake_case keys to PascalCase headers).
 ///
-/// Keys ending in `_this` (defined by `FluentKey::THIS_SUFFIX`) are sorted to the top
+/// Keys ending in `_label` (defined by `FluentKey::LABEL_SUFFIX`) are sorted to the top
 /// of their respective sections.
 pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
     #[derive(Debug, Default)]
@@ -179,17 +179,22 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
         }
     }
 
-    // Sort sections by header name, but prioritize "this" sections.
+    // Sort sections by header name, but prioritize label sections.
     sortable_sections.sort_by(|a, b| {
-        let a_is_this = a
+        let a_is_label = a
             .messages
             .iter()
-            .all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
-        let b_is_this = b
+            .all(|m| m.key.ends_with(FluentKey::LABEL_SUFFIX));
+        let b_is_label = b
             .messages
             .iter()
-            .all(|m| m.key.ends_with(FluentKey::THIS_SUFFIX));
-        compare_with_this_priority(a_is_this, &a.header_sort_key, b_is_this, &b.header_sort_key)
+            .all(|m| m.key.ends_with(FluentKey::LABEL_SUFFIX));
+        compare_with_label_priority(
+            a_is_label,
+            &a.header_sort_key,
+            b_is_label,
+            &b.header_sort_key,
+        )
     });
 
     sections = leading_sections;
@@ -198,10 +203,10 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
     // Sort messages within sections
     for section in &mut sections {
         section.messages.sort_by(|a, b| {
-            // Check for _this suffix
-            let a_is_this = a.key.ends_with(FluentKey::THIS_SUFFIX);
-            let b_is_this = b.key.ends_with(FluentKey::THIS_SUFFIX);
-            compare_with_this_priority(a_is_this, &a.key, b_is_this, &b.key)
+            // Check for _label suffix
+            let a_is_label = a.key.ends_with(FluentKey::LABEL_SUFFIX);
+            let b_is_label = b.key.ends_with(FluentKey::LABEL_SUFFIX);
+            compare_with_label_priority(a_is_label, &a.key, b_is_label, &b.key)
         });
     }
 
@@ -222,15 +227,15 @@ pub fn sort_ftl_resource(resource: &ast::Resource<String>) -> String {
     serializer::serialize(&sorted_resource)
 }
 
-/// Compare two items, prioritizing those marked as "this".
-pub fn compare_with_this_priority(
-    a_is_this: bool,
+/// Compare two items, prioritizing those marked as "label".
+pub fn compare_with_label_priority(
+    a_is_label: bool,
     a_key: &str,
-    b_is_this: bool,
+    b_is_label: bool,
     b_key: &str,
 ) -> std::cmp::Ordering {
-    match (a_is_this, b_is_this) {
-        (true, false) => std::cmp::Ordering::Less, // _this comes first
+    match (a_is_label, b_is_label) {
+        (true, false) => std::cmp::Ordering::Less, // _label comes first
         (false, true) => std::cmp::Ordering::Greater,
         _ => a_key.cmp(b_key),
     }
@@ -288,7 +293,7 @@ apple = Apple"#;
         let content = r#"usa_state-A = A
 
 ## USAState
-usa_state_this = Usa State"#;
+usa_state_label = Usa State"#;
 
         let resource = parser::parse(content.to_string()).unwrap();
         let sorted = sort_ftl_resource(&resource);
@@ -297,29 +302,29 @@ usa_state_this = Usa State"#;
 
         let group_pos = sorted.find("## USAState").unwrap();
         let a_pos = sorted.find("usa_state-A = A").unwrap();
-        let this_pos = sorted.find("usa_state_this = Usa State").unwrap();
+        let label_pos = sorted.find("usa_state_label = Usa State").unwrap();
 
         // Both messages must be AFTER the header
         assert!(a_pos > group_pos, "A should be moved after Group Header");
-        assert!(this_pos > group_pos, "This should be after Group Header");
+        assert!(label_pos > group_pos, "Label should be after Group Header");
     }
 
     #[test]
-    fn test_sort_ftl_prioritize_this() {
+    fn test_sort_ftl_prioritize_label() {
         let content = r#"## USAState
 usa_state-A = A
-usa_state_this = Usa State"#;
+usa_state_label = Usa State"#;
 
         let resource = parser::parse(content.to_string()).unwrap();
         let sorted = sort_ftl_resource(&resource);
 
         println!("Sorted output:\n{}", sorted);
 
-        // _this should come BEFORE -A
+        // _label should come BEFORE -A
         let a_pos = sorted.find("usa_state-A").unwrap();
-        let this_pos = sorted.find("usa_state_this").unwrap();
+        let label_pos = sorted.find("usa_state_label").unwrap();
 
-        assert!(this_pos < a_pos, "_this should be sorted to top of group");
+        assert!(label_pos < a_pos, "_label should be sorted to top of group");
     }
 
     #[test]

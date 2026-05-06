@@ -71,6 +71,9 @@ Additional rules:
 - User-facing documentation should be example-first.
 - Prefer a Rust snippet over prose-only explanations when showing behavior changes.
 - `examples/readme` is the canonical source of truth for usage examples.
+- After making changes, run the smallest relevant validation for the affected
+  crate, docs, example, or web surface before handoff. If validation is skipped,
+  document why and what remains unvalidated.
 
 ## Workspace map
 
@@ -84,12 +87,17 @@ Additional rules:
 - `crates/es-fluent-cli`
   Audience: **User-facing**
   Docs: [Architecture](crates/es-fluent-cli/docs/ARCHITECTURE.md)
-  Role: primary CLI (`cargo es-fluent`) for validating and generating FTL files.
+  Role: primary CLI (`cargo es-fluent`) for generating, checking, cleaning, syncing, formatting, and inspecting FTL files.
 
 - `crates/es-fluent-manager-embedded`
   Audience: **User-facing**
   Docs: [Architecture](crates/es-fluent-manager-embedded/docs/ARCHITECTURE.md)
   Role: zero-setup backend for embedding FTL files in the binary.
+
+- `crates/es-fluent-manager-dioxus`
+  Audience: **User-facing**
+  Docs: [Architecture](crates/es-fluent-manager-dioxus/docs/ARCHITECTURE.md)
+  Role: Dioxus integration for provider/hook client localization and request-scoped SSR.
 
 - `crates/es-fluent-manager-bevy`
   Audience: **User-facing**
@@ -162,17 +170,8 @@ Additional rules:
 
 ### Examples and web surfaces
 
-- `examples/first-example`
-  Minimal getting-started example using the embedded manager.
-
-- `examples/thiserror-example`
-  Demonstrates `thiserror` integration with localizable error types.
-
 - `examples/example-shared-lib`
   Shared example library used by multiple examples.
-
-- `examples/feature-gated-example`
-  Demonstrates feature-gated `es-fluent` derives and configuration.
 
 - `examples/bevy-example`
   Bevy integration example using `es-fluent-manager-bevy`.
@@ -185,13 +184,27 @@ Additional rules:
 
 - `web`
   Audience: **User-facing**
-  Role: Astro-based GitHub Pages site hosting WASM demos and the mdBook.
+  Role: Dioxus-rendered GitHub Pages site hosting WASM demos and the mdBook.
 
 - `book`
   Audience: **User-facing**
   Role: mdBook for public workflows and public crate usage.
 
 ## Working rules by change type
+
+### After making changes
+
+- Run the narrowest relevant validation command after code or workflow changes.
+- If validation cannot be run, explicitly say it was skipped and why.
+- Do not assert that changes work unless validation, tests, or an equivalent check actually ran.
+
+### When validating changes
+
+- Validation is the default expectation after changes, not an optional follow-up.
+- Run the narrowest command that proves the edited behavior works.
+- Prefer targeted crate, example, docs, or web checks before full-workspace validation.
+- Use `just check`, `just test`, or a more specific `justfile` recipe when the change spans multiple surfaces.
+- Do not claim a change works unless it was validated, generated from a source of truth, or the remaining risk is explicitly documented.
 
 ### When editing docs
 
@@ -214,7 +227,6 @@ Additional rules:
 - Prefer [insta](https://insta.rs/) for snapshot tests when it fits better than assertion-heavy unit tests.
 - Prefer raw multiline strings, or `quote! { ... }` in macro contexts, over escaped single-line literals for embedded Rust code.
 
-### When editing JavaScript or web tooling
+### When editing JavaScript/Typescript
 
-- Use [bun](https://bun.com/) for dependency management.
-- Use [turborepo](https://turborepo.org/) as the build system.
+- Use [bun](https://bun.com/) for dependency management and running scripts.

@@ -92,6 +92,7 @@ pub type EsFluentResult<T> = Result<T, EsFluentError>;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
 
     #[test]
     fn helper_constructors_build_expected_variants() {
@@ -112,5 +113,39 @@ mod tests {
             fallback,
             EsFluentError::FallbackLanguageNotFound { .. }
         ));
+    }
+
+    #[test]
+    fn display_messages_include_variant_context() {
+        let supported = EsFluentError::LanguageNotSupported("fr".parse().unwrap());
+        assert_eq!(supported.to_string(), "Language 'fr' is not supported");
+
+        let fluent = EsFluentError::FluentParseError(Vec::new());
+        assert_eq!(fluent.to_string(), "Fluent parsing error: []");
+
+        let serialize = EsFluentError::FluentSerializeError(std::fmt::Error);
+        assert_eq!(
+            serialize.to_string(),
+            "Fluent serialization error: an error occurred when formatting an argument"
+        );
+
+        let missing = EsFluentError::MissingPackageName;
+        assert_eq!(missing.to_string(), "Missing package name");
+    }
+
+    #[test]
+    fn source_errors_are_preserved_for_wrapped_variants() {
+        let parse_error: EsFluentError = toml::from_str::<toml::Value>("=").unwrap_err().into();
+        assert!(parse_error.source().is_some());
+
+        let io_error: EsFluentError =
+            std::io::Error::new(std::io::ErrorKind::NotFound, "missing").into();
+        assert!(io_error.source().is_some());
+
+        let env_error: EsFluentError = std::env::VarError::NotPresent.into();
+        assert!(env_error.source().is_some());
+
+        let backend_error: EsFluentError = anyhow::anyhow!("backend").into();
+        assert!(backend_error.source().is_some());
     }
 }

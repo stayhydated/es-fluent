@@ -18,6 +18,6 @@ serialized [`RunnerRequest`](../es-fluent-runner/README.md).
 - `clean`: run the generator's clean flow and write `result.json`
 - `check`: collect expected keys from inventory and write `inventory.json`
 
-Commands that operate directly on existing `.ftl` files such as `format`,
+Commands that operate directly on existing `.ftl` files such as `fmt`,
 `sync`, and `tree` stay in [`es-fluent-cli`](../es-fluent-cli/README.md) and do
 not go through this crate.

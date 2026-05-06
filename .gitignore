@@ -11,12 +11,10 @@ __pycache__
 
 # Node/Bun
 node_modules/
-.turbo/
-
-# Astro
-dist/
-.astro/
+.rumdl_cache/
 
 # WASM build outputs
-web/public/bevy-example/*
-!web/public/bevy-example/.gitkeep
+web/target/
+web/dist/
+web/public/bevy-demo/*
+!web/public/bevy-demo/.gitkeep

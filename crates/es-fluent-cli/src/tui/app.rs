@@ -250,6 +250,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
 
 /// Polls for keyboard events with a timeout.
 /// Returns true if the user wants to quit.
+#[cfg_attr(coverage, allow(dead_code))]
 pub fn poll_quit_event(timeout: Duration) -> io::Result<bool> {
     if event::poll(timeout)?
         && let Event::Key(key) = event::read()?

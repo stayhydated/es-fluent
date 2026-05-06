@@ -1,6 +1,4 @@
 //! FTL file layout and discovery utilities.
-
-use crate::ftl::{extract_message_keys, parse_ftl_file};
 use anyhow::{Result, anyhow};
 use fluent_syntax::ast;
 use std::collections::HashSet;
@@ -192,8 +190,8 @@ pub fn load_ftl_files(files: Vec<FtlFileInfo>) -> Result<Vec<LoadedFtlFile>> {
 
     for file_info in files {
         if file_info.abs_path.exists() {
-            let resource = parse_ftl_file(&file_info.abs_path)?;
-            let keys = extract_message_keys(&resource);
+            let resource = crate::ftl::parse_ftl_file(&file_info.abs_path)?;
+            let keys = crate::ftl::extract_message_keys(&resource);
 
             loaded_files.push(LoadedFtlFile {
                 abs_path: file_info.abs_path.clone(),
@@ -266,12 +264,12 @@ mod tests {
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("test-crate.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("test-crate.ftl"))
         );
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("test-crate/ui.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("test-crate/ui.ftl"))
         );
     }
 
@@ -304,12 +302,12 @@ mod tests {
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("app.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("app.ftl"))
         );
         assert!(
             files
                 .iter()
-                .any(|info| info.relative_path == PathBuf::from("app/forms/input.ftl"))
+                .any(|info| info.relative_path == std::path::Path::new("app/forms/input.ftl"))
         );
     }
 

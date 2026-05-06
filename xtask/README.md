@@ -2,47 +2,39 @@
 
 Internal task runner for repository maintenance tasks.
 
+This is for maintainers working inside this repository. Application users should use the published `es-fluent` crates and public book instead of invoking `xtask` directly.
+
 ## Commands
 
-### `build-book`
+### `build bevy-demo`
+
+Builds the Trunk-hosted Bevy demo into `web/public/bevy-demo`.
+
+```bash
+cargo xtask build bevy-demo
+```
+
+### `build book`
 
 Builds the mdBook into `web/public/book`.
 
 ```bash
-cargo xtask build-book
+cargo xtask build book
 ```
 
-### `build-llms-txt`
+### `build llms-txt`
 
 Builds `web/public/llms.txt` and `web/public/llms-full.txt` from the current
 mdBook sources.
 
 ```bash
-cargo xtask build-llms-txt
+cargo xtask build llms-txt
 ```
 
-### `build-wasm-examples`
+### `build web`
 
-Builds the wasm examples declared in `web/wasm-examples.json`.
-
-```bash
-cargo xtask build-wasm-examples
-```
-
-### `generate-wasm-examples-schema`
-
-Regenerates `web/wasm-examples.schema.json` from the Rust manifest types used by
-`xtask`.
+Builds the release SSG Dioxus site for GitHub Pages into `web/dist`.
 
 ```bash
-cargo xtask generate-wasm-examples-schema
-```
-
-### `verify-wasm-examples`
-
-Verifies that the declared wasm example outputs from `web/wasm-examples.json`
-exist and contain their required markers.
-
-```bash
-cargo xtask verify-wasm-examples
+cargo xtask build web
 ```

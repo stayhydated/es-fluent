@@ -1,6 +1,6 @@
 [package]
 name = "es-fluent-lang"
-description = """icu4x based crate for adding variants to a Language Enum."""
+description = """Type-safe locale enums and ICU4X-backed language labels for es-fluent."""
 edition.workspace = true
 license.workspace = true
 publish.workspace = true

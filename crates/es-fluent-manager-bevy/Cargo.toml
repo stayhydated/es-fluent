@@ -1,14 +1,14 @@
 [package]
 name = "es-fluent-manager-bevy"
 description = """
-es-fluent manager for Bevy
+Bevy ECS and AssetServer runtime manager for es-fluent translations
 """
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-version = "0.18.12"
+version = "0.18.13"
 readme = "README.md"
 categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "i18n", "locale", "bevy" ]
@@ -19,16 +19,17 @@ file_watcher = [ "bevy/file_watcher" ]
 macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
-arc-swap = { workspace = true }
 bevy = { workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
-parking_lot = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 unic-langid = { workspace = true }
+
+[dev-dependencies]
+trybuild = { workspace = true }
 
 [lints]
 workspace = true

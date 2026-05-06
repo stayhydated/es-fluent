@@ -38,6 +38,10 @@ impl FluentField for StructFieldOpts {
         self.ident.as_ref()
     }
 
+    fn ty(&self) -> &syn::Type {
+        &self.ty
+    }
+
     fn field_attr_args(&self) -> &super::FluentFieldAttributeArgs {
         &self.attr_args
     }
@@ -100,8 +104,7 @@ impl GeneratedVariantsOptions for StructVariantsOpts {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::namespace::NamespaceValue;
-    use crate::options::{GeneratedVariantsOptions, StructDataOptions};
+    use es_fluent_shared::namespace::NamespaceRule;
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 
@@ -123,7 +126,7 @@ mod tests {
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if value == "forms"
+            Some(NamespaceRule::Literal(value)) if value == "forms"
         ));
 
         let fields = opts.fields();
@@ -237,7 +240,7 @@ mod tests {
         );
         assert!(matches!(
             opts.attr_args().namespace(),
-            Some(NamespaceValue::Literal(value)) if value == "ui"
+            Some(NamespaceRule::Literal(value)) if value == "ui"
         ));
 
         let fields = opts.fields();

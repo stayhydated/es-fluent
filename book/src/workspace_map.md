@@ -5,9 +5,9 @@ one runtime manager, and optionally the language-enum helper.
 
 ```toml
 [dependencies]
-es-fluent = { version = "*", features = ["derive"] }
-es-fluent-manager-embedded = "*"
-es-fluent-lang = "*"
+es-fluent = "0.16"
+es-fluent-manager-embedded = "0.16"
+es-fluent-lang = "0.16"
 ```
 
 Install the CLI separately:
@@ -16,17 +16,20 @@ Install the CLI separately:
 cargo install es-fluent-cli --locked
 ```
 
-Swap `es-fluent-manager-embedded` for `es-fluent-manager-bevy` in Bevy apps.
+Swap `es-fluent-manager-embedded` for `es-fluent-manager-dioxus` in Dioxus
+apps by enabling `client`, `ssr`, or both surfaces as needed. Use
+`es-fluent-manager-bevy` in Bevy apps.
 
 ## Crates You Usually Use
 
-| Crate                        | Use it for                                                                    | Covered in this book                                                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `es-fluent`                  | Derives, traits, and the public localization facade                           | [Getting Started](getting_started.md), [Deriving Messages](deriving_messages.md), [Namespaces & File Splitting](namespaces.md) |
-| `es-fluent-manager-embedded` | Embedded-runtime apps, CLIs, TUIs, desktop apps                               | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-manager-bevy`     | Bevy integration, reactive localized UI, asset loading                        | [Runtime Managers](managers.md)                                                                                                |
-| `es-fluent-lang`             | Type-safe locale enum generation and localized language names                 | [Language Enum](language_enum.md)                                                                                              |
-| `es-fluent-cli`              | Generating, checking, cleaning, syncing, formatting, and inspecting FTL files | [CLI Tooling](cli.md)                                                                                                          |
+| Crate                        | Use it for                                                                      | Covered in this book                                                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `es-fluent`                  | Derives, traits, and the public localization facade                             | [Getting Started](getting_started.md), [Deriving Messages](deriving_messages.md), [Namespaces & File Splitting](namespaces.md) |
+| `es-fluent-manager-embedded` | Embedded-runtime apps, CLIs, TUIs, desktop apps                                 | [Runtime Managers](managers.md)                                                                                                |
+| `es-fluent-manager-dioxus`   | Dioxus apps using provider/hook-based client locale state or request-scoped SSR | [Runtime Managers](managers.md)                                                                                                |
+| `es-fluent-manager-bevy`     | Bevy integration, reactive localized UI, asset loading                          | [Runtime Managers](managers.md)                                                                                                |
+| `es-fluent-lang`             | Type-safe locale enum generation and localized language names                   | [Language Enum](language_enum.md)                                                                                              |
+| `es-fluent-cli`              | Generating, checking, cleaning, syncing, formatting, and inspecting FTL files   | [CLI Tooling](cli.md)                                                                                                          |
 
 ## Public Support Crates
 

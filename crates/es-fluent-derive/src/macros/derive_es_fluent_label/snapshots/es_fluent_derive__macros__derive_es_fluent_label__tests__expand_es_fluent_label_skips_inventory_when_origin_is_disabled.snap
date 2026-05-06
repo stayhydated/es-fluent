@@ -1,0 +1,4 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
+expression: tokens
+---

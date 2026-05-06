@@ -1,6 +1,6 @@
 ## Status
 
-status_this = Status
+status_label = Status
 
 ## Dialog
 

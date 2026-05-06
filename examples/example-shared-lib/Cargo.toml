@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 bevy = { optional = true, workspace = true }
-es-fluent = { features = [ "derive" ], workspace = true }
+es-fluent = { workspace = true }
 es-fluent-lang = { workspace = true }
 es-fluent-manager-bevy = { optional = true, workspace = true }
 es-fluent-manager-embedded = { optional = true, workspace = true }
@@ -22,11 +22,7 @@ es-fluent = { features = [ "build" ], workspace = true }
 workspace = true
 
 [features]
-bevy = [
-  "dep:bevy",
-  "dep:es-fluent-manager-bevy",
-  "es-fluent-lang/bevy",
-  "es-fluent-manager-bevy/macros",
-]
+bevy = [ "dep:bevy", "dep:es-fluent-manager-bevy", "es-fluent-manager-bevy/macros" ]
+dioxus = [ "dep:es-fluent-manager-embedded" ]
 embedded = [ "dep:es-fluent-manager-embedded" ]
 gpui = [ "dep:gpui", "dep:es-fluent-manager-embedded" ]

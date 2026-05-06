@@ -7,7 +7,11 @@
 
 Seamless [Bevy](https://bevyengine.org/) integration for `es-fluent`.
 
-This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and Asset system. It allows you to use standard `#[derive(EsFluent)]` types as components that automatically update when the app/game's language changes.
+This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and
+Asset system. Use `#[derive(EsFluent)]` for typed messages, wrap them in
+`FluentText<T>` for UI text, and derive `BevyFluentText` on message types used
+with `FluentText<T>` to register automatic updates when the app/game's language
+changes.
 
 | `es-fluent-manager-bevy` | `bevy`   |
 | :----------------------- | :------- |
@@ -20,77 +24,125 @@ This plugin connects `es-fluent`'s type-safe localization with Bevy's ECS and As
 - **Asset Loading**: Loads `.ftl` files via Bevy's `AssetServer`.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
-- **Global Hook Ownership**: Can either let Bevy own `es-fluent`'s process-global localization bridge or fail fast when another integration already installed one.
+- **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
+- **Explicit Context**: Localization comes from Bevy resources instead of a context-free bridge.
 
 ## Quick Start
 
 ### 1. Define the Module
 
-In your crate root (`lib.rs` or `main.rs`), tell the manager to scan your assets:
+Prefer a library-reachable module, usually `src/i18n.rs` declared from
+`src/lib.rs`, so `cargo es-fluent generate` can discover localizable types from
+the library target:
 
 ```rs
 // a i18n.toml file must exist in the root of the crate
 es_fluent_manager_bevy::define_i18n_module!();
 ```
 
+Putting the module macro only in `src/main.rs` is runtime-only. It is safe only
+when derived message types are still reachable from a library target, or when
+you accept that binary-only derived types are not discovered by the CLI.
+
 ### 2. Initialize & Use
 
-Add the plugin to your `App` and define your I18n module:
+Add the plugin to your `App`:
 
 ```rs
 use bevy::prelude::*;
 use es_fluent_manager_bevy::I18nPlugin;
 use unic_langid::langid;
 
-// a i18n.toml file must exist in the root of the crate
-es_fluent_manager_bevy::define_i18n_module!();
-
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(I18nPlugin::with_language(langid!("en-US")))
+        .add_plugins(I18nPlugin::with_language(langid!("en")))
         .run();
 }
 ```
 
-`I18nPlugin` still installs the bridge that makes `#[derive(EsFluent)]` work
-inside Bevy, but it now defaults to
-`GlobalLocalizerMode::ErrorIfAlreadySet`. That keeps startup fail-fast if
-another integration already owns the process-global localization bridge.
-
-If your Bevy app intentionally owns that hook and should override any previous
-registration, opt in explicitly:
+By default, `I18nPlugin` loads locales from `locales` relative to Bevy's asset
+root, matching `assets_dir = "assets/locales"` in `i18n.toml`. If your Bevy
+asset root is `assets` but translations live in `assets/i18n`, configure the
+path explicitly:
 
 ```rs
-use es_fluent_manager_bevy::{GlobalLocalizerMode, I18nPlugin};
+use es_fluent_manager_bevy::{I18nPlugin, I18nPluginConfig};
 
-App::new().add_plugins(
-    I18nPlugin::with_language(langid!("en-US"))
-        .with_global_localizer_mode(GlobalLocalizerMode::ReplaceExisting),
-);
+app.add_plugins(I18nPlugin::with_config(
+    I18nPluginConfig::new(langid!("en")).with_asset_path("i18n"),
+));
 ```
 
-Plugin startup always uses strict module discovery, so invalid or duplicate
-registrations fail the app boot instead of being normalized silently.
-Failed hot reloads or locale switches keep the last accepted locale active
-instead of publishing a broken update.
+### Advanced behavior
+
+Plugin startup uses strict module discovery, so invalid or duplicate
+registrations are reported through `I18nPluginStartupError` instead of being
+normalized silently. When setup fails, the plugin skips localization runtime
+setup and leaves the error resource in the app world for diagnostics. Failed hot
+reloads or locale switches keep the last accepted locale active instead of
+publishing a broken update. A failed hot reload records diagnostics but keeps
+the previous ready cache selectable until a later rebuild succeeds.
+
+Generated message lookup is domain-scoped. If separate domains define the same
+message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
+unscoped lookup unavailable for the ambiguous merged locale.
+
+Locales with only optional resources, or with missing optional resources, are
+still treated as ready. They publish an empty Bevy cache instead of remaining
+pending indefinitely.
 
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to
-`ActiveLanguageId`, not merely the latest request.
+`ActiveLanguageId`, not merely the latest request. When a requested locale
+falls back to a resolved locale, Bevy publishes the requested locale for change
+events and ECS resources while using the resolved locale for ready bundle
+lookup. Runtime fallback managers are best-effort: Bevy asks them to select the
+requested locale first, then the resolved locale, but rejection does not block
+Bevy asset-backed locale publication. Only metadata-only Bevy registrations
+create Bevy asset availability; runtime localizer registrations are reserved
+for the fallback manager and do not make a locale wait on Bevy asset bundles.
+When attached, runtime fallback selection tells `FluentManager` that Bevy assets
+have already proved application locale support, so follower-only utility modules
+such as `es-fluent-lang` can be committed without making runtime-only locales
+selectable. Generated embedded localizers are fallback-aware, while custom
+runtime localizers should implement parent-locale fallback in
+`select_language(...)` when they need it. Runtime fallback managers are attached
+whenever runtime modules are discovered, even if they reject the startup locale.
+A startup rejection leaves runtime localizers unselected until a later accepted
+locale switch. Runtime fallback managers are used only after Bevy resolves a
+locale through asset or ready-bundle availability during startup or a later
+`LocaleChangeEvent`; runtime-only locales do not by themselves make a Bevy
+locale switch selectable.
+
+For direct localization inside a system, request `BevyI18n` like any other
+Bevy system parameter:
+
+```rs
+use es_fluent::FluentLabel as _;
+use es_fluent_manager_bevy::BevyI18n;
+
+fn update_title(i18n: BevyI18n) {
+    let title = i18n.localize_message(&UiMessage::Settings);
+    // `SettingsPanel` is any type that derives `EsFluentLabel`.
+    let section_title = SettingsPanel::localize_label(&i18n);
+    // apply `title` to your Bevy UI, window, or gameplay state
+    // use `section_title` for an `EsFluentLabel` type label
+}
+```
 
 ### 3. Define Localizable Components (Recommended)
 
 Prefer the `BevyFluentText` derive macro. It auto-registers your type with
-`I18nPlugin` via inventory, so you don't have to call any registration
-functions manually.
+`I18nPlugin` via inventory, so you don't have to call any registration functions
+manually.
 
 If a field depends on the active locale (like the `Languages` enum from
-[es_fluent_lang](../es-fluent-lang/README.md)), mark it with `#[locale]`.
-The macro will generate `RefreshForLocale` and register the locale-aware
-systems for you. `#[locale]` is supported on named struct fields and named
-enum variant fields, and you can mark more than one named field in the same
-variant when they all need refresh behavior.
+[es_fluent_lang](../es-fluent-lang/README.md)), mark it with `#[locale]`. The
+macro will generate `RefreshForLocale` and register the locale-aware systems for
+you.
+`#[locale]` is supported on named struct fields and named enum variant fields,
+and multiple named fields in the same variant refresh together.
 
 `RefreshForLocale` receives the originally requested locale, not the fallback
 resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware
@@ -114,62 +166,24 @@ pub enum UiMessage {
 
 ### 4. Using in UI
 
-Use the `FluentText` component wrapper for any type that implements `ToFluentString`
-(which `#[derive(EsFluent)]` provides).
+Use the `FluentText` component wrapper for any type that implements
+`FluentMessage` (which `#[derive(EsFluent)]` provides).
 
 ```rs
 use es_fluent_manager_bevy::FluentText;
 
 fn spawn_menu(mut commands: Commands) {
     commands.spawn((
-        // This text will automatically update if language changes
         FluentText::new(UiMessage::StartGame),
         Text::new(""),
     ));
 }
 ```
 
-### Manual Registration (Fallback)
+### Manual Registration
 
-If you cannot derive `BevyFluentText` (e.g., external types), you can still
-register manually:
+If you cannot derive `BevyFluentText` (for example, for external types), register manually:
 
 ```rs
 app.register_fluent_text::<UiMessage>();
 ```
-
-If the type needs locale refresh, implement `RefreshForLocale` and use the
-locale-aware registration function:
-
-```rs
-use es_fluent_manager_bevy::RefreshForLocale;
-
-#[derive(EsFluent, Clone, Component)]
-pub enum UiMessage {
-    LanguageHint { current_language: Languages },
-}
-
-impl RefreshForLocale for UiMessage {
-    fn refresh_for_locale(&mut self, lang: &unic_langid::LanguageIdentifier) {
-        match self {
-            UiMessage::LanguageHint { current_language } => {
-                if let Ok(value) = Languages::try_from(lang) {
-                    *current_language = value;
-                }
-            }
-        }
-    }
-}
-
-app.register_fluent_text_from_locale::<UiMessage>();
-```
-
-### Do Nested Types Need `BevyFluentText`?
-
-Only the **component type** wrapped by `FluentText<T>` needs registration.
-If a nested field (like `KbKeys`) is only used inside a registered component,
-it does **not** need `BevyFluentText`. When the parent component re-renders,
-its `EsFluent` implementation formats all fields using the current locale.
-
-You only need `BevyFluentText` for a nested type if you plan to use it directly
-as `FluentText<ThatType>` or otherwise register it as its own component.

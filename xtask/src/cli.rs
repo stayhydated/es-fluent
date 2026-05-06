@@ -14,14 +14,21 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Build generated workspace artifacts
+    Build {
+        #[command(subcommand)]
+        target: BuildCommand,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BuildCommand {
+    /// Build the Trunk-hosted Bevy demo into web/public/bevy-demo
+    BevyDemo,
     /// Build mdBook documentation to web/public/book
-    BuildBook,
+    Book,
     /// Build llms.txt from mdBook sources to web/public/llms.txt
-    BuildLlmsTxt,
-    /// Build declared wasm examples from the central manifest
-    BuildWasmExamples,
-    /// Generate the JSON schema for the wasm example manifest
-    GenerateWasmExamplesSchema,
-    /// Verify built wasm examples include their required markers
-    VerifyWasmExamples,
+    LlmsTxt,
+    /// Build the Dioxus site into web/dist for GitHub Pages
+    Web,
 }

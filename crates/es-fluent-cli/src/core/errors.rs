@@ -114,6 +114,36 @@ pub struct MissingKeyError {
     pub help: String,
 }
 
+/// Error when an FTL message ID is defined more than once for a locale.
+#[derive(Debug, Diagnostic, Error)]
+#[error("duplicate translation key")]
+#[diagnostic(code(es_fluent::validate::duplicate_key), severity(Error))]
+pub struct DuplicateKeyError {
+    /// The source content of the duplicate FTL file.
+    #[source_code]
+    pub src: NamedSource<String>,
+
+    /// The span where the duplicate message is defined.
+    #[label("duplicate message id '{key}'")]
+    pub span: SourceSpan,
+
+    /// The duplicate key.
+    pub key: String,
+
+    /// The locale where the duplicate exists.
+    pub locale: String,
+
+    /// The file containing the first definition.
+    pub first_file: String,
+
+    /// The file containing the duplicate definition.
+    pub duplicate_file: String,
+
+    /// Help text.
+    #[help]
+    pub help: String,
+}
+
 /// A single missing variable diagnostic (warning).
 #[derive(Debug, Diagnostic, Error)]
 #[error("translation omits variable")]
@@ -137,6 +167,50 @@ pub struct MissingVariableWarning {
     pub locale: String,
 
     /// Help text.
+    #[help]
+    pub help: String,
+}
+
+/// Error when an FTL message references a variable that Rust code does not provide.
+#[derive(Debug, Diagnostic, Error)]
+#[error("translation uses undeclared variable")]
+#[diagnostic(code(es_fluent::validate::unexpected_variable), severity(Error))]
+pub struct UnexpectedVariableError {
+    /// The source content of the FTL file.
+    #[source_code]
+    pub src: NamedSource<String>,
+
+    /// The span where the message is defined.
+    #[label("this message uses undeclared variable '${variable}'")]
+    pub span: SourceSpan,
+
+    /// The variable that is unexpected.
+    pub variable: String,
+
+    /// The key containing the issue.
+    pub key: String,
+
+    /// The locale where the issue exists.
+    pub locale: String,
+
+    /// Help text.
+    #[help]
+    pub help: String,
+}
+
+/// Error when a crate could not be validated before FTL diagnostics were produced.
+#[derive(Debug, Diagnostic, Error)]
+#[error("crate validation failed")]
+#[diagnostic(code(es_fluent::validate::crate_failed), severity(Error))]
+pub struct ValidationExecutionError {
+    /// Empty source named after the crate for grouped diagnostic output.
+    #[source_code]
+    pub src: NamedSource<String>,
+
+    /// The crate that failed validation.
+    pub crate_name: String,
+
+    /// Help text containing the underlying validation error.
     #[help]
     pub help: String,
 }
@@ -187,7 +261,19 @@ pub enum ValidationIssue {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
+    DuplicateKey(#[from] DuplicateKeyError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     MissingVariable(#[from] MissingVariableWarning),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    UnexpectedVariable(#[from] UnexpectedVariableError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ValidationExecution(#[from] ValidationExecutionError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -199,18 +285,27 @@ impl ValidationIssue {
     ///
     /// The key includes:
     /// 1. File path (from source name)
-    /// 2. Issue type priority (SyntaxError > MissingKey > MissingVariable)
+    /// 2. Issue type priority
     /// 3. Key/Variable name
     pub fn sort_key(&self) -> String {
         match self {
             ValidationIssue::SyntaxError(e) => {
                 format!("1:{:?}", e.src.name())
             },
-            ValidationIssue::MissingKey(e) => {
+            ValidationIssue::DuplicateKey(e) => {
                 format!("2:{:?}:{}", e.src.name(), e.key)
             },
+            ValidationIssue::MissingKey(e) => {
+                format!("3:{:?}:{}", e.src.name(), e.key)
+            },
+            ValidationIssue::UnexpectedVariable(e) => {
+                format!("4:{:?}:{}:{}", e.src.name(), e.key, e.variable)
+            },
+            ValidationIssue::ValidationExecution(e) => {
+                format!("5:{:?}:{}", e.src.name(), e.crate_name)
+            },
             ValidationIssue::MissingVariable(e) => {
-                format!("3:{:?}:{}:{}", e.src.name(), e.key, e.variable)
+                format!("6:{:?}:{}:{}", e.src.name(), e.key, e.variable)
             },
         }
     }
@@ -286,6 +381,10 @@ pub enum CliError {
     #[error("{0}")]
     #[diagnostic(code(es_fluent::other))]
     Other(String),
+
+    #[error("command exited with status {0}")]
+    #[diagnostic(code(es_fluent::exit))]
+    Exit(i32),
 }
 
 impl From<anyhow::Error> for CliError {
@@ -451,18 +550,43 @@ line3"#;
             locale: "en".to_string(),
             help: "add key".to_string(),
         });
+        let duplicate_key = ValidationIssue::DuplicateKey(DuplicateKeyError {
+            src: src.clone(),
+            span: SourceSpan::new(0usize.into(), 1),
+            key: "hello".to_string(),
+            locale: "en".to_string(),
+            first_file: "first.ftl".to_string(),
+            duplicate_file: "second.ftl".to_string(),
+            help: "remove duplicate".to_string(),
+        });
         let missing_var = ValidationIssue::MissingVariable(MissingVariableWarning {
-            src,
+            src: src.clone(),
             span: SourceSpan::new(0usize.into(), 1),
             variable: "name".to_string(),
             key: "hello".to_string(),
             locale: "en".to_string(),
             help: "add var".to_string(),
         });
+        let unexpected_var = ValidationIssue::UnexpectedVariable(UnexpectedVariableError {
+            src,
+            span: SourceSpan::new(0usize.into(), 1),
+            variable: "unused".to_string(),
+            key: "hello".to_string(),
+            locale: "en".to_string(),
+            help: "remove var".to_string(),
+        });
+        let validation_execution = ValidationIssue::ValidationExecution(ValidationExecutionError {
+            src: NamedSource::new("test-crate", String::new()),
+            crate_name: "test-crate".to_string(),
+            help: "failed".to_string(),
+        });
 
         assert!(syntax.sort_key().starts_with("1:"));
-        assert!(missing_key.sort_key().starts_with("2:"));
-        assert!(missing_var.sort_key().starts_with("3:"));
+        assert!(duplicate_key.sort_key().starts_with("2:"));
+        assert!(missing_key.sort_key().starts_with("3:"));
+        assert!(unexpected_var.sort_key().starts_with("4:"));
+        assert!(validation_execution.sort_key().starts_with("5:"));
+        assert!(missing_var.sort_key().starts_with("6:"));
     }
 
     #[test]

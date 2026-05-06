@@ -49,11 +49,10 @@ pub(crate) fn read_inventory_file(
 mod tests {
     use super::*;
     use std::fs;
-    use tempfile::tempdir;
 
     #[test]
     fn read_inventory_file_parses_expected_key_metadata() {
-        let temp = tempdir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
         let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(
@@ -94,7 +93,7 @@ mod tests {
 
     #[test]
     fn read_inventory_file_returns_error_for_invalid_json() {
-        let temp = tempdir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
         let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(&inventory_path, "{invalid-json").unwrap();
@@ -107,7 +106,7 @@ mod tests {
 
     #[test]
     fn read_inventory_file_returns_error_when_missing() {
-        let temp = tempdir().unwrap();
+        let temp = tempfile::tempdir().unwrap();
         let error = read_inventory_file(temp.path(), "missing-crate")
             .err()
             .expect("missing inventory should fail");

@@ -2,22 +2,39 @@
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
 expression: tokens
 ---
-impl ::es_fluent::FluentDisplay for LoginError {
-    fn fluent_fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+impl ::es_fluent::FluentMessage for LoginError {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
         match self {
             Self::Something(f0) => {
                 let mut args = ::std::collections::HashMap::new();
-                args.insert("value", ::std::convert::Into::into((f0).clone()));
-                write!(
-                    f, "{}", ::es_fluent::localize_in_domain(env!("CARGO_PKG_NAME"),
-                    "login_error-Something", Some(& args),)
-                )
+                {
+                    use ::es_fluent::__private::IntoFluentArgumentValue as _;
+                    args.insert(
+                        "value",
+                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f0))
+                            .into_fluent_argument_value(localize),
+                    );
+                }
+                localize(env!("CARGO_PKG_NAME"), "login_error-Something", Some(&args))
             }
         }
     }
 }
 #[doc(hidden)]
-mod __es_fluent_inventory_login_error {
+#[allow(non_snake_case)]
+mod __es_fluent_inventory_LoginError {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
@@ -39,15 +56,4 @@ mod __es_fluent_inventory_login_error {
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
-}
-impl From<&LoginError> for ::es_fluent::FluentValue<'_> {
-    fn from(value: &LoginError) -> Self {
-        use ::es_fluent::ToFluentString as _;
-        value.to_fluent_string().into()
-    }
-}
-impl From<LoginError> for ::es_fluent::FluentValue<'_> {
-    fn from(value: LoginError) -> Self {
-        (&value).into()
-    }
 }

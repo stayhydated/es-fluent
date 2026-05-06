@@ -1,7 +1,7 @@
 [package]
 name = "es-fluent-cli"
 description = """
-CLI for es-fluent
+Cargo subcommand for generating, checking, syncing, and formatting es-fluent FTL files
 """
 version.workspace = true
 rust-version.workspace = true
@@ -30,6 +30,7 @@ crossbeam-channel = { workspace = true }
 crossterm = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-runner = { workspace = true }
+es-fluent-shared = { workspace = true }
 es-fluent-toml = { workspace = true }
 fluent-syntax = { workspace = true }
 fs-err = { workspace = true }
@@ -48,7 +49,9 @@ terminal-link = { workspace = true }
 thiserror = { workspace = true }
 throbber-widgets-tui = { workspace = true }
 toml = { workspace = true }
+toml_edit = { workspace = true }
 treelog = { workspace = true }
+unic-langid = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]

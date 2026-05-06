@@ -1,3 +1,3 @@
 ## FolderUserProfile
 
-folder_user_profile_this = Folder User Profile
+folder_user_profile_label = Folder User Profile

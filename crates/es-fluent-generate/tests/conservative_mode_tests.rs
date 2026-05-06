@@ -1,8 +1,6 @@
 mod common;
 mod fixtures;
-
-use common::{enum_type, ftl_key, variant};
-use es_fluent_generate::{FluentParseMode, generate};
+use es_fluent_generate::FluentParseMode;
 use fixtures::SINGLE_GROUP_KEY;
 use fs_err as fs;
 use tempfile::TempDir;
@@ -19,12 +17,12 @@ fn test_conservative_mode_new_key_placement() {
     fs::write(&ftl_file_path, SINGLE_GROUP_KEY).unwrap();
 
     // 2. New State: GroupA with Key1 AND Key2
-    let key1 = variant("Key1", &ftl_key("GroupA", "Key1"));
-    let key2 = variant("Key2", &ftl_key("GroupA", "Key2"));
-    let group_a = enum_type("GroupA", vec![key1, key2]);
+    let key1 = common::variant("Key1", &common::ftl_key("GroupA", "Key1"));
+    let key2 = common::variant("Key2", &common::ftl_key("GroupA", "Key2"));
+    let group_a = common::enum_type("GroupA", vec![key1, key2]);
 
     // Run generate in Conservative mode
-    generate(
+    es_fluent_generate::generate(
         crate_name,
         &i18n_path,
         temp_dir.path(),

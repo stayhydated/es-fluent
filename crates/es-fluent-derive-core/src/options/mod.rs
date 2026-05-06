@@ -3,16 +3,15 @@
 use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use bon::Builder;
 use darling::{FromField, FromMeta};
-use es_fluent_shared::namer;
+use es_fluent_shared::{namer, namespace::NamespaceRule};
 use getset::Getters;
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use quote::format_ident;
 
 pub mod choice;
 pub mod r#enum;
-pub mod namespace;
+pub mod label;
 pub mod r#struct;
-pub mod this;
 
 /// Validate that a key is lowercase snake_case and return its PascalCase version.
 ///
@@ -49,7 +48,12 @@ pub fn keyed_variant_idents(
             keys.into_iter()
                 .map(|key| {
                     let pascal_key = validate_snake_case_key(&key)?;
-                    Ok(format_ident!("{}{}{}", ident, pascal_key, suffix))
+                    Ok(format_ident!(
+                        "{}{}{}",
+                        namer::rust_ident_name(ident),
+                        pascal_key,
+                        suffix
+                    ))
                 })
                 .collect()
         },
@@ -66,7 +70,11 @@ pub fn keyed_base_idents(
             keys.into_iter()
                 .map(|key| {
                     let pascal_key = validate_snake_case_key(&key)?;
-                    Ok(format_ident!("{}{}", ident, pascal_key))
+                    Ok(format_ident!(
+                        "{}{}",
+                        namer::rust_ident_name(ident),
+                        pascal_key
+                    ))
                 })
                 .collect()
         },
@@ -74,7 +82,7 @@ pub fn keyed_base_idents(
 }
 
 pub fn variants_enum_ident(ident: &syn::Ident, suffix: &str) -> syn::Ident {
-    format_ident!("{}{}", ident, suffix)
+    format_ident!("{}{}", namer::rust_ident_name(ident), suffix)
 }
 
 pub fn key_strings(keys: Option<&[syn::LitStr]>) -> Option<Vec<String>> {
@@ -300,6 +308,8 @@ pub trait GeneratedVariantsOptions {
 pub trait FluentField {
     /// Returns the source field identifier when present.
     fn ident(&self) -> Option<&syn::Ident>;
+    /// Returns the source field type.
+    fn ty(&self) -> &syn::Type;
     /// Returns the shared fluent field attribute arguments.
     fn field_attr_args(&self) -> &FluentFieldAttributeArgs;
 
@@ -326,7 +336,7 @@ pub trait FluentField {
     /// Resolves the Fluent argument name for this field.
     fn fluent_arg_name(&self, index: usize) -> String {
         self.arg_name()
-            .or_else(|| self.ident().map(|ident| ident.to_string()))
+            .or_else(|| self.ident().map(namer::rust_ident_name))
             .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
     }
 }
@@ -441,6 +451,10 @@ impl FluentField for FluentFieldOpts {
         self.ident.as_ref()
     }
 
+    fn ty(&self) -> &syn::Type {
+        &self.ty
+    }
+
     fn field_attr_args(&self) -> &FluentFieldAttributeArgs {
         &self.attr_args
     }
@@ -487,12 +501,12 @@ pub struct NamespacedAttributeArgs {
     /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
     /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
     #[darling(default)]
-    namespace: Option<namespace::NamespaceValue>,
+    namespace: Option<NamespaceRule>,
 }
 
 impl NamespacedAttributeArgs {
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace.as_ref()
     }
 }
@@ -509,7 +523,7 @@ pub struct DerivedNamespacedAttributeArgs {
 
 impl DerivedNamespacedAttributeArgs {
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()
     }
 }
@@ -529,7 +543,7 @@ impl VariantsFluentAttributeArgs {
     }
 
     /// Returns the namespace value if provided.
-    pub fn namespace(&self) -> Option<&namespace::NamespaceValue> {
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.derived_args.namespace()
     }
 
