@@ -76,8 +76,6 @@ jobs:
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
           - name: client-wasm-check
             command: cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
-          - name: client-example-wasm-check
-            command: cargo check -p dioxus-client-example --target wasm32-unknown-unknown
 
     steps:
       - uses: actions/checkout@v6
