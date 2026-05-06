@@ -15,6 +15,7 @@ keywords = [ "fluent", "i18n", "locale", "dioxus" ]
 
 [features]
 client = [ "dep:dioxus-core", "dep:dioxus-core-macro", "dep:dioxus-hooks", "dep:dioxus-signals" ]
+debug-embed = [ "es-fluent/debug-embed" ]
 default = [  ]
 ssr = [ "dep:dioxus-core", "dep:dioxus-ssr" ]
 

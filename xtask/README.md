@@ -33,7 +33,7 @@ cargo xtask build llms-txt
 
 ### `build web`
 
-Builds the Dioxus site for GitHub Pages into `web/dist`.
+Builds the release SSG Dioxus site for GitHub Pages into `web/dist`.
 
 ```bash
 cargo xtask build web

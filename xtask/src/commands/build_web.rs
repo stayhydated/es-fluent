@@ -5,9 +5,8 @@ use std::process::Command;
 use anyhow::{Context, bail};
 use walkdir::WalkDir;
 
-const BUNDLE_DIR: &str = "web/.dx-bundle";
 const DIST_DIR: &str = "web/dist";
-const DX_RELEASE_PUBLIC_DIR: &str = "target/dx/web/release/web/public";
+const DX_PUBLIC_DIR: &str = "target/dx/web/release/web/public";
 const BEVY_DEMO_DIR: &str = "web/public/bevy-demo";
 const ASSETS_DIR: &str = "web/assets";
 const SITE_CSS: &str = "web/public/assets/site.css";
@@ -22,38 +21,46 @@ pub fn run() -> anyhow::Result<()> {
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
     let web_dir = workspace_root.join("web");
-    let bundle_dir = workspace_root.join(BUNDLE_DIR);
     let dist_dir = workspace_root.join(DIST_DIR);
-    let dx_release_public_dir = workspace_root.join(DX_RELEASE_PUBLIC_DIR);
+    let dx_public_dir = workspace_root.join(DX_PUBLIC_DIR);
 
-    if bundle_dir.exists() {
-        fs::remove_dir_all(&bundle_dir)
-            .with_context(|| format!("failed to remove {}", bundle_dir.display()))?;
+    if dx_public_dir.exists() {
+        fs::remove_dir_all(&dx_public_dir).with_context(|| {
+            format!(
+                "failed to clear generated Dioxus output at {}",
+                dx_public_dir.display()
+            )
+        })?;
     }
-
-    web::cleanup_generated_route_cache(&dx_release_public_dir).with_context(|| {
-        format!(
-            "failed to clear generated route cache at {}",
-            dx_release_public_dir.display()
-        )
-    })?;
 
     let status = Command::new("dx")
         .current_dir(&web_dir)
-        .args(["bundle", "--platform", "web", "--ssg", "--out-dir"])
-        .arg(&bundle_dir)
+        .args([
+            "build",
+            "--platform",
+            "web",
+            "--ssg",
+            "--release",
+            "--debug-symbols",
+            "false",
+            "--force-sequential",
+            "true",
+        ])
         .status()
-        .context("failed to run `dx bundle --platform web --ssg` for the docs site")?;
+        .context(
+            "failed to run `dx build --platform web --ssg --release --debug-symbols false --force-sequential true` for the docs site",
+        )?;
 
     if !status.success() {
-        bail!("`dx bundle --platform web --ssg` failed with status {status}");
+        bail!(
+            "`dx build --platform web --ssg --release --debug-symbols false --force-sequential true` failed with status {status}"
+        );
     }
 
-    let bundled_public = bundle_dir.join("public");
-    if !bundled_public.is_dir() {
+    if !dx_public_dir.is_dir() {
         bail!(
-            "expected bundled static output at {}",
-            bundled_public.display()
+            "expected Dioxus static output at {}",
+            dx_public_dir.display()
         );
     }
 
@@ -64,7 +71,7 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
     fs::create_dir_all(&dist_dir)
         .with_context(|| format!("failed to create {}", dist_dir.display()))?;
 
-    copy_directory(&bundled_public, &dist_dir)?;
+    copy_directory(&dx_public_dir, &dist_dir)?;
     copy_directory(&workspace_root.join(ASSETS_DIR), &dist_dir.join("assets"))?;
     copy_file_if_present(
         &workspace_root.join(SITE_CSS),
@@ -88,9 +95,6 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
         .with_context(|| format!("failed to write {}", dist_dir.join("404.html").display()))?;
     fs::write(dist_dir.join("sitemap.xml"), web::sitemap_xml())
         .with_context(|| format!("failed to write {}", dist_dir.join("sitemap.xml").display()))?;
-
-    fs::remove_dir_all(&bundle_dir)
-        .with_context(|| format!("failed to remove {}", bundle_dir.display()))?;
 
     Ok(())
 }
