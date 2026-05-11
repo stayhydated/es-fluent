@@ -13,7 +13,7 @@ use es_fluent::FluentMessage;
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```no_run
 /// use bevy::prelude::*;
 /// use es_fluent::EsFluent;
 /// use es_fluent_manager_bevy::{BevyFluentText, FluentText};
@@ -28,6 +28,7 @@ use es_fluent::FluentMessage;
 ///     let content = SimpleMessage { name: "World".to_string() };
 ///     commands.spawn((FluentText::new(content), Text::new("")));
 /// }
+/// # fn main() {}
 /// ```
 #[derive(Clone, Component)]
 pub struct FluentText<T: FluentMessage + Clone> {
@@ -46,7 +47,7 @@ impl<T: FluentMessage + Clone> FluentText<T> {
     ///
     /// Create a FluentText component with a simple string message:
     ///
-    /// ```ignore
+    /// ```no_run
     /// use es_fluent_manager_bevy::FluentText;
     /// use es_fluent::EsFluent;
     ///

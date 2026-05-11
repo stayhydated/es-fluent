@@ -60,8 +60,15 @@ es-fluent-manager-embedded = "0.16"
 
 `es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(...)` is the simplest embedded startup path:
 
-```ignore
-let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langid!("en"))?;
+```rust,no_run
+use unic_langid::langid;
+
+fn main() -> Result<(), es_fluent_manager_embedded::EmbeddedInitError> {
+    let i18n = es_fluent_manager_embedded::EmbeddedI18n::try_new_with_language(langid!("en"))?;
+    let _ = i18n;
+
+    Ok(())
+}
 ```
 
 Use `try_new_with_language_strict(...)` instead when every discovered module
