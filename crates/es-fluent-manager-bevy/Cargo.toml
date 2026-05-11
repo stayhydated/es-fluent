@@ -19,15 +19,7 @@ file_watcher = [ "bevy/file_watcher" ]
 macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
-bevy = { default-features = false, features = [
-  "bevy_asset",
-  "bevy_log",
-  "bevy_text",
-  "bevy_ui",
-  "bevy_window",
-  "bevy_winit",
-  "std",
-], version = "0.18" }
+bevy = { workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }
