@@ -37,6 +37,7 @@ apps by enabling `client`, `ssr`, or both surfaces as needed. Use
 | -------------------------- | ------------------------------------------------------------ |
 | `es-fluent-derive`         | Proc-macro implementation re-exported by `es-fluent`         |
 | `es-fluent-lang-macro`     | Implementation crate behind `#[es_fluent_language]`          |
+| `es-fluent-build`          | Build-script helper for locale asset rebuild tracking        |
 | `es-fluent-manager-core`   | Shared runtime traits, module registration, fallback logic   |
 | `es-fluent-manager-macros` | Compile-time module registration and `BevyFluentText` derive |
 
@@ -46,7 +47,7 @@ apps by enabling `client`, `ssr`, or both surfaces as needed. Use
 | ----------------------- | ------------------------------------------------------------------------------- |
 | `es-fluent-shared`      | Runtime-safe metadata, naming, namespace, and path helpers                      |
 | `es-fluent-derive-core` | Build-time option parsing and validation for derives                            |
-| `es-fluent-toml`        | `i18n.toml` parsing, path resolution, and build helpers                         |
+| `es-fluent-toml`        | `i18n.toml` parsing, path resolution, and locale discovery                      |
 | `es-fluent-generate`    | FTL AST generation, merging, cleaning, and formatting                           |
 | `es-fluent-cli-helpers` | Runtime logic executed inside the generated runner binary                       |
 | `es-fluent-runner`      | Shared runner protocol types and `.es-fluent/metadata` path helpers             |

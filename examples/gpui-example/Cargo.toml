@@ -16,7 +16,7 @@ gpui_platform = { workspace = true }
 tracing-subscriber = { features = [ "env-filter" ], workspace = true }
 
 [build-dependencies]
-es-fluent = { features = [ "build" ], workspace = true }
+es-fluent-build = { workspace = true }
 
 [lints]
 workspace = true

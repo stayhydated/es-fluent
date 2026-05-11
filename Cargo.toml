@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/es-fluent",
+  "crates/es-fluent-build",
   "crates/es-fluent-cli",
   "crates/es-fluent-cli-helpers",
   "crates/es-fluent-runner",
@@ -62,6 +63,7 @@ dioxus-server = { default-features = false, version = "0.7" }
 dioxus-signals = "0.7"
 dioxus-ssr = { default-features = false, version = "0.7" }
 es-fluent = { path = "crates/es-fluent", version = "0.16.0" }
+es-fluent-build = { path = "crates/es-fluent-build", version = "0.16.0" }
 es-fluent-derive = { path = "crates/es-fluent-derive", version = "0.16.0" }
 es-fluent-derive-core = { path = "crates/es-fluent-derive-core", version = "0.16.0" }
 es-fluent-generate = { path = "crates/es-fluent-generate", version = "0.16.0" }

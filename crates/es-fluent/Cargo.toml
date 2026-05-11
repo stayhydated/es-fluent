@@ -14,7 +14,6 @@ categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "i18n", "locale" ]
 
 [features]
-build = [ "dep:es-fluent-toml" ]
 debug-embed = [ "rust-embed/debug-embed" ]
 default = [ "derive" ]
 derive = [ "dep:es-fluent-derive" ]
@@ -23,7 +22,6 @@ derive = [ "dep:es-fluent-derive" ]
 es-fluent-derive = { optional = true, workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-shared = { workspace = true }
-es-fluent-toml = { optional = true, workspace = true }
 fluent-bundle = { workspace = true }
 inventory = { workspace = true }
 rust-embed = { workspace = true }
@@ -31,6 +29,7 @@ tracing = { workspace = true }
 unic-langid = { features = [ "macros" ], workspace = true }
 
 [dev-dependencies]
+es-fluent-build = { workspace = true }
 es-fluent-generate = { workspace = true }
 es-fluent-manager-embedded = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }

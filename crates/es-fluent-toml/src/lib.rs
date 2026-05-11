@@ -1,6 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-pub mod build;
 mod language;
 
 use es_fluent_shared::CanonicalLanguageIdentifierError;

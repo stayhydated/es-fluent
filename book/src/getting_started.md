@@ -33,10 +33,11 @@ This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
 when you want Cargo to rebuild automatically after locale file changes.
 Use `--locales fr-FR,zh-CN` to create additional locale directories up front,
 `--namespaces ui,errors` to write a namespace allowlist, and
-`--update-cargo-toml` to add the matching dependencies. For Dioxus manifests,
-`--dioxus-runtime client`, `--dioxus-runtime ssr`, or
-`--dioxus-runtime client,ssr` selects the generated manager features; omitting
-it enables both.
+`--update-cargo-toml` to add the matching dependencies. When `--build-rs` is
+also passed, the manifest update includes `es-fluent-build` under
+`[build-dependencies]`. For Dioxus manifests, `--dioxus-runtime client`,
+`--dioxus-runtime ssr`, or `--dioxus-runtime client,ssr` selects the generated
+manager features; omitting it enables both.
 
 Before writing anything, `init` checks generated-file conflicts, directory
 targets, and `Cargo.toml` parseability when manifest updates are requested.

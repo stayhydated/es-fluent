@@ -121,6 +121,11 @@ Additional rules:
   Docs: [Architecture](crates/es-fluent-lang-macro/docs/ARCHITECTURE.md)
   Role: generates type-safe language enums from asset folders. Most users should access this through `es-fluent-lang`.
 
+- `crates/es-fluent-build`
+  Audience: **Public integration**
+  Docs: [Architecture](crates/es-fluent-build/docs/ARCHITECTURE.md)
+  Role: build-script helper crate for locale asset rebuild tracking.
+
 - `crates/es-fluent-manager-core`
   Audience: **Public integration**
   Docs: [Architecture](crates/es-fluent-manager-core/docs/ARCHITECTURE.md)

@@ -154,7 +154,7 @@ fn inspect_build_script(krate: &CrateInfo, i18n_module: &str, issues: &mut Vec<D
             severity: "warning",
             crate_name: Some(krate.name.clone()),
             message: "build.rs does not track locale asset changes".to_string(),
-            help: "Run `cargo es-fluent init --build-rs --force` or add `es_fluent::build::track_i18n_assets();` manually.".to_string(),
+            help: "Run `cargo es-fluent init --build-rs --force` or add `es_fluent_build::track_i18n_assets();` manually.".to_string(),
         });
         return;
     }
@@ -164,7 +164,7 @@ fn inspect_build_script(krate: &CrateInfo, i18n_module: &str, issues: &mut Vec<D
             severity: "warning",
             crate_name: Some(krate.name.clone()),
             message: "build.rs exists but does not call track_i18n_assets".to_string(),
-            help: "Call `es_fluent::build::track_i18n_assets();` from build.rs.".to_string(),
+            help: "Call `es_fluent_build::track_i18n_assets();` from build.rs.".to_string(),
         });
     }
 }
@@ -304,7 +304,7 @@ mod tests {
 
         fs::write(
             temp.path().join("build.rs"),
-            "fn main() { es_fluent::build::track_i18n_assets(); }\n",
+            "fn main() { es_fluent_build::track_i18n_assets(); }\n",
         )
         .expect("write tracked build.rs");
         issues.clear();

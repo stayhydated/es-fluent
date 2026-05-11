@@ -16,7 +16,7 @@ gpui = { optional = true, workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]
-es-fluent = { features = [ "build" ], workspace = true }
+es-fluent-build = { workspace = true }
 
 [lints]
 workspace = true

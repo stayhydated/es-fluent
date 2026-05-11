@@ -175,8 +175,10 @@ This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
 `--manager bevy` for framework-specific scaffolding, and `--build-rs` to add
 locale asset rebuild tracking. Use `--locales fr-FR,zh-CN` to create more
 locale directories, `--namespaces ui,errors` to write a namespace allowlist,
-and `--update-cargo-toml` to add the matching dependencies. For Dioxus
-manifests, `--dioxus-runtime client`, `--dioxus-runtime ssr`, or
+and `--update-cargo-toml` to add the matching dependencies. When `--build-rs`
+is also passed, the manifest update includes `es-fluent-build` under
+`[build-dependencies]`. For Dioxus manifests, `--dioxus-runtime client`,
+`--dioxus-runtime ssr`, or
 `--dioxus-runtime client,ssr` selects the generated manager features; omitting
 it enables both.
 
@@ -220,19 +222,19 @@ writing files.
 
 If your crate uses the embedded, Dioxus, or Bevy manager macros, they discover
 locales at compile time by scanning `assets_dir`. To ensure locale folder/file
-renames (for example `fr` to `fr-FR`) trigger rebuilds, enable the `build`
-feature of `es-fluent` in build dependencies and call the tracking helper from
-`build.rs`. Crates that only use the derive macros do not need this setup.
+renames (for example `fr` to `fr-FR`) trigger rebuilds, add `es-fluent-build`
+to build dependencies and call the tracking helper from `build.rs`. Crates that
+only use the derive macros do not need this setup.
 
 ```toml
 [build-dependencies]
-es-fluent = { version = "0.16", features = ["build"] }
+es-fluent-build = "0.16"
 ```
 
-```rs
+```rust,no_run
 // build.rs
 fn main() {
-    es_fluent::build::track_i18n_assets();
+    es_fluent_build::track_i18n_assets();
 }
 ```
 

@@ -56,9 +56,9 @@ language lists behind.
 
 To make asset changes trigger rebuilds, add a `build.rs` to your crate:
 
-```rs
+```rust,no_run
 fn main() {
-    es_fluent::build::track_i18n_assets();
+    es_fluent_build::track_i18n_assets();
 }
 ```
 
@@ -66,5 +66,5 @@ And add this to your `Cargo.toml`:
 
 ```toml
 [build-dependencies]
-es-fluent = { version = "0.16", features = ["build"] }
+es-fluent-build = "0.16"
 ```
