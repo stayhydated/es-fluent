@@ -8,6 +8,7 @@ Use this reference to choose the crate or integration surface before writing cod
 | --- | --- | --- |
 | Define typed messages, labels, variants, choices | `es-fluent` | Default application dependency. Re-exports derive and runtime traits. |
 | Generate/check/format/sync FTL | `cargo es-fluent` from `es-fluent-cli` | Use from crate or workspace root. Inventory comes from library targets. |
+| Track locale asset rebuilds from `build.rs` | `es-fluent-build` in `[build-dependencies]` | Call `es_fluent_build::track_i18n_assets()` when manager macros scan locale assets at compile time. |
 | General Rust runtime, CLI, TUI, desktop, GPUI-style apps | `es-fluent-manager-embedded` | Embeds FTL files and returns explicit `EmbeddedI18n` handles. |
 | Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `I18nProvider`, `use_i18n`, `DioxusI18n::localize_message`. Add `debug-embed` for browser WASM debug builds using `define_i18n_module!`. |
 | Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create one `SsrI18nRuntime`, then one `SsrI18n` per request. |
@@ -34,6 +35,9 @@ es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 
 # Bevy
 es-fluent-manager-bevy = "0.18.13"
+
+[build-dependencies]
+es-fluent-build = "0.16"
 ```
 
 When editing this workspace, follow workspace dependency rules instead of copying published versions into member crates.

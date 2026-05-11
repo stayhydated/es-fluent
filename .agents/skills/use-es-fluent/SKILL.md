@@ -38,7 +38,7 @@ For manager macros that scan locale assets at compile time, add rebuild tracking
 
 ```rust
 fn main() {
-    es_fluent::build::track_i18n_assets();
+    es_fluent_build::track_i18n_assets();
 }
 ```
 
@@ -46,7 +46,7 @@ with:
 
 ```toml
 [build-dependencies]
-es-fluent = { version = "0.16", features = ["build"] }
+es-fluent-build = "0.16"
 ```
 
 When public API or behavior changes, update executable examples first when relevant, then mirror the example-first explanation into READMEs and mdBook pages.
