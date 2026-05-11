@@ -97,7 +97,7 @@ pub use es_fluent_manager_embedded::{
 es_fluent_manager_embedded::define_i18n_module!();
 ```
 
-```no_run
+```rs
 use es_fluent::EsFluent;
 use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
@@ -132,7 +132,7 @@ es-fluent = "0.16"
 es-fluent-manager-core = "0.16"
 ```
 
-```no_run
+```rs
 use es_fluent::{EsFluent, FluentLocalizerExt as _};
 use es_fluent_manager_core::FluentManager;
 use unic_langid::langid;
