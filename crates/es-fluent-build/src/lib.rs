@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::needless_doctest_main)]
 
 use es_fluent_toml::I18nConfig;
 use std::path::Path;
