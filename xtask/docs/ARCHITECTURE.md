@@ -10,6 +10,8 @@
 - `build book`: builds mdBook documentation to `web/public/book`.
 - `build llms-txt`: concatenates mdBook sources into `web/public/llms.txt` for LLM consumption.
 - `build web`: builds the release SSG Dioxus site for GitHub Pages into `web/dist`.
+- `release plan`: computes the crates.io publish order for publishable workspace crates.
+- `release publish`: prints or executes publish commands one package at a time in release order.
 
 ### build bevy-demo
 
@@ -26,3 +28,7 @@
 ### build web
 
 - `xtask/src/commands/build_web.rs`: clears the previous Dioxus release `public` output, runs `dx build --platform web --ssg --release --debug-symbols false --force-sequential true`, copies the generated release `public` tree into `web/dist`, restores the stable root copies of `book/`, `bevy-demo/`, `llms.txt`, `llms-full.txt`, and `.nojekyll` that GitHub Pages and the site expect, overwrites `404.html` from `index.html` for router fallback, and writes a fresh sitemap from the `web` crate route list.
+
+### release
+
+- `xtask/src/commands/release.rs`: reads Cargo metadata, filters publishable workspace packages, topologically sorts them by non-dev workspace dependencies, and either prints the release plan or runs one publish command for each package. The publish command uses `cargo hack --no-dev-deps publish` by default because Cargo resolves versioned dev-dependencies during packaging and the workspace has dev-dependency back-references that cannot be satisfied by ordering alone. The command checks for `cargo-hack` before executing, requires `--execute` before uploading, supports `--from <package>` for resuming, and can retry failures caused by crates.io index propagation.

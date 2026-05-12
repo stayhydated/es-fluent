@@ -64,7 +64,10 @@ When changing a public workflow, public feature, or user-visible API shape:
 1. Update the executable example in `examples/readme` when relevant.
 2. Update the affected user-facing `README.md` files.
 3. Update the matching `book/src/*.md` pages.
-4. Keep these surfaces aligned in the same change unless there is a documented reason not to.
+4. Update relevant `.agents/skills/*` guidance when a code change alters
+   user-facing workflows, CLI behavior, generated output, integration patterns,
+   or recommended usage.
+5. Keep these surfaces aligned in the same change unless there is a documented reason not to.
 
 Additional rules:
 

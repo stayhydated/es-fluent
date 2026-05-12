@@ -30,7 +30,7 @@ cov:
     cargo llvm-cov --workspace --exclude xtask --exclude web --all-features --all-targets
 
 test-publish:
-    cargo publish --workspace --dry-run --allow-dirty
+    cargo xtask release plan
 
 test-docs:
     cargo doc --workspace --all-features --no-deps --open

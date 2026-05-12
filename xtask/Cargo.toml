@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
+cargo_metadata = { workspace = true }
 clap = { features = [ "derive" ], workspace = true }
 mdbook-driver = { workspace = true }
 path-slash = { workspace = true }

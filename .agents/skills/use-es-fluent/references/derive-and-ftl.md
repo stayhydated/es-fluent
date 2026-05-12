@@ -197,6 +197,6 @@ If `i18n.toml` has `namespaces = [...]`, string namespaces are validated against
 
 ## Inventory Discovery
 
-Keep derived message types reachable from a library target. The CLI collects derive inventory from workspace library crates. It does not discover binary-only types that live only in `src/main.rs`.
+Keep derived message types reachable from a library target. The CLI collects derive inventory from library targets. It does not discover binary-only types that live only in `src/main.rs`.
 
 Use `#[fluent(skip_inventory)]` only for types that should not generate or validate FTL entries.

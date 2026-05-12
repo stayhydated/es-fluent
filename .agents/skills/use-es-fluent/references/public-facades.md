@@ -14,10 +14,6 @@ Use this reference to choose the crate or integration surface before writing cod
 | Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create one `SsrI18nRuntime`, then one `SsrI18n` per request. |
 | Bevy ECS/assets | `es-fluent-manager-bevy` | Add `I18nPlugin`, use `FluentText<T>`, `BevyFluentText`, and `BevyI18n`. |
 | Typed language picker | `es-fluent-lang` | Use `#[es_fluent_language]` on an empty enum discovered from locale folders. |
-| Custom runtime integration | `es-fluent-manager-core` | Use `FluentManager`, `I18nModule`, and localizer traits directly. |
-| Direct proc macros or manager macros | `es-fluent-derive`, `es-fluent-manager-macros`, `es-fluent-lang-macro` | Public integration crates. Most users should access them through facade crates. |
-
-Internal crates such as `es-fluent-shared`, `es-fluent-derive-core`, `es-fluent-toml`, `es-fluent-cli-helpers`, `es-fluent-runner`, and `es-fluent-generate` are not downstream entry points.
 
 ## Version Lines
 
@@ -39,8 +35,6 @@ es-fluent-manager-bevy = "0.18.13"
 [build-dependencies]
 es-fluent-build = "0.16"
 ```
-
-When editing this workspace, follow workspace dependency rules instead of copying published versions into member crates.
 
 ## Common Setup
 
@@ -241,30 +235,3 @@ i18n.select_language(Languages::FrFr)?;
 ```
 
 Use `#[es_fluent_language(custom)]` when the application ships its own translated language names.
-
-## Custom Integrations
-
-Use `es-fluent-manager-core` directly only when building a manager facade:
-
-```rust
-use es_fluent::{EsFluent, FluentLocalizerExt as _};
-use es_fluent_manager_core::FluentManager;
-use unic_langid::langid;
-
-#[derive(EsFluent)]
-struct Greeting<'a> {
-    name: &'a str,
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let manager = FluentManager::try_new_with_discovered_modules()
-        .map_err(|errors| std::io::Error::other(format!("{errors:?}")))?;
-    manager.select_language(&langid!("en"))?;
-
-    let greeting = manager.localize_message(&Greeting { name: "Ada" });
-    let _ = greeting;
-    Ok(())
-}
-```
-
-Prefer typed `localize_message(...)` or domain-scoped lookup over raw first-match string lookup in multi-module apps.
