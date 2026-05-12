@@ -3,7 +3,7 @@ mod commands;
 mod util;
 use clap::Parser;
 
-use cli::{BuildCommand, Cli, Command};
+use cli::{BuildCommand, Cli, Command, ReleaseCommand};
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -14,6 +14,10 @@ fn main() -> anyhow::Result<()> {
             BuildCommand::Book => commands::build_book::run(),
             BuildCommand::LlmsTxt => commands::build_llms_txt::run(),
             BuildCommand::Web => commands::build_web::run(),
+        },
+        Command::Release { action } => match action {
+            ReleaseCommand::Plan => commands::release::plan(),
+            ReleaseCommand::Publish(args) => commands::release::publish(&args),
         },
     }
 }

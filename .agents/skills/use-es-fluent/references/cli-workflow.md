@@ -1,6 +1,6 @@
-# CLI and Validation
+# CLI Workflow
 
-Use this reference when changing project setup, generated FTL, docs, examples, or validation.
+Use this reference when scaffolding projects, generating FTL, checking translations, or maintaining generated locale files.
 
 ## Configuration
 
@@ -117,29 +117,3 @@ assets_dir/{fallback_language}/{crate}/{namespace}.ftl
 ```
 
 Non-fallback locales mirror the fallback layout after `sync --all` or `add-locale`.
-
-## Repository Documentation Sync
-
-When changing a public workflow, feature, or user-visible API shape in this repository:
-
-1. Update `examples/readme` when the workflow has executable usage.
-2. Update affected user-facing `README.md` files.
-3. Update matching `book/src/*.md` pages.
-4. Keep examples first, using Rust snippets over prose-only explanations.
-5. Put implementation detail in `docs/ARCHITECTURE.md`, not READMEs or the book.
-
-`examples/readme` is the canonical source for usage examples. It should stay aligned with the root README and mdBook.
-
-## Validation Choice
-
-Run the narrowest command that proves the edited behavior:
-
-- Skill-only edits: validate the skill folder with the skill validator.
-- Derive macro behavior: run targeted tests for the affected derive crate, plus `cargo es-fluent generate/check` on an example if generated inventory changes.
-- CLI behavior: run targeted `cargo test -p es-fluent-cli ...` or a focused CLI command against the affected fixture/example.
-- Embedded manager usage: run `cargo check -p readme` or `cargo run -p readme` when example behavior changes.
-- Dioxus manager usage: run the affected Dioxus crate/example check with the feature under discussion.
-- Bevy manager usage: run the affected Bevy crate/example check.
-- Docs-only edits: run the relevant docs, markdown, or mdBook check if available; otherwise document why validation was skipped.
-
-Do not claim a workflow works unless a validation command, generated artifact, or equivalent check actually ran.
