@@ -1,6 +1,6 @@
 ---
 name: use-es-fluent
-description: Use when adding, changing, documenting, or reviewing es-fluent localization in Rust applications or integrations. Covers choosing the correct public facade (`es-fluent`, CLI, embedded, Dioxus, Bevy, language enum, and public integration crates), deriving typed Fluent messages, wiring managers, running `cargo es-fluent`, and keeping examples/README/book usage guidance aligned.
+description: Use when adding, changing, documenting, or reviewing es-fluent i18n/localization in Rust applications or integrations. Covers choosing the correct public facade (`es-fluent`, CLI, embedded, Dioxus, Bevy, language enum, and public integration crates), deriving typed Fluent messages, wiring managers, running `cargo es-fluent`, and keeping examples/README/book usage guidance aligned.
 ---
 
 # Use es-fluent
