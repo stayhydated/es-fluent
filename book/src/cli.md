@@ -52,7 +52,9 @@ manager. Use `--build-rs` when the crate uses manager macros and should rebuild
 when locale files are added, removed, or renamed. For Dioxus manifests,
 `--dioxus-runtime client`, `--dioxus-runtime ssr`, or
 `--dioxus-runtime client,ssr` selects which manager features are added by
-`--update-cargo-toml`; omitting it enables both.
+`--update-cargo-toml`; omitting it enables both. When `--build-rs` and
+`--update-cargo-toml` are used together, `init` also adds `es-fluent-build`
+under `[build-dependencies]`.
 
 `init` creates a library target because CLI inventory collection reads library
 targets. Put derived message types in `src/lib.rs` or another library crate;

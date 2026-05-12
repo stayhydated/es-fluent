@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::needless_doctest_main)]
 
 mod assets;
 mod bevy_fluent_text;

@@ -172,7 +172,7 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
     if args.build_rs {
         write_new_file(
             &root.join("build.rs"),
-            "fn main() {\n    es_fluent::build::track_i18n_assets();\n}\n",
+            "fn main() {\n    es_fluent_build::track_i18n_assets();\n}\n",
             args.force,
             args.dry_run,
         )?;
@@ -216,7 +216,7 @@ pub fn run_init(args: InitArgs) -> Result<(), CliError> {
         );
         if args.build_rs {
             println!(
-                "Also add `es-fluent = {{ version = \"{}\", features = [\"build\"] }}` under [build-dependencies].",
+                "Also add `es-fluent-build = \"{}\"` under [build-dependencies].",
                 env!("CARGO_PKG_VERSION")
             );
         }
@@ -464,14 +464,8 @@ fn prepare_cargo_toml_update(
         ensure_manifest_dependency(
             &mut manifest,
             "build-dependencies",
-            "es-fluent",
-            dependency_with_features(version, &["build"]),
-        )?;
-        ensure_manifest_dependency_feature(
-            &mut manifest,
-            "build-dependencies",
-            "es-fluent",
-            "build",
+            "es-fluent-build",
+            version_dependency(version),
         )?;
     }
 
@@ -783,13 +777,14 @@ mod tests {
 
         let build_rs = test_fs::read_to_string(project.path().join("build.rs"))
             .expect("build.rs should be created");
-        assert!(build_rs.contains("es_fluent::build::track_i18n_assets"));
+        assert!(build_rs.contains("es_fluent_build::track_i18n_assets"));
 
         let manifest = test_fs::read_to_string(project.path().join("Cargo.toml"))
             .expect("manifest should be updated");
         assert!(manifest.contains("es-fluent"));
         assert!(manifest.contains("unic-langid"));
         assert!(manifest.contains("es-fluent-manager-dioxus"));
+        assert!(manifest.contains("es-fluent-build"));
         assert!(manifest.contains("features = [\"client\", \"ssr\"]"));
         assert!(manifest.contains("[build-dependencies]"));
     }
@@ -964,13 +959,15 @@ unic-langid = "0.9"
     }
 
     #[test]
-    fn run_init_manifest_update_adds_build_feature_to_existing_build_dependency() {
-        for (name, build_dependency, expected_features) in [
-            ("string", r#"es-fluent = "0.16""#, BTreeSet::from(["build"])),
+    fn run_init_manifest_update_adds_build_crate_dependency() {
+        for (name, build_dependencies, expected_build_crate_count) in [
+            ("missing", "", 1),
             (
-                "feature_merge",
-                r#"es-fluent = { version = "0.16", features = ["derive"] }"#,
-                BTreeSet::from(["build", "derive"]),
+                "existing",
+                r#"[build-dependencies]
+es-fluent-build = "0.16"
+"#,
+                1,
             ),
         ] {
             let project = TempProject::new(name, false);
@@ -987,8 +984,7 @@ es-fluent = "0.16"
 unic-langid = "0.9"
 es-fluent-manager-embedded = "0.16"
 
-[build-dependencies]
-{build_dependency}
+{build_dependencies}
 "#
                 ),
             );
@@ -996,25 +992,16 @@ es-fluent-manager-embedded = "0.16"
             args.build_rs = true;
             args.update_cargo_toml = true;
 
-            run_init(args).expect("existing build dependency should gain the build feature");
+            run_init(args).expect("build dependency should be added");
 
             let manifest = test_fs::read_to_string(project.path().join("Cargo.toml"))
                 .expect("manifest should be updated");
-            let parsed =
-                toml::from_str::<toml::Value>(&manifest).expect("updated manifest should parse");
-            let features = parsed
-                .get("build-dependencies")
-                .and_then(|deps| deps.get("es-fluent"))
-                .and_then(|dep| dep.get("features"))
-                .and_then(toml::Value::as_array)
-                .expect("build dependency should have features");
-            let features = features
-                .iter()
-                .filter_map(toml::Value::as_str)
-                .collect::<BTreeSet<_>>();
-
-            assert_eq!(features, expected_features);
-            assert_eq!(manifest.matches("\nes-fluent =").count(), 2);
+            toml::from_str::<toml::Value>(&manifest).expect("updated manifest should parse");
+            assert_eq!(
+                manifest.matches("\nes-fluent-build =").count(),
+                expected_build_crate_count
+            );
+            assert_eq!(manifest.matches("\nes-fluent =").count(), 1);
         }
     }
 

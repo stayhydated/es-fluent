@@ -17,7 +17,7 @@ clippy:
 check:
     cargo check --workspace --all-features
 
-test:
+test: test-dioxus-manager-feature-matrix
     cargo test --workspace --all-features --all-targets
 
 test-dioxus-manager-feature-matrix:
@@ -35,7 +35,7 @@ test-publish:
 test-docs:
     cargo doc --workspace --all-features --no-deps --open
 
-ci: fmt check clippy test test-dioxus-manager-feature-matrix cov
+ci: fmt check clippy test cov
     cargo machete
 
 book:

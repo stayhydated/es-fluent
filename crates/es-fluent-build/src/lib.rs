@@ -1,4 +1,7 @@
-use crate::I18nConfig;
+#![doc = include_str!("../README.md")]
+#![allow(clippy::needless_doctest_main)]
+
+use es_fluent_toml::I18nConfig;
 use std::path::Path;
 
 #[allow(clippy::needless_doctest_main)]
@@ -12,7 +15,7 @@ use std::path::Path;
 /// ```no_run
 /// // build.rs
 /// fn main() {
-///     es_fluent_toml::build::track_i18n_assets();
+///     es_fluent_build::track_i18n_assets();
 /// }
 /// ```
 pub fn track_i18n_assets() {
@@ -37,6 +40,10 @@ mod tests {
     use std::path::Path;
     use std::process::Command;
 
+    fn with_manifest_env<T>(value: Option<&Path>, f: impl FnOnce() -> T) -> T {
+        temp_env::with_var("CARGO_MANIFEST_DIR", value, f)
+    }
+
     fn toml_path(path: &Path) -> String {
         path.to_slash_lossy().into_owned()
     }
@@ -51,7 +58,7 @@ mod tests {
         )
         .expect("write config");
 
-        crate::test_utils::with_manifest_env(Some(temp.path()), || {
+        with_manifest_env(Some(temp.path()), || {
             track_i18n_assets();
         });
     }
@@ -70,7 +77,7 @@ mod tests {
         )
         .expect("write config");
 
-        crate::test_utils::with_manifest_env(Some(temp.path()), || {
+        with_manifest_env(Some(temp.path()), || {
             track_i18n_assets();
         });
 
@@ -92,7 +99,7 @@ mod tests {
         )
         .expect("write config");
 
-        crate::test_utils::with_manifest_env(Some(&crate_dir), || {
+        with_manifest_env(Some(&crate_dir), || {
             track_i18n_assets();
         });
 
@@ -131,7 +138,7 @@ version = "0.1.0"
 edition = "2024"
 
 [build-dependencies]
-es-fluent-toml = {{ path = "{}" }}
+es-fluent-build = {{ path = "{}" }}
 "#,
                 toml_path(Path::new(env!("CARGO_MANIFEST_DIR")))
             ),
@@ -164,9 +171,7 @@ es-fluent-toml = {{ path = "{}" }}
 
     #[test]
     fn track_i18n_assets_panics_without_manifest_dir() {
-        let panic = crate::test_utils::with_manifest_env(None, || {
-            std::panic::catch_unwind(track_i18n_assets)
-        });
+        let panic = with_manifest_env(None, || std::panic::catch_unwind(track_i18n_assets));
         assert!(panic.is_err());
     }
 
@@ -194,7 +199,7 @@ es-fluent-toml = {{ path = "{}" }}
 use std::io::Write;
 
 fn main() {
-    es_fluent_toml::build::track_i18n_assets();
+    es_fluent_build::track_i18n_assets();
 
     let trace_path = std::env::var("TRACE_FILE").expect("TRACE_FILE must be set");
     let mut trace = OpenOptions::new()

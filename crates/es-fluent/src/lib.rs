@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![allow(clippy::needless_doctest_main)]
 
 #[doc(hidden)]
 pub mod meta;
@@ -23,11 +24,6 @@ pub use es_fluent_manager_core as __manager_core;
 
 #[doc(hidden)]
 pub use unic_langid;
-
-#[cfg(feature = "build")]
-pub mod build {
-    pub use es_fluent_toml::build::*;
-}
 
 mod traits;
 pub use traits::{EsFluentChoice, FluentLabel, FluentLocalizer, FluentLocalizerExt, FluentMessage};
