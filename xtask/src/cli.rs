@@ -60,7 +60,7 @@ pub struct ReleasePublishArgs {
     #[arg(long)]
     pub registry: Option<String>,
 
-    /// Allow dirty working directories when packaging.
+    /// Allow pre-existing dirty working directories when packaging.
     #[arg(long)]
     pub allow_dirty: bool,
 
