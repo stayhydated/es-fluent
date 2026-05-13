@@ -32,7 +32,7 @@ pub enum BuildCommand {
     BevyDemo,
     /// Build mdBook documentation to web/public/book
     Book,
-    /// Build llms.txt from mdBook sources to web/public/llms.txt
+    /// Build llms.txt and per-chapter Markdown files from mdBook sources
     LlmsTxt,
     /// Build the Dioxus site into web/dist for GitHub Pages
     Web,

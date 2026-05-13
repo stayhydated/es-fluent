@@ -24,8 +24,8 @@ cargo xtask build book
 
 ### `build llms-txt`
 
-Builds `web/public/llms.txt` and `web/public/llms-full.txt` from the current
-mdBook sources.
+Builds `web/public/llms.txt`, `web/public/llms-full.txt`, and per-chapter
+Markdown files under `web/public/llms/` from the current mdBook sources.
 
 ```bash
 cargo xtask build llms-txt

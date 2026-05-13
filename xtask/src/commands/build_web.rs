@@ -11,6 +11,7 @@ const BEVY_DEMO_DIR: &str = "web/public/bevy-demo";
 const ASSETS_DIR: &str = "web/assets";
 const SITE_CSS: &str = "web/public/assets/site.css";
 const BOOK_DIR: &str = "web/public/book";
+const LLMS_DIR: &str = "web/public/llms";
 const LLMS_FULL_TXT: &str = "web/public/llms-full.txt";
 const LLMS_TXT: &str = "web/public/llms.txt";
 const ROOT_NOJEKYLL: &str = "web/public/.nojekyll";
@@ -91,6 +92,7 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
         &workspace_root.join(LLMS_FULL_TXT),
         &dist_dir.join("llms-full.txt"),
     )?;
+    copy_directory(&workspace_root.join(LLMS_DIR), &dist_dir.join("llms"))?;
     fs::copy(dist_dir.join("index.html"), dist_dir.join("404.html"))
         .with_context(|| format!("failed to write {}", dist_dir.join("404.html").display()))?;
     fs::write(dist_dir.join("sitemap.xml"), web::sitemap_xml())

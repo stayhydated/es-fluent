@@ -8,6 +8,7 @@ use path_slash::PathExt as _;
 
 const BASE_URL: &str = "https://stayhydated.github.io/es-fluent";
 const LLMS_HEADER: &str = include_str!("../../templates/llms-header.md");
+const LLMS_MARKDOWN_DIR_NAME: &str = "llms";
 
 pub fn run() -> anyhow::Result<()> {
     run_from_workspace_root(&crate::util::workspace_root()?)
@@ -19,6 +20,7 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
         &workspace_root.join("book"),
         &output_dir.join("llms.txt"),
         &output_dir.join("llms-full.txt"),
+        &output_dir.join(LLMS_MARKDOWN_DIR_NAME),
     )
 }
 
@@ -37,9 +39,8 @@ fn ensure_parent_dir(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn book_html_path(path: &Path) -> anyhow::Result<String> {
-    path.with_extension("html")
-        .to_slash()
+fn book_markdown_path(path: &Path) -> anyhow::Result<String> {
+    path.to_slash()
         .map(|path| path.into_owned())
         .with_context(|| format!("Book chapter path is not valid UTF-8: {}", path.display()))
 }
@@ -48,9 +49,14 @@ pub fn run_with_paths(
     book_root: &Path,
     llms_path: &Path,
     llms_full_path: &Path,
+    llms_markdown_dir: &Path,
 ) -> anyhow::Result<()> {
     println!("Building llms.txt to {}", llms_path.display());
     println!("Building llms-full.txt to {}", llms_full_path.display());
+    println!(
+        "Building llms Markdown files to {}",
+        llms_markdown_dir.display()
+    );
 
     let mdbook = MDBook::load(book_root)
         .with_context(|| format!("Failed to load book from {}", book_root.display()))?;
@@ -69,7 +75,7 @@ pub fn run_with_paths(
 
             Ok(ChapterInfo {
                 name: chapter.name.clone(),
-                path: book_html_path(path)?,
+                path: book_markdown_path(path)?,
                 content: chapter.content.clone(),
             })
         })
@@ -83,6 +89,7 @@ pub fn run_with_paths(
 
     ensure_parent_dir(llms_path)?;
     ensure_parent_dir(llms_full_path)?;
+    write_llms_markdown_files(&chapters, llms_markdown_dir)?;
 
     fs::write(llms_path, llms_txt)
         .with_context(|| format!("Failed to write llms.txt to {}", llms_path.display()))?;
@@ -98,13 +105,43 @@ pub fn run_with_paths(
     Ok(())
 }
 
+fn write_llms_markdown_files(
+    chapters: &[ChapterInfo],
+    llms_markdown_dir: &Path,
+) -> anyhow::Result<()> {
+    if llms_markdown_dir.exists() {
+        fs::remove_dir_all(llms_markdown_dir).with_context(|| {
+            format!(
+                "Failed to clear existing llms Markdown directory {}",
+                llms_markdown_dir.display()
+            )
+        })?;
+    }
+
+    fs::create_dir_all(llms_markdown_dir).with_context(|| {
+        format!(
+            "Failed to create llms Markdown directory {}",
+            llms_markdown_dir.display()
+        )
+    })?;
+
+    for chapter in chapters {
+        let path = llms_markdown_dir.join(&chapter.path);
+        ensure_parent_dir(&path)?;
+        fs::write(&path, &chapter.content)
+            .with_context(|| format!("Failed to write llms Markdown file {}", path.display()))?;
+    }
+
+    Ok(())
+}
+
 fn build_llms_txt(chapters: &[ChapterInfo]) -> String {
     let mut output = String::new();
     output.push_str(LLMS_HEADER);
     output.push_str("\n## Docs\n\n");
 
     for chapter in chapters {
-        let url = format!("{}/book/{}", BASE_URL, chapter.path);
+        let url = format!("{}/{}/{}", BASE_URL, LLMS_MARKDOWN_DIR_NAME, chapter.path);
         output.push_str(&format!("- [{}]({})\n", chapter.name, url));
     }
 
