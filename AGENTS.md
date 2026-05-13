@@ -1,16 +1,21 @@
 # AGENTS.md
 
-This file is the working guide for contributors and coding agents in the `es-fluent` workspace.
+This is the working guide for contributors and coding agents in the `es-fluent`
+workspace.
 
-Use it to answer three questions quickly:
+Use it to decide:
 
-1. Where does this documentation belong?
-2. Which crates are public entry points versus integration points versus internals?
-3. What other surfaces must be updated in the same change?
+1. where documentation belongs,
+2. whether a crate or surface is user-facing, public integration, or internal,
+3. which related docs, examples, and skills must change together,
+4. which validation command should run before handoff.
 
-## Project summary
+For most application code, start with `crates/es-fluent`.
 
-`es-fluent` is a Rust localization ecosystem built on top of [Project Fluent](https://projectfluent.org/).
+## Project Summary
+
+`es-fluent` is a Rust localization ecosystem built on top of
+[Project Fluent](https://projectfluent.org/).
 
 Its priorities are:
 
@@ -18,36 +23,55 @@ Its priorities are:
 2. **Ergonomics**: make common localization workflows require minimal boilerplate.
 3. **Developer experience**: provide tooling that generates, validates, and keeps FTL files in sync.
 
-For most application code, start with `crates/es-fluent`.
+## Quick Decision Flow
 
-## Audience labels
+Before editing, classify the change:
 
-These labels describe the crate or surface itself, not the documentation file you are editing:
+1. **Find the surface in the workspace map.** Use its audience label to decide
+   how much public explanation the change needs.
+2. **Place documentation by content, not by crate audience.** README files and
+   the book are always user-facing. Internal design belongs in the matching
+   `docs/ARCHITECTURE.md`.
+3. **Sync public workflow changes.** If behavior, commands, generated output,
+   or recommended usage changes, update the relevant example, README, book page,
+   and `.agents/skills/*` guidance in the same change when applicable.
+4. **Validate narrowly.** Run the smallest command that proves the edited
+   behavior or documentation surface is still sound.
 
-- **User-facing**: Normal entry points for application developers.
-- **Public integration**: Public crates meant for extensions, integrations, or deeper customization. These are not usually the default starting point.
-- **Internal**: Workspace plumbing, implementation details, and maintenance tooling.
+## Audience Labels
 
-## Documentation rules
+These labels describe the crate or surface itself, not the documentation file
+being edited:
 
-### User-facing documentation
+- **User-facing**: normal entry points for application developers.
+- **Public integration**: public crates meant for extensions, integrations, or
+  deeper customization. These are usually not the default starting point.
+- **Internal**: workspace plumbing, implementation details, and maintenance tooling.
 
-These surfaces are always user-facing:
+## Documentation Placement
+
+### User-Facing Documentation
+
+Treat these surfaces as user-facing:
 
 - every `README.md` in the workspace,
 - the mdBook under `book/`.
 
-Even for internal crates, `README.md` should explain:
+Even README files for internal crates should explain:
 
 - who the crate is for,
 - what it does,
 - what most users should use instead.
 
-### Internal documentation
+Keep user-facing documentation example-first. Prefer Rust snippets over
+prose-only explanations when showing behavior changes.
 
-Only `docs/ARCHITECTURE.md` files are internal documentation.
+### Internal Documentation
 
-Use them for:
+Use the relevant `docs/ARCHITECTURE.md` file for internal documentation, such
+as the crate-level paths listed in the workspace map.
+
+Keep these topics in architecture documents, not in READMEs or the book:
 
 - implementation details,
 - subsystem boundaries,
@@ -55,32 +79,33 @@ Use them for:
 - design rationale,
 - internal relationships.
 
-Do not put internal implementation detail into READMEs or the book.
+### Skill Guidance
 
-## Synchronization rules
+`.agents/skills/use-es-fluent` is hosted in this repository as public
+`es-fluent` usage guidance for application developers. It is not internal
+architecture, maintenance, CI, release, or contributor-only workflow
+documentation.
 
-When changing a public workflow, public feature, or user-visible API shape:
+Update relevant in-repository `.agents/skills/*` guidance when a code change
+alters user-facing workflows, CLI behavior, generated output, integration
+patterns, or recommended usage.
+
+## Synchronization Rules
+
+When a substantive change modifies a public workflow, public feature, or
+user-visible API shape:
 
 1. Update the executable example in `examples/readme` when relevant.
 2. Update the affected user-facing `README.md` files.
 3. Update the matching `book/src/*.md` pages.
-4. Update relevant `.agents/skills/*` guidance when a code change alters
-   user-facing workflows, CLI behavior, generated output, integration patterns,
-   or recommended usage.
+4. Update relevant in-repository `.agents/skills/*` guidance.
 5. Keep these surfaces aligned in the same change unless there is a documented reason not to.
 
-Additional rules:
+`examples/readme` is the canonical source of truth for usage examples.
 
-- User-facing documentation should be example-first.
-- Prefer a Rust snippet over prose-only explanations when showing behavior changes.
-- `examples/readme` is the canonical source of truth for usage examples.
-- After making changes, run the smallest relevant validation for the affected
-  crate, docs, example, or web surface before handoff. If validation is skipped,
-  document why and what remains unvalidated.
+## Workspace Map
 
-## Workspace map
-
-### Main user-facing entry points
+### Main User-Facing Entry Points
 
 - `crates/es-fluent`
   Audience: **User-facing**
@@ -112,7 +137,7 @@ Additional rules:
   Docs: [Architecture](crates/es-fluent-lang/docs/ARCHITECTURE.md)
   Role: runtime language identification and localized language names for UI language pickers.
 
-### Public integration crates
+### Public Integration Crates
 
 - `crates/es-fluent-derive`
   Audience: **Public integration**
@@ -139,7 +164,7 @@ Additional rules:
   Docs: [Architecture](crates/es-fluent-manager-macros/docs/ARCHITECTURE.md)
   Role: macros for asset discovery and module registration. Most users consume this indirectly through manager crates.
 
-### Internal crates
+### Internal Crates
 
 - `crates/es-fluent-shared`
   Audience: **Internal**
@@ -176,7 +201,7 @@ Additional rules:
   Docs: [Architecture](xtask/docs/ARCHITECTURE.md)
   Role: maintenance task runner.
 
-### Examples and web surfaces
+### Examples and Web Surfaces
 
 - `examples/example-shared-lib`
   Shared example library used by multiple examples.
@@ -188,40 +213,36 @@ Additional rules:
   GPUI integration example using `es-fluent-manager-embedded`.
 
 - `examples/readme`
-  Canonical executable documentation examples. Keep this in sync with the root `README.md` and `book`.
+  Canonical executable documentation examples. Keep this in sync with the root `README.md` and the book.
 
 - `web`
   Audience: **User-facing**
-  Role: Dioxus-rendered GitHub Pages site hosting WASM demos and the mdBook.
+  Role: Dioxus-rendered GitHub Pages site hosting WASM demos and the mdBook; also an example for `es-fluent-manager-dioxus`.
 
 - `book`
   Audience: **User-facing**
   Role: mdBook for public workflows and public crate usage.
 
-## Working rules by change type
+## Validation and Editing Rules
 
-### After making changes
+### Validation After Changes
 
-- Run the narrowest relevant validation command after code or workflow changes.
-- If validation cannot be run, explicitly say it was skipped and why.
-- Do not assert that changes work unless validation, tests, or an equivalent check actually ran.
-
-### When validating changes
-
-- Validation is the default expectation after changes, not an optional follow-up.
-- Run the narrowest command that proves the edited behavior works.
+- Validation is the default after code or workflow changes.
+- Run the narrowest command that proves the edited behavior works for the
+  affected crate, docs, example, or web surface.
 - Prefer targeted crate, example, docs, or web checks before full-workspace validation.
 - Use `just check`, `just test`, or a more specific `justfile` recipe when the change spans multiple surfaces.
+- If validation cannot be run, state why and what remains unvalidated.
 - Do not claim a change works unless it was validated, generated from a source of truth, or the remaining risk is explicitly documented.
 
-### When editing docs
+### When Editing Docs
 
 - Keep READMEs and the book user-facing.
 - Move implementation detail into `docs/ARCHITECTURE.md`.
 - Prefer examples over prose-only explanations.
 - Sync `examples/readme`, relevant READMEs, and book pages in the same change.
 
-### When editing Rust crates
+### When Editing Rust Crates
 
 - Use `cargo` for build, test, and run tasks.
 - Keep dependency versions in the workspace root `Cargo.toml`.
@@ -230,11 +251,11 @@ Additional rules:
 - Use `path` dependencies only in the root `Cargo.toml` and in examples.
 - Non-example crates should reference workspace crates with `workspace = true`, not explicit paths.
 
-### When writing tests
+### When Writing Tests
 
 - Prefer [insta](https://insta.rs/) for snapshot tests when it fits better than assertion-heavy unit tests.
 - Prefer raw multiline strings, or `quote! { ... }` in macro contexts, over escaped single-line literals for embedded Rust code.
 
-### When editing JavaScript/Typescript
+### When Editing JavaScript/Typescript
 
 - Use [bun](https://bun.com/) for dependency management and running scripts.

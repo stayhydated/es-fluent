@@ -1,4 +1,4 @@
 interface:
   display_name: "Use es-fluent"
-  short_description: "Apply es-fluent facades correctly"
-  default_prompt: "Use $use-es-fluent to add type-safe localization to this Rust app."
+  short_description: "Guide public es-fluent app usage"
+  default_prompt: "Use $use-es-fluent to add public es-fluent localization to this Rust app."

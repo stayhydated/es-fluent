@@ -1,9 +1,15 @@
 ---
 name: use-es-fluent
-description: Use when adding, changing, documenting, or reviewing user-facing es-fluent i18n/localization in Rust applications. Covers choosing `es-fluent`, the `cargo es-fluent` CLI, embedded/Dioxus/Bevy managers, typed language enums, deriving Fluent messages, and wiring localization through explicit manager contexts.
+description: 'Use when adding, changing, documenting, or reviewing user-facing es-fluent i18n/localization in Rust applications. Scope is public application workflow only: choosing `es-fluent`, using the `cargo es-fluent` CLI, embedded/Dioxus/Bevy managers, typed language enums, deriving Fluent messages, generated FTL, and explicit manager contexts. Do not use for es-fluent repository internals, maintenance tooling, crate architecture, release automation, or contributor-only implementation work.'
 ---
 
 # Use es-fluent
+
+## Scope Boundary
+
+Treat this skill as a hosted public-usage guide for es-fluent consumers. Even when working inside an es-fluent checkout, use this skill only for user-facing workflows: application setup, public crate usage, public CLI behavior, generated FTL expectations, and docs or examples intended for application developers.
+
+Do not use this skill as a contributor guide for es-fluent repository internals. For workspace maintenance, internal crate implementation, architecture docs, CI, releases, or maintainer-only workflows, read the repository source, `AGENTS.md`, and the relevant crate documentation directly.
 
 ## Core Workflow
 
