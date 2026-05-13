@@ -62,4 +62,10 @@ cargo xtask release publish
 cargo xtask release publish --execute --skip-existing
 ```
 
+The cargo-hack path passes `--allow-dirty` through to `cargo publish` because
+cargo-hack temporarily rewrites package manifests while removing
+dev-dependencies. To avoid publishing unrelated edits, xtask still requires a
+clean tracked worktree before each publish attempt unless you pass xtask's own
+`--allow-dirty` flag.
+
 This command requires `cargo-hack` unless you pass `--include-dev-deps`.

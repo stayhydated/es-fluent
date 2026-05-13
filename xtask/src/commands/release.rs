@@ -207,6 +207,10 @@ fn publish_package(
 ) -> anyhow::Result<()> {
     let command = cargo_publish_command(package, args);
     for attempt in 0..=args.retries {
+        if requires_clean_worktree_guard(args) {
+            ensure_tracked_worktree_clean(workspace_root)?;
+        }
+
         println!();
         println!("Running {}", command.join(" "));
 
@@ -265,6 +269,29 @@ fn ensure_cargo_hack() -> anyhow::Result<()> {
     );
 }
 
+fn ensure_tracked_worktree_clean(workspace_root: &Path) -> anyhow::Result<()> {
+    let output = Command::new("git")
+        .current_dir(workspace_root)
+        .args(["status", "--porcelain", "--untracked-files=no"])
+        .output()
+        .context("failed to inspect git working tree")?;
+
+    if !output.status.success() {
+        print_output(&output)?;
+        bail!("failed to inspect git working tree before publishing");
+    }
+
+    if !output.stdout.is_empty() {
+        let changes = String::from_utf8_lossy(&output.stdout);
+        bail!(
+            "release publish uses cargo-hack manifest rewrites and passes --allow-dirty through to cargo publish; commit or stash tracked changes first, or pass xtask's --allow-dirty to publish them anyway:\n{}",
+            changes.trim_end()
+        );
+    }
+
+    Ok(())
+}
+
 fn cargo_publish_command(package: &ReleasePackage, args: &ReleasePublishArgs) -> Vec<String> {
     let mut command = if args.include_dev_deps {
         vec![
@@ -288,7 +315,7 @@ fn cargo_publish_command(package: &ReleasePackage, args: &ReleasePublishArgs) ->
         command.push("--registry".to_owned());
         command.push(registry.clone());
     }
-    if args.allow_dirty {
+    if cargo_publish_needs_allow_dirty(args) {
         command.push("--allow-dirty".to_owned());
     }
     if args.no_verify {
@@ -296,6 +323,14 @@ fn cargo_publish_command(package: &ReleasePackage, args: &ReleasePublishArgs) ->
     }
 
     command
+}
+
+fn cargo_publish_needs_allow_dirty(args: &ReleasePublishArgs) -> bool {
+    args.allow_dirty || !args.include_dev_deps
+}
+
+fn requires_clean_worktree_guard(args: &ReleasePublishArgs) -> bool {
+    !args.allow_dirty && !args.include_dev_deps
 }
 
 fn print_order(packages: &[ReleasePackage]) {
@@ -329,4 +364,74 @@ fn is_publishable(package: &Package) -> bool {
         .publish
         .as_ref()
         .is_none_or(|registries| !registries.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn package(name: &str) -> ReleasePackage {
+        ReleasePackage {
+            id: PackageId {
+                repr: format!("path+file:///workspace/{name}#0.1.0"),
+            },
+            name: name.to_owned(),
+            version: "0.1.0".to_owned(),
+        }
+    }
+
+    fn args() -> ReleasePublishArgs {
+        ReleasePublishArgs {
+            execute: false,
+            from: None,
+            registry: None,
+            allow_dirty: false,
+            no_verify: false,
+            include_dev_deps: false,
+            skip_existing: false,
+            retries: 3,
+            retry_delay_seconds: 20,
+        }
+    }
+
+    #[test]
+    fn cargo_hack_publish_allows_its_temporary_manifest_edits() {
+        let command = cargo_publish_command(&package("es-fluent-shared"), &args());
+
+        assert_eq!(
+            command,
+            [
+                "cargo",
+                "hack",
+                "--no-dev-deps",
+                "publish",
+                "-p",
+                "es-fluent-shared",
+                "--allow-dirty",
+            ]
+        );
+    }
+
+    #[test]
+    fn cargo_hack_publish_guards_preexisting_dirty_changes_by_default() {
+        assert!(requires_clean_worktree_guard(&args()));
+    }
+
+    #[test]
+    fn explicit_dirty_publish_disables_the_clean_worktree_guard() {
+        let mut args = args();
+        args.allow_dirty = true;
+
+        assert!(!requires_clean_worktree_guard(&args));
+    }
+
+    #[test]
+    fn plain_cargo_publish_does_not_allow_dirty_by_default() {
+        let mut args = args();
+        args.include_dev_deps = true;
+
+        let command = cargo_publish_command(&package("es-fluent-shared"), &args);
+
+        assert_eq!(command, ["cargo", "publish", "-p", "es-fluent-shared"]);
+    }
 }
