@@ -13,7 +13,9 @@ web = [ "dioxus/web", "dioxus-motion/web" ]
 
 [dependencies]
 dioxus = { features = [ "router", "launch", "lib", "fullstack" ], workspace = true }
+dioxus-free-icons = { workspace = true }
 dioxus-motion = { features = [ "dioxus", "transitions" ], workspace = true }
+dioxus-primitives = { workspace = true }
 dioxus-server = { optional = true, workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { workspace = true }

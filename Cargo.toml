@@ -55,10 +55,14 @@ derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
 dioxus-core = "0.7"
 dioxus-core-macro = "0.7"
+dioxus-free-icons = { default-features = false, features = [ "lucide" ], version = "0.10.0" }
 dioxus-fullstack = { default-features = false, version = "0.7" }
 dioxus-hooks = "0.7"
 dioxus-html = "0.7"
 dioxus-motion = { default-features = false, version = "0.3.5" }
+dioxus-primitives = { default-features = false, features = [
+  "router",
+], git = "https://github.com/DioxusLabs/components", version = "0.0.1" }
 dioxus-server = { default-features = false, version = "0.7" }
 dioxus-signals = "0.7"
 dioxus-ssr = { default-features = false, version = "0.7" }

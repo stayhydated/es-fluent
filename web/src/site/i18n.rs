@@ -107,6 +107,7 @@ pub(crate) enum SiteFooterMessage {
 }
 
 #[derive(Clone, Copy, Debug, EsFluent)]
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum PageMetadataMessage {
     HomeTitle,
     DemosTitle,
