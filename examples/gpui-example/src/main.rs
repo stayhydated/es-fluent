@@ -1,14 +1,18 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
+use std::borrow::Cow;
+
 use example_shared_lib::{ButtonState, CurrentLanguage, Languages};
 use gpui::prelude::*;
 use gpui::{
-    App, Bounds, Context, FocusHandle, Focusable, KeyBinding, Window, WindowBounds, WindowOptions,
-    actions,
+    App, Application, Bounds, Context, FocusHandle, Focusable, KeyBinding, Window, WindowBounds,
+    WindowOptions, actions,
 };
 use gpui_component::{button::Button, label::Label};
 use gpui_example::{GpuiScreenMessages, i18n};
 use tracing_subscriber::{EnvFilter, filter::LevelFilter};
+#[cfg(target_family = "wasm")]
+use wasm_bindgen::prelude::*;
 
 mod i18n_global {
     use super::i18n;
@@ -20,11 +24,46 @@ mod i18n_global {
 
 actions!(gpui_example, [CycleLocale]);
 
+#[cfg(not(target_family = "wasm"))]
 fn main() {
-    init_tracing();
+    run_with_app(gpui_platform::application(), true);
+}
 
-    let app = gpui_platform::application();
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen]
+pub fn run() -> Result<(), JsValue> {
+    gpui_platform::web_init();
+    let app = gpui_platform::single_threaded_web();
+    // Keep the app alive for the duration of JS-driven callbacks (RAF/input/resize).
+    // without this, GPUI can drop the platform callbacks while browser closures are still queued.
+    struct WasmApplication(std::rc::Rc<gpui::AppCell>);
+    let app = unsafe {
+        let wasm_app = std::mem::transmute::<Application, WasmApplication>(app);
+        std::mem::forget(wasm_app.0.clone());
+        std::mem::transmute::<WasmApplication, Application>(wasm_app)
+    };
+
+    run_with_app(app, false);
+    Ok(())
+}
+
+#[cfg(target_family = "wasm")]
+fn main() {
+    let _ = run();
+}
+
+fn run_with_app(app: Application, enable_tracing: bool) {
+    if enable_tracing {
+        init_tracing();
+    }
+
     app.run(|cx: &mut App| {
+        cx.text_system()
+            .add_fonts(vec![Cow::Borrowed(
+                include_bytes!("../../assets/fonts/NotoSansSC-Bold.ttf").as_slice(),
+            )])
+            .expect("Failed to load NotoSansSC-Bold font");
+
         let default_language = Languages::default();
         let i18n = i18n::try_new_with_language(default_language).expect("i18n should initialize");
         cx.set_global(CurrentLanguage(default_language));
@@ -45,6 +84,8 @@ fn main() {
             },
         )
         .unwrap();
+
+        cx.activate(true);
     });
 }
 
@@ -92,6 +133,7 @@ impl Render for GpuiExampleView {
         let i18n = cx.global::<i18n_global::CurrentI18n>().0.clone();
 
         gpui::div()
+            .font_family("Noto Sans SC")
             .id("gpui-example")
             .key_context("GpuiExample")
             .track_focus(&self.focus_handle)

@@ -7,6 +7,7 @@
 ## CLI commands
 
 - `build bevy-demo`: builds the Trunk-hosted Bevy demo into `web/public/bevy-demo`.
+- `build gpui-demo`: builds the Trunk-hosted GPUI demo into `web/public/gpui-demo`.
 - `build book`: builds mdBook documentation to `web/public/book`.
 - `build llms-txt`: exports mdBook sources into `web/public/llms.txt`, `web/public/llms-full.txt`, and per-chapter Markdown files under `web/public/llms/` for LLM consumption.
 - `build web`: builds the release SSG Dioxus site for GitHub Pages into `web/dist`.
@@ -16,6 +17,10 @@
 ### build bevy-demo
 
 - `xtask/src/commands/build_bevy_demo.rs`: runs `trunk build` for `examples/bevy-example`, writes the bundle to `web/public/bevy-demo`, disables Trunk SRI metadata so the Dioxus dev server can serve the generated JS without hash mismatches, validates that the output contains a wasm artifact with the expected language marker, and writes a local `.gitignore` for the generated directory.
+
+### build gpui-demo
+
+- `xtask/src/commands/build_gpui_demo.rs`: runs `trunk build index.html` for `examples/gpui-example` with `--release --no-default-features --no-sri --public-url ./ --dist web/public/gpui-demo`, using `RUSTUP_TOOLCHAIN=nightly`, validates that the output includes `wasm` and JavaScript artifacts containing the expected language marker, and adds a local `.gitignore` for the generated directory. This command requires nightly for this command only.
 
 ### build book
 

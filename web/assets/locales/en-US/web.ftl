@@ -1,24 +1,3 @@
-## Bevy page
-
-
-## Demos page
-
-
-## Footer
-
-
-## Home page hero
-
-
-## Home page workflow section
-
-
-## Page metadata
-
-
-## Shared site chrome
-
-
 ## BevyPageMessage
 
 bevy_page_message-BackToDemos = Back to demos
@@ -31,6 +10,13 @@ demos_page_message-BevyAction = Launch demo
 demos_page_message-BevyBody = Try the Bevy integration running as a browser-hosted wasm demo.
 demos_page_message-BevyLabel = Live wasm
 demos_page_message-BevyTitle = Bevy example
+demos_page_message-GpuiAction = Launch demo
+demos_page_message-GpuiBody = Try the GPUI integration running as a browser-hosted wasm demo.
+demos_page_message-GpuiLabel = Live wasm
+demos_page_message-GpuiTitle = GPUI example
+gpui_page_message-BackToDemos = Back to demos
+gpui_page_message-Lead = The fullscreen GPUI scene is served as a browser-hosted wasm app from inside the docs site.
+gpui_page_message-Title = GPUI example
 
 ## HomeHeroMessage
 
@@ -62,6 +48,7 @@ home_workflow_message-TwoTitle = CLI and validation
 
 page_metadata_message-BevyTitle = Bevy Example
 page_metadata_message-DemosTitle = Demos
+page_metadata_message-GpuiTitle = GPUI Example
 page_metadata_message-HomeTitle = Home
 
 ## SiteChromeMessage

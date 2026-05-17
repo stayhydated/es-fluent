@@ -11,6 +11,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Command::Build { target } => match target {
             BuildCommand::BevyDemo => commands::build_bevy_demo::run(),
+            BuildCommand::GpuiDemo => commands::build_gpui_demo::run(),
             BuildCommand::Book => commands::build_book::run(),
             BuildCommand::LlmsTxt => commands::build_llms_txt::run(),
             BuildCommand::Web => commands::build_web::run(),

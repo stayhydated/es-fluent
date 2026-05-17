@@ -83,10 +83,25 @@ pub(crate) enum DemosPageMessage {
     Body,
     #[fluent(key = "BevyAction")]
     Action,
+    #[fluent(key = "GpuiLabel")]
+    GpuiLabel,
+    #[fluent(key = "GpuiTitle")]
+    GpuiTitle,
+    #[fluent(key = "GpuiBody")]
+    GpuiBody,
+    #[fluent(key = "GpuiAction")]
+    GpuiAction,
 }
 
 #[derive(Clone, Copy, Debug, EsFluent)]
 pub(crate) enum BevyPageMessage {
+    Title,
+    Lead,
+    BackToDemos,
+}
+
+#[derive(Clone, Copy, Debug, EsFluent)]
+pub(crate) enum GpuiPageMessage {
     Title,
     Lead,
     BackToDemos,
@@ -107,4 +122,6 @@ pub(crate) enum PageMetadataMessage {
     Demos,
     #[fluent(key = "BevyTitle")]
     Bevy,
+    #[fluent(key = "GpuiTitle")]
+    Gpui,
 }

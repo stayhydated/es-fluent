@@ -30,6 +30,8 @@ pub enum Command {
 pub enum BuildCommand {
     /// Build the Trunk-hosted Bevy demo into web/public/bevy-demo
     BevyDemo,
+    /// Build the Trunk-hosted GPUI demo into web/public/gpui-demo
+    GpuiDemo,
     /// Build mdBook documentation to web/public/book
     Book,
     /// Build llms.txt and per-chapter Markdown files from mdBook sources

@@ -8,6 +8,7 @@ use walkdir::WalkDir;
 const DIST_DIR: &str = "web/dist";
 const DX_PUBLIC_DIR: &str = "target/dx/web/release/web/public";
 const BEVY_DEMO_DIR: &str = "web/public/bevy-demo";
+const GPUI_DEMO_DIR: &str = "web/public/gpui-demo";
 const ASSETS_DIR: &str = "web/assets";
 const SITE_CSS: &str = "web/public/assets/site.css";
 const BOOK_DIR: &str = "web/public/book";
@@ -82,6 +83,10 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
     copy_directory(
         &workspace_root.join(BEVY_DEMO_DIR),
         &dist_dir.join("bevy-demo"),
+    )?;
+    copy_directory(
+        &workspace_root.join(GPUI_DEMO_DIR),
+        &dist_dir.join("gpui-demo"),
     )?;
     copy_file_if_present(
         &workspace_root.join(ROOT_NOJEKYLL),

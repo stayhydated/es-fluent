@@ -49,6 +49,7 @@ mod tests {
         ))
         .expect("page should render");
         assert!(html.contains("href=\"/zh/bevy-example/\""));
+        assert!(html.contains("href=\"/zh/gpui-example/\""));
         assert!(html.contains("打开演示"));
         assert!(!html.contains("Lancer la démo"));
     }
@@ -72,6 +73,24 @@ mod tests {
     }
 
     #[test]
+    #[serial]
+    fn renders_gpui_pages_with_relative_demo_bundle_paths() {
+        let english = crate::site::render::render_route_body(SiteRoute::new(
+            SiteLanguage::EnUs,
+            PageKind::Gpui,
+        ))
+        .expect("page should render");
+        assert!(english.contains("src=\"../gpui-demo/\""));
+
+        let chinese = crate::site::render::render_route_body(SiteRoute::new(
+            SiteLanguage::ZhCn,
+            PageKind::Gpui,
+        ))
+        .expect("page should render");
+        assert!(chinese.contains("src=\"../../gpui-demo/\""));
+    }
+
+    #[test]
     fn computes_site_root_prefixes() {
         assert_eq!(crate::site::routing::site_root_prefix(""), "./");
         assert_eq!(crate::site::routing::site_root_prefix("demos"), "../");
@@ -92,8 +111,23 @@ mod tests {
             SiteRoute::new(SiteLanguage::EnUs, PageKind::Bevy)
         );
         assert_eq!(
+            crate::site::routing::site_route_from_path("/gpui-example/"),
+            SiteRoute::new(SiteLanguage::EnUs, PageKind::Gpui)
+        );
+        assert_eq!(
             crate::site::routing::site_route_from_path("/unknown"),
             SiteRoute::new(SiteLanguage::EnUs, PageKind::Home)
+        );
+    }
+
+    #[test]
+    fn parses_localized_site_routes() {
+        assert_eq!(
+            crate::site::routing::site_route_from_path_with_base_path(
+                "/your_repo/zh/gpui-example/",
+                Some("your_repo")
+            ),
+            SiteRoute::new(SiteLanguage::ZhCn, PageKind::Gpui)
         );
     }
 
@@ -126,6 +160,9 @@ mod tests {
         fs::create_dir_all(public_dir.join("bevy-demo")).expect("create bevy-demo dir");
         fs::write(public_dir.join("bevy-demo").join("index.html"), "bevy")
             .expect("write bevy-demo");
+        fs::create_dir_all(public_dir.join("gpui-demo")).expect("create gpui-demo dir");
+        fs::write(public_dir.join("gpui-demo").join("index.html"), "gpui")
+            .expect("write gpui-demo");
         fs::create_dir_all(public_dir.join("assets")).expect("create assets dir");
         fs::write(public_dir.join("assets").join("site.css"), "body {}").expect("write asset");
 
@@ -139,6 +176,7 @@ mod tests {
         assert!(!public_dir.join("fr").exists());
         assert!(public_dir.join("book").join("index.html").exists());
         assert!(public_dir.join("bevy-demo").join("index.html").exists());
+        assert!(public_dir.join("gpui-demo").join("index.html").exists());
         assert!(public_dir.join("assets").join("site.css").exists());
     }
 }

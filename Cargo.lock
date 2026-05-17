@@ -6307,6 +6307,7 @@ dependencies = [
  "gpui-component",
  "gpui_platform",
  "tracing-subscriber",
+ "wasm-bindgen",
 ]
 
 [[package]]

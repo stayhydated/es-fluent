@@ -1,6 +1,7 @@
 mod bevy;
 mod demos;
 mod error;
+mod gpui;
 mod home;
 
 use crate::site::routing::{PageKind, SiteRoute};
@@ -17,6 +18,9 @@ pub(crate) fn route_content(route: SiteRoute) -> Element {
             locale: route.locale
         }),
         PageKind::Bevy => rsx!(bevy::BevyPage {
+            locale: route.locale
+        }),
+        PageKind::Gpui => rsx!(gpui::GpuiPage {
             locale: route.locale
         }),
     }

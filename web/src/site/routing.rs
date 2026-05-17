@@ -1,7 +1,7 @@
 use crate::pages::DevErrorPage;
 use crate::site::i18n::{
-    BevyPageMessage, DemosPageMessage, HomeHeroMessage, PageMetadataMessage, SiteChromeMessage,
-    SiteLanguage,
+    BevyPageMessage, DemosPageMessage, GpuiPageMessage, HomeHeroMessage, PageMetadataMessage,
+    SiteChromeMessage, SiteLanguage,
 };
 use dioxus::cli_config;
 use dioxus::prelude::*;
@@ -19,11 +19,12 @@ pub(crate) enum PageKind {
     Home,
     Demos,
     Bevy,
+    Gpui,
 }
 
 impl PageKind {
-    pub(crate) fn all() -> [Self; 3] {
-        [Self::Home, Self::Demos, Self::Bevy]
+    pub(crate) fn all() -> [Self; 4] {
+        [Self::Home, Self::Demos, Self::Bevy, Self::Gpui]
     }
 
     pub(crate) fn route(self) -> &'static str {
@@ -31,6 +32,7 @@ impl PageKind {
             Self::Home => "",
             Self::Demos => "demos",
             Self::Bevy => "bevy-example",
+            Self::Gpui => "gpui-example",
         }
     }
 
@@ -39,6 +41,7 @@ impl PageKind {
             Self::Home => i18n.localize_message(&PageMetadataMessage::Home),
             Self::Demos => i18n.localize_message(&PageMetadataMessage::Demos),
             Self::Bevy => i18n.localize_message(&PageMetadataMessage::Bevy),
+            Self::Gpui => i18n.localize_message(&PageMetadataMessage::Gpui),
         }
     }
 
@@ -47,6 +50,7 @@ impl PageKind {
             Self::Home => i18n.localize_message(&HomeHeroMessage::Body),
             Self::Demos => i18n.localize_message(&DemosPageMessage::Body),
             Self::Bevy => i18n.localize_message(&BevyPageMessage::Lead),
+            Self::Gpui => i18n.localize_message(&GpuiPageMessage::Lead),
         }
     }
 }
@@ -162,12 +166,16 @@ pub(crate) enum AppRoute {
     Demos {},
     #[route("/bevy-example/", BevyRoute)]
     Bevy {},
+    #[route("/gpui-example/", GpuiRoute)]
+    Gpui {},
     #[route("/:locale/", LocalizedHomeRoute)]
     LocalizedHome { locale: LocaleSegment },
     #[route("/:locale/demos/", LocalizedDemosRoute)]
     LocalizedDemos { locale: LocaleSegment },
     #[route("/:locale/bevy-example/", LocalizedBevyRoute)]
     LocalizedBevy { locale: LocaleSegment },
+    #[route("/:locale/gpui-example/", LocalizedGpuiRoute)]
+    LocalizedGpui { locale: LocaleSegment },
 }
 
 pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
@@ -175,6 +183,7 @@ pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
         (None, PageKind::Home) => AppRoute::Home {},
         (None, PageKind::Demos) => AppRoute::Demos {},
         (None, PageKind::Bevy) => AppRoute::Bevy {},
+        (None, PageKind::Gpui) => AppRoute::Gpui {},
         (Some(_), PageKind::Home) => AppRoute::LocalizedHome {
             locale: LocaleSegment(locale),
         },
@@ -182,6 +191,9 @@ pub(crate) fn app_route(locale: SiteLanguage, page: PageKind) -> AppRoute {
             locale: LocaleSegment(locale),
         },
         (Some(_), PageKind::Bevy) => AppRoute::LocalizedBevy {
+            locale: LocaleSegment(locale),
+        },
+        (Some(_), PageKind::Gpui) => AppRoute::LocalizedGpui {
             locale: LocaleSegment(locale),
         },
     }
@@ -240,6 +252,7 @@ fn page_from_segments(segments: &[&str]) -> PageKind {
         [] => PageKind::Home,
         ["demos"] => PageKind::Demos,
         ["bevy-example"] => PageKind::Bevy,
+        ["gpui-example"] => PageKind::Gpui,
         _ => PageKind::Home,
     }
 }
@@ -418,6 +431,11 @@ fn BevyRoute() -> Element {
 }
 
 #[component]
+fn GpuiRoute() -> Element {
+    route_element(SiteRoute::new(SiteLanguage::default(), PageKind::Gpui))
+}
+
+#[component]
 fn LocalizedHomeRoute(locale: LocaleSegment) -> Element {
     route_element(SiteRoute::new(locale.language(), PageKind::Home))
 }
@@ -430,4 +448,9 @@ fn LocalizedDemosRoute(locale: LocaleSegment) -> Element {
 #[component]
 fn LocalizedBevyRoute(locale: LocaleSegment) -> Element {
     route_element(SiteRoute::new(locale.language(), PageKind::Bevy))
+}
+
+#[component]
+fn LocalizedGpuiRoute(locale: LocaleSegment) -> Element {
+    route_element(SiteRoute::new(locale.language(), PageKind::Gpui))
 }

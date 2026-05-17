@@ -41,8 +41,11 @@ ci: fmt check clippy test cov
 book:
     mdbook serve book
 
-web-build:
+wasm-demo-build:
+    cargo xtask build gpui-demo
     cargo xtask build bevy-demo
+
+web-build: wasm-demo-build
     cargo xtask build book
     cargo xtask build llms-txt
     cargo xtask build web

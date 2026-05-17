@@ -37,7 +37,14 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
                     PageLink {
                         locale,
                         page: PageKind::Demos,
-                        class: if current_page == PageKind::Demos || current_page == PageKind::Bevy { " nav-link is-active".to_string() } else { " nav-link".to_string() },
+                        class: if matches!(
+                            current_page,
+                            PageKind::Demos | PageKind::Bevy | PageKind::Gpui
+                        ) {
+                            " nav-link is-active".to_string()
+                        } else {
+                            " nav-link".to_string()
+                        },
                         label: nav_demos,
                     }
                     ExternalNavLink {

@@ -20,7 +20,7 @@ This framework gives you:
 ## Examples
 
 - [bevy](examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
-- [gpui](examples/gpui-example)
+- [gpui](examples/gpui-example) ([online demo](https://stayhydated.github.io/es-fluent/gpui-example/))
 
 ## Used in
 

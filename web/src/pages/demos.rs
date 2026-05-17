@@ -14,25 +14,37 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
     let title = i18n.localize_message(&DemosPageMessage::Title);
     let body = i18n.localize_message(&DemosPageMessage::Body);
     let action = i18n.localize_message(&DemosPageMessage::Action);
+    let gpui_label = i18n.localize_message(&DemosPageMessage::GpuiLabel);
+    let gpui_title = i18n.localize_message(&DemosPageMessage::GpuiTitle);
+    let gpui_body = i18n.localize_message(&DemosPageMessage::GpuiBody);
+    let gpui_action = i18n.localize_message(&DemosPageMessage::GpuiAction);
 
     rsx! {
         div { class: "page-shell",
             PageHeader { locale, current_page: PageKind::Demos }
             main { class: "stack",
                 section {
-                    class: "grid motion-reveal",
-                    style: demos_style,
-                    PageCardLink {
-                        locale,
-                        page: PageKind::Bevy,
-                        label,
-                        title,
-                        body,
-                        action,
-                    }
+                class: "grid motion-reveal",
+                style: demos_style,
+                PageCardLink {
+                    locale,
+                    page: PageKind::Bevy,
+                    label,
+                    title,
+                    body,
+                    action,
+                }
+                PageCardLink {
+                    locale,
+                    page: PageKind::Gpui,
+                    label: gpui_label,
+                    title: gpui_title,
+                    body: gpui_body,
+                    action: gpui_action,
                 }
             }
-            FooterPanel {}
         }
+        FooterPanel {}
+    }
     }
 }
