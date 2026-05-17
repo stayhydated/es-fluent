@@ -38,17 +38,17 @@ impl PageKind {
 
     pub(crate) fn title(self, i18n: &DioxusI18n) -> String {
         match self {
-            Self::Home => i18n.localize_message(&PageMetadataMessage::Home),
-            Self::Demos => i18n.localize_message(&PageMetadataMessage::Demos),
-            Self::Bevy => i18n.localize_message(&PageMetadataMessage::Bevy),
-            Self::Gpui => i18n.localize_message(&PageMetadataMessage::Gpui),
+            Self::Home => i18n.localize_message(&PageMetadataMessage::HomeTitle),
+            Self::Demos => i18n.localize_message(&PageMetadataMessage::DemosTitle),
+            Self::Bevy => i18n.localize_message(&PageMetadataMessage::BevyTitle),
+            Self::Gpui => i18n.localize_message(&PageMetadataMessage::GpuiTitle),
         }
     }
 
     pub(crate) fn description(self, i18n: &DioxusI18n) -> String {
         match self {
             Self::Home => i18n.localize_message(&HomeHeroMessage::Body),
-            Self::Demos => i18n.localize_message(&DemosPageMessage::Body),
+            Self::Demos => i18n.localize_message(&DemosPageMessage::BevyBody),
             Self::Bevy => i18n.localize_message(&BevyPageMessage::Lead),
             Self::Gpui => i18n.localize_message(&GpuiPageMessage::Lead),
         }

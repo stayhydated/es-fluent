@@ -10,10 +10,10 @@ pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "page-shell", "failed: {error}" } },
     };
-    let label = i18n.localize_message(&DemosPageMessage::Label);
-    let title = i18n.localize_message(&DemosPageMessage::Title);
-    let body = i18n.localize_message(&DemosPageMessage::Body);
-    let action = i18n.localize_message(&DemosPageMessage::Action);
+    let label = i18n.localize_message(&DemosPageMessage::BevyLabel);
+    let title = i18n.localize_message(&DemosPageMessage::BevyTitle);
+    let body = i18n.localize_message(&DemosPageMessage::BevyBody);
+    let action = i18n.localize_message(&DemosPageMessage::BevyAction);
     let gpui_label = i18n.localize_message(&DemosPageMessage::GpuiLabel);
     let gpui_title = i18n.localize_message(&DemosPageMessage::GpuiTitle);
     let gpui_body = i18n.localize_message(&DemosPageMessage::GpuiBody);
