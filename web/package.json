@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "scripts": {
     "build": "cargo xtask build web",
+    "dev": "dx serve --package web",
     "preview": "bun run preview.ts"
   },
   "devDependencies": {
