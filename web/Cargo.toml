@@ -9,12 +9,11 @@ publish = false
 [features]
 default = [  ]
 server = [ "dioxus/server", "dep:dioxus-server" ]
-web = [ "dioxus/web", "dioxus-motion/web" ]
+web = [ "dioxus/web" ]
 
 [dependencies]
 dioxus = { features = [ "router", "launch", "lib", "fullstack" ], workspace = true }
 dioxus-free-icons = { workspace = true }
-dioxus-motion = { features = [ "dioxus", "transitions" ], workspace = true }
 dioxus-primitives = { workspace = true }
 dioxus-server = { optional = true, workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
