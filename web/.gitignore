@@ -3,3 +3,6 @@ dist/
 public/llms.txt
 public/llms-full.txt
 public/llms/
+public/book
+public/bevy-demo
+public/gpui-demo
