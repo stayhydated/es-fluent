@@ -8,7 +8,7 @@ publish = false
 
 [features]
 default = [  ]
-server = [ "dioxus/server", "dep:dioxus-server" ]
+server = [ "dioxus/server", "dep:dioxus-server", "stayhydated-site/server" ]
 web = [ "dioxus/web" ]
 
 [dependencies]
@@ -19,6 +19,8 @@ dioxus-server = { optional = true, workspace = true }
 es-fluent = { features = [ "derive" ], workspace = true }
 es-fluent-lang = { workspace = true }
 es-fluent-manager-dioxus = { features = [ "client", "debug-embed", "ssr" ], workspace = true }
+stayhydated-dioxus = { workspace = true }
+stayhydated-site = { workspace = true }
 strum = { features = [ "derive" ], workspace = true }
 
 [build-dependencies]

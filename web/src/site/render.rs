@@ -1,9 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use crate::site::constants::SITE_URL;
-use std::fmt::Write as _;
 
-#[cfg(test)]
 #[cfg(test)]
 use crate::site::routing::SiteRoute;
 #[cfg(test)]
@@ -37,22 +35,15 @@ pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
 }
 
 pub(crate) fn render_sitemap() -> String {
-    let mut entries = String::new();
+    let mut paths = crate::site::routing::all_routes()
+        .into_iter()
+        .map(|route| route.path())
+        .collect::<Vec<_>>();
+    paths.extend([
+        "/book/".to_string(),
+        "/llms.txt".to_string(),
+        "/llms-full.txt".to_string(),
+    ]);
 
-    for route in crate::site::routing::all_routes() {
-        let path = route.path();
-        let url = if path == "/" {
-            SITE_URL.to_string()
-        } else {
-            format!("{SITE_URL}{}", path.trim_start_matches('/'))
-        };
-        let _ = writeln!(entries, "  <url><loc>{url}</loc></url>");
-    }
-
-    let _ = writeln!(entries, "  <url><loc>{SITE_URL}book/</loc></url>");
-
-    format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-         <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n{entries}</urlset>\n"
-    )
+    stayhydated_site::sitemap::render(SITE_URL, paths)
 }

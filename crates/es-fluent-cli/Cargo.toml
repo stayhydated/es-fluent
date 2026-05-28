@@ -21,6 +21,7 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 askama = { workspace = true }
 blake3 = { workspace = true }
+bon = { workspace = true }
 camino = { workspace = true }
 cargo-manifest = { workspace = true }
 cargo_metadata = { workspace = true }

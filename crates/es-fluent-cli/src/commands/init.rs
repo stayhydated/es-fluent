@@ -70,7 +70,8 @@ impl InitDioxusRuntime {
 }
 
 /// Arguments for the init command.
-#[derive(Debug, Parser)]
+#[derive(bon::Builder, Debug, Parser)]
+#[builder(on(String, into), on(PathBuf, into))]
 pub struct InitArgs {
     /// Path to the crate root to initialize (defaults to current directory).
     #[arg(short, long)]
@@ -690,19 +691,19 @@ mod tests {
     }
 
     fn default_args(root: &Path) -> InitArgs {
-        InitArgs {
-            path: Some(root.to_path_buf()),
-            fallback_language: "en".to_string(),
-            locales: Vec::new(),
-            assets_dir: PathBuf::from("assets/locales"),
-            namespaces: Vec::new(),
-            manager: InitManager::Embedded,
-            dioxus_runtime: Vec::new(),
-            build_rs: false,
-            update_cargo_toml: false,
-            dry_run: false,
-            force: false,
-        }
+        InitArgs::builder()
+            .path(root)
+            .fallback_language("en")
+            .locales(Vec::new())
+            .assets_dir("assets/locales")
+            .namespaces(Vec::new())
+            .manager(InitManager::Embedded)
+            .dioxus_runtime(Vec::new())
+            .build_rs(false)
+            .update_cargo_toml(false)
+            .dry_run(false)
+            .force(false)
+            .build()
     }
 
     fn write_manifest(root: &Path, manifest: &str) {

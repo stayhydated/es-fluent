@@ -12,7 +12,8 @@ use unic_langid::LanguageIdentifier;
 /// the configured Bevy asset root. With the default Bevy asset root `assets`
 /// and the standard `i18n.toml` layout `assets_dir = "assets/locales"`, the
 /// plugin asset path should be `locales`.
-#[derive(Clone, Debug)]
+#[derive(bon::Builder, Clone, Debug)]
+#[builder(on(String, into))]
 pub struct I18nPluginConfig {
     /// Initial locale requested during plugin startup.
     pub initial_language: LanguageIdentifier,
@@ -33,10 +34,10 @@ impl I18nPluginConfig {
     /// Creates a config with the default asset path and a requested initial
     /// language.
     pub fn new(initial_language: LanguageIdentifier) -> Self {
-        Self {
-            initial_language,
-            ..Default::default()
-        }
+        Self::builder()
+            .initial_language(initial_language)
+            .asset_path(Self::default().asset_path)
+            .build()
     }
 
     /// Sets the Bevy asset path that contains locale directories.

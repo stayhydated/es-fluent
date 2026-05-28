@@ -9,7 +9,7 @@ const REQUIRED_MARKER: &str = "GpuiScreenMessages";
 const NIGHTLY_TOOLCHAIN: &str = "nightly";
 
 pub fn run() -> anyhow::Result<()> {
-    run_from_workspace_root(&crate::util::workspace_root()?)
+    run_from_workspace_root(&stayhydated_xtask::workspace_root_from_xtask_manifest()?)
 }
 
 fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {

@@ -12,6 +12,7 @@ pub fn App() -> Element {
     );
 
     rsx! {
+        stayhydated_dioxus::SharedStyles {}
         document::Stylesheet { href: stylesheet_href }
         document::Stylesheet { href: components_theme_href }
         I18nProvider {

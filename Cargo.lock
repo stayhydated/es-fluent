@@ -4916,6 +4916,7 @@ dependencies = [
  "assert_cmd",
  "assert_fs",
  "blake3",
+ "bon",
  "camino",
  "cargo-manifest",
  "cargo_metadata",
@@ -5083,6 +5084,7 @@ name = "es-fluent-manager-bevy"
 version = "0.18.13"
 dependencies = [
  "bevy",
+ "bon",
  "es-fluent",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
@@ -5201,6 +5203,7 @@ dependencies = [
 name = "es-fluent-toml"
 version = "0.16.0"
 dependencies = [
+ "bon",
  "es-fluent-shared",
  "fs-err",
  "path-slash",
@@ -11948,6 +11951,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "stayhydated-dioxus"
+version = "0.1.0"
+source = "git+https://github.com/stayhydated/stayhydated#d80cc40f0ae9afa25bde5bf1ce06acc3edff5512"
+dependencies = [
+ "bon",
+ "dioxus",
+ "dioxus-free-icons",
+ "dioxus-primitives",
+]
+
+[[package]]
+name = "stayhydated-site"
+version = "0.1.0"
+source = "git+https://github.com/stayhydated/stayhydated#d80cc40f0ae9afa25bde5bf1ce06acc3edff5512"
+dependencies = [
+ "dioxus",
+ "dioxus-server",
+]
+
+[[package]]
+name = "stayhydated-xtask"
+version = "0.1.0"
+source = "git+https://github.com/stayhydated/stayhydated#d80cc40f0ae9afa25bde5bf1ce06acc3edff5512"
+dependencies = [
+ "anyhow",
+ "bon",
+ "cargo_metadata",
+ "mdbook-driver",
+ "path-slash",
+ "walkdir",
+]
+
+[[package]]
 name = "str_indices"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13941,6 +13977,8 @@ dependencies = [
  "es-fluent-lang",
  "es-fluent-manager-dioxus",
  "serial_test",
+ "stayhydated-dioxus",
+ "stayhydated-site",
  "strum 0.28.0",
  "tempfile",
 ]
@@ -15383,11 +15421,8 @@ name = "xtask"
 version = "0.16.0"
 dependencies = [
  "anyhow",
- "cargo_metadata",
  "clap",
- "mdbook-driver",
- "path-slash",
- "walkdir",
+ "stayhydated-xtask",
  "web",
 ]
 

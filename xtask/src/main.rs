@@ -1,6 +1,5 @@
 mod cli;
 mod commands;
-mod util;
 use clap::Parser;
 
 use cli::{BuildCommand, Cli, Command, ReleaseCommand};

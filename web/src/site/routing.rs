@@ -8,9 +8,7 @@ use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent_lang::LanguageIdentifier;
 use es_fluent_manager_dioxus::DioxusI18n;
-use std::collections::HashSet;
 use std::fmt::{self, Display};
-use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -94,39 +92,20 @@ pub(crate) fn all_routes() -> Vec<SiteRoute> {
 }
 
 pub(crate) fn app_base_href() -> String {
-    match cli_config::base_path() {
-        Some(base_path) => {
-            let base_path = base_path.trim_matches('/');
-            if base_path.is_empty() {
-                "/".to_string()
-            } else {
-                format!("/{base_path}/")
-            }
-        },
-        None => "/".to_string(),
-    }
+    let base_path = cli_config::base_path();
+    stayhydated_site::routing::base_href(base_path.as_deref())
 }
 
 pub(crate) fn page_href(locale: SiteLanguage, page: PageKind) -> String {
-    let relative = relative_path(locale, page);
-    if relative.is_empty() {
-        app_base_href()
-    } else {
-        format!("{}{relative}/", app_base_href())
-    }
+    stayhydated_site::routing::href(&app_base_href(), &relative_path(locale, page))
 }
 
 pub(crate) fn book_href() -> String {
-    format!("{}book/", app_base_href())
+    stayhydated_site::routing::href(&app_base_href(), "book")
 }
 
 pub(crate) fn site_root_prefix(output_dir: &str) -> String {
-    if output_dir.is_empty() {
-        return "./".to_string();
-    }
-
-    let depth = output_dir.split('/').count();
-    "../".repeat(depth)
+    stayhydated_site::routing::site_root_prefix(output_dir)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -224,26 +203,7 @@ pub(crate) fn site_route_from_path_with_base_path(
 
 #[cfg(test)]
 fn normalized_path_segments<'a>(path: &'a str, base_path: Option<&str>) -> Vec<&'a str> {
-    let segments = path
-        .split('/')
-        .filter(|segment| !segment.is_empty())
-        .collect::<Vec<_>>();
-
-    let base_path_segments = base_path
-        .into_iter()
-        .flat_map(|base_path| base_path.trim_matches('/').split('/'))
-        .filter(|segment| !segment.is_empty())
-        .collect::<Vec<_>>();
-
-    if base_path_segments.is_empty()
-        || !segments
-            .as_slice()
-            .starts_with(base_path_segments.as_slice())
-    {
-        segments
-    } else {
-        segments[base_path_segments.len()..].to_vec()
-    }
+    stayhydated_site::routing::normalized_path_segments(path, base_path)
 }
 
 #[cfg(test)]
@@ -275,25 +235,14 @@ fn relative_path(locale: SiteLanguage, page: PageKind) -> String {
 const GENERATED_ROUTE_CACHE_MARKER: &str = ".es-fluent-generated-route-cache";
 
 pub(crate) fn mark_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(public_dir)?;
-    fs::write(
-        public_dir.join(GENERATED_ROUTE_CACHE_MARKER),
+    stayhydated_site::route_cache::mark_generated_route_cache(
+        public_dir,
+        GENERATED_ROUTE_CACHE_MARKER,
         "Generated route cache owned by es-fluent web server.\n",
     )
 }
 
 pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
-    if !public_dir.exists() {
-        return Ok(());
-    }
-
-    if !public_dir.join(GENERATED_ROUTE_CACHE_MARKER).is_file() {
-        return Ok(());
-    }
-
-    remove_file_if_exists(&public_dir.join("index.html"))?;
-    remove_file_if_exists(&public_dir.join("404.html"))?;
-
     let generated_top_level_dirs = all_routes()
         .into_iter()
         .filter_map(|route| {
@@ -304,44 +253,14 @@ pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Resul
                 .filter(|segment| !segment.is_empty())
                 .map(str::to_string)
         })
-        .collect::<HashSet<_>>();
+        .collect::<Vec<_>>();
 
-    for dir in &generated_top_level_dirs {
-        remove_dir_if_exists(&public_dir.join(dir))?;
-    }
-
-    for entry in fs::read_dir(public_dir)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else {
-            continue;
-        };
-        if is_locale_route_dir(name) && contains_generated_route_cache(&entry.path()) {
-            fs::remove_dir_all(entry.path())?;
-        }
-    }
-
-    Ok(())
-}
-
-fn remove_file_if_exists(path: &Path) -> std::io::Result<()> {
-    if path.is_file() {
-        fs::remove_file(path)?;
-    }
-
-    Ok(())
-}
-
-fn remove_dir_if_exists(path: &Path) -> std::io::Result<()> {
-    if path.is_dir() {
-        fs::remove_dir_all(path)?;
-    }
-
-    Ok(())
+    stayhydated_site::route_cache::cleanup_generated_route_cache(
+        public_dir,
+        GENERATED_ROUTE_CACHE_MARKER,
+        generated_top_level_dirs,
+        |path, name| is_locale_route_dir(name) && contains_generated_route_cache(path),
+    )
 }
 
 fn is_locale_route_dir(name: &str) -> bool {

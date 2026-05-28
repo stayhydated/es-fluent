@@ -21,7 +21,8 @@ use serde::Serialize;
 use std::collections::HashSet;
 
 /// Arguments for the check command.
-#[derive(Debug, Parser)]
+#[derive(bon::Builder, Debug, Parser)]
+#[builder(on(String, into))]
 pub struct CheckArgs {
     #[command(flatten)]
     pub workspace: WorkspaceArgs,

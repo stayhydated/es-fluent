@@ -14,20 +14,26 @@ fn setup_fake_runner_and_cache(temp: &tempfile::TempDir) {
     setup_fake_runner_and_cache_with_behavior(temp, FakeRunnerBehavior::silent_success());
 }
 
+fn check_args(temp: &tempfile::TempDir) -> CheckArgs {
+    CheckArgs::builder()
+        .workspace(WorkspaceArgs {
+            path: Some(temp.path().to_path_buf()),
+            package: None,
+        })
+        .all(false)
+        .ignore(Vec::new())
+        .force_run(false)
+        .output(OutputFormat::Text)
+        .build()
+}
+
 #[test]
 fn run_check_returns_error_for_unknown_ignored_crate() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
+    let mut args = check_args(&temp);
+    args.ignore = vec!["missing-crate".to_string()];
 
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        },
-        all: false,
-        ignore: vec!["missing-crate".to_string()],
-        force_run: false,
-        output: OutputFormat::Text,
-    });
+    let result = run_check(args);
 
     assert!(
         matches!(result, Err(CliError::Other(msg)) if msg.contains("Unknown crates passed to --ignore"))
@@ -37,17 +43,10 @@ fn run_check_returns_error_for_unknown_ignored_crate() {
 #[test]
 fn run_check_returns_ok_when_package_filter_matches_nothing() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
+    let mut args = check_args(&temp);
+    args.workspace.package = Some("missing-crate".to_string());
 
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: Some("missing-crate".to_string()),
-        },
-        all: false,
-        ignore: Vec::new(),
-        force_run: false,
-        output: OutputFormat::Text,
-    });
+    let result = run_check(args);
 
     assert!(result.is_ok());
 }
@@ -62,16 +61,7 @@ fn run_check_succeeds_with_fake_runner_and_matching_inventory() {
     fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
     fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
 
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        },
-        all: false,
-        ignore: Vec::new(),
-        force_run: false,
-        output: OutputFormat::Text,
-    });
+    let result = run_check(check_args(&temp));
 
     assert!(result.is_ok());
 }
@@ -86,16 +76,7 @@ fn run_check_returns_validation_error_for_missing_key() {
     fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
     fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
 
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        },
-        all: false,
-        ignore: Vec::new(),
-        force_run: false,
-        output: OutputFormat::Text,
-    });
+    let result = run_check(check_args(&temp));
 
     assert!(matches!(result, Err(CliError::Validation(_))));
 }
@@ -103,16 +84,9 @@ fn run_check_returns_validation_error_for_missing_key() {
 #[test]
 fn run_check_returns_ok_when_all_crates_are_ignored() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        },
-        all: false,
-        ignore: vec!["test-app".to_string()],
-        force_run: false,
-        output: OutputFormat::Text,
-    });
+    let mut args = check_args(&temp);
+    args.ignore = vec!["test-app".to_string()];
+    let result = run_check(args);
 
     assert!(result.is_ok());
 }
@@ -122,16 +96,7 @@ fn run_check_returns_other_error_when_runner_execution_fails() {
     let temp = crate::test_fixtures::create_test_crate_workspace();
     setup_fake_runner_and_cache_with_behavior(&temp, FakeRunnerBehavior::failing("boom\n"));
 
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        },
-        all: false,
-        ignore: Vec::new(),
-        force_run: false,
-        output: OutputFormat::Text,
-    });
+    let result = run_check(check_args(&temp));
 
     assert!(matches!(result, Err(CliError::Other(_))));
 }
@@ -142,16 +107,7 @@ fn run_check_handles_validation_errors_per_crate_and_completes() {
     setup_fake_runner_and_cache(&temp);
     // Intentionally do not create inventory file so validation::validate_crate fails.
 
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        },
-        all: false,
-        ignore: Vec::new(),
-        force_run: false,
-        output: OutputFormat::Text,
-    });
+    let result = run_check(check_args(&temp));
 
     assert!(
         matches!(result, Err(CliError::Validation(ref report)) if report.error_count == 1),
@@ -294,16 +250,9 @@ fn run_check_json_returns_exit_status_when_issues_exist() {
     fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
     fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
 
-    let result = run_check(CheckArgs {
-        workspace: WorkspaceArgs {
-            path: Some(temp.path().to_path_buf()),
-            package: None,
-        },
-        all: false,
-        ignore: Vec::new(),
-        force_run: false,
-        output: OutputFormat::Json,
-    });
+    let mut args = check_args(&temp);
+    args.output = OutputFormat::Json;
+    let result = run_check(args);
 
     assert!(matches!(result, Err(CliError::Exit(1))));
 }

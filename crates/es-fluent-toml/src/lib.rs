@@ -120,7 +120,8 @@ impl FluentFeature {
 }
 
 /// The configuration for `es-fluent`.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(bon::Builder, Clone, Debug, Deserialize, Serialize)]
+#[builder(on(String, into), on(PathBuf, into))]
 pub struct I18nConfig {
     /// The fallback language identifier (e.g., "en-US").
     pub fallback_language: String,

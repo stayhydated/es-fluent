@@ -1,6 +1,7 @@
 use crate::site::i18n::SiteLanguage;
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
+use stayhydated_dioxus::{RouteCardLink, RouteLink};
 
 #[component]
 pub(crate) fn PageLink(
@@ -9,21 +10,12 @@ pub(crate) fn PageLink(
     class: String,
     label: String,
 ) -> Element {
-    if try_router().is_some() {
-        rsx! {
-            Link {
-                class,
-                to: crate::site::routing::app_route(locale, page),
-                "{label}"
-            }
-        }
-    } else {
-        rsx! {
-            a {
-                class,
-                href: crate::site::routing::page_href(locale, page),
-                "{label}"
-            }
+    rsx! {
+        RouteLink {
+            route: crate::site::routing::app_route(locale, page),
+            href: crate::site::routing::page_href(locale, page),
+            class,
+            label,
         }
     }
 }
@@ -37,27 +29,15 @@ pub(crate) fn PageCardLink(
     body: String,
     action: String,
 ) -> Element {
-    if try_router().is_some() {
-        rsx! {
-            Link {
-                class: "demo-card",
-                to: crate::site::routing::app_route(locale, page),
-                div { class: "card-label", "{label}" }
-                h2 { "{title}" }
-                p { class: "card-copy", "{body}" }
-                span { class: "card-link", "{action}" }
-            }
-        }
-    } else {
-        rsx! {
-            a {
-                class: "demo-card",
-                href: crate::site::routing::page_href(locale, page),
-                div { class: "card-label", "{label}" }
-                h2 { "{title}" }
-                p { class: "card-copy", "{body}" }
-                span { class: "card-link", "{action}" }
-            }
+    rsx! {
+        RouteCardLink {
+            route: crate::site::routing::app_route(locale, page),
+            href: crate::site::routing::page_href(locale, page),
+            label,
+            title,
+            body,
+            body_class: "card-copy".to_string(),
+            action,
         }
     }
 }

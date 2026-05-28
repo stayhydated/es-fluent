@@ -22,18 +22,23 @@
 
 - `xtask/src/commands/build_gpui_demo.rs`: runs `trunk build index.html` for `examples/gpui-example` with `--release --no-default-features --no-sri --public-url ./ --dist web/public/gpui-demo`, using `RUSTUP_TOOLCHAIN=nightly`, validates that the output includes `wasm` and JavaScript artifacts containing the expected language marker, and adds a local `.gitignore` for the generated directory. This command requires nightly for this command only.
 
+### Shared public-repo helpers
+
+- `xtask/src/commands/build_book.rs`, `build_llms_txt.rs`, `build_web.rs`, and `release.rs` are thin wrappers around `stayhydated-xtask` in `../stayhydated/crates/stayhydated-xtask`.
+- Keep reusable maintenance behavior in `shared` when it should apply to other public repositories. Keep es-fluent-specific demo builds, command wiring, paths, constants, and validations in this workspace.
+
 ### build book
 
-- `xtask/src/commands/build_book.rs`: builds mdBook via the `mdbook` crate API with output to `web/public/book`, adds `.gitignore` to exclude built files from version control.
+- `xtask/src/commands/build_book.rs`: calls the shared mdBook builder with output to `web/public/book`.
 
 ### build llms-txt
 
-- `xtask/src/commands/build_llms_txt.rs`: loads the mdBook, skips draft chapters, writes a linked chapter index to `llms.txt`, writes per-chapter Markdown files under `web/public/llms/`, and writes the expanded chapter content to `llms-full.txt`.
+- `xtask/src/commands/build_llms_txt.rs`: calls the shared llms export builder with es-fluent's base URL and `xtask/templates/llms-header.md`.
 
 ### build web
 
-- `xtask/src/commands/build_web.rs`: clears the previous Dioxus release `public` output, runs `dx build --platform web --ssg --release --debug-symbols false --force-sequential true`, copies the generated release `public` tree into `web/dist`, restores the stable root copies of `book/`, `bevy-demo/`, `llms/`, `llms.txt`, `llms-full.txt`, and `.nojekyll` that GitHub Pages and the site expect, overwrites `404.html` from `index.html` for router fallback, and writes a fresh sitemap from the `web` crate route list.
+- `xtask/src/commands/build_web.rs`: calls the shared Dioxus SSG packaging helper with es-fluent's Dioxus arguments, copied static/demo directories, and sitemap output.
 
 ### release
 
-- `xtask/src/commands/release.rs`: reads Cargo metadata, filters publishable workspace packages, topologically sorts them by non-dev workspace dependencies, and either prints the release plan or runs one publish command for each package. The publish command uses `cargo hack --no-dev-deps publish` by default because Cargo resolves versioned dev-dependencies during packaging and the workspace has dev-dependency back-references that cannot be satisfied by ordering alone. Because cargo-hack temporarily rewrites package manifests while stripping dev-dependencies, xtask passes `--allow-dirty` through to `cargo publish` for that path but guards it with a clean tracked worktree check unless the maintainer explicitly passes xtask's `--allow-dirty`. The command checks for `cargo-hack` before executing, requires `--execute` before uploading, supports `--from <package>` for resuming, and can retry failures caused by crates.io index propagation.
+- `xtask/src/commands/release.rs`: maps CLI arguments into `stayhydated_xtask::release::PublishOptions`. The shared implementation reads Cargo metadata, topologically sorts publishable crates by non-dev workspace dependencies, prints or runs publish commands, uses `cargo hack --no-dev-deps publish` by default, guards cargo-hack manifest rewrites with a clean tracked worktree check, supports `--from <package>` for resuming, and can retry failures caused by crates.io index propagation.

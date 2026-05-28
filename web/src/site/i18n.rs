@@ -65,10 +65,13 @@ pub(crate) enum HomeHeroMessage {
 pub(crate) enum HomeWorkflowMessage {
     Title,
     Lead,
+    OneLabel,
     OneTitle,
     OneBody,
+    TwoLabel,
     TwoTitle,
     TwoBody,
+    ThreeLabel,
     ThreeTitle,
     ThreeBody,
 }

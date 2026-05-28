@@ -274,19 +274,21 @@ mod tests {
 
         let init_root = tempfile::tempdir().expect("init tempdir");
         assert!(
-            dispatch(Commands::Init(InitArgs {
-                path: Some(init_root.path().to_path_buf()),
-                fallback_language: "en".to_string(),
-                locales: vec!["fr-FR".to_string()],
-                assets_dir: std::path::PathBuf::from("assets/locales"),
-                namespaces: vec!["ui".to_string()],
-                manager: InitManager::Embedded,
-                dioxus_runtime: Vec::new(),
-                build_rs: true,
-                update_cargo_toml: false,
-                dry_run: true,
-                force: false,
-            }))
+            dispatch(Commands::Init(
+                InitArgs::builder()
+                    .path(init_root.path())
+                    .fallback_language("en")
+                    .locales(vec!["fr-FR".to_string()])
+                    .assets_dir("assets/locales")
+                    .namespaces(vec!["ui".to_string()])
+                    .manager(InitManager::Embedded)
+                    .dioxus_runtime(Vec::new())
+                    .build_rs(true)
+                    .update_cargo_toml(false)
+                    .dry_run(true)
+                    .force(false)
+                    .build(),
+            ))
             .is_ok()
         );
 
@@ -320,13 +322,15 @@ mod tests {
         );
 
         assert!(
-            dispatch(Commands::Check(CheckArgs {
-                workspace: workspace.clone(),
-                all: false,
-                ignore: Vec::new(),
-                force_run: false,
-                output: OutputFormat::Text,
-            }))
+            dispatch(Commands::Check(
+                CheckArgs::builder()
+                    .workspace(workspace.clone())
+                    .all(false)
+                    .ignore(Vec::new())
+                    .force_run(false)
+                    .output(OutputFormat::Text)
+                    .build(),
+            ))
             .is_ok()
         );
 

@@ -20,6 +20,7 @@ macros = [ "es-fluent-manager-macros" ]
 
 [dependencies]
 bevy = { workspace = true }
+bon = { workspace = true }
 es-fluent = { workspace = true }
 es-fluent-manager-core = { workspace = true }
 es-fluent-manager-macros = { optional = true, workspace = true }

@@ -35,14 +35,17 @@ home_hero_message-Title = Rust localization with compile-time alignment
 
 ## HomeWorkflowMessage
 
-home_workflow_message-Lead = es-fluent keeps Rust types, FTL resources, and runtime integrations aligned around the same message model.
-home_workflow_message-OneBody = Derives define message ids, arguments, and generated FTL skeletons from your Rust types.
-home_workflow_message-OneTitle = Message definitions
-home_workflow_message-ThreeBody = Reuse the same localized message types across embedded apps, Bevy systems, and Dioxus components.
-home_workflow_message-ThreeTitle = Runtime integrations
+home_workflow_message-Lead = Keep Rust types, Fluent resources, and runtime integrations aligned around one message model.
+home_workflow_message-OneBody = Derives turn Rust enums into message ids, arguments, and generated FTL skeletons.
+home_workflow_message-OneLabel = derive
+home_workflow_message-OneTitle = Define messages
+home_workflow_message-ThreeBody = Use the same typed messages in embedded apps, Bevy systems, and Dioxus components.
+home_workflow_message-ThreeLabel = runtime
+home_workflow_message-ThreeTitle = Share integrations
 home_workflow_message-Title = Core workflow
 home_workflow_message-TwoBody = `cargo es-fluent` validates locale files, syncs generated entries, and catches drift in CI.
-home_workflow_message-TwoTitle = CLI and validation
+home_workflow_message-TwoLabel = cli
+home_workflow_message-TwoTitle = Validate assets
 
 ## PageMetadataMessage
 

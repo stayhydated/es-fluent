@@ -132,6 +132,18 @@ mod tests {
     }
 
     #[test]
+    fn sitemap_includes_generated_static_outputs() {
+        let sitemap = crate::sitemap_xml();
+
+        assert!(sitemap.contains("<loc>https://stayhydated.github.io/es-fluent/</loc>"));
+        assert!(sitemap.contains("<loc>https://stayhydated.github.io/es-fluent/book/</loc>"));
+        assert!(sitemap.contains("<loc>https://stayhydated.github.io/es-fluent/llms.txt</loc>"));
+        assert!(
+            sitemap.contains("<loc>https://stayhydated.github.io/es-fluent/llms-full.txt</loc>")
+        );
+    }
+
+    #[test]
     fn cleans_generated_route_cache_without_touching_static_assets() {
         let temp = tempfile::tempdir().expect("tempdir");
         let public_dir = temp.path();

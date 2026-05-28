@@ -1,4 +1,6 @@
-use crate::components::{PageLink, select};
+use crate::components::{
+    LanguageSelect, PageLink, ProjectOption, ProjectSelect, stayhydated_project_options,
+};
 use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
@@ -20,15 +22,19 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
 
     rsx! {
         header { class: "page-header",
-            a { class: "brand", href: crate::site::routing::page_href(locale, PageKind::Home),
-                    span { class: "brand-mark", "EF" }
-                    span { class: "brand-copy",
-                        span { class: "brand-kicker", "{page_kicker}" }
-                        span { class: "brand-title", "{site_name}" }
-                    }
-                }
-                div { class: "header-cluster",
-                    HeaderNavLinks {
+            ProjectSelect {
+                selected: ProjectOption::builder()
+                    .id("es-fluent")
+                    .mark("EF")
+                    .name(site_name)
+                    .description(page_kicker)
+                    .href(crate::site::routing::page_href(locale, PageKind::Home))
+                    .build(),
+                projects: stayhydated_project_options(),
+                label: "Project selector".to_string(),
+            }
+            div { class: "header-cluster",
+                HeaderNavLinks {
                     locale,
                     current_page,
                     nav_home,
@@ -119,23 +125,10 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
             (candidate, label)
         })
         .collect::<Vec<_>>();
-    let mut selected_locale = use_signal(|| Some(locale));
-    use_effect(move || {
-        if selected_locale() != Some(locale) {
-            selected_locale.set(Some(locale));
-        }
-    });
-
-    let on_locale_changed = move |next_locale: Option<SiteLanguage>| {
-        let Some(next_locale) = next_locale else {
-            return;
-        };
-
+    let on_locale_changed = move |next_locale: SiteLanguage| {
         if next_locale == locale {
             return;
         }
-
-        selected_locale.set(Some(next_locale));
 
         if try_router().is_some() {
             let _ = navigator().push(app_route(next_locale, current_page));
@@ -143,36 +136,11 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
     };
 
     rsx! {
-        div { class: "locale-switcher-dropdown",
-            span { class: "locale-label", "{locale_label}" }
-            select::Select::<SiteLanguage> {
-                value: Some(selected_locale.into()),
-                on_value_change: on_locale_changed,
-                select::SelectTrigger {
-                    select::SelectValue {
-                        placeholder: locale_label,
-                        class: Some("header-locale-value".to_string()),
-                    }
-                }
-                select::SelectList {
-                    for (index, (candidate, label)) in language_links.iter().enumerate() {
-                        select::SelectOption::<SiteLanguage> {
-                            index,
-                            value: *candidate,
-                            text_value: Some(label.clone()),
-                            class: Some(if Some(*candidate) == selected_locale() {
-                                "header-locale-option is-active".to_string()
-                            } else {
-                                "header-locale-option".to_string()
-                            }),
-                            "{label}"
-                            if Some(*candidate) == selected_locale() {
-                                select::SelectItemIndicator {}
-                            }
-                        }
-                    }
-                }
-            }
+        LanguageSelect::<SiteLanguage> {
+            label: locale_label,
+            selected: locale,
+            options: language_links,
+            on_change: on_locale_changed,
         }
     }
 }

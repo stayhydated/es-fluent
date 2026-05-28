@@ -28,10 +28,13 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
     let hero_panel_three_body = i18n.localize_message(&HomeHeroMessage::PanelThreeBody);
     let workflow_title = i18n.localize_message(&HomeWorkflowMessage::Title);
     let workflow_lead = i18n.localize_message(&HomeWorkflowMessage::Lead);
+    let workflow_one_label = i18n.localize_message(&HomeWorkflowMessage::OneLabel);
     let workflow_one_title = i18n.localize_message(&HomeWorkflowMessage::OneTitle);
     let workflow_one_body = i18n.localize_message(&HomeWorkflowMessage::OneBody);
+    let workflow_two_label = i18n.localize_message(&HomeWorkflowMessage::TwoLabel);
     let workflow_two_title = i18n.localize_message(&HomeWorkflowMessage::TwoTitle);
     let workflow_two_body = i18n.localize_message(&HomeWorkflowMessage::TwoBody);
+    let workflow_three_label = i18n.localize_message(&HomeWorkflowMessage::ThreeLabel);
     let workflow_three_title = i18n.localize_message(&HomeWorkflowMessage::ThreeTitle);
     let workflow_three_body = i18n.localize_message(&HomeWorkflowMessage::ThreeBody);
 
@@ -81,16 +84,19 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
                     p { class: "section-lead", "{workflow_lead}" }
                     div { class: "grid columns-3",
                         FeatureCard {
+                            label: workflow_one_label,
                             title: workflow_one_title,
                             body: workflow_one_body,
                             style: first_card_style,
                         }
                         FeatureCard {
+                            label: workflow_two_label,
                             title: workflow_two_title,
                             body: workflow_two_body,
                             style: second_card_style,
                         }
                         FeatureCard {
+                            label: workflow_three_label,
                             title: workflow_three_title,
                             body: workflow_three_body,
                             style: third_card_style,

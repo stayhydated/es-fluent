@@ -46,6 +46,13 @@ fn config_document(
     toml::Value::Table(config)
 }
 
+fn i18n_config(fallback_language: &str, assets_dir: &str) -> I18nConfig {
+    I18nConfig::builder()
+        .fallback_language(fallback_language)
+        .assets_dir(assets_dir)
+        .build()
+}
+
 #[test]
 fn test_read_from_path_success() {
     let temp_dir = TempDir::new().unwrap();
@@ -102,36 +109,21 @@ fn test_read_from_path_rejects_noncanonical_fallback_language() {
 
 #[test]
 fn test_assets_dir_path() {
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("locales"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "locales");
 
     assert_eq!(config.assets_dir_path(), PathBuf::from("locales"));
 }
 
 #[test]
 fn test_fallback_language_id() {
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "i18n");
 
     assert_eq!(config.fallback_language_id(), "en-US");
 }
 
 #[test]
 fn test_fallback_language_identifier_success() {
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "i18n");
 
     let lang = config.fallback_language_identifier().unwrap();
 
@@ -140,12 +132,7 @@ fn test_fallback_language_identifier_success() {
 
 #[test]
 fn test_fallback_language_identifier_invalid() {
-    let config = I18nConfig {
-        fallback_language: "invalid-lang!".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("invalid-lang!", "i18n");
 
     let result = config.fallback_language_identifier();
 
@@ -168,12 +155,7 @@ fn test_available_languages_collects_directories() {
     fs::create_dir(assets.join("zh-Hans")).unwrap();
     fs::write(assets.join("README.txt"), "ignored file").unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = config
         .available_languages_from_base(Some(manifest_dir))
@@ -193,12 +175,7 @@ fn test_available_languages_allows_language_only() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("en")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = config
         .available_languages_from_base(Some(manifest_dir))
@@ -217,12 +194,7 @@ fn test_available_locale_names_reject_noncanonical_directory_names() {
     fs::create_dir(assets.join("en-us")).unwrap();
     fs::create_dir(assets.join("fr")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en-US".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-US", "i18n");
 
     let locale_err = config
         .available_locale_names_from_base(Some(manifest_dir))
@@ -291,12 +263,7 @@ fn test_available_languages_and_locale_names_use_manifest_env() {
     fs::create_dir_all(assets_dir.join("en")).unwrap();
     fs::create_dir_all(assets_dir.join("fr")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
         let mut locale_names = config.available_locale_names().unwrap();
@@ -359,12 +326,7 @@ fn test_available_languages_uses_manifest_env_when_base_not_provided() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("en")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
         config.available_languages()
@@ -383,12 +345,7 @@ fn test_available_languages_uses_manifest_env_when_base_not_provided() {
 #[serial_test::serial(manifest)]
 fn test_validate_assets_dir_reports_missing_and_non_directory() {
     let temp_dir = TempDir::new().unwrap();
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let missing = crate::test_utils::with_manifest_env(Some(temp_dir.path()), || {
         config.validate_assets_dir()
@@ -411,12 +368,7 @@ fn test_validate_assets_dir_reports_missing_and_non_directory() {
 #[test]
 fn test_available_languages_reports_missing_assets_directory_consistently() {
     let temp_dir = TempDir::new().unwrap();
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let err = config
         .available_languages_from_base(Some(temp_dir.path()))
@@ -458,12 +410,7 @@ fn test_available_languages_rejects_invalid_language_directory() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("invalid-lang!")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let err = config
         .available_languages_from_base(Some(temp_dir.path()))
@@ -481,12 +428,7 @@ fn test_available_languages_accepts_variant_language_directory() {
     fs::create_dir(&assets).unwrap();
     fs::create_dir(assets.join("en-oxendict")).unwrap();
 
-    let config = I18nConfig {
-        fallback_language: "en".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en", "i18n");
 
     let languages = config
         .available_languages_from_base(Some(temp_dir.path()))
@@ -517,12 +459,7 @@ fn test_collect_language_entries_propagates_directory_iteration_errors() {
 
 #[test]
 fn test_fallback_language_identifier_accepts_variants() {
-    let config = I18nConfig {
-        fallback_language: "en-oxendict".to_string(),
-        assets_dir: PathBuf::from("i18n"),
-        fluent_feature: None,
-        namespaces: None,
-    };
+    let config = i18n_config("en-oxendict", "i18n");
 
     let language = config
         .fallback_language_identifier()

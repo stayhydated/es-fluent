@@ -52,3 +52,6 @@ web-build: wasm-demo-build
 
 web: web-build
     dx serve --package web
+
+web-preview: web-build
+    cd web && bun run preview

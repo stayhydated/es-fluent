@@ -12,6 +12,7 @@ rust-version.workspace = true
 readme = "README.md"
 
 [dependencies]
+bon = { workspace = true }
 es-fluent-shared = { workspace = true }
 fs-err = { workspace = true }
 path-slash = { workspace = true }
