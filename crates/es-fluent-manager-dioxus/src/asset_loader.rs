@@ -18,6 +18,8 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::{Arc, OnceLock};
 use unic_langid::LanguageIdentifier;
+#[cfg(all(feature = "client", target_arch = "wasm32", debug_assertions))]
+use wasm_bindgen::{JsCast as _, closure::Closure};
 
 #[derive(Clone, Debug)]
 pub enum DioxusAssetLoadError {
@@ -128,7 +130,10 @@ impl DioxusI18nAssetModule {
         Self { data, resources }
     }
 
-    async fn load(&'static self) -> LoadedDioxusI18nAssetModule {
+    async fn load_with_cache_bust(
+        &'static self,
+        cache_bust: Option<u64>,
+    ) -> LoadedDioxusI18nAssetModule {
         let mut loaded_resources = HashMap::new();
         let mut load_errors = HashMap::new();
         let mut resource_specs_by_language: HashMap<LanguageIdentifier, Vec<ModuleResourceSpec>> =
@@ -142,7 +147,7 @@ impl DioxusI18nAssetModule {
                 .or_default()
                 .push(spec.clone());
 
-            match read_dioxus_asset_bytes(&resource.asset).await {
+            match read_dioxus_asset_bytes(&resource.asset, cache_bust).await {
                 Ok(bytes) => match parse_fluent_resource_bytes(&spec, &bytes) {
                     Ok(parsed) => {
                         loaded_resources.insert((lang, spec.key.clone()), parsed);
@@ -171,18 +176,35 @@ impl DioxusI18nAssetModule {
     }
 }
 
-async fn read_dioxus_asset_bytes(asset: &Asset) -> Result<Vec<u8>, String> {
+async fn read_dioxus_asset_bytes(
+    asset: &Asset,
+    cache_bust: Option<u64>,
+) -> Result<Vec<u8>, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
+        let _ = cache_bust;
         let path = asset.resolve();
         std::fs::read(&path)
             .map_err(|error| format!("failed to read Dioxus asset '{}': {error}", path.display()))
     }
 
     #[cfg(target_arch = "wasm32")]
-    dioxus::asset_resolver::read_asset_bytes(asset)
-        .await
-        .map_err(|error| error.to_string())
+    {
+        let asset = asset.to_string();
+        let asset = cache_bust
+            .map(|revision| cache_busted_asset_path(&asset, revision))
+            .unwrap_or(asset);
+
+        dioxus::asset_resolver::read_asset_bytes(asset)
+            .await
+            .map_err(|error| error.to_string())
+    }
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+fn cache_busted_asset_path(path: &str, revision: u64) -> String {
+    let separator = if path.contains('?') { '&' } else { '?' };
+    format!("{path}{separator}dx_i18n_reload={revision}")
 }
 
 #[derive(Clone, Copy)]
@@ -452,11 +474,23 @@ impl DioxusAssetI18n {
     where
         L: Into<LanguageIdentifier>,
     {
+        Self::load_modules_with_cache_bust(modules, initial_language, selection_policy, None).await
+    }
+
+    async fn load_modules_with_cache_bust<L>(
+        modules: DioxusI18nAssetModules,
+        initial_language: L,
+        selection_policy: LanguageSelectionPolicy,
+        cache_bust: Option<u64>,
+    ) -> Result<Self, DioxusAssetLoadError>
+    where
+        L: Into<LanguageIdentifier>,
+    {
         let initial_language = initial_language.into();
         let modules = modules.as_slice();
         let mut loaded_modules = Vec::with_capacity(modules.len());
         for module in modules {
-            loaded_modules.push(module.load().await);
+            loaded_modules.push(module.load_with_cache_bust(cache_bust).await);
         }
 
         Self::new_with_loaded_modules(loaded_modules, initial_language, selection_policy)
@@ -671,6 +705,135 @@ struct DioxusAssetI18nLoadConfig {
 }
 
 #[cfg(feature = "client")]
+fn use_dioxus_i18n_asset_reload_revision(modules: DioxusI18nAssetModules) -> Signal<u64> {
+    let revision = dioxus_hooks::use_signal(|| 0_u64);
+
+    #[cfg(all(target_arch = "wasm32", debug_assertions))]
+    {
+        let watched_assets =
+            dioxus_core::use_hook(move || watched_dioxus_i18n_asset_paths(modules));
+        let revision_for_listener = revision;
+        let _listener = dioxus_core::use_hook(move || {
+            start_dioxus_i18n_asset_hot_reload_listener(
+                watched_assets.clone(),
+                revision_for_listener,
+            )
+            .map(std::rc::Rc::new)
+        });
+    }
+
+    #[cfg(not(all(target_arch = "wasm32", debug_assertions)))]
+    {
+        let _ = modules;
+    }
+
+    revision
+}
+
+#[cfg(all(feature = "client", target_arch = "wasm32", debug_assertions))]
+struct DioxusAssetHotReloadListener {
+    _websocket: web_sys::WebSocket,
+    _onmessage: Closure<dyn FnMut(web_sys::MessageEvent)>,
+}
+
+#[cfg(all(feature = "client", target_arch = "wasm32", debug_assertions))]
+fn start_dioxus_i18n_asset_hot_reload_listener(
+    watched_assets: Arc<[String]>,
+    mut revision: Signal<u64>,
+) -> Option<DioxusAssetHotReloadListener> {
+    if watched_assets.is_empty() {
+        return None;
+    }
+
+    let window = web_sys::window()?;
+    let location = window.location();
+    let protocol = match location.protocol().ok().as_deref() {
+        Some("https:") => "wss:",
+        _ => "ws:",
+    };
+    let host = location.host().ok()?;
+    let websocket = web_sys::WebSocket::new(&format!("{protocol}//{host}/_dioxus")).ok()?;
+    let onmessage =
+        Closure::<dyn FnMut(web_sys::MessageEvent)>::new(move |event: web_sys::MessageEvent| {
+            let Some(message) = event.data().as_string() else {
+                return;
+            };
+
+            if !dioxus_i18n_hot_reload_message_matches(&message, &watched_assets) {
+                return;
+            }
+
+            let mut revision = revision.write();
+            *revision = revision.wrapping_add(1);
+        });
+
+    websocket.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
+
+    Some(DioxusAssetHotReloadListener {
+        _websocket: websocket,
+        _onmessage: onmessage,
+    })
+}
+
+#[cfg(all(feature = "client", target_arch = "wasm32", debug_assertions))]
+fn watched_dioxus_i18n_asset_paths(modules: DioxusI18nAssetModules) -> Arc<[String]> {
+    modules
+        .as_slice()
+        .iter()
+        .flat_map(|module| module.resources.iter())
+        .map(|resource| resource.asset.bundled().bundled_path().to_string())
+        .collect::<Vec<_>>()
+        .into()
+}
+
+#[cfg(any(
+    test,
+    all(feature = "client", target_arch = "wasm32", debug_assertions)
+))]
+fn dioxus_i18n_hot_reload_message_matches(message: &str, watched_assets: &[String]) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(message) else {
+        return false;
+    };
+    let Some(assets) = value
+        .get("HotReload")
+        .and_then(|hot_reload| hot_reload.get("assets"))
+        .and_then(serde_json::Value::as_array)
+    else {
+        return false;
+    };
+
+    assets.iter().any(|asset| {
+        asset
+            .as_str()
+            .is_some_and(|asset| dioxus_i18n_asset_path_matches(asset, watched_assets))
+    })
+}
+
+#[cfg(any(
+    test,
+    all(feature = "client", target_arch = "wasm32", debug_assertions)
+))]
+fn dioxus_i18n_asset_path_matches(changed_asset: &str, watched_assets: &[String]) -> bool {
+    let changed_asset = normalize_dioxus_asset_path(changed_asset);
+
+    watched_assets.iter().any(|watched| {
+        let watched = normalize_dioxus_asset_path(watched);
+        changed_asset == watched || changed_asset.ends_with(&format!("/{watched}"))
+    })
+}
+
+#[cfg(any(
+    test,
+    all(feature = "client", target_arch = "wasm32", debug_assertions)
+))]
+fn normalize_dioxus_asset_path(path: &str) -> &str {
+    path.split('?')
+        .next()
+        .unwrap_or(path)
+        .trim_start_matches('/')
+}
+
+#[cfg(feature = "client")]
 pub fn use_init_asset_i18n_modules<L>(
     modules: DioxusI18nAssetModules,
     initial_language: L,
@@ -685,13 +848,16 @@ where
         initial_language,
         selection_policy,
     });
+    let reload_revision = use_dioxus_i18n_asset_reload_revision(config.modules);
     let resource = dioxus_hooks::use_resource(move || {
         let config = config.clone();
+        let reload_revision = *reload_revision.read();
         async move {
-            DioxusAssetI18n::load_modules(
+            DioxusAssetI18n::load_modules_with_cache_bust(
                 config.modules,
                 config.initial_language.clone(),
                 config.selection_policy,
+                (reload_revision != 0).then_some(reload_revision),
             )
             .await
         }
@@ -707,12 +873,17 @@ where
 #[cfg(feature = "client")]
 #[derive(Clone)]
 struct DioxusAssetI18nContext {
-    i18n: DioxusAssetI18n,
+    i18n: Signal<DioxusAssetI18n>,
     tracked: Signal<LanguageIdentifier>,
+    selection_policy: Signal<LanguageSelectionPolicy>,
 }
 
 #[cfg(feature = "client")]
 impl DioxusAssetI18nContext {
+    fn i18n(&self) -> DioxusAssetI18n {
+        self.i18n.read().clone()
+    }
+
     fn current(&self) -> LanguageIdentifier {
         self.tracked.read().clone()
     }
@@ -724,6 +895,44 @@ impl DioxusAssetI18nContext {
     fn update(&self, value: LanguageIdentifier) {
         let mut tracked = self.tracked;
         *tracked.write() = value;
+    }
+
+    fn update_selection_policy(&self, selection_policy: LanguageSelectionPolicy) {
+        if *self.selection_policy.peek() == selection_policy {
+            return;
+        }
+
+        let mut current = self.selection_policy;
+        *current.write() = selection_policy;
+    }
+
+    fn replace_i18n(&self, i18n: DioxusAssetI18n) {
+        let unchanged = { self.i18n.peek().eq(&i18n) };
+        if unchanged {
+            return;
+        }
+
+        let requested_language = self.peek();
+        if i18n.requested_language() != requested_language
+            && let Err(error) = i18n.select_language_with_policy(
+                requested_language.clone(),
+                *self.selection_policy.peek(),
+            )
+        {
+            tracing::warn!(
+                "Reloaded Dioxus asset i18n could not preserve requested locale '{}': {}",
+                requested_language,
+                error
+            );
+        }
+
+        let selected_language = i18n.requested_language();
+        let mut current = self.i18n;
+        *current.write() = i18n;
+
+        if selected_language != requested_language {
+            self.update(selected_language);
+        }
     }
 }
 
@@ -747,8 +956,9 @@ impl DioxusAssetI18nHandle {
         &self,
         lang: L,
     ) -> Result<(), LocalizationError> {
-        self.context.i18n.select_language(lang)?;
-        self.context.update(self.context.i18n.requested_language());
+        let i18n = self.context.i18n();
+        i18n.select_language(lang)?;
+        self.context.update(i18n.requested_language());
         Ok(())
     }
 
@@ -756,8 +966,9 @@ impl DioxusAssetI18nHandle {
         &self,
         lang: L,
     ) -> Result<(), LocalizationError> {
-        self.context.i18n.select_language_strict(lang)?;
-        self.context.update(self.context.i18n.requested_language());
+        let i18n = self.context.i18n();
+        i18n.select_language_strict(lang)?;
+        self.context.update(i18n.requested_language());
         Ok(())
     }
 
@@ -766,7 +977,7 @@ impl DioxusAssetI18nHandle {
         T: FluentMessage + ?Sized,
     {
         let _ = self.context.current();
-        self.context.i18n.localize_message(message)
+        self.context.i18n().localize_message(message)
     }
 }
 
@@ -778,7 +989,8 @@ impl FluentLocalizer for DioxusAssetI18nHandle {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         let _ = self.context.current();
-        FluentLocalizer::localize(&self.context.i18n, id, args)
+        let i18n = self.context.i18n();
+        FluentLocalizer::localize(&i18n, id, args)
     }
 
     fn localize_in_domain<'a>(
@@ -788,7 +1000,8 @@ impl FluentLocalizer for DioxusAssetI18nHandle {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         let _ = self.context.current();
-        FluentLocalizer::localize_in_domain(&self.context.i18n, domain, id, args)
+        let i18n = self.context.i18n();
+        FluentLocalizer::localize_in_domain(&i18n, domain, id, args)
     }
 
     fn with_lookup(
@@ -802,17 +1015,30 @@ impl FluentLocalizer for DioxusAssetI18nHandle {
         ),
     ) {
         let _ = self.context.current();
-        FluentLocalizer::with_lookup(&self.context.i18n, f);
+        let i18n = self.context.i18n();
+        FluentLocalizer::with_lookup(&i18n, f);
     }
 }
 
 #[cfg(feature = "client")]
 pub fn use_provide_asset_i18n(i18n: DioxusAssetI18n) -> DioxusAssetI18nHandle {
+    use_provide_asset_i18n_with_policy(i18n, LanguageSelectionPolicy::BestEffort)
+}
+
+#[cfg(feature = "client")]
+fn use_provide_asset_i18n_with_policy(
+    i18n: DioxusAssetI18n,
+    selection_policy: LanguageSelectionPolicy,
+) -> DioxusAssetI18nHandle {
     let fallback_language = i18n.requested_language();
+    let initial_i18n = i18n.clone();
     let context = dioxus_hooks::use_context_provider(move || DioxusAssetI18nContext {
         tracked: Signal::new(fallback_language),
-        i18n,
+        i18n: Signal::new(initial_i18n),
+        selection_policy: Signal::new(selection_policy),
     });
+    context.update_selection_policy(selection_policy);
+    context.replace_i18n(i18n);
     DioxusAssetI18nHandle { context }
 }
 
@@ -859,6 +1085,7 @@ pub fn DioxusAssetI18nProvider(
         DioxusAssetI18nLoadState::Ready(i18n) => rsx! {
             DioxusAssetI18nReadyProvider {
                 i18n,
+                selection_policy,
                 {children}
             }
         },
@@ -872,8 +1099,13 @@ pub fn DioxusAssetI18nProvider(
 #[cfg(feature = "client")]
 #[allow(non_snake_case)]
 #[component]
-pub fn DioxusAssetI18nReadyProvider(i18n: DioxusAssetI18n, children: Element) -> Element {
-    let _ = use_provide_asset_i18n(i18n);
+pub fn DioxusAssetI18nReadyProvider(
+    i18n: DioxusAssetI18n,
+    #[props(default = LanguageSelectionPolicy::BestEffort)]
+    selection_policy: LanguageSelectionPolicy,
+    children: Element,
+) -> Element {
+    let _ = use_provide_asset_i18n_with_policy(i18n, selection_policy);
     children
 }
 
@@ -1252,6 +1484,74 @@ mod tests {
         assert_eq!(format!("{modules:?}"), "DioxusI18nAssetModules { len: 1 }");
         assert_eq!(resource.spec(), ASSET_RESOURCES[0].spec());
         assert_eq!(module.resources.len(), 0);
+    }
+
+    #[test]
+    fn dioxus_asset_hot_reload_matching_tracks_bundled_assets() {
+        let watched = vec!["i18n/web-123.ftl".to_string(), "other.ftl".to_string()];
+
+        assert!(dioxus_i18n_asset_path_matches(
+            "/assets/i18n/web-123.ftl",
+            &watched
+        ));
+        assert!(dioxus_i18n_asset_path_matches(
+            "/es-fluent/assets/i18n/web-123.ftl?dx_force_reload=1",
+            &watched
+        ));
+        assert!(!dioxus_i18n_asset_path_matches(
+            "/assets/i18n/web-456.ftl",
+            &watched
+        ));
+    }
+
+    #[test]
+    fn dioxus_asset_hot_reload_message_matching_reads_devserver_payloads() {
+        let watched = vec!["i18n/web-123.ftl".to_string()];
+        let matching_message = r#"{
+            "HotReload": {
+                "templates": [],
+                "assets": ["/assets/i18n/web-123.ftl"],
+                "ms_elapsed": 0,
+                "jump_table": null,
+                "for_build_id": null,
+                "for_pid": null
+            }
+        }"#;
+        let unrelated_message = r#"{
+            "HotReload": {
+                "templates": [],
+                "assets": ["/assets/i18n/other.ftl"],
+                "ms_elapsed": 0,
+                "jump_table": null,
+                "for_build_id": null,
+                "for_pid": null
+            }
+        }"#;
+
+        assert!(dioxus_i18n_hot_reload_message_matches(
+            matching_message,
+            &watched
+        ));
+        assert!(!dioxus_i18n_hot_reload_message_matches(
+            unrelated_message,
+            &watched
+        ));
+        assert!(!dioxus_i18n_hot_reload_message_matches(
+            r#"{"FullReloadStart": null}"#,
+            &watched
+        ));
+    }
+
+    #[test]
+    fn cache_busted_asset_path_appends_query_without_losing_existing_query() {
+        assert_eq!(
+            cache_busted_asset_path("/assets/web.ftl", 7),
+            "/assets/web.ftl?dx_i18n_reload=7"
+        );
+        assert_eq!(
+            cache_busted_asset_path("/assets/web.ftl?existing=1", 8),
+            "/assets/web.ftl?existing=1&dx_i18n_reload=8"
+        );
     }
 
     #[test]

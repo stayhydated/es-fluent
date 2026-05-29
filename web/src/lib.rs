@@ -33,7 +33,7 @@ mod tests {
         ))
         .expect("page should render");
         assert!(html.contains(
-            "Define Fluent messages from Rust types, validate locale assets in CI, and reuse the same message model across embedded, Bevy, and Dioxus runtimes."
+            "Define messages in Rust. Generate Fluent files. Use them in embedded, Bevy, and Dioxus apps."
         ));
         assert!(html.contains("href=\"/demos/\""));
         assert!(html.contains("href=\"/book/\""));

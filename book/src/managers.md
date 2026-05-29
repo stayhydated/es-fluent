@@ -262,6 +262,9 @@ Dioxus application translations come from the generated Dioxus asset modules.
 Runtime follower modules that do not count as locale support, such as
 `es-fluent-lang` for typed language picker labels, are discovered automatically
 and follow the selected asset-backed locale.
+In debug WASM builds served by `dx serve`, changed FTL assets are reloaded from
+Dioxus asset hot-reload messages and the provider updates subscribed
+components while preserving the requested locale when possible.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 

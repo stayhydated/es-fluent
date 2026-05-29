@@ -50,12 +50,20 @@ selectable by themselves. Application translations remain Dioxus asset-backed.
 
 `DioxusAssetI18nProvider` wraps the asset load in a Dioxus resource. It renders
 `loading` while pending, renders `fallback` on load failure, and installs a
-ready `DioxusAssetI18nHandle` context once loading succeeds.
+ready `DioxusAssetI18nHandle` context once loading succeeds. The context stores
+the loaded manager in a signal so later reloads can replace the manager without
+leaking lookup state across roots.
 
 `DioxusAssetI18nHandle::localize_message(...)` reads the tracked language
 signal before delegating to the loaded localizer. Language changes route through
 `select_language(...)` or `select_language_strict(...)`; both update the signal
 only after the localizer accepts the switch.
+
+On debug WASM clients, the provider opens a listener to the Dioxus devserver
+hot-reload socket and watches for asset messages matching generated FTL
+`asset!` entries. Matching messages bump a Dioxus resource dependency, reload
+the asset modules with a cache-busting query, and replace the manager signal
+while preserving the requested locale when the reloaded assets still support it.
 
 ## SSR runtime
 

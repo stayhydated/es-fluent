@@ -1,54 +1,54 @@
 ## BevyPageMessage
 
 bevy_page_message-BackToDemos = Back to demos
-bevy_page_message-Lead = The fullscreen Bevy scene is served as a Trunk-built wasm app from inside the docs site.
+bevy_page_message-Lead = A Bevy wasm demo inside the book site.
 bevy_page_message-Title = Bevy example
 
 ## DemosPageMessage
 
 demos_page_message-BevyAction = Launch demo
-demos_page_message-BevyBody = Try the Bevy integration running as a browser-hosted wasm demo.
-demos_page_message-BevyLabel = Live wasm
+demos_page_message-BevyBody = Bevy wasm in the browser.
+demos_page_message-BevyLabel = wasm demo
 demos_page_message-BevyTitle = Bevy example
 demos_page_message-GpuiAction = Launch demo
-demos_page_message-GpuiBody = GPUI wasm demo. WebGPU browsers only.
-demos_page_message-GpuiLabel = Live wasm
+demos_page_message-GpuiBody = GPUI wasm in WebGPU browsers.
+demos_page_message-GpuiLabel = wasm demo
 demos_page_message-GpuiTitle = GPUI example
 
 ## GpuiPageMessage
 
 gpui_page_message-BackToDemos = Back to demos
-gpui_page_message-Lead = The fullscreen GPUI scene is served as a browser-hosted wasm app from inside the docs site.
+gpui_page_message-Lead = A GPUI wasm demo inside the book site.
 gpui_page_message-Title = GPUI example
 
 ## HomeHeroMessage
 
-home_hero_message-Body = Define Fluent messages from Rust types, validate locale assets in CI, and reuse the same message model across embedded, Bevy, and Dioxus runtimes.
+home_hero_message-Body = Define messages in Rust. Generate Fluent files. Use them in embedded, Bevy, and Dioxus apps.
 home_hero_message-Eyebrow = Type-safe Project Fluent for Rust
-home_hero_message-PanelLabel = Supported integrations
-home_hero_message-PanelOneBody = Embedded locale assets.
-home_hero_message-PanelOneTitle = Embedded
-home_hero_message-PanelThreeBody = Hook-based locale state.
-home_hero_message-PanelThreeTitle = Dioxus
-home_hero_message-PanelTwoBody = ECS-aware locale state.
-home_hero_message-PanelTwoTitle = Bevy
+home_hero_message-PanelLabel = Runtime managers
+home_hero_message-PanelOneBody = Ship translations in your binary.
+home_hero_message-PanelOneTitle = Embedded manager
+home_hero_message-PanelThreeBody = Localize client and SSR views.
+home_hero_message-PanelThreeTitle = Dioxus manager
+home_hero_message-PanelTwoBody = Localize ECS systems and assets.
+home_hero_message-PanelTwoTitle = Bevy manager
 home_hero_message-PrimaryAction = Read the book
-home_hero_message-SecondaryAction = Browse demos
-home_hero_message-Title = Rust localization with compile-time alignment
+home_hero_message-SecondaryAction = View demos
+home_hero_message-Title = Localize Rust apps with typed messages
 
 ## HomeWorkflowMessage
 
-home_workflow_message-Lead = Keep Rust types, Fluent resources, and runtime integrations aligned around one message model.
-home_workflow_message-OneBody = Derives turn Rust enums into message ids, arguments, and generated FTL skeletons.
-home_workflow_message-OneLabel = derive
+home_workflow_message-Lead = For more detail, read the book.
+home_workflow_message-OneBody = Derive message keys and arguments from Rust types.
+home_workflow_message-OneLabel = Rust derives
 home_workflow_message-OneTitle = Define messages
-home_workflow_message-ThreeBody = Use the same typed messages in embedded apps, Bevy systems, and Dioxus components.
-home_workflow_message-ThreeLabel = runtime
-home_workflow_message-ThreeTitle = Share integrations
-home_workflow_message-Title = Core workflow
-home_workflow_message-TwoBody = `cargo es-fluent` validates locale files, syncs generated entries, and catches drift in CI.
-home_workflow_message-TwoLabel = cli
-home_workflow_message-TwoTitle = Validate assets
+home_workflow_message-ThreeBody = Reuse one message model across supported runtimes.
+home_workflow_message-ThreeLabel = Runtime managers
+home_workflow_message-ThreeTitle = Use one manager
+home_workflow_message-Title = es-fluent workflow
+home_workflow_message-TwoBody = Run `cargo es-fluent` to generate, check, and sync FTL.
+home_workflow_message-TwoLabel = CLI
+home_workflow_message-TwoTitle = Check FTL files
 
 ## PageMetadataMessage
 
@@ -70,5 +70,5 @@ site_chrome_message-SiteName = es-fluent
 ## SiteFooterMessage
 
 site_footer_message-BodyLinkLabel = es-fluent-manager-dioxus
-site_footer_message-BodyPrefix = Built with Dioxus and localized through
-site_footer_message-Label = Site stack
+site_footer_message-BodyPrefix = Built with Dioxus. Localized by
+site_footer_message-Label = This site

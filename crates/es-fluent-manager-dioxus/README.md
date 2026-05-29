@@ -109,6 +109,9 @@ Dioxus app translations are loaded only through the generated asset modules.
 Runtime follower modules that do not count as locale support, such as
 `es-fluent-lang` language labels, are discovered automatically and follow the
 selected asset-backed locale.
+In debug WASM builds served by `dx serve`, changed FTL assets are reloaded from
+Dioxus asset hot-reload messages and the provider updates subscribed
+components while preserving the requested locale when possible.
 
 - `localize_message(...)` renders `#[derive(EsFluent)]` messages through the Dioxus context and is the preferred typed lookup path.
 - `DioxusAssetI18nHandle` implements `FluentLocalizer`, so `#[derive(EsFluentLabel)]` values can call `MyType::localize_label(&i18n)` in client components.

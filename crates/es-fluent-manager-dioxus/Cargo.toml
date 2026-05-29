@@ -34,6 +34,11 @@ parking_lot = { workspace = true }
 tracing = { workspace = true }
 unic-langid = { workspace = true }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+serde_json = { workspace = true }
+wasm-bindgen = { workspace = true }
+web-sys = { features = [ "Location", "MessageEvent", "WebSocket", "Window" ], workspace = true }
+
 [dev-dependencies]
 dioxus-core-macro = { workspace = true }
 dioxus-html = { workspace = true }
@@ -41,6 +46,7 @@ dioxus-signals = { workspace = true }
 dioxus-ssr = { workspace = true }
 es-fluent-lang = { workspace = true }
 futures = { workspace = true }
+serde_json = { workspace = true }
 serial_test = { workspace = true }
 trybuild = { workspace = true }
 

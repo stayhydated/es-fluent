@@ -160,6 +160,9 @@ runtime. Dioxus code should use
 the component or SSR request context.
 Runtime follower modules such as `es-fluent-lang` language labels are
 discovered automatically and follow the selected asset-backed locale.
+During `dx serve` debug WASM runs, changed generated FTL assets refresh the
+provider context through Dioxus asset hot reload while preserving the requested
+locale when possible.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
 `SystemParam` and call `localize_message(...)` on it. The plugin also exposes
 `RequestedLanguageId` and `ActiveLanguageId` for systems that need to

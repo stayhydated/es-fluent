@@ -171,6 +171,9 @@ loading/failure rendering on the client and `SsrI18nRuntime::request(...)` is
 async on the server. Application translations come from the generated Dioxus
 asset modules; runtime follower modules such as `es-fluent-lang` language
 labels are discovered automatically.
+During `dx serve` debug WASM runs, changed generated FTL assets refresh the
+provider context through Dioxus asset hot reload while preserving the requested
+locale when possible.
 
 ## Bevy Manager
 

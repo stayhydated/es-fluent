@@ -5132,10 +5132,13 @@ dependencies = [
  "fluent-bundle",
  "futures",
  "parking_lot",
+ "serde_json",
  "serial_test",
  "tracing",
  "trybuild",
  "unic-langid",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
