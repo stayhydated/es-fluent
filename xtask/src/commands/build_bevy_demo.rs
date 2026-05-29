@@ -35,6 +35,8 @@ fn run_from_workspace_root(workspace_root: &Path) -> anyhow::Result<()> {
         .env_remove("NO_COLOR")
         .arg("build")
         .arg("index.html")
+        .arg("--example")
+        .arg("bevy-example")
         .args([
             "--release",
             "--no-default-features",

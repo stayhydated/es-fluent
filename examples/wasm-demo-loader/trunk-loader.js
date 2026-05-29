@@ -4,7 +4,7 @@ const DEFAULT_PROGRESS_ID = "wasm-demo-progress";
 const DEFAULT_DEMO_NAME = "Web Demo";
 const DEFAULT_DEMO_DESCRIPTION = "Launching the localized demo with Trunk-managed assets.";
 
-const RUNTIME_CONFIG_SELECTOR = "link[data-trunk][data-bin][data-initializer]";
+const RUNTIME_CONFIG_SELECTOR = "link[data-trunk][data-initializer]";
 
 const LOADER_STYLES = `
 .wasm-demo-loader,

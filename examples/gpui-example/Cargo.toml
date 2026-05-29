@@ -5,6 +5,11 @@ rust-version.workspace = true
 edition.workspace = true
 license = "Unlicense"
 publish = false
+autobins = false
+
+[[example]]
+name = "gpui-example"
+path = "src/main.rs"
 
 [dependencies]
 es-fluent = { workspace = true }

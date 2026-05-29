@@ -11,7 +11,7 @@ demos_page_message-BevyBody = Try the Bevy integration running as a browser-host
 demos_page_message-BevyLabel = Live wasm
 demos_page_message-BevyTitle = Bevy example
 demos_page_message-GpuiAction = Launch demo
-demos_page_message-GpuiBody = Try the GPUI integration running as a browser-hosted wasm demo.
+demos_page_message-GpuiBody = GPUI wasm demo. WebGPU browsers only.
 demos_page_message-GpuiLabel = Live wasm
 demos_page_message-GpuiTitle = GPUI example
 

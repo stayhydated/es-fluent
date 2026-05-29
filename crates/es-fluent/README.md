@@ -17,11 +17,6 @@ This framework gives you:
 - [Language Enum Generation](../es-fluent-lang/README.md)
 - Integration via the [embedded manager](../es-fluent-manager-embedded/README.md), the [Dioxus manager](../es-fluent-manager-dioxus/README.md), or [es-fluent-manager-bevy](../es-fluent-manager-bevy/README.md) for [Bevy](https://bevy.org/)
 
-## Examples
-
-- [bevy](../../examples/bevy-example) ([online demo](https://stayhydated.github.io/es-fluent/bevy-example/))
-- [gpui](../../examples/gpui-example)
-
 ## Used in
 
 - [koruma](https://github.com/stayhydated/koruma)
