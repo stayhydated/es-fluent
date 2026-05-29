@@ -1,15 +1,13 @@
 use crate::assets::I18nAssets;
 use heck::ToPascalCase as _;
+use path_slash::PathExt as _;
 use proc_macro::TokenStream;
 use quote::quote;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 struct ManagerPaths {
     manager_core_path: proc_macro2::TokenStream,
     langid_path: proc_macro2::TokenStream,
-    inventory_path: proc_macro2::TokenStream,
-    rust_embed_path: proc_macro2::TokenStream,
-    rust_embed_attr_path: &'static str,
     module_data_suffix: &'static str,
 }
 
@@ -18,9 +16,6 @@ impl ManagerPaths {
         Self {
             manager_core_path: quote! { ::es_fluent_manager_embedded::__manager_core },
             langid_path: quote! { ::es_fluent_manager_embedded::__unic_langid },
-            inventory_path: quote! { ::es_fluent_manager_embedded::__inventory },
-            rust_embed_path: quote! { ::es_fluent_manager_embedded::__rust_embed },
-            rust_embed_attr_path: "::es_fluent_manager_embedded::__rust_embed",
             module_data_suffix: "EMBEDDED_I18N_MODULE_DATA",
         }
     }
@@ -29,9 +24,6 @@ impl ManagerPaths {
         Self {
             manager_core_path: quote! { ::es_fluent_manager_bevy::__manager_core },
             langid_path: quote! { ::es_fluent_manager_bevy::__unic_langid },
-            inventory_path: quote! { ::es_fluent_manager_bevy::__inventory },
-            rust_embed_path: quote! { ::es_fluent_manager_bevy::__rust_embed },
-            rust_embed_attr_path: "::es_fluent_manager_bevy::__rust_embed",
             module_data_suffix: "BEVY_I18N_MODULE_DATA",
         }
     }
@@ -40,10 +32,7 @@ impl ManagerPaths {
         Self {
             manager_core_path: quote! { ::es_fluent_manager_dioxus::__manager_core },
             langid_path: quote! { ::es_fluent_manager_dioxus::__unic_langid },
-            inventory_path: quote! { ::es_fluent_manager_dioxus::__inventory },
-            rust_embed_path: quote! { ::es_fluent_manager_dioxus::__rust_embed },
-            rust_embed_attr_path: "::es_fluent_manager_dioxus::__rust_embed",
-            module_data_suffix: "DIOXUS_I18N_MODULE_DATA",
+            module_data_suffix: "DIOXUS_I18N_ASSET_MODULE_DATA",
         }
     }
 }
@@ -56,12 +45,12 @@ type ModuleTokenGenerator = fn(
     &ManagerPaths,
 ) -> syn::Result<TokenStream>;
 
-fn reject_unexpected_input(input: TokenStream) -> Option<TokenStream> {
+fn reject_unexpected_input(input: TokenStream, macro_name: &str) -> Option<TokenStream> {
     (!input.is_empty()).then(|| {
         TokenStream::from(
             syn::Error::new(
                 proc_macro2::Span::call_site(),
-                "`define_i18n_module!` does not accept arguments",
+                format!("`{macro_name}` does not accept arguments"),
             )
             .to_compile_error(),
         )
@@ -115,7 +104,7 @@ fn expand_define_i18n_module(
 }
 
 pub(crate) fn define_embedded_i18n_module(input: TokenStream) -> TokenStream {
-    if let Some(error) = reject_unexpected_input(input) {
+    if let Some(error) = reject_unexpected_input(input, "define_i18n_module!") {
         return error;
     }
 
@@ -123,7 +112,7 @@ pub(crate) fn define_embedded_i18n_module(input: TokenStream) -> TokenStream {
 }
 
 pub(crate) fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
-    if let Some(error) = reject_unexpected_input(input) {
+    if let Some(error) = reject_unexpected_input(input, "define_i18n_module!") {
         return error;
     }
 
@@ -131,11 +120,11 @@ pub(crate) fn define_bevy_i18n_module(input: TokenStream) -> TokenStream {
 }
 
 pub(crate) fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {
-    if let Some(error) = reject_unexpected_input(input) {
+    if let Some(error) = reject_unexpected_input(input, "define_i18n_module!") {
         return error;
     }
 
-    expand_define_i18n_module(ManagerPaths::dioxus(), generate_embedded_tokens)
+    expand_define_i18n_module(ManagerPaths::dioxus(), generate_dioxus_asset_loader_tokens)
 }
 
 fn generate_embedded_tokens(
@@ -162,13 +151,13 @@ fn generate_embedded_tokens(
     );
 
     let i18n_root_str = utf8_folder_literal(&assets.root_path)?;
-    let rust_embed_path = &manager_paths.rust_embed_path;
+    let rust_embed_path = quote! { ::es_fluent_manager_embedded::__rust_embed };
     let rust_embed_attr_path = syn::LitStr::new(
-        manager_paths.rust_embed_attr_path,
+        "::es_fluent_manager_embedded::__rust_embed",
         proc_macro2::Span::call_site(),
     );
     let manager_core_path = &manager_paths.manager_core_path;
-    let inventory_path = &manager_paths.inventory_path;
+    let inventory_path = quote! { ::es_fluent_manager_embedded::__inventory };
 
     let expanded = quote! {
         #[derive(#rust_embed_path::RustEmbed)]
@@ -228,7 +217,7 @@ fn generate_bevy_tokens(
         .resource_plan_match_arms(&manager_paths.manager_core_path, &manager_paths.langid_path);
     let manager_core_path = &manager_paths.manager_core_path;
     let langid_path = &manager_paths.langid_path;
-    let inventory_path = &manager_paths.inventory_path;
+    let inventory_path = quote! { ::es_fluent_manager_bevy::__inventory };
 
     let expanded = quote! {
         #module_data_static
@@ -267,6 +256,149 @@ fn generate_bevy_tokens(
     Ok(TokenStream::from(expanded))
 }
 
+fn generate_dioxus_asset_loader_tokens(
+    crate_name: String,
+    assets: I18nAssets,
+    module_data_name: syn::Ident,
+    module_data_static: proc_macro2::TokenStream,
+    manager_paths: &ManagerPaths,
+) -> syn::Result<TokenStream> {
+    let resources_name = syn::Ident::new(
+        &format!(
+            "{}_DIOXUS_I18N_ASSET_RESOURCES",
+            &crate_name.to_uppercase().replace('-', "_")
+        ),
+        proc_macro2::Span::call_site(),
+    );
+    let module_instance_name = syn::Ident::new(
+        &format!(
+            "{}_DIOXUS_I18N_ASSET_MODULE",
+            &crate_name.to_uppercase().replace('-', "_")
+        ),
+        proc_macro2::Span::call_site(),
+    );
+    let modules_name = syn::Ident::new(
+        &format!(
+            "{}_DIOXUS_I18N_ASSET_MODULES",
+            &crate_name.to_uppercase().replace('-', "_")
+        ),
+        proc_macro2::Span::call_site(),
+    );
+    let manager_core_path = &manager_paths.manager_core_path;
+    let langid_path = &manager_paths.langid_path;
+    let manager_path = quote! { ::es_fluent_manager_dioxus };
+    let asset_tokens = dioxus_asset_resource_tokens(&assets, manager_paths)?;
+
+    let expanded = quote! {
+        #module_data_static
+
+        static #resources_name: &[#manager_path::DioxusI18nAssetResource] = &[
+            #(#asset_tokens),*
+        ];
+
+        static #module_instance_name: #manager_path::DioxusI18nAssetModule =
+            #manager_path::DioxusI18nAssetModule::new(
+                &#module_data_name,
+                #resources_name,
+            );
+
+        static #modules_name: &[& #manager_path::DioxusI18nAssetModule] =
+            &[&#module_instance_name];
+
+        pub const fn dioxus_i18n_asset_modules() -> #manager_path::DioxusI18nAssetModules {
+            #manager_path::DioxusI18nAssetModules::new(#modules_name)
+        }
+
+        pub async fn load_dioxus_i18n_assets<L>(
+            initial_language: L,
+        ) -> ::std::result::Result<
+            #manager_path::DioxusAssetI18n,
+            #manager_path::DioxusAssetLoadError,
+        >
+        where
+            L: ::std::convert::Into<#langid_path::LanguageIdentifier>,
+        {
+            load_dioxus_i18n_assets_with_policy(
+                initial_language,
+                #manager_core_path::LanguageSelectionPolicy::BestEffort,
+            ).await
+        }
+
+        pub async fn load_dioxus_i18n_assets_with_policy<L>(
+            initial_language: L,
+            selection_policy: #manager_core_path::LanguageSelectionPolicy,
+        ) -> ::std::result::Result<
+            #manager_path::DioxusAssetI18n,
+            #manager_path::DioxusAssetLoadError,
+        >
+        where
+            L: ::std::convert::Into<#langid_path::LanguageIdentifier>,
+        {
+            #manager_path::DioxusAssetI18n::load_modules(
+                dioxus_i18n_asset_modules(),
+                initial_language,
+                selection_policy,
+            ).await
+        }
+    };
+
+    Ok(TokenStream::from(expanded))
+}
+
+fn dioxus_asset_resource_tokens(
+    assets: &I18nAssets,
+    manager_paths: &ManagerPaths,
+) -> syn::Result<Vec<proc_macro2::TokenStream>> {
+    let manager_path = quote! { ::es_fluent_manager_dioxus };
+    let langid_path = &manager_paths.langid_path;
+    let mut tokens = Vec::new();
+
+    for (language, specs) in &assets.resource_specs_by_language {
+        for spec in specs {
+            let key = &spec.key;
+            let locale_relative_path = &spec.locale_relative_path;
+            let required = spec.required;
+            let asset_path = dioxus_asset_path(&assets.root_path, language, locale_relative_path)?;
+
+            tokens.push(quote! {
+                #manager_path::DioxusI18nAssetResource::new(
+                    #langid_path::langid!(#language),
+                    #key,
+                    #locale_relative_path,
+                    #required,
+                    {
+                        #[allow(unused_imports)]
+                        use #manager_path::__dioxus::prelude::manganis;
+                        #manager_path::__dioxus::prelude::asset!(#asset_path)
+                    },
+                )
+            });
+        }
+    }
+
+    Ok(tokens)
+}
+
+fn dioxus_asset_path(
+    assets_root: &Path,
+    language: &str,
+    locale_relative_path: &str,
+) -> syn::Result<syn::LitStr> {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .map_err(|_| crate::assets::macro_error("CARGO_MANIFEST_DIR must be set"))?;
+    let relative_root = assets_root.strip_prefix(&manifest_dir).map_err(|_| {
+        crate::assets::macro_error(format!(
+            "Dioxus asset loader requires assets_dir to be inside the crate root: {:?}",
+            assets_root
+        ))
+    })?;
+    let path = relative_root.join(language).join(locale_relative_path);
+    let path = format!("/{}", path.to_slash_lossy().trim_start_matches('/'));
+
+    Ok(syn::LitStr::new(&path, proc_macro2::Span::call_site()))
+}
+
 fn utf8_folder_literal(path: &Path) -> syn::Result<syn::LitStr> {
     let path = path.to_str().ok_or_else(|| {
         syn::Error::new(
@@ -283,6 +415,7 @@ fn utf8_folder_literal(path: &Path) -> syn::Result<syn::LitStr> {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::{ffi::OsString, os::unix::ffi::OsStringExt as _, path::PathBuf};
 
     #[test]
@@ -291,5 +424,39 @@ mod tests {
         let err = utf8_folder_literal(&path).expect_err("non-UTF-8 paths should be rejected");
 
         assert!(err.to_string().contains("valid UTF-8"));
+    }
+
+    #[test]
+    #[serial(manifest)]
+    fn dioxus_asset_path_formats_package_relative_paths() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let manifest_dir = temp.path();
+
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest_dir), || {
+            let path = dioxus_asset_path(
+                &manifest_dir.join("assets/locales"),
+                "en-US",
+                "example/ui.ftl",
+            )
+            .expect("package-local asset path");
+
+            assert_eq!(path.value(), "/assets/locales/en-US/example/ui.ftl");
+        });
+    }
+
+    #[test]
+    #[serial(manifest)]
+    fn dioxus_asset_path_rejects_assets_outside_package_root() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let manifest_dir = temp.path().join("package");
+        std::fs::create_dir(&manifest_dir).expect("manifest dir");
+
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some(&manifest_dir), || {
+            let err =
+                dioxus_asset_path(&temp.path().join("outside-locales"), "en-US", "example.ftl")
+                    .expect_err("outside assets should be rejected");
+
+            assert!(err.to_string().contains("inside the crate root"));
+        });
     }
 }

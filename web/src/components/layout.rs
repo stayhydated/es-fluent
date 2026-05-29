@@ -9,7 +9,7 @@ use dioxus::router::{navigator, try_router};
 
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
-    let i18n = match es_fluent_manager_dioxus::use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { header { class: "page-header", "failed: {error}" } },
     };
@@ -114,7 +114,7 @@ fn ExternalNavLink(href: String, class: String, label: String) -> Element {
 
 #[component]
 fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
-    let i18n = match es_fluent_manager_dioxus::use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "locale-switcher-dropdown", "failed: {error}" } },
     };
@@ -147,7 +147,7 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
 
 #[component]
 pub(crate) fn FooterPanel() -> Element {
-    let i18n = match es_fluent_manager_dioxus::use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { footer { class: "site-footer", "failed: {error}" } },
     };

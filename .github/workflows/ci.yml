@@ -74,8 +74,43 @@ jobs:
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client
           - name: ssr-test
             command: cargo test -p es-fluent-manager-dioxus --no-default-features --features ssr
+          - name: client-ssr-test
+            command: cargo test -p es-fluent-manager-dioxus --no-default-features --features client,ssr
           - name: client-wasm-check
             command: cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Setup mold
+        uses: rui314/setup-mold@v1
+
+      - name: Install Linux dependencies
+        uses: ./.github/actions/install-linux-deps
+
+      - name: Run check
+        run: ${{ matrix.command }}
+
+  dioxus-integration-surface:
+    name: dioxus integration surface (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core
+            command: cargo test -p es-fluent-manager-core
+          - name: web-server
+            command: cargo test -p web --features server
+          - name: web-client
+            command: cargo check -p web --features web
 
     steps:
       - uses: actions/checkout@v6

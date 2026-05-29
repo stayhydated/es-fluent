@@ -26,12 +26,15 @@ Used by `es-fluent-manager-dioxus`.
 
 1. **Scans**: The configured `assets_dir` from `i18n.toml`.
 1. **Generates**:
-   - The same `RustEmbed`-backed module registration shape used by the embedded
-     manager.
-   - Static `ModuleData` listing supported canonical locale directories and discovered namespace paths.
-   - The same embedded resource-plan semantics as `define_embedded_i18n_module!`.
-   - `inventory::submit!` block to register an embedded runtime localizer for
-     Dioxus client and SSR integrations.
+   - Static `ModuleData` with the same supported-language and namespace metadata.
+   - One `DioxusI18nAssetResource` entry per discovered FTL file, using Dioxus
+     `asset!` to register package-local files with the Dioxus asset pipeline.
+   - A static `DioxusI18nAssetModule`, a static module-set slice exposed through
+     generated `dioxus_i18n_asset_modules()`, and generated
+     `load_dioxus_i18n_assets(...)` helpers that asynchronously read resources
+     with `dioxus::asset_resolver::read_asset_bytes`.
+   - No `inventory::submit!` block; this path is loaded explicitly because
+     Dioxus asset resolution is asynchronous.
 
 ### `define_bevy_i18n_module!`
 

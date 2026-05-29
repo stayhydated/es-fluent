@@ -42,6 +42,24 @@ mod tests {
 
     #[test]
     #[serial]
+    fn localizes_language_select_labels() {
+        let runtime = es_fluent_manager_dioxus::ssr::SsrI18nRuntime::new(
+            crate::site::i18n::dioxus_i18n_asset_modules(),
+        );
+        let i18n = runtime
+            .request_blocking(SiteLanguage::EnUs.lang())
+            .expect("SSR i18n should initialize");
+
+        let english = i18n.localize_message(&SiteLanguage::EnUs);
+        let chinese = i18n.localize_message(&SiteLanguage::ZhCn);
+
+        assert!(!english.starts_with("es-fluent-lang-"));
+        assert!(!chinese.starts_with("es-fluent-lang-"));
+        assert_ne!(english, chinese);
+    }
+
+    #[test]
+    #[serial]
     fn renders_simplified_chinese_demos_page() {
         let html = crate::site::render::render_route_body(SiteRoute::new(
             SiteLanguage::ZhCn,

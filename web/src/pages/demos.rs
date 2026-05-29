@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 #[component]
 pub(crate) fn DemosPage(locale: SiteLanguage) -> Element {
     let demos_style = crate::components::use_reveal_style(0, 24.0);
-    let i18n = match es_fluent_manager_dioxus::use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "page-shell", "failed: {error}" } },
     };

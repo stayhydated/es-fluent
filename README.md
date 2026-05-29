@@ -53,8 +53,7 @@ es-fluent-manager-embedded = "0.16"
 # For Dioxus apps, enable only the runtime surface you use.
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
-# Browser WASM debug builds that use define_i18n_module! should add "debug-embed".
-# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "debug-embed"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
 # For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
 # es-fluent-manager-bevy = "0.18.13"
@@ -159,11 +158,13 @@ fn main() -> Result<(), String> {
 For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
 hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a
-request-scoped runtime. Dioxus code should use
-`DioxusI18n::localize_message(...)`, `ManagedI18n::localize_message(...)`, or
-typed label helpers through the component or SSR request context.
-Dioxus does not use the generic embedded localizer handle or install a
-process-wide localizer.
+request-scoped runtime. Dioxus translations are loaded through generated
+Dioxus asset modules; pass `dioxus_i18n_asset_modules()` to the provider or SSR
+runtime. Dioxus code should use
+`DioxusAssetI18nHandle::localize_message(...)` or typed label helpers through
+the component or SSR request context.
+Runtime follower modules such as `es-fluent-lang` language labels are
+discovered automatically and follow the selected asset-backed locale.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
 `SystemParam` and call `localize_message(...)` on it. The plugin also exposes
 `RequestedLanguageId` and `ActiveLanguageId` for systems that need to

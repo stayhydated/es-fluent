@@ -76,6 +76,15 @@ fn load_runtime_modules(
     modules
 }
 
+fn load_runtime_follower_modules(
+    discovered_modules: Vec<&'static dyn I18nModuleRegistration>,
+) -> Vec<&'static dyn I18nModuleRegistration> {
+    load_runtime_modules(discovered_modules)
+        .into_iter()
+        .filter(|module| !module.contributes_to_language_selection())
+        .collect()
+}
+
 fn unexpected_missing_localizer(module: &ModuleData) -> crate::localization::LocalizationError {
     io::Error::other(format!(
         "runtime i18n module '{}' did not create a localizer during language selection",
@@ -184,6 +193,24 @@ impl FluentManager {
 
         Ok(DiscoveredRuntimeI18nModules {
             modules: load_runtime_modules(discovered_modules).into(),
+        })
+    }
+
+    /// Discovers runtime-capable modules that follow another backend's locale.
+    ///
+    /// These modules provide runtime lookup but do not count as application
+    /// content support. Asset-backed integrations use this for utility modules
+    /// such as typed language labels.
+    pub fn try_discover_runtime_follower_modules()
+    -> Result<DiscoveredRuntimeI18nModules, Vec<ModuleDiscoveryError>> {
+        let discovered_modules = super::try_filter_module_registry(
+            inventory::iter::<&'static dyn I18nModuleRegistration>()
+                .copied()
+                .collect::<Vec<_>>(),
+        )?;
+
+        Ok(DiscoveredRuntimeI18nModules {
+            modules: load_runtime_follower_modules(discovered_modules).into(),
         })
     }
 
@@ -658,6 +685,18 @@ mod tests {
 
         assert_eq!(modules.len(), 1);
         assert_eq!(modules[0].data().name, "manager-inline-runtime");
+    }
+
+    #[test]
+    fn load_runtime_follower_modules_keeps_only_non_selecting_registrations() {
+        let modules = load_runtime_follower_modules(vec![
+            &MANAGER_INLINE_METADATA as &dyn I18nModuleRegistration,
+            &MANAGER_INLINE_RUNTIME as &dyn I18nModuleRegistration,
+            &MANAGER_INLINE_FOLLOWER as &dyn I18nModuleRegistration,
+        ]);
+
+        assert_eq!(modules.len(), 1);
+        assert_eq!(modules[0].data().name, "manager-inline-follower");
     }
 
     #[test]

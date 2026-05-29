@@ -22,6 +22,9 @@ runtime integrations.
   discovery for integrations that need many request-local managers without
   repeating inventory validation. Metadata-only registrations are validated but
   are not stored in this cache.
+- `FluentManager::try_discover_runtime_follower_modules()`: discovers only
+  runtime modules that follow another backend's selected locale without
+  counting as locale support.
 - `LanguageSelectionPolicy` plus `FluentManager::select_language_strict()`: choose
   between best-effort locale switching and transactional switching
 - `I18nModule` and `I18nModuleRegistration`: discovery and registration contracts

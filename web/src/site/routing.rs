@@ -7,7 +7,7 @@ use dioxus::cli_config;
 use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent_lang::LanguageIdentifier;
-use es_fluent_manager_dioxus::DioxusI18n;
+use es_fluent_manager_dioxus::DioxusAssetI18nHandle;
 use std::fmt::{self, Display};
 use std::path::Path;
 use std::str::FromStr;
@@ -34,7 +34,7 @@ impl PageKind {
         }
     }
 
-    pub(crate) fn title(self, i18n: &DioxusI18n) -> String {
+    pub(crate) fn title(self, i18n: &DioxusAssetI18nHandle) -> String {
         match self {
             Self::Home => i18n.localize_message(&PageMetadataMessage::HomeTitle),
             Self::Demos => i18n.localize_message(&PageMetadataMessage::DemosTitle),
@@ -43,7 +43,7 @@ impl PageKind {
         }
     }
 
-    pub(crate) fn description(self, i18n: &DioxusI18n) -> String {
+    pub(crate) fn description(self, i18n: &DioxusAssetI18nHandle) -> String {
         match self {
             Self::Home => i18n.localize_message(&HomeHeroMessage::Body),
             Self::Demos => i18n.localize_message(&DemosPageMessage::BevyBody),
@@ -277,7 +277,7 @@ fn contains_generated_route_cache(dir: &Path) -> bool {
 }
 
 fn route_element(route: SiteRoute) -> Element {
-    let i18n = match es_fluent_manager_dioxus::use_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
         Ok(i18n) => i18n,
         Err(error) => {
             return rsx!(DevErrorPage {

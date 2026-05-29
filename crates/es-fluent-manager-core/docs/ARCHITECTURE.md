@@ -93,6 +93,8 @@ Unified inventory contract used by managers.
 - `contributes_to_language_selection()` lets runtime utility modules follow
   successful locale switches without counting as content support for best-effort
   locale selection.
+- `try_discover_runtime_follower_modules()` gives asset-backed integrations the
+  non-selecting subset for utility lookups such as language labels.
 - `FluentManager::select_language_for_supported_locale()` lets integrations
   commit runtime utility modules after another backend has already proved
   application locale support.

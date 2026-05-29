@@ -10,8 +10,8 @@ Use this reference to choose the crate or integration surface before writing cod
 | Generate/check/format/sync FTL | `cargo es-fluent` from `es-fluent-cli` | Use from crate or workspace root. Inventory comes from library targets. |
 | Track locale asset rebuilds from `build.rs` | `es-fluent-build` in `[build-dependencies]` | Call `es_fluent_build::track_i18n_assets()` when manager macros scan locale assets at compile time. |
 | General Rust runtime, CLI, TUI, desktop, GPUI-style apps | `es-fluent-manager-embedded` | Embeds FTL files and returns explicit `EmbeddedI18n` handles. |
-| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `I18nProvider`, `use_i18n`, `DioxusI18n::localize_message`. Add `debug-embed` for browser WASM debug builds using `define_i18n_module!`. |
-| Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create one `SsrI18nRuntime`, then one `SsrI18n` per request. |
+| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, pass generated `dioxus_i18n_asset_modules()` to `DioxusAssetI18nProvider`, and localize through `use_asset_i18n()`. |
+| Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create `SsrI18nRuntime::new(dioxus_i18n_asset_modules())`, then one `SsrI18n` per request. |
 | Bevy ECS/assets | `es-fluent-manager-bevy` | Add `I18nPlugin`, use `FluentText<T>`, `BevyFluentText`, and `BevyI18n`. |
 | Typed language picker | `es-fluent-lang` | Use `#[es_fluent_language]` on an empty enum discovered from locale folders. |
 
@@ -28,6 +28,7 @@ es-fluent-manager-embedded = "0.16"
 # Dioxus
 es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
 es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
 # Bevy
 es-fluent-manager-bevy = "0.18.13"
@@ -99,12 +100,15 @@ Client apps localize through Dioxus context:
 ```rust
 use dioxus::prelude::*;
 use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
-use es_fluent_manager_dioxus::{I18nProvider, use_i18n};
+use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_asset_i18n};
 use unic_langid::langid;
+
+use crate::i18n::dioxus_i18n_asset_modules;
 
 fn app() -> Element {
     rsx! {
-        I18nProvider {
+        DioxusAssetI18nProvider {
+            modules: dioxus_i18n_asset_modules(),
             initial_language: langid!("en"),
             LocaleButton {}
         }
@@ -120,9 +124,9 @@ enum UiMessage {
 
 #[component]
 fn LocaleButton() -> Element {
-    let i18n = match use_i18n() {
+    let i18n = match use_asset_i18n() {
         Ok(i18n) => i18n,
-        Err(error) => return rsx! { "Failed to initialize i18n: {error}" },
+        Err(error) => return rsx! { "Missing i18n context: {error}" },
     };
     let label = i18n.localize_message(&UiMessage::Hello);
     let title = UiMessage::localize_label(&i18n);
@@ -139,6 +143,8 @@ use es_fluent::EsFluent;
 use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 use unic_langid::langid;
 
+use crate::i18n::dioxus_i18n_asset_modules;
+
 #[derive(Clone, Copy, EsFluent)]
 #[fluent(namespace = "site")]
 enum SiteMessage {
@@ -151,14 +157,20 @@ fn App(i18n: SsrI18n) -> Element {
     rsx! { div { "{title}" } }
 }
 
-fn render(runtime: &SsrI18nRuntime) -> Result<String, Box<dyn std::error::Error>> {
-    let i18n = runtime.request(langid!("en"))?;
+async fn render() -> Result<String, Box<dyn std::error::Error>> {
+    let runtime = SsrI18nRuntime::new(dioxus_i18n_asset_modules());
+    let i18n = runtime.request(langid!("en")).await?;
     let mut dom = VirtualDom::new_with_props(App, AppProps { i18n: i18n.clone() });
     Ok(i18n.rebuild_and_render(&mut dom))
 }
 ```
 
-Dioxus does not use a process-wide localizer. Route locale switches through `DioxusI18n::select_language(...)` or `SsrI18nRuntime::request(...)`.
+Route locale switches through `DioxusAssetI18nHandle::select_language(...)`.
+Dioxus asset loading is async, so `DioxusAssetI18nProvider` owns
+loading/failure rendering on the client and `SsrI18nRuntime::request(...)` is
+async on the server. Application translations come from the generated Dioxus
+asset modules; runtime follower modules such as `es-fluent-lang` language
+labels are discovered automatically.
 
 ## Bevy Manager
 

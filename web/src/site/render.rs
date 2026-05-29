@@ -3,6 +3,8 @@
 use crate::site::constants::SITE_URL;
 
 #[cfg(test)]
+use crate::site::i18n::dioxus_i18n_asset_modules;
+#[cfg(test)]
 use crate::site::routing::SiteRoute;
 #[cfg(test)]
 use anyhow::{Context as _, Result};
@@ -14,16 +16,15 @@ use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 #[cfg(test)]
 #[component]
 fn SsrI18nProvider(i18n: SsrI18n, children: Element) -> Element {
-    i18n.provide_context()
-        .expect("SSR i18n context should be ready");
+    let _i18n = i18n.provide_context();
     children
 }
 
 #[cfg(test)]
 pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
-    let runtime = SsrI18nRuntime::new();
+    let runtime = SsrI18nRuntime::new(dioxus_i18n_asset_modules());
     let i18n = runtime
-        .request(route.locale.lang())
+        .request_blocking(route.locale.lang())
         .context("failed to initialize the Dioxus SSR localizer")?;
 
     Ok(i18n.render_element(rsx! {

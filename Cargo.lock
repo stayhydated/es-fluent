@@ -5118,6 +5118,7 @@ dependencies = [
 name = "es-fluent-manager-dioxus"
 version = "0.7.0"
 dependencies = [
+ "dioxus",
  "dioxus-core",
  "dioxus-core-macro",
  "dioxus-hooks",
@@ -5125,8 +5126,11 @@ dependencies = [
  "dioxus-signals",
  "dioxus-ssr",
  "es-fluent",
+ "es-fluent-lang",
  "es-fluent-manager-core",
  "es-fluent-manager-macros",
+ "fluent-bundle",
+ "futures",
  "parking_lot",
  "serial_test",
  "tracing",
