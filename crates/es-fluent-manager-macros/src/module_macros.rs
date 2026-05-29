@@ -61,15 +61,8 @@ fn expand_define_i18n_module_tokens(
     manager_paths: ManagerPaths,
     generate_tokens: ModuleTokenGenerator,
 ) -> syn::Result<proc_macro2::TokenStream> {
-    let crate_name = match crate::assets::current_crate_name() {
-        Ok(name) => name,
-        Err(err) => return Err(err),
-    };
-
-    let assets = match I18nAssets::load(&crate_name) {
-        Ok(assets) => assets,
-        Err(err) => return Err(err),
-    };
+    let crate_name = crate::assets::current_crate_name()?;
+    let assets = I18nAssets::load(&crate_name)?;
 
     let language_identifiers = assets.language_identifier_tokens(&manager_paths.langid_path);
     let namespace_strings = assets.namespace_tokens();

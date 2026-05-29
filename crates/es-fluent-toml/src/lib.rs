@@ -121,12 +121,13 @@ impl FluentFeature {
 
 /// The configuration for `es-fluent`.
 #[derive(bon::Builder, Clone, Debug, Deserialize, Serialize)]
-#[builder(on(String, into), on(PathBuf, into))]
 pub struct I18nConfig {
     /// The fallback language identifier (e.g., "en-US").
+    #[builder(into)]
     pub fallback_language: String,
     /// Path to the assets directory containing translation files.
     /// Expected structure: {assets_dir}/{language}/{domain}.ftl
+    #[builder(into)]
     pub assets_dir: PathBuf,
     /// Optional feature flag(s) that enable es-fluent derives in the crate.
     /// If specified, the CLI will enable these features when generating FTL files.

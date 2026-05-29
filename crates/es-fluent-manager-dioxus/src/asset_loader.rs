@@ -175,8 +175,8 @@ async fn read_dioxus_asset_bytes(asset: &Asset) -> Result<Vec<u8>, String> {
     #[cfg(not(target_arch = "wasm32"))]
     {
         let path = asset.resolve();
-        return std::fs::read(&path)
-            .map_err(|error| format!("failed to read Dioxus asset '{}': {error}", path.display()));
+        std::fs::read(&path)
+            .map_err(|error| format!("failed to read Dioxus asset '{}': {error}", path.display()))
     }
 
     #[cfg(target_arch = "wasm32")]

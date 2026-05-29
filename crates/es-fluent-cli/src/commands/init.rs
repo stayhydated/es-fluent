@@ -71,14 +71,15 @@ impl InitDioxusRuntime {
 
 /// Arguments for the init command.
 #[derive(bon::Builder, Debug, Parser)]
-#[builder(on(String, into), on(PathBuf, into))]
 pub struct InitArgs {
     /// Path to the crate root to initialize (defaults to current directory).
     #[arg(short, long)]
+    #[builder(into)]
     pub path: Option<PathBuf>,
 
     /// Fallback locale to write into i18n.toml and create under assets_dir.
     #[arg(long, default_value = "en")]
+    #[builder(into)]
     pub fallback_language: String,
 
     /// Additional locale directories to create.
@@ -87,6 +88,7 @@ pub struct InitArgs {
 
     /// Locale asset directory relative to the crate root.
     #[arg(long, default_value = "assets/locales")]
+    #[builder(into)]
     pub assets_dir: PathBuf,
 
     /// Namespace allowlist to write into i18n.toml.
