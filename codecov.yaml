@@ -69,11 +69,6 @@ component_management:
       paths:
         - crates/es-fluent-generate/**
 
-    # - component_id: xtask
-    #   name: "xtask"
-    #   paths:
-    #     - xtask/**
-
 coverage:
   precision: 2
   round: down
