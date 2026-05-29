@@ -14,6 +14,9 @@ demos_page_message-GpuiAction = Launch demo
 demos_page_message-GpuiBody = Try the GPUI integration running as a browser-hosted wasm demo.
 demos_page_message-GpuiLabel = Live wasm
 demos_page_message-GpuiTitle = GPUI example
+
+## GpuiPageMessage
+
 gpui_page_message-BackToDemos = Back to demos
 gpui_page_message-Lead = The fullscreen GPUI scene is served as a browser-hosted wasm app from inside the docs site.
 gpui_page_message-Title = GPUI example
