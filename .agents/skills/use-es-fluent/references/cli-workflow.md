@@ -91,7 +91,7 @@ cargo es-fluent clean --orphaned --all
 Inspect layout and message IDs:
 
 ```sh
-cargo es-fluent tree --all --variables
+cargo es-fluent tree --all
 ```
 
 Diagnose setup:

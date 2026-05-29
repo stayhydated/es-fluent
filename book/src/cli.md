@@ -200,8 +200,8 @@ cargo es-fluent tree
 ```
 
 Use `--all` to show all locales instead of just the fallback language. Use
-`--attributes` to include message and term attributes, and `--variables` to
-list the Fluent variables referenced by each entry.
+`--no-attributes` to hide message and term attributes, and `--no-variables` to
+hide the Fluent variables referenced by each entry.
 
 ### Doctor
 

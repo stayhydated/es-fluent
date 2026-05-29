@@ -377,8 +377,8 @@ mod tests {
             dispatch(Commands::Tree(TreeArgs {
                 workspace,
                 all: false,
-                attributes: false,
-                variables: false,
+                attributes: true,
+                variables: true,
                 output: OutputFormat::Text,
             }))
             .is_ok()

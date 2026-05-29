@@ -8,7 +8,7 @@ use crate::core::CliError;
 use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::utils::ui;
 use anyhow::Result;
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use colored::Colorize as _;
 use fluent_syntax::ast;
 use serde::Serialize;
@@ -126,12 +126,12 @@ pub struct TreeArgs {
     #[arg(long)]
     pub all: bool,
 
-    /// Show attributes under each message.
-    #[arg(long)]
+    /// Hide attributes under each message.
+    #[arg(long = "no-attributes", action = ArgAction::SetFalse, default_value_t = true)]
     pub attributes: bool,
 
-    /// Show variables used in each message.
-    #[arg(long)]
+    /// Hide variables used in each message.
+    #[arg(long = "no-variables", action = ArgAction::SetFalse, default_value_t = true)]
     pub variables: bool,
 
     /// Output format.
@@ -418,6 +418,21 @@ mod tests {
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }
+    }
+
+    #[test]
+    fn tree_args_show_attributes_and_variables_by_default() {
+        let default = TreeArgs::try_parse_from(["tree"]).expect("default tree args parse");
+        assert!(default.attributes);
+        assert!(default.variables);
+
+        let hidden = TreeArgs::try_parse_from(["tree", "--no-attributes", "--no-variables"])
+            .expect("negative detail flags parse");
+        assert!(!hidden.attributes);
+        assert!(!hidden.variables);
+
+        assert!(TreeArgs::try_parse_from(["tree", "--attributes"]).is_err());
+        assert!(TreeArgs::try_parse_from(["tree", "--variables"]).is_err());
     }
 
     #[test]
