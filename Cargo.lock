@@ -13973,8 +13973,6 @@ version = "0.16.0"
 dependencies = [
  "anyhow",
  "dioxus",
- "dioxus-free-icons",
- "dioxus-primitives",
  "dioxus-server",
  "es-fluent",
  "es-fluent-build",
