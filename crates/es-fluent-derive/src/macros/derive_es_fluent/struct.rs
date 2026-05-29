@@ -57,6 +57,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
             namer::rust_ident_name(original_ident),
             ftl_key,
             arg_names,
+            original_ident.span(),
         );
 
         crate::macros::utils::generate_inventory_module(InventoryModuleInput {

@@ -1,5 +1,5 @@
-use proc_macro2::TokenStream;
-use quote::quote;
+use proc_macro2::{Span, TokenStream};
+use quote::{quote, quote_spanned};
 use syn::Ident;
 
 pub(crate) struct FluentArgument {
@@ -63,6 +63,7 @@ pub(crate) struct InventoryVariantSpec {
     pub(crate) name: String,
     pub(crate) ftl_key: String,
     pub(crate) arg_names: Vec<String>,
+    pub(crate) source_span: Span,
 }
 
 impl InventoryVariantSpec {
@@ -70,6 +71,7 @@ impl InventoryVariantSpec {
         let name = &self.name;
         let ftl_key = &self.ftl_key;
         let args_tokens: Vec<_> = self.arg_names.iter().map(|arg| quote! { #arg }).collect();
+        let source_line = quote_spanned! { self.source_span=> line!() };
 
         quote! {
             ::es_fluent::registry::FtlVariant {
@@ -77,7 +79,7 @@ impl InventoryVariantSpec {
                 ftl_key: #ftl_key,
                 args: &[#(#args_tokens),*],
                 module_path: module_path!(),
-                line: line!(),
+                line: #source_line,
             }
         }
     }
@@ -107,6 +109,7 @@ impl GeneratedUnitEnumVariant {
             name: es_fluent_shared::namer::rust_ident_name(&self.ident),
             ftl_key: self.ftl_key.clone(),
             arg_names: Vec::new(),
+            source_span: self.ident.span(),
         }
         .tokens()
     }

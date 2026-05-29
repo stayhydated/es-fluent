@@ -120,7 +120,9 @@ The direct commands stay entirely inside `es-fluent-cli`:
 - `add-locale` is a focused wrapper over `sync --create --locale <LANG>` for
   seeding new target locales from fallback files
 - `tree` parses `.ftl` files and renders a terminal tree of messages, terms,
-  attributes, and variables
+  attributes, and variables, adding terminal hyperlinks in text mode when the
+  terminal supports them. Rust link mode collects runner inventory for source
+  locations; FTL link mode derives locations from the parsed FTL source.
 - `doctor` reads manifests and scaffolded files to report setup issues without
   running user code
 

@@ -379,6 +379,7 @@ mod tests {
                 all: false,
                 attributes: true,
                 variables: true,
+                link_mode: Default::default(),
                 output: OutputFormat::Text,
             }))
             .is_ok()

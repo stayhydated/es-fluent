@@ -71,15 +71,12 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         ]);
         validate_namespace(namespace, original_ident.span());
         let namespace_expr = crate::macros::utils::namespace_rule_tokens(namespace);
-        let label_variant = quote! {
-            ::es_fluent::registry::FtlVariant {
-                name: #type_name,
-                ftl_key: #ftl_key_str,
-                args: &[],
-                module_path: module_path!(),
-                line: line!(),
-            }
-        };
+        let label_variant = crate::macros::utils::inventory_variant_tokens(
+            type_name,
+            ftl_key_str.to_string(),
+            Vec::new(),
+            original_ident.span(),
+        );
 
         crate::macros::utils::generate_inventory_module(InventoryModuleInput {
             ident: original_ident,

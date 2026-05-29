@@ -156,11 +156,13 @@ pub fn inventory_variant_tokens(
     name: impl Into<String>,
     ftl_key: String,
     arg_names: Vec<String>,
+    source_span: proc_macro2::Span,
 ) -> TokenStream {
     InventoryVariantSpec {
         name: name.into(),
         ftl_key,
         arg_names,
+        source_span,
     }
     .tokens()
 }
@@ -228,6 +230,7 @@ pub fn generate_unit_enum_definition(
 
 pub fn generate_optional_label_inventory_module(
     ident: &syn::Ident,
+    source_span: proc_macro2::Span,
     namespace_expr: TokenStream,
     label_key: Option<&str>,
 ) -> TokenStream {
@@ -239,6 +242,7 @@ pub fn generate_optional_label_inventory_module(
         namer::rust_ident_name(ident),
         label_key.to_string(),
         Vec::new(),
+        source_span,
     );
 
     generate_inventory_module(InventoryModuleInput {
@@ -292,8 +296,12 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         label_key.as_deref(),
         domain_override,
     );
-    let label_inventory =
-        generate_optional_label_inventory_module(ident, namespace_expr, label_key.as_deref());
+    let label_inventory = generate_optional_label_inventory_module(
+        ident,
+        origin_ident.span(),
+        namespace_expr,
+        label_key.as_deref(),
+    );
 
     quote! {
         #new_enum

@@ -237,6 +237,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
                     namer::rust_ident_name(variant_ident),
                     ftl_key,
                     arg_names,
+                    variant_ident.span(),
                 )
             })
             .collect();

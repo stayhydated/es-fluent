@@ -94,6 +94,11 @@ Inspect layout and message IDs:
 cargo es-fluent tree --all
 ```
 
+In hyperlink-capable terminals, `tree` labels can be opened at their crate,
+locale, FTL file, entry, attribute, or variable source location. Message and
+variable rows link to Rust source by default; use `--link-mode ftl` for FTL
+source links.
+
 Diagnose setup:
 
 ```sh
