@@ -436,6 +436,39 @@ mod tests {
     }
 
     #[test]
+    fn embedded_i18n_strict_initialization_tracks_active_language() {
+        force_inventory_link();
+        let i18n = EmbeddedI18n::try_new_with_language_strict(langid!("en-US"))
+            .expect("strict embedded i18n should initialize");
+
+        i18n.select_language_strict(langid!("en-US"))
+            .expect("strictly selecting the active language should be a no-op");
+        assert_eq!(
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                "embedded-test-module",
+                "hello",
+                None
+            ),
+            Some("Hello".to_string())
+        );
+        assert_eq!(
+            es_fluent::FluentLocalizer::localize_in_domain(
+                &i18n,
+                "embedded-test-module",
+                "unknown",
+                None
+            ),
+            None
+        );
+
+        i18n.select_language(langid!("en-US"))
+            .expect("best-effort selection should store its own active policy");
+        i18n.select_language(langid!("en-US"))
+            .expect("best-effort selecting the active language should be a no-op");
+    }
+
+    #[test]
     fn embedded_i18n_try_new_builds_context_before_language_selection() {
         force_inventory_link();
         let i18n = EmbeddedI18n::try_new().expect("embedded i18n should initialize");

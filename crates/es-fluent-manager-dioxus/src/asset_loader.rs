@@ -896,6 +896,7 @@ fn log_asset_provider_load_error_once(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dioxus::prelude::manganis;
     #[cfg(feature = "client")]
     use dioxus_core::{Element, VirtualDom};
     #[cfg(feature = "client")]
@@ -903,6 +904,7 @@ mod tests {
     use fluent_bundle::FluentResource;
     #[cfg(feature = "client")]
     use serial_test::serial;
+    use std::error::Error as _;
     use unic_langid::{LanguageIdentifier, langid};
 
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en"), langid!("fr")];
@@ -912,6 +914,60 @@ mod tests {
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
+    static FALLBACK_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("en")];
+    static FALLBACK_DATA: ModuleData = ModuleData {
+        name: "fallback-app",
+        domain: "fallback-app",
+        supported_languages: FALLBACK_LANGUAGES,
+        namespaces: &[],
+    };
+    static DUPLICATE_RESOURCE_DATA: ModuleData = ModuleData {
+        name: "duplicate-resource-app",
+        domain: "duplicate-resource-app",
+        supported_languages: &[langid!("en")],
+        namespaces: &["ui"],
+    };
+    static ASSET_DATA: ModuleData = ModuleData {
+        name: "asset-test",
+        domain: "asset-test",
+        supported_languages: SUPPORTED_LANGUAGES,
+        namespaces: &[],
+    };
+    static INVALID_ASSET_DATA: ModuleData = ModuleData {
+        name: "invalid-asset-test",
+        domain: "invalid-asset-test",
+        supported_languages: &[langid!("en")],
+        namespaces: &[],
+    };
+    static ASSET_RESOURCES: &[DioxusI18nAssetResource] = &[
+        DioxusI18nAssetResource::new(
+            langid!("en"),
+            "asset-test",
+            "asset-test.ftl",
+            true,
+            dioxus::prelude::asset!("/tests/fixtures/dioxus_i18n/en/asset-test.ftl"),
+        ),
+        DioxusI18nAssetResource::new(
+            langid!("fr"),
+            "asset-test",
+            "asset-test.ftl",
+            true,
+            dioxus::prelude::asset!("/tests/fixtures/dioxus_i18n/fr/asset-test.ftl"),
+        ),
+    ];
+    static ASSET_MODULE: DioxusI18nAssetModule =
+        DioxusI18nAssetModule::new(&ASSET_DATA, ASSET_RESOURCES);
+    static ASSET_MODULES: &[&DioxusI18nAssetModule] = &[&ASSET_MODULE];
+    static INVALID_ASSET_RESOURCES: &[DioxusI18nAssetResource] = &[DioxusI18nAssetResource::new(
+        langid!("en"),
+        "invalid-asset-test",
+        "invalid-asset-test.ftl",
+        true,
+        dioxus::prelude::asset!("/tests/fixtures/dioxus_i18n/en/invalid.ftl"),
+    )];
+    static INVALID_ASSET_MODULE: DioxusI18nAssetModule =
+        DioxusI18nAssetModule::new(&INVALID_ASSET_DATA, INVALID_ASSET_RESOURCES);
+    static INVALID_ASSET_MODULES: &[&DioxusI18nAssetModule] = &[&INVALID_ASSET_MODULE];
 
     fn resource(source: &str) -> Arc<FluentResource> {
         Arc::new(FluentResource::try_new(source.to_string()).expect("valid FTL"))
@@ -939,6 +995,103 @@ mod tests {
         }
     }
 
+    fn loaded_module_for_language(
+        lang: LanguageIdentifier,
+        source: &str,
+    ) -> LoadedDioxusI18nAssetModule {
+        let spec = base_spec();
+        LoadedDioxusI18nAssetModule {
+            data: &TEST_DATA,
+            loaded_resources: Arc::new(HashMap::from([(
+                (lang.clone(), spec.key.clone()),
+                resource(source),
+            )])),
+            load_errors: Arc::new(HashMap::new()),
+            resource_specs_by_language: Arc::new(HashMap::from([(lang, vec![spec])])),
+        }
+    }
+
+    #[cfg(feature = "client")]
+    fn loaded_multilingual_module() -> LoadedDioxusI18nAssetModule {
+        let en = langid!("en");
+        let fr = langid!("fr");
+        let spec = base_spec();
+        LoadedDioxusI18nAssetModule {
+            data: &TEST_DATA,
+            loaded_resources: Arc::new(HashMap::from([
+                ((en.clone(), spec.key.clone()), resource("hello = Hello")),
+                ((fr.clone(), spec.key.clone()), resource("hello = Bonjour")),
+            ])),
+            load_errors: Arc::new(HashMap::new()),
+            resource_specs_by_language: Arc::new(HashMap::from([
+                (en, vec![spec.clone()]),
+                (fr, vec![spec]),
+            ])),
+        }
+    }
+
+    fn loaded_fallback_module() -> LoadedDioxusI18nAssetModule {
+        let lang = langid!("en");
+        let spec = ModuleResourceSpec {
+            key: ResourceKey::new("fallback-app"),
+            locale_relative_path: "fallback-app.ftl".to_string(),
+            required: true,
+        };
+        LoadedDioxusI18nAssetModule {
+            data: &FALLBACK_DATA,
+            loaded_resources: Arc::new(HashMap::from([(
+                (lang.clone(), spec.key.clone()),
+                resource("fallback = English fallback"),
+            )])),
+            load_errors: Arc::new(HashMap::new()),
+            resource_specs_by_language: Arc::new(HashMap::from([(lang, vec![spec])])),
+        }
+    }
+
+    fn duplicate_resource_module() -> LoadedDioxusI18nAssetModule {
+        let lang = langid!("en");
+        let base_spec = ModuleResourceSpec {
+            key: ResourceKey::new("duplicate-resource-app"),
+            locale_relative_path: "duplicate-resource-app.ftl".to_string(),
+            required: false,
+        };
+        let ui_spec = ModuleResourceSpec {
+            key: ResourceKey::new("duplicate-resource-app/ui"),
+            locale_relative_path: "duplicate-resource-app/ui.ftl".to_string(),
+            required: true,
+        };
+        LoadedDioxusI18nAssetModule {
+            data: &DUPLICATE_RESOURCE_DATA,
+            loaded_resources: Arc::new(HashMap::from([
+                (
+                    (lang.clone(), base_spec.key.clone()),
+                    resource("duplicate = First"),
+                ),
+                (
+                    (lang.clone(), ui_spec.key.clone()),
+                    resource("duplicate = Second"),
+                ),
+            ])),
+            load_errors: Arc::new(HashMap::new()),
+            resource_specs_by_language: Arc::new(HashMap::from([(lang, vec![base_spec, ui_spec])])),
+        }
+    }
+
+    struct TestMessage;
+
+    impl FluentMessage for TestMessage {
+        fn to_fluent_string_with(
+            &self,
+            localize: &mut dyn for<'a> FnMut(
+                &str,
+                &str,
+                Option<&HashMap<&str, FluentValue<'a>>>,
+            ) -> String,
+        ) -> String {
+            localize("test-app", "hello", None)
+        }
+    }
+
     #[cfg(feature = "client")]
     #[allow(non_snake_case)]
     #[component]
@@ -950,6 +1103,33 @@ mod tests {
             .unwrap_or_else(|| "missing".to_string());
 
         rsx! { "{message}" }
+    }
+
+    #[cfg(feature = "client")]
+    #[allow(non_snake_case)]
+    #[component]
+    fn AssetHandleExercise(i18n: DioxusAssetI18n) -> Element {
+        let handle = use_provide_asset_i18n(i18n);
+        let before = handle.requested_language().to_string();
+        let peeked = handle.peek_requested_language().to_string();
+        handle
+            .select_language(langid!("fr"))
+            .expect("handle should select fr");
+        let after = handle.requested_language().to_string();
+        handle
+            .select_language_strict(langid!("en"))
+            .expect("handle should strictly select en");
+        let message = handle.localize_message(&TestMessage);
+        let domain_message = handle
+            .localize_in_domain("test-app", "hello", None)
+            .unwrap_or_else(|| "missing".to_string());
+        let mut lookup_message = None;
+        handle.with_lookup(&mut |lookup| {
+            lookup_message = lookup("test-app", "hello", None);
+        });
+        let lookup_message = lookup_message.unwrap_or_else(|| "missing".to_string());
+
+        rsx! { "{before}|{peeked}|{after}|{message}|{domain_message}|{lookup_message}" }
     }
 
     #[cfg(feature = "client")]
@@ -975,6 +1155,19 @@ mod tests {
 
         assert_eq!(i18n.localize("hello", None), Some("Hello".to_string()));
         assert_eq!(i18n.requested_language(), langid!("en"));
+        assert_eq!(
+            i18n.localize_in_domain("test-app", "hello", None),
+            Some("Hello".to_string())
+        );
+        assert!(i18n == i18n.clone());
+        i18n.select_language(langid!("en"))
+            .expect("selecting the active language should be a no-op");
+        let mut looked_up = None;
+        i18n.with_lookup(&mut |lookup| {
+            looked_up = lookup("test-app", "hello", None);
+        });
+        assert_eq!(looked_up, Some("Hello".to_string()));
+        assert_eq!(i18n.localize_message(&TestMessage), "Hello");
     }
 
     #[test]
@@ -991,6 +1184,15 @@ mod tests {
             i18n.localize("es-fluent-lang-en", None),
             Some("English".to_string())
         );
+        assert_eq!(
+            i18n.localize_in_domain("es-fluent-lang", "es-fluent-lang-en", None),
+            Some("English".to_string())
+        );
+        let mut looked_up = None;
+        i18n.with_lookup(&mut |lookup| {
+            looked_up = lookup("es-fluent-lang", "es-fluent-lang-en", None);
+        });
+        assert_eq!(looked_up, Some("English".to_string()));
     }
 
     #[test]
@@ -1008,6 +1210,129 @@ mod tests {
             error,
             DioxusAssetLoadError::LanguageSelection { .. }
         ));
+        assert!(error.resource_errors().is_empty());
+        assert!(
+            error
+                .to_string()
+                .contains("failed to select the requested language")
+        );
+        assert!(error.source().is_some());
+    }
+
+    #[test]
+    fn dioxus_asset_load_error_reports_discovery_details() {
+        let error = DioxusAssetLoadError::ModuleDiscovery(Arc::from([]));
+
+        assert!(error.resource_errors().is_empty());
+        assert!(
+            error
+                .to_string()
+                .contains("failed strict i18n module discovery")
+        );
+        assert!(error.source().is_none());
+    }
+
+    #[test]
+    fn dioxus_i18n_asset_modules_debug_equality_and_slice_are_stable() {
+        let modules = DioxusI18nAssetModules::new(ASSET_MODULES);
+        let same = DioxusI18nAssetModules::new(ASSET_MODULES);
+        let different = DioxusI18nAssetModules::new(INVALID_ASSET_MODULES);
+        let resource = DioxusI18nAssetResource::new(
+            langid!("en"),
+            "asset-test",
+            "asset-test.ftl",
+            true,
+            ASSET_RESOURCES[0].asset,
+        );
+        let module = DioxusI18nAssetModule::new(&ASSET_DATA, &[]);
+
+        assert_eq!(modules, same);
+        assert_ne!(modules, different);
+        assert_eq!(modules.as_slice().len(), 1);
+        assert_eq!(format!("{modules:?}"), "DioxusI18nAssetModules { len: 1 }");
+        assert_eq!(resource.spec(), ASSET_RESOURCES[0].spec());
+        assert_eq!(module.resources.len(), 0);
+    }
+
+    #[test]
+    fn load_modules_reads_assets_and_selects_languages() {
+        let modules = DioxusI18nAssetModules::new(ASSET_MODULES);
+        let i18n = futures::executor::block_on(DioxusAssetI18n::load_modules(
+            modules,
+            langid!("en"),
+            LanguageSelectionPolicy::BestEffort,
+        ))
+        .expect("asset module should load");
+
+        assert_eq!(
+            i18n.localize_in_domain("asset-test", "asset-hello", None),
+            Some("Hello from asset".to_string())
+        );
+        i18n.select_language(langid!("fr"))
+            .expect("asset i18n should select fr");
+        assert_eq!(
+            i18n.localize("asset-hello", None),
+            Some("Bonjour from asset".to_string())
+        );
+    }
+
+    #[test]
+    fn load_modules_collects_parse_errors_for_language_selection_failures() {
+        let modules = DioxusI18nAssetModules::new(INVALID_ASSET_MODULES);
+        let error = match futures::executor::block_on(DioxusAssetI18n::load_modules(
+            modules,
+            langid!("en"),
+            LanguageSelectionPolicy::BestEffort,
+        )) {
+            Ok(_) => panic!("invalid FTL should prevent locale readiness"),
+            Err(error) => error,
+        };
+
+        assert_eq!(error.resource_errors().len(), 1);
+    }
+
+    #[test]
+    fn localizer_uses_language_fallbacks() {
+        let i18n = DioxusAssetI18n::new_with_loaded_modules(
+            vec![loaded_fallback_module()],
+            langid!("en-US"),
+            LanguageSelectionPolicy::BestEffort,
+        )
+        .expect("fallback language should load");
+
+        assert_eq!(i18n.requested_language(), langid!("en-US"));
+        assert_eq!(
+            i18n.localize_in_domain("fallback-app", "fallback", None),
+            Some("English fallback".to_string())
+        );
+    }
+
+    #[test]
+    fn strict_selection_rejects_partial_module_failures() {
+        let i18n = DioxusAssetI18n::new_with_loaded_modules(
+            vec![
+                loaded_module_for_language(langid!("en"), "hello = Hello"),
+                loaded_module_for_language(langid!("fr"), "hello = Bonjour"),
+            ],
+            langid!("en"),
+            LanguageSelectionPolicy::BestEffort,
+        )
+        .expect("best effort should accept one selected module");
+
+        assert!(i18n.select_language_strict(langid!("en")).is_err());
+        i18n.select_language(langid!("fr"))
+            .expect("best effort should switch to fr");
+        assert_eq!(i18n.requested_language(), langid!("fr"));
+    }
+
+    #[test]
+    fn bundle_assembly_errors_are_returned_for_initial_locale() {
+        let error = duplicate_resource_module()
+            .create_localizer()
+            .select_language(&langid!("en"))
+            .expect_err("duplicate messages should fail the initial bundle");
+
+        assert!(!matches!(error, LocalizationError::LanguageNotSupported(_)));
     }
 
     #[cfg(feature = "client")]
@@ -1031,11 +1356,45 @@ mod tests {
     #[cfg(feature = "client")]
     #[test]
     #[serial]
+    fn asset_i18n_handle_methods_update_tracked_language_and_lookup() {
+        let i18n = DioxusAssetI18n::new_with_loaded_modules(
+            vec![loaded_multilingual_module()],
+            langid!("en"),
+            LanguageSelectionPolicy::BestEffort,
+        )
+        .expect("initial language should load");
+        let mut dom =
+            VirtualDom::new_with_props(AssetHandleExercise, AssetHandleExerciseProps { i18n });
+
+        dom.rebuild_in_place();
+
+        let rendered = dioxus_ssr::render(&dom);
+        assert!(rendered.contains("en|en|fr|Hello|Hello|Hello"));
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    #[serial]
     fn use_asset_i18n_reports_missing_context() {
         let mut dom = VirtualDom::new(MissingAssetContextMessage);
 
         dom.rebuild_in_place();
 
         assert!(dioxus_ssr::render(&dom).contains("missing"));
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn log_asset_provider_load_error_once_is_idempotent() {
+        let logged = std::rc::Rc::new(std::cell::Cell::new(false));
+        let error = DioxusAssetLoadError::language_selection(
+            LocalizationError::LanguageNotSupported(langid!("de")),
+            &[],
+        );
+
+        log_asset_provider_load_error_once(&error, &logged);
+        assert!(logged.get());
+        log_asset_provider_load_error_once(&error, &logged);
+        assert!(logged.get());
     }
 }

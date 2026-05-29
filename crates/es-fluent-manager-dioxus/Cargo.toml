@@ -40,6 +40,7 @@ dioxus-html = { workspace = true }
 dioxus-signals = { workspace = true }
 dioxus-ssr = { workspace = true }
 es-fluent-lang = { workspace = true }
+futures = { workspace = true }
 serial_test = { workspace = true }
 trybuild = { workspace = true }
 

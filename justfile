@@ -28,7 +28,6 @@ test-dioxus-manager-feature-matrix:
     cargo check -p es-fluent-manager-dioxus --target wasm32-unknown-unknown --no-default-features --features client
 
 test-dioxus-integration-surface:
-    cargo test -p es-fluent-manager-core
     cargo test -p web --features server
     cargo check -p web --features web
 

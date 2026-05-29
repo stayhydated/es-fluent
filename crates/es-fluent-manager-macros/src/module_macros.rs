@@ -43,32 +43,32 @@ type ModuleTokenGenerator = fn(
     syn::Ident,
     proc_macro2::TokenStream,
     &ManagerPaths,
-) -> syn::Result<TokenStream>;
+) -> syn::Result<proc_macro2::TokenStream>;
 
 fn reject_unexpected_input(input: TokenStream, macro_name: &str) -> Option<TokenStream> {
-    (!input.is_empty()).then(|| {
-        TokenStream::from(
-            syn::Error::new(
-                proc_macro2::Span::call_site(),
-                format!("`{macro_name}` does not accept arguments"),
-            )
-            .to_compile_error(),
-        )
-    })
+    (!input.is_empty()).then(|| TokenStream::from(unexpected_input_error(macro_name)))
 }
 
-fn expand_define_i18n_module(
+fn unexpected_input_error(macro_name: &str) -> proc_macro2::TokenStream {
+    syn::Error::new(
+        proc_macro2::Span::call_site(),
+        format!("`{macro_name}` does not accept arguments"),
+    )
+    .to_compile_error()
+}
+
+fn expand_define_i18n_module_tokens(
     manager_paths: ManagerPaths,
     generate_tokens: ModuleTokenGenerator,
-) -> TokenStream {
+) -> syn::Result<proc_macro2::TokenStream> {
     let crate_name = match crate::assets::current_crate_name() {
         Ok(name) => name,
-        Err(err) => return TokenStream::from(err.to_compile_error()),
+        Err(err) => return Err(err),
     };
 
     let assets = match I18nAssets::load(&crate_name) {
         Ok(assets) => assets,
-        Err(err) => return TokenStream::from(err.to_compile_error()),
+        Err(err) => return Err(err),
     };
 
     let language_identifiers = assets.language_identifier_tokens(&manager_paths.langid_path);
@@ -91,14 +91,21 @@ fn expand_define_i18n_module(
         &namespace_strings,
     );
 
-    match generate_tokens(
+    generate_tokens(
         crate_name,
         assets,
         module_data_name,
         module_data_static,
         &manager_paths,
-    ) {
-        Ok(tokens) => tokens,
+    )
+}
+
+fn expand_define_i18n_module(
+    manager_paths: ManagerPaths,
+    generate_tokens: ModuleTokenGenerator,
+) -> TokenStream {
+    match expand_define_i18n_module_tokens(manager_paths, generate_tokens) {
+        Ok(tokens) => TokenStream::from(tokens),
         Err(err) => TokenStream::from(err.to_compile_error()),
     }
 }
@@ -133,7 +140,7 @@ fn generate_embedded_tokens(
     module_data_name: syn::Ident,
     module_data_static: proc_macro2::TokenStream,
     manager_paths: &ManagerPaths,
-) -> syn::Result<TokenStream> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let assets_struct_name = syn::Ident::new(
         &format!(
             "{}I18nAssets",
@@ -187,7 +194,7 @@ fn generate_embedded_tokens(
         );
     };
 
-    Ok(TokenStream::from(expanded))
+    Ok(expanded)
 }
 
 fn generate_bevy_tokens(
@@ -196,7 +203,7 @@ fn generate_bevy_tokens(
     module_data_name: syn::Ident,
     module_data_static: proc_macro2::TokenStream,
     manager_paths: &ManagerPaths,
-) -> syn::Result<TokenStream> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let registration_struct_name = syn::Ident::new(
         &format!(
             "{}I18nRegistration",
@@ -253,7 +260,7 @@ fn generate_bevy_tokens(
         );
     };
 
-    Ok(TokenStream::from(expanded))
+    Ok(expanded)
 }
 
 fn generate_dioxus_asset_loader_tokens(
@@ -262,7 +269,7 @@ fn generate_dioxus_asset_loader_tokens(
     module_data_name: syn::Ident,
     module_data_static: proc_macro2::TokenStream,
     manager_paths: &ManagerPaths,
-) -> syn::Result<TokenStream> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let resources_name = syn::Ident::new(
         &format!(
             "{}_DIOXUS_I18N_ASSET_RESOURCES",
@@ -342,7 +349,7 @@ fn generate_dioxus_asset_loader_tokens(
         }
     };
 
-    Ok(TokenStream::from(expanded))
+    Ok(expanded)
 }
 
 fn dioxus_asset_resource_tokens(
@@ -415,8 +422,60 @@ fn utf8_folder_literal(path: &Path) -> syn::Result<syn::LitStr> {
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
+    use crate::assets::ResourceSpec;
+    use quote::quote;
     use serial_test::serial;
     use std::{ffi::OsString, os::unix::ffi::OsStringExt as _, path::PathBuf};
+
+    fn sample_assets(root_path: PathBuf) -> I18nAssets {
+        I18nAssets {
+            root_path,
+            languages: vec!["en-US".to_string(), "fr".to_string()],
+            namespaces: vec!["ui".to_string()],
+            resource_specs_by_language: vec![
+                (
+                    "en-US".to_string(),
+                    vec![
+                        ResourceSpec {
+                            key: "my-crate".to_string(),
+                            locale_relative_path: "my-crate.ftl".to_string(),
+                            required: false,
+                        },
+                        ResourceSpec {
+                            key: "my-crate/ui".to_string(),
+                            locale_relative_path: "my-crate/ui.ftl".to_string(),
+                            required: true,
+                        },
+                    ],
+                ),
+                (
+                    "fr".to_string(),
+                    vec![ResourceSpec {
+                        key: "my-crate/ui".to_string(),
+                        locale_relative_path: "my-crate/ui.ftl".to_string(),
+                        required: true,
+                    }],
+                ),
+            ],
+        }
+    }
+
+    fn module_data_static(module_data_name: &syn::Ident) -> proc_macro2::TokenStream {
+        quote! {
+            static #module_data_name: ::es_fluent_manager_core::ModuleData =
+                ::es_fluent_manager_core::ModuleData {
+                    name: "my-crate",
+                    domain: "my-crate",
+                    supported_languages: &[],
+                    namespaces: &[],
+                };
+        }
+    }
+
+    fn format_tokens(tokens: proc_macro2::TokenStream) -> String {
+        let file = syn::parse2::<syn::File>(tokens).expect("generated tokens should parse");
+        prettyplease::unparse(&file)
+    }
 
     #[test]
     fn utf8_folder_literal_rejects_non_utf8_paths() {
@@ -424,6 +483,104 @@ mod tests {
         let err = utf8_folder_literal(&path).expect_err("non-UTF-8 paths should be rejected");
 
         assert!(err.to_string().contains("valid UTF-8"));
+    }
+
+    #[test]
+    fn unexpected_input_error_names_the_rejecting_macro() {
+        let error = unexpected_input_error("define_i18n_module!").to_string();
+
+        assert!(error.contains("define_i18n_module"));
+        assert!(error.contains("does not accept arguments"));
+    }
+
+    #[test]
+    #[serial(manifest)]
+    fn generated_manager_tokens_cover_embedded_bevy_and_dioxus_shapes() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let assets_root = temp.path().join("assets/locales");
+        let module_data_name =
+            syn::Ident::new("MY_CRATE_TEST_MODULE_DATA", proc_macro2::Span::call_site());
+
+        let embedded = format_tokens(
+            generate_embedded_tokens(
+                "my-crate".to_string(),
+                sample_assets(assets_root.clone()),
+                module_data_name.clone(),
+                module_data_static(&module_data_name),
+                &ManagerPaths::embedded(),
+            )
+            .expect("embedded tokens"),
+        );
+        assert!(embedded.contains("struct MyCrateI18nAssets"));
+        assert!(embedded.contains("RustEmbed"));
+        assert!(embedded.contains("MY_CRATE_I18N_MODULE"));
+        assert!(embedded.contains("inventory"));
+
+        let bevy = format_tokens(
+            generate_bevy_tokens(
+                "my-crate".to_string(),
+                sample_assets(assets_root.clone()),
+                module_data_name.clone(),
+                module_data_static(&module_data_name),
+                &ManagerPaths::bevy(),
+            )
+            .expect("bevy tokens"),
+        );
+        assert!(bevy.contains("struct MyCrateI18nRegistration"));
+        assert!(bevy.contains("resource_plan_for_language"));
+        assert!(bevy.contains("MetadataOnly"));
+
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some(temp.path()), || {
+            let dioxus = format_tokens(
+                generate_dioxus_asset_loader_tokens(
+                    "my-crate".to_string(),
+                    sample_assets(assets_root),
+                    module_data_name.clone(),
+                    module_data_static(&module_data_name),
+                    &ManagerPaths::dioxus(),
+                )
+                .expect("dioxus tokens"),
+            );
+
+            assert!(dioxus.contains("DioxusI18nAssetResource"));
+            assert!(dioxus.contains("load_dioxus_i18n_assets_with_policy"));
+            assert!(dioxus.contains("/assets/locales/en-US/my-crate.ftl"));
+            assert!(dioxus.contains("/assets/locales/fr/my-crate/ui.ftl"));
+        });
+    }
+
+    #[test]
+    #[serial(manifest)]
+    fn expand_define_i18n_module_loads_manifest_assets_and_generates_tokens() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        std::fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en-US\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write manifest");
+        std::fs::create_dir_all(temp.path().join("i18n/en-US")).expect("create locale dir");
+        std::fs::write(temp.path().join("i18n/en-US/my-crate.ftl"), "hello = Hello")
+            .expect("write ftl");
+
+        temp_env::with_vars(
+            [
+                ("CARGO_MANIFEST_DIR", Some(temp.path().as_os_str())),
+                ("CARGO_PKG_NAME", Some(std::ffi::OsStr::new("my-crate"))),
+            ],
+            || {
+                let expanded = format_tokens(
+                    expand_define_i18n_module_tokens(
+                        ManagerPaths::embedded(),
+                        generate_embedded_tokens,
+                    )
+                    .expect("expanded tokens"),
+                );
+
+                assert!(expanded.contains("MY_CRATE_EMBEDDED_I18N_MODULE_DATA"));
+                assert!(expanded.contains("MyCrateI18nAssets"));
+                assert!(expanded.contains("en-US"));
+            },
+        );
     }
 
     #[test]
