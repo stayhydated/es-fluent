@@ -1,8 +1,18 @@
 use es_fluent::EsFluent;
 use es_fluent_lang::{LanguageIdentifier, es_fluent_language};
+use es_fluent_manager_dioxus::{DioxusI18nAssetModule, DioxusI18nAssetModules};
 use strum::{EnumIter, IntoEnumIterator as _};
 
 es_fluent_manager_dioxus::define_i18n_module!();
+
+pub(crate) fn app_dioxus_i18n_asset_modules() -> DioxusI18nAssetModules {
+    static MODULES: &[&DioxusI18nAssetModule] = &[
+        dioxus_i18n_asset_module(),
+        stayhydated_dioxus::i18n::dioxus_i18n_asset_module(),
+    ];
+
+    DioxusI18nAssetModules::new(MODULES)
+}
 
 #[es_fluent_language]
 #[derive(Clone, Copy, Debug, EnumIter, Eq, EsFluent, PartialEq)]

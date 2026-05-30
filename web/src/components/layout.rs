@@ -1,5 +1,5 @@
 use crate::components::{
-    LanguageSelect, PageLink, ProjectOption, ProjectSelect, stayhydated_project_options,
+    LanguageSelect, PageLink, ProjectOption, ProjectSelect, localized_stayhydated_project_options,
 };
 use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
@@ -19,6 +19,10 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
     let nav_demos = i18n.localize_message(&SiteChromeMessage::NavDemos);
     let nav_docs = i18n.localize_message(&SiteChromeMessage::NavDocs);
     let nav_source = i18n.localize_message(&SiteChromeMessage::NavSource);
+    let project_selector_label =
+        i18n.localize_message(&stayhydated_dioxus::ProjectSelectMessage::ProjectSelectorLabel);
+    let project_list_label =
+        i18n.localize_message(&stayhydated_dioxus::ProjectSelectMessage::ProjectListLabel);
 
     rsx! {
         header { class: "page-header",
@@ -30,8 +34,9 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
                     .description(page_kicker)
                     .href(crate::site::routing::page_href(locale, PageKind::Home))
                     .build(),
-                projects: stayhydated_project_options(),
-                label: "Project selector".to_string(),
+                projects: localized_stayhydated_project_options(&i18n),
+                label: project_selector_label,
+                list_label: project_list_label,
             }
             div { class: "header-cluster",
                 HeaderNavLinks {

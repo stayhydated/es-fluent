@@ -10,7 +10,7 @@ Use this reference to choose the crate or integration surface before writing cod
 | Generate/check/format/sync FTL | `cargo es-fluent` from `es-fluent-cli` | Use from crate or workspace root. Inventory comes from library targets. |
 | Track locale asset rebuilds from `build.rs` | `es-fluent-build` in `[build-dependencies]` | Call `es_fluent_build::track_i18n_assets()` when manager macros scan locale assets at compile time. |
 | General Rust runtime, CLI, TUI, desktop, GPUI-style apps | `es-fluent-manager-embedded` | Embeds FTL files and returns explicit `EmbeddedI18n` handles. |
-| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, pass generated `dioxus_i18n_asset_modules()` to `DioxusAssetI18nProvider`, and localize through `use_asset_i18n()`. |
+| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, pass generated `dioxus_i18n_asset_modules()` to `DioxusAssetI18nProvider`, aggregate multiple crates with `dioxus_i18n_asset_module()` when needed, and localize through `use_asset_i18n()`. |
 | Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create `SsrI18nRuntime::new(dioxus_i18n_asset_modules())`, then one `SsrI18n` per request. |
 | Bevy ECS/assets | `es-fluent-manager-bevy` | Add `I18nPlugin`, use `FluentText<T>`, `BevyFluentText`, and `BevyI18n`. |
 | Typed language picker | `es-fluent-lang` | Use `#[es_fluent_language]` on an empty enum discovered from locale folders. |
@@ -171,6 +171,10 @@ loading/failure rendering on the client and `SsrI18nRuntime::request(...)` is
 async on the server. Application translations come from the generated Dioxus
 asset modules; runtime follower modules such as `es-fluent-lang` language
 labels are discovered automatically.
+For component libraries with their own Dioxus FTL assets, give the library its
+own `i18n.toml` and `define_i18n_module!()`, then pass a static aggregate of
+the app and library `dioxus_i18n_asset_module()` references to
+`DioxusI18nAssetModules::new(...)`.
 During `dx serve` debug WASM runs, changed generated FTL assets refresh the
 provider context through Dioxus asset hot reload while preserving the requested
 locale when possible.

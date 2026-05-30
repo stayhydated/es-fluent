@@ -193,7 +193,7 @@ es_fluent_manager_dioxus::define_i18n_module!();
 ```
 
 The macro generates `dioxus_i18n_asset_modules()`,
-`load_dioxus_i18n_assets(...)`, and
+`dioxus_i18n_asset_module()`, `load_dioxus_i18n_assets(...)`, and
 `load_dioxus_i18n_assets_with_policy(...)`. Dioxus `asset!` requires
 `assets_dir` to point inside the crate, such as `assets/locales`.
 
@@ -262,6 +262,9 @@ Dioxus application translations come from the generated Dioxus asset modules.
 Runtime follower modules that do not count as locale support, such as
 `es-fluent-lang` for typed language picker labels, are discovered automatically
 and follow the selected asset-backed locale.
+To include Dioxus asset-backed translations from a component library, build a
+static slice containing both crates' `dioxus_i18n_asset_module()` references and
+pass `DioxusI18nAssetModules::new(...)` to the provider and SSR runtime.
 In debug WASM builds served by `dx serve`, changed FTL assets are reloaded from
 Dioxus asset hot-reload messages and the provider updates subscribed
 components while preserving the requested locale when possible.

@@ -44,7 +44,7 @@ mod tests {
     #[serial]
     fn localizes_language_select_labels() {
         let runtime = es_fluent_manager_dioxus::ssr::SsrI18nRuntime::new(
-            crate::site::i18n::dioxus_i18n_asset_modules(),
+            crate::site::i18n::app_dioxus_i18n_asset_modules(),
         );
         let i18n = runtime
             .request_blocking(SiteLanguage::EnUs.lang())
@@ -56,6 +56,28 @@ mod tests {
         assert!(!english.starts_with("es-fluent-lang-"));
         assert!(!chinese.starts_with("es-fluent-lang-"));
         assert_ne!(english, chinese);
+    }
+
+    #[test]
+    #[serial]
+    fn localizes_shared_project_select_messages() {
+        let runtime = es_fluent_manager_dioxus::ssr::SsrI18nRuntime::new(
+            crate::site::i18n::app_dioxus_i18n_asset_modules(),
+        );
+        let i18n = runtime
+            .request_blocking(SiteLanguage::EnUs.lang())
+            .expect("SSR i18n should initialize");
+
+        assert_eq!(
+            i18n.localize_message(&stayhydated_dioxus::ProjectSelectMessage::KorumaDescription),
+            "Rust validation"
+        );
+        assert_eq!(
+            i18n.localize_message(
+                &stayhydated_dioxus::ProjectSelectMessage::StayhydatedDescription
+            ),
+            "Project index"
+        );
     }
 
     #[test]
