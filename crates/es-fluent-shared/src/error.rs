@@ -31,6 +31,14 @@ pub enum EsFluentError {
     #[error("Invalid Fluent metadata '{identifier}': {reason}")]
     InvalidFluentIdentifier { identifier: String, reason: String },
 
+    /// Duplicate generated Fluent key metadata.
+    #[error("Duplicate generated FTL key '{key}' from {first} and {second}")]
+    DuplicateGeneratedFtlKey {
+        key: String,
+        first: String,
+        second: String,
+    },
+
     /// Language not supported.
     #[error("Language '{0}' is not supported")]
     LanguageNotSupported(LanguageIdentifier),
@@ -90,6 +98,19 @@ impl EsFluentError {
         Self::InvalidFluentIdentifier {
             identifier: identifier.into(),
             reason: reason.into(),
+        }
+    }
+
+    /// Creates a duplicate generated FTL key error.
+    pub fn duplicate_generated_ftl_key(
+        key: impl Into<String>,
+        first: impl Into<String>,
+        second: impl Into<String>,
+    ) -> Self {
+        Self::DuplicateGeneratedFtlKey {
+            key: key.into(),
+            first: first.into(),
+            second: second.into(),
         }
     }
 

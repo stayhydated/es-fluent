@@ -150,7 +150,7 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
 fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(derive(Debug, Clone))]
+        #[fluent(namespace = "people")]
         struct Person {
             name: String,
             #[fluent(skip)]
@@ -163,11 +163,10 @@ fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert_eq!(opts.ident().to_string(), "Person");
     assert_no_generics(opts.generics());
-    assert_eq!(
-        derive_names(opts.attr_args().derive()),
-        vec!["Debug", "Clone"]
-    );
-    assert!(opts.attr_args().namespace().is_none());
+    assert!(matches!(
+        opts.attr_args().namespace(),
+        Some(es_fluent_shared::namespace::NamespaceRule::Literal(value)) if value == "people"
+    ));
 
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
@@ -189,12 +188,11 @@ fn es_fluent_struct_attributes_label_with_derive_snapshot() {
 }
 
 #[test]
-fn es_fluent_struct_attributes_default_and_choice_snapshot() {
+fn es_fluent_struct_attributes_choice_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
 
         struct Label {
-            #[fluent(default)]
             text: String,
             #[fluent(choice)]
             style: Emphasis,
@@ -206,16 +204,13 @@ fn es_fluent_struct_attributes_default_and_choice_snapshot() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert_eq!(opts.ident().to_string(), "Label");
     assert_no_generics(opts.generics());
-    assert!(derive_names(opts.attr_args().derive()).is_empty());
     assert!(opts.attr_args().namespace().is_none());
 
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "text");
-    assert!(fields[0].is_default());
     assert!(!fields[0].is_choice());
     assert_eq!(fields[1].ident().expect("named field").to_string(), "style");
-    assert!(!fields[1].is_default());
     assert!(fields[1].is_choice());
 
     let all_fields = opts.all_indexed_fields();
@@ -250,7 +245,6 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
             .expect("keyed idents should parse")
             .is_empty()
     );
-    assert!(derive_names(opts.attr_args().derive()).is_empty());
     assert!(generated_key_names(opts.attr_args()).is_none());
     assert!(opts.attr_args().namespace().is_none());
 

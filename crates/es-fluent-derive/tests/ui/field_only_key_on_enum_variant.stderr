@@ -1,0 +1,6 @@
+error: Attribute error in enum variant: `#[fluent(arg = ...)]` is a field-only attribute and cannot be used on enum variant `MissingUser`
+       help: move the attribute to a field inside the variant, for example `MissingUser(#[fluent(arg = "name")] T)`
+ --> tests/ui/field_only_key_on_enum_variant.rs:5:14
+  |
+5 |     #[fluent(arg = "username")]
+  |              ^^^

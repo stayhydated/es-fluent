@@ -1,0 +1,11 @@
+error: expected explicit boolean value, such as `origin = true`
+ --> tests/ui/fluent_label_bare_flags.rs:4:16
+  |
+4 | #[fluent_label(origin, variants)]
+  |                ^^^^^^
+
+error: expected explicit boolean value, such as `origin = true`
+ --> tests/ui/fluent_label_bare_flags.rs:4:24
+  |
+4 | #[fluent_label(origin, variants)]
+  |                        ^^^^^^^^

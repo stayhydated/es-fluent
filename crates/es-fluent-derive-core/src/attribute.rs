@@ -36,7 +36,8 @@ impl AttributeName {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AttributeLocation {
-    MessageContainer,
+    MessageStructContainer,
+    MessageEnumContainer,
     MessageField,
     EnumVariant,
     VariantsContainer,
@@ -50,12 +51,13 @@ pub enum AttributeLocation {
 impl AttributeLocation {
     pub fn context(self) -> AttrContext {
         match self {
-            Self::MessageContainer => AttrContext::MessageContainer,
+            Self::MessageStructContainer => AttrContext::MessageStructContainer,
+            Self::MessageEnumContainer => AttrContext::MessageEnumContainer,
             Self::MessageField => AttrContext::MessageField,
             Self::EnumVariant => AttrContext::EnumVariant,
             Self::VariantsContainer => AttrContext::VariantsContainer,
             Self::VariantsField => AttrContext::VariantsField,
-            Self::VariantsVariant => AttrContext::EnumVariant,
+            Self::VariantsVariant => AttrContext::VariantsVariant,
             Self::LabelContainer => AttrContext::LabelContainer,
             Self::ChoiceContainer => AttrContext::ChoiceContainer,
             Self::LanguageContainer => AttrContext::LanguageContainer,
@@ -69,7 +71,6 @@ pub enum FluentAttributeKey {
     Value,
     Choice,
     Optional,
-    Default,
     Skip,
     Key,
     Resource,
@@ -94,8 +95,6 @@ impl FluentAttributeKey {
             Some(Self::Choice)
         } else if path.is_ident("optional") {
             Some(Self::Optional)
-        } else if path.is_ident("default") {
-            Some(Self::Default)
         } else if path.is_ident("skip") {
             Some(Self::Skip)
         } else if path.is_ident("key") {
@@ -127,23 +126,17 @@ impl FluentAttributeKey {
 
     fn is_allowed_at(self, location: AttributeLocation) -> bool {
         match location {
-            AttributeLocation::MessageContainer => matches!(
-                self,
-                Self::Resource
-                    | Self::Domain
-                    | Self::Namespace
-                    | Self::Derive
-                    | Self::SkipInventory
-            ),
+            AttributeLocation::MessageStructContainer => matches!(self, Self::Namespace),
+            AttributeLocation::MessageEnumContainer => {
+                matches!(
+                    self,
+                    Self::Resource | Self::Domain | Self::Namespace | Self::SkipInventory
+                )
+            },
             AttributeLocation::MessageField => {
                 matches!(
                     self,
-                    Self::Skip
-                        | Self::Choice
-                        | Self::Optional
-                        | Self::Default
-                        | Self::Arg
-                        | Self::Value
+                    Self::Skip | Self::Choice | Self::Optional | Self::Arg | Self::Value
                 )
             },
             AttributeLocation::EnumVariant => matches!(self, Self::Skip | Self::Key),
@@ -296,12 +289,7 @@ fn invalid_attribute_error(
         && location == AttributeLocation::EnumVariant
         && matches!(
             item.key(),
-            Some(
-                FluentAttributeKey::Arg
-                    | FluentAttributeKey::Value
-                    | FluentAttributeKey::Choice
-                    | FluentAttributeKey::Default
-            )
+            Some(FluentAttributeKey::Arg | FluentAttributeKey::Value | FluentAttributeKey::Choice)
         )
     {
         let variant_ident = owner
@@ -341,11 +329,14 @@ fn invalid_attribute_error(
 
 fn help_for_location(attribute_name: AttributeName, location: AttributeLocation) -> &'static str {
     match (attribute_name, location) {
-        (AttributeName::Fluent, AttributeLocation::MessageContainer) => {
-            "accepted keys here are resource, domain, namespace, derive, and skip_inventory"
+        (AttributeName::Fluent, AttributeLocation::MessageStructContainer) => {
+            "accepted key here is namespace"
+        },
+        (AttributeName::Fluent, AttributeLocation::MessageEnumContainer) => {
+            "accepted keys here are resource, domain, namespace, and skip_inventory"
         },
         (AttributeName::Fluent, AttributeLocation::MessageField) => {
-            "accepted keys here are skip, default, choice, optional, arg, and value"
+            "accepted keys here are skip, choice, optional, arg, and value"
         },
         (AttributeName::Fluent, AttributeLocation::EnumVariant) => {
             "move field-only attributes to a field inside the variant; accepted variant keys are skip and key"
@@ -414,7 +405,15 @@ mod tests {
             invalid_attribute_meta_item_for_location(
                 &namespace,
                 AttributeName::Fluent,
-                AttributeLocation::MessageContainer
+                AttributeLocation::MessageStructContainer
+            )
+            .is_none()
+        );
+        assert!(
+            invalid_attribute_meta_item_for_location(
+                &namespace,
+                AttributeName::Fluent,
+                AttributeLocation::MessageEnumContainer
             )
             .is_none()
         );

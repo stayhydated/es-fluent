@@ -1,0 +1,6 @@
+error: Attribute error in choice container: Matching variant not found
+       help: supported values are: snake_case, PascalCase, camelCase, kebab-case, SCREAMING_SNAKE_CASE, SCREAMING-KEBAB-CASE, Title Case, Train-Case, lowercase, UPPERCASE
+ --> tests/ui/fluent_choice_invalid_rename_all.rs:5:10
+  |
+5 | pub enum Severity {
+  |          ^^^^^^^^

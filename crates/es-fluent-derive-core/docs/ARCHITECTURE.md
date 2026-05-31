@@ -28,8 +28,9 @@ flowchart TD
 
 1. **Attribute Context Checking (`src/attribute.rs`)**: Before `darling`
    option parsing, derive inputs are scanned with an attribute-location model.
-   Unsupported keys are rejected against the specific container, field, variant,
-   label, choice, variants, or language context where they appear.
+   Unsupported keys are rejected against the specific struct container, enum
+   container, field, variant, label, choice, variants, or language context
+   where they appear.
 1. **Parsing (`src/options/`)**: The raw `syn` AST is parsed into structured options using `darling`. This step handles attribute extraction (`#[fluent(...)]`) and type conversion.
 1. **Shape Lowering (`src/lowered.rs`)**: Parsed options are converted into
    derive-specific container models that encode the accepted Rust shape and
@@ -53,6 +54,9 @@ attribute families:
 
 The checker accepts only the keys that are meaningful at that location and
 reports the accepted key set in the diagnostic help text.
+Message containers are split by Rust shape: structs accept only
+`namespace = ...`, while enums accept `resource`, `domain`, `namespace`, and
+`skip_inventory`.
 
 ### 2. Options (`src/options/`)
 
@@ -83,8 +87,8 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - `GeneratedVariantsOptions`: Shared naming/key helpers for `#[fluent_variants]` containers.
 - `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
 
-Field parsing supports `skip`, `default`, `arg`, `choice`, explicit
-`optional`, and `value` transforms. Validation rejects conflicting field
+Field parsing supports `skip`, `arg`, `choice`, explicit `optional`, and
+`value` transforms. Validation rejects conflicting field
 strategies such as `choice + value`, `optional + value`, `optional + choice`,
 or `optional` on skipped fields.
 String literal attribute payloads are converted to typed values during option
@@ -109,11 +113,9 @@ Enforces semantic rules that `darling` cannot capture easily. These functions us
 
 **Common Checks:**
 
-- **Default Field**: Checks that a struct has at most one field marked `#[fluent(default)]`.
 - **Conflict Check**: Ensures field attributes do not request incompatible
-  behavior, such as `skip` with `default`, `skip` with `arg`, `choice` with
-  `value`, `optional` with `choice`, `optional` with `value`, or `optional` on
-  skipped fields.
+  behavior, such as `skip` with `arg`, `choice` with `value`, `optional` with
+  `choice`, `optional` with `value`, or `optional` on skipped fields.
 - **Collision Check**: Rejects generated variant keys, Rust idents, and message
   IDs that would collide after defaulting and case conversion.
 - **Namespace Check**: Rejects multiple namespace sources that apply to the same

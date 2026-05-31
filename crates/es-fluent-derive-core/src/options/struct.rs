@@ -13,9 +13,6 @@ pub struct StructFieldOpts {
     ty: syn::Type,
     #[darling(flatten)]
     attr_args: super::FluentFieldAttributeArgs,
-    /// Whether this field is a default.
-    #[darling(default)]
-    default: Option<bool>,
 }
 
 impl StructFieldOpts {
@@ -25,11 +22,6 @@ impl StructFieldOpts {
 
     pub fn ty(&self) -> &syn::Type {
         &self.ty
-    }
-
-    /// Returns `true` if the field is a default.
-    pub fn is_default(&self) -> bool {
-        self.default.unwrap_or(false)
     }
 }
 
@@ -58,7 +50,7 @@ pub struct StructOpts {
     generics: syn::Generics,
     data: darling::ast::Data<darling::util::Ignored, StructFieldOpts>,
     #[darling(flatten)]
-    attr_args: super::DerivedNamespacedAttributeArgs,
+    attr_args: super::NamespacedAttributeArgs,
 }
 
 impl StructDataOptions for StructOpts {
@@ -123,7 +115,6 @@ mod tests {
             #[derive(EsFluent)]
             #[fluent(namespace = "forms")]
             struct LoginForm {
-                #[fluent(default)]
                 username: String,
                 #[fluent(choice)]
                 role: String,
@@ -143,7 +134,6 @@ mod tests {
         let fields = opts.fields();
         assert_eq!(fields.len(), 3);
         assert_eq!(message_field_arg(fields[0], 0), "username");
-        assert!(fields[0].is_default());
         assert!(!fields[0].is_choice());
 
         assert_eq!(message_field_arg(fields[1], 1), "role");

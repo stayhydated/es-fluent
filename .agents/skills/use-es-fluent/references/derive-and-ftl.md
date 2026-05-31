@@ -55,11 +55,15 @@ Common `#[fluent(...)]` attributes:
 - `optional`: treat an `Option<T>`-style field as an omitted Fluent argument when it is `None`.
 - `choice`, `optional`, and `value = ...` cannot be combined on the same field.
 - `key = "..."`: override an enum variant key suffix.
-- `resource = "..."`: override the enum base key.
+- `resource = "..."`: override an enum base key.
 - `domain = "..."`: route enum lookup to a specific manager domain.
-- `skip_inventory`: suppress CLI inventory registration.
+- `skip_inventory`: suppress CLI inventory registration for an enum.
+
+`resource`, `domain`, and `skip_inventory` are enum-only. Struct message containers accept `namespace = ...`.
 
 Optional-argument omission is explicit. Plain `Option<T>` fields are treated as ordinary field values unless marked `#[fluent(optional)]`.
+
+Generated FTL keys must be unique within each output file. `cargo es-fluent generate`, `clean`, and `check` fail when two derived items produce the same key.
 
 Transparent wrapper variants:
 

@@ -99,6 +99,8 @@ pub(crate) fn apply_output_operation(
     operation: &OutputOperation,
     dry_run: bool,
 ) -> EsFluentResult<bool> {
+    crate::model::validate_no_duplicate_ftl_keys(&output.items)?;
+
     if !dry_run {
         if let Some(parent) = output.file_path.parent() {
             fs::create_dir_all(parent)?;

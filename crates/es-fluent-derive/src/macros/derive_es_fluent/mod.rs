@@ -212,10 +212,8 @@ mod tests {
     fn expand_es_fluent_panics_for_struct_validation_and_union_inputs() {
         let invalid_struct_input: syn::DeriveInput = parse_quote! {
             struct Invalid {
-                #[fluent(default)]
-                a: i32,
-                #[fluent(default)]
-                b: i32,
+                #[fluent(skip, arg = "value")]
+                value: i32,
             }
         };
         let validation_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

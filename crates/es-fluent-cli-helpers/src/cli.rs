@@ -3,7 +3,7 @@
 use es_fluent_runner::{ExpectedKey, InventoryData, RunnerMetadataStore};
 use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
 use es_fluent_shared::source::{SourceFile, SourceLine};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use std::path::Path;
 
 /// Intermediate metadata for a key during collection.
@@ -11,6 +11,7 @@ struct KeyMeta {
     variables: BTreeSet<FluentArgumentName>,
     source_file: Option<SourceFile>,
     source_line: SourceLine,
+    source_description: String,
 }
 
 /// Collects inventory data for a crate and writes it to `inventory.json`.
@@ -53,13 +54,24 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
                 })?
                 .into_iter()
                 .collect();
-            let entry = keys_map.entry(key).or_insert_with(|| KeyMeta {
-                variables: BTreeSet::new(),
-                source_file: info.source_file(),
-                source_line: variant.source_line(),
-            });
+            let source_description = info.source_description_for(variant);
+            let entry = match keys_map.entry(key.clone()) {
+                Entry::Vacant(entry) => entry.insert(KeyMeta {
+                    variables: BTreeSet::new(),
+                    source_file: info.source_file(),
+                    source_line: variant.source_line(),
+                    source_description: source_description.clone(),
+                }),
+                Entry::Occupied(entry) => {
+                    return Err(es_fluent_runner::RunnerIoError::Message(format!(
+                        "duplicate generated FTL key '{}' from {} and {}",
+                        key.as_str(),
+                        entry.get().source_description,
+                        source_description
+                    )));
+                },
+            };
             entry.variables.extend(vars);
-            // Keep the first source location we encounter
         }
     }
 
@@ -97,7 +109,7 @@ mod tests {
         },
         FtlVariant {
             name: "Secondary",
-            ftl_key: "my_key",
+            ftl_key: "secondary_key",
             args: &["extra"],
             module_path: "test_crate",
             line: 55,
@@ -115,6 +127,36 @@ mod tests {
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&INFO)
+    }
+
+    static DUPLICATE_VARIANTS: &[FtlVariant] = &[
+        FtlVariant {
+            name: "Primary",
+            ftl_key: "duplicated_key",
+            args: &["name"],
+            module_path: "test_crate_duplicate_inventory",
+            line: 42,
+        },
+        FtlVariant {
+            name: "Secondary",
+            ftl_key: "duplicated_key",
+            args: &["extra"],
+            module_path: "test_crate_duplicate_inventory",
+            line: 55,
+        },
+    ];
+
+    static DUPLICATE_INFO: FtlTypeInfo = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "DuplicateInventoryType",
+        variants: DUPLICATE_VARIANTS,
+        file_path: "src/lib.rs",
+        module_path: "test_crate_duplicate_inventory",
+        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
+    };
+
+    es_fluent::__inventory::submit! {
+        RegisteredFtlType(&DUPLICATE_INFO)
     }
 
     static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant {
@@ -184,7 +226,7 @@ mod tests {
             let keys = json["expected_keys"]
                 .as_array()
                 .expect("expected_keys array");
-            assert_eq!(keys.len(), 1);
+            assert_eq!(keys.len(), 2);
 
             let key = &keys[0];
             assert_eq!(key["key"], "my_key");
@@ -197,7 +239,35 @@ mod tests {
                 .iter()
                 .filter_map(|value| value.as_str())
                 .collect();
-            assert_eq!(vars, vec!["count", "extra", "name"]);
+            assert_eq!(vars, vec!["count", "name"]);
+
+            let key = &keys[1];
+            assert_eq!(key["key"], "secondary_key");
+            assert_eq!(key["source_file"], "src/lib.rs");
+            assert_eq!(key["source_line"], 55);
+            let vars: Vec<_> = key["variables"]
+                .as_array()
+                .expect("variables array")
+                .iter()
+                .filter_map(|value| value.as_str())
+                .collect();
+            assert_eq!(vars, vec!["extra"]);
+        });
+    }
+
+    #[test]
+    fn write_inventory_rejects_duplicate_registered_keys() {
+        with_temp_cwd(|_| {
+            let err = write_inventory_for_crate("test-crate-duplicate-inventory")
+                .expect_err("duplicate inventory should fail");
+
+            let message = err.to_string();
+            assert!(message.contains("duplicate generated FTL key 'duplicated_key'"));
+            assert!(message.contains("DuplicateInventoryType"));
+            assert!(message.contains("Primary"));
+            assert!(message.contains("Secondary"));
+            assert!(message.contains("src/lib.rs:42"));
+            assert!(message.contains("src/lib.rs:55"));
         });
     }
 

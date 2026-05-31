@@ -50,6 +50,7 @@ cargo es-fluent generate
 ```
 
 Generation updates fallback FTL, adds new messages, updates declared variables, and preserves existing translations in conservative mode.
+Generation, clean, and check fail when two derived items produce the same FTL key in the same output file; rename one item, override one enum variant key, skip a generated item, or split outputs with namespaces.
 
 Check translations and variables:
 

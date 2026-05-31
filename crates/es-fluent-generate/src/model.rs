@@ -79,9 +79,36 @@ pub(crate) fn compare_type_infos(a: &OwnedTypeInfo, b: &OwnedTypeInfo) -> std::c
     formatting::compare_with_label_priority(a_is_label, &a.type_name, b_is_label, &b.type_name)
 }
 
+pub(crate) fn validate_no_duplicate_ftl_keys(items: &[&FtlTypeInfo]) -> EsFluentResult<()> {
+    use std::collections::BTreeMap;
+
+    let mut seen: BTreeMap<FluentEntryId, (&FtlTypeInfo, &FtlVariant)> = BTreeMap::new();
+
+    for info in items {
+        for variant in info.variants {
+            let key = variant.entry_id().map_err(|err| {
+                EsFluentError::invalid_fluent_identifier(variant.ftl_key, err.to_string())
+            })?;
+            if let Some((first_info, first_variant)) = seen.get(&key) {
+                return Err(EsFluentError::duplicate_generated_ftl_key(
+                    key.as_str(),
+                    first_info.source_description_for(first_variant),
+                    info.source_description_for(variant),
+                ));
+            }
+
+            seen.insert(key, (*info, variant));
+        }
+    }
+
+    Ok(())
+}
+
 /// Merge duplicate `FtlTypeInfo` entries into a stable owned representation.
 pub(crate) fn merge_ftl_type_infos(items: &[&FtlTypeInfo]) -> EsFluentResult<Vec<OwnedTypeInfo>> {
     use std::collections::BTreeMap;
+
+    validate_no_duplicate_ftl_keys(items)?;
 
     let mut grouped: BTreeMap<String, Vec<OwnedVariant>> = BTreeMap::new();
 
@@ -101,7 +128,6 @@ pub(crate) fn merge_ftl_type_infos(items: &[&FtlTypeInfo]) -> EsFluentResult<Vec
                 let b_is_label = b.is_label();
                 formatting::compare_with_label_priority(a_is_label, &a.name, b_is_label, &b.name)
             });
-            variants.dedup();
 
             OwnedTypeInfo {
                 type_name,

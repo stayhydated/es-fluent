@@ -79,6 +79,19 @@ impl FtlTypeInfo {
         SourceLocation::new(self.file_path, variant.line)
     }
 
+    /// Returns a stable human-readable source description for diagnostics.
+    pub fn source_description_for(&self, variant: &FtlVariant) -> String {
+        let item = format!("type '{}' variant '{}'", self.type_name, variant.name);
+        match self.source_location_for(variant) {
+            Some(location) => format!(
+                "{item} at {}:{}",
+                location.file().as_str(),
+                location.line().get()
+            ),
+            None => format!("{item} at line {}", variant.source_line().get()),
+        }
+    }
+
     /// Resolve the namespace for this type, if configured.
     pub fn resolved_namespace(&self, manifest_dir: &Path) -> Option<String> {
         self.namespace

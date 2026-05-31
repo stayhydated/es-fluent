@@ -11,6 +11,10 @@ AST output or merge logic runs. That conversion validates keys as
 `FluentEntryId` values and variables as `FluentArgumentName` values from
 `es-fluent-shared`, so invalid registered metadata fails before it can become a
 partially written `.ftl` file.
+Each planned output is also checked for duplicate generated FTL keys before any
+directory creation, merge, clean, or write step. Duplicate diagnostics include
+the key plus the two Rust type/variant source locations when inventory metadata
+contains them.
 
 ## Architecture
 
@@ -97,6 +101,8 @@ The crate uses `IndexMap` instead of `HashMap` for internal data structures to e
 - `formatting`: Logic for sorting (including `_label` priority) and comparing entries.
 - `value`: Expansion of placeables and text elements.
 - `model`: Owned, validated generator metadata derived from `FtlTypeInfo`.
+- `pipeline`: Output planning, per-output duplicate-key validation, and shared
+  application of generate/clean operations.
 - `clean`: Logic for the `clean` command (identifying and removing orphaned keys
   and stale namespaced files).
 - `error`: Error handling types (`FluentGenerateError`).

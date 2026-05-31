@@ -397,7 +397,8 @@ Common derive attributes:
 - `#[fluent(choice)]`, `#[fluent(optional)]`, and `#[fluent(value = ...)]` are mutually exclusive on the same field.
 - `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
 - `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
-- `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.
+- `resource = "..."`, `domain = "..."`, and `skip_inventory` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
+- Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
 - Optional-argument omission is explicit; plain `Option<T>` fields are treated like ordinary field values unless marked `#[fluent(optional)]`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 

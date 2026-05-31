@@ -16,21 +16,29 @@ fn leak_slice<T>(items: Vec<T>) -> &'static [T] {
 }
 
 fn test_variant(name: &str, ftl_key: &str, args: &[&str]) -> FtlVariant {
+    test_variant_at(name, ftl_key, args, 0)
+}
+
+fn test_variant_at(name: &str, ftl_key: &str, args: &[&str], line: u32) -> FtlVariant {
     FtlVariant {
         name: leak_str(name),
         ftl_key: leak_str(ftl_key),
         args: leak_slice(args.iter().map(|arg| leak_str(arg)).collect()),
         module_path: "test",
-        line: 0,
+        line,
     }
 }
 
 fn test_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
+    test_type_at(name, variants, "")
+}
+
+fn test_type_at(name: &str, variants: Vec<FtlVariant>, file_path: &str) -> FtlTypeInfo {
     FtlTypeInfo {
         type_kind: TypeKind::Struct,
         type_name: leak_str(name),
         variants: leak_slice(variants),
-        file_path: "",
+        file_path: leak_str(file_path),
         module_path: "test",
         namespace: None,
     }
@@ -68,6 +76,144 @@ fn owned_type_info_and_entry_helpers_work() {
         ast::Entry::GroupComment(comment)
             if group_comment_name(comment) == Some("Greeter".to_string())
     ));
+}
+
+#[test]
+fn generate_rejects_duplicate_keys_within_one_type_before_writing() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let output = temp.path().join("i18n");
+    let item = test_type_at(
+        "LoginError",
+        vec![
+            test_variant_at("MissingUser", "login_error-same", &["name"], 10),
+            test_variant_at("InvalidPassword", "login_error-same", &["attempts"], 11),
+        ],
+        "src/login.rs",
+    );
+
+    let err = generate(
+        "demo",
+        &output,
+        temp.path(),
+        &[item],
+        FluentParseMode::Conservative,
+        false,
+    )
+    .expect_err("duplicate key should fail");
+
+    let message = err.to_string();
+    assert!(message.contains("Duplicate generated FTL key 'login_error-same'"));
+    assert!(message.contains("LoginError"));
+    assert!(message.contains("MissingUser"));
+    assert!(message.contains("InvalidPassword"));
+    assert!(message.contains("src/login.rs:10"));
+    assert!(message.contains("src/login.rs:11"));
+    assert!(!output.join("demo.ftl").exists());
+}
+
+#[test]
+fn generate_rejects_duplicate_keys_across_types() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let first = test_type_at(
+        "SaveButton",
+        vec![test_variant_at("SaveButton", "shared-key", &[], 3)],
+        "src/save.rs",
+    );
+    let second = test_type_at(
+        "CancelButton",
+        vec![test_variant_at("CancelButton", "shared-key", &[], 9)],
+        "src/cancel.rs",
+    );
+
+    let err = generate(
+        "demo",
+        temp.path().join("i18n"),
+        temp.path(),
+        &[first, second],
+        FluentParseMode::Aggressive,
+        true,
+    )
+    .expect_err("duplicate key should fail");
+
+    let message = err.to_string();
+    assert!(message.contains("Duplicate generated FTL key 'shared-key'"));
+    assert!(message.contains("SaveButton"));
+    assert!(message.contains("CancelButton"));
+    assert!(message.contains("src/save.rs:3"));
+    assert!(message.contains("src/cancel.rs:9"));
+}
+
+#[test]
+fn generate_rejects_label_key_colliding_with_message_key() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let label = test_type_at(
+        "SettingsLabel",
+        vec![test_variant_at(
+            "SettingsLabel",
+            "settings_label_label",
+            &[],
+            4,
+        )],
+        "src/settings.rs",
+    );
+    let message = test_type_at(
+        "SettingsMessage",
+        vec![test_variant_at(
+            "SettingsMessage",
+            "settings_label_label",
+            &["name"],
+            12,
+        )],
+        "src/message.rs",
+    );
+
+    let err = generate(
+        "demo",
+        temp.path().join("i18n"),
+        temp.path(),
+        &[label, message],
+        FluentParseMode::Conservative,
+        true,
+    )
+    .expect_err("label/message collision should fail");
+
+    let message = err.to_string();
+    assert!(message.contains("settings_label_label"));
+    assert!(message.contains("SettingsLabel"));
+    assert!(message.contains("SettingsMessage"));
+}
+
+#[test]
+fn clean_rejects_duplicate_keys_with_different_argument_sets() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let output = temp.path().join("i18n");
+    fs::create_dir_all(&output).expect("create output");
+    let file = output.join("demo.ftl");
+    fs::write(&file, "duplicate-key = Existing\n").expect("write existing");
+
+    let first = test_type_at(
+        "First",
+        vec![test_variant_at("First", "duplicate-key", &["name"], 1)],
+        "src/first.rs",
+    );
+    let second = test_type_at(
+        "Second",
+        vec![test_variant_at("Second", "duplicate-key", &["count"], 2)],
+        "src/second.rs",
+    );
+
+    let err = clean::clean("demo", &output, temp.path(), &[first, second], false)
+        .expect_err("clean should fail before merging duplicate generated keys");
+
+    let message = err.to_string();
+    assert!(message.contains("Duplicate generated FTL key 'duplicate-key'"));
+    assert!(message.contains("First"));
+    assert!(message.contains("Second"));
+    assert!(
+        fs::read_to_string(&file)
+            .expect("read")
+            .contains("Existing")
+    );
 }
 
 #[test]

@@ -10,6 +10,8 @@ pub use es_fluent_shared::error::{EsFluentError, EsFluentResult};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AttrContext {
     MessageContainer,
+    MessageStructContainer,
+    MessageEnumContainer,
     MessageField,
     EnumVariant,
     VariantsContainer,
@@ -24,6 +26,8 @@ impl fmt::Display for AttrContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let label = match self {
             Self::MessageContainer => "message container",
+            Self::MessageStructContainer => "message struct container",
+            Self::MessageEnumContainer => "message enum container",
             Self::MessageField => "message field",
             Self::EnumVariant => "enum variant",
             Self::VariantsContainer => "variants container",

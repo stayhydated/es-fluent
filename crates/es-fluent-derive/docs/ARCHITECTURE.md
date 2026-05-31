@@ -21,11 +21,11 @@ type-level key through an explicit `FluentLocalizer`.
 
 Enum derives can override the generated base key with `resource = "..."`, route
 lookup through an explicit manager domain with `domain = "..."`, and opt out of
-inventory collection with `skip_inventory`. Variant-level `key = "..."`
-overrides the key suffix. Field-level `skip`, `default`, `arg`, `choice`,
-`optional`, and `value` affect the generated argument map before it reaches the
-localization closure. `choice`, `optional`, and `value` are mutually exclusive
-field strategies.
+inventory collection with `skip_inventory`. Struct message containers only
+accept `namespace = ...`. Variant-level `key = "..."` overrides the key suffix.
+Field-level `skip`, `arg`, `choice`, `optional`, and `value` affect the
+generated argument map before it reaches the localization closure. `choice`,
+`optional`, and `value` are mutually exclusive field strategies.
 
 The derive layer consumes typed accessors from `es-fluent-derive-core` for
 field argument names, variant keys, enum resource IDs, and enum domains, so
@@ -42,6 +42,9 @@ Namespace values are also carried with spans through derive-core and the derive
 namespace resolver. Labels and generated variant enums may inherit a container
 namespace, but multiple namespace sources for the same generated output are
 reported as attribute conflicts instead of being resolved by precedence.
+Raw attribute validation is shape-aware before Darling parsing, so enum-only
+`#[fluent(...)]` keys never reach the struct parser and struct-only diagnostics
+can list the exact accepted key set.
 
 `#[derive(EsFluentVariants)]` shares the same generated-enum path for structs
 and enums. `keys = [...]` creates keyed generated enums, `derive(...)` adds

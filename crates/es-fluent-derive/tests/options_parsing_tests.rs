@@ -239,7 +239,6 @@ fn struct_fluent_parsing() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     assert_eq!(opts.ident().to_string(), "MyStruct");
     assert_no_generics(opts.generics());
-    assert!(opts.attr_args().derive().is_empty());
     assert!(opts.attr_args().namespace().is_none());
 
     let fields = opts.fields();

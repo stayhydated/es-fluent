@@ -98,7 +98,7 @@ pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCore
         validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
-            AttributeLocation::MessageContainer,
+            message_container_location(input),
             Some(&input.ident),
         )?;
     }
@@ -153,7 +153,7 @@ pub fn validate_es_fluent_variants_attribute_context(
         validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
-            AttributeLocation::MessageContainer,
+            message_container_location(input),
             Some(&input.ident),
         )?;
         validate_attribute_for_location(
@@ -207,7 +207,7 @@ pub fn validate_es_fluent_label_attribute_context(input: &DeriveInput) -> EsFlue
         validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
-            AttributeLocation::MessageContainer,
+            message_container_location(input),
             Some(&input.ident),
         )?;
         validate_attribute_for_location(
@@ -235,8 +235,6 @@ pub fn validate_es_fluent_choice_attribute_context(input: &DeriveInput) -> EsFlu
     Ok(())
 }
 
-/// Validates the `es-fluent` attributes on a struct.
-/// Currently only checks that at most one field is marked `#[fluent(default)]`.
 pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
     validate_message_struct_model(&MessageStructModel::from_options(opts)?)
 }
@@ -244,14 +242,6 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
 pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluentCoreResult<()> {
     // Check for conflicting attributes on all fields
     for field in model.all_indexed_fields().into_iter().map(|(_, f)| f) {
-        if field.is_skipped() && field.is_default() {
-            return Err(EsFluentCoreError::FieldError {
-                message: "Cannot be both #[fluent(skip)] and #[fluent(default)]".to_string(),
-                field_name: field.ident().as_ref().map(|i| i.to_string()),
-                span: field.ident().as_ref().map(|ident| ident.span()),
-            });
-        }
-
         let explicit_arg = field.arg_name(AttrContext::MessageField)?;
 
         if field.is_skipped() && explicit_arg.is_some() {
@@ -300,31 +290,6 @@ pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluent
         }
     }
 
-    let default_fields: Vec<_> = model
-        .fields()
-        .into_iter()
-        .filter(|field| field.field().is_default())
-        .collect();
-
-    if default_fields.len() > 1 {
-        let first_field = &default_fields[0];
-        let second_field = &default_fields[1];
-
-        let first_field_name = first_field.argument_model()?;
-        let second_field_name = second_field.argument_model()?;
-        let second_span = second_field.binding().map(|ident| ident.span());
-
-        return Err(EsFluentCoreError::FieldError {
-            message: "Struct cannot have multiple fields marked `#[fluent(default)]`.".to_string(),
-            field_name: Some(second_field_name.name().as_str().to_string()),
-            span: second_span,
-        }
-        .with_note(format!(
-            "First `#[fluent(default)]` field found was `{}`.",
-            first_field_name.name().as_str()
-        )));
-    }
-
     // Ensure exposed argument names remain unique after arg overrides.
     let mut seen = std::collections::HashSet::new();
     for field in model.fields() {
@@ -341,6 +306,14 @@ pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluent
         }
     }
     Ok(())
+}
+
+fn message_container_location(input: &DeriveInput) -> AttributeLocation {
+    match &input.data {
+        syn::Data::Struct(_) => AttributeLocation::MessageStructContainer,
+        syn::Data::Enum(_) => AttributeLocation::MessageEnumContainer,
+        syn::Data::Union(_) => AttributeLocation::MessageStructContainer,
+    }
 }
 
 /// Validates enum-specific attributes.
