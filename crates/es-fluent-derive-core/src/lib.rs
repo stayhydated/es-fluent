@@ -1,4 +1,5 @@
 //! Core library for `es-fluent-derive`.
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 pub mod error;
 pub mod options;

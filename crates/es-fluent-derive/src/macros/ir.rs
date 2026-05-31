@@ -1,9 +1,8 @@
-use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::semantic::{
-    ArgumentModel, MessageEntryModel, SourceLocation, SpannedValue,
-    parse_fluent_message_id_in_context,
+    ArgName, ArgumentModel, DomainName, FluentMessageId, MessageEntryModel, SourceLocation,
+    SpannedValue,
 };
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::Ident;
 
@@ -41,37 +40,25 @@ pub(crate) struct MessageEntrySpec {
 impl MessageEntrySpec {
     pub(crate) fn new(
         source_name: String,
-        ftl_key: String,
-        source_span: Span,
+        message_id: SpannedValue<FluentMessageId>,
         runtime_arguments: Vec<FluentArgument>,
     ) -> Self {
-        let message_id =
-            parse_fluent_message_id_in_context(ftl_key, source_span, AttrContext::MessageContainer)
-                .unwrap_or_else(|error| error.abort());
         let arguments = runtime_arguments
             .iter()
             .map(|argument| argument.metadata.clone())
             .collect();
+        let source_location = SourceLocation::new(message_id.span());
 
         Self {
-            metadata: MessageEntryModel::new(
-                source_name,
-                SpannedValue::new(message_id, source_span),
-                arguments,
-                SourceLocation::new(source_span),
-            ),
+            metadata: MessageEntryModel::new(source_name, message_id, arguments, source_location),
             runtime_arguments,
         }
     }
 
-    pub(crate) fn ftl_key(&self) -> &str {
-        self.metadata.message_id().as_str()
-    }
-
-    pub(crate) fn localize_with_expr(&self, domain_override: Option<String>) -> TokenStream {
+    pub(crate) fn localize_with_expr(&self, domain_override: Option<&DomainName>) -> TokenStream {
         LocalizeCallSpec {
-            domain_override,
-            ftl_key: self.ftl_key().to_string(),
+            domain_override: domain_override.cloned(),
+            ftl_key: self.metadata.message_id().clone(),
             arguments: self.runtime_arguments.clone(),
         }
         .localize_with_expr()
@@ -81,7 +68,7 @@ impl MessageEntrySpec {
 pub(crate) fn inventory_variant_tokens_for_model(metadata: &MessageEntryModel) -> TokenStream {
     InventoryVariantSpec {
         name: metadata.source_name().to_string(),
-        ftl_key: metadata.message_id().to_string(),
+        ftl_key: metadata.message_id().clone(),
         arg_names: metadata.argument_names(),
         source_location: metadata.source_location().clone(),
     }
@@ -89,18 +76,21 @@ pub(crate) fn inventory_variant_tokens_for_model(metadata: &MessageEntryModel) -
 }
 
 pub(crate) struct LocalizeCallSpec {
-    pub(crate) domain_override: Option<String>,
-    pub(crate) ftl_key: String,
+    pub(crate) domain_override: Option<DomainName>,
+    pub(crate) ftl_key: FluentMessageId,
     pub(crate) arguments: Vec<FluentArgument>,
 }
 
 impl LocalizeCallSpec {
     pub(crate) fn localize_with_expr(&self) -> TokenStream {
-        let domain_expr = match self.domain_override.as_deref() {
-            Some(domain) => quote! { #domain },
+        let domain_expr = match self.domain_override.as_ref() {
+            Some(domain) => {
+                let domain = domain.as_str();
+                quote! { #domain }
+            },
             None => quote! { env!("CARGO_PKG_NAME") },
         };
-        let ftl_key = &self.ftl_key;
+        let ftl_key = self.ftl_key.as_str();
 
         if self.arguments.is_empty() {
             quote! {
@@ -126,16 +116,23 @@ impl LocalizeCallSpec {
 
 pub(crate) struct InventoryVariantSpec {
     pub(crate) name: String,
-    pub(crate) ftl_key: String,
-    pub(crate) arg_names: Vec<String>,
+    pub(crate) ftl_key: FluentMessageId,
+    pub(crate) arg_names: Vec<ArgName>,
     pub(crate) source_location: SourceLocation,
 }
 
 impl InventoryVariantSpec {
     pub(crate) fn tokens(&self) -> TokenStream {
         let name = &self.name;
-        let ftl_key = &self.ftl_key;
-        let args_tokens: Vec<_> = self.arg_names.iter().map(|arg| quote! { #arg }).collect();
+        let ftl_key = self.ftl_key.as_str();
+        let args_tokens: Vec<_> = self
+            .arg_names
+            .iter()
+            .map(|arg| {
+                let arg = arg.as_str();
+                quote! { #arg }
+            })
+            .collect();
         let source_span = self.source_location.span();
         let source_line = quote_spanned! { source_span=> line!() };
 
@@ -158,11 +155,12 @@ pub(crate) struct GeneratedUnitEnumVariant {
 }
 
 impl GeneratedUnitEnumVariant {
-    pub(crate) fn localize_with_match_arm(&self, domain_override: Option<&str>) -> TokenStream {
+    pub(crate) fn localize_with_match_arm(
+        &self,
+        domain_override: Option<&DomainName>,
+    ) -> TokenStream {
         let variant_ident = &self.ident;
-        let body = self
-            .message_entry
-            .localize_with_expr(domain_override.map(str::to_string));
+        let body = self.message_entry.localize_with_expr(domain_override);
 
         quote! {
             Self::#variant_ident => #body

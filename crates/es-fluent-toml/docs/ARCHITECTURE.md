@@ -24,14 +24,16 @@ flowchart TD
     end
 
     subgraph OUTPUT
+        RAW["RawI18nConfig"]
         CONF["I18nConfig Struct"]
         PATHS["Resolved Paths"]
         LANGS["Available Languages"]
     end
 
     FILE --> PARSE
-    PARSE --> CONF
-    CONF --> VALID
+    PARSE --> RAW
+    RAW --> VALID
+    VALID --> CONF
     ENV --> VALID
     VALID --> PATHS
     VALID --> LANG
@@ -48,9 +50,6 @@ fallback_language = "en"
 assets_dir = "assets/locales"
 
 # Features to enable if the crate's es-fluent derives are gated behind a feature (optional)
-# Can be a single string or an array of strings:
-fluent_feature = "my-feature"
-# or
 fluent_feature = ["my-feature", "another-feature"]
 
 # Optional allowlist of namespace values used by #[fluent(namespace = "...")]
@@ -66,7 +65,7 @@ namespaces = ["ui", "errors", "messages"]
    It scans the `assets_dir` to find all subdirectories that correspond to valid BCP-47 language codes. This allows the ecosystem to auto-discover available languages without manual registration. Languages are sorted alphabetically and deduplicated.
 
 1. **Validation**:
-   It ensures that paths exist and that language codes are spec-compliant and canonical. Locale directory names and `fallback_language` must round-trip through `unic-langid` without casing or separator changes (for example `fr-FR`, not `fr-fr`). Region, script, and variant subtags are preserved as long as `unic-langid` accepts them. Non-UTF8 directory names are also rejected with a clear error message.
+   It first deserializes TOML into `RawI18nConfig`, then validates into `I18nConfig`. The validated model stores `fallback_language` as a `unic_langid::LanguageIdentifier` and `namespaces` as `ResolvedNamespace` values, so downstream crates receive typed values instead of reparsing strings. It ensures that paths exist and that language codes are spec-compliant and canonical. Locale directory names and `fallback_language` must round-trip through `unic-langid` without casing or separator changes (for example `fr-FR`, not `fr-fr`). Region, script, and variant subtags are preserved as long as `unic-langid` accepts them. Non-UTF8 directory names are also rejected with a clear error message.
 
 1. **Namespace Policy (Optional)**:
-   If `namespaces` is provided, downstream tooling can use it to validate `#[fluent(namespace = "...")]` usage and keep output file layout consistent.
+   If `namespaces` is provided, each configured value must be a safe locale-relative path such as `ui` or `user/profile`. Downstream tooling uses the typed allowlist to validate `#[fluent(namespace = "...")]` usage and keep output file layout consistent.

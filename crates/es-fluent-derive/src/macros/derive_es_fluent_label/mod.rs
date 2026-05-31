@@ -1,4 +1,5 @@
 use darling::FromDeriveInput as _;
+use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
 use es_fluent_derive_core::{options::label::LabelOpts, validation};
 use es_fluent_shared::{meta::TypeKind, namer, namespace::NamespaceRule};
@@ -47,7 +48,11 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
     let original_ident = opts.ident();
     let generics = opts.generics();
     let ftl_key = if opts.attr_args().is_origin() {
-        Some(namer::FluentKey::new_label(original_ident).to_string())
+        Some(crate::macros::utils::message_id_or_abort(
+            namer::FluentKey::new_label(original_ident).to_string(),
+            original_ident.span(),
+            AttrContext::LabelContainer,
+        ))
     } else {
         None
     };
@@ -55,23 +60,27 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
     let localize_label_impl = crate::macros::utils::generate_localize_label_impl(
         original_ident,
         generics,
-        ftl_key.as_deref(),
-        fluent_domain.as_deref(),
+        ftl_key.as_ref().map(|key| key.value()),
+        fluent_domain.as_ref(),
     );
-    let type_kind = match &input.data {
-        Data::Struct(_) => quote! { ::es_fluent::meta::TypeKind::Struct },
-        Data::Enum(_) => quote! { ::es_fluent::meta::TypeKind::Enum },
-        Data::Union(_) => unreachable!("EsFluentLabel does not support unions"),
-    };
-    let semantic_type_kind = match &input.data {
-        Data::Struct(_) => TypeKind::Struct,
-        Data::Enum(_) => TypeKind::Enum,
-        Data::Union(_) => unreachable!("EsFluentLabel does not support unions"),
+    let (type_kind, semantic_type_kind) = match &input.data {
+        Data::Struct(_) => (
+            quote! { ::es_fluent::meta::TypeKind::Struct },
+            TypeKind::Struct,
+        ),
+        Data::Enum(_) => (quote! { ::es_fluent::meta::TypeKind::Enum }, TypeKind::Enum),
+        Data::Union(_) => {
+            return syn::Error::new(
+                input.ident.span(),
+                "EsFluentLabel can only be derived for structs and enums",
+            )
+            .to_compile_error();
+        },
     };
 
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
-    let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
+    let inventory_submit = if let Some(ftl_key) = &ftl_key {
         let type_name = namer::rust_ident_name(original_ident);
         let label_namespace = opts.attr_args().namespace().map(|namespace| {
             SpannedNamespaceRuleRef::new(
@@ -91,23 +100,17 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
                 .map(SpannedNamespaceRuleRef::span)
                 .unwrap_or_else(|| original_ident.span()),
         );
-        let label_entry = MessageEntrySpec::new(
-            type_name,
-            ftl_key_str.to_string(),
-            original_ident.span(),
-            Vec::new(),
-        );
+        let label_entry = MessageEntrySpec::new(type_name, ftl_key.clone(), Vec::new());
+        let label_variant = inventory_variant_tokens_for_model(&label_entry.metadata);
         let label_model = MessageModel::new(
             namer::rust_ident_name(original_ident),
             semantic_type_kind,
             None,
             namespace.map(|namespace| namespace.rule().clone()),
             Vec::new(),
-            Some(label_entry.metadata.clone()),
+            Some(label_entry.metadata),
             InventoryPolicy::Emit,
         );
-        let label_variant =
-            inventory_variant_tokens_for_model(label_model.label().expect("label entry"));
 
         crate::macros::utils::generate_inventory_module(InventoryModuleInput {
             ident: original_ident,

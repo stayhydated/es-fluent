@@ -460,13 +460,18 @@ mod validate_namespace_tests {
 mod validate_namespace_against_allowed_tests {
     use super::*;
 
+    fn allowed(namespaces: &[&str]) -> Vec<es_fluent_shared::namespace::ResolvedNamespace> {
+        namespaces
+            .iter()
+            .copied()
+            .map(es_fluent_shared::namespace::ResolvedNamespace::new)
+            .collect::<Result<_, _>>()
+            .expect("test namespaces")
+    }
+
     #[test]
     fn valid_namespace_in_allowed_list() {
-        let allowed = vec![
-            "ui".to_string(),
-            "errors".to_string(),
-            "components".to_string(),
-        ];
+        let allowed = allowed(&["ui", "errors", "components"]);
 
         es_fluent_derive_core::validation::validate_namespace_against_allowed("ui", &allowed, None)
             .expect("'ui' should be allowed");
@@ -485,7 +490,7 @@ mod validate_namespace_against_allowed_tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn invalid_namespace_not_in_allowed_list() {
-        let allowed = vec!["ui".to_string(), "errors".to_string()];
+        let allowed = allowed(&["ui", "errors"]);
 
         let err = es_fluent_derive_core::validation::validate_namespace_against_allowed(
             "unknown", &allowed, None,
@@ -501,7 +506,7 @@ mod validate_namespace_against_allowed_tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn empty_allowed_list_rejects_everything() {
-        let allowed: Vec<String> = vec![];
+        let allowed = vec![];
 
         let err = es_fluent_derive_core::validation::validate_namespace_against_allowed(
             "anything", &allowed, None,
@@ -517,7 +522,7 @@ mod validate_namespace_against_allowed_tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn namespace_matching_is_case_sensitive() {
-        let allowed = vec!["UI".to_string(), "Errors".to_string()];
+        let allowed = allowed(&["UI", "Errors"]);
 
         // Exact case should pass
         es_fluent_derive_core::validation::validate_namespace_against_allowed("UI", &allowed, None)
@@ -536,11 +541,7 @@ mod validate_namespace_against_allowed_tests {
 
     #[test]
     fn namespace_with_special_characters() {
-        let allowed = vec![
-            "my-namespace".to_string(),
-            "my_namespace".to_string(),
-            "my.namespace".to_string(),
-        ];
+        let allowed = allowed(&["my-namespace", "my_namespace", "my.namespace"]);
 
         es_fluent_derive_core::validation::validate_namespace_against_allowed(
             "my-namespace",

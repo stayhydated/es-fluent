@@ -4,8 +4,9 @@ use es_fluent_derive_core::options::{
     FluentField, GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
 };
 use es_fluent_derive_core::semantic::{
-    ArgumentModel, ArgumentValueStrategy, DerivePathList, GeneratedEnumModel, InventoryPolicy,
-    MessageModel, ValueTransform, parse_domain_name_in_context,
+    ArgumentModel, ArgumentValueStrategy, DerivePathList, DomainName, FluentMessageId,
+    GeneratedEnumModel, InventoryPolicy, MessageModel, SpannedValue, ValueTransform,
+    parse_fluent_message_id_in_context,
 };
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use proc_macro2::{Span, TokenStream};
@@ -27,11 +28,11 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub ident: &'a syn::Ident,
     pub origin_ident: &'a syn::Ident,
     pub key_name: Option<&'a str>,
-    pub domain_override: Option<&'a str>,
+    pub domain_override: Option<&'a DomainName>,
     pub derives: &'a [syn::Path],
     pub variants: &'a [GeneratedUnitEnumVariant],
     pub namespace: Option<&'a NamespaceRule>,
-    pub label_key: Option<String>,
+    pub label_key: Option<FluentMessageId>,
 }
 
 #[derive(Clone, Debug)]
@@ -101,16 +102,20 @@ pub fn emit_default_or_keyed_items(
 pub fn generate_localize_label_impl(
     ident: &syn::Ident,
     generics: &syn::Generics,
-    ftl_key: Option<&str>,
-    domain_override: Option<&str>,
+    ftl_key: Option<&FluentMessageId>,
+    domain_override: Option<&DomainName>,
 ) -> TokenStream {
     let Some(ftl_key) = ftl_key else {
         return quote! {};
     };
+    let ftl_key = ftl_key.as_str();
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let domain_expr = match domain_override {
-        Some(domain) => quote! { #domain },
+        Some(domain) => {
+            let domain = domain.as_str();
+            quote! { #domain }
+        },
         None => quote! { env!("CARGO_PKG_NAME") },
     };
     quote! {
@@ -218,6 +223,16 @@ pub fn variant_ftl_key(
         .to_string()
 }
 
+pub fn message_id_or_abort(
+    value: impl Into<String>,
+    span: Span,
+    context: AttrContext,
+) -> SpannedValue<FluentMessageId> {
+    let message_id = parse_fluent_message_id_in_context(value, span, context)
+        .unwrap_or_else(|error| error.abort());
+    SpannedValue::new(message_id, span)
+}
+
 pub fn generate_fluent_message_impl(
     ident: &syn::Ident,
     generics: &syn::Generics,
@@ -284,7 +299,7 @@ pub fn generate_optional_label_inventory_module(
     ident: &syn::Ident,
     source_span: proc_macro2::Span,
     namespace: Option<&NamespaceRule>,
-    label_key: Option<&str>,
+    label_key: Option<&FluentMessageId>,
 ) -> TokenStream {
     let Some(label_key) = label_key else {
         return quote! {};
@@ -292,21 +307,19 @@ pub fn generate_optional_label_inventory_module(
 
     let label_entry = MessageEntrySpec::new(
         namer::rust_ident_name(ident),
-        label_key.to_string(),
-        source_span,
+        SpannedValue::new(label_key.clone(), source_span),
         Vec::new(),
     );
+    let label_variant = inventory_variant_tokens_for_model(&label_entry.metadata);
     let label_model = MessageModel::new(
         namer::rust_ident_name(ident),
         es_fluent_shared::meta::TypeKind::Enum,
         None,
         namespace.cloned(),
         Vec::new(),
-        Some(label_entry.metadata.clone()),
+        Some(label_entry.metadata),
         InventoryPolicy::Emit,
     );
-    let label_variant =
-        inventory_variant_tokens_for_model(label_model.label().expect("label entry"));
 
     generate_inventory_module(InventoryModuleInput {
         ident,
@@ -330,15 +343,10 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
     } = input;
 
     let empty_generics = syn::Generics::default();
-    let domain_model = domain_override.map(|domain| {
-        parse_domain_name_in_context(domain, ident.span(), AttrContext::VariantsContainer)
-            .unwrap_or_else(|error| error.abort())
-    });
     let label_model = label_key.as_ref().map(|label_key| {
         MessageEntrySpec::new(
             namer::rust_ident_name(ident),
-            label_key.clone(),
-            origin_ident.span(),
+            SpannedValue::new(label_key.clone(), origin_ident.span()),
             Vec::new(),
         )
         .metadata
@@ -355,7 +363,7 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
             .map(|variant| variant.message_entry.metadata.clone())
             .collect(),
         label_model,
-        domain_model,
+        domain_override.cloned(),
         namespace.cloned(),
     );
     let new_enum =
@@ -383,17 +391,13 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
             .collect(),
         namespace_expr: namespace_rule_tokens(generated_model.namespace()),
     });
-    let label_impl = generate_localize_label_impl(
-        ident,
-        &empty_generics,
-        label_key.as_deref(),
-        domain_override,
-    );
+    let label_impl =
+        generate_localize_label_impl(ident, &empty_generics, label_key.as_ref(), domain_override);
     let label_inventory = generate_optional_label_inventory_module(
         ident,
         origin_ident.span(),
         namespace,
-        label_key.as_deref(),
+        label_key.as_ref(),
     );
 
     quote! {
@@ -521,14 +525,14 @@ pub fn inherited_fluent_namespace_with_span(
     }
 }
 
-pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<String>, darling::Error> {
+pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<DomainName>, darling::Error> {
     match &input.data {
         Data::Struct(_) => Ok(None),
         Data::Enum(_) => EnumOpts::from_derive_input(input).map(|opts| {
             opts.attr_args()
                 .domain_name(AttrContext::MessageContainer)
                 .unwrap_or_else(|error| error.abort())
-                .map(|domain| domain.into_value().to_string())
+                .map(|domain| domain.into_value())
         }),
         Data::Union(_) => Err(darling::Error::custom(
             "domain lookup is not supported for unions",
@@ -607,11 +611,17 @@ mod tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_localize_label_impl_routes_through_the_current_crate_domain() {
+        let message_id = super::message_id_or_abort(
+            "hello",
+            proc_macro2::Span::call_site(),
+            AttrContext::LabelContainer,
+        )
+        .into_value();
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
                 &parse_quote!(Greeting),
                 &parse_quote!(),
-                Some("hello"),
+                Some(&message_id),
                 None,
             ));
 
@@ -621,12 +631,24 @@ mod tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_localize_label_impl_uses_explicit_domain_override_when_present() {
+        let message_id = super::message_id_or_abort(
+            "es-fluent-lang-label",
+            proc_macro2::Span::call_site(),
+            AttrContext::LabelContainer,
+        )
+        .into_value();
+        let domain = es_fluent_derive_core::semantic::parse_domain_name_in_context(
+            "es-fluent-lang",
+            proc_macro2::Span::call_site(),
+            AttrContext::LabelContainer,
+        )
+        .expect("domain");
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
                 &parse_quote!(Languages),
                 &parse_quote!(),
-                Some("es-fluent-lang-label"),
-                Some("es-fluent-lang"),
+                Some(&message_id),
+                Some(&domain),
             ));
 
         assert_snapshot!(
@@ -736,7 +758,14 @@ mod tests {
 
         assert_eq!(
             super::inherited_fluent_domain(&enum_input).expect("enum domain"),
-            Some("es-fluent-lang".to_string())
+            Some(
+                es_fluent_derive_core::semantic::parse_domain_name_in_context(
+                    "es-fluent-lang",
+                    proc_macro2::Span::call_site(),
+                    AttrContext::MessageContainer,
+                )
+                .expect("domain")
+            )
         );
         assert_eq!(
             super::inherited_fluent_domain(&struct_input).expect("struct domain"),

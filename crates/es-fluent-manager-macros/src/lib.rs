@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 #![allow(clippy::needless_doctest_main)]
 
 mod assets;

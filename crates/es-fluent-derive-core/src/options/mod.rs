@@ -227,7 +227,7 @@ pub fn all_indexed_struct_items<T>(
 pub fn enum_items<T>(data: &darling::ast::Data<T, darling::util::Ignored>) -> Vec<&T> {
     match data {
         darling::ast::Data::Enum(variants) => variants.iter().collect(),
-        _ => unreachable!("Unexpected data type for enum"),
+        _ => Vec::new(),
     }
 }
 
@@ -236,7 +236,7 @@ pub fn filtered_enum_items<T: Skippable>(
 ) -> Vec<&T> {
     match data {
         darling::ast::Data::Enum(variants) => filter_unskipped(variants),
-        _ => unreachable!("Unexpected data type for enum"),
+        _ => Vec::new(),
     }
 }
 

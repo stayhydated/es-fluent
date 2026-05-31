@@ -12,6 +12,22 @@ use crate::namespace::{NamespacePathError, ResolvedNamespace};
 /// Errors produced while building a module resource plan.
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum ResourcePlanError {
+    /// The module domain is not a valid resource key segment.
+    #[error("invalid domain resource key '{key}': {details}")]
+    InvalidResourceKey {
+        /// Invalid resource key.
+        key: String,
+        /// Validation details.
+        details: ResourceKeyError,
+    },
+    /// A generated locale-relative resource path is invalid.
+    #[error("invalid locale-relative resource path '{path}': {details}")]
+    InvalidResourcePath {
+        /// Invalid locale-relative path.
+        path: String,
+        /// Validation details.
+        details: LocaleRelativeFtlPathError,
+    },
     /// A namespace entry is not a valid locale-relative namespace path.
     #[error("invalid namespace '{namespace}': {details}")]
     InvalidNamespace {
@@ -162,6 +178,10 @@ impl ResourceKey {
     }
 
     /// Creates a new resource key.
+    #[allow(
+        clippy::panic,
+        reason = "panic wrapper retained for static metadata; use try_new for dynamic input"
+    )]
     pub fn new(key: impl Into<String>) -> Self {
         let key = key.into();
         Self::try_new(key.clone())
@@ -219,6 +239,10 @@ impl LocaleRelativeFtlPath {
     }
 
     /// Creates a locale-relative Fluent resource path, panicking when invalid.
+    #[allow(
+        clippy::panic,
+        reason = "panic wrapper retained for static metadata; use try_new for dynamic input"
+    )]
     pub fn new(path: impl Into<String>) -> Self {
         let path = path.into();
         Self::try_new(path.clone())
@@ -299,6 +323,26 @@ pub struct ModuleResourceSpec {
 }
 
 impl ModuleResourceSpec {
+    /// Validates and creates a resource specification.
+    pub fn try_new(
+        key: impl Into<String>,
+        locale_relative_path: impl Into<String>,
+        required: bool,
+    ) -> Result<Self, ResourcePlanError> {
+        let key = key.into();
+        let locale_relative_path = locale_relative_path.into();
+        Ok(Self {
+            key: ResourceKey::try_new(key.clone())
+                .map_err(|details| ResourcePlanError::InvalidResourceKey { key, details })?,
+            locale_relative_path: LocaleRelativeFtlPath::try_new(locale_relative_path.clone())
+                .map_err(|details| ResourcePlanError::InvalidResourcePath {
+                    path: locale_relative_path,
+                    details,
+                })?,
+            required,
+        })
+    }
+
     /// Creates a resource specification.
     pub fn new(
         key: impl Into<ResourceKey>,
@@ -312,11 +356,29 @@ impl ModuleResourceSpec {
         }
     }
 
+    /// Validates and creates the base domain resource specification.
+    pub fn try_base(domain: &str, required: bool) -> Result<Self, ResourcePlanError> {
+        Self::try_new(domain, format!("{domain}.ftl"), required)
+    }
+
     /// Creates the base domain resource specification.
     pub fn base(domain: &str, required: bool) -> Self {
         Self::new(
             ResourceKey::new(domain.to_string()),
             format!("{domain}.ftl"),
+            required,
+        )
+    }
+
+    /// Validates and creates a namespaced resource specification.
+    pub fn try_namespaced(
+        domain: &str,
+        namespace: &ResolvedNamespace,
+        required: bool,
+    ) -> Result<Self, ResourcePlanError> {
+        Self::try_new(
+            format!("{domain}/{namespace}"),
+            format!("{domain}/{namespace}.ftl"),
             required,
         )
     }
@@ -387,12 +449,12 @@ impl ResourcePlan {
     pub fn for_domain(domain: &str, namespaces: &[&str]) -> Result<Self, ResourcePlanError> {
         if namespaces.is_empty() {
             return Ok(Self {
-                specs: vec![ModuleResourceSpec::base(domain, true)],
+                specs: vec![ModuleResourceSpec::try_base(domain, true)?],
             });
         }
 
         let mut specs = Vec::with_capacity(namespaces.len() + 1);
-        specs.push(ModuleResourceSpec::base(domain, false));
+        specs.push(ModuleResourceSpec::try_base(domain, false)?);
 
         let mut seen = HashSet::new();
         for namespace in namespaces {
@@ -407,7 +469,9 @@ impl ResourcePlan {
                 continue;
             }
 
-            specs.push(ModuleResourceSpec::namespaced(domain, &namespace, true));
+            specs.push(ModuleResourceSpec::try_namespaced(
+                domain, &namespace, true,
+            )?);
         }
 
         Ok(Self { specs })
@@ -662,6 +726,10 @@ pub fn try_resource_plan_for(
 /// reported as data instead of aborting. This panic wrapper is retained for
 /// static module metadata paths where invalid namespaces are programmer errors
 /// and recovery is not useful.
+#[allow(
+    clippy::panic,
+    reason = "panic wrapper retained for static metadata; use try_resource_plan_for for dynamic input"
+)]
 pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourceSpec> {
     try_resource_plan_for(domain, namespaces)
         .unwrap_or_else(|error| panic!("resource_plan_for received {error}"))
@@ -751,6 +819,24 @@ mod tests {
             Err(LocaleRelativeFtlPathError::InvalidStem(
                 NamespacePathError::CurrentOrParentSegment
             ))
+        ));
+    }
+
+    #[test]
+    fn module_resource_spec_try_new_reports_invalid_parts() {
+        assert!(matches!(
+            ModuleResourceSpec::try_new("../demo", "demo.ftl", true),
+            Err(ResourcePlanError::InvalidResourceKey {
+                key,
+                details: ResourceKeyError(NamespacePathError::CurrentOrParentSegment),
+            }) if key == "../demo"
+        ));
+        assert!(matches!(
+            ModuleResourceSpec::try_new("demo", "demo", true),
+            Err(ResourcePlanError::InvalidResourcePath {
+                path,
+                details: LocaleRelativeFtlPathError::MissingFtlSuffix,
+            }) if path == "demo"
         ));
     }
 
@@ -920,6 +1006,19 @@ mod tests {
             ResourcePlanError::InvalidNamespace {
                 namespace: "../outside".to_string(),
                 details: NamespacePathError::CurrentOrParentSegment
+            }
+        );
+    }
+
+    #[test]
+    fn try_resource_plan_for_reports_invalid_domain_without_panicking() {
+        let err = try_resource_plan_for("../demo", &[]).expect_err("invalid domain should fail");
+
+        assert_eq!(
+            err,
+            ResourcePlanError::InvalidResourceKey {
+                key: "../demo".to_string(),
+                details: ResourceKeyError(NamespacePathError::CurrentOrParentSegment),
             }
         );
     }

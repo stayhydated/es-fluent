@@ -29,7 +29,7 @@ pub struct LabelNamespacedAttributeArgs {
 impl LabelNamespacedAttributeArgs {
     /// Returns `true` if `origin` should be generated.
     pub fn is_origin(&self) -> bool {
-        self.origin.as_ref().map_or(true, ExplicitBool::value)
+        self.origin.as_ref().is_none_or(ExplicitBool::value)
     }
 
     /// Returns `true` if `variants` should be generated.

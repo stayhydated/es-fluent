@@ -1,8 +1,10 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 mod language;
 
 use es_fluent_shared::CanonicalLanguageIdentifierError;
+use es_fluent_shared::namespace::{NamespacePathError, ResolvedNamespace};
 use fs_err::{self as fs, DirEntry};
 use path_slash::PathExt as _;
 use serde::{Deserialize, Serialize};
@@ -76,75 +78,35 @@ pub enum I18nConfigError {
         /// The canonical fallback language string expected by the runtime.
         canonical: String,
     },
+    /// Encountered an invalid configured namespace allowlist entry.
+    #[error("Invalid namespace '{namespace}' in i18n.toml: {source}")]
+    InvalidNamespace {
+        /// The invalid namespace string.
+        namespace: String,
+        /// The namespace validation error.
+        #[source]
+        source: NamespacePathError,
+    },
 }
 
-/// Represents the `fluent_feature` field in `i18n.toml`.
-/// Supports both a single string and an array of strings.
-///
-/// # Examples
-///
-/// Single feature:
-/// ```toml
-/// fluent_feature = "fluent"
-/// ```
-///
-/// Multiple features:
-/// ```toml
-/// fluent_feature = ["fluent", "i18n"]
-/// ```
+/// Raw TOML shape for `i18n.toml` before validation and typed normalization.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum FluentFeature {
-    /// A single feature name.
-    Single(String),
-    /// Multiple feature names.
-    Multiple(Vec<String>),
-}
-
-impl FluentFeature {
-    /// Returns the features as a vector of strings.
-    pub fn as_vec(&self) -> Vec<String> {
-        match self {
-            FluentFeature::Single(s) => vec![s.clone()],
-            FluentFeature::Multiple(v) => v.clone(),
-        }
-    }
-
-    /// Returns true if there are no features.
-    pub fn is_empty(&self) -> bool {
-        match self {
-            FluentFeature::Single(s) => s.is_empty(),
-            FluentFeature::Multiple(v) => v.is_empty(),
-        }
-    }
-}
-
-/// The configuration for `es-fluent`.
-#[derive(bon::Builder, Clone, Debug, Deserialize, Serialize)]
-pub struct I18nConfig {
+pub struct RawI18nConfig {
     /// The fallback language identifier (e.g., "en-US").
-    #[builder(into)]
     pub fallback_language: String,
     /// Path to the assets directory containing translation files.
     /// Expected structure: {assets_dir}/{language}/{domain}.ftl
-    #[builder(into)]
     pub assets_dir: PathBuf,
     /// Optional feature flag(s) that enable es-fluent derives in the crate.
     /// If specified, the CLI will enable these features when generating FTL files.
     ///
     /// # Examples
     ///
-    /// Single feature:
-    /// ```toml
-    /// fluent_feature = "fluent"
-    /// ```
-    ///
-    /// Multiple features:
     /// ```toml
     /// fluent_feature = ["fluent", "i18n"]
     /// ```
     #[serde(default)]
-    pub fluent_feature: Option<FluentFeature>,
+    pub fluent_feature: Option<Vec<String>>,
     /// Optional list of allowed namespaces for FTL file generation.
     /// If specified, only these namespace values can be used in `#[fluent(namespace = "...")]`.
     /// If not specified, any namespace is allowed.
@@ -158,6 +120,63 @@ pub struct I18nConfig {
     pub namespaces: Option<Vec<String>>,
 }
 
+impl RawI18nConfig {
+    /// Validates raw TOML values and returns the typed configuration model.
+    pub fn validate(self) -> Result<I18nConfig, I18nConfigError> {
+        let fallback_language = parse_fallback_language_identifier(&self.fallback_language)?;
+        let namespaces = self
+            .namespaces
+            .map(|namespaces| {
+                namespaces
+                    .into_iter()
+                    .map(|namespace| {
+                        ResolvedNamespace::new(namespace.clone()).map_err(|source| {
+                            I18nConfigError::InvalidNamespace { namespace, source }
+                        })
+                    })
+                    .collect()
+            })
+            .transpose()?;
+
+        Ok(I18nConfig {
+            fallback_language,
+            assets_dir: self.assets_dir,
+            fluent_feature: self.fluent_feature,
+            namespaces,
+        })
+    }
+}
+
+/// The configuration for `es-fluent`.
+#[derive(bon::Builder, Clone, Debug)]
+pub struct I18nConfig {
+    /// The fallback language identifier (e.g., "en-US").
+    pub fallback_language: LanguageIdentifier,
+    /// Path to the assets directory containing translation files.
+    /// Expected structure: {assets_dir}/{language}/{domain}.ftl
+    #[builder(into)]
+    pub assets_dir: PathBuf,
+    /// Optional feature flag(s) that enable es-fluent derives in the crate.
+    /// If specified, the CLI will enable these features when generating FTL files.
+    ///
+    /// # Examples
+    ///
+    /// ```toml
+    /// fluent_feature = ["fluent", "i18n"]
+    /// ```
+    pub fluent_feature: Option<Vec<String>>,
+    /// Optional list of allowed namespaces for FTL file generation.
+    /// If specified, only these namespace values can be used in `#[fluent(namespace = "...")]`.
+    /// If not specified, any namespace is allowed.
+    ///
+    /// # Examples
+    ///
+    /// ```toml
+    /// namespaces = ["ui", "errors", "messages"]
+    /// ```
+    pub namespaces: Option<Vec<ResolvedNamespace>>,
+}
+
 /// Fully resolved project i18n layout derived from `i18n.toml`.
 #[derive(Clone, Debug)]
 pub struct ResolvedI18nLayout {
@@ -169,6 +188,8 @@ pub struct ResolvedI18nLayout {
     pub config: I18nConfig,
     /// Absolute path to the assets directory.
     pub assets_dir: PathBuf,
+    /// Canonical fallback locale directory name.
+    pub fallback_language: String,
     /// Absolute path to the fallback locale output directory.
     pub output_dir: PathBuf,
 }
@@ -188,20 +209,22 @@ impl ResolvedI18nLayout {
             .unwrap_or_else(|| PathBuf::from("."));
         let config = I18nConfig::read_from_path(config_path)?;
         let assets_dir = config.assets_dir_from_base(Some(&manifest_dir))?;
-        let output_dir = assets_dir.join(&config.fallback_language);
+        let fallback_language = config.fallback_language_id();
+        let output_dir = assets_dir.join(&fallback_language);
 
         Ok(Self {
             manifest_dir,
             config_path: config_path.to_path_buf(),
             config,
             assets_dir,
+            fallback_language,
             output_dir,
         })
     }
 
     /// Returns the configured fallback locale string.
     pub fn fallback_language(&self) -> &str {
-        &self.config.fallback_language
+        &self.fallback_language
     }
 
     /// Returns the locale directory for `locale`.
@@ -211,11 +234,7 @@ impl ResolvedI18nLayout {
 
     /// Returns feature flags that enable derives for this crate.
     pub fn fluent_features(&self) -> Vec<String> {
-        self.config
-            .fluent_feature
-            .as_ref()
-            .map(FluentFeature::as_vec)
-            .unwrap_or_default()
+        self.config.fluent_feature.clone().unwrap_or_default()
     }
 
     /// Returns available languages discovered from the assets directory.
@@ -231,7 +250,7 @@ impl ResolvedI18nLayout {
     }
 
     /// Returns the configured namespace allowlist when present.
-    pub fn allowed_namespaces(&self) -> Option<&[String]> {
+    pub fn allowed_namespaces(&self) -> Option<&[ResolvedNamespace]> {
         self.config.namespaces.as_deref()
     }
 }
@@ -276,11 +295,8 @@ impl I18nConfig {
 
         let content = fs::read_to_string(path)?;
 
-        let mut config: I18nConfig = toml::from_str(&content)?;
-        config.fallback_language =
-            parse_fallback_language_identifier(&config.fallback_language)?.to_string();
-
-        Ok(config)
+        let raw: RawI18nConfig = toml::from_str(&content)?;
+        raw.validate()
     }
 
     /// Reads the configuration from the manifest directory.
@@ -321,7 +337,7 @@ impl I18nConfig {
 
     /// Returns the configured fallback language as a `LanguageIdentifier`.
     pub fn fallback_language_identifier(&self) -> Result<LanguageIdentifier, I18nConfigError> {
-        parse_fallback_language_identifier(&self.fallback_language)
+        Ok(self.fallback_language.clone())
     }
 
     /// Returns the languages available under the assets directory.
@@ -382,8 +398,8 @@ impl I18nConfig {
     }
 
     /// Returns the fallback language identifier.
-    pub fn fallback_language_id(&self) -> &str {
-        &self.fallback_language
+    pub fn fallback_language_id(&self) -> String {
+        self.fallback_language.to_string()
     }
 
     /// Read configuration and resolve paths for a given manifest directory.
@@ -404,7 +420,7 @@ impl I18nConfig {
     pub fn output_dir_from_manifest_dir(manifest_dir: &Path) -> Result<PathBuf, I18nConfigError> {
         let config = Self::from_manifest_dir(manifest_dir)?;
         let assets_dir = config.assets_dir_from_base(Some(manifest_dir))?;
-        Ok(assets_dir.join(&config.fallback_language))
+        Ok(assets_dir.join(config.fallback_language_id()))
     }
 }
 

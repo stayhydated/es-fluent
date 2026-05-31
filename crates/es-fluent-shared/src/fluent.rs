@@ -64,6 +64,25 @@ macro_rules! fluent_string_type {
                 f.write_str(self.as_str())
             }
         }
+
+        impl serde::Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+
+        impl<'de> serde::Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+                Self::try_new(value).map_err(serde::de::Error::custom)
+            }
+        }
     };
 }
 
@@ -111,13 +130,34 @@ impl fmt::Display for FluentEntryId {
     }
 }
 
+impl serde::Serialize for FluentEntryId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for FluentEntryId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
 fn validate_identifier_like(value: &str, label: &'static str) -> Result<(), FluentIdentifierError> {
     if value.is_empty() {
         return Err(FluentIdentifierError::new(label, "must not be empty"));
     }
 
     let mut chars = value.chars();
-    let first = chars.next().expect("checked non-empty");
+    let Some(first) = chars.next() else {
+        return Err(FluentIdentifierError::new(label, "must not be empty"));
+    };
     if !first.is_ascii_alphabetic() {
         return Err(FluentIdentifierError::new(
             label,

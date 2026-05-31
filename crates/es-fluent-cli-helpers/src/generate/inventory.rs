@@ -39,12 +39,15 @@ pub(super) fn validate_namespaces(
         if let Some(allowed_namespaces) = allowed
             && !allowed_namespaces
                 .iter()
-                .any(|allowed| allowed == ns.as_str())
+                .any(|allowed| allowed.as_str() == ns.as_str())
         {
             return Err(GeneratorError::InvalidNamespace {
                 namespace: ns.to_string(),
                 type_name: info.type_name.to_string(),
-                allowed: allowed_namespaces.to_vec(),
+                allowed: allowed_namespaces
+                    .iter()
+                    .map(|namespace| namespace.as_str().to_string())
+                    .collect(),
             });
         }
     }

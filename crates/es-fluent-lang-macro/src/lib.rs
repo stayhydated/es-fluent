@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 use es_fluent_derive_core::{
     error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError},

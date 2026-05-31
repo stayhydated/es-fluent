@@ -10,6 +10,7 @@ repository.workspace = true
 readme = "README.md"
 
 [dependencies]
+es-fluent-shared = { workspace = true }
 fs-err = { workspace = true }
 serde = { features = [ "derive" ], workspace = true }
 serde_json = { workspace = true }

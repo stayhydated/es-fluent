@@ -1,5 +1,6 @@
+use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::options::StructDataOptions as _;
-use es_fluent_derive_core::options::r#struct::StructOpts;
+use es_fluent_derive_core::options::r#struct::{StructFieldOpts, StructOpts};
 use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
 use es_fluent_shared::{meta::TypeKind, namer};
 
@@ -12,26 +13,103 @@ pub fn process_struct(opts: &StructOpts, _data: &syn::DataStruct) -> TokenStream
     generate(opts)
 }
 
-fn generate(opts: &StructOpts) -> TokenStream {
-    let original_ident = opts.ident();
+#[derive(Clone, Copy)]
+enum StructFieldModel<'a> {
+    Named {
+        binding: &'a syn::Ident,
+        declaration_index: usize,
+        field: &'a StructFieldOpts,
+    },
+    Tuple {
+        declaration_index: usize,
+        field: &'a StructFieldOpts,
+    },
+}
 
-    let indexed_fields = opts.indexed_fields();
+impl StructFieldModel<'_> {
+    fn declaration_index(&self) -> usize {
+        match self {
+            Self::Named {
+                declaration_index, ..
+            }
+            | Self::Tuple {
+                declaration_index, ..
+            } => *declaration_index,
+        }
+    }
+
+    fn field(&self) -> &StructFieldOpts {
+        match self {
+            Self::Named { field, .. } | Self::Tuple { field, .. } => field,
+        }
+    }
+
+    fn access_expr(&self) -> TokenStream {
+        match self {
+            Self::Named { binding, .. } => quote! { self.#binding },
+            Self::Tuple {
+                declaration_index, ..
+            } => {
+                let field_index = syn::Index::from(*declaration_index);
+                quote! { self.#field_index }
+            },
+        }
+    }
+}
+
+struct StructMessageModel<'a> {
+    ident: &'a syn::Ident,
+    fields: Vec<StructFieldModel<'a>>,
+}
+
+impl<'a> StructMessageModel<'a> {
+    fn from_options(opts: &'a StructOpts) -> Self {
+        let fields = opts
+            .indexed_fields()
+            .into_iter()
+            .map(|(declaration_index, field)| {
+                if let Some(binding) = field.ident() {
+                    StructFieldModel::Named {
+                        binding,
+                        declaration_index,
+                        field,
+                    }
+                } else {
+                    StructFieldModel::Tuple {
+                        declaration_index,
+                        field,
+                    }
+                }
+            })
+            .collect();
+
+        Self {
+            ident: opts.ident(),
+            fields,
+        }
+    }
+}
+
+fn generate(opts: &StructOpts) -> TokenStream {
+    let model = StructMessageModel::from_options(opts);
+    let original_ident = model.ident;
 
     let ftl_key = namer::FluentKey::from(original_ident).to_string();
+    let message_id = crate::macros::utils::message_id_or_abort(
+        ftl_key,
+        original_ident.span(),
+        AttrContext::MessageContainer,
+    );
 
-    let message_arguments: Vec<_> = indexed_fields
+    let message_arguments: Vec<_> = model
+        .fields
         .iter()
-        .map(|(index, field_opt)| {
-            let field_access = if let Some(ident) = field_opt.ident() {
-                quote! { self.#ident }
-            } else {
-                let field_index = syn::Index::from(*index);
-                quote! { self.#field_index }
-            };
+        .map(|field_model| {
+            let field_access = field_model.access_expr();
 
             crate::macros::utils::generate_field_argument(
-                *field_opt,
-                *index,
+                field_model.field(),
+                field_model.declaration_index(),
                 field_access.clone(),
                 quote! { &(#field_access) },
             )
@@ -40,8 +118,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
 
     let message_entry = MessageEntrySpec::new(
         namer::rust_ident_name(original_ident),
-        ftl_key,
-        original_ident.span(),
+        message_id,
         message_arguments,
     );
     let semantic_model = MessageModel::new(

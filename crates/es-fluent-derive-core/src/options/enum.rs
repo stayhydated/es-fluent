@@ -561,7 +561,7 @@ mod tests {
     }
 
     #[test]
-    fn enum_methods_panic_on_unexpected_internal_shapes() {
+    fn enum_methods_return_empty_on_unexpected_internal_shapes() {
         let enum_input: DeriveInput = parse_quote! {
             enum InternalShape {
                 A
@@ -573,10 +573,7 @@ mod tests {
             Vec::<darling::util::Ignored>::new(),
         ));
 
-        let variants_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = enum_opts.variants();
-        }));
-        assert!(variants_result.is_err());
+        assert!(enum_opts.variants().is_empty());
 
         let variants_input: DeriveInput = parse_quote! {
             #[derive(EsFluentVariants)]
@@ -591,10 +588,7 @@ mod tests {
             Vec::<darling::util::Ignored>::new(),
         ));
 
-        let filtered_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = variants_opts.variants();
-        }));
-        assert!(filtered_result.is_err());
+        assert!(variants_opts.variants().is_empty());
     }
 
     #[test]

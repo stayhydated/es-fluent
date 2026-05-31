@@ -12,10 +12,12 @@ custom tooling.
 
 ## Key API
 
-- `I18nConfig`: raw deserialized configuration
+- `RawI18nConfig`: TOML shape before validation
+- `I18nConfig`: validated configuration with typed fallback locale and
+  namespace allowlist values
 - `ResolvedI18nLayout`: config plus resolved absolute paths and locale helpers
-- `FluentFeature`: supports `fluent_feature = "name"` and
-  `fluent_feature = ["name", "other"]`
+- `fluent_feature`: optional array of Cargo features to enable while collecting
+  derive inventory, such as `fluent_feature = ["name", "other"]`
 
 ## Typical direct use
 

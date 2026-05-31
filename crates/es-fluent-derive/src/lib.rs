@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 use proc_macro_error2::proc_macro_error;
 

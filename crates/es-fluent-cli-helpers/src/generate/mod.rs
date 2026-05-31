@@ -187,7 +187,7 @@ impl EsFluentGenerator {
 
     fn resolve_clean_locale_dirs(assets_dir: &Path) -> Result<Vec<PathBuf>, GeneratorError> {
         let config = es_fluent_toml::I18nConfig::builder()
-            .fallback_language("en")
+            .fallback_language("en".parse().expect("static fallback language"))
             .assets_dir(assets_dir)
             .build();
 

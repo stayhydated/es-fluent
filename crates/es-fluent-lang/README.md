@@ -54,7 +54,6 @@ FTL resources can provide the labels.
 
 - `macros` (default): Enables the `#[es_fluent_language]` macro.
 - `localized-langs`: Format language names in the currently selected UI language instead of as autonyms.
-- `bevy`: Backward-compatible feature for Bevy projects. The WASM force-link keepalive is no longer Bevy-specific.
 
 ## Standard Translations
 

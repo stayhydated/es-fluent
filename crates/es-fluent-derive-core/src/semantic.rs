@@ -212,10 +212,10 @@ impl MessageEntryModel {
         &self.arguments
     }
 
-    pub fn argument_names(&self) -> Vec<String> {
+    pub fn argument_names(&self) -> Vec<ArgName> {
         self.arguments
             .iter()
-            .map(|argument| argument.name().to_string())
+            .map(|argument| argument.name().clone())
             .collect()
     }
 }
@@ -615,8 +615,12 @@ mod tests {
         assert_eq!(entry.message_id().as_str(), "status-Ready");
         let _span = entry.source_location().span();
         assert_eq!(
-            entry.argument_names(),
-            vec!["first".to_string(), "second".to_string()]
+            entry
+                .argument_names()
+                .iter()
+                .map(ArgName::as_str)
+                .collect::<Vec<_>>(),
+            vec!["first", "second"]
         );
         assert!(matches!(
             entry.arguments()[1].value_strategy(),

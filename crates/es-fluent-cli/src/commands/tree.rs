@@ -211,18 +211,22 @@ impl RustLinkIndex {
             .into_iter()
             .filter_map(|key| {
                 let source_file = key.source_file?;
-                let path = absolute_source_path(manifest_dir, &source_file);
+                let path = absolute_source_path(manifest_dir, source_file.as_str());
                 let position = key.source_line.map(|line| SourcePosition {
-                    line: line as usize,
+                    line: line.get() as usize,
                     column: 1,
                 });
 
                 Some((
-                    key.key,
+                    key.key.into_string(),
                     RustEntryLink {
                         path,
                         position,
-                        variables: key.variables.into_iter().collect(),
+                        variables: key
+                            .variables
+                            .into_iter()
+                            .map(|variable| variable.into_string())
+                            .collect(),
                     },
                 ))
             })
@@ -1182,10 +1186,13 @@ mod tests {
             temp.path(),
             es_fluent_runner::InventoryData {
                 expected_keys: vec![es_fluent_runner::ExpectedKey {
-                    key: "greeting".to_string(),
-                    variables: vec!["name".to_string()],
-                    source_file: Some("src/lib.rs".to_string()),
-                    source_line: Some(42),
+                    key: es_fluent_shared::fluent::FluentEntryId::try_new("greeting").expect("key"),
+                    variables: vec![
+                        es_fluent_shared::fluent::FluentArgumentName::try_new("name")
+                            .expect("variable"),
+                    ],
+                    source_file: es_fluent_shared::source::SourceFile::new("src/lib.rs"),
+                    source_line: Some(es_fluent_shared::source::SourceLine::new(42)),
                 }],
             },
         );

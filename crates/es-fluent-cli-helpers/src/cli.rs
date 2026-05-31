@@ -3,12 +3,12 @@
 use es_fluent_runner::{ExpectedKey, InventoryData, RunnerMetadataStore};
 use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
 use es_fluent_shared::source::{SourceFile, SourceLine};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 /// Intermediate metadata for a key during collection.
 struct KeyMeta {
-    variables: HashSet<FluentArgumentName>,
+    variables: BTreeSet<FluentArgumentName>,
     source_file: Option<SourceFile>,
     source_line: SourceLine,
 }
@@ -34,7 +34,7 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
         .collect();
 
     // Build a map of expected keys with their metadata
-    let mut keys_map: HashMap<FluentEntryId, KeyMeta> = HashMap::new();
+    let mut keys_map: BTreeMap<FluentEntryId, KeyMeta> = BTreeMap::new();
     for info in &type_infos {
         for variant in info.variants {
             let key = variant.entry_id().map_err(|err| {
@@ -43,7 +43,7 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
                     variant.ftl_key, info.type_name
                 ))
             })?;
-            let vars: HashSet<FluentArgumentName> = variant
+            let vars: BTreeSet<FluentArgumentName> = variant
                 .argument_names()
                 .map_err(|err| {
                     es_fluent_runner::RunnerIoError::Message(format!(
@@ -54,7 +54,7 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
                 .into_iter()
                 .collect();
             let entry = keys_map.entry(key).or_insert_with(|| KeyMeta {
-                variables: HashSet::new(),
+                variables: BTreeSet::new(),
                 source_file: info.source_file(),
                 source_line: variant.source_line(),
             });
@@ -67,14 +67,10 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
     let expected_keys: Vec<ExpectedKey> = keys_map
         .into_iter()
         .map(|(key, meta)| ExpectedKey {
-            key: key.into_string(),
-            variables: meta
-                .variables
-                .into_iter()
-                .map(FluentArgumentName::into_string)
-                .collect(),
-            source_file: meta.source_file.map(|file| file.to_string()),
-            source_line: Some(meta.source_line.get()),
+            key,
+            variables: meta.variables.into_iter().collect(),
+            source_file: meta.source_file,
+            source_line: Some(meta.source_line),
         })
         .collect();
 
@@ -195,13 +191,12 @@ mod tests {
             assert_eq!(key["source_file"], "src/lib.rs");
             assert_eq!(key["source_line"], 42);
 
-            let mut vars: Vec<_> = key["variables"]
+            let vars: Vec<_> = key["variables"]
                 .as_array()
                 .expect("variables array")
                 .iter()
                 .filter_map(|value| value.as_str())
                 .collect();
-            vars.sort_unstable();
             assert_eq!(vars, vec!["count", "extra", "name"]);
         });
     }

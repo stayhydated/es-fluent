@@ -48,7 +48,11 @@ fn config_document(
 
 fn i18n_config(fallback_language: &str, assets_dir: &str) -> I18nConfig {
     I18nConfig::builder()
-        .fallback_language(fallback_language)
+        .fallback_language(
+            fallback_language
+                .parse::<LanguageIdentifier>()
+                .expect("test fallback language"),
+        )
         .assets_dir(assets_dir)
         .build()
 }
@@ -64,7 +68,7 @@ fn test_read_from_path_success() {
     assert!(result.is_ok());
 
     let config = result.unwrap();
-    assert_eq!(config.fallback_language, "en");
+    assert_eq!(config.fallback_language_id(), "en");
     assert_eq!(config.assets_dir, PathBuf::from("i18n"));
 }
 
@@ -131,15 +135,37 @@ fn test_fallback_language_identifier_success() {
 }
 
 #[test]
-fn test_fallback_language_identifier_invalid() {
-    let config = i18n_config("invalid-lang!", "i18n");
-
-    let result = config.fallback_language_identifier();
+fn test_raw_config_rejects_invalid_fallback_language() {
+    let result = RawI18nConfig {
+        fallback_language: "invalid-lang!".to_string(),
+        assets_dir: PathBuf::from("i18n"),
+        fluent_feature: None,
+        namespaces: None,
+    }
+    .validate();
 
     assert!(matches!(
         result,
         Err(I18nConfigError::InvalidFallbackLanguageIdentifier { name, .. })
             if name == "invalid-lang!"
+    ));
+}
+
+#[test]
+fn test_raw_config_rejects_invalid_namespace() {
+    let result = RawI18nConfig {
+        fallback_language: "en".to_string(),
+        assets_dir: PathBuf::from("i18n"),
+        fluent_feature: None,
+        namespaces: Some(vec!["../ui".to_string()]),
+    }
+    .validate();
+
+    assert!(matches!(
+        result,
+        Err(I18nConfigError::InvalidNamespace { namespace, source })
+            if namespace == "../ui"
+                && source == NamespacePathError::CurrentOrParentSegment
     ));
 }
 
@@ -237,10 +263,13 @@ fn test_resolved_layout_helpers_delegate_to_underlying_config() {
     assert_eq!(layout.fallback_language(), "en-US");
     assert_eq!(layout.locale_dir("fr"), temp_dir.path().join("i18n/fr"));
     assert_eq!(layout.fluent_features(), vec!["fluent", "i18n"]);
-    assert_eq!(
-        layout.allowed_namespaces(),
-        Some(&["ui".to_string(), "errors".to_string()][..])
-    );
+    let allowed_namespaces = layout
+        .allowed_namespaces()
+        .unwrap()
+        .iter()
+        .map(ResolvedNamespace::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(allowed_namespaces, vec!["ui", "errors"]);
 
     let mut locales = layout.available_locale_names().unwrap();
     locales.sort();
@@ -282,7 +311,6 @@ fn test_available_languages_and_locale_names_use_manifest_env() {
 }
 
 #[rstest]
-#[case(Some(string_value("fluent")), Some(vec!["fluent"]))]
 #[case(
     Some(toml::Value::Array(vec![
         string_value("fluent"),
@@ -304,18 +332,26 @@ fn test_fluent_feature_parsing(
     );
 
     let config = I18nConfig::read_from_path(&config_path).unwrap();
-    let actual = config.fluent_feature.map(|feature| feature.as_vec());
+    let actual = config.fluent_feature;
     let expected =
         expected.map(|values| values.into_iter().map(str::to_string).collect::<Vec<_>>());
     assert_eq!(actual, expected);
 }
 
 #[test]
-fn test_fluent_feature_is_empty_variants() {
-    assert!(FluentFeature::Single(String::new()).is_empty());
-    assert!(!FluentFeature::Single("fluent".to_string()).is_empty());
-    assert!(FluentFeature::Multiple(Vec::new()).is_empty());
-    assert!(!FluentFeature::Multiple(vec!["fluent".to_string()]).is_empty());
+fn test_fluent_feature_rejects_legacy_string_shape() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    write_toml(
+        &config_path,
+        &config_document("en", "i18n", Some(string_value("fluent")), None),
+    );
+
+    let error = I18nConfig::read_from_path(&config_path)
+        .expect_err("string fluent_feature should be rejected");
+
+    assert!(error.to_string().contains("Failed to parse config"));
 }
 
 #[test]
@@ -393,7 +429,7 @@ fn test_manifest_dir_helper_methods() {
     );
 
     let config = I18nConfig::from_manifest_dir(temp_dir.path()).expect("config");
-    assert_eq!(config.fallback_language, "en-US");
+    assert_eq!(config.fallback_language_id(), "en-US");
     assert_eq!(config.assets_dir, PathBuf::from("locales"));
 
     let assets = I18nConfig::assets_dir_from_manifest_dir(temp_dir.path()).expect("assets");

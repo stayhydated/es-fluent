@@ -1,10 +1,12 @@
 use darling::FromDeriveInput as _;
+use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
 use es_fluent_derive_core::options::label::LabelOpts;
 use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
 use es_fluent_derive_core::options::{
     FilteredEnumDataOptions as _, GeneratedVariantsOptions, StructDataOptions as _,
 };
+use es_fluent_derive_core::semantic::{DomainName, FluentMessageId};
 use es_fluent_derive_core::validation;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 
@@ -54,7 +56,7 @@ fn expand_es_fluent_variants(input: DeriveInput) -> TokenStream {
                 &opts,
                 Some(&label_opts),
                 fluent_namespace.as_ref().map(SpannedNamespaceRule::as_ref),
-                fluent_domain.as_deref(),
+                fluent_domain.as_ref(),
             )
         },
         Data::Enum(_) => {
@@ -67,10 +69,14 @@ fn expand_es_fluent_variants(input: DeriveInput) -> TokenStream {
                 &opts,
                 Some(&label_opts),
                 fluent_namespace.as_ref().map(SpannedNamespaceRule::as_ref),
-                fluent_domain.as_deref(),
+                fluent_domain.as_ref(),
             )
         },
-        Data::Union(_) => unreachable!("EsFluentVariants does not support unions"),
+        Data::Union(_) => syn::Error::new(
+            input.ident.span(),
+            "EsFluentVariants can only be derived for structs and enums",
+        )
+        .to_compile_error(),
     }
 }
 
@@ -117,7 +123,7 @@ pub fn process_struct(
     opts: &StructVariantsOpts,
     label_opts: Option<&LabelOpts>,
     fluent_namespace: Option<SpannedNamespaceRuleRef<'_>>,
-    fluent_domain: Option<&str>,
+    fluent_domain: Option<&DomainName>,
 ) -> TokenStream {
     let variant_seeds = build_struct_variant_seeds(opts);
     emit_variants_output(
@@ -136,16 +142,36 @@ struct GeneratedVariantSeed {
     key_fragment: String,
 }
 
+struct NamedVariantFieldSeed<'a> {
+    ident: &'a syn::Ident,
+}
+
+impl<'a> NamedVariantFieldSeed<'a> {
+    fn from_field(field: &'a es_fluent_derive_core::options::SkippableFieldOpts) -> Self {
+        let Some(ident) = field.ident() else {
+            proc_macro_error2::abort!(
+                proc_macro2::Span::call_site(),
+                "internal error: generated struct variant field is missing an identifier"
+            );
+        };
+        Self { ident }
+    }
+}
+
 impl GeneratedVariantSeed {
     fn materialize(&self, base_key: &namer::FluentKey) -> GeneratedUnitEnumVariant {
         let ftl_key = base_key.join(&self.key_fragment).to_string();
+        let message_id = crate::macros::utils::message_id_or_abort(
+            ftl_key,
+            self.ident.span(),
+            AttrContext::VariantsContainer,
+        );
         GeneratedUnitEnumVariant {
             ident: self.ident.clone(),
             doc_name: self.doc_name.clone(),
             message_entry: MessageEntrySpec::new(
                 namer::rust_ident_name(&self.ident),
-                ftl_key,
-                self.ident.span(),
+                message_id,
                 Vec::new(),
             ),
         }
@@ -155,10 +181,18 @@ impl GeneratedVariantSeed {
 fn variants_label_key(
     label_opts: Option<&LabelOpts>,
     base_key: &namer::FluentKey,
-) -> Option<String> {
+    span: proc_macro2::Span,
+) -> Option<FluentMessageId> {
     label_opts
         .filter(|opts| opts.attr_args().is_variants())
-        .map(|_| format!("{}{}", base_key, namer::FluentKey::LABEL_SUFFIX))
+        .map(|_| {
+            crate::macros::utils::message_id_or_abort(
+                format!("{}{}", base_key, namer::FluentKey::LABEL_SUFFIX),
+                span,
+                AttrContext::VariantsContainer,
+            )
+            .into_value()
+        })
 }
 
 fn emit_variants_output(
@@ -166,7 +200,7 @@ fn emit_variants_output(
     variant_seeds: &[GeneratedVariantSeed],
     label_opts: Option<&LabelOpts>,
     fluent_namespace: Option<SpannedNamespaceRuleRef<'_>>,
-    fluent_domain: Option<&str>,
+    fluent_domain: Option<&DomainName>,
 ) -> TokenStream {
     if variant_seeds.is_empty() {
         return quote! {};
@@ -204,7 +238,7 @@ fn emit_variants_output(
                 derives: &derives,
                 variants: &variant_entries,
                 namespace: namespace.map(SpannedNamespaceRuleRef::rule),
-                label_key: variants_label_key(label_opts, &base_key),
+                label_key: variants_label_key(label_opts, &base_key, origin_ident.span()),
             })
         },
     )
@@ -214,7 +248,8 @@ fn build_struct_variant_seeds(opts: &StructVariantsOpts) -> Vec<GeneratedVariant
     opts.fields()
         .iter()
         .map(|field_opt| {
-            let field_ident = field_opt.ident().expect("named field");
+            let field = NamedVariantFieldSeed::from_field(field_opt);
+            let field_ident = field.ident;
             let original_field_name = namer::rust_ident_name(field_ident);
             let pascal_case_name = original_field_name.to_pascal_case();
             let variant_ident = syn::Ident::new(&pascal_case_name, field_ident.span());
@@ -231,7 +266,7 @@ pub fn process_enum(
     opts: &EnumVariantsOpts,
     label_opts: Option<&LabelOpts>,
     fluent_namespace: Option<SpannedNamespaceRuleRef<'_>>,
-    fluent_domain: Option<&str>,
+    fluent_domain: Option<&DomainName>,
 ) -> TokenStream {
     let variant_seeds = build_enum_variant_seeds(opts);
     emit_variants_output(
@@ -322,12 +357,12 @@ mod tests {
         ));
 
         assert_eq!(
-            entry.message_entry.ftl_key(),
+            entry.message_entry.metadata.message_id().as_str(),
             "login_form_label_variants-username"
         );
         assert_eq!(
             entry.message_entry.metadata.argument_names(),
-            Vec::<String>::new()
+            Vec::<es_fluent_derive_core::semantic::ArgName>::new()
         );
 
         let runtime_tokens = entry.localize_with_match_arm(None).to_string();
@@ -391,7 +426,7 @@ mod tests {
             fluent_namespace
                 .as_ref()
                 .map(crate::macros::utils::SpannedNamespaceRule::as_ref),
-            fluent_domain.as_deref(),
+            fluent_domain.as_ref(),
         ));
 
         assert!(

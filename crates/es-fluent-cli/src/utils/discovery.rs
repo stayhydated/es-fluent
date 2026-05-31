@@ -192,7 +192,7 @@ mod tests {
             fs::write(
                 crate_dir.join("i18n.toml"),
                 format!(
-                    "fallback_language = \"en\"\nassets_dir = \"i18n\"\nfluent_feature = \"{feature}\"\n"
+                    "fallback_language = \"en\"\nassets_dir = \"i18n\"\nfluent_feature = [\"{feature}\"]\n"
                 ),
             )
             .expect("write i18n.toml");

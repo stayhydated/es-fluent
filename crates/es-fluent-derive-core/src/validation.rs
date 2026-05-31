@@ -310,10 +310,18 @@ pub fn validate_namespace(
 /// Extracted for testability.
 pub fn validate_namespace_against_allowed(
     namespace: &str,
-    allowed: &[String],
+    allowed: &[ResolvedNamespace],
     span: Option<proc_macro2::Span>,
 ) -> EsFluentCoreResult<()> {
-    if !allowed.contains(&namespace.to_string()) {
+    if !allowed
+        .iter()
+        .any(|allowed_namespace| allowed_namespace.as_str() == namespace)
+    {
+        let allowed_list = allowed
+            .iter()
+            .map(ResolvedNamespace::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
         return Err(EsFluentCoreError::AttributeError {
             message: format!(
                 "namespace '{}' is not in the allowed list configured in i18n.toml",
@@ -321,7 +329,7 @@ pub fn validate_namespace_against_allowed(
             ),
             span,
         }
-        .with_help(format!("allowed namespaces are: {}", allowed.join(", "))));
+        .with_help(format!("allowed namespaces are: {}", allowed_list)));
     }
 
     Ok(())
@@ -334,13 +342,18 @@ mod tests {
     mod validate_namespace_against_allowed_tests {
         use super::*;
 
+        fn allowed(namespaces: &[&str]) -> Vec<ResolvedNamespace> {
+            namespaces
+                .iter()
+                .copied()
+                .map(ResolvedNamespace::new)
+                .collect::<Result<_, _>>()
+                .expect("test namespaces")
+        }
+
         #[test]
         fn allowed_namespace_passes() {
-            let allowed = vec![
-                "ui".to_string(),
-                "errors".to_string(),
-                "messages".to_string(),
-            ];
+            let allowed = allowed(&["ui", "errors", "messages"]);
             validate_namespace_against_allowed("ui", &allowed, None)
                 .expect("Should pass for allowed namespace");
             validate_namespace_against_allowed("errors", &allowed, None)
@@ -351,7 +364,7 @@ mod tests {
 
         #[test]
         fn disallowed_namespace_fails() {
-            let allowed = vec!["ui".to_string(), "errors".to_string()];
+            let allowed = allowed(&["ui", "errors"]);
             let err = validate_namespace_against_allowed("unknown", &allowed, None)
                 .expect_err("Should fail for disallowed namespace");
 
@@ -364,7 +377,7 @@ mod tests {
 
         #[test]
         fn empty_allowed_list_rejects_all() {
-            let allowed: Vec<String> = vec![];
+            let allowed: Vec<ResolvedNamespace> = vec![];
             let err = validate_namespace_against_allowed("any", &allowed, None)
                 .expect_err("Should fail when allowed list is empty");
 
@@ -373,7 +386,7 @@ mod tests {
 
         #[test]
         fn case_sensitive_matching() {
-            let allowed = vec!["UI".to_string()];
+            let allowed = allowed(&["UI"]);
             let err = validate_namespace_against_allowed("ui", &allowed, None)
                 .expect_err("Should fail for case mismatch");
 

@@ -17,9 +17,12 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    let variants = match opts.data() {
-        darling::ast::Data::Enum(variants) => variants,
-        _ => unreachable!(),
+    let darling::ast::Data::Enum(variants) = opts.data() else {
+        return syn::Error::new(
+            opts.ident().span(),
+            "EsFluentChoice can only be derived for enums",
+        )
+        .to_compile_error();
     };
 
     let enum_ident = opts.ident();

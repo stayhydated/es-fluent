@@ -35,6 +35,25 @@ impl fmt::Display for SourceFile {
     }
 }
 
+impl serde::Serialize for SourceFile {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SourceFile {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let path = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Self::new(path).ok_or_else(|| serde::de::Error::custom("source file path is empty"))
+    }
+}
+
 /// Source line recorded in generated inventory metadata.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SourceLine(u32);
@@ -54,6 +73,26 @@ impl SourceLine {
 impl fmt::Display for SourceLine {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.get())
+    }
+}
+
+impl serde::Serialize for SourceLine {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_u32(self.get())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SourceLine {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::new(<u32 as serde::Deserialize>::deserialize(
+            deserializer,
+        )?))
     }
 }
 

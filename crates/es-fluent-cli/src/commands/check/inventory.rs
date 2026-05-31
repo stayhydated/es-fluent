@@ -1,6 +1,6 @@
 use anyhow::Result;
 use es_fluent_runner::{RunnerIoError, RunnerMetadataStore};
-use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::fluent::FluentArgumentName;
 use es_fluent_shared::source::{SourceFile, SourceLine};
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -31,31 +31,16 @@ pub(crate) fn read_inventory_file(
             RunnerIoError::Message(_) => anyhow::Error::new(error),
         })?;
 
-    // Convert to IndexMap with KeyInfo for richer metadata
     let mut expected_keys = IndexMap::new();
     for key_info in data.expected_keys {
-        let key = FluentEntryId::try_new(key_info.key.clone()).map_err(|error| {
-            anyhow::anyhow!("invalid inventory key '{}': {error}", key_info.key)
-        })?;
-        let variables = key_info
-            .variables
-            .into_iter()
-            .map(|variable| {
-                FluentArgumentName::try_new(variable.clone()).map_err(|error| {
-                    anyhow::anyhow!(
-                        "invalid inventory variable '{}' for key '{}': {error}",
-                        variable,
-                        key.as_str()
-                    )
-                })
-            })
-            .collect::<Result<HashSet<_>>>()?;
+        let key = key_info.key.into_string();
+        let variables = key_info.variables.into_iter().collect::<HashSet<_>>();
         expected_keys.insert(
-            key.into_string(),
+            key,
             KeyInfo {
                 variables,
-                source_file: key_info.source_file.and_then(SourceFile::new),
-                source_line: key_info.source_line.map(SourceLine::new),
+                source_file: key_info.source_file,
+                source_line: key_info.source_line,
             },
         );
     }
@@ -121,7 +106,7 @@ mod tests {
     }
 
     #[test]
-    fn read_inventory_file_rejects_invalid_key_metadata() {
+    fn read_inventory_file_rejects_invalid_key_metadata_at_protocol_boundary() {
         let temp = tempfile::tempdir().unwrap();
         let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
@@ -143,11 +128,7 @@ mod tests {
         let error = read_inventory_file(temp.path(), "test-crate")
             .err()
             .expect("invalid key should fail");
-        assert!(
-            error
-                .to_string()
-                .contains("invalid inventory key '_invalid'")
-        );
+        assert!(error.to_string().contains("Failed to parse inventory JSON"));
     }
 
     #[test]

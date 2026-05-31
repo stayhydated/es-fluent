@@ -5178,6 +5178,7 @@ dependencies = [
 name = "es-fluent-runner"
 version = "0.16.0"
 dependencies = [
+ "es-fluent-shared",
  "fs-err",
  "serde",
  "serde_json",

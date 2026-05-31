@@ -324,7 +324,7 @@ mod tests {
         // Change the i18n.toml content (e.g., changing fluent_feature)
         fs::write(
             &i18n_path,
-            "default_language = \"en\"\nfluent_feature = \"i18n\"",
+            "default_language = \"en\"\nfluent_feature = [\"i18n\"]",
         )
         .unwrap();
 

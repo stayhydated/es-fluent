@@ -1,4 +1,5 @@
 //! Shared runtime-safe types and helpers for the es-fluent ecosystem.
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 pub mod error;
 pub mod fluent;

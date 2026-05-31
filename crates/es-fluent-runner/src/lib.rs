@@ -1,5 +1,10 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
+use es_fluent_shared::{
+    fluent::{FluentArgumentName, FluentEntryId},
+    source::{SourceFile, SourceLine},
+};
 use fs_err as fs;
 use std::path::{Path, PathBuf};
 
@@ -14,10 +19,10 @@ pub struct RunnerResult {
 
 #[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct ExpectedKey {
-    pub key: String,
-    pub variables: Vec<String>,
-    pub source_file: Option<String>,
-    pub source_line: Option<u32>,
+    pub key: FluentEntryId,
+    pub variables: Vec<FluentArgumentName>,
+    pub source_file: Option<SourceFile>,
+    pub source_line: Option<SourceLine>,
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
@@ -230,10 +235,10 @@ mod tests {
         let store = RunnerMetadataStore::new(temp.path());
         let inventory = InventoryData {
             expected_keys: vec![ExpectedKey {
-                key: "hello".to_string(),
-                variables: vec!["name".to_string()],
-                source_file: Some("src/lib.rs".to_string()),
-                source_line: Some(7),
+                key: FluentEntryId::try_new("hello").expect("key"),
+                variables: vec![FluentArgumentName::try_new("name").expect("variable")],
+                source_file: SourceFile::new("src/lib.rs"),
+                source_line: Some(SourceLine::new(7)),
             }],
         };
 
@@ -243,6 +248,28 @@ mod tests {
         let decoded = store.read_inventory("crate-x").expect("read inventory");
 
         assert_eq!(decoded, inventory);
+    }
+
+    #[test]
+    fn read_inventory_rejects_invalid_typed_metadata() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = RunnerMetadataStore::new(temp.path());
+        store.ensure_metadata_dir("crate-x").expect("metadata dir");
+        std::fs::write(
+            store.inventory_path("crate-x"),
+            r#"{"expected_keys":[{"key":"_invalid","variables":["name"],"source_file":"src/lib.rs","source_line":7}]}"#,
+        )
+        .expect("write inventory");
+
+        let error = store
+            .read_inventory("crate-x")
+            .expect_err("invalid inventory should fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("Fluent entry id must start with an ASCII letter")
+        );
     }
 
     #[test]

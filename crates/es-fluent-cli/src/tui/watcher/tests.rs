@@ -50,7 +50,9 @@ fn i18n_config(
     if let Some(fluent_feature) = fluent_feature {
         config.insert(
             "fluent_feature".to_string(),
-            crate::test_fixtures::toml_helpers::string_value(fluent_feature),
+            Value::Array(vec![crate::test_fixtures::toml_helpers::string_value(
+                fluent_feature,
+            )]),
         );
     }
     Value::Table(config)

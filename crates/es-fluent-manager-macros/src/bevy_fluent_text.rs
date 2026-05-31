@@ -199,8 +199,11 @@ fn generate_refresh_for_locale_impl(
             let match_arms: Vec<_> = locale_fields
                 .iter()
                 .map(|info| {
-                    let variant_ident =
-                        info.variant_ident.as_ref().expect("enum field has variant");
+                    let Some(variant_ident) = info.variant_ident.as_ref() else {
+                        return quote! {
+                            compile_error!("internal error: enum locale field missing variant");
+                        };
+                    };
                     let locale_field_idents = &info.locale_fields;
                     let other_fields = &info.other_fields;
 

@@ -12,7 +12,6 @@ categories = [ "localization", "internationalization" ]
 keywords = [ "fluent", "i18n", "locale", "icu4x" ]
 
 [features]
-bevy = [  ]
 default = [ "macros" ]
 localized-langs = [  ]
 macros = [ "dep:es-fluent-lang-macro" ]
