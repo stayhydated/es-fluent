@@ -108,7 +108,7 @@ mod attribute_context_tests {
         assert!(err.to_string().contains("message enum container"));
         assert!(
             err.to_string()
-                .contains("accepted keys here are resource, domain, namespace, and skip_inventory")
+                .contains("accepted keys here are resource, domain, and namespace")
         );
     }
 
@@ -116,7 +116,7 @@ mod attribute_context_tests {
     fn enum_fluent_keys_remain_allowed_on_enum_containers() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            #[fluent(resource = "login_error", domain = "auth", namespace = "errors", skip_inventory)]
+            #[fluent(resource = "login_error", domain = "auth", namespace = "errors")]
             pub enum LoginError {
                 InvalidPassword,
             }
@@ -124,6 +124,24 @@ mod attribute_context_tests {
 
         es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
             .expect("enum-only keys should pass on enum containers");
+    }
+
+    #[test]
+    fn message_enum_container_rejects_removed_skip_inventory_key() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(skip_inventory)]
+            pub enum LoginError {
+                InvalidPassword,
+            }
+        };
+
+        let err = es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
+            .expect_err("skip_inventory is no longer public");
+        let message = err.to_string();
+        assert!(message.contains("#[fluent(skip_inventory)]"));
+        assert!(message.contains("message enum container"));
+        assert!(message.contains("accepted keys here are resource, domain, and namespace"));
     }
 
     #[test]

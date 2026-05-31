@@ -128,10 +128,7 @@ impl FluentAttributeKey {
         match location {
             AttributeLocation::MessageStructContainer => matches!(self, Self::Namespace),
             AttributeLocation::MessageEnumContainer => {
-                matches!(
-                    self,
-                    Self::Resource | Self::Domain | Self::Namespace | Self::SkipInventory
-                )
+                matches!(self, Self::Resource | Self::Domain | Self::Namespace)
             },
             AttributeLocation::MessageField => {
                 matches!(
@@ -333,7 +330,7 @@ fn help_for_location(attribute_name: AttributeName, location: AttributeLocation)
             "accepted key here is namespace"
         },
         (AttributeName::Fluent, AttributeLocation::MessageEnumContainer) => {
-            "accepted keys here are resource, domain, namespace, and skip_inventory"
+            "accepted keys here are resource, domain, and namespace"
         },
         (AttributeName::Fluent, AttributeLocation::MessageField) => {
             "accepted keys here are skip, choice, optional, arg, and value"

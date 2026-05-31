@@ -1,31 +1,49 @@
 use darling::FromDeriveInput as _;
+use es_fluent_derive_core::context::{ContainerContext, SpannedNamespaceRule};
 use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::lowered::LabelModel;
-use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
+use es_fluent_derive_core::semantic::{
+    InventoryPolicy, MessageModel, RustSourceName, RustTypeName,
+};
 use es_fluent_derive_core::{options::label::LabelOpts, validation};
-use es_fluent_shared::{meta::TypeKind, namer, namespace::NamespaceRule};
+use es_fluent_shared::{meta::TypeKind, namespace::NamespaceRule};
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
 use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
 use crate::macros::utils::{
-    InventoryModuleInput, NamespaceSource, SpannedNamespaceRule, SpannedNamespaceRuleRef,
+    CodegenContext, InventoryModuleInput, NamespaceSource, SpannedNamespaceRuleRef,
 };
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand_es_fluent_label(input).into()
+    let context = CodegenContext::resolve();
+    expand_es_fluent_label_with_context(input, &context).into()
 }
 
-fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
+fn validate_namespace(
+    namespace: Option<&NamespaceRule>,
+    span: proc_macro2::Span,
+) -> es_fluent_derive_core::error::EsFluentCoreResult<()> {
     if let Some(ns) = namespace
-        && let Err(err) = validation::validate_namespace(ns, Some(span))
+        && let Err(error) = validation::validate_namespace(ns, Some(span))
     {
-        err.abort();
+        return Err(error);
     }
+
+    Ok(())
 }
 
+#[cfg(test)]
 fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
+    let context = CodegenContext::fallback();
+    expand_es_fluent_label_with_context(input, &context)
+}
+
+fn expand_es_fluent_label_with_context(
+    input: DeriveInput,
+    context: &CodegenContext,
+) -> proc_macro2::TokenStream {
     if let Err(err) = validation::validate_es_fluent_label_attribute_context(&input) {
         return crate::macros::utils::core_error_to_compile_error(err);
     }
@@ -35,13 +53,8 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace_with_span(&input)
-    {
-        Ok(namespace) => namespace,
-        Err(err) => return err.write_errors(),
-    };
-    let fluent_domain = match crate::macros::utils::inherited_fluent_domain(&input) {
-        Ok(domain) => domain,
+    let container_context = match ContainerContext::from_derive_input(&input) {
+        Ok(context) => context,
         Err(err) => return err.write_errors(),
     };
 
@@ -59,23 +72,32 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
     };
 
     let localize_label_impl = crate::macros::utils::generate_localize_label_impl(
+        context,
         original_ident,
         generics,
         ftl_key.as_ref().map(|key| key.value()),
-        fluent_domain.as_ref(),
+        container_context.fluent_domain(),
     );
     let (type_kind, semantic_type_kind) = match model.type_kind() {
         TypeKind::Struct => (
-            quote! { ::es_fluent::meta::TypeKind::Struct },
+            {
+                let es_fluent = context.facade_path().tokens();
+                quote! { #es_fluent::meta::TypeKind::Struct }
+            },
             TypeKind::Struct,
         ),
-        TypeKind::Enum => (quote! { ::es_fluent::meta::TypeKind::Enum }, TypeKind::Enum),
+        TypeKind::Enum => (
+            {
+                let es_fluent = context.facade_path().tokens();
+                quote! { #es_fluent::meta::TypeKind::Enum }
+            },
+            TypeKind::Enum,
+        ),
     };
 
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
     let inventory_submit = if let Some(ftl_key) = &ftl_key {
-        let type_name = namer::rust_ident_name(original_ident);
         let label_namespace = opts.attr_args().namespace().map(|namespace| {
             SpannedNamespaceRuleRef::new(
                 namespace,
@@ -88,7 +110,9 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
             NamespaceSource::new(
                 "#[fluent(namespace = ...)]",
                 AttrContext::MessageContainer,
-                fluent_namespace.as_ref().map(SpannedNamespaceRule::as_ref),
+                container_context
+                    .fluent_namespace()
+                    .map(SpannedNamespaceRule::as_ref),
             ),
             NamespaceSource::new(
                 "#[fluent_label(namespace = ...)]",
@@ -99,16 +123,22 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
             Ok(namespace) => namespace,
             Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
         };
-        validate_namespace(
+        if let Err(error) = validate_namespace(
             namespace.map(SpannedNamespaceRuleRef::rule),
             namespace
                 .map(SpannedNamespaceRuleRef::span)
                 .unwrap_or_else(|| original_ident.span()),
+        ) {
+            return crate::macros::utils::core_error_to_compile_error(error);
+        }
+        let label_entry = MessageEntrySpec::new(
+            RustSourceName::from_ident(original_ident),
+            ftl_key.clone(),
+            Vec::new(),
         );
-        let label_entry = MessageEntrySpec::new(type_name, ftl_key.clone(), Vec::new());
-        let label_variant = inventory_variant_tokens_for_model(&label_entry.metadata);
+        let label_variant = inventory_variant_tokens_for_model(context, &label_entry.metadata);
         let label_model = MessageModel::new(
-            namer::rust_ident_name(original_ident),
+            RustTypeName::from_ident(original_ident),
             semantic_type_kind,
             None,
             namespace.map(|namespace| namespace.rule().clone()),
@@ -117,13 +147,19 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
             InventoryPolicy::Emit,
         );
 
-        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
-            ident: original_ident,
-            module_name_prefix: "label_inventory",
-            type_kind,
-            variants: vec![label_variant],
-            namespace_expr: crate::macros::utils::namespace_rule_tokens(label_model.namespace()),
-        })
+        crate::macros::utils::generate_inventory_module(
+            context,
+            InventoryModuleInput {
+                ident: original_ident,
+                module_name_prefix: "label_inventory",
+                type_kind,
+                variants: vec![label_variant],
+                namespace_expr: crate::macros::utils::namespace_rule_tokens(
+                    context,
+                    label_model.namespace(),
+                ),
+            },
+        )
     } else {
         quote! {}
     };

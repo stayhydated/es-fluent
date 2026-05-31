@@ -148,10 +148,6 @@ pub struct FluentEnumAttributeArgs {
     resource: Option<SpannedValue<FluentMessageId>>,
     #[darling(default)]
     domain: Option<SpannedValue<DomainName>>,
-    /// Whether to skip inventory registration for this enum.
-    /// Used by `#[es_fluent_language]` to prevent language enums from being registered.
-    #[darling(default)]
-    skip_inventory: Option<bool>,
     #[darling(flatten)]
     namespace_args: super::NamespacedAttributeArgs,
 }
@@ -170,11 +166,6 @@ impl FluentEnumAttributeArgs {
     /// Returns the typed explicit lookup domain if provided.
     pub fn domain_name(&self) -> Option<&SpannedValue<DomainName>> {
         self.domain.as_ref()
-    }
-
-    /// Returns `true` if inventory registration should be skipped.
-    pub fn skip_inventory(&self) -> bool {
-        self.skip_inventory.unwrap_or(false)
     }
 
     /// Returns the namespace value if provided.
@@ -283,7 +274,7 @@ mod tests {
     fn enum_opts_cover_base_key_variant_helpers_and_field_flags() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            #[fluent(resource = "custom_error", skip_inventory, namespace = "errors")]
+            #[fluent(resource = "custom_error", namespace = "errors")]
             enum StatusCode {
                 Data {
                     #[fluent(choice)]
@@ -310,7 +301,6 @@ mod tests {
             "custom_error"
         );
         assert!(opts.attr_args().domain_name().is_none());
-        assert!(opts.attr_args().skip_inventory());
         assert!(matches!(
             opts.attr_args().namespace(),
             Some(NamespaceRule::Literal(value)) if value == "errors"

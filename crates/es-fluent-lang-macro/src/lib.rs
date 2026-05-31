@@ -5,8 +5,9 @@ use es_fluent_derive_core::{
     attribute::{AttributeLocation, AttributeName, invalid_attribute_meta_item_for_location},
     error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError},
     semantic::{
-        DerivePathList, GeneratedEnumModel, MessageEntryModel, SourceLocation, SpannedValue,
-        parse_domain_name_in_context, parse_fluent_message_id_in_context,
+        DerivePathList, GeneratedEnumModel, MessageEntryModel, RustSourceName, RustTypeName,
+        SourceLocation, SpannedValue, parse_domain_name_in_context,
+        parse_fluent_message_id_in_context,
     },
 };
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
@@ -328,7 +329,7 @@ impl LanguageEnumModel {
                     AttrContext::LanguageContainer,
                 )?;
                 Ok(MessageEntryModel::new(
-                    entry.ident.to_string(),
+                    RustSourceName::from_ident(&entry.ident),
                     SpannedValue::new(message_id, entry.literal.span()),
                     Vec::new(),
                     SourceLocation::new(entry.ident.span()),
@@ -345,8 +346,8 @@ impl LanguageEnumModel {
             )?)
         };
         let semantic = GeneratedEnumModel::new(
-            enum_ident.to_string(),
-            enum_ident.to_string(),
+            RustTypeName::from_ident(enum_ident),
+            RustTypeName::from_ident(enum_ident),
             DerivePathList::default(),
             messages,
             None,

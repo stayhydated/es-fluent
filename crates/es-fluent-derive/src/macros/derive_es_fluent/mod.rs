@@ -3,28 +3,46 @@ mod r#struct;
 
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::{
+    context::{ContainerContext, SpannedNamespaceRule},
     options::{r#enum::EnumOpts, r#struct::StructOpts},
     validation,
 };
 use es_fluent_shared::namespace::NamespaceRule;
 use syn::{Data, DeriveInput, parse_macro_input};
 
+use crate::macros::utils::CodegenContext;
+
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand_es_fluent(input).into()
+    let context = CodegenContext::resolve();
+    expand_es_fluent_with_context(input, &context).into()
 }
 
-fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span) {
+fn validate_namespace(
+    namespace: Option<&NamespaceRule>,
+    span: proc_macro2::Span,
+) -> es_fluent_derive_core::error::EsFluentCoreResult<()> {
     if let Some(ns) = namespace
-        && let Err(err) = validation::validate_namespace(ns, Some(span))
+        && let Err(error) = validation::validate_namespace(ns, Some(span))
     {
-        err.abort();
+        return Err(error);
     }
+
+    Ok(())
 }
 
+#[cfg(test)]
 fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
+    let context = CodegenContext::fallback();
+    expand_es_fluent_with_context(input, &context)
+}
+
+fn expand_es_fluent_with_context(
+    input: DeriveInput,
+    context: &CodegenContext,
+) -> proc_macro2::TokenStream {
     if let Err(err) = validation::validate_es_fluent_attribute_context(&input) {
-        err.abort();
+        return crate::macros::utils::core_error_to_compile_error(err);
     }
 
     match &input.data {
@@ -33,43 +51,56 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors(),
             };
+            let container_context = ContainerContext::from_enum_options(&opts);
 
             if let Err(err) = validation::validate_enum(&opts) {
-                err.abort();
+                return crate::macros::utils::core_error_to_compile_error(err);
             }
 
-            validate_namespace(
-                opts.attr_args().namespace(),
-                opts.attr_args()
-                    .namespace_span()
+            if let Err(err) = validate_namespace(
+                container_context
+                    .fluent_namespace()
+                    .map(SpannedNamespaceRule::rule),
+                container_context
+                    .fluent_namespace()
+                    .map(SpannedNamespaceRule::span)
                     .unwrap_or_else(|| opts.ident().span()),
-            );
+            ) {
+                return crate::macros::utils::core_error_to_compile_error(err);
+            }
 
-            r#enum::process_enum(&opts, data)
+            r#enum::process_enum(context, &container_context, &opts, data)
         },
         Data::Struct(data) => {
             let opts = match StructOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors(),
             };
+            let container_context = ContainerContext::from_struct_options(&opts);
 
             if let Err(err) = validation::validate_struct(&opts) {
-                err.abort();
+                return crate::macros::utils::core_error_to_compile_error(err);
             }
 
-            validate_namespace(
-                opts.attr_args().namespace(),
-                opts.attr_args()
-                    .namespace_span()
+            if let Err(err) = validate_namespace(
+                container_context
+                    .fluent_namespace()
+                    .map(SpannedNamespaceRule::rule),
+                container_context
+                    .fluent_namespace()
+                    .map(SpannedNamespaceRule::span)
                     .unwrap_or_else(|| opts.ident().span()),
-            );
+            ) {
+                return crate::macros::utils::core_error_to_compile_error(err);
+            }
 
-            r#struct::process_struct(&opts, data)
+            r#struct::process_struct(context, &container_context, &opts, data)
         },
-        _ => proc_macro_error2::abort!(
+        _ => syn::Error::new(
             input.ident.span(),
-            "EsFluent can only be derived for structs and enums"
-        ),
+            "EsFluent can only be derived for structs and enums",
+        )
+        .to_compile_error(),
     }
 }
 
@@ -209,17 +240,20 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_panics_for_struct_validation_and_union_inputs() {
+    fn expand_es_fluent_returns_compile_errors_for_struct_validation_and_union_inputs() {
         let invalid_struct_input: syn::DeriveInput = parse_quote! {
             struct Invalid {
                 #[fluent(skip, arg = "value")]
                 value: i32,
             }
         };
-        let validation_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = super::expand_es_fluent(invalid_struct_input);
-        }));
-        assert!(validation_panic.is_err());
+        let validation_tokens = crate::snapshot_support::pretty_file_tokens(
+            super::expand_es_fluent(invalid_struct_input),
+        );
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_error_for_struct_validation_failure",
+            validation_tokens
+        );
 
         let union_input: syn::DeriveInput = parse_quote! {
             union NotSupported {
@@ -227,14 +261,16 @@ mod tests {
                 b: f32,
             }
         };
-        let union_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = super::expand_es_fluent(union_input);
-        }));
-        assert!(union_panic.is_err());
+        let union_tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(union_input));
+        assert_snapshot!(
+            "expand_es_fluent_returns_compile_error_for_union_input",
+            union_tokens
+        );
     }
 
     #[test]
-    fn expand_es_fluent_panics_for_namespaces_not_allowed_by_config() {
+    fn expand_es_fluent_returns_compile_errors_for_namespaces_not_allowed_by_config() {
         with_manifest_dir(&["allowed"], || {
             let enum_input: syn::DeriveInput = parse_quote! {
                 #[fluent(namespace = "blocked")]
@@ -242,10 +278,12 @@ mod tests {
                     A
                 }
             };
-            let enum_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let _ = super::expand_es_fluent(enum_input);
-            }));
-            assert!(enum_panic.is_err());
+            let enum_tokens =
+                crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
+            assert_snapshot!(
+                "expand_es_fluent_returns_compile_error_for_blocked_enum_namespace",
+                enum_tokens
+            );
 
             let struct_input: syn::DeriveInput = parse_quote! {
                 #[fluent(namespace = "blocked")]
@@ -253,10 +291,12 @@ mod tests {
                     value: i32
                 }
             };
-            let struct_panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let _ = super::expand_es_fluent(struct_input);
-            }));
-            assert!(struct_panic.is_err());
+            let struct_tokens =
+                crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
+            assert_snapshot!(
+                "expand_es_fluent_returns_compile_error_for_blocked_struct_namespace",
+                struct_tokens
+            );
         });
     }
 

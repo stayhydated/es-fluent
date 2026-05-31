@@ -1,6 +1,5 @@
 //! This module provides the error types for `es-fluent-derive-core`.
 
-use proc_macro_error2::{abort, abort_call_site, emit_error};
 use proc_macro2::Span;
 use std::fmt;
 
@@ -141,24 +140,6 @@ impl EsFluentCoreError {
             EsFluentCoreError::TransformError { message, .. } => message,
         }
     }
-
-    /// Aborts the macro execution with the error.
-    pub fn abort(self) -> ! {
-        let msg = self.to_string();
-        match self.span() {
-            Some(span) => abort!(span, "{}", msg),
-            None => abort_call_site!("{}", msg),
-        }
-    }
-
-    /// Emits the error as a compiler error.
-    pub fn emit(&self) {
-        let msg = self.to_string();
-        match self.span() {
-            Some(span) => emit_error!(span, "{}", msg),
-            None => emit_error!("{}", msg),
-        }
-    }
 }
 
 /// A trait for adding notes and help messages to an error.
@@ -280,45 +261,5 @@ mod tests {
             err.to_string(),
             "Attribute error in message field: Fluent argument name must not be empty\nnote: field-level argument parsing\nhelp: use #[fluent(arg = \"name\")]"
         );
-    }
-
-    #[test]
-    fn emit_and_abort_paths_cover_spans_and_call_site() {
-        let span = proc_macro2::Span::call_site();
-        let emit_with_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "emit with span".to_string(),
-                span: Some(span),
-            }
-            .emit();
-        });
-        assert!(emit_with_span.is_err());
-
-        let emit_without_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "emit without span".to_string(),
-                span: None,
-            }
-            .emit();
-        });
-        assert!(emit_without_span.is_err());
-
-        let abort_with_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "abort with span".to_string(),
-                span: Some(span),
-            }
-            .abort();
-        });
-        assert!(abort_with_span.is_err());
-
-        let abort_without_span = std::panic::catch_unwind(|| {
-            EsFluentCoreError::AttributeError {
-                message: "abort without span".to_string(),
-                span: None,
-            }
-            .abort();
-        });
-        assert!(abort_without_span.is_err());
     }
 }

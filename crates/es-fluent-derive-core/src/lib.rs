@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 pub mod attribute;
+pub mod context;
 pub mod error;
 pub mod lowered;
 pub mod options;

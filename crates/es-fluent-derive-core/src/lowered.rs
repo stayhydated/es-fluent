@@ -16,6 +16,7 @@ use crate::{
     },
 };
 use es_fluent_shared::meta::TypeKind;
+use syn::spanned::Spanned as _;
 
 #[derive(Clone, Debug)]
 pub struct MessageStructModel<'a> {
@@ -587,13 +588,13 @@ pub fn field_value_strategy(
     span: proc_macro2::Span,
 ) -> ArgumentValueStrategy {
     if let Some(expr) = field.value() {
-        ArgumentValueStrategy::Transform(ValueTransform::new(expr.clone(), span))
+        ArgumentValueStrategy::Transform(ValueTransform::new(expr.clone(), expr.span()))
     } else if field.is_choice() {
-        ArgumentValueStrategy::Choice
+        ArgumentValueStrategy::Choice { span }
     } else if field.is_optional() {
-        ArgumentValueStrategy::Optional
+        ArgumentValueStrategy::Optional { span }
     } else {
-        ArgumentValueStrategy::Borrowed
+        ArgumentValueStrategy::Borrowed { span }
     }
 }
 
@@ -642,15 +643,15 @@ mod tests {
 
         assert!(matches!(
             field_value_strategy(fields[0], fields[0].ident().expect("ident").span()),
-            ArgumentValueStrategy::Borrowed
+            ArgumentValueStrategy::Borrowed { .. }
         ));
         assert!(matches!(
             field_value_strategy(fields[1], fields[1].ident().expect("ident").span()),
-            ArgumentValueStrategy::Optional
+            ArgumentValueStrategy::Optional { .. }
         ));
         assert!(matches!(
             field_value_strategy(fields[2], fields[2].ident().expect("ident").span()),
-            ArgumentValueStrategy::Choice
+            ArgumentValueStrategy::Choice { .. }
         ));
         assert!(matches!(
             field_value_strategy(fields[3], fields[3].ident().expect("ident").span()),

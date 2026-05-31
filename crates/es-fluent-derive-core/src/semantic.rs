@@ -162,6 +162,68 @@ pub fn generated_label_message_value(
     generated_label_message_id(base_key, span, context).map(SpannedValue::into_value)
 }
 
+/// Rust type identifier metadata preserved with its source span.
+#[derive(Clone, Debug)]
+pub struct RustTypeName {
+    value: String,
+    span: Span,
+}
+
+impl RustTypeName {
+    pub fn from_ident(ident: &syn::Ident) -> Self {
+        Self {
+            value: namer::rust_ident_name(ident),
+            span: ident.span(),
+        }
+    }
+
+    pub fn new(value: impl Into<String>, span: Span) -> Self {
+        Self {
+            value: value.into(),
+            span,
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.value
+    }
+
+    pub fn span(&self) -> Span {
+        self.span
+    }
+}
+
+/// Rust item name metadata preserved with its source span.
+#[derive(Clone, Debug)]
+pub struct RustSourceName {
+    value: String,
+    span: Span,
+}
+
+impl RustSourceName {
+    pub fn from_ident(ident: &syn::Ident) -> Self {
+        Self {
+            value: namer::rust_ident_name(ident),
+            span: ident.span(),
+        }
+    }
+
+    pub fn new(value: impl Into<String>, span: Span) -> Self {
+        Self {
+            value: value.into(),
+            span,
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.value
+    }
+
+    pub fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// A typed generated variant key from `#[fluent_variants(keys = [...])]`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GeneratedKeyName {
@@ -288,7 +350,7 @@ impl GeneratedVariantMessageSeed {
             context,
         )?;
         Ok(MessageEntryModel::new(
-            namer::rust_ident_name(&self.ident),
+            RustSourceName::from_ident(&self.ident),
             message_id.clone(),
             Vec::new(),
             SourceLocation::new(message_id.span()),
@@ -321,7 +383,8 @@ pub struct ArgumentModel {
 
 impl ArgumentModel {
     pub fn new(name: SpannedValue<ArgName>) -> Self {
-        Self::new_with_value_strategy(name, ArgumentValueStrategy::Borrowed)
+        let span = name.span();
+        Self::new_with_value_strategy(name, ArgumentValueStrategy::Borrowed { span })
     }
 
     pub fn new_with_value_strategy(
@@ -351,13 +414,22 @@ impl ArgumentModel {
 #[derive(Clone, Debug)]
 pub enum ArgumentValueStrategy {
     /// Borrow the field value and let runtime autoref dispatch choose the final value form.
-    Borrowed,
+    Borrowed { span: Span },
     /// Treat the field value as an `Option<T>`.
-    Optional,
+    Optional { span: Span },
     /// Convert the field value through `EsFluentChoice`.
-    Choice,
+    Choice { span: Span },
     /// Apply an explicit field-level transform expression.
     Transform(ValueTransform),
+}
+
+impl ArgumentValueStrategy {
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Borrowed { span } | Self::Optional { span } | Self::Choice { span } => *span,
+            Self::Transform(transform) => transform.span(),
+        }
+    }
 }
 
 /// Explicit field-level value transform expression.
@@ -384,7 +456,7 @@ impl ValueTransform {
 /// Semantic metadata for one generated Fluent message entry.
 #[derive(Clone, Debug)]
 pub struct MessageEntryModel {
-    source_name: String,
+    source_name: RustSourceName,
     message_id: SpannedValue<FluentMessageId>,
     arguments: Vec<ArgumentModel>,
     source_location: SourceLocation,
@@ -392,13 +464,13 @@ pub struct MessageEntryModel {
 
 impl MessageEntryModel {
     pub fn new(
-        source_name: impl Into<String>,
+        source_name: RustSourceName,
         message_id: SpannedValue<FluentMessageId>,
         arguments: Vec<ArgumentModel>,
         source_location: SourceLocation,
     ) -> Self {
         Self {
-            source_name: source_name.into(),
+            source_name,
             message_id,
             arguments,
             source_location,
@@ -406,7 +478,7 @@ impl MessageEntryModel {
     }
 
     pub fn source_name(&self) -> &str {
-        &self.source_name
+        self.source_name.as_str()
     }
 
     pub fn message_id(&self) -> &FluentMessageId {
@@ -442,16 +514,10 @@ pub enum InventoryPolicy {
     Skip,
 }
 
-impl InventoryPolicy {
-    pub fn should_emit(self) -> bool {
-        matches!(self, Self::Emit)
-    }
-}
-
 /// Semantic model for messages generated from one source type.
 #[derive(Clone, Debug)]
 pub struct MessageModel {
-    source_type: String,
+    source_type: RustTypeName,
     type_kind: TypeKind,
     domain: Option<DomainName>,
     namespace: Option<NamespaceRule>,
@@ -462,7 +528,7 @@ pub struct MessageModel {
 
 impl MessageModel {
     pub fn new(
-        source_type: impl Into<String>,
+        source_type: RustTypeName,
         type_kind: TypeKind,
         domain: Option<DomainName>,
         namespace: Option<NamespaceRule>,
@@ -471,7 +537,7 @@ impl MessageModel {
         inventory_policy: InventoryPolicy,
     ) -> Self {
         Self {
-            source_type: source_type.into(),
+            source_type,
             type_kind,
             domain,
             namespace,
@@ -482,7 +548,7 @@ impl MessageModel {
     }
 
     pub fn source_type(&self) -> &str {
-        &self.source_type
+        self.source_type.as_str()
     }
 
     pub fn type_kind(&self) -> &TypeKind {
@@ -578,8 +644,8 @@ impl DerivePathList {
 /// Semantic model for a generated unit enum.
 #[derive(Clone, Debug)]
 pub struct GeneratedEnumModel {
-    ident: String,
-    origin_ident: String,
+    ident: RustTypeName,
+    origin_ident: RustTypeName,
     derives: DerivePathList,
     messages: Vec<MessageEntryModel>,
     label: Option<MessageEntryModel>,
@@ -589,8 +655,8 @@ pub struct GeneratedEnumModel {
 
 impl GeneratedEnumModel {
     pub fn new(
-        ident: impl Into<String>,
-        origin_ident: impl Into<String>,
+        ident: RustTypeName,
+        origin_ident: RustTypeName,
         derives: DerivePathList,
         messages: Vec<MessageEntryModel>,
         label: Option<MessageEntryModel>,
@@ -598,8 +664,8 @@ impl GeneratedEnumModel {
         namespace: Option<NamespaceRule>,
     ) -> Self {
         Self {
-            ident: ident.into(),
-            origin_ident: origin_ident.into(),
+            ident,
+            origin_ident,
             derives,
             messages,
             label,
@@ -609,11 +675,11 @@ impl GeneratedEnumModel {
     }
 
     pub fn ident(&self) -> &str {
-        &self.ident
+        self.ident.as_str()
     }
 
     pub fn origin_ident(&self) -> &str {
-        &self.origin_ident
+        self.origin_ident.as_str()
     }
 
     pub fn derives(&self) -> &DerivePathList {
@@ -640,19 +706,16 @@ impl GeneratedEnumModel {
 /// Semantic mapping for one `EsFluentChoice` enum variant.
 #[derive(Clone, Debug)]
 pub struct ChoiceVariantModel {
-    ident: String,
+    ident: syn::Ident,
     value: SpannedValue<String>,
 }
 
 impl ChoiceVariantModel {
-    pub fn new(ident: impl Into<String>, value: SpannedValue<String>) -> Self {
-        Self {
-            ident: ident.into(),
-            value,
-        }
+    pub fn new(ident: syn::Ident, value: SpannedValue<String>) -> Self {
+        Self { ident, value }
     }
 
-    pub fn ident(&self) -> &str {
+    pub fn ident(&self) -> &syn::Ident {
         &self.ident
     }
 
@@ -668,7 +731,7 @@ impl ChoiceVariantModel {
 /// Semantic model for an `EsFluentChoice` implementation.
 #[derive(Clone, Debug)]
 pub struct ChoiceModel {
-    ident: String,
+    ident: syn::Ident,
     variants: Vec<ChoiceVariantModel>,
 }
 
@@ -686,19 +749,19 @@ impl ChoiceModel {
                 let value = case_style
                     .map_or_else(|| variant_name.clone(), |style| style.apply(&variant_name));
                 ChoiceVariantModel::new(
-                    variant_name,
+                    variant_ident.clone(),
                     SpannedValue::new(value, variant_ident.span()),
                 )
             })
             .collect();
 
         Ok(Self {
-            ident: es_fluent_shared::namer::rust_ident_name(ident),
+            ident: ident.clone(),
             variants,
         })
     }
 
-    pub fn ident(&self) -> &str {
+    pub fn ident(&self) -> &syn::Ident {
         &self.ident
     }
 
@@ -873,7 +936,7 @@ mod tests {
     fn message_entry_model_returns_inventory_argument_names_from_arguments() {
         let span = Span::call_site();
         let entry = MessageEntryModel::new(
-            "Ready",
+            RustSourceName::new("Ready", span),
             SpannedValue::new(
                 parse_fluent_message_id_in_context(
                     "status-Ready",
@@ -890,7 +953,7 @@ mod tests {
                 )),
                 ArgumentModel::new_with_value_strategy(
                     SpannedValue::new(parse_arg_name("second", span).expect("arg"), span),
-                    ArgumentValueStrategy::Choice,
+                    ArgumentValueStrategy::Choice { span },
                 ),
             ],
             SourceLocation::new(span),
@@ -909,7 +972,7 @@ mod tests {
         );
         assert!(matches!(
             entry.arguments()[1].value_strategy(),
-            ArgumentValueStrategy::Choice
+            ArgumentValueStrategy::Choice { .. }
         ));
     }
 
@@ -917,7 +980,7 @@ mod tests {
     fn message_model_groups_entries_with_inventory_policy() {
         let span = Span::call_site();
         let entry = MessageEntryModel::new(
-            "Ready",
+            RustSourceName::new("Ready", span),
             SpannedValue::new(
                 parse_fluent_message_id_in_context(
                     "status-Ready",
@@ -931,7 +994,7 @@ mod tests {
             SourceLocation::new(span),
         );
         let model = MessageModel::new(
-            "Status",
+            RustTypeName::new("Status", proc_macro2::Span::call_site()),
             TypeKind::Enum,
             None,
             None,
@@ -942,12 +1005,12 @@ mod tests {
 
         assert_eq!(model.source_type(), "Status");
         assert!(matches!(model.type_kind(), TypeKind::Enum));
-        assert!(model.inventory_policy().should_emit());
+        assert_eq!(model.inventory_policy(), InventoryPolicy::Emit);
         assert_eq!(model.messages()[0].message_id().as_str(), "status-Ready");
 
         let generated = GeneratedEnumModel::new(
-            "StatusFtl",
-            "Status",
+            RustTypeName::new("StatusFtl", proc_macro2::Span::call_site()),
+            RustTypeName::new("Status", proc_macro2::Span::call_site()),
             DerivePathList::from_paths(
                 vec![syn::parse_quote!(Debug)],
                 AttrContext::VariantsContainer,
@@ -981,8 +1044,8 @@ mod tests {
         )
         .expect("choice model");
 
-        assert_eq!(model.ident(), "SeverityChoice");
-        assert_eq!(model.variants()[0].ident(), "VeryHigh");
+        assert_eq!(model.ident().to_string(), "SeverityChoice");
+        assert_eq!(model.variants()[0].ident().to_string(), "VeryHigh");
         assert_eq!(model.variants()[0].value(), "very_high");
         assert_eq!(model.variants()[1].value(), "low");
     }

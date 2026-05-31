@@ -1,15 +1,21 @@
+use es_fluent_derive_core::context::{ContainerContext, SpannedNamespaceRule};
 use es_fluent_derive_core::lowered::{MessageStructField, MessageStructModel};
 use es_fluent_derive_core::options::r#struct::StructOpts;
-use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
-use es_fluent_shared::{meta::TypeKind, namer};
+use es_fluent_derive_core::semantic::{MessageModel, RustSourceName, RustTypeName};
+use es_fluent_shared::meta::TypeKind;
 
 use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
-use crate::macros::utils::InventoryModuleInput;
+use crate::macros::utils::{CodegenContext, InventoryModuleInput};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-pub fn process_struct(opts: &StructOpts, _data: &syn::DataStruct) -> TokenStream {
-    generate(opts)
+pub fn process_struct(
+    context: &CodegenContext,
+    container_context: &ContainerContext,
+    opts: &StructOpts,
+    _data: &syn::DataStruct,
+) -> TokenStream {
+    generate(context, container_context, opts)
 }
 
 fn struct_field_access_expr(field: &MessageStructField<'_>) -> TokenStream {
@@ -24,12 +30,16 @@ fn struct_field_access_expr(field: &MessageStructField<'_>) -> TokenStream {
     }
 }
 
-fn generate(opts: &StructOpts) -> TokenStream {
+fn generate(
+    context: &CodegenContext,
+    container_context: &ContainerContext,
+    opts: &StructOpts,
+) -> TokenStream {
     let model = match MessageStructModel::from_options(opts) {
         Ok(model) => model,
         Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
     };
-    let original_ident = model.ident();
+    let original_ident = container_context.source_ident();
 
     let message_arguments = model
         .fields()
@@ -39,6 +49,7 @@ fn generate(opts: &StructOpts) -> TokenStream {
             let metadata = field_model.argument_model()?;
 
             Ok(crate::macros::utils::generate_field_argument(
+                context,
                 metadata,
                 field_access.clone(),
                 quote! { &(#field_access) },
@@ -51,21 +62,24 @@ fn generate(opts: &StructOpts) -> TokenStream {
     };
 
     let message_entry = MessageEntrySpec::new(
-        namer::rust_ident_name(original_ident),
+        RustSourceName::from_ident(original_ident),
         model.message_id().clone(),
         message_arguments,
     );
     let semantic_model = MessageModel::new(
-        namer::rust_ident_name(original_ident),
+        RustTypeName::from_ident(original_ident),
         TypeKind::Struct,
         None,
-        opts.attr_args().namespace().cloned(),
+        container_context
+            .fluent_namespace()
+            .map(SpannedNamespaceRule::rule)
+            .cloned(),
         vec![message_entry.metadata.clone()],
         None,
-        InventoryPolicy::Emit,
+        container_context.inventory_policy(),
     );
 
-    let fluent_message_body = message_entry.localize_with_expr(None);
+    let fluent_message_body = message_entry.localize_with_expr(context, None);
 
     // Generate inventory submission for all types
     // FTL metadata is purely structural (type name, field names)
@@ -74,21 +88,29 @@ fn generate(opts: &StructOpts) -> TokenStream {
         let static_variants: Vec<_> = semantic_model
             .messages()
             .iter()
-            .map(inventory_variant_tokens_for_model)
+            .map(|metadata| inventory_variant_tokens_for_model(context, metadata))
             .collect();
+        let es_fluent = context.facade_path().tokens();
 
-        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
-            ident: original_ident,
-            module_name_prefix: "inventory",
-            type_kind: quote! { ::es_fluent::meta::TypeKind::Struct },
-            variants: static_variants,
-            namespace_expr: crate::macros::utils::namespace_rule_tokens(semantic_model.namespace()),
-        })
+        crate::macros::utils::generate_inventory_module(
+            context,
+            InventoryModuleInput {
+                ident: original_ident,
+                module_name_prefix: "inventory",
+                type_kind: quote! { #es_fluent::meta::TypeKind::Struct },
+                variants: static_variants,
+                namespace_expr: crate::macros::utils::namespace_rule_tokens(
+                    context,
+                    semantic_model.namespace(),
+                ),
+            },
+        )
     };
 
     crate::macros::utils::emit_message_inventory_impls(
+        context,
         original_ident,
-        opts.generics(),
+        container_context.generics(),
         fluent_message_body,
         inventory_submit,
     )
@@ -110,8 +132,10 @@ mod tests {
             }
         };
         let opts = StructOpts::from_derive_input(&input).expect("struct opts");
+        let container_context = ContainerContext::from_struct_options(&opts);
 
-        let tokens = generate(&opts).to_string();
+        let context = CodegenContext::fallback();
+        let tokens = generate(&context, &container_context, &opts).to_string();
 
         assert!(tokens.contains("\"login_form\""));
         assert!(tokens.contains("\"display_name\""));

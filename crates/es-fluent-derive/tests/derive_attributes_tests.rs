@@ -67,7 +67,6 @@ fn es_fluent_enum_attributes_default_snapshot() {
     assert_eq!(opts.variants().len(), 4);
     assert!(opts.attr_args().resource_message_id().is_none());
     assert!(opts.attr_args().domain_name().is_none());
-    assert!(!opts.attr_args().skip_inventory());
     assert!(opts.attr_args().namespace().is_none());
 
     let data = opts

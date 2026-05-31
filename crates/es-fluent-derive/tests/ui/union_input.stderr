@@ -1,0 +1,11 @@
+error: EsFluent can only be derived for structs and enums
+ --> tests/ui/union_input.rs:4:11
+  |
+4 | pub union MessageUnion {
+  |           ^^^^^^^^^^^^
+
+error: EsFluentVariants can only be derived for structs and enums
+  --> tests/ui/union_input.rs:10:11
+   |
+10 | pub union VariantsUnion {
+   |           ^^^^^^^^^^^^^

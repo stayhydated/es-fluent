@@ -453,5 +453,4 @@ fn enum_fluent_with_namespace_literal() {
     ));
     assert!(opts.attr_args().resource_message_id().is_none());
     assert!(opts.attr_args().domain_name().is_none());
-    assert!(!opts.attr_args().skip_inventory());
 }

@@ -1,16 +1,22 @@
+use es_fluent_derive_core::context::{ContainerContext, SpannedNamespaceRule};
 use es_fluent_derive_core::lowered::{MessageEnumModel, MessageEnumVariant};
 use es_fluent_derive_core::options::FluentField;
 use es_fluent_derive_core::options::r#enum::EnumOpts;
-use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
+use es_fluent_derive_core::semantic::{MessageModel, RustSourceName, RustTypeName};
 use es_fluent_shared::{meta::TypeKind, namer};
 
 use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
-use crate::macros::utils::InventoryModuleInput;
+use crate::macros::utils::{CodegenContext, InventoryModuleInput};
 use proc_macro2::TokenStream;
 use quote::quote;
 
-pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
-    generate(opts, data)
+pub fn process_enum(
+    context: &CodegenContext,
+    container_context: &ContainerContext,
+    opts: &EnumOpts,
+    data: &syn::DataEnum,
+) -> TokenStream {
+    generate(context, container_context, opts, data)
 }
 
 enum MessageVariant<'a> {
@@ -21,9 +27,13 @@ enum MessageVariant<'a> {
     },
 }
 
-fn skipped_variant_message_match_arm(model: &MessageEnumVariant<'_>) -> TokenStream {
+fn skipped_variant_message_match_arm(
+    context: &CodegenContext,
+    model: &MessageEnumVariant<'_>,
+) -> TokenStream {
     let variant_ident = model.ident();
     let variant_name = namer::rust_ident_name(variant_ident);
+    let es_fluent = context.facade_path().tokens();
 
     match model {
         MessageEnumVariant::Unit { .. } => {
@@ -35,7 +45,7 @@ fn skipped_variant_message_match_arm(model: &MessageEnumVariant<'_>) -> TokenStr
             if fields.len() == 1 {
                 quote! {
                     Self::#variant_ident(value) => {
-                        use ::es_fluent::FluentMessage as _;
+                        use #es_fluent::FluentMessage as _;
                         value.to_fluent_string_with(localize)
                     }
                 }
@@ -51,7 +61,7 @@ fn skipped_variant_message_match_arm(model: &MessageEnumVariant<'_>) -> TokenStr
                 let field_ident = fields[0].binding;
                 quote! {
                     Self::#variant_ident { #field_ident } => {
-                        use ::es_fluent::FluentMessage as _;
+                        use #es_fluent::FluentMessage as _;
                         #field_ident.to_fluent_string_with(localize)
                     }
                 }
@@ -65,6 +75,7 @@ fn skipped_variant_message_match_arm(model: &MessageEnumVariant<'_>) -> TokenStr
 }
 
 fn variant_runtime_arguments(
+    context: &CodegenContext,
     model: &MessageEnumVariant<'_>,
 ) -> es_fluent_derive_core::error::EsFluentCoreResult<Vec<crate::macros::ir::FluentArgument>> {
     match model {
@@ -75,6 +86,7 @@ fn variant_runtime_arguments(
             .map(|field| {
                 let binding_ident = namer::UnnamedItem::from(field.original_index).to_ident();
                 Ok(crate::macros::utils::generate_field_argument(
+                    context,
                     field.argument_model()?,
                     quote! { #binding_ident },
                     quote! { #binding_ident },
@@ -86,6 +98,7 @@ fn variant_runtime_arguments(
             .map(|field| {
                 let arg = field.binding;
                 Ok(crate::macros::utils::generate_field_argument(
+                    context,
                     field.argument_model()?,
                     quote! { #arg },
                     quote! { #arg },
@@ -96,24 +109,26 @@ fn variant_runtime_arguments(
 }
 
 fn variant_message_entry(
+    context: &CodegenContext,
     model: &MessageEnumVariant<'_>,
 ) -> es_fluent_derive_core::error::EsFluentCoreResult<MessageEntrySpec> {
     let variant_ident = model.ident();
 
     Ok(MessageEntrySpec::new(
-        namer::rust_ident_name(variant_ident),
+        RustSourceName::from_ident(variant_ident),
         model.message_id().clone(),
-        variant_runtime_arguments(model)?,
+        variant_runtime_arguments(context, model)?,
     ))
 }
 
 fn localized_variant_match_arm(
+    context: &CodegenContext,
     model: &MessageEnumVariant<'_>,
     entry: &MessageEntrySpec,
     domain_model: Option<&es_fluent_derive_core::semantic::DomainName>,
 ) -> TokenStream {
     let variant_ident = model.ident();
-    let body = entry.localize_with_expr(domain_model);
+    let body = entry.localize_with_expr(context, domain_model);
 
     match model {
         MessageEnumVariant::Unit { .. } => {
@@ -161,19 +176,19 @@ fn localized_variant_match_arm(
     }
 }
 
-fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
-    let original_ident = opts.ident();
-    let domain_model = opts
-        .attr_args()
-        .domain_name()
-        .map(|domain| domain.value().clone());
-
+fn generate(
+    context: &CodegenContext,
+    container_context: &ContainerContext,
+    opts: &EnumOpts,
+    _data: &syn::DataEnum,
+) -> TokenStream {
+    let original_ident = container_context.source_ident();
+    let domain_model = container_context.fluent_domain().cloned();
     let model = match MessageEnumModel::from_options(opts) {
         Ok(model) => model,
         Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
     };
     let is_empty = model.is_empty();
-    let skip_inventory = opts.attr_args().skip_inventory();
     let message_variants = model
         .variants()
         .iter()
@@ -181,7 +196,7 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             if variant_model.is_skipped() {
                 Ok(MessageVariant::Skipped(variant_model))
             } else {
-                let entry = variant_message_entry(variant_model)?;
+                let entry = variant_message_entry(context, variant_model)?;
                 Ok(MessageVariant::Localized {
                     model: variant_model,
                     entry,
@@ -194,10 +209,13 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
     };
     let semantic_model = MessageModel::new(
-        namer::rust_ident_name(original_ident),
+        RustTypeName::from_ident(original_ident),
         TypeKind::Enum,
         domain_model.clone(),
-        opts.attr_args().namespace().cloned(),
+        container_context
+            .fluent_namespace()
+            .map(SpannedNamespaceRule::rule)
+            .cloned(),
         message_variants
             .iter()
             .filter_map(|variant| match variant {
@@ -207,17 +225,13 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
             .map(|entry| entry.metadata.clone())
             .collect(),
         None,
-        if skip_inventory {
-            InventoryPolicy::Skip
-        } else {
-            InventoryPolicy::Emit
-        },
+        container_context.inventory_policy(),
     );
 
     let fluent_message_match_arms = message_variants.iter().map(|variant| match variant {
-        MessageVariant::Skipped(model) => skipped_variant_message_match_arm(model),
+        MessageVariant::Skipped(model) => skipped_variant_message_match_arm(context, model),
         MessageVariant::Localized { model, entry } => {
-            localized_variant_match_arm(model, entry, domain_model.as_ref())
+            localized_variant_match_arm(context, model, entry, domain_model.as_ref())
         },
     });
 
@@ -234,30 +248,38 @@ fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
         }
     };
 
-    // Generate inventory submission for all non-empty types unless skip_inventory is set
+    // Generate inventory submission for all non-empty types.
     // FTL metadata is purely structural (type name, field names, variant names)
     // and doesn't depend on generic type parameters
-    let inventory_submit = if !is_empty && semantic_model.inventory_policy().should_emit() {
+    let inventory_submit = if !is_empty {
         let static_variants: Vec<_> = semantic_model
             .messages()
             .iter()
-            .map(inventory_variant_tokens_for_model)
+            .map(|metadata| inventory_variant_tokens_for_model(context, metadata))
             .collect();
+        let es_fluent = context.facade_path().tokens();
 
-        crate::macros::utils::generate_inventory_module(InventoryModuleInput {
-            ident: original_ident,
-            module_name_prefix: "inventory",
-            type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
-            variants: static_variants,
-            namespace_expr: crate::macros::utils::namespace_rule_tokens(semantic_model.namespace()),
-        })
+        crate::macros::utils::generate_inventory_module(
+            context,
+            InventoryModuleInput {
+                ident: original_ident,
+                module_name_prefix: "inventory",
+                type_kind: quote! { #es_fluent::meta::TypeKind::Enum },
+                variants: static_variants,
+                namespace_expr: crate::macros::utils::namespace_rule_tokens(
+                    context,
+                    semantic_model.namespace(),
+                ),
+            },
+        )
     } else {
         quote! {}
     };
 
     crate::macros::utils::emit_message_inventory_impls(
+        context,
         original_ident,
-        opts.generics(),
+        container_context.generics(),
         fluent_message_body,
         inventory_submit,
     )
@@ -283,7 +305,8 @@ mod tests {
         let opts = EnumOpts::from_derive_input(&input).expect("enum opts");
         let model = MessageEnumModel::from_options(&opts).expect("lowered enum");
         let variant = &model.variants()[0];
-        let entry = super::variant_message_entry(variant).expect("message entry");
+        let context = CodegenContext::fallback();
+        let entry = super::variant_message_entry(&context, variant).expect("message entry");
 
         assert_eq!(entry.metadata.message_id().as_str(), "login_error-Failed");
         assert_eq!(
@@ -296,8 +319,9 @@ mod tests {
             vec!["display_name", "f1"]
         );
 
-        let runtime_tokens = entry.localize_with_expr(None).to_string();
-        let inventory_tokens = inventory_variant_tokens_for_model(&entry.metadata).to_string();
+        let runtime_tokens = entry.localize_with_expr(&context, None).to_string();
+        let inventory_tokens =
+            inventory_variant_tokens_for_model(&context, &entry.metadata).to_string();
 
         assert!(runtime_tokens.contains("\"login_error-Failed\""));
         assert!(runtime_tokens.contains("\"display_name\""));

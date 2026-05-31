@@ -57,9 +57,8 @@ Common `#[fluent(...)]` attributes:
 - `key = "..."`: override an enum variant key suffix.
 - `resource = "..."`: override an enum base key.
 - `domain = "..."`: route enum lookup to a specific manager domain.
-- `skip_inventory`: suppress CLI inventory registration for an enum.
 
-`resource`, `domain`, and `skip_inventory` are enum-only. Struct message containers accept `namespace = ...`.
+`resource` and `domain` are enum-only. Struct message containers accept `namespace = ...`.
 
 Optional-argument omission is explicit. Plain `Option<T>` fields are treated as ordinary field values unless marked `#[fluent(optional)]`.
 
@@ -210,5 +209,3 @@ If `i18n.toml` has `namespaces = [...]`, string namespaces are validated against
 ## Inventory Discovery
 
 Keep derived message types reachable from a library target. The CLI collects derive inventory from library targets. It does not discover binary-only types that live only in `src/main.rs`.
-
-Use `#[fluent(skip_inventory)]` only for types that should not generate or validate FTL entries.

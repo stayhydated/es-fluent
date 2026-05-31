@@ -8,13 +8,25 @@ use es_fluent_derive_core::{
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
+use crate::macros::utils::CodegenContext;
+
 /// The entry point for the `EsFluentChoice` derive macro.
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    expand_choice(input).into()
+    let context = CodegenContext::resolve();
+    expand_choice_with_context(input, &context).into()
 }
 
+#[cfg(test)]
 fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
+    let context = CodegenContext::fallback();
+    expand_choice_with_context(input, &context)
+}
+
+fn expand_choice_with_context(
+    input: DeriveInput,
+    context: &CodegenContext,
+) -> proc_macro2::TokenStream {
     if let Err(err) = validation::validate_es_fluent_choice_attribute_context(&input) {
         return crate::macros::utils::core_error_to_compile_error(err);
     }
@@ -44,15 +56,16 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
     };
 
     let match_arms = choice_model.variants().iter().map(|variant| {
-        let variant_ident = syn::Ident::new(variant.ident(), variant.span());
+        let variant_ident = variant.ident();
         let choice_value = variant.value();
         quote! {
             Self::#variant_ident => #choice_value
         }
     });
+    let es_fluent = context.facade_path().tokens();
 
     let generated = quote! {
-        impl #impl_generics ::es_fluent::EsFluentChoice for #enum_ident #ty_generics #where_clause {
+        impl #impl_generics #es_fluent::EsFluentChoice for #enum_ident #ty_generics #where_clause {
             fn as_fluent_choice(&self) -> &'static str {
                 match self {
                     #(#match_arms),*
