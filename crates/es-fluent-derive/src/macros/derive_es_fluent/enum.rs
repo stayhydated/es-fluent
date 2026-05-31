@@ -1,9 +1,8 @@
 use es_fluent_derive_core::error::AttrContext;
-use es_fluent_derive_core::options::r#enum::{EnumOpts, VariantOpts};
-use es_fluent_derive_core::options::{
-    EnumDataOptions as _, FluentField, FluentFieldOpts, Skippable as _, VariantFields as _,
-};
-use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
+use es_fluent_derive_core::lowered::{MessageEnumModel, MessageEnumVariant};
+use es_fluent_derive_core::options::FluentField;
+use es_fluent_derive_core::options::r#enum::EnumOpts;
+use es_fluent_derive_core::semantic::{FluentMessageId, InventoryPolicy, MessageModel};
 use es_fluent_shared::{meta::TypeKind, namer};
 
 use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
@@ -15,124 +14,25 @@ pub fn process_enum(opts: &EnumOpts, data: &syn::DataEnum) -> TokenStream {
     generate(opts, data)
 }
 
-#[derive(Clone, Copy)]
-struct TupleFieldModel<'a> {
-    original_index: usize,
-    field: &'a FluentFieldOpts,
-}
-
-#[derive(Clone, Copy)]
-struct NamedFieldModel<'a> {
-    binding: &'a syn::Ident,
-    exposed_index: usize,
-    field: &'a FluentFieldOpts,
-}
-
-enum EnumVariantModel<'a> {
-    Unit {
-        ident: &'a syn::Ident,
-        skipped: bool,
-    },
-    Tuple {
-        ident: &'a syn::Ident,
-        skipped: bool,
-        fields: Vec<TupleFieldModel<'a>>,
-    },
-    Struct {
-        ident: &'a syn::Ident,
-        skipped: bool,
-        fields: Vec<NamedFieldModel<'a>>,
-        has_skipped_fields: bool,
-    },
-}
-
-impl<'a> EnumVariantModel<'a> {
-    fn from_options(variant_opt: &'a VariantOpts) -> Self {
-        let ident = variant_opt.ident();
-        let skipped = variant_opt.is_skipped();
-
-        match variant_opt.style() {
-            darling::ast::Style::Unit => Self::Unit { ident, skipped },
-            darling::ast::Style::Tuple => Self::Tuple {
-                ident,
-                skipped,
-                fields: variant_opt
-                    .all_fields()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(original_index, field)| TupleFieldModel {
-                        original_index,
-                        field,
-                    })
-                    .collect(),
-            },
-            darling::ast::Style::Struct => {
-                let all_fields = variant_opt.all_fields();
-                let fields = variant_opt
-                    .fields()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(exposed_index, field)| {
-                        let Some(binding) = field.ident() else {
-                            proc_macro_error2::abort!(
-                                ident.span(),
-                                "internal error: struct variant field is missing an identifier"
-                            );
-                        };
-                        NamedFieldModel {
-                            binding,
-                            exposed_index,
-                            field,
-                        }
-                    })
-                    .collect();
-
-                Self::Struct {
-                    ident,
-                    skipped,
-                    fields,
-                    has_skipped_fields: all_fields.len() > variant_opt.fields().len(),
-                }
-            },
-        }
-    }
-
-    fn ident(&self) -> &'a syn::Ident {
-        match self {
-            Self::Unit { ident, .. } | Self::Tuple { ident, .. } | Self::Struct { ident, .. } => {
-                ident
-            },
-        }
-    }
-
-    fn is_skipped(&self) -> bool {
-        match self {
-            Self::Unit { skipped, .. }
-            | Self::Tuple { skipped, .. }
-            | Self::Struct { skipped, .. } => *skipped,
-        }
-    }
-}
-
 enum MessageVariant<'a> {
-    Skipped(EnumVariantModel<'a>),
+    Skipped(&'a MessageEnumVariant<'a>),
     Localized {
-        model: EnumVariantModel<'a>,
+        model: &'a MessageEnumVariant<'a>,
         entry: MessageEntrySpec,
     },
 }
 
-fn skipped_variant_message_match_arm(model: &EnumVariantModel<'_>) -> TokenStream {
+fn skipped_variant_message_match_arm(model: &MessageEnumVariant<'_>) -> TokenStream {
     let variant_ident = model.ident();
     let variant_name = namer::rust_ident_name(variant_ident);
 
     match model {
-        EnumVariantModel::Unit { .. } => {
+        MessageEnumVariant::Unit { .. } => {
             quote! {
                 Self::#variant_ident => #variant_name.to_string()
             }
         },
-        EnumVariantModel::Tuple { fields, .. } => {
+        MessageEnumVariant::Tuple { fields, .. } => {
             if fields.len() == 1 {
                 quote! {
                     Self::#variant_ident(value) => {
@@ -147,7 +47,7 @@ fn skipped_variant_message_match_arm(model: &EnumVariantModel<'_>) -> TokenStrea
                 }
             }
         },
-        EnumVariantModel::Struct { fields, .. } => {
+        MessageEnumVariant::Struct { fields, .. } => {
             if fields.len() == 1 {
                 let field_ident = fields[0].binding;
                 quote! {
@@ -166,13 +66,13 @@ fn skipped_variant_message_match_arm(model: &EnumVariantModel<'_>) -> TokenStrea
 }
 
 fn variant_runtime_arguments(
-    model: &EnumVariantModel<'_>,
+    model: &MessageEnumVariant<'_>,
 ) -> Vec<crate::macros::ir::FluentArgument> {
     match model {
-        EnumVariantModel::Unit { .. } => Vec::new(),
-        EnumVariantModel::Tuple { fields, .. } => fields
+        MessageEnumVariant::Unit { .. } => Vec::new(),
+        MessageEnumVariant::Tuple { fields, .. } => fields
             .iter()
-            .filter(|field| !<FluentFieldOpts as FluentField>::is_skipped(field.field))
+            .filter(|field| !field.field.is_skipped())
             .map(|field| {
                 let binding_ident = namer::UnnamedItem::from(field.original_index).to_ident();
                 crate::macros::utils::generate_field_argument(
@@ -183,7 +83,7 @@ fn variant_runtime_arguments(
                 )
             })
             .collect(),
-        EnumVariantModel::Struct { fields, .. } => fields
+        MessageEnumVariant::Struct { fields, .. } => fields
             .iter()
             .map(|field| {
                 let arg = field.binding;
@@ -199,22 +99,21 @@ fn variant_runtime_arguments(
 }
 
 fn variant_message_entry(
-    base_key: &str,
-    model: &EnumVariantModel<'_>,
-    variant_opt: &VariantOpts,
+    base_key: &FluentMessageId,
+    model: &MessageEnumVariant<'_>,
 ) -> MessageEntrySpec {
     let variant_ident = model.ident();
-    let variant_key = variant_opt
+    let variant_key = model
+        .opts()
         .variant_key(AttrContext::EnumVariant)
         .unwrap_or_else(|error| error.abort());
-    let variant_key = variant_key.as_ref().map(|key| key.value().as_str());
-
-    let ftl_key = crate::macros::utils::variant_ftl_key(base_key, variant_ident, variant_key);
-    let message_id = crate::macros::utils::message_id_or_abort(
-        ftl_key,
-        variant_ident.span(),
+    let message_id = es_fluent_derive_core::semantic::variant_message_id(
+        base_key,
+        variant_ident,
+        variant_key.as_ref().map(|key| key.value()),
         AttrContext::MessageContainer,
-    );
+    )
+    .unwrap_or_else(|error| error.abort());
 
     MessageEntrySpec::new(
         namer::rust_ident_name(variant_ident),
@@ -224,7 +123,7 @@ fn variant_message_entry(
 }
 
 fn localized_variant_match_arm(
-    model: &EnumVariantModel<'_>,
+    model: &MessageEnumVariant<'_>,
     entry: &MessageEntrySpec,
     domain_model: Option<&es_fluent_derive_core::semantic::DomainName>,
 ) -> TokenStream {
@@ -232,16 +131,16 @@ fn localized_variant_match_arm(
     let body = entry.localize_with_expr(domain_model);
 
     match model {
-        EnumVariantModel::Unit { .. } => {
+        MessageEnumVariant::Unit { .. } => {
             quote! {
                 Self::#variant_ident => #body
             }
         },
-        EnumVariantModel::Tuple { fields, .. } => {
+        MessageEnumVariant::Tuple { fields, .. } => {
             let field_pats: Vec<_> = fields
                 .iter()
                 .map(|field| {
-                    if <FluentFieldOpts as FluentField>::is_skipped(field.field) {
+                    if field.field.is_skipped() {
                         quote! { _ }
                     } else {
                         let name = namer::UnnamedItem::from(field.original_index).to_ident();
@@ -256,7 +155,7 @@ fn localized_variant_match_arm(
                 }
             }
         },
-        EnumVariantModel::Struct {
+        MessageEnumVariant::Struct {
             fields,
             has_skipped_fields,
             ..
@@ -279,30 +178,30 @@ fn localized_variant_match_arm(
 
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
-    let base_key = opts.base_key();
-    if opts.attr_args().resource().is_some() {
-        opts.attr_args()
-            .resource_message_id(AttrContext::MessageContainer)
-            .unwrap_or_else(|error| error.abort());
-    }
+    let base_key = opts
+        .base_message_id(AttrContext::MessageContainer)
+        .unwrap_or_else(|error| error.abort())
+        .into_value();
     let domain_model = opts
         .attr_args()
-        .domain_name(AttrContext::MessageContainer)
-        .unwrap_or_else(|error| error.abort())
-        .map(|domain| domain.into_value());
+        .domain_name()
+        .map(|domain| domain.value().clone());
 
-    let variants = opts.variants();
-    let is_empty = variants.is_empty();
+    let model = MessageEnumModel::from_options(opts).unwrap_or_else(|error| error.abort());
+    let is_empty = model.is_empty();
     let skip_inventory = opts.attr_args().skip_inventory();
-    let message_variants: Vec<_> = variants
+    let message_variants: Vec<_> = model
+        .variants()
         .iter()
-        .map(|variant_opt| {
-            let model = EnumVariantModel::from_options(variant_opt);
-            if model.is_skipped() {
-                MessageVariant::Skipped(model)
+        .map(|variant_model| {
+            if variant_model.is_skipped() {
+                MessageVariant::Skipped(variant_model)
             } else {
-                let entry = variant_message_entry(base_key.as_str(), &model, variant_opt);
-                MessageVariant::Localized { model, entry }
+                let entry = variant_message_entry(&base_key, variant_model);
+                MessageVariant::Localized {
+                    model: variant_model,
+                    entry,
+                }
             }
         })
         .collect();
@@ -394,9 +293,13 @@ mod tests {
             }
         };
         let opts = EnumOpts::from_derive_input(&input).expect("enum opts");
-        let variant = opts.variants()[0];
-        let model = super::EnumVariantModel::from_options(variant);
-        let entry = super::variant_message_entry(opts.base_key().as_str(), &model, variant);
+        let model = MessageEnumModel::from_options(&opts).expect("lowered enum");
+        let variant = &model.variants()[0];
+        let base_key = opts
+            .base_message_id(AttrContext::MessageContainer)
+            .expect("base key")
+            .into_value();
+        let entry = super::variant_message_entry(&base_key, variant);
 
         assert_eq!(entry.metadata.message_id().as_str(), "login_error-Failed");
         assert_eq!(

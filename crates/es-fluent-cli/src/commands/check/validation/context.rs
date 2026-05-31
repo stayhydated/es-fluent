@@ -1,16 +1,15 @@
-use super::super::inventory::KeyInfo;
+use super::super::inventory::ExpectedKeys;
 use crate::core::{
     DuplicateKeyError, FtlSyntaxError, MissingKeyError, MissingVariableWarning,
     UnexpectedVariableError, ValidationIssue,
 };
-use indexmap::IndexMap;
 use miette::{NamedSource, SourceSpan};
 use std::fs;
 use std::path::Path;
 use terminal_link::Link;
 
 pub(super) struct ValidationContext<'a> {
-    pub(super) expected_keys: &'a IndexMap<String, KeyInfo>,
+    pub(super) expected_keys: &'a ExpectedKeys,
     pub(super) workspace_root: &'a Path,
     pub(super) manifest_dir: &'a Path,
 }
@@ -43,12 +42,11 @@ impl ValidationContext<'_> {
     pub(super) fn missing_file_issues(&self, locale: &str, ftl_path: &str) -> Vec<ValidationIssue> {
         self.expected_keys
             .keys()
-            .cloned()
             .map(|key| {
                 let help = format!("Add translation for '{}' in {}", key, ftl_path);
                 ValidationIssue::MissingKey(MissingKeyError {
                     src: NamedSource::new(ftl_path, String::new()),
-                    key,
+                    key: key.to_string(),
                     locale: locale.to_string(),
                     help,
                 })

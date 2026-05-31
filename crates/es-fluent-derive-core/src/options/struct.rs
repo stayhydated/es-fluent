@@ -108,6 +108,15 @@ mod tests {
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 
+    fn message_field_arg(field: &impl FluentField, index: usize) -> String {
+        field
+            .fluent_arg_name(index, crate::error::AttrContext::MessageField)
+            .expect("argument name")
+            .value()
+            .as_str()
+            .to_string()
+    }
+
     #[test]
     fn struct_opts_cover_field_helpers_indexing_and_value_expressions() {
         let input: DeriveInput = parse_quote! {
@@ -116,8 +125,10 @@ mod tests {
             struct LoginForm {
                 #[fluent(default)]
                 username: String,
-                #[fluent(choice, value = |v: &String| v.len())]
+                #[fluent(choice)]
                 role: String,
+                #[fluent(value = |v: &String| v.len())]
+                display_name: String,
                 #[fluent(skip)]
                 hidden: bool,
             }
@@ -130,14 +141,15 @@ mod tests {
         ));
 
         let fields = opts.fields();
-        assert_eq!(fields.len(), 2);
-        assert_eq!(fields[0].fluent_arg(0), "username");
+        assert_eq!(fields.len(), 3);
+        assert_eq!(message_field_arg(fields[0], 0), "username");
         assert!(fields[0].is_default());
         assert!(!fields[0].is_choice());
 
-        assert_eq!(fields[1].fluent_arg(1), "role");
+        assert_eq!(message_field_arg(fields[1], 1), "role");
         assert!(fields[1].is_choice());
-        let value_expr = fields[1]
+        assert_eq!(message_field_arg(fields[2], 2), "display_name");
+        let value_expr = fields[2]
             .value()
             .expect("value expression should be present");
         assert_eq!(
@@ -146,12 +158,13 @@ mod tests {
         );
 
         let indexed = opts.indexed_fields();
-        assert_eq!(indexed.len(), 2);
+        assert_eq!(indexed.len(), 3);
         assert_eq!(indexed[0].0, 0);
         assert_eq!(indexed[1].0, 1);
+        assert_eq!(indexed[2].0, 2);
 
         let all_indexed = opts.all_indexed_fields();
-        assert_eq!(all_indexed.len(), 3);
+        assert_eq!(all_indexed.len(), 4);
 
         let tuple_input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -160,8 +173,8 @@ mod tests {
         let tuple_opts = StructOpts::from_derive_input(&tuple_input).expect("tuple struct parse");
         let tuple_fields = tuple_opts.fields();
         assert_eq!(tuple_fields.len(), 2);
-        assert_eq!(tuple_fields[0].fluent_arg(1), "f1");
-        assert_eq!(tuple_fields[1].fluent_arg(2), "f2");
+        assert_eq!(message_field_arg(tuple_fields[0], 1), "f1");
+        assert_eq!(message_field_arg(tuple_fields[1], 2), "f2");
     }
 
     #[test]
@@ -176,8 +189,8 @@ mod tests {
         };
         let named_opts = StructOpts::from_derive_input(&named_input).expect("named parse");
         let named_fields = named_opts.fields();
-        assert_eq!(named_fields[0].fluent_arg(0), "display_name");
-        assert_eq!(named_fields[1].fluent_arg(1), "value");
+        assert_eq!(message_field_arg(named_fields[0], 0), "display_name");
+        assert_eq!(message_field_arg(named_fields[1], 1), "value");
 
         let tuple_input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -185,9 +198,9 @@ mod tests {
         };
         let tuple_opts = StructOpts::from_derive_input(&tuple_input).expect("tuple parse");
         let tuple_fields = tuple_opts.fields();
-        assert_eq!(tuple_fields[0].fluent_arg(0), "f0");
-        assert_eq!(tuple_fields[1].fluent_arg(1), "f1");
-        assert_eq!(tuple_fields[2].fluent_arg(2), "f2");
+        assert_eq!(message_field_arg(tuple_fields[0], 0), "f0");
+        assert_eq!(message_field_arg(tuple_fields[1], 1), "f1");
+        assert_eq!(message_field_arg(tuple_fields[2], 2), "f2");
     }
 
     #[test]
@@ -231,13 +244,14 @@ mod tests {
             vec!["ProfileFormLabelText", "ProfileFormPlaceholderText"]
         );
 
-        assert_eq!(
-            opts.attr_args().key_strings(),
-            Some(vec![
-                "label_text".to_string(),
-                "placeholder_text".to_string(),
-            ])
-        );
+        let key_names: Vec<_> = opts
+            .attr_args()
+            .keys()
+            .expect("typed keys")
+            .iter()
+            .map(|key| key.value().as_str())
+            .collect();
+        assert_eq!(key_names, vec!["label_text", "placeholder_text"]);
         assert!(matches!(
             opts.attr_args().namespace(),
             Some(NamespaceRule::Literal(value)) if value == "ui"
@@ -273,22 +287,13 @@ mod tests {
                 value: i32
             }
         };
-        let invalid_opts =
-            StructVariantsOpts::from_derive_input(&invalid_key_input).expect("input should parse");
-
-        let idents_err = invalid_opts
-            .keyed_idents()
-            .expect_err("invalid key should fail");
-        assert!(idents_err.to_string().contains("lowercase snake_case"));
-
-        let base_err = invalid_opts
-            .keyed_base_idents()
-            .expect_err("invalid key should fail");
-        assert!(base_err.to_string().contains("lowercase snake_case"));
+        let err = StructVariantsOpts::from_derive_input(&invalid_key_input)
+            .expect_err("invalid key should fail during parsing");
+        assert!(err.to_string().contains("lowercase snake_case"));
     }
 
     #[test]
-    fn struct_methods_return_empty_on_unexpected_internal_shapes() {
+    fn lowered_struct_models_reject_unexpected_internal_shapes() {
         let struct_input: DeriveInput = parse_quote! {
             struct InternalShape {
                 value: i32
@@ -296,9 +301,9 @@ mod tests {
         };
         let mut struct_opts = StructOpts::from_derive_input(&struct_input).expect("StructOpts");
         struct_opts.data = darling::ast::Data::Enum(Vec::<darling::util::Ignored>::new());
-        assert!(struct_opts.fields().is_empty());
-        assert!(struct_opts.indexed_fields().is_empty());
-        assert!(struct_opts.all_indexed_fields().is_empty());
+        let err = crate::lowered::MessageStructModel::from_options(&struct_opts)
+            .expect_err("lowering rejects wrong data shape");
+        assert!(err.to_string().contains("must contain struct data"));
 
         let variants_input: DeriveInput = parse_quote! {
             #[derive(EsFluentVariants)]
@@ -309,6 +314,8 @@ mod tests {
         let mut variants_opts =
             StructVariantsOpts::from_derive_input(&variants_input).expect("StructVariantsOpts");
         variants_opts.data = darling::ast::Data::Enum(Vec::<darling::util::Ignored>::new());
-        assert!(variants_opts.fields().is_empty());
+        let err = crate::lowered::GeneratedVariantsStructModel::from_options(&variants_opts)
+            .expect_err("lowering rejects wrong data shape");
+        assert!(err.to_string().contains("must contain struct data"));
     }
 }

@@ -13,6 +13,21 @@ fn assert_no_generics(generics: &syn::Generics) {
     assert!(generics.where_clause.is_none());
 }
 
+fn message_field_arg(
+    field: &impl es_fluent_derive_core::options::FluentField,
+    index: usize,
+) -> String {
+    field
+        .fluent_arg_name(
+            index,
+            es_fluent_derive_core::error::AttrContext::MessageField,
+        )
+        .expect("argument name")
+        .value()
+        .as_str()
+        .to_string()
+}
+
 fn ignored_enum_variant_count(
     data: &darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
 ) -> usize {
@@ -117,8 +132,7 @@ fn enum_tuple_field_arg_parsing() {
         .expect("Tuple variant present");
 
     let fields = tuple.all_fields();
-    let field_arg = fields[0].arg().expect("field arg should parse");
-    assert_eq!(field_arg, "value".to_string());
+    assert_eq!(message_field_arg(fields[0], 0), "value");
 }
 
 #[test]
@@ -141,8 +155,7 @@ fn enum_named_field_arg_parsing() {
         .expect("Named variant present");
 
     let fields = named.all_fields();
-    let field_arg = fields[0].arg().expect("field arg should parse");
-    assert_eq!(field_arg, "display_value".to_string());
+    assert_eq!(message_field_arg(fields[0], 0), "display_value");
 }
 
 #[test]
@@ -161,10 +174,14 @@ fn struct_variants_keys_parsing_and_field_skipping() {
         StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
 
     assert_eq!(opts.ftl_enum_ident().to_string(), "MyStructVariants");
-    assert_eq!(
-        opts.attr_args().key_strings(),
-        Some(vec!["error".to_string(), "notice".to_string()])
-    );
+    let parsed_keys: Vec<_> = opts
+        .attr_args()
+        .keys()
+        .expect("typed keys")
+        .iter()
+        .map(|key| key.value().as_str())
+        .collect();
+    assert_eq!(parsed_keys, vec!["error", "notice"]);
 
     let mut key_names: Vec<String> = opts
         .keyed_idents()
@@ -196,11 +213,8 @@ fn struct_variants_keys_must_be_lowercase_snake_case() {
         }
     };
 
-    let opts =
-        StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts should parse");
-    let err = opts
-        .keyed_idents()
-        .expect_err("Non-snake_case keys should be rejected");
+    let err = StructVariantsOpts::from_derive_input(&input)
+        .expect_err("Non-snake_case keys should be rejected during parsing");
 
     let err_message = err.to_string();
     assert!(
@@ -262,12 +276,12 @@ fn struct_tuple_fields_parsing() {
 
     let (first_index, first_field) = &indexed_fields[0];
     assert_eq!(*first_index, 1);
-    assert_eq!(first_field.fluent_arg(*first_index), "f1");
+    assert_eq!(message_field_arg(*first_field, *first_index), "f1");
     assert!(!first_field.is_choice());
 
     let (second_index, second_field) = &indexed_fields[1];
     assert_eq!(*second_index, 2);
-    assert_eq!(second_field.fluent_arg(*second_index), "f2");
+    assert_eq!(message_field_arg(*second_field, *second_index), "f2");
     assert!(second_field.is_choice());
 }
 
@@ -285,10 +299,13 @@ fn struct_named_field_arg_parsing() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     let indexed_fields = opts.indexed_fields();
     assert_eq!(
-        indexed_fields[0].1.fluent_arg(indexed_fields[0].0),
+        message_field_arg(indexed_fields[0].1, indexed_fields[0].0),
         "display_name"
     );
-    assert_eq!(indexed_fields[1].1.fluent_arg(indexed_fields[1].0), "value");
+    assert_eq!(
+        message_field_arg(indexed_fields[1].1, indexed_fields[1].0),
+        "value"
+    );
 }
 
 #[test]
@@ -435,7 +452,7 @@ fn enum_fluent_with_namespace_literal() {
         opts.attr_args().namespace(),
         Some(NamespaceRule::Literal(value)) if value == "errors"
     ));
-    assert!(opts.attr_args().resource().is_none());
-    assert!(opts.attr_args().domain().is_none());
+    assert!(opts.attr_args().resource_message_id().is_none());
+    assert!(opts.attr_args().domain_name().is_none());
     assert!(!opts.attr_args().skip_inventory());
 }

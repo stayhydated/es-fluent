@@ -100,9 +100,11 @@ For `check`, the runner phase only collects the expected keys and variables.
 Actual FTL parsing and validation stay in `commands/check/validation/` so the CLI
 can produce rich diagnostics without running that logic inside the generated
 binary. The JSON runner protocol remains string-based, but `commands/check`
-validates inventory keys and variables into shared Fluent newtypes and keeps
-source file/line metadata in shared source newtypes before formatting
-diagnostics.
+deserializes inventory keys and variables into shared Fluent newtypes, keeps
+expected keys typed through validation, and only stringifies them when rendering
+diagnostics. Duplicate expected keys in runner metadata are rejected at this
+read boundary instead of being silently overwritten. Source file/line metadata
+is also kept in shared source newtypes before formatting diagnostics.
 
 `generate` and `watch` pass a `FluentParseMode` through the runner request:
 `conservative` preserves existing translations and manual-only entries, while

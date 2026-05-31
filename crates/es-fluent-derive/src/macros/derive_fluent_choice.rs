@@ -1,7 +1,9 @@
 //! This module provides the implementation of the `EsFluentChoice` derive macro.
 
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{options::choice::ChoiceOpts, semantic::ChoiceModel};
+use es_fluent_derive_core::{
+    lowered::ChoiceModel as LoweredChoiceModel, options::choice::ChoiceOpts, semantic::ChoiceModel,
+};
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
@@ -17,20 +19,16 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    let darling::ast::Data::Enum(variants) = opts.data() else {
-        return syn::Error::new(
-            opts.ident().span(),
-            "EsFluentChoice can only be derived for enums",
-        )
-        .to_compile_error();
+    let lowered = match LoweredChoiceModel::from_options(&opts) {
+        Ok(model) => model,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
     };
-
-    let enum_ident = opts.ident();
+    let enum_ident = lowered.ident();
     let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
     let choice_model = match ChoiceModel::from_variant_idents(
         enum_ident,
-        variants.iter().map(|variant| &variant.ident),
+        lowered.variants().iter().map(|variant| variant.ident),
         opts.attr_args().rename_all().as_deref(),
     ) {
         Ok(model) => model,

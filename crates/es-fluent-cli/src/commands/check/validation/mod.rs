@@ -5,11 +5,10 @@ mod loaded;
 mod tests;
 
 use self::context::ValidationContext;
-use super::inventory::KeyInfo;
+use super::inventory::ExpectedKeys;
 use crate::core::{CrateInfo, ValidationIssue};
 use crate::ftl::LocaleContext;
 use anyhow::Result;
-use indexmap::IndexMap;
 use std::path::Path;
 
 pub(crate) fn validate_crate(
@@ -25,7 +24,7 @@ pub(crate) fn validate_crate(
 fn validate_ftl_files(
     krate: &CrateInfo,
     workspace_root: &Path,
-    expected_keys: &IndexMap<String, KeyInfo>,
+    expected_keys: &ExpectedKeys,
     check_all: bool,
 ) -> Result<Vec<ValidationIssue>> {
     let locale_ctx = LocaleContext::from_crate(krate, check_all)?;

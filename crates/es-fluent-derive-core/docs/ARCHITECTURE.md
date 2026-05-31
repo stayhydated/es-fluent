@@ -19,14 +19,18 @@ The crate implements a transformation pipeline for attribute-driven macro expans
 ```mermaid
 flowchart TD
     AST[syn::DeriveInput] --> OPTS[Options Parsing]
-    OPTS --> VAL[Validation]
+    OPTS --> LOW[Shape Lowering]
+    LOW --> VAL[Validation]
     VAL --> SEM[Semantic Model]
     SEM --> GEN[Code Generation Helpers]
     GEN --> OUT[Token Output]
 ```
 
 1. **Parsing (`src/options/`)**: The raw `syn` AST is parsed into structured options using `darling`. This step handles attribute extraction (`#[fluent(...)]`) and type conversion.
-1. **Validation (`src/validation.rs`)**: The parsed options are checked for semantic correctness (e.g., conflicting flags).
+1. **Shape Lowering (`src/lowered.rs`)**: Parsed options are converted into
+   derive-specific container models that encode the accepted Rust shape and
+   reject impossible internal data before token emission.
+1. **Validation (`src/validation.rs`)**: Lowered message models are checked for semantic correctness (e.g., conflicting flags).
 1. **Semantic Model (`src/semantic.rs`)**: Validated values are wrapped with spans and shared newtypes before token emission. Message entries, generated enum metadata, choice mappings, derive path lists, domains, namespaces, and inventory policy live here.
 1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`; this crate uses those shared types instead of defining local mirror types.
 
@@ -40,6 +44,10 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
 - **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`), including enum resource/domain overrides, inventory suppression, and variant key overrides.
 - **`choice.rs`**: Options for `#[fluent(choice)]` (nested enums).
+- **`label.rs`**: Options for `#[fluent_label(...)]` origin and variants label generation.
+- **`lowered.rs`**: Lowered message, generated-variants, label, choice, and
+  field models used by code generation to avoid defensive empty collections
+  and late internal aborts.
 - Namespace parsing stores `es_fluent_shared::namespace::NamespaceRule` in
   `NamespaceSpec`, preserving the span of the literal or keyword value for
   diagnostics. It supports literal namespaces (`namespace = "ui"`), file stems
@@ -58,14 +66,18 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
 
 Field parsing supports `skip`, `arg`, `choice`, and `value` transforms.
+Validation rejects combining `choice` and `value` on the same field because
+the argument cannot be both a Fluent selector value and a transformed value.
 String literal attribute payloads keep their literal span in `SpannedString`,
 and expose typed accessors for field argument names, variant key suffixes, enum
 resource IDs, and enum lookup domains before code generation consumes them.
 Namespace attributes keep their value span in `NamespaceSpec` while exposing
 `NamespaceRule` accessors for code generation and validation.
-`#[fluent_variants]` parsing supports lowercase snake_case `keys`, generated
-enum `derive(...)`, namespaces, and `#[fluent_variants(skip)]` filtering for
-fields or enum variants.
+`#[fluent_variants]` parsing converts `keys = [...]` into typed
+`GeneratedKeyName` values immediately, rejecting non-lowercase-snake-case keys
+during attribute parsing. It also supports generated enum `derive(...)`,
+namespaces, and `#[fluent_variants(skip)]` filtering for fields or enum
+variants.
 Enum `#[fluent(resource = "...")]` values are preserved with the string-literal
 span so semantic validation can report invalid base message IDs at the
 container attribute.
@@ -77,17 +89,24 @@ Enforces semantic rules that `darling` cannot capture easily. These functions us
 **Common Checks:**
 
 - **Default Field**: Checks that a struct has at most one field marked `#[fluent(default)]`.
-- **Conflict Check**: Ensures a field is not marked both `#[fluent(skip)]` and `#[fluent(default)]`.
+- **Conflict Check**: Ensures field attributes do not request incompatible
+  behavior, such as `skip` with `default`, `skip` with `arg`, or `choice` with
+  `value`.
 
 ### 3. Semantic (`src/semantic.rs`)
 
 Holds typed macro IR shared by token emission paths:
 
 - `SpannedValue<T>` for preserving diagnostic spans with parsed values.
+- message-id helper functions for deriving typed `FluentMessageId` values from
+  source idents, label keys, enum variant keys, and generated variant keys
+  before the proc-macro token layer consumes them.
 - `MessageModel`, `MessageEntryModel`, and `ArgumentModel` for runtime lookup
   and inventory metadata.
 - `ArgumentValueStrategy` and `ValueTransform` for recording how each runtime
   argument value is produced.
+- `GeneratedKeyName` and `GeneratedKeyIdent` for typed generated variant key
+  payloads and Rust identifier construction.
 - `GeneratedEnumModel` and `DerivePathList` for generated unit enums.
 - `ChoiceModel` and `ChoiceVariantModel` for `EsFluentChoice` match output.
 - Span-aware wrappers around shared Fluent identifier/domain validators.

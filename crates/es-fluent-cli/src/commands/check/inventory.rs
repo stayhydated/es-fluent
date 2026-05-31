@@ -1,9 +1,11 @@
 use anyhow::Result;
 use es_fluent_runner::{RunnerIoError, RunnerMetadataStore};
-use es_fluent_shared::fluent::FluentArgumentName;
+use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
 use es_fluent_shared::source::{SourceFile, SourceLine};
 use indexmap::IndexMap;
 use std::collections::HashSet;
+
+pub(crate) type ExpectedKeys = IndexMap<FluentEntryId, KeyInfo>;
 
 /// Runtime info about an expected key with its variables and source location.
 #[derive(Clone)]
@@ -17,7 +19,7 @@ pub(crate) struct KeyInfo {
 pub(crate) fn read_inventory_file(
     temp_dir: &std::path::Path,
     crate_name: &str,
-) -> Result<IndexMap<String, KeyInfo>> {
+) -> Result<ExpectedKeys> {
     let store = RunnerMetadataStore::new(temp_dir);
     let inventory_path = store.inventory_path(crate_name);
     let data = store
@@ -33,16 +35,22 @@ pub(crate) fn read_inventory_file(
 
     let mut expected_keys = IndexMap::new();
     for key_info in data.expected_keys {
-        let key = key_info.key.into_string();
+        let key = key_info.key;
         let variables = key_info.variables.into_iter().collect::<HashSet<_>>();
-        expected_keys.insert(
-            key,
+        let previous = expected_keys.insert(
+            key.clone(),
             KeyInfo {
                 variables,
                 source_file: key_info.source_file,
                 source_line: key_info.source_line,
             },
         );
+        if previous.is_some() {
+            anyhow::bail!(
+                "duplicate inventory key '{key}' in {}",
+                inventory_path.display()
+            );
+        }
     }
 
     Ok(expected_keys)
@@ -82,7 +90,8 @@ mod tests {
         let inventory = read_inventory_file(temp.path(), "test-crate").unwrap();
 
         assert_eq!(inventory.len(), 2);
-        let hello = inventory.get("hello").unwrap();
+        let hello_key = FluentEntryId::try_new("hello").unwrap();
+        let hello = inventory.get(&hello_key).unwrap();
         assert!(
             hello
                 .variables
@@ -99,7 +108,8 @@ mod tests {
         );
         assert_eq!(hello.source_line.map(SourceLine::get), Some(42));
 
-        let goodbye = inventory.get("goodbye").unwrap();
+        let goodbye_key = FluentEntryId::try_new("goodbye").unwrap();
+        let goodbye = inventory.get(&goodbye_key).unwrap();
         assert!(goodbye.variables.is_empty());
         assert!(goodbye.source_file.is_none());
         assert!(goodbye.source_line.is_none());
@@ -129,6 +139,42 @@ mod tests {
             .err()
             .expect("invalid key should fail");
         assert!(error.to_string().contains("Failed to parse inventory JSON"));
+    }
+
+    #[test]
+    fn read_inventory_file_rejects_duplicate_typed_keys() {
+        let temp = tempfile::tempdir().unwrap();
+        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
+        fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
+        fs::write(
+            &inventory_path,
+            r#"{
+  "expected_keys": [
+    {
+      "key": "hello",
+      "variables": ["name"],
+      "source_file": "src/lib.rs",
+      "source_line": 42
+    },
+    {
+      "key": "hello",
+      "variables": ["count"],
+      "source_file": "src/other.rs",
+      "source_line": 7
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+
+        let error = read_inventory_file(temp.path(), "test-crate")
+            .err()
+            .expect("duplicate key should fail");
+        assert!(
+            error
+                .to_string()
+                .contains("duplicate inventory key 'hello'")
+        );
     }
 
     #[test]

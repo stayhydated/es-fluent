@@ -68,6 +68,9 @@ impl CaseStyle {
 #[cfg(test)]
 mod tests {
     use super::CaseStyle;
+    use crate::options::choice::ChoiceOpts;
+    use darling::FromDeriveInput as _;
+    use syn::{DeriveInput, parse_quote};
 
     #[test]
     fn case_style_apply_covers_all_variants() {
@@ -87,5 +90,38 @@ mod tests {
         assert_eq!(CaseStyle::TrainCase.apply("hello world"), "Hello-World");
         assert_eq!(CaseStyle::Lowercase.apply("Hello_World"), "hello_world");
         assert_eq!(CaseStyle::Uppercase.apply("Hello_World"), "HELLO_WORLD");
+    }
+
+    #[test]
+    fn lowered_choice_model_rejects_unexpected_internal_shapes() {
+        let input: DeriveInput = parse_quote! {
+            enum Priority {
+                High,
+            }
+        };
+        let mut opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts");
+        opts.data = darling::ast::Data::Struct(darling::ast::Fields::new(
+            darling::ast::Style::Unit,
+            Vec::<darling::util::Ignored>::new(),
+        ));
+
+        let err = crate::lowered::ChoiceModel::from_options(&opts)
+            .expect_err("lowering rejects wrong data shape");
+        assert!(err.to_string().contains("must contain enum data"));
+
+        let input: DeriveInput = parse_quote! {
+            enum Priority {
+                High,
+            }
+        };
+        let mut opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts");
+        let darling::ast::Data::Enum(variants) = &mut opts.data else {
+            panic!("expected enum data");
+        };
+        variants[0].fields = syn::Fields::Unnamed(parse_quote!((u8)));
+
+        let err = crate::lowered::ChoiceModel::from_options(&opts)
+            .expect_err("lowering rejects non-unit variants");
+        assert!(err.to_string().contains("must be unit variants"));
     }
 }

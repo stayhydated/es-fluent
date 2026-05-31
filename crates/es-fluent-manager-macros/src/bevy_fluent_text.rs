@@ -1,7 +1,7 @@
 use heck::ToSnakeCase as _;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, parse_macro_input, spanned::Spanned as _};
+use syn::{DeriveInput, Meta, parse_macro_input, spanned::Spanned as _};
 
 fn bevy_fluent_text_registration_module(
     mod_name: &syn::Ident,
@@ -99,17 +99,17 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
             for variant in &data_enum.variants {
                 match &variant.fields {
                     syn::Fields::Named(fields) => {
-                        let all_field_idents: Vec<_> = fields
-                            .named
-                            .iter()
-                            .filter_map(|f| f.ident.clone())
-                            .collect();
-                        let locale_field_idents: Vec<_> = fields
-                            .named
-                            .iter()
-                            .filter(|field| has_locale_attr(field))
-                            .filter_map(|field| field.ident.clone())
-                            .collect();
+                        let mut all_field_idents = Vec::new();
+                        let mut locale_field_idents = Vec::new();
+
+                        for field in &fields.named {
+                            if let Some(ident) = field.ident.clone() {
+                                all_field_idents.push(ident.clone());
+                                if has_locale_attr(field)? {
+                                    locale_field_idents.push(ident);
+                                }
+                            }
+                        }
 
                         if !locale_field_idents.is_empty() {
                             let other_fields: Vec<_> = all_field_idents
@@ -126,10 +126,10 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
                         }
                     },
                     syn::Fields::Unnamed(fields) => {
-                        if let Some(field) =
-                            fields.unnamed.iter().find(|field| has_locale_attr(field))
-                        {
-                            return Err(unsupported_locale_field_error(field));
+                        for field in &fields.unnamed {
+                            if has_locale_attr(field)? {
+                                return Err(unsupported_locale_field_error(field));
+                            }
                         }
                     },
                     syn::Fields::Unit => {},
@@ -138,12 +138,14 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
         },
         syn::Data::Struct(data_struct) => match &data_struct.fields {
             syn::Fields::Named(fields) => {
-                let locale_field_idents: Vec<_> = fields
-                    .named
-                    .iter()
-                    .filter(|field| has_locale_attr(field))
-                    .filter_map(|field| field.ident.clone())
-                    .collect();
+                let mut locale_field_idents = Vec::new();
+                for field in &fields.named {
+                    if has_locale_attr(field)? {
+                        if let Some(ident) = field.ident.clone() {
+                            locale_field_idents.push(ident);
+                        }
+                    }
+                }
 
                 if !locale_field_idents.is_empty() {
                     locale_fields.push(LocaleFieldInfo {
@@ -154,8 +156,10 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
                 }
             },
             syn::Fields::Unnamed(fields) => {
-                if let Some(field) = fields.unnamed.iter().find(|field| has_locale_attr(field)) {
-                    return Err(unsupported_locale_field_error(field));
+                for field in &fields.unnamed {
+                    if has_locale_attr(field)? {
+                        return Err(unsupported_locale_field_error(field));
+                    }
                 }
             },
             syn::Fields::Unit => {},
@@ -167,11 +171,24 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
 }
 
 /// Checks if a field has the #[locale] attribute
-fn has_locale_attr(field: &syn::Field) -> bool {
-    field
-        .attrs
-        .iter()
-        .any(|attr| attr.path().is_ident("locale"))
+fn has_locale_attr(field: &syn::Field) -> syn::Result<bool> {
+    for attr in &field.attrs {
+        if !attr.path().is_ident("locale") {
+            continue;
+        }
+
+        match &attr.meta {
+            Meta::Path(_) => return Ok(true),
+            Meta::List(_) | Meta::NameValue(_) => {
+                return Err(syn::Error::new(
+                    attr.span(),
+                    "#[locale] does not accept arguments; use #[locale]",
+                ));
+            },
+        }
+    }
+
+    Ok(false)
 }
 
 fn unsupported_locale_field_error(field: &syn::Field) -> syn::Error {
@@ -368,8 +385,18 @@ mod tests {
         let plain_field: syn::Field = syn::parse_quote! {
             language: Lang
         };
-        assert!(has_locale_attr(&locale_field));
-        assert!(!has_locale_attr(&plain_field));
+        assert!(has_locale_attr(&locale_field).expect("locale attr"));
+        assert!(!has_locale_attr(&plain_field).expect("plain field"));
+
+        let invalid_locale_field: syn::Field = syn::parse_quote! {
+            #[locale(true)]
+            language: Lang
+        };
+        let err = has_locale_attr(&invalid_locale_field).expect_err("invalid locale attr");
+        assert_eq!(
+            err.to_string(),
+            "#[locale] does not accept arguments; use #[locale]"
+        );
 
         let module_tokens = bevy_fluent_text_registration_module(
             &syn::Ident::new("__test_module", proc_macro2::Span::call_site()),
@@ -403,6 +430,19 @@ mod tests {
         assert_snapshot!(
             "locale_field_collection_rejects_tuple_variant_fields",
             tuple_enum_err.to_string()
+        );
+
+        let invalid_attr_input: DeriveInput = syn::parse_quote! {
+            struct ExampleStruct {
+                #[locale = true]
+                language: Lang,
+            }
+        };
+        let invalid_attr_err =
+            collect_locale_fields(&invalid_attr_input.data).expect_err("attr syntax should error");
+        assert_eq!(
+            invalid_attr_err.to_string(),
+            "#[locale] does not accept arguments; use #[locale]"
         );
     }
 }

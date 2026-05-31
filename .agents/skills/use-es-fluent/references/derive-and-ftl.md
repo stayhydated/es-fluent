@@ -52,6 +52,7 @@ Common `#[fluent(...)]` attributes:
 - `arg = "..."`: rename an exposed Fluent argument.
 - `skip`: exclude a field from arguments, or on a single-field enum variant delegate rendering to the wrapped message.
 - `value = |x: &String| x.len()`: transform a field before inserting it as a Fluent argument.
+- `choice` and `value = ...` cannot be combined on the same field.
 - `key = "..."`: override an enum variant key suffix.
 - `resource = "..."`: override the enum base key.
 - `domain = "..."`: route enum lookup to a specific manager domain.
@@ -170,6 +171,12 @@ let title = Gender::localize_label(&i18n);
 ## Namespaces
 
 Use namespaces to split generated FTL into files. The same `#[fluent(namespace = ...)]` syntax works with `EsFluent`, `EsFluentLabel`, and `EsFluentVariants`.
+
+Use exactly one namespace source for each generated output. When multiple
+derives are combined on one type, either inherit a shared namespace from
+`#[fluent(namespace = ...)]` or set one on the specific
+`#[fluent_label(...)]` / `#[fluent_variants(...)]` output, but do not combine
+those namespace sources.
 
 ```rust
 #[derive(EsFluent)]

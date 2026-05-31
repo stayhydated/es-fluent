@@ -1,15 +1,15 @@
 //! This module provides types for parsing `es-fluent` attributes.
 
-use crate::error::{AttrContext, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::error::{AttrContext, EsFluentCoreResult};
 use crate::semantic::{
-    ArgName, SpannedValue, VariantKey, parse_arg_name_in_context, parse_variant_key_in_context,
+    ArgName, DomainName, FluentMessageId, GeneratedKeyIdent, GeneratedKeyName, SpannedValue,
+    VariantKey, parse_arg_name_in_context, parse_domain_name_in_context,
+    parse_fluent_message_id_in_context, parse_variant_key_in_context,
 };
 use bon::Builder;
 use darling::{FromField, FromMeta};
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use getset::Getters;
-use heck::{ToPascalCase as _, ToSnakeCase as _};
-use quote::format_ident;
 use syn::spanned::Spanned as _;
 
 pub mod choice;
@@ -99,80 +99,118 @@ impl FromMeta for NamespaceSpec {
     }
 }
 
-/// Validate that a key is lowercase snake_case and return its PascalCase version.
-///
-/// This is a shared helper for `#[fluent_variants]` key validation used by both
-/// `EnumVariantsOpts` and `StructVariantsOpts`.
-pub fn validate_snake_case_key(key: &syn::LitStr) -> EsFluentCoreResult<String> {
-    let key_str = key.value();
-    let snake_cased = key_str.to_snake_case();
-    let is_lower_snake =
-        !key_str.is_empty() && key_str == snake_cased && key_str == key_str.to_ascii_lowercase();
+impl FromMeta for SpannedValue<GeneratedKeyName> {
+    fn from_value(value: &syn::Lit) -> darling::Result<Self> {
+        let syn::Lit::Str(value) = value else {
+            return Err(darling::Error::unexpected_lit_type(value));
+        };
+        let key =
+            GeneratedKeyName::try_new(value.value(), value.span(), AttrContext::VariantsContainer)
+                .map_err(|error| darling::Error::custom(error.to_string()).with_span(value))?;
+        Ok(SpannedValue::new(key, value.span()))
+    }
+}
 
-    if !is_lower_snake {
-        return Err(EsFluentCoreError::AttributeError {
-            message: format!(
-                "keys in #[fluent_variants] must be lowercase snake_case; found \"{}\"",
-                key_str
-            ),
-            span: Some(key.span()),
-        }
-        .with_help("Use values like \"description\" or \"label\".".to_string()));
+impl FromMeta for SpannedValue<FluentMessageId> {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        let value = SpannedString::from_meta(item)?;
+        let message_id = parse_fluent_message_id_in_context(
+            value.as_str(),
+            value.span(),
+            AttrContext::MessageContainer,
+        )
+        .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
+        Ok(SpannedValue::new(message_id, value.span()))
+    }
+}
+
+impl FromMeta for SpannedValue<DomainName> {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        let value = SpannedString::from_meta(item)?;
+        let domain = parse_domain_name_in_context(
+            value.as_str(),
+            value.span(),
+            AttrContext::MessageContainer,
+        )
+        .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
+        Ok(SpannedValue::new(domain, value.span()))
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct GeneratedKeyList {
+    keys: Vec<SpannedValue<GeneratedKeyName>>,
+}
+
+impl GeneratedKeyList {
+    pub fn as_slice(&self) -> &[SpannedValue<GeneratedKeyName>] {
+        &self.keys
+    }
+}
+
+impl FromMeta for GeneratedKeyList {
+    fn from_list(items: &[darling::ast::NestedMeta]) -> darling::Result<Self> {
+        let keys = items
+            .iter()
+            .map(<SpannedValue<GeneratedKeyName> as FromMeta>::from_nested_meta)
+            .collect::<darling::Result<Vec<_>>>()?;
+        Ok(Self { keys })
     }
 
-    Ok(key_str.to_pascal_case())
+    fn from_value(value: &syn::Lit) -> darling::Result<Self> {
+        let expr_array = syn::ExprArray::from_value(value)?;
+        Self::from_expr(&syn::Expr::Array(expr_array))
+    }
+
+    fn from_expr(expr: &syn::Expr) -> darling::Result<Self> {
+        match expr {
+            syn::Expr::Array(expr_array) => {
+                let keys = expr_array
+                    .elems
+                    .iter()
+                    .map(<SpannedValue<GeneratedKeyName> as FromMeta>::from_expr)
+                    .collect::<darling::Result<Vec<_>>>()?;
+                Ok(Self { keys })
+            },
+            syn::Expr::Lit(expr_lit) => Self::from_value(&expr_lit.lit),
+            syn::Expr::Group(group) => Self::from_expr(&group.expr),
+            _ => Err(darling::Error::unexpected_expr_type(expr)),
+        }
+    }
 }
 
 pub fn keyed_variant_idents(
     ident: &syn::Ident,
-    keys: Option<Vec<syn::LitStr>>,
+    keys: Option<&[SpannedValue<GeneratedKeyName>]>,
     suffix: &str,
 ) -> EsFluentCoreResult<Vec<syn::Ident>> {
-    keys.map_or_else(
-        || Ok(Vec::new()),
-        |keys| {
-            keys.into_iter()
-                .map(|key| {
-                    let pascal_key = validate_snake_case_key(&key)?;
-                    Ok(format_ident!(
-                        "{}{}{}",
-                        namer::rust_ident_name(ident),
-                        pascal_key,
-                        suffix
-                    ))
-                })
+    Ok(keys
+        .map(|keys| {
+            keys.iter()
+                .map(|key| GeneratedKeyIdent::variants(ident, key, suffix).into_ident())
                 .collect()
-        },
-    )
+        })
+        .unwrap_or_default())
 }
 
 pub fn keyed_base_idents(
     ident: &syn::Ident,
-    keys: Option<Vec<syn::LitStr>>,
+    keys: Option<&[SpannedValue<GeneratedKeyName>]>,
 ) -> EsFluentCoreResult<Vec<syn::Ident>> {
-    keys.map_or_else(
-        || Ok(Vec::new()),
-        |keys| {
-            keys.into_iter()
-                .map(|key| {
-                    let pascal_key = validate_snake_case_key(&key)?;
-                    Ok(format_ident!(
-                        "{}{}",
-                        namer::rust_ident_name(ident),
-                        pascal_key
-                    ))
-                })
+    Ok(keys
+        .map(|keys| {
+            keys.iter()
+                .map(|key| GeneratedKeyIdent::base(ident, key).into_ident())
                 .collect()
-        },
-    )
+        })
+        .unwrap_or_default())
 }
 
 pub fn variants_enum_ident(ident: &syn::Ident, suffix: &str) -> syn::Ident {
-    format_ident!("{}{}", namer::rust_ident_name(ident), suffix)
-}
-
-pub fn key_strings(keys: Option<&[syn::LitStr]>) -> Option<Vec<String>> {
-    keys.map(|keys| keys.iter().map(syn::LitStr::value).collect())
+    syn::Ident::new(
+        &format!("{}{}", namer::rust_ident_name(ident), suffix),
+        ident.span(),
+    )
 }
 
 pub fn collect_items<T>(items: &[T]) -> Vec<&T> {
@@ -301,14 +339,21 @@ pub fn keyed_variants_idents(
     ident: &syn::Ident,
     attr_args: &VariantsFluentAttributeArgs,
 ) -> EsFluentCoreResult<Vec<syn::Ident>> {
-    keyed_variant_idents(ident, attr_args.clone().keys, "Variants")
+    keyed_variant_idents(
+        ident,
+        attr_args.keys.as_ref().map(GeneratedKeyList::as_slice),
+        "Variants",
+    )
 }
 
 pub fn keyed_variants_base_idents(
     ident: &syn::Ident,
     attr_args: &VariantsFluentAttributeArgs,
 ) -> EsFluentCoreResult<Vec<syn::Ident>> {
-    keyed_base_idents(ident, attr_args.clone().keys)
+    keyed_base_idents(
+        ident,
+        attr_args.keys.as_ref().map(GeneratedKeyList::as_slice),
+    )
 }
 
 /// Shared behavior for option types backed by struct data.
@@ -414,21 +459,9 @@ pub trait FluentField {
         self.field_attr_args().value()
     }
 
-    /// Returns explicit field argument name if provided.
-    fn arg(&self) -> Option<String> {
-        self.field_attr_args().arg()
-    }
-
     /// Returns the explicit field argument name as a typed value if provided.
     fn arg_name(&self, context: AttrContext) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
         self.field_attr_args().arg_name(context)
-    }
-
-    /// Resolves the Fluent argument name for this field.
-    fn fluent_arg(&self, index: usize) -> String {
-        self.arg()
-            .or_else(|| self.ident().map(namer::rust_ident_name))
-            .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
     }
 
     /// Resolves and validates the Fluent argument name for this field.
@@ -532,10 +565,6 @@ impl FluentFieldAttributeArgs {
 
     pub fn value(&self) -> Option<&syn::Expr> {
         self.value.as_ref().map(|value| &value.0)
-    }
-
-    pub fn arg(&self) -> Option<String> {
-        self.arg.as_ref().map(|arg| arg.as_str().to_string())
     }
 
     pub fn arg_name(
@@ -686,7 +715,7 @@ impl DerivedNamespacedAttributeArgs {
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct VariantsFluentAttributeArgs {
     #[darling(default)]
-    keys: Option<Vec<syn::LitStr>>,
+    keys: Option<GeneratedKeyList>,
     #[darling(flatten)]
     derived_args: DerivedNamespacedAttributeArgs,
 }
@@ -697,6 +726,11 @@ impl VariantsFluentAttributeArgs {
         self.derived_args.derive()
     }
 
+    /// Returns the typed generated variant keys if provided.
+    pub fn keys(&self) -> Option<&[SpannedValue<GeneratedKeyName>]> {
+        self.keys.as_ref().map(GeneratedKeyList::as_slice)
+    }
+
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.derived_args.namespace()
@@ -705,11 +739,6 @@ impl VariantsFluentAttributeArgs {
     /// Returns the span of the namespace value if provided.
     pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
         self.derived_args.namespace_span()
-    }
-
-    /// Returns the raw key strings if provided.
-    pub fn key_strings(&self) -> Option<Vec<String>> {
-        key_strings(self.keys.as_deref())
     }
 }
 
@@ -744,17 +773,28 @@ impl darling::FromMeta for ValueAttr {
 mod tests {
     use super::*;
 
-    #[test]
-    fn validate_snake_case_key_accepts_and_rejects_expected_values() {
-        let good: syn::LitStr = syn::parse_quote!("user_label");
-        let converted = validate_snake_case_key(&good).expect("valid snake_case");
-        assert_eq!(converted, "UserLabel");
+    fn generated_key(name: &str) -> SpannedValue<GeneratedKeyName> {
+        let span = proc_macro2::Span::call_site();
+        SpannedValue::new(
+            GeneratedKeyName::try_new(name, span, AttrContext::VariantsContainer)
+                .expect("generated key"),
+            span,
+        )
+    }
 
-        let bad: syn::LitStr = syn::parse_quote!("UserLabel");
-        let err = validate_snake_case_key(&bad).expect_err("invalid key should fail");
+    #[test]
+    fn generated_key_name_accepts_and_rejects_expected_values() {
+        let span = proc_macro2::Span::call_site();
+        let good = GeneratedKeyName::try_new("user_label", span, AttrContext::VariantsContainer)
+            .expect("valid snake_case");
+        assert_eq!(good.as_str(), "user_label");
+        assert_eq!(good.to_pascal_case(), "UserLabel");
+
+        let err = GeneratedKeyName::try_new("UserLabel", span, AttrContext::VariantsContainer)
+            .expect_err("invalid key should fail");
         let message = err.to_string();
         assert!(message.contains("lowercase snake_case"));
-        assert!(message.contains("help: Use values like"));
+        assert!(message.contains("help: use values like"));
     }
 
     #[test]
@@ -784,7 +824,7 @@ mod tests {
     }
 
     #[test]
-    fn shared_helpers_cover_key_strings_and_item_filtering() {
+    fn shared_helpers_cover_typed_keys_and_item_filtering() {
         #[derive(Clone, Debug, PartialEq)]
         struct Item {
             skipped: bool,
@@ -807,11 +847,9 @@ mod tests {
         assert_eq!(filter_unskipped(&items).len(), 2);
         assert_eq!(indexed_unskipped(&items).len(), 2);
 
-        let keys = vec![syn::parse_quote!("label"), syn::parse_quote!("description")];
-        assert_eq!(
-            key_strings(Some(keys.as_slice())),
-            Some(vec!["label".to_string(), "description".to_string()])
-        );
+        let keys = [generated_key("label"), generated_key("description")];
+        let key_names: Vec<_> = keys.iter().map(|key| key.value().as_str()).collect();
+        assert_eq!(key_names, vec!["label", "description"]);
 
         let ident: syn::Ident = syn::parse_quote!(ProfileForm);
         assert_eq!(
@@ -844,7 +882,6 @@ mod tests {
         };
         assert!(field_args.is_skipped());
         assert!(field_args.is_choice());
-        assert_eq!(field_args.arg(), Some("display_name".to_string()));
         assert_eq!(
             field_args
                 .arg_name(crate::error::AttrContext::MessageField)

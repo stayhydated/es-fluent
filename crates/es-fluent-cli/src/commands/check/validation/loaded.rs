@@ -21,10 +21,11 @@ pub(super) fn validate_loaded_ftl_files(
     let actual_keys = collect_actual_keys(ctx, loaded_files, locale, &mut issues);
 
     for (key, key_info) in ctx.expected_keys {
-        let Some(actual) = actual_keys.get(key) else {
+        let key_str = key.as_str();
+        let Some(actual) = actual_keys.get(key_str) else {
             let fallback = first_actual_file(&actual_keys)
                 .unwrap_or_else(|| ("unknown.ftl".to_string(), "unknown.ftl".to_string()));
-            issues.push(ctx.missing_key_issue(key, locale, &fallback.0, &fallback.1));
+            issues.push(ctx.missing_key_issue(key_str, locale, &fallback.0, &fallback.1));
             continue;
         };
 
@@ -34,7 +35,7 @@ pub(super) fn validate_loaded_ftl_files(
             }
 
             issues.push(ctx.missing_variable_issue(
-                key,
+                key_str,
                 variable.as_str(),
                 locale,
                 &actual.header_link,
@@ -52,7 +53,12 @@ pub(super) fn validate_loaded_ftl_files(
                 continue;
             }
 
-            issues.push(ctx.unexpected_variable_issue(key, variable, locale, &actual.header_link));
+            issues.push(ctx.unexpected_variable_issue(
+                key_str,
+                variable,
+                locale,
+                &actual.header_link,
+            ));
         }
     }
 

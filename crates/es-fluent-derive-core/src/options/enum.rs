@@ -4,6 +4,7 @@ use es_fluent_shared::{namer, namespace::NamespaceRule};
 use getset::Getters;
 use syn::{Meta, Token, punctuated::Punctuated};
 
+use crate::attribute::{AttributeLocation, invalid_fluent_meta_item_for_location};
 use crate::options::{
     EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantsOptions, KeyedVariant, Skippable,
     VariantFields,
@@ -11,8 +12,7 @@ use crate::options::{
 use crate::{
     error::{AttrContext, EsFluentCoreResult},
     semantic::{
-        DomainName, FluentMessageId, SpannedValue, VariantKey, parse_domain_name_in_context,
-        parse_fluent_message_id_in_context,
+        DomainName, FluentMessageId, SpannedValue, VariantKey, spanned_message_id_from_value,
     },
 };
 
@@ -75,10 +75,14 @@ fn validate_variant_fluent_attribute_context(variant: &syn::Variant) -> darling:
         };
 
         for item in items {
-            if let Some(syntax) = wrong_context_variant_attribute_syntax(&item) {
+            if let Some(attr) =
+                invalid_fluent_meta_item_for_location(&item, AttributeLocation::EnumVariant)
+            {
                 let message = format!(
                     "Attribute error in enum variant: `{syntax}` is a field-only attribute and cannot be used on enum variant `{}`\nhelp: move the attribute to a field inside the variant, for example `{}(#[fluent(arg = \"name\")] T)`",
-                    variant.ident, variant.ident,
+                    variant.ident,
+                    variant.ident,
+                    syntax = attr.syntax(),
                 );
                 return Err(darling::Error::custom(message).with_span(&item));
             }
@@ -86,32 +90,6 @@ fn validate_variant_fluent_attribute_context(variant: &syn::Variant) -> darling:
     }
 
     Ok(())
-}
-
-fn wrong_context_variant_attribute_syntax(meta: &Meta) -> Option<String> {
-    match meta {
-        Meta::Path(path) => wrong_context_path_key(path).map(|key| format!("#[fluent({key})]")),
-        Meta::List(list) => {
-            wrong_context_path_key(&list.path).map(|key| format!("#[fluent({key}(...))]"))
-        },
-        Meta::NameValue(name_value) => {
-            wrong_context_path_key(&name_value.path).map(|key| format!("#[fluent({key} = ...)]"))
-        },
-    }
-}
-
-fn wrong_context_path_key(path: &syn::Path) -> Option<&'static str> {
-    if path.is_ident("arg") {
-        Some("arg")
-    } else if path.is_ident("value") {
-        Some("value")
-    } else if path.is_ident("choice") {
-        Some("choice")
-    } else if path.is_ident("default") {
-        Some("default")
-    } else {
-        None
-    }
 }
 
 impl VariantFields for VariantOpts {
@@ -151,11 +129,27 @@ pub struct EnumOpts {
 impl EnumOpts {
     /// Returns the base localization key used for this enum.
     pub fn base_key(&self) -> String {
-        if let Some(resource) = self.attr_args().resource() {
-            resource.to_string()
+        if let Some(resource) = self.attr_args().resource_message_id() {
+            resource.value().as_str().to_string()
         } else {
             namer::FluentKey::from(self.ident()).to_string()
         }
+    }
+
+    /// Returns the base localization key as a typed Fluent message id.
+    pub fn base_message_id(
+        &self,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+        if let Some(resource) = self.attr_args().resource_message_id() {
+            return Ok(resource.clone());
+        }
+
+        spanned_message_id_from_value(
+            namer::FluentKey::from(self.ident()).to_string(),
+            self.ident().span(),
+            context,
+        )
     }
 }
 
@@ -171,9 +165,9 @@ impl EnumDataOptions for EnumOpts {
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct FluentEnumAttributeArgs {
     #[darling(default)]
-    resource: Option<super::SpannedString>,
+    resource: Option<SpannedValue<FluentMessageId>>,
     #[darling(default)]
-    domain: Option<super::SpannedString>,
+    domain: Option<SpannedValue<DomainName>>,
     /// Whether to skip inventory registration for this enum.
     /// Used by `#[es_fluent_language]` to prevent language enums from being registered.
     #[darling(default)]
@@ -183,51 +177,19 @@ pub struct FluentEnumAttributeArgs {
 }
 
 impl FluentEnumAttributeArgs {
-    /// Returns the explicit resource base key if provided.
-    pub fn resource(&self) -> Option<&str> {
-        self.resource.as_ref().map(super::SpannedString::as_str)
-    }
-
     /// Returns the span of the explicit resource base key if provided.
     pub fn resource_span(&self) -> Option<proc_macro2::Span> {
-        self.resource.as_ref().map(super::SpannedString::span)
+        self.resource.as_ref().map(SpannedValue::span)
     }
 
-    /// Returns the explicit resource base key as a typed Fluent message id if provided.
-    pub fn resource_message_id(
-        &self,
-        context: AttrContext,
-    ) -> EsFluentCoreResult<Option<SpannedValue<FluentMessageId>>> {
-        self.resource
-            .as_ref()
-            .map(|resource| {
-                let value = parse_fluent_message_id_in_context(
-                    resource.as_str(),
-                    resource.span(),
-                    context,
-                )?;
-                Ok(SpannedValue::new(value, resource.span()))
-            })
-            .transpose()
+    /// Returns the typed explicit resource base key if provided.
+    pub fn resource_message_id(&self) -> Option<&SpannedValue<FluentMessageId>> {
+        self.resource.as_ref()
     }
 
-    /// Returns the explicit lookup domain override if provided.
-    pub fn domain(&self) -> Option<&str> {
-        self.domain.as_ref().map(super::SpannedString::as_str)
-    }
-
-    /// Returns the explicit lookup domain as a typed value if provided.
-    pub fn domain_name(
-        &self,
-        context: AttrContext,
-    ) -> EsFluentCoreResult<Option<SpannedValue<DomainName>>> {
-        self.domain
-            .as_ref()
-            .map(|domain| {
-                let value = parse_domain_name_in_context(domain.as_str(), domain.span(), context)?;
-                Ok(SpannedValue::new(value, domain.span()))
-            })
-            .transpose()
+    /// Returns the typed explicit lookup domain if provided.
+    pub fn domain_name(&self) -> Option<&SpannedValue<DomainName>> {
+        self.domain.as_ref()
     }
 
     /// Returns `true` if inventory registration should be skipped.
@@ -344,8 +306,10 @@ mod tests {
             #[fluent(resource = "custom_error", skip_inventory, namespace = "errors")]
             enum StatusCode {
                 Data {
-                    #[fluent(choice, value = |x: &String| x.len())]
+                    #[fluent(choice)]
                     label: String,
+                    #[fluent(value = |x: &String| x.len())]
+                    display: String,
                     #[fluent(skip)]
                     hidden: bool,
                 },
@@ -359,14 +323,13 @@ mod tests {
         assert_eq!(opts.base_key(), "custom_error");
         assert_eq!(
             opts.attr_args()
-                .resource_message_id(crate::error::AttrContext::MessageContainer)
-                .expect("resource message id")
+                .resource_message_id()
                 .expect("resource")
                 .value()
                 .as_str(),
             "custom_error"
         );
-        assert_eq!(opts.attr_args().domain(), None);
+        assert!(opts.attr_args().domain_name().is_none());
         assert!(opts.attr_args().skip_inventory());
         assert!(matches!(
             opts.attr_args().namespace(),
@@ -378,11 +341,11 @@ mod tests {
             .iter()
             .find(|variant| *variant.ident() == "Data")
             .expect("Data variant should exist");
-        assert_eq!(data.fields().len(), 1);
-        assert_eq!(data.all_fields().len(), 2);
+        assert_eq!(data.fields().len(), 2);
+        assert_eq!(data.all_fields().len(), 3);
         assert!(data.fields()[0].is_choice());
 
-        let value_expr = data.fields()[0]
+        let value_expr = data.fields()[1]
             .value()
             .expect("value expression should be present");
         assert_eq!(
@@ -431,12 +394,10 @@ mod tests {
         };
         let domain_opts = EnumOpts::from_derive_input(&domain_input).expect("domain parse");
         assert_eq!(domain_opts.base_key(), "custom_error");
-        assert_eq!(domain_opts.attr_args().domain(), Some("shared-errors"));
         assert_eq!(
             domain_opts
                 .attr_args()
-                .domain_name(crate::error::AttrContext::MessageContainer)
-                .expect("domain name")
+                .domain_name()
                 .expect("domain")
                 .value()
                 .as_str(),
@@ -487,10 +448,14 @@ mod tests {
             keyed_base_idents,
             vec!["StatusPrimaryKey", "StatusSecondaryKey"]
         );
-        assert_eq!(
-            opts.attr_args().key_strings(),
-            Some(vec!["primary_key".to_string(), "secondary_key".to_string()])
-        );
+        let key_names: Vec<_> = opts
+            .attr_args()
+            .keys()
+            .expect("typed keys")
+            .iter()
+            .map(|key| key.value().as_str())
+            .collect();
+        assert_eq!(key_names, vec!["primary_key", "secondary_key"]);
         assert!(matches!(
             opts.attr_args().namespace(),
             Some(NamespaceRule::Literal(value)) if value == "ui"
@@ -546,22 +511,13 @@ mod tests {
                 A
             }
         };
-        let invalid_opts =
-            EnumVariantsOpts::from_derive_input(&invalid_key_input).expect("input should parse");
-
-        let idents_err = invalid_opts
-            .keyed_idents()
-            .expect_err("invalid key should fail");
-        assert!(idents_err.to_string().contains("lowercase snake_case"));
-
-        let base_err = invalid_opts
-            .keyed_base_idents()
-            .expect_err("invalid key should fail");
-        assert!(base_err.to_string().contains("lowercase snake_case"));
+        let err = EnumVariantsOpts::from_derive_input(&invalid_key_input)
+            .expect_err("invalid key should fail during parsing");
+        assert!(err.to_string().contains("lowercase snake_case"));
     }
 
     #[test]
-    fn enum_methods_return_empty_on_unexpected_internal_shapes() {
+    fn lowered_enum_models_reject_unexpected_internal_shapes() {
         let enum_input: DeriveInput = parse_quote! {
             enum InternalShape {
                 A
@@ -573,7 +529,9 @@ mod tests {
             Vec::<darling::util::Ignored>::new(),
         ));
 
-        assert!(enum_opts.variants().is_empty());
+        let err = crate::lowered::MessageEnumModel::from_options(&enum_opts)
+            .expect_err("lowering rejects wrong data shape");
+        assert!(err.to_string().contains("must contain enum data"));
 
         let variants_input: DeriveInput = parse_quote! {
             #[derive(EsFluentVariants)]
@@ -588,7 +546,9 @@ mod tests {
             Vec::<darling::util::Ignored>::new(),
         ));
 
-        assert!(variants_opts.variants().is_empty());
+        let err = crate::lowered::GeneratedVariantsEnumModel::from_options(&variants_opts)
+            .expect_err("lowering rejects wrong data shape");
+        assert!(err.to_string().contains("must contain enum data"));
     }
 
     #[test]
@@ -608,8 +568,11 @@ mod tests {
             .expect("Something variant should exist");
 
         let fields = variant.all_fields();
-        let field_arg = fields[0].arg().expect("field arg should parse");
-        assert_eq!(field_arg, "value".to_string());
+        let field_arg = fields[0]
+            .arg_name(crate::error::AttrContext::MessageField)
+            .expect("field arg should parse")
+            .expect("field arg");
+        assert_eq!(field_arg.value().as_str(), "value");
     }
 
     #[test]

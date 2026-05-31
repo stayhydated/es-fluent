@@ -313,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_panics_for_invalid_enum_resource_override() {
+    fn expand_es_fluent_returns_compile_error_for_invalid_enum_resource_override() {
         let enum_input: syn::DeriveInput = parse_quote! {
             #[fluent(resource = "bad key")]
             enum BadResource {
@@ -321,11 +321,10 @@ mod tests {
             }
         };
 
-        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = super::expand_es_fluent(enum_input);
-        }));
+        let tokens = super::expand_es_fluent(enum_input).to_string();
 
-        assert!(panic.is_err());
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("Fluent message id"));
     }
 
     #[test]

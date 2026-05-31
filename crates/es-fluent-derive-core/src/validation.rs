@@ -1,11 +1,12 @@
 //! This module provides functions for validating `es-fluent` attributes.
 
+use crate::attribute::{AttributeLocation, invalid_fluent_meta_item_for_location};
 use crate::error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::lowered::{MessageEnumModel, MessageStructModel};
+use crate::options::FluentField;
 use crate::options::r#enum::EnumOpts;
 use crate::options::r#struct::StructOpts;
-use crate::options::{
-    EnumDataOptions as _, FluentField as _, StructDataOptions as _, VariantFields as _,
-};
+use crate::semantic::{ArgName, SpannedValue};
 use es_fluent_shared::namespace::{NamespaceRule, ResolvedNamespace};
 use es_fluent_toml::{I18nConfig, I18nConfigError};
 use syn::{DeriveInput, Meta, Token, punctuated::Punctuated, spanned::Spanned as _};
@@ -34,12 +35,14 @@ pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCore
             };
 
             for item in items {
-                if let Some(attr) = wrong_context_variant_attr(&item) {
+                if let Some(attr) =
+                    invalid_fluent_meta_item_for_location(&item, AttributeLocation::EnumVariant)
+                {
                     return Err(EsFluentCoreError::StructuredAttributeError(AttrError::new(
                         AttrContext::EnumVariant,
                         format!(
                             "`{}` is a field-only attribute and cannot be used on enum variant `{}`",
-                            attr.syntax,
+                            attr.syntax(),
                             variant.ident
                         ),
                         Some(item.span()),
@@ -58,45 +61,15 @@ pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCore
     Ok(())
 }
 
-struct WrongContextAttribute {
-    syntax: String,
-}
-
-fn wrong_context_variant_attr(meta: &Meta) -> Option<WrongContextAttribute> {
-    match meta {
-        Meta::Path(path) => wrong_context_path_key(path).map(|key| WrongContextAttribute {
-            syntax: format!("#[fluent({key})]"),
-        }),
-        Meta::List(list) => wrong_context_path_key(&list.path).map(|key| WrongContextAttribute {
-            syntax: format!("#[fluent({key}(...))]"),
-        }),
-        Meta::NameValue(name_value) => {
-            wrong_context_path_key(&name_value.path).map(|key| WrongContextAttribute {
-                syntax: format!("#[fluent({key} = ...)]"),
-            })
-        },
-    }
-}
-
-fn wrong_context_path_key(path: &syn::Path) -> Option<&'static str> {
-    if path.is_ident("arg") {
-        Some("arg")
-    } else if path.is_ident("value") {
-        Some("value")
-    } else if path.is_ident("choice") {
-        Some("choice")
-    } else if path.is_ident("default") {
-        Some("default")
-    } else {
-        None
-    }
-}
-
 /// Validates the `es-fluent` attributes on a struct.
 /// Currently only checks that at most one field is marked `#[fluent(default)]`.
 pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
+    validate_message_struct_model(&MessageStructModel::from_options(opts)?)
+}
+
+pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluentCoreResult<()> {
     // Check for conflicting attributes on all fields
-    for field in opts.all_indexed_fields().into_iter().map(|(_, f)| f) {
+    for field in model.all_indexed_fields().into_iter().map(|(_, f)| f) {
         if field.is_skipped() && field.is_default() {
             return Err(EsFluentCoreError::FieldError {
                 message: "Cannot be both #[fluent(skip)] and #[fluent(default)]".to_string(),
@@ -105,7 +78,9 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
             });
         }
 
-        if field.is_skipped() && field.arg().is_some() {
+        let explicit_arg = field.arg_name(AttrContext::MessageField)?;
+
+        if field.is_skipped() && explicit_arg.is_some() {
             return Err(EsFluentCoreError::FieldError {
                 message: "Cannot use #[fluent(arg = \"...\")] on a skipped field".to_string(),
                 field_name: field.ident().as_ref().map(|i| i.to_string()),
@@ -113,18 +88,18 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
             });
         }
 
-        if let Some(arg) = field.arg()
-            && arg.is_empty()
-        {
+        if field.is_choice() && field.value().is_some() {
             return Err(EsFluentCoreError::FieldError {
-                message: "`#[fluent(arg = \"...\")]` cannot be empty".to_string(),
+                message:
+                    "Cannot combine #[fluent(choice)] and #[fluent(value = ...)] on the same field"
+                        .to_string(),
                 field_name: field.ident().as_ref().map(|i| i.to_string()),
                 span: field.ident().as_ref().map(|ident| ident.span()),
             });
         }
     }
 
-    let default_fields: Vec<_> = opts
+    let default_fields: Vec<_> = model
         .indexed_fields()
         .into_iter()
         .filter(|(_, field)| field.is_default())
@@ -134,32 +109,34 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
         let (first_index, first_field) = &default_fields[0];
         let (second_index, second_field) = &default_fields[1];
 
-        let first_field_name = first_field.fluent_arg(*first_index);
-        let second_field_name = second_field.fluent_arg(*second_index);
+        let first_field_name =
+            first_field.fluent_arg_name(*first_index, AttrContext::MessageField)?;
+        let second_field_name =
+            second_field.fluent_arg_name(*second_index, AttrContext::MessageField)?;
         let second_span = second_field.ident().as_ref().map(|ident| ident.span());
 
         return Err(EsFluentCoreError::FieldError {
             message: "Struct cannot have multiple fields marked `#[fluent(default)]`.".to_string(),
-            field_name: Some(second_field_name),
+            field_name: Some(second_field_name.value().as_str().to_string()),
             span: second_span,
         }
         .with_note(format!(
             "First `#[fluent(default)]` field found was `{}`.",
-            first_field_name
+            first_field_name.value().as_str()
         )));
     }
 
     // Ensure exposed argument names remain unique after arg overrides.
     let mut seen = std::collections::HashSet::new();
-    for (index, field) in opts.indexed_fields() {
-        let arg = field.fluent_arg(index);
-        if !seen.insert(arg.clone()) {
+    for (index, field) in model.indexed_fields() {
+        let arg = field.fluent_arg_name(index, AttrContext::MessageField)?;
+        if !seen.insert(arg.value().clone()) {
             return Err(EsFluentCoreError::FieldError {
                 message: format!(
                     "duplicate argument name '{}' after applying #[fluent(arg = \"...\")]",
-                    arg
+                    arg.value().as_str()
                 ),
-                field_name: Some(arg),
+                field_name: Some(arg.value().as_str().to_string()),
                 span: field.ident().as_ref().map(|ident| ident.span()),
             });
         }
@@ -169,40 +146,51 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
 
 /// Validates enum-specific attributes.
 pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
-    for variant in opts.variants() {
-        let is_tuple = matches!(variant.style(), darling::ast::Style::Tuple);
+    validate_message_enum_model(&MessageEnumModel::from_options(opts)?)
+}
+
+pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCoreResult<()> {
+    for variant in model.variants() {
         let variant_name = variant.ident().to_string();
         let variant_span = Some(variant.ident().span());
         let all_fields = variant.all_fields();
-        let field_arg_overrides: Vec<_> = all_fields
-            .iter()
-            .filter_map(|field| field.arg().map(|name| (field, name)))
-            .collect();
+        let mut field_arg_overrides = Vec::new();
+        for field_model in &all_fields {
+            let field = field_model.field();
+            if field.is_choice() && field.value().is_some() {
+                return Err(EsFluentCoreError::VariantError {
+                    message: "Cannot combine #[fluent(choice)] and #[fluent(value = ...)] on the same field".to_string(),
+                    variant_name: variant_name.clone(),
+                    span: variant_span,
+                });
+            }
+
+            if let Some(arg) = field.arg_name(AttrContext::MessageField)? {
+                field_arg_overrides.push((*field_model, arg));
+            }
+        }
 
         if !field_arg_overrides.is_empty() {
             let mut explicit_seen = std::collections::HashSet::new();
-            for (field, name) in &field_arg_overrides {
+            for (field_model, name) in &field_arg_overrides {
+                let field = field_model.field();
                 if field.is_skipped() {
                     return Err(EsFluentCoreError::VariantError {
                         message: format!(
                             "`#[fluent(arg = \"{}\")]` cannot be used on a skipped field",
-                            name
+                            name.value().as_str()
                         ),
-                        variant_name,
+                        variant_name: variant_name.clone(),
                         span: variant_span,
                     });
                 }
-                if name.is_empty() {
+                if !explicit_seen.insert(name.value().clone()) {
                     return Err(EsFluentCoreError::VariantError {
-                        message: "`#[fluent(arg = \"...\")]` on fields cannot be empty".to_string(),
-                        variant_name,
-                        span: variant_span,
-                    });
-                }
-                if !explicit_seen.insert(name.clone()) {
-                    return Err(EsFluentCoreError::VariantError {
-                        message: format!("duplicate field arg '{}' in variant fields", name),
-                        variant_name,
+                        message: format!(
+                            "duplicate field arg '{}' in variant fields",
+                            name.value().as_str()
+                        ),
+                        variant_name: variant_name.clone(),
                         span: variant_span,
                     });
                 }
@@ -210,30 +198,24 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
 
             let mut final_seen = std::collections::HashSet::new();
 
-            for (tuple_index, field) in all_fields.iter().enumerate() {
+            for field_model in &all_fields {
+                let field = field_model.field();
                 if field.is_skipped() {
                     continue;
                 }
 
-                let resolved_name = if let Some(name) = field.arg() {
-                    name
-                } else if is_tuple {
-                    format!("f{}", tuple_index)
-                } else {
-                    field
-                        .ident()
-                        .as_ref()
-                        .map(|id| id.to_string())
-                        .unwrap_or_else(|| format!("f{}", tuple_index))
-                };
+                let resolved_name = resolved_enum_field_arg_name(
+                    field_model.field(),
+                    field_model.declaration_index(),
+                )?;
 
-                if !final_seen.insert(resolved_name.clone()) {
+                if !final_seen.insert(resolved_name.value().clone()) {
                     return Err(EsFluentCoreError::VariantError {
                         message: format!(
                             "duplicate resolved argument name '{}' after applying #[fluent(arg = \"...\")]",
-                            resolved_name
+                            resolved_name.value().as_str()
                         ),
-                        variant_name,
+                        variant_name: variant_name.clone(),
                         span: variant_span,
                     });
                 }
@@ -242,6 +224,13 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
     }
 
     Ok(())
+}
+
+fn resolved_enum_field_arg_name(
+    field: &impl FluentField,
+    index: usize,
+) -> EsFluentCoreResult<SpannedValue<ArgName>> {
+    field.fluent_arg_name(index, AttrContext::MessageField)
 }
 
 /// Validates that a namespace is in the allowed list from `i18n.toml`.

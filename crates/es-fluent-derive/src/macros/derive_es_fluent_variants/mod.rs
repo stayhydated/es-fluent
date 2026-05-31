@@ -1,12 +1,13 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::error::AttrContext;
+use es_fluent_derive_core::lowered::{GeneratedVariantsEnumModel, GeneratedVariantsStructModel};
+use es_fluent_derive_core::options::GeneratedVariantsOptions;
 use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
 use es_fluent_derive_core::options::label::LabelOpts;
 use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
-use es_fluent_derive_core::options::{
-    FilteredEnumDataOptions as _, GeneratedVariantsOptions, StructDataOptions as _,
+use es_fluent_derive_core::semantic::{
+    DomainName, FluentMessageId, generated_label_message_id, generated_variant_message_id,
 };
-use es_fluent_derive_core::semantic::{DomainName, FluentMessageId};
 use es_fluent_derive_core::validation;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 
@@ -16,7 +17,9 @@ use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
 use crate::macros::ir::{GeneratedUnitEnumVariant, MessageEntrySpec};
-use crate::macros::utils::{GeneratedUnitEnumInput, SpannedNamespaceRule, SpannedNamespaceRuleRef};
+use crate::macros::utils::{
+    GeneratedUnitEnumInput, NamespaceSource, SpannedNamespaceRule, SpannedNamespaceRuleRef,
+};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -92,7 +95,7 @@ fn resolved_variants_namespace<'a>(
     opts: &'a impl GeneratedVariantsOptions,
     label_opts: Option<&'a LabelOpts>,
     fluent_namespace: Option<SpannedNamespaceRuleRef<'a>>,
-) -> Option<SpannedNamespaceRuleRef<'a>> {
+) -> es_fluent_derive_core::error::EsFluentCoreResult<Option<SpannedNamespaceRuleRef<'a>>> {
     let variants_namespace = opts.variants_attr_args().namespace().map(|namespace| {
         SpannedNamespaceRuleRef::new(
             namespace,
@@ -112,10 +115,22 @@ fn resolved_variants_namespace<'a>(
         })
     });
 
-    crate::macros::utils::preferred_spanned_namespace([
-        fluent_namespace,
-        variants_namespace,
-        label_namespace,
+    crate::macros::utils::resolve_single_namespace_source([
+        NamespaceSource::new(
+            "#[fluent(namespace = ...)]",
+            AttrContext::MessageContainer,
+            fluent_namespace,
+        ),
+        NamespaceSource::new(
+            "#[fluent_variants(namespace = ...)]",
+            AttrContext::VariantsContainer,
+            variants_namespace,
+        ),
+        NamespaceSource::new(
+            "#[fluent_label(namespace = ...)]",
+            AttrContext::LabelContainer,
+            label_namespace,
+        ),
     ])
 }
 
@@ -125,7 +140,11 @@ pub fn process_struct(
     fluent_namespace: Option<SpannedNamespaceRuleRef<'_>>,
     fluent_domain: Option<&DomainName>,
 ) -> TokenStream {
-    let variant_seeds = build_struct_variant_seeds(opts);
+    let model = match GeneratedVariantsStructModel::from_options(opts) {
+        Ok(model) => model,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
+    let variant_seeds = build_struct_variant_seeds(&model);
     emit_variants_output(
         opts,
         &variant_seeds,
@@ -142,30 +161,15 @@ struct GeneratedVariantSeed {
     key_fragment: String,
 }
 
-struct NamedVariantFieldSeed<'a> {
-    ident: &'a syn::Ident,
-}
-
-impl<'a> NamedVariantFieldSeed<'a> {
-    fn from_field(field: &'a es_fluent_derive_core::options::SkippableFieldOpts) -> Self {
-        let Some(ident) = field.ident() else {
-            proc_macro_error2::abort!(
-                proc_macro2::Span::call_site(),
-                "internal error: generated struct variant field is missing an identifier"
-            );
-        };
-        Self { ident }
-    }
-}
-
 impl GeneratedVariantSeed {
     fn materialize(&self, base_key: &namer::FluentKey) -> GeneratedUnitEnumVariant {
-        let ftl_key = base_key.join(&self.key_fragment).to_string();
-        let message_id = crate::macros::utils::message_id_or_abort(
-            ftl_key,
+        let message_id = generated_variant_message_id(
+            base_key,
+            &self.key_fragment,
             self.ident.span(),
             AttrContext::VariantsContainer,
-        );
+        )
+        .unwrap_or_else(|error| error.abort());
         GeneratedUnitEnumVariant {
             ident: self.ident.clone(),
             doc_name: self.doc_name.clone(),
@@ -186,12 +190,9 @@ fn variants_label_key(
     label_opts
         .filter(|opts| opts.attr_args().is_variants())
         .map(|_| {
-            crate::macros::utils::message_id_or_abort(
-                format!("{}{}", base_key, namer::FluentKey::LABEL_SUFFIX),
-                span,
-                AttrContext::VariantsContainer,
-            )
-            .into_value()
+            generated_label_message_id(base_key, span, AttrContext::VariantsContainer)
+                .unwrap_or_else(|error| error.abort())
+                .into_value()
         })
 }
 
@@ -206,10 +207,12 @@ fn emit_variants_output(
         return quote! {};
     }
 
-    let keys = crate::macros::utils::keyed_variant_idents_or_abort(opts);
-    let key_strings = opts.variants_attr_args().key_strings().unwrap_or_default();
+    let targets = crate::macros::utils::generated_variants_enum_targets(opts);
     let derives: Vec<syn::Path> = (*opts.variants_attr_args().derive()).to_vec();
-    let namespace = resolved_variants_namespace(opts, label_opts, fluent_namespace);
+    let namespace = match resolved_variants_namespace(opts, label_opts, fluent_namespace) {
+        Ok(namespace) => namespace,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
     let origin_ident = opts.variants_ident();
     validate_namespace(
         namespace.map(SpannedNamespaceRuleRef::rule),
@@ -217,38 +220,39 @@ fn emit_variants_output(
             .map(SpannedNamespaceRuleRef::span)
             .unwrap_or_else(|| origin_ident.span()),
     );
-    let ftl_enum_ident = opts.ftl_enum_ident();
+    let items = targets.iter().map(|target| {
+        let ident = &target.ident;
+        let key_name = target.key_name.map(|key| key.as_str());
+        let base_key = namer::FluentKey::from(ident);
+        let variant_entries: Vec<_> = variant_seeds
+            .iter()
+            .map(|seed| seed.materialize(&base_key))
+            .collect();
 
-    crate::macros::utils::emit_default_or_keyed_items(
-        &ftl_enum_ident,
-        &keys,
-        &key_strings,
-        |ident, key_name| {
-            let base_key = namer::FluentKey::from(ident);
-            let variant_entries: Vec<_> = variant_seeds
-                .iter()
-                .map(|seed| seed.materialize(&base_key))
-                .collect();
+        crate::macros::utils::emit_generated_unit_enum(GeneratedUnitEnumInput {
+            ident,
+            origin_ident,
+            key_name,
+            domain_override: fluent_domain,
+            derives: &derives,
+            variants: &variant_entries,
+            namespace: namespace.map(SpannedNamespaceRuleRef::rule),
+            label_key: variants_label_key(label_opts, &base_key, origin_ident.span()),
+        })
+    });
 
-            crate::macros::utils::emit_generated_unit_enum(GeneratedUnitEnumInput {
-                ident,
-                origin_ident,
-                key_name,
-                domain_override: fluent_domain,
-                derives: &derives,
-                variants: &variant_entries,
-                namespace: namespace.map(SpannedNamespaceRuleRef::rule),
-                label_key: variants_label_key(label_opts, &base_key, origin_ident.span()),
-            })
-        },
-    )
+    quote! {
+        #(#items)*
+    }
 }
 
-fn build_struct_variant_seeds(opts: &StructVariantsOpts) -> Vec<GeneratedVariantSeed> {
-    opts.fields()
+fn build_struct_variant_seeds(
+    model: &GeneratedVariantsStructModel<'_>,
+) -> Vec<GeneratedVariantSeed> {
+    model
+        .fields()
         .iter()
-        .map(|field_opt| {
-            let field = NamedVariantFieldSeed::from_field(field_opt);
+        .map(|field| {
             let field_ident = field.ident;
             let original_field_name = namer::rust_ident_name(field_ident);
             let pascal_case_name = original_field_name.to_pascal_case();
@@ -268,7 +272,11 @@ pub fn process_enum(
     fluent_namespace: Option<SpannedNamespaceRuleRef<'_>>,
     fluent_domain: Option<&DomainName>,
 ) -> TokenStream {
-    let variant_seeds = build_enum_variant_seeds(opts);
+    let model = match GeneratedVariantsEnumModel::from_options(opts) {
+        Ok(model) => model,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
+    let variant_seeds = build_enum_variant_seeds(&model);
     emit_variants_output(
         opts,
         &variant_seeds,
@@ -278,11 +286,12 @@ pub fn process_enum(
     )
 }
 
-fn build_enum_variant_seeds(opts: &EnumVariantsOpts) -> Vec<GeneratedVariantSeed> {
-    opts.variants()
+fn build_enum_variant_seeds(model: &GeneratedVariantsEnumModel<'_>) -> Vec<GeneratedVariantSeed> {
+    model
+        .variants()
         .iter()
-        .map(|variant_opt| {
-            let variant_ident = variant_opt.ident();
+        .map(|variant| {
+            let variant_ident = variant.ident;
             let variant_key = namer::rust_ident_name(variant_ident);
             GeneratedVariantSeed {
                 ident: variant_ident.clone(),
@@ -444,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn process_variants_prefers_parent_namespace_over_variants_and_label_namespaces() {
+    fn process_variants_rejects_multiple_namespace_sources() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent_ns")]
             #[fluent_variants(namespace = "variant_ns")]
@@ -467,9 +476,9 @@ mod tests {
                 .map(crate::macros::utils::SpannedNamespaceRule::as_ref),
             None,
         ));
-        assert_snapshot!(
-            "process_variants_prefers_parent_namespace_over_variants_and_label_namespaces",
-            tokens
-        );
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("conflicting namespace declarations"));
+        assert!(tokens.contains("#[fluent(namespace = ...)]"));
+        assert!(tokens.contains("#[fluent_variants(namespace = ...)]"));
     }
 }

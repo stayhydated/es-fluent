@@ -1,13 +1,16 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::error::AttrContext;
-use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
+use es_fluent_derive_core::lowered::LabelModel;
+use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel, label_message_id_for_ident};
 use es_fluent_derive_core::{options::label::LabelOpts, validation};
 use es_fluent_shared::{meta::TypeKind, namer, namespace::NamespaceRule};
 use quote::quote;
-use syn::{Data, DeriveInput, parse_macro_input};
+use syn::{DeriveInput, parse_macro_input};
 
 use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
-use crate::macros::utils::{InventoryModuleInput, SpannedNamespaceRule, SpannedNamespaceRuleRef};
+use crate::macros::utils::{
+    InventoryModuleInput, NamespaceSource, SpannedNamespaceRule, SpannedNamespaceRuleRef,
+};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -28,13 +31,6 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    if matches!(&input.data, Data::Union(_)) {
-        proc_macro_error2::abort!(
-            input.ident.span(),
-            "EsFluentLabel can only be derived for structs and enums"
-        );
-    }
-
     let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace_with_span(&input)
     {
         Ok(namespace) => namespace,
@@ -45,14 +41,18 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    let original_ident = opts.ident();
+    let model = match LabelModel::from_options(&opts) {
+        Ok(model) => model,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
+
+    let original_ident = model.ident();
     let generics = opts.generics();
     let ftl_key = if opts.attr_args().is_origin() {
-        Some(crate::macros::utils::message_id_or_abort(
-            namer::FluentKey::new_label(original_ident).to_string(),
-            original_ident.span(),
-            AttrContext::LabelContainer,
-        ))
+        Some(
+            label_message_id_for_ident(original_ident, AttrContext::LabelContainer)
+                .unwrap_or_else(|error| error.abort()),
+        )
     } else {
         None
     };
@@ -63,19 +63,12 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         ftl_key.as_ref().map(|key| key.value()),
         fluent_domain.as_ref(),
     );
-    let (type_kind, semantic_type_kind) = match &input.data {
-        Data::Struct(_) => (
+    let (type_kind, semantic_type_kind) = match model.type_kind() {
+        TypeKind::Struct => (
             quote! { ::es_fluent::meta::TypeKind::Struct },
             TypeKind::Struct,
         ),
-        Data::Enum(_) => (quote! { ::es_fluent::meta::TypeKind::Enum }, TypeKind::Enum),
-        Data::Union(_) => {
-            return syn::Error::new(
-                input.ident.span(),
-                "EsFluentLabel can only be derived for structs and enums",
-            )
-            .to_compile_error();
-        },
+        TypeKind::Enum => (quote! { ::es_fluent::meta::TypeKind::Enum }, TypeKind::Enum),
     };
 
     // Generate inventory submission for types with origin=true
@@ -90,10 +83,21 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
                     .unwrap_or_else(|| original_ident.span()),
             )
         });
-        let namespace = crate::macros::utils::preferred_spanned_namespace([
-            fluent_namespace.as_ref().map(SpannedNamespaceRule::as_ref),
-            label_namespace,
-        ]);
+        let namespace = match crate::macros::utils::resolve_single_namespace_source([
+            NamespaceSource::new(
+                "#[fluent(namespace = ...)]",
+                AttrContext::MessageContainer,
+                fluent_namespace.as_ref().map(SpannedNamespaceRule::as_ref),
+            ),
+            NamespaceSource::new(
+                "#[fluent_label(namespace = ...)]",
+                AttrContext::LabelContainer,
+                label_namespace,
+            ),
+        ]) {
+            Ok(namespace) => namespace,
+            Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+        };
         validate_namespace(
             namespace.map(SpannedNamespaceRuleRef::rule),
             namespace
@@ -213,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_label_prefers_parent_fluent_namespace_over_label_namespace() {
+    fn expand_es_fluent_label_rejects_parent_and_label_namespace_conflict() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent")]
             #[fluent_label(namespace = "child")]
@@ -222,10 +226,10 @@ mod tests {
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
-        assert_snapshot!(
-            "expand_es_fluent_label_prefers_parent_fluent_namespace_over_label_namespace",
-            tokens
-        );
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("conflicting namespace declarations"));
+        assert!(tokens.contains("#[fluent(namespace = ...)]"));
+        assert!(tokens.contains("#[fluent_label(namespace = ...)]"));
     }
 
     #[test]

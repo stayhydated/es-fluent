@@ -250,6 +250,11 @@ fn main() {
 
 You can route specific types into separate `.ftl` files by adding a namespace. All derive macros support the same namespace options:
 
+Use exactly one namespace source for each generated output. When multiple
+derives are combined on one type, put the namespace on `#[fluent(...)]` to
+share it, or put it on the specific `#[fluent_label(...)]` /
+`#[fluent_variants(...)]` output, but do not combine those namespace sources.
+
 ### `EsFluent`
 
 ```rs
@@ -388,6 +393,7 @@ Common derive attributes:
 - `arg = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 - `#[fluent(skip)]` on a field excludes that field from generated arguments.
 - `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
+- `#[fluent(choice)]` and `#[fluent(value = ...)]` are mutually exclusive on the same field.
 - `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
 - `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
 - `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.

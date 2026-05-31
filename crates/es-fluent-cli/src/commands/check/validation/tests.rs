@@ -1,9 +1,10 @@
+use super::super::inventory::KeyInfo;
 use super::context::ValidationContext;
 use super::*;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
 use es_fluent_shared::{
-    fluent::FluentArgumentName,
+    fluent::{FluentArgumentName, FluentEntryId},
     source::{SourceFile, SourceLine},
 };
 use fs_err as fs;
@@ -21,6 +22,10 @@ fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) 
     }
 }
 
+fn expected_key(value: &str) -> FluentEntryId {
+    FluentEntryId::try_new(value).unwrap()
+}
+
 fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {
     temp_env::with_var("FORCE_HYPERLINK", Some(value), f)
 }
@@ -28,8 +33,8 @@ fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {
 #[test]
 fn missing_file_issues_returns_issue_for_each_expected_key() {
     let mut expected_keys = IndexMap::new();
-    expected_keys.insert("first".to_string(), key_info(&[], None, None));
-    expected_keys.insert("second".to_string(), key_info(&[], None, None));
+    expected_keys.insert(expected_key("first"), key_info(&[], None, None));
+    expected_keys.insert(expected_key("second"), key_info(&[], None, None));
 
     let temp = tempfile::tempdir().unwrap();
     let ctx = ValidationContext {
@@ -69,10 +74,10 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
 
     let mut expected_keys = IndexMap::new();
     expected_keys.insert(
-        "hello".to_string(),
+        expected_key("hello"),
         key_info(&["name"], Some("src/lib.rs"), Some(7)),
     );
-    expected_keys.insert("goodbye".to_string(), key_info(&[], None, None));
+    expected_keys.insert(expected_key("goodbye"), key_info(&[], None, None));
 
     let ctx = ValidationContext {
         expected_keys: &expected_keys,
@@ -112,7 +117,7 @@ fn validate_loaded_ftl_files_reports_unexpected_variable_as_error() {
     }];
 
     let mut expected_keys = IndexMap::new();
-    expected_keys.insert("hello".to_string(), key_info(&["name"], None, None));
+    expected_keys.insert(expected_key("hello"), key_info(&["name"], None, None));
 
     let ctx = ValidationContext {
         expected_keys: &expected_keys,
@@ -159,7 +164,7 @@ fn validate_loaded_ftl_files_reports_duplicate_keys_and_ignores_non_messages() {
     ];
 
     let mut expected_keys = IndexMap::new();
-    expected_keys.insert("hello".to_string(), key_info(&[], None, None));
+    expected_keys.insert(expected_key("hello"), key_info(&[], None, None));
     let ctx = ValidationContext {
         expected_keys: &expected_keys,
         workspace_root: temp.path(),
@@ -251,14 +256,14 @@ fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
             .expect("utf-8 test path")
             .to_string();
         expected_keys.insert(
-            "hello".to_string(),
+            expected_key("hello"),
             key_info(&["name"], Some(&absolute_source), Some(7)),
         );
         expected_keys.insert(
-            "bye".to_string(),
+            expected_key("bye"),
             key_info(&["who"], Some("src/lib.rs"), None),
         );
-        expected_keys.insert("raw".to_string(), key_info(&["value"], None, None));
+        expected_keys.insert(expected_key("raw"), key_info(&["value"], None, None));
 
         let ctx = ValidationContext {
             expected_keys: &expected_keys,
@@ -296,7 +301,7 @@ fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
 fn validate_loaded_ftl_files_falls_back_to_unknown_when_no_actual_files() {
     let temp = tempfile::tempdir().unwrap();
     let mut expected_keys = IndexMap::new();
-    expected_keys.insert("missing".to_string(), key_info(&[], None, None));
+    expected_keys.insert(expected_key("missing"), key_info(&[], None, None));
 
     let ctx = ValidationContext {
         expected_keys: &expected_keys,

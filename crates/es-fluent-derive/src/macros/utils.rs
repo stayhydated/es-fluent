@@ -1,16 +1,18 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::error::AttrContext;
+use es_fluent_derive_core::error::{
+    AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult,
+};
 use es_fluent_derive_core::options::{
     FluentField, GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
 };
 use es_fluent_derive_core::semantic::{
     ArgumentModel, ArgumentValueStrategy, DerivePathList, DomainName, FluentMessageId,
-    GeneratedEnumModel, InventoryPolicy, MessageModel, SpannedValue, ValueTransform,
-    parse_fluent_message_id_in_context,
+    GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, InventoryPolicy, MessageModel,
+    SpannedValue, ValueTransform,
 };
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, quote_spanned};
 use syn::{Data, DeriveInput};
 
 use crate::macros::ir::inventory_variant_tokens_for_model;
@@ -33,6 +35,32 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub variants: &'a [GeneratedUnitEnumVariant],
     pub namespace: Option<&'a NamespaceRule>,
     pub label_key: Option<FluentMessageId>,
+}
+
+pub struct GeneratedVariantsEnumTarget<'a> {
+    pub ident: syn::Ident,
+    pub key_name: Option<&'a GeneratedKeyName>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct NamespaceSource<'a> {
+    name: &'static str,
+    context: AttrContext,
+    namespace: Option<SpannedNamespaceRuleRef<'a>>,
+}
+
+impl<'a> NamespaceSource<'a> {
+    pub fn new(
+        name: &'static str,
+        context: AttrContext,
+        namespace: Option<SpannedNamespaceRuleRef<'a>>,
+    ) -> Self {
+        Self {
+            name,
+            context,
+            namespace,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -71,31 +99,22 @@ impl<'a> SpannedNamespaceRuleRef<'a> {
     }
 }
 
-pub fn keyed_variant_idents_or_abort(opts: &impl GeneratedVariantsOptions) -> Vec<syn::Ident> {
-    match opts.keyed_idents() {
-        Ok(keys) => keys,
-        Err(err) => err.abort(),
-    }
-}
+pub fn generated_variants_enum_targets<'a>(
+    opts: &'a impl GeneratedVariantsOptions,
+) -> Vec<GeneratedVariantsEnumTarget<'a>> {
+    let Some(keys) = opts.variants_attr_args().keys() else {
+        return vec![GeneratedVariantsEnumTarget {
+            ident: opts.ftl_enum_ident(),
+            key_name: None,
+        }];
+    };
 
-pub fn emit_default_or_keyed_items(
-    default_ident: &syn::Ident,
-    keys: &[syn::Ident],
-    key_strings: &[String],
-    mut emit: impl FnMut(&syn::Ident, Option<&str>) -> TokenStream,
-) -> TokenStream {
-    if keys.is_empty() {
-        return emit(default_ident, None);
-    }
-
-    let items = keys
-        .iter()
-        .zip(key_strings.iter())
-        .map(|(key, key_str)| emit(key, Some(key_str.as_str())));
-
-    quote! {
-        #(#items)*
-    }
+    keys.iter()
+        .map(|key| GeneratedVariantsEnumTarget {
+            ident: GeneratedKeyIdent::variants(opts.variants_ident(), key, "Variants").into_ident(),
+            key_name: Some(key.value()),
+        })
+        .collect()
 }
 
 /// Generates the `FluentLabel` trait implementation.
@@ -208,29 +227,6 @@ fn field_value_strategy(
     } else {
         ArgumentValueStrategy::Borrowed
     }
-}
-
-pub fn variant_ftl_key(
-    base_key: &str,
-    variant_ident: &syn::Ident,
-    override_key: Option<&str>,
-) -> String {
-    let variant_key_suffix = override_key
-        .map(str::to_owned)
-        .unwrap_or_else(|| namer::rust_ident_name(variant_ident));
-    namer::FluentKey::from(base_key)
-        .join(&variant_key_suffix)
-        .to_string()
-}
-
-pub fn message_id_or_abort(
-    value: impl Into<String>,
-    span: Span,
-    context: AttrContext,
-) -> SpannedValue<FluentMessageId> {
-    let message_id = parse_fluent_message_id_in_context(value, span, context)
-        .unwrap_or_else(|error| error.abort());
-    SpannedValue::new(message_id, span)
 }
 
 pub fn generate_fluent_message_impl(
@@ -530,9 +526,8 @@ pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<DomainName>
         Data::Struct(_) => Ok(None),
         Data::Enum(_) => EnumOpts::from_derive_input(input).map(|opts| {
             opts.attr_args()
-                .domain_name(AttrContext::MessageContainer)
-                .unwrap_or_else(|error| error.abort())
-                .map(|domain| domain.into_value())
+                .domain_name()
+                .map(|domain| domain.value().clone())
         }),
         Data::Union(_) => Err(darling::Error::custom(
             "domain lookup is not supported for unions",
@@ -540,17 +535,46 @@ pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<DomainName>
     }
 }
 
-#[cfg(test)]
-pub fn preferred_namespace<'a>(
-    namespaces: impl IntoIterator<Item = Option<&'a NamespaceRule>>,
-) -> Option<&'a NamespaceRule> {
-    namespaces.into_iter().flatten().next()
+pub fn resolve_single_namespace_source<'a>(
+    sources: impl IntoIterator<Item = NamespaceSource<'a>>,
+) -> EsFluentCoreResult<Option<SpannedNamespaceRuleRef<'a>>> {
+    let mut resolved: Option<NamespaceSource<'a>> = None;
+
+    for source in sources {
+        if source.namespace.is_none() {
+            continue;
+        }
+
+        let Some(first) = resolved else {
+            resolved = Some(source);
+            continue;
+        };
+
+        return Err(EsFluentCoreError::StructuredAttributeError(
+            AttrError::new(
+                source.context,
+                format!(
+                    "conflicting namespace declarations: {} and {} both apply to the same generated output",
+                    first.name, source.name
+                ),
+                source.namespace.map(SpannedNamespaceRuleRef::span),
+            )
+        )
+        .with_help(format!(
+            "keep exactly one namespace declaration for this output; remove either {} or {}",
+            first.name, source.name
+        )));
+    }
+
+    Ok(resolved.and_then(|source| source.namespace))
 }
 
-pub fn preferred_spanned_namespace<'a>(
-    namespaces: impl IntoIterator<Item = Option<SpannedNamespaceRuleRef<'a>>>,
-) -> Option<SpannedNamespaceRuleRef<'a>> {
-    namespaces.into_iter().flatten().next()
+pub fn core_error_to_compile_error(error: EsFluentCoreError) -> TokenStream {
+    let message = error.to_string();
+    match error.span() {
+        Some(span) => quote_spanned! { span=> compile_error!(#message); },
+        None => quote! { compile_error!(#message); },
+    }
 }
 
 #[cfg(test)]
@@ -588,34 +612,14 @@ mod tests {
     }
 
     #[test]
-    fn preferred_namespace_picks_the_first_available_namespace() {
-        let parent = NamespaceRule::Literal("parent".into());
-        let child = NamespaceRule::Literal("child".into());
-        let fallback = NamespaceRule::Literal("fallback".into());
-
-        assert_eq!(
-            super::preferred_namespace([Some(&parent), Some(&child), Some(&fallback)]),
-            Some(&parent)
-        );
-        assert_eq!(
-            super::preferred_namespace([None, Some(&child), Some(&fallback)]),
-            Some(&child)
-        );
-        assert_eq!(
-            super::preferred_namespace([None, None, Some(&fallback)]),
-            Some(&fallback)
-        );
-        assert_eq!(super::preferred_namespace([None, None, None]), None);
-    }
-
-    #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_localize_label_impl_routes_through_the_current_crate_domain() {
-        let message_id = super::message_id_or_abort(
+        let message_id = es_fluent_derive_core::semantic::spanned_message_id_from_value(
             "hello",
             proc_macro2::Span::call_site(),
             AttrContext::LabelContainer,
         )
+        .expect("message id")
         .into_value();
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::generate_localize_label_impl(
@@ -631,11 +635,12 @@ mod tests {
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn generate_localize_label_impl_uses_explicit_domain_override_when_present() {
-        let message_id = super::message_id_or_abort(
+        let message_id = es_fluent_derive_core::semantic::spanned_message_id_from_value(
             "es-fluent-lang-label",
             proc_macro2::Span::call_site(),
             AttrContext::LabelContainer,
         )
+        .expect("message id")
         .into_value();
         let domain = es_fluent_derive_core::semantic::parse_domain_name_in_context(
             "es-fluent-lang",

@@ -2,6 +2,12 @@
 
 By default, all your FTL keys land in a single `{crate}.ftl` file per locale. As a project grows, this gets unwieldy. Namespaces let you route specific types into separate `.ftl` files. Every derive macro (`EsFluent`, `EsFluentLabel`, `EsFluentVariants`) supports the same namespace attribute.
 
+Use exactly one namespace source for each generated output. When multiple
+derives are combined on one type, either inherit a shared namespace from
+`#[fluent(namespace = ...)]` or set one on the specific
+`#[fluent_label(...)]` / `#[fluent_variants(...)]` output, but do not combine
+those namespace sources.
+
 ## Output Layout
 
 | Declaration    | File path                                     |

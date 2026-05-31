@@ -10,8 +10,10 @@ use es_fluent_shared::{
         FluentMessageId as SharedMessageId, FluentVariantKey,
     },
     meta::TypeKind,
+    namer,
     namespace::NamespaceRule,
 };
+use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::Span;
 use quote::ToTokens as _;
 use strum::IntoEnumIterator as _;
@@ -81,6 +83,157 @@ pub fn parse_fluent_message_id_in_context(
     context: AttrContext,
 ) -> EsFluentCoreResult<FluentMessageId> {
     SharedMessageId::try_new(value).map_err(|error| semantic_error(error, span, context))
+}
+
+pub fn spanned_message_id_from_value(
+    value: impl Into<String>,
+    span: Span,
+    context: AttrContext,
+) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+    let value = parse_fluent_message_id_in_context(value, span, context)?;
+    Ok(SpannedValue::new(value, span))
+}
+
+pub fn message_id_from_fluent_key(
+    key: namer::FluentKey,
+    span: Span,
+    context: AttrContext,
+) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+    spanned_message_id_from_value(key.to_string(), span, context)
+}
+
+pub fn message_id_for_ident(
+    ident: &syn::Ident,
+    context: AttrContext,
+) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+    message_id_from_fluent_key(namer::FluentKey::from(ident), ident.span(), context)
+}
+
+pub fn label_message_id_for_ident(
+    ident: &syn::Ident,
+    context: AttrContext,
+) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+    message_id_from_fluent_key(namer::FluentKey::new_label(ident), ident.span(), context)
+}
+
+pub fn variant_message_id(
+    base_key: &FluentMessageId,
+    variant_ident: &syn::Ident,
+    override_key: Option<&VariantKey>,
+    context: AttrContext,
+) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+    let variant_key_suffix = override_key
+        .map(VariantKey::as_str)
+        .map(str::to_owned)
+        .unwrap_or_else(|| namer::rust_ident_name(variant_ident));
+    message_id_from_fluent_key(
+        namer::FluentKey::from(base_key.as_str()).join(&variant_key_suffix),
+        variant_ident.span(),
+        context,
+    )
+}
+
+pub fn generated_variant_message_id(
+    base_key: &namer::FluentKey,
+    key_fragment: &str,
+    span: Span,
+    context: AttrContext,
+) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+    message_id_from_fluent_key(base_key.join(key_fragment), span, context)
+}
+
+pub fn generated_label_message_id(
+    base_key: &namer::FluentKey,
+    span: Span,
+    context: AttrContext,
+) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
+    spanned_message_id_from_value(
+        format!("{}{}", base_key, namer::FluentKey::LABEL_SUFFIX),
+        span,
+        context,
+    )
+}
+
+/// A typed generated variant key from `#[fluent_variants(keys = [...])]`.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct GeneratedKeyName {
+    value: String,
+}
+
+impl GeneratedKeyName {
+    pub fn try_new(
+        value: impl Into<String>,
+        span: Span,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<Self> {
+        let value = value.into();
+        let snake_cased = value.to_snake_case();
+        let is_lower_snake =
+            !value.is_empty() && value == snake_cased && value == value.to_ascii_lowercase();
+
+        if !is_lower_snake {
+            return Err(EsFluentCoreError::StructuredAttributeError(AttrError::new(
+                context,
+                format!(
+                    "keys in #[fluent_variants] must be lowercase snake_case; found \"{}\"",
+                    value
+                ),
+                Some(span),
+            ))
+            .with_help("use values like \"description\" or \"label\"".to_string()));
+        }
+
+        Ok(Self { value })
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.value
+    }
+
+    pub fn to_pascal_case(&self) -> String {
+        self.value.to_pascal_case()
+    }
+}
+
+/// A generated Rust identifier derived from a typed generated variant key.
+#[derive(Clone, Debug)]
+pub struct GeneratedKeyIdent {
+    ident: syn::Ident,
+}
+
+impl GeneratedKeyIdent {
+    pub fn variants(
+        source_ident: &syn::Ident,
+        key: &SpannedValue<GeneratedKeyName>,
+        suffix: &str,
+    ) -> Self {
+        Self::from_parts(source_ident, key, suffix)
+    }
+
+    pub fn base(source_ident: &syn::Ident, key: &SpannedValue<GeneratedKeyName>) -> Self {
+        Self::from_parts(source_ident, key, "")
+    }
+
+    fn from_parts(
+        source_ident: &syn::Ident,
+        key: &SpannedValue<GeneratedKeyName>,
+        suffix: &str,
+    ) -> Self {
+        let ident = syn::Ident::new(
+            &format!(
+                "{}{}{}",
+                namer::rust_ident_name(source_ident),
+                key.value().to_pascal_case(),
+                suffix
+            ),
+            key.span(),
+        );
+        Self { ident }
+    }
+
+    pub fn into_ident(self) -> syn::Ident {
+        self.ident
+    }
 }
 
 /// Source location metadata for a generated semantic model entry.
@@ -581,6 +734,78 @@ mod tests {
         assert!(
             parse_fluent_message_id_in_context("_message", span, AttrContext::MessageContainer)
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn generated_message_id_helpers_return_typed_spanned_values() {
+        let span = Span::call_site();
+        let login_form: syn::Ident = syn::parse_quote!(LoginForm);
+        let login_error: syn::Ident = syn::parse_quote!(LoginError);
+        let failed: syn::Ident = syn::parse_quote!(Failed);
+        let username: syn::Ident = syn::parse_quote!(Username);
+
+        assert_eq!(
+            message_id_for_ident(&login_form, AttrContext::MessageContainer)
+                .expect("struct message id")
+                .value()
+                .as_str(),
+            "login_form"
+        );
+        assert_eq!(
+            label_message_id_for_ident(&login_form, AttrContext::LabelContainer)
+                .expect("label message id")
+                .value()
+                .as_str(),
+            "login_form_label"
+        );
+
+        let base = message_id_for_ident(&login_error, AttrContext::MessageContainer)
+            .expect("enum base")
+            .into_value();
+        assert_eq!(
+            variant_message_id(&base, &failed, None, AttrContext::EnumVariant)
+                .expect("variant message id")
+                .value()
+                .as_str(),
+            "login_error-Failed"
+        );
+
+        let override_key =
+            parse_variant_key_in_context("custom-key", span, AttrContext::EnumVariant)
+                .expect("override key");
+        assert_eq!(
+            variant_message_id(
+                &base,
+                &failed,
+                Some(&override_key),
+                AttrContext::EnumVariant
+            )
+            .expect("overridden variant message id")
+            .value()
+            .as_str(),
+            "login_error-custom-key"
+        );
+
+        let generated_base = namer::FluentKey::from("login_form_label_variants");
+        assert_eq!(
+            generated_variant_message_id(
+                &generated_base,
+                "username",
+                username.span(),
+                AttrContext::VariantsContainer,
+            )
+            .expect("generated variant id")
+            .value()
+            .as_str(),
+            "login_form_label_variants-username"
+        );
+        assert_eq!(
+            generated_label_message_id(&generated_base, span, AttrContext::VariantsContainer,)
+                .expect("generated label id")
+                .value()
+                .as_str(),
+            "login_form_label_variants_label"
         );
     }
 

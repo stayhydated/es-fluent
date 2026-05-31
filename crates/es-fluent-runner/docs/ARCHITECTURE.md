@@ -48,6 +48,11 @@ The runner currently supports three commands:
 - `InventoryData` stores the expected message keys for `check`
 - `ExpectedKey` records the message key, variables, and optional source location
 
+`ExpectedKey` uses the shared typed Fluent identifier and argument-name
+newtypes. Invalid inventory metadata therefore fails while the runner protocol is
+deserialized, before the CLI compares the expected keys with parsed `.ftl`
+resources.
+
 ## Filesystem Layout
 
 ```text

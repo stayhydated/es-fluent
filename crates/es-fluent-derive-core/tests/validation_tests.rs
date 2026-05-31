@@ -180,7 +180,7 @@ mod validate_struct_tests {
         let err = es_fluent_derive_core::validation::validate_struct(&opts)
             .expect_err("empty arg should fail");
 
-        assert!(err.to_string().contains("cannot be empty"));
+        assert!(err.to_string().contains("must not be empty"));
     }
 
     #[test]
@@ -218,6 +218,26 @@ mod validate_struct_tests {
         assert_snapshot!(
             "validate_struct_arg_on_skipped_field_fails",
             err.to_string()
+        );
+    }
+
+    #[test]
+    fn choice_and_value_on_same_struct_field_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub struct TestStruct {
+                #[fluent(choice, value = |name: &String| name.len())]
+                name: String,
+            }
+        };
+
+        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+        let err = es_fluent_derive_core::validation::validate_struct(&opts)
+            .expect_err("choice and value should conflict");
+
+        assert!(
+            err.to_string()
+                .contains("Cannot combine #[fluent(choice)] and #[fluent(value = ...)]")
         );
     }
 }
@@ -368,7 +388,7 @@ mod validate_enum_tests {
         let err = es_fluent_derive_core::validation::validate_enum(&opts)
             .expect_err("empty arg should fail");
 
-        assert!(err.to_string().contains("cannot be empty"));
+        assert!(err.to_string().contains("must not be empty"));
     }
 
     #[test]
@@ -386,6 +406,25 @@ mod validate_enum_tests {
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         es_fluent_derive_core::validation::validate_enum(&opts)
             .expect("skipped field should not participate in resolved arg names");
+    }
+
+    #[test]
+    fn choice_and_value_on_same_variant_field_fails() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            pub enum TestEnum {
+                Something(#[fluent(choice, value = |name: &String| name.len())] String),
+            }
+        };
+
+        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+        let err = es_fluent_derive_core::validation::validate_enum(&opts)
+            .expect_err("choice and value should conflict");
+
+        assert!(
+            err.to_string()
+                .contains("Cannot combine #[fluent(choice)] and #[fluent(value = ...)]")
+        );
     }
 }
 

@@ -25,6 +25,16 @@ fn derive_names(paths: &darling::util::PathList) -> Vec<String> {
         .collect()
 }
 
+fn generated_key_names(
+    attr_args: &es_fluent_derive_core::options::VariantsFluentAttributeArgs,
+) -> Option<Vec<&str>> {
+    attr_args.keys().map(|keys| {
+        keys.iter()
+            .map(|key| key.value().as_str())
+            .collect::<Vec<_>>()
+    })
+}
+
 fn ignored_enum_variant_count(
     data: &darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
 ) -> usize {
@@ -55,8 +65,8 @@ fn es_fluent_enum_attributes_default_snapshot() {
     assert_eq!(opts.ident().to_string(), "ApiError");
     assert_no_generics(opts.generics());
     assert_eq!(opts.variants().len(), 4);
-    assert!(opts.attr_args().resource().is_none());
-    assert!(opts.attr_args().domain().is_none());
+    assert!(opts.attr_args().resource_message_id().is_none());
+    assert!(opts.attr_args().domain_name().is_none());
     assert!(!opts.attr_args().skip_inventory());
     assert!(opts.attr_args().namespace().is_none());
 
@@ -241,7 +251,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
             .is_empty()
     );
     assert!(derive_names(opts.attr_args().derive()).is_empty());
-    assert!(opts.attr_args().key_strings().is_none());
+    assert!(generated_key_names(opts.attr_args()).is_none());
     assert!(opts.attr_args().namespace().is_none());
 
     let fields = opts.fields();
@@ -278,8 +288,8 @@ fn es_fluent_variants_attributes_keys_label_derive_default_snapshot() {
     assert_no_generics(opts.generics());
     assert_eq!(opts.ftl_enum_ident().to_string(), "ProfileVariants");
     assert_eq!(
-        opts.attr_args().key_strings(),
-        Some(vec!["primary".to_string(), "secondary".to_string()])
+        generated_key_names(opts.attr_args()),
+        Some(vec!["primary", "secondary"])
     );
     assert_eq!(
         derive_names(opts.attr_args().derive()),

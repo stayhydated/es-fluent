@@ -24,15 +24,23 @@ lookup through an explicit manager domain with `domain = "..."`, and opt out of
 inventory collection with `skip_inventory`. Variant-level `key = "..."`
 overrides the key suffix. Field-level `skip`, `choice`, `value`, and
 `arg` affect the generated argument map before it reaches the localization
-closure.
+closure. `choice` and `value` are mutually exclusive on the same field.
 
 The derive layer consumes typed accessors from `es-fluent-derive-core` for
 field argument names, variant keys, enum resource IDs, and enum domains, so
 literal attribute spans remain available until diagnostics or semantic model
 creation.
+It also consumes derive-core lowered container models for `EsFluent`,
+`EsFluentVariants`, `EsFluentLabel`, and `EsFluentChoice`, so token emission
+sees named fields, tuple fields, generated variant seeds, label type kinds, and
+choice variants only after the Rust shape has been checked.
+Generated message IDs are constructed as typed semantic values in derive-core
+before token emission; the derive crate stringifies them only when writing
+runtime calls and inventory metadata.
 Namespace values are also carried with spans through derive-core and the derive
-namespace-precedence helpers, including inherited container namespaces used by
-labels and generated variant enums.
+namespace resolver. Labels and generated variant enums may inherit a container
+namespace, but multiple namespace sources for the same generated output are
+reported as attribute conflicts instead of being resolved by precedence.
 
 `#[derive(EsFluentVariants)]` shares the same generated-enum path for structs
 and enums. `keys = [...]` creates keyed generated enums, `derive(...)` adds
