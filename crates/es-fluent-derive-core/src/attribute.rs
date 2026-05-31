@@ -38,6 +38,10 @@ impl AttributeName {
 pub enum AttributeLocation {
     MessageStructContainer,
     MessageEnumContainer,
+    LabelStructParentContainer,
+    LabelEnumParentContainer,
+    VariantsStructParentContainer,
+    VariantsEnumParentContainer,
     MessageField,
     EnumVariant,
     VariantsContainer,
@@ -53,6 +57,12 @@ impl AttributeLocation {
         match self {
             Self::MessageStructContainer => AttrContext::MessageStructContainer,
             Self::MessageEnumContainer => AttrContext::MessageEnumContainer,
+            Self::LabelStructParentContainer | Self::LabelEnumParentContainer => {
+                AttrContext::LabelContainer
+            },
+            Self::VariantsStructParentContainer | Self::VariantsEnumParentContainer => {
+                AttrContext::VariantsContainer
+            },
             Self::MessageField => AttrContext::MessageField,
             Self::EnumVariant => AttrContext::EnumVariant,
             Self::VariantsContainer => AttrContext::VariantsContainer,
@@ -129,6 +139,12 @@ impl FluentAttributeKey {
             AttributeLocation::MessageStructContainer => matches!(self, Self::Namespace),
             AttributeLocation::MessageEnumContainer => {
                 matches!(self, Self::Resource | Self::Domain | Self::Namespace)
+            },
+            AttributeLocation::LabelStructParentContainer
+            | AttributeLocation::VariantsStructParentContainer => matches!(self, Self::Namespace),
+            AttributeLocation::LabelEnumParentContainer
+            | AttributeLocation::VariantsEnumParentContainer => {
+                matches!(self, Self::Domain | Self::Namespace)
             },
             AttributeLocation::MessageField => {
                 matches!(
@@ -331,6 +347,14 @@ fn help_for_location(attribute_name: AttributeName, location: AttributeLocation)
         },
         (AttributeName::Fluent, AttributeLocation::MessageEnumContainer) => {
             "accepted keys here are resource, domain, and namespace"
+        },
+        (AttributeName::Fluent, AttributeLocation::LabelStructParentContainer)
+        | (AttributeName::Fluent, AttributeLocation::VariantsStructParentContainer) => {
+            "accepted parent key here is namespace"
+        },
+        (AttributeName::Fluent, AttributeLocation::LabelEnumParentContainer)
+        | (AttributeName::Fluent, AttributeLocation::VariantsEnumParentContainer) => {
+            "accepted parent keys here are domain and namespace"
         },
         (AttributeName::Fluent, AttributeLocation::MessageField) => {
             "accepted keys here are skip, choice, optional, arg, and value"

@@ -1,5 +1,5 @@
 use super::*;
-use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
+use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentMessageId};
 use es_fluent_shared::meta::TypeKind;
 use fs_err as fs;
 use std::borrow::Cow;
@@ -33,7 +33,7 @@ static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo {
 };
 static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant {
     name: "Key1",
-    ftl_key: "group_a-Key1",
+    ftl_key: StaticFluentMessageId::new_unchecked("group_a-Key1"),
     args: &[],
     module_path: "test",
     line: 0,

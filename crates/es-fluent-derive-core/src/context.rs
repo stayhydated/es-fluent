@@ -1,12 +1,12 @@
 //! Shared derive container context built once from the raw derive input.
 
-use darling::FromDeriveInput as _;
+use darling::FromMeta as _;
 use es_fluent_shared::namespace::NamespaceRule;
 use proc_macro2::Span;
-use syn::{Data, DeriveInput};
+use syn::{Data, DeriveInput, Meta, Token, punctuated::Punctuated};
 
-use crate::options::{r#enum::EnumOpts, r#struct::StructOpts};
-use crate::semantic::{DomainName, InventoryPolicy, SpannedValue};
+use crate::options::{NamespaceSpec, r#enum::EnumOpts, r#struct::StructOpts};
+use crate::semantic::{DomainName, FluentMessageId, SpannedValue};
 use crate::validation::SpannedNamespaceRuleRef;
 
 /// Rust container kind for a derive input.
@@ -49,22 +49,33 @@ pub struct ContainerContext {
     generics: syn::Generics,
     fluent_namespace: Option<SpannedNamespaceRule>,
     fluent_domain: Option<SpannedValue<DomainName>>,
-    inventory_policy: InventoryPolicy,
 }
 
 impl ContainerContext {
     pub fn from_derive_input(input: &DeriveInput) -> darling::Result<Self> {
-        match &input.data {
-            Data::Struct(_) => {
-                StructOpts::from_derive_input(input).map(|opts| Self::from_struct_options(&opts))
+        let kind = match &input.data {
+            Data::Struct(_) => ContainerKind::Struct,
+            Data::Enum(_) => ContainerKind::Enum,
+            Data::Union(_) => {
+                return Err(darling::Error::custom(
+                    "container context is not supported for unions",
+                ));
             },
-            Data::Enum(_) => {
-                EnumOpts::from_derive_input(input).map(|opts| Self::from_enum_options(&opts))
+        };
+        let fluent = ParentFluentContext::from_attrs(&input.attrs)?;
+
+        Ok(Self {
+            source_ident: input.ident.clone(),
+            kind,
+            generics: input.generics.clone(),
+            fluent_namespace: fluent.namespace.map(|namespace| {
+                SpannedNamespaceRule::new(namespace.rule().clone(), namespace.span())
+            }),
+            fluent_domain: match kind {
+                ContainerKind::Struct => None,
+                ContainerKind::Enum => fluent.domain,
             },
-            Data::Union(_) => Err(darling::Error::custom(
-                "container context is not supported for unions",
-            )),
-        }
+        })
     }
 
     pub fn from_struct_options(opts: &StructOpts) -> Self {
@@ -81,7 +92,6 @@ impl ContainerContext {
                 )
             }),
             fluent_domain: None,
-            inventory_policy: InventoryPolicy::Emit,
         }
     }
 
@@ -99,7 +109,6 @@ impl ContainerContext {
                 )
             }),
             fluent_domain: opts.attr_args().domain_name().cloned(),
-            inventory_policy: InventoryPolicy::Emit,
         }
     }
 
@@ -126,9 +135,49 @@ impl ContainerContext {
     pub fn fluent_domain_with_span(&self) -> Option<&SpannedValue<DomainName>> {
         self.fluent_domain.as_ref()
     }
+}
 
-    pub fn inventory_policy(&self) -> InventoryPolicy {
-        self.inventory_policy
+#[derive(Default)]
+struct ParentFluentContext {
+    namespace: Option<NamespaceSpec>,
+    domain: Option<SpannedValue<DomainName>>,
+    #[allow(dead_code)]
+    resource: Option<SpannedValue<FluentMessageId>>,
+}
+
+impl ParentFluentContext {
+    fn from_attrs(attrs: &[syn::Attribute]) -> darling::Result<Self> {
+        let mut context = Self::default();
+
+        for attr in attrs {
+            if !attr.path().is_ident("fluent") {
+                continue;
+            }
+
+            let Meta::List(list) = &attr.meta else {
+                continue;
+            };
+            let items = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+
+            for item in items {
+                if item.path().is_ident("namespace") {
+                    context.namespace =
+                        Some(NamespaceSpec::from_meta(&item).map_err(|err| err.with_span(&item))?);
+                } else if item.path().is_ident("domain") {
+                    context.domain = Some(
+                        <SpannedValue<DomainName> as darling::FromMeta>::from_meta(&item)
+                            .map_err(|err| err.with_span(&item))?,
+                    );
+                } else if item.path().is_ident("resource") {
+                    context.resource = Some(
+                        <SpannedValue<FluentMessageId> as darling::FromMeta>::from_meta(&item)
+                            .map_err(|err| err.with_span(&item))?,
+                    );
+                }
+            }
+        }
+
+        Ok(context)
     }
 }
 

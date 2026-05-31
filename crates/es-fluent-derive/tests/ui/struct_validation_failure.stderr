@@ -1,4 +1,4 @@
-error: Field 'value' error: Cannot use #[fluent(arg = "...")] on a skipped field
+error: Attribute error in message field: Cannot use #[fluent(arg = "...")] on a skipped field
  --> tests/ui/struct_validation_failure.rs:6:5
   |
 6 |     value: i32,

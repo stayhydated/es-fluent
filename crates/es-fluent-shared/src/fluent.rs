@@ -51,6 +51,11 @@ macro_rules! fluent_string_type {
             pub fn into_string(self) -> String {
                 self.0
             }
+
+            #[allow(dead_code)]
+            pub(crate) fn from_valid_static(value: &'static str) -> Self {
+                Self(value.to_string())
+            }
         }
 
         impl AsRef<str> for $name {
@@ -115,6 +120,10 @@ impl FluentEntryId {
     /// Returns the owned string.
     pub fn into_string(self) -> String {
         self.0
+    }
+
+    pub(crate) fn from_valid_static(value: &'static str) -> Self {
+        Self(value.to_string())
     }
 }
 

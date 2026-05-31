@@ -3,5 +3,5 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
 expression: validation_tokens
 ---
 compile_error!(
-    "Field 'value' error: Cannot use #[fluent(arg = \"...\")] on a skipped field"
+    "Attribute error in message field: Cannot use #[fluent(arg = \"...\")] on a skipped field"
 );

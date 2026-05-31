@@ -3,21 +3,19 @@
 use crate::{
     error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult},
     options::{
-        EnumDataOptions as _, FilteredEnumDataOptions as _, FluentField, Skippable as _,
-        StructDataOptions as _, VariantFields as _,
+        EnumDataOptions as _, FieldStrategy, FilteredEnumDataOptions as _, FluentField,
+        Skippable as _, StructDataOptions as _, VariantFields as _,
         choice::ChoiceOpts,
         r#enum::{EnumOpts, EnumVariantsOpts, VariantOpts},
         label::LabelOpts,
         r#struct::{StructFieldOpts, StructOpts, StructVariantsOpts},
     },
     semantic::{
-        ArgumentValueStrategy, FluentMessageId, SpannedValue, ValueTransform,
-        label_message_id_for_ident, message_id_for_ident, variant_message_id,
+        ArgumentValueStrategy, FluentMessageId, SpannedValue, label_message_id_for_ident,
+        message_id_for_ident, variant_message_id,
     },
 };
 use es_fluent_shared::meta::TypeKind;
-use syn::spanned::Spanned as _;
-
 #[derive(Clone, Debug)]
 pub struct MessageStructModel<'a> {
     ident: &'a syn::Ident,
@@ -586,15 +584,13 @@ pub struct ChoiceVariant<'a> {
 pub fn field_value_strategy(
     field: &impl FluentField,
     span: proc_macro2::Span,
-) -> ArgumentValueStrategy {
-    if let Some(expr) = field.value() {
-        ArgumentValueStrategy::Transform(ValueTransform::new(expr.clone(), expr.span()))
-    } else if field.is_choice() {
-        ArgumentValueStrategy::Choice { span }
-    } else if field.is_optional() {
-        ArgumentValueStrategy::Optional { span }
-    } else {
-        ArgumentValueStrategy::Borrowed { span }
+) -> EsFluentCoreResult<ArgumentValueStrategy> {
+    match field.field_strategy(span)? {
+        FieldStrategy::Borrowed { span } => Ok(ArgumentValueStrategy::Borrowed { span }),
+        FieldStrategy::Optional { span } => Ok(ArgumentValueStrategy::Optional { span }),
+        FieldStrategy::Choice { span } => Ok(ArgumentValueStrategy::Choice { span }),
+        FieldStrategy::Transform(transform) => Ok(ArgumentValueStrategy::Transform(transform)),
+        FieldStrategy::Skipped { span } => Ok(ArgumentValueStrategy::Borrowed { span }),
     }
 }
 
@@ -603,7 +599,7 @@ pub fn field_argument_model(
     index: usize,
     span: proc_macro2::Span,
 ) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
-    let value_strategy = field_value_strategy(field, span);
+    let value_strategy = field_value_strategy(field, span)?;
     let name = field.fluent_arg_name(index, AttrContext::MessageField)?;
     Ok(crate::semantic::ArgumentModel::new_with_value_strategy(
         name,
@@ -642,19 +638,23 @@ mod tests {
         let fields: Vec<_> = opts.fields();
 
         assert!(matches!(
-            field_value_strategy(fields[0], fields[0].ident().expect("ident").span()),
+            field_value_strategy(fields[0], fields[0].ident().expect("ident").span())
+                .expect("strategy"),
             ArgumentValueStrategy::Borrowed { .. }
         ));
         assert!(matches!(
-            field_value_strategy(fields[1], fields[1].ident().expect("ident").span()),
+            field_value_strategy(fields[1], fields[1].ident().expect("ident").span())
+                .expect("strategy"),
             ArgumentValueStrategy::Optional { .. }
         ));
         assert!(matches!(
-            field_value_strategy(fields[2], fields[2].ident().expect("ident").span()),
+            field_value_strategy(fields[2], fields[2].ident().expect("ident").span())
+                .expect("strategy"),
             ArgumentValueStrategy::Choice { .. }
         ));
         assert!(matches!(
-            field_value_strategy(fields[3], fields[3].ident().expect("ident").span()),
+            field_value_strategy(fields[3], fields[3].ident().expect("ident").span())
+                .expect("strategy"),
             ArgumentValueStrategy::Transform(_)
         ));
     }

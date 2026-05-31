@@ -1,9 +1,9 @@
 //! This module provides types for parsing `es-fluent` attributes.
 
-use crate::error::{AttrContext, EsFluentCoreResult};
+use crate::error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult};
 use crate::semantic::{
     ArgName, DomainName, FluentMessageId, GeneratedKeyIdent, GeneratedKeyName, SpannedValue,
-    VariantKey, parse_arg_name_in_context, parse_domain_name_in_context,
+    ValueTransform, VariantKey, parse_arg_name_in_context, parse_domain_name_in_context,
     parse_fluent_message_id_in_context, parse_variant_key_in_context,
 };
 use bon::Builder;
@@ -472,6 +472,11 @@ pub trait FluentField {
         self.field_attr_args().value()
     }
 
+    /// Returns the closed behavior strategy for this field.
+    fn field_strategy(&self, span: proc_macro2::Span) -> EsFluentCoreResult<FieldStrategy> {
+        self.field_attr_args().field_strategy(self.ty(), span)
+    }
+
     /// Returns the explicit field argument name as a typed value if provided.
     fn arg_name(&self, context: AttrContext) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
         self.field_attr_args().arg_name(context)
@@ -499,6 +504,15 @@ pub trait FluentField {
         let name = parse_arg_name_in_context(name, span, context)?;
         Ok(SpannedValue::new(name, span))
     }
+}
+
+#[derive(Clone, Debug)]
+pub enum FieldStrategy {
+    Borrowed { span: proc_macro2::Span },
+    Optional { span: proc_macro2::Span },
+    Choice { span: proc_macro2::Span },
+    Transform(ValueTransform),
+    Skipped { span: proc_macro2::Span },
 }
 
 impl<T: FluentField> Skippable for T {
@@ -593,6 +607,110 @@ impl FluentFieldAttributeArgs {
     ) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
         Ok(self.arg.clone())
     }
+
+    pub fn field_strategy(
+        &self,
+        ty: &syn::Type,
+        span: proc_macro2::Span,
+    ) -> EsFluentCoreResult<FieldStrategy> {
+        let is_skipped = self.is_skipped();
+        let is_choice = self.is_choice();
+        let is_optional = self.is_optional();
+        let has_value = self.value().is_some();
+        let has_arg = self.arg.is_some();
+
+        if is_skipped {
+            if has_arg {
+                return Err(field_strategy_error(
+                    "Cannot use #[fluent(arg = \"...\")] on a skipped field",
+                    span,
+                ));
+            }
+            if is_optional {
+                return Err(field_strategy_error(
+                    "Cannot use #[fluent(optional)] on a skipped field",
+                    span,
+                ));
+            }
+            if is_choice {
+                return Err(field_strategy_error(
+                    "Cannot use #[fluent(choice)] on a skipped field",
+                    span,
+                ));
+            }
+            if has_value {
+                return Err(field_strategy_error(
+                    "Cannot use #[fluent(value = ...)] on a skipped field",
+                    span,
+                ));
+            }
+
+            return Ok(FieldStrategy::Skipped { span });
+        }
+
+        if is_choice && has_value {
+            return Err(field_strategy_error(
+                "Cannot combine #[fluent(choice)] and #[fluent(value = ...)] on the same field",
+                span,
+            ));
+        }
+
+        if is_optional && is_choice {
+            return Err(field_strategy_error(
+                "Cannot combine #[fluent(optional)] and #[fluent(choice)] on the same field",
+                span,
+            ));
+        }
+
+        if is_optional && has_value {
+            return Err(field_strategy_error(
+                "Cannot combine #[fluent(optional)] and #[fluent(value = ...)] on the same field",
+                span,
+            ));
+        }
+
+        if is_optional {
+            if !is_option_type(ty) {
+                return Err(field_strategy_error(
+                    "#[fluent(optional)] can only be used on Option<T> fields",
+                    span,
+                ));
+            }
+            return Ok(FieldStrategy::Optional { span });
+        }
+
+        if is_choice {
+            return Ok(FieldStrategy::Choice { span });
+        }
+
+        if let Some(expr) = self.value() {
+            return Ok(FieldStrategy::Transform(ValueTransform::new(
+                expr.clone(),
+                expr.span(),
+            )));
+        }
+
+        Ok(FieldStrategy::Borrowed { span })
+    }
+}
+
+fn field_strategy_error(message: impl Into<String>, span: proc_macro2::Span) -> EsFluentCoreError {
+    EsFluentCoreError::StructuredAttributeError(AttrError::new(
+        AttrContext::MessageField,
+        message,
+        Some(span),
+    ))
+}
+
+fn is_option_type(ty: &syn::Type) -> bool {
+    let syn::Type::Path(type_path) = ty else {
+        return false;
+    };
+    type_path
+        .path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "Option")
 }
 
 #[derive(Clone, Debug, FromField)]

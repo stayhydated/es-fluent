@@ -76,7 +76,6 @@ fn generate(
             .cloned(),
         vec![message_entry.metadata.clone()],
         None,
-        container_context.inventory_policy(),
     );
 
     let fluent_message_body = message_entry.localize_with_expr(context, None);
@@ -140,7 +139,8 @@ mod tests {
         assert!(tokens.contains("\"login_form\""));
         assert!(tokens.contains("\"display_name\""));
         assert!(tokens.contains("\"attempts\""));
-        assert!(tokens.contains("ftl_key : \"login_form\""));
-        assert!(tokens.contains("args : & [\"display_name\" , \"attempts\"]"));
+        assert!(tokens.contains("StaticFluentMessageId :: new_unchecked (\"login_form\")"));
+        assert!(tokens.contains("StaticFluentArgumentName :: new_unchecked (\"display_name\")"));
+        assert!(tokens.contains("StaticFluentArgumentName :: new_unchecked (\"attempts\")"));
     }
 }

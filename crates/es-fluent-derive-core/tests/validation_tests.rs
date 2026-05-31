@@ -161,6 +161,80 @@ mod attribute_context_tests {
         assert!(err.to_string().contains("variants variant"));
         assert!(err.to_string().contains("accepted key here is skip"));
     }
+
+    #[test]
+    fn label_and_variants_reject_unused_parent_resource() {
+        let label_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentLabel)]
+            #[fluent(resource = "login_error")]
+            pub enum LoginError {
+                InvalidPassword,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_label_attribute_context(
+            &label_input,
+        )
+        .expect_err("resource is ignored by EsFluentLabel");
+        assert!(err.to_string().contains("label container"));
+        assert!(
+            err.to_string()
+                .contains("accepted parent keys here are domain and namespace")
+        );
+
+        let variants_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent(resource = "login_error")]
+            pub enum LoginError {
+                InvalidPassword,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_variants_attribute_context(
+            &variants_input,
+        )
+        .expect_err("resource is ignored by EsFluentVariants");
+        assert!(err.to_string().contains("variants container"));
+        assert!(
+            err.to_string()
+                .contains("accepted parent keys here are domain and namespace")
+        );
+    }
+
+    #[test]
+    fn struct_parent_contexts_reject_unused_domain() {
+        let label_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentLabel)]
+            #[fluent(domain = "auth")]
+            pub struct LoginForm {
+                username: String,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_label_attribute_context(
+            &label_input,
+        )
+        .expect_err("domain is ignored by struct EsFluentLabel");
+        assert!(err.to_string().contains("label container"));
+        assert!(
+            err.to_string()
+                .contains("accepted parent key here is namespace")
+        );
+
+        let variants_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent(domain = "auth")]
+            pub struct LoginForm {
+                username: String,
+            }
+        };
+        let err = es_fluent_derive_core::validation::validate_es_fluent_variants_attribute_context(
+            &variants_input,
+        )
+        .expect_err("domain is ignored by struct EsFluentVariants");
+        assert!(err.to_string().contains("variants container"));
+        assert!(
+            err.to_string()
+                .contains("accepted parent key here is namespace")
+        );
+    }
 }
 
 mod validate_struct_tests {
@@ -457,7 +531,7 @@ mod validate_enum_tests {
 
         assert!(
             err.to_string()
-                .contains("cannot be used on a skipped field")
+                .contains("Cannot use #[fluent(arg = \"...\")] on a skipped field")
         );
     }
 

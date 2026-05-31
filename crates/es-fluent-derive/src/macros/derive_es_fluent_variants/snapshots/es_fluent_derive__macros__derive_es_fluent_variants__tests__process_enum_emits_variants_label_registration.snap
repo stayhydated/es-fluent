@@ -40,14 +40,18 @@ mod __es_fluent_inventory_StatusVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Ready",
-            ftl_key: "status_variants-Ready",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "status_variants-Ready",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),
         },
         ::es_fluent::registry::FtlVariant {
             name: "Failed",
-            ftl_key: "status_variants-Failed",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "status_variants-Failed",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),
@@ -87,7 +91,9 @@ mod __es_fluent_label_inventory_StatusVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "StatusVariants",
-            ftl_key: "status_variants_label",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "status_variants_label",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),

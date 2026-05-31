@@ -38,22 +38,8 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
     let mut keys_map: BTreeMap<FluentEntryId, KeyMeta> = BTreeMap::new();
     for info in &type_infos {
         for variant in info.variants {
-            let key = variant.entry_id().map_err(|err| {
-                es_fluent_runner::RunnerIoError::Message(format!(
-                    "invalid inventory key '{}' for type '{}': {err}",
-                    variant.ftl_key, info.type_name
-                ))
-            })?;
-            let vars: BTreeSet<FluentArgumentName> = variant
-                .argument_names()
-                .map_err(|err| {
-                    es_fluent_runner::RunnerIoError::Message(format!(
-                        "invalid inventory arguments for key '{}' on type '{}': {err}",
-                        variant.ftl_key, info.type_name
-                    ))
-                })?
-                .into_iter()
-                .collect();
+            let key = variant.entry_id();
+            let vars: BTreeSet<FluentArgumentName> = variant.argument_names().into_iter().collect();
             let source_description = info.source_description_for(variant);
             let entry = match keys_map.entry(key.clone()) {
                 Entry::Vacant(entry) => entry.insert(KeyMeta {
@@ -95,22 +81,28 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
 #[serial_test::serial(process)]
 mod tests {
     use super::*;
-    use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType};
+    use es_fluent::registry::{
+        FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType, StaticFluentArgumentName,
+        StaticFluentMessageId,
+    };
     use es_fluent_shared::meta::TypeKind;
     use std::borrow::Cow;
 
     static VARIANTS: &[FtlVariant] = &[
         FtlVariant {
             name: "Primary",
-            ftl_key: "my_key",
-            args: &["name", "count"],
+            ftl_key: StaticFluentMessageId::new_unchecked("my_key"),
+            args: &[
+                StaticFluentArgumentName::new_unchecked("name"),
+                StaticFluentArgumentName::new_unchecked("count"),
+            ],
             module_path: "test_crate",
             line: 42,
         },
         FtlVariant {
             name: "Secondary",
-            ftl_key: "secondary_key",
-            args: &["extra"],
+            ftl_key: StaticFluentMessageId::new_unchecked("secondary_key"),
+            args: &[StaticFluentArgumentName::new_unchecked("extra")],
             module_path: "test_crate",
             line: 55,
         },
@@ -132,15 +124,15 @@ mod tests {
     static DUPLICATE_VARIANTS: &[FtlVariant] = &[
         FtlVariant {
             name: "Primary",
-            ftl_key: "duplicated_key",
-            args: &["name"],
+            ftl_key: StaticFluentMessageId::new_unchecked("duplicated_key"),
+            args: &[StaticFluentArgumentName::new_unchecked("name")],
             module_path: "test_crate_duplicate_inventory",
             line: 42,
         },
         FtlVariant {
             name: "Secondary",
-            ftl_key: "duplicated_key",
-            args: &["extra"],
+            ftl_key: StaticFluentMessageId::new_unchecked("duplicated_key"),
+            args: &[StaticFluentArgumentName::new_unchecked("extra")],
             module_path: "test_crate_duplicate_inventory",
             line: 55,
         },
@@ -161,7 +153,7 @@ mod tests {
 
     static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant {
         name: "NoFilePath",
-        ftl_key: "empty_file_key",
+        ftl_key: StaticFluentMessageId::new_unchecked("empty_file_key"),
         args: &[],
         module_path: "test_crate_empty_file",
         line: 7,
@@ -178,27 +170,6 @@ mod tests {
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&INFO_NO_FILE)
-    }
-
-    static INVALID_VARIANTS: &[FtlVariant] = &[FtlVariant {
-        name: "Invalid",
-        ftl_key: "_invalid",
-        args: &[],
-        module_path: "test_crate_invalid_inventory",
-        line: 1,
-    }];
-
-    static INVALID_INFO: FtlTypeInfo = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "InvalidInventoryType",
-        variants: INVALID_VARIANTS,
-        file_path: "src/lib.rs",
-        module_path: "test_crate_invalid_inventory",
-        namespace: None,
-    };
-
-    es_fluent::__inventory::submit! {
-        RegisteredFtlType(&INVALID_INFO)
     }
 
     fn with_temp_cwd<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
@@ -311,15 +282,18 @@ mod tests {
     }
 
     #[test]
-    fn write_inventory_rejects_invalid_registered_keys() {
-        with_temp_cwd(|_| {
-            let err = write_inventory_for_crate("test-crate-invalid-inventory")
-                .expect_err("invalid inventory should fail");
-
-            assert!(
-                err.to_string()
-                    .contains("invalid inventory key '_invalid' for type 'InvalidInventoryType'")
-            );
-        });
+    fn static_inventory_wrappers_validate_manual_values() {
+        assert!(
+            StaticFluentMessageId::try_new("_invalid")
+                .expect_err("invalid message id")
+                .to_string()
+                .contains("must start with an ASCII letter")
+        );
+        assert!(
+            StaticFluentArgumentName::try_new("not valid")
+                .expect_err("invalid arg")
+                .to_string()
+                .contains("contains invalid character")
+        );
     }
 }

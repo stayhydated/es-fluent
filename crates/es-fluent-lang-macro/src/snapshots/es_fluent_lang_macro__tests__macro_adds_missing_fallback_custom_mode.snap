@@ -33,14 +33,16 @@ mod __es_fluent_language_inventory_custom_languages {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "EnUs",
-            ftl_key: "en-US",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "en-US",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),
         },
         ::es_fluent::registry::FtlVariant {
             name: "Fr",
-            ftl_key: "fr",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked("fr"),
             args: &[],
             module_path: module_path!(),
             line: line!(),
@@ -58,19 +60,19 @@ mod __es_fluent_language_inventory_custom_languages {
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );
 }
-impl From<CustomLanguages> for es_fluent::unic_langid::LanguageIdentifier {
+impl From<CustomLanguages> for ::es_fluent::unic_langid::LanguageIdentifier {
     fn from(val: CustomLanguages) -> Self {
         match val {
-            CustomLanguages::EnUs => es_fluent::unic_langid::langid!("en-US"),
-            CustomLanguages::Fr => es_fluent::unic_langid::langid!("fr"),
+            CustomLanguages::EnUs => ::es_fluent::unic_langid::langid!("en-US"),
+            CustomLanguages::Fr => ::es_fluent::unic_langid::langid!("fr"),
         }
     }
 }
-impl From<&CustomLanguages> for es_fluent::unic_langid::LanguageIdentifier {
+impl From<&CustomLanguages> for ::es_fluent::unic_langid::LanguageIdentifier {
     fn from(val: &CustomLanguages) -> Self {
         match val {
-            CustomLanguages::EnUs => es_fluent::unic_langid::langid!("en-US"),
-            CustomLanguages::Fr => es_fluent::unic_langid::langid!("fr"),
+            CustomLanguages::EnUs => ::es_fluent::unic_langid::langid!("en-US"),
+            CustomLanguages::Fr => ::es_fluent::unic_langid::langid!("fr"),
         }
     }
 }
@@ -78,9 +80,9 @@ impl From<&CustomLanguages> for es_fluent::unic_langid::LanguageIdentifier {
 pub enum CustomLanguagesLanguageConversionError {
     InvalidLanguageIdentifier {
         input: String,
-        source: es_fluent::unic_langid::LanguageIdentifierError,
+        source: ::es_fluent::unic_langid::LanguageIdentifierError,
     },
-    UnsupportedLanguageIdentifier(es_fluent::unic_langid::LanguageIdentifier),
+    UnsupportedLanguageIdentifier(::es_fluent::unic_langid::LanguageIdentifier),
 }
 impl ::std::fmt::Display for CustomLanguagesLanguageConversionError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -102,11 +104,11 @@ impl ::std::error::Error for CustomLanguagesLanguageConversionError {
         }
     }
 }
-impl ::std::convert::TryFrom<&es_fluent::unic_langid::LanguageIdentifier>
+impl ::std::convert::TryFrom<&::es_fluent::unic_langid::LanguageIdentifier>
 for CustomLanguages {
     type Error = CustomLanguagesLanguageConversionError;
     fn try_from(
-        lang: &es_fluent::unic_langid::LanguageIdentifier,
+        lang: &::es_fluent::unic_langid::LanguageIdentifier,
     ) -> Result<Self, Self::Error> {
         let lang_str = lang.to_string();
         match lang_str.as_str() {
@@ -122,11 +124,11 @@ for CustomLanguages {
         }
     }
 }
-impl ::std::convert::TryFrom<es_fluent::unic_langid::LanguageIdentifier>
+impl ::std::convert::TryFrom<::es_fluent::unic_langid::LanguageIdentifier>
 for CustomLanguages {
     type Error = CustomLanguagesLanguageConversionError;
     fn try_from(
-        lang: es_fluent::unic_langid::LanguageIdentifier,
+        lang: ::es_fluent::unic_langid::LanguageIdentifier,
     ) -> Result<Self, Self::Error> {
         Self::try_from(&lang)
     }
@@ -135,7 +137,7 @@ impl ::std::str::FromStr for CustomLanguages {
     type Err = CustomLanguagesLanguageConversionError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let lang = s
-            .parse::<es_fluent::unic_langid::LanguageIdentifier>()
+            .parse::<::es_fluent::unic_langid::LanguageIdentifier>()
             .map_err(|source| {
                 CustomLanguagesLanguageConversionError::InvalidLanguageIdentifier {
                     input: s.to_string(),

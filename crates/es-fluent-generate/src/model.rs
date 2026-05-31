@@ -13,6 +13,7 @@ pub(crate) struct OwnedVariant {
 }
 
 impl OwnedVariant {
+    #[cfg(test)]
     pub(crate) fn new(
         name: impl Into<String>,
         ftl_key: impl Into<String>,
@@ -39,7 +40,11 @@ impl OwnedVariant {
     }
 
     pub(crate) fn from_ftl_variant(variant: &FtlVariant) -> EsFluentResult<Self> {
-        Self::new(variant.name, variant.ftl_key, variant.args.iter().copied())
+        Ok(Self {
+            name: variant.name.to_string(),
+            ftl_key: variant.entry_id(),
+            args: variant.argument_names(),
+        })
     }
 
     pub(crate) fn ftl_key(&self) -> &str {
@@ -86,9 +91,7 @@ pub(crate) fn validate_no_duplicate_ftl_keys(items: &[&FtlTypeInfo]) -> EsFluent
 
     for info in items {
         for variant in info.variants {
-            let key = variant.entry_id().map_err(|err| {
-                EsFluentError::invalid_fluent_identifier(variant.ftl_key, err.to_string())
-            })?;
+            let key = variant.entry_id();
             if let Some((first_info, first_variant)) = seen.get(&key) {
                 return Err(EsFluentError::duplicate_generated_ftl_key(
                     key.as_str(),

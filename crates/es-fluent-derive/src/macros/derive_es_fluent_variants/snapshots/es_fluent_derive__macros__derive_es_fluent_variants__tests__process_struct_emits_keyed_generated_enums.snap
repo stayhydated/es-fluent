@@ -49,14 +49,18 @@ mod __es_fluent_inventory_LoginFormLabelVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Username",
-            ftl_key: "login_form_label_variants-username",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "login_form_label_variants-username",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),
         },
         ::es_fluent::registry::FtlVariant {
             name: "Password",
-            ftl_key: "login_form_label_variants-password",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "login_form_label_variants-password",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),
@@ -125,14 +129,18 @@ mod __es_fluent_inventory_LoginFormPlaceholderVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Username",
-            ftl_key: "login_form_placeholder_variants-username",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "login_form_placeholder_variants-username",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),
         },
         ::es_fluent::registry::FtlVariant {
             name: "Password",
-            ftl_key: "login_form_placeholder_variants-password",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "login_form_placeholder_variants-password",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),

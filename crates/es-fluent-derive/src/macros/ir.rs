@@ -145,22 +145,22 @@ impl InventoryVariantSpec {
     pub(crate) fn tokens(&self, context: &CodegenContext) -> TokenStream {
         let name = &self.name;
         let ftl_key = self.ftl_key.as_str();
+        let es_fluent = context.facade_path().tokens();
         let args_tokens: Vec<_> = self
             .arg_names
             .iter()
             .map(|arg| {
                 let arg = arg.as_str();
-                quote! { #arg }
+                quote! { #es_fluent::registry::StaticFluentArgumentName::new_unchecked(#arg) }
             })
             .collect();
         let source_span = self.source_location.span();
         let source_line = quote_spanned! { source_span=> line!() };
-        let es_fluent = context.facade_path().tokens();
 
         quote! {
             #es_fluent::registry::FtlVariant {
                 name: #name,
-                ftl_key: #ftl_key,
+                ftl_key: #es_fluent::registry::StaticFluentMessageId::new_unchecked(#ftl_key),
                 args: &[#(#args_tokens),*],
                 module_path: module_path!(),
                 line: #source_line,

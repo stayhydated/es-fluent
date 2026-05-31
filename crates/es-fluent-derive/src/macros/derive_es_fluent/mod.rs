@@ -205,8 +205,8 @@ mod tests {
         assert!(tokens.contains("localize(env!(\"CARGO_PKG_NAME\"), \"type\", Some(&args))"));
         assert!(tokens.contains("type_name: \"type\""));
         assert!(tokens.contains("name: \"type\""));
-        assert!(tokens.contains("ftl_key: \"type\""));
-        assert!(tokens.contains("args: &[\"match\"]"));
+        assert!(tokens.contains("StaticFluentMessageId::new_unchecked(\"type\")"));
+        assert!(tokens.contains("StaticFluentArgumentName::new_unchecked(\"match\")"));
     }
 
     #[test]

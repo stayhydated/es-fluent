@@ -2,8 +2,8 @@ use es_fluent_derive_core::error::{AttrContext, EsFluentCoreError};
 use es_fluent_derive_core::options::GeneratedVariantsOptions;
 use es_fluent_derive_core::semantic::{
     ArgumentModel, ArgumentValueStrategy, DerivePathList, DomainName, FluentMessageId,
-    GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, InventoryPolicy, MessageModel,
-    RustSourceName, RustTypeName, SpannedValue,
+    GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, MessageModel, RustSourceName,
+    RustTypeName, SpannedValue,
 };
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use proc_macro_crate::{FoundCrate, crate_name};
@@ -291,7 +291,6 @@ pub fn generate_optional_label_inventory_module(
         namespace.cloned(),
         Vec::new(),
         Some(label_entry.metadata),
-        InventoryPolicy::Emit,
     );
 
     generate_inventory_module(

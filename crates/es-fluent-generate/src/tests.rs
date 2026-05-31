@@ -1,6 +1,8 @@
 use super::*;
 use es_fluent_shared::meta::TypeKind;
-use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
+use es_fluent_shared::registry::{
+    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentMessageId,
+};
 use fluent_syntax::{ast, parser};
 use fs_err as fs;
 use indexmap::IndexMap;
@@ -22,8 +24,12 @@ fn test_variant(name: &str, ftl_key: &str, args: &[&str]) -> FtlVariant {
 fn test_variant_at(name: &str, ftl_key: &str, args: &[&str], line: u32) -> FtlVariant {
     FtlVariant {
         name: leak_str(name),
-        ftl_key: leak_str(ftl_key),
-        args: leak_slice(args.iter().map(|arg| leak_str(arg)).collect()),
+        ftl_key: StaticFluentMessageId::new_unchecked(leak_str(ftl_key)),
+        args: leak_slice(
+            args.iter()
+                .map(|arg| StaticFluentArgumentName::new_unchecked(leak_str(arg)))
+                .collect(),
+        ),
         module_path: "test",
         line,
     }
@@ -647,45 +653,19 @@ fn generate_rejects_noncanonical_namespace_literals() {
 }
 
 #[test]
-fn generate_rejects_invalid_registered_keys_and_arguments() {
-    let temp = tempfile::tempdir().expect("tempdir");
-    let i18n_root = temp.path().join("i18n");
-
-    let invalid_key = test_type(
-        "InvalidKey",
-        vec![test_variant("Broken", "_invalid", &["name"])],
-    );
-    let key_err = generate(
-        "crate-name",
-        &i18n_root,
-        temp.path(),
-        &[&invalid_key],
-        FluentParseMode::Conservative,
-        true,
-    )
-    .expect_err("invalid key should fail");
+fn static_registry_wrappers_reject_invalid_manual_keys_and_arguments() {
+    let key_err = StaticFluentMessageId::try_new("_invalid").expect_err("invalid key should fail");
     assert!(
         key_err
             .to_string()
-            .contains("Invalid Fluent metadata '_invalid'")
+            .contains("Fluent message id must start with an ASCII letter")
     );
 
-    let invalid_arg = test_type(
-        "InvalidArg",
-        vec![test_variant("Broken", "valid-key", &["not valid"])],
-    );
-    let arg_err = generate(
-        "crate-name",
-        &i18n_root,
-        temp.path(),
-        &[&invalid_arg],
-        FluentParseMode::Conservative,
-        true,
-    )
-    .expect_err("invalid argument should fail");
+    let arg_err =
+        StaticFluentArgumentName::try_new("not valid").expect_err("invalid argument should fail");
     assert!(
         arg_err
             .to_string()
-            .contains("Invalid Fluent metadata 'not valid'")
+            .contains("Fluent argument name contains invalid character")
     );
 }

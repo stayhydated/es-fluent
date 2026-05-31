@@ -39,8 +39,10 @@ mod __es_fluent_inventory_User {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "User",
-            ftl_key: "user",
-            args: &["id"],
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked("user"),
+            args: &[
+                ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("id"),
+            ],
             module_path: module_path!(),
             line: line!(),
         },

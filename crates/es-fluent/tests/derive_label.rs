@@ -101,11 +101,7 @@ struct TestSharedNamespace {
 }
 
 #[derive(EsFluent, EsFluentLabel, EsFluentVariants)]
-#[fluent(
-    domain = "custom-domain",
-    resource = "custom-domain",
-    namespace = "custom_ns"
-)]
+#[fluent(domain = "custom-domain", namespace = "custom_ns")]
 #[fluent_label(origin = true, variants = true)]
 #[allow(dead_code)]
 enum TestCustomDomain {
@@ -223,7 +219,7 @@ fn test_derive_label_and_variants_share_fluent_domain() {
     );
     assert_eq!(
         DomainEchoLocalizer.localize_message(&TestCustomDomain::Ready),
-        "custom-domain:custom-domain-Ready"
+        "custom-domain:test_custom_domain-Ready"
     );
     assert_eq!(
         DomainEchoLocalizer.localize_message(&TestCustomDomainVariants::Ready),

@@ -28,7 +28,9 @@ mod __es_fluent_inventory_Languages {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "En",
-            ftl_key: "es-fluent-lang-en",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "es-fluent-lang-en",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),

@@ -12,6 +12,7 @@ use es_fluent_derive_core::{
 };
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use proc_macro::TokenStream;
+use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro_error2::proc_macro_error;
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned};
@@ -19,6 +20,43 @@ use syn::{
     Expr, ExprLit, Fields, ItemEnum, Lit, LitStr, Meta, Path, Token, Variant, parse_quote,
     punctuated::Punctuated, spanned::Spanned as _,
 };
+
+#[derive(Clone)]
+struct CratePaths {
+    facade: proc_macro2::TokenStream,
+    lang: proc_macro2::TokenStream,
+}
+
+impl CratePaths {
+    fn resolve() -> Self {
+        Self {
+            facade: resolve_crate_path("es-fluent", quote! { ::es_fluent }),
+            lang: resolve_crate_path("es-fluent-lang", quote! { ::es_fluent_lang }),
+        }
+    }
+
+    fn facade(&self) -> &proc_macro2::TokenStream {
+        &self.facade
+    }
+
+    fn lang(&self) -> &proc_macro2::TokenStream {
+        &self.lang
+    }
+}
+
+fn resolve_crate_path(
+    package_name: &str,
+    fallback: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    match crate_name(package_name) {
+        Ok(FoundCrate::Itself) => quote! { crate },
+        Ok(FoundCrate::Name(name)) => {
+            let ident = format_ident!("{name}");
+            quote! { ::#ident }
+        },
+        Err(_) => fallback,
+    }
+}
 
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
 /// Which generates variants for each language in the i18n folder structure.
@@ -157,6 +195,9 @@ fn expand_es_fluent_language(
 
     let conversion_error_ident = format_ident!("{enum_ident}LanguageConversionError");
     let force_link_static_ident = format_ident!("__ES_FLUENT_LANG_FORCE_LINK_{enum_ident}");
+    let crate_paths = CratePaths::resolve();
+    let es_fluent = crate_paths.facade();
+    let es_fluent_lang = crate_paths.lang();
     let variant_idents: Vec<_> = language_entries.iter().map(|entry| &entry.ident).collect();
     let language_literals: Vec<_> = language_entries
         .iter()
@@ -177,11 +218,11 @@ fn expand_es_fluent_language(
             #[cfg(target_arch = "wasm32")]
             #[doc(hidden)]
             #[used]
-            static #force_link_static_ident: fn() -> usize = ::es_fluent_lang::force_link;
+            static #force_link_static_ident: fn() -> usize = #es_fluent_lang::force_link;
         }
     };
-    let message_impl = generate_fluent_message_impl(&language_model);
-    let inventory_submit = generate_inventory_submit(&language_model, mode);
+    let message_impl = generate_fluent_message_impl(&language_model, &crate_paths);
+    let inventory_submit = generate_inventory_submit(&language_model, mode, &crate_paths);
 
     let expanded = quote! {
         #input_enum
@@ -189,18 +230,18 @@ fn expand_es_fluent_language(
         #message_impl
         #inventory_submit
 
-        impl From<#enum_ident> for es_fluent::unic_langid::LanguageIdentifier {
+        impl From<#enum_ident> for #es_fluent::unic_langid::LanguageIdentifier {
             fn from(val: #enum_ident) -> Self {
                 match val {
-                    #( #enum_ident::#variant_idents => es_fluent::unic_langid::langid!(#language_literals), )*
+                    #( #enum_ident::#variant_idents => #es_fluent::unic_langid::langid!(#language_literals), )*
                 }
             }
         }
 
-        impl From<&#enum_ident> for es_fluent::unic_langid::LanguageIdentifier {
+        impl From<&#enum_ident> for #es_fluent::unic_langid::LanguageIdentifier {
             fn from(val: &#enum_ident) -> Self {
                 match val {
-                    #( #enum_ident::#variant_idents => es_fluent::unic_langid::langid!(#language_literals), )*
+                    #( #enum_ident::#variant_idents => #es_fluent::unic_langid::langid!(#language_literals), )*
                 }
             }
         }
@@ -209,9 +250,9 @@ fn expand_es_fluent_language(
         pub enum #conversion_error_ident {
             InvalidLanguageIdentifier {
                 input: String,
-                source: es_fluent::unic_langid::LanguageIdentifierError,
+                source: #es_fluent::unic_langid::LanguageIdentifierError,
             },
-            UnsupportedLanguageIdentifier(es_fluent::unic_langid::LanguageIdentifier),
+            UnsupportedLanguageIdentifier(#es_fluent::unic_langid::LanguageIdentifier),
         }
 
         impl ::std::fmt::Display for #conversion_error_ident {
@@ -236,10 +277,10 @@ fn expand_es_fluent_language(
             }
         }
 
-        impl ::std::convert::TryFrom<&es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
+        impl ::std::convert::TryFrom<&#es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
             type Error = #conversion_error_ident;
 
-            fn try_from(lang: &es_fluent::unic_langid::LanguageIdentifier) -> Result<Self, Self::Error> {
+            fn try_from(lang: &#es_fluent::unic_langid::LanguageIdentifier) -> Result<Self, Self::Error> {
                 let lang_str = lang.to_string();
                 match lang_str.as_str() {
                     #( #language_literals => Ok(#enum_ident::#variant_idents), )*
@@ -248,10 +289,10 @@ fn expand_es_fluent_language(
             }
         }
 
-        impl ::std::convert::TryFrom<es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
+        impl ::std::convert::TryFrom<#es_fluent::unic_langid::LanguageIdentifier> for #enum_ident {
             type Error = #conversion_error_ident;
 
-            fn try_from(lang: es_fluent::unic_langid::LanguageIdentifier) -> Result<Self, Self::Error> {
+            fn try_from(lang: #es_fluent::unic_langid::LanguageIdentifier) -> Result<Self, Self::Error> {
                 Self::try_from(&lang)
             }
         }
@@ -260,7 +301,7 @@ fn expand_es_fluent_language(
             type Err = #conversion_error_ident;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                let lang = s.parse::<es_fluent::unic_langid::LanguageIdentifier>().map_err(|source| {
+                let lang = s.parse::<#es_fluent::unic_langid::LanguageIdentifier>().map_err(|source| {
                     #conversion_error_ident::InvalidLanguageIdentifier {
                         input: s.to_string(),
                         source,
@@ -410,8 +451,12 @@ fn is_es_fluent_derive_path(path: &Path) -> bool {
         .is_some_and(|segment| segment.ident == "EsFluent")
 }
 
-fn generate_fluent_message_impl(model: &LanguageEnumModel) -> proc_macro2::TokenStream {
+fn generate_fluent_message_impl(
+    model: &LanguageEnumModel,
+    crate_paths: &CratePaths,
+) -> proc_macro2::TokenStream {
     let enum_ident = &model.enum_ident;
+    let es_fluent = crate_paths.facade();
     let domain_expr = model.domain_expr();
     let match_arms = model
         .entries
@@ -426,13 +471,13 @@ fn generate_fluent_message_impl(model: &LanguageEnumModel) -> proc_macro2::Token
         });
 
     quote! {
-        impl ::es_fluent::FluentMessage for #enum_ident {
+        impl #es_fluent::FluentMessage for #enum_ident {
             fn to_fluent_string_with(
                 &self,
                 localize: &mut dyn for<'__es_fluent_message> FnMut(
                     &str,
                     &str,
-                    Option<&::std::collections::HashMap<&str, ::es_fluent::FluentValue<'__es_fluent_message>>>,
+                    Option<&::std::collections::HashMap<&str, #es_fluent::FluentValue<'__es_fluent_message>>>,
                 ) -> String,
             ) -> String {
                 match self {
@@ -446,11 +491,13 @@ fn generate_fluent_message_impl(model: &LanguageEnumModel) -> proc_macro2::Token
 fn generate_inventory_submit(
     model: &LanguageEnumModel,
     mode: LanguageMode,
+    crate_paths: &CratePaths,
 ) -> proc_macro2::TokenStream {
     if !mode.is_custom() {
         return quote! {};
     }
 
+    let es_fluent = crate_paths.facade();
     let enum_ident = &model.enum_ident;
     let type_name = enum_ident.to_string().trim_start_matches("r#").to_string();
     let module_suffix = type_name.to_snake_case();
@@ -458,7 +505,7 @@ fn generate_inventory_submit(
     let variants = model
         .messages()
         .iter()
-        .map(language_inventory_variant_tokens);
+        .map(|message| language_inventory_variant_tokens(message, crate_paths));
 
     quote! {
         #[doc(hidden)]
@@ -466,13 +513,13 @@ fn generate_inventory_submit(
         mod #mod_name {
             use super::*;
 
-            static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+            static VARIANTS: &[#es_fluent::registry::FtlVariant] = &[
                 #(#variants),*
             ];
 
-            static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
-                ::es_fluent::registry::FtlTypeInfo {
-                    type_kind: ::es_fluent::meta::TypeKind::Enum,
+            static TYPE_INFO: #es_fluent::registry::FtlTypeInfo =
+                #es_fluent::registry::FtlTypeInfo {
+                    type_kind: #es_fluent::meta::TypeKind::Enum,
                     type_name: #type_name,
                     variants: VARIANTS,
                     file_path: file!(),
@@ -480,21 +527,25 @@ fn generate_inventory_submit(
                     namespace: None,
                 };
 
-            ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
+            #es_fluent::__inventory::submit!(#es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
         }
     }
 }
 
-fn language_inventory_variant_tokens(message: &MessageEntryModel) -> proc_macro2::TokenStream {
+fn language_inventory_variant_tokens(
+    message: &MessageEntryModel,
+    crate_paths: &CratePaths,
+) -> proc_macro2::TokenStream {
     let name = message.source_name();
     let ftl_key = message.message_id().to_string();
     let source_span = message.source_location().span();
     let source_line = quote_spanned! { source_span=> line!() };
+    let es_fluent = crate_paths.facade();
 
     quote! {
-        ::es_fluent::registry::FtlVariant {
+        #es_fluent::registry::FtlVariant {
             name: #name,
-            ftl_key: #ftl_key,
+            ftl_key: #es_fluent::registry::StaticFluentMessageId::new_unchecked(#ftl_key),
             args: &[],
             module_path: module_path!(),
             line: #source_line,

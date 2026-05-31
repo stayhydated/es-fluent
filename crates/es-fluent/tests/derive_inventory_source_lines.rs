@@ -44,7 +44,7 @@ fn inventory_line(type_name: &str, ftl_key: &str) -> u32 {
     let variant = info
         .variants
         .iter()
-        .find(|variant| variant.ftl_key == ftl_key)
+        .find(|variant| variant.ftl_key() == ftl_key)
         .unwrap_or_else(|| panic!("registered key {ftl_key} exists"));
 
     variant.line

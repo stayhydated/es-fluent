@@ -7,12 +7,108 @@ use crate::source::{SourceFile, SourceLine, SourceLocation};
 use std::convert::AsRef;
 use std::path::Path;
 
+/// Static Fluent message identifier emitted by derive macros.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct StaticFluentMessageId(&'static str);
+
+impl StaticFluentMessageId {
+    /// Creates a static message id from a caller-validated value.
+    ///
+    /// Derive macros emit this only after validating the id during macro
+    /// expansion. Manual callers should prefer [`Self::try_new`].
+    pub const fn new_unchecked(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Validates and creates a static message id.
+    pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
+        FluentMessageId::try_new(value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+
+    pub fn message_id(self) -> FluentMessageId {
+        FluentMessageId::from_valid_static(self.0)
+    }
+
+    pub fn entry_id(self) -> FluentEntryId {
+        FluentEntryId::from_valid_static(self.0)
+    }
+}
+
+impl AsRef<str> for StaticFluentMessageId {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl std::fmt::Display for StaticFluentMessageId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+impl PartialEq<&str> for StaticFluentMessageId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+/// Static Fluent argument name emitted by derive macros.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct StaticFluentArgumentName(&'static str);
+
+impl StaticFluentArgumentName {
+    /// Creates a static argument name from a caller-validated value.
+    ///
+    /// Derive macros emit this only after validating the name during macro
+    /// expansion. Manual callers should prefer [`Self::try_new`].
+    pub const fn new_unchecked(value: &'static str) -> Self {
+        Self(value)
+    }
+
+    /// Validates and creates a static argument name.
+    pub fn try_new(value: &'static str) -> Result<Self, FluentIdentifierError> {
+        FluentArgumentName::try_new(value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(self) -> &'static str {
+        self.0
+    }
+
+    pub fn argument_name(self) -> FluentArgumentName {
+        FluentArgumentName::from_valid_static(self.0)
+    }
+}
+
+impl AsRef<str> for StaticFluentArgumentName {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
+impl std::fmt::Display for StaticFluentArgumentName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+impl PartialEq<&str> for StaticFluentArgumentName {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
 /// A variant representing a single FTL key entry.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlVariant {
     pub name: &'static str,
-    pub ftl_key: &'static str,
-    pub args: &'static [&'static str],
+    pub ftl_key: StaticFluentMessageId,
+    pub args: &'static [StaticFluentArgumentName],
     /// The module path from `module_path!()`.
     pub module_path: &'static str,
     /// The line number from `line!()` macro.
@@ -24,21 +120,26 @@ impl FtlVariant {
     ///
     /// Unlike [`Self::message_id`], this accepts both message IDs and term IDs
     /// such as `-shared`.
-    pub fn entry_id(&self) -> Result<FluentEntryId, FluentIdentifierError> {
-        FluentEntryId::try_new(self.ftl_key)
+    pub fn ftl_key(&self) -> &'static str {
+        self.ftl_key.as_str()
+    }
+
+    pub fn args(&self) -> &'static [StaticFluentArgumentName] {
+        self.args
+    }
+
+    pub fn entry_id(&self) -> FluentEntryId {
+        self.ftl_key.entry_id()
     }
 
     /// Returns the validated Fluent message id for this variant.
-    pub fn message_id(&self) -> Result<FluentMessageId, FluentIdentifierError> {
-        FluentMessageId::try_new(self.ftl_key)
+    pub fn message_id(&self) -> FluentMessageId {
+        self.ftl_key.message_id()
     }
 
     /// Returns the validated Fluent argument names for this variant.
-    pub fn argument_names(&self) -> Result<Vec<FluentArgumentName>, FluentIdentifierError> {
-        self.args
-            .iter()
-            .map(|arg| FluentArgumentName::try_new(*arg))
-            .collect()
+    pub fn argument_names(&self) -> Vec<FluentArgumentName> {
+        self.args.iter().map(|arg| arg.argument_name()).collect()
     }
 
     /// Returns typed source line metadata for this variant.
@@ -113,7 +214,10 @@ impl FtlTypeInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::{FtlTypeInfo, NamespacePathError, NamespaceRule};
+    use super::{
+        FtlTypeInfo, NamespacePathError, NamespaceRule, StaticFluentArgumentName,
+        StaticFluentMessageId,
+    };
     use crate::meta::TypeKind;
     use crate::registry::FtlVariant;
     use std::path::PathBuf;
@@ -263,7 +367,7 @@ mod tests {
     fn ftl_type_info_exposes_typed_source_metadata() {
         static VARIANTS: &[FtlVariant] = &[FtlVariant {
             name: "Ready",
-            ftl_key: "status-Ready",
+            ftl_key: StaticFluentMessageId::new_unchecked("status-Ready"),
             args: &[],
             module_path: "demo",
             line: 42,
@@ -278,9 +382,9 @@ mod tests {
         };
 
         assert_eq!(info.source_file().unwrap().as_str(), "src/status.rs");
-        assert_eq!(VARIANTS[0].entry_id().unwrap().as_str(), "status-Ready");
-        assert_eq!(VARIANTS[0].message_id().unwrap().as_str(), "status-Ready");
-        assert_eq!(VARIANTS[0].argument_names().unwrap(), Vec::new());
+        assert_eq!(VARIANTS[0].entry_id().as_str(), "status-Ready");
+        assert_eq!(VARIANTS[0].message_id().as_str(), "status-Ready");
+        assert_eq!(VARIANTS[0].argument_names(), Vec::new());
         assert_eq!(VARIANTS[0].source_line().get(), 42);
 
         let location = info.source_location_for(&VARIANTS[0]).unwrap();
@@ -292,7 +396,7 @@ mod tests {
     fn empty_type_file_path_has_no_typed_source_location() {
         static VARIANTS: &[FtlVariant] = &[FtlVariant {
             name: "Ready",
-            ftl_key: "status-Ready",
+            ftl_key: StaticFluentMessageId::new_unchecked("status-Ready"),
             args: &[],
             module_path: "demo",
             line: 42,
@@ -311,32 +415,17 @@ mod tests {
     }
 
     #[test]
-    fn ftl_variant_reports_invalid_message_ids_and_arguments() {
-        let invalid_key = FtlVariant {
-            name: "Broken",
-            ftl_key: "_invalid",
-            args: &[],
-            module_path: "demo",
-            line: 1,
-        };
+    fn static_fluent_wrappers_validate_manual_construction() {
         assert_eq!(
-            invalid_key.message_id().unwrap_err().to_string(),
+            StaticFluentMessageId::try_new("_invalid")
+                .unwrap_err()
+                .to_string(),
             "Fluent message id must start with an ASCII letter"
         );
         assert_eq!(
-            invalid_key.entry_id().unwrap_err().to_string(),
-            "Fluent entry id must start with an ASCII letter"
-        );
-
-        let invalid_arg = FtlVariant {
-            name: "Broken",
-            ftl_key: "valid",
-            args: &["not valid"],
-            module_path: "demo",
-            line: 1,
-        };
-        assert_eq!(
-            invalid_arg.argument_names().unwrap_err().to_string(),
+            StaticFluentArgumentName::try_new("not valid")
+                .unwrap_err()
+                .to_string(),
             "Fluent argument name contains invalid character ' '; use ASCII letters, digits, '_' or '-'"
         );
     }

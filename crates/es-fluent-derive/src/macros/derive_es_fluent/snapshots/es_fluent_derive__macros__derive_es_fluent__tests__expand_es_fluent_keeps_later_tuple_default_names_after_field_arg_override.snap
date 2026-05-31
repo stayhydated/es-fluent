@@ -1,6 +1,5 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 276
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for LoginError {
@@ -56,8 +55,14 @@ mod __es_fluent_inventory_LoginError {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Something",
-            ftl_key: "login_error-Something",
-            args: &["f0", "f1", "f2"],
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "login_error-Something",
+            ),
+            args: &[
+                ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("f0"),
+                ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("f1"),
+                ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("f2"),
+            ],
             module_path: module_path!(),
             line: line!(),
         },

@@ -5072,6 +5072,7 @@ dependencies = [
  "insta",
  "path-slash",
  "prettyplease",
+ "proc-macro-crate",
  "proc-macro-error2",
  "proc-macro2",
  "quote",

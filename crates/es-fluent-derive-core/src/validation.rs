@@ -153,7 +153,7 @@ pub fn validate_es_fluent_variants_attribute_context(
         validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
-            message_container_location(input),
+            variants_parent_location(input),
             Some(&input.ident),
         )?;
         validate_attribute_for_location(
@@ -207,7 +207,7 @@ pub fn validate_es_fluent_label_attribute_context(input: &DeriveInput) -> EsFlue
         validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
-            message_container_location(input),
+            label_parent_location(input),
             Some(&input.ident),
         )?;
         validate_attribute_for_location(
@@ -240,54 +240,8 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
 }
 
 pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluentCoreResult<()> {
-    // Check for conflicting attributes on all fields
     for field in model.all_indexed_fields().into_iter().map(|(_, f)| f) {
-        let explicit_arg = field.arg_name(AttrContext::MessageField)?;
-
-        if field.is_skipped() && explicit_arg.is_some() {
-            return Err(EsFluentCoreError::FieldError {
-                message: "Cannot use #[fluent(arg = \"...\")] on a skipped field".to_string(),
-                field_name: field.ident().as_ref().map(|i| i.to_string()),
-                span: field.ident().as_ref().map(|ident| ident.span()),
-            });
-        }
-
-        if field.is_skipped() && field.is_optional() {
-            return Err(EsFluentCoreError::FieldError {
-                message: "Cannot use #[fluent(optional)] on a skipped field".to_string(),
-                field_name: field.ident().as_ref().map(|i| i.to_string()),
-                span: field.ident().as_ref().map(|ident| ident.span()),
-            });
-        }
-
-        if field.is_choice() && field.value().is_some() {
-            return Err(EsFluentCoreError::FieldError {
-                message:
-                    "Cannot combine #[fluent(choice)] and #[fluent(value = ...)] on the same field"
-                        .to_string(),
-                field_name: field.ident().as_ref().map(|i| i.to_string()),
-                span: field.ident().as_ref().map(|ident| ident.span()),
-            });
-        }
-
-        if field.is_optional() && field.is_choice() {
-            return Err(EsFluentCoreError::FieldError {
-                message:
-                    "Cannot combine #[fluent(optional)] and #[fluent(choice)] on the same field"
-                        .to_string(),
-                field_name: field.ident().as_ref().map(|i| i.to_string()),
-                span: field.ident().as_ref().map(|ident| ident.span()),
-            });
-        }
-
-        if field.is_optional() && field.value().is_some() {
-            return Err(EsFluentCoreError::FieldError {
-                message: "Cannot combine #[fluent(optional)] and #[fluent(value = ...)] on the same field"
-                    .to_string(),
-                field_name: field.ident().as_ref().map(|i| i.to_string()),
-                span: field.ident().as_ref().map(|ident| ident.span()),
-            });
-        }
+        field.field_strategy(field_span(field))?;
     }
 
     // Ensure exposed argument names remain unique after arg overrides.
@@ -316,6 +270,22 @@ fn message_container_location(input: &DeriveInput) -> AttributeLocation {
     }
 }
 
+fn label_parent_location(input: &DeriveInput) -> AttributeLocation {
+    match &input.data {
+        syn::Data::Struct(_) => AttributeLocation::LabelStructParentContainer,
+        syn::Data::Enum(_) => AttributeLocation::LabelEnumParentContainer,
+        syn::Data::Union(_) => AttributeLocation::LabelStructParentContainer,
+    }
+}
+
+fn variants_parent_location(input: &DeriveInput) -> AttributeLocation {
+    match &input.data {
+        syn::Data::Struct(_) => AttributeLocation::VariantsStructParentContainer,
+        syn::Data::Enum(_) => AttributeLocation::VariantsEnumParentContainer,
+        syn::Data::Union(_) => AttributeLocation::VariantsStructParentContainer,
+    }
+}
+
 /// Validates enum-specific attributes.
 pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
     let model = MessageEnumModel::from_options(opts)?;
@@ -331,40 +301,7 @@ pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCore
         let mut field_arg_overrides = Vec::new();
         for field_model in &all_fields {
             let field = field_model.field();
-            if field.is_choice() && field.value().is_some() {
-                return Err(EsFluentCoreError::VariantError {
-                    message: "Cannot combine #[fluent(choice)] and #[fluent(value = ...)] on the same field".to_string(),
-                    variant_name: variant_name.clone(),
-                    span: variant_span,
-                });
-            }
-
-            if field.is_skipped() && field.is_optional() {
-                return Err(EsFluentCoreError::VariantError {
-                    message: "Cannot use #[fluent(optional)] on a skipped field".to_string(),
-                    variant_name: variant_name.clone(),
-                    span: variant_span,
-                });
-            }
-
-            if field.is_optional() && field.is_choice() {
-                return Err(EsFluentCoreError::VariantError {
-                    message:
-                        "Cannot combine #[fluent(optional)] and #[fluent(choice)] on the same field"
-                            .to_string(),
-                    variant_name: variant_name.clone(),
-                    span: variant_span,
-                });
-            }
-
-            if field.is_optional() && field.value().is_some() {
-                return Err(EsFluentCoreError::VariantError {
-                    message: "Cannot combine #[fluent(optional)] and #[fluent(value = ...)] on the same field"
-                        .to_string(),
-                    variant_name: variant_name.clone(),
-                    span: variant_span,
-                });
-            }
+            field.field_strategy(field_span(field))?;
 
             if let Some(arg) = field.arg_name(AttrContext::MessageField)? {
                 field_arg_overrides.push((*field_model, arg));
@@ -422,6 +359,12 @@ pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCore
     }
 
     Ok(())
+}
+
+fn field_span(field: &impl FluentField) -> proc_macro2::Span {
+    field
+        .ident()
+        .map_or_else(|| field.ty().span(), syn::Ident::span)
 }
 
 fn validate_message_enum_ids(model: &MessageEnumModel<'_>) -> EsFluentCoreResult<()> {

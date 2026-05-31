@@ -28,7 +28,9 @@ mod __es_fluent_inventory_Status {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Ready",
-            ftl_key: "status-Ready",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "status-Ready",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),

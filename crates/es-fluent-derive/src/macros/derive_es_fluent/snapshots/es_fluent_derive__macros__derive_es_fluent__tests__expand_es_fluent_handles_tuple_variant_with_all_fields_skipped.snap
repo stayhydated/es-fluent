@@ -30,7 +30,9 @@ mod __es_fluent_inventory_LoginError {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Something",
-            ftl_key: "login_error-Something",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "login_error-Something",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),

@@ -225,7 +225,6 @@ fn generate(
             .map(|entry| entry.metadata.clone())
             .collect(),
         None,
-        container_context.inventory_policy(),
     );
 
     let fluent_message_match_arms = message_variants.iter().map(|variant| match variant {
@@ -326,7 +325,14 @@ mod tests {
         assert!(runtime_tokens.contains("\"login_error-Failed\""));
         assert!(runtime_tokens.contains("\"display_name\""));
         assert!(runtime_tokens.contains("\"f1\""));
-        assert!(inventory_tokens.contains("ftl_key : \"login_error-Failed\""));
-        assert!(inventory_tokens.contains("args : & [\"display_name\" , \"f1\"]"));
+        assert!(
+            inventory_tokens
+                .contains("StaticFluentMessageId :: new_unchecked (\"login_error-Failed\")")
+        );
+        assert!(
+            inventory_tokens
+                .contains("StaticFluentArgumentName :: new_unchecked (\"display_name\")")
+        );
+        assert!(inventory_tokens.contains("StaticFluentArgumentName :: new_unchecked (\"f1\")"));
     }
 }

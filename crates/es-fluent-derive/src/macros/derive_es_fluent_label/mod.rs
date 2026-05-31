@@ -2,9 +2,7 @@ use darling::FromDeriveInput as _;
 use es_fluent_derive_core::context::{ContainerContext, SpannedNamespaceRule};
 use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::lowered::LabelModel;
-use es_fluent_derive_core::semantic::{
-    InventoryPolicy, MessageModel, RustSourceName, RustTypeName,
-};
+use es_fluent_derive_core::semantic::{MessageModel, RustSourceName, RustTypeName};
 use es_fluent_derive_core::{options::label::LabelOpts, validation};
 use es_fluent_shared::{meta::TypeKind, namespace::NamespaceRule};
 use quote::quote;
@@ -144,7 +142,6 @@ fn expand_es_fluent_label_with_context(
             namespace.map(|namespace| namespace.rule().clone()),
             Vec::new(),
             Some(label_entry.metadata),
-            InventoryPolicy::Emit,
         );
 
         crate::macros::utils::generate_inventory_module(

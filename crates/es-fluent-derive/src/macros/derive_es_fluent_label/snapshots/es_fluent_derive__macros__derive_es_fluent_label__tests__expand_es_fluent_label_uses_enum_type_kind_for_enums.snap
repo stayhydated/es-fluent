@@ -20,7 +20,9 @@ mod __es_fluent_label_inventory_LoginState {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "LoginState",
-            ftl_key: "login_state_label",
+            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+                "login_state_label",
+            ),
             args: &[],
             module_path: module_path!(),
             line: line!(),

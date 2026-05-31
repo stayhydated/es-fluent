@@ -505,15 +505,6 @@ impl MessageEntryModel {
     }
 }
 
-/// Inventory behavior for a semantic message model.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum InventoryPolicy {
-    /// Emit inventory metadata for the model.
-    Emit,
-    /// Skip inventory metadata for the model.
-    Skip,
-}
-
 /// Semantic model for messages generated from one source type.
 #[derive(Clone, Debug)]
 pub struct MessageModel {
@@ -523,7 +514,6 @@ pub struct MessageModel {
     namespace: Option<NamespaceRule>,
     messages: Vec<MessageEntryModel>,
     label: Option<MessageEntryModel>,
-    inventory_policy: InventoryPolicy,
 }
 
 impl MessageModel {
@@ -534,7 +524,6 @@ impl MessageModel {
         namespace: Option<NamespaceRule>,
         messages: Vec<MessageEntryModel>,
         label: Option<MessageEntryModel>,
-        inventory_policy: InventoryPolicy,
     ) -> Self {
         Self {
             source_type,
@@ -543,7 +532,6 @@ impl MessageModel {
             namespace,
             messages,
             label,
-            inventory_policy,
         }
     }
 
@@ -569,10 +557,6 @@ impl MessageModel {
 
     pub fn label(&self) -> Option<&MessageEntryModel> {
         self.label.as_ref()
-    }
-
-    pub fn inventory_policy(&self) -> InventoryPolicy {
-        self.inventory_policy
     }
 }
 
@@ -977,7 +961,7 @@ mod tests {
     }
 
     #[test]
-    fn message_model_groups_entries_with_inventory_policy() {
+    fn message_model_groups_entries() {
         let span = Span::call_site();
         let entry = MessageEntryModel::new(
             RustSourceName::new("Ready", span),
@@ -1000,12 +984,10 @@ mod tests {
             None,
             vec![entry.clone()],
             None,
-            InventoryPolicy::Emit,
         );
 
         assert_eq!(model.source_type(), "Status");
         assert!(matches!(model.type_kind(), TypeKind::Enum));
-        assert_eq!(model.inventory_policy(), InventoryPolicy::Emit);
         assert_eq!(model.messages()[0].message_id().as_str(), "status-Ready");
 
         let generated = GeneratedEnumModel::new(

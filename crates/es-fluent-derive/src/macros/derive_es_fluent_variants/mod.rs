@@ -399,7 +399,9 @@ mod tests {
             inventory_variant_tokens_for_model(&context, &entry.message_entry.metadata).to_string();
 
         assert!(runtime_tokens.contains("\"login_form_label_variants-username\""));
-        assert!(inventory_tokens.contains("ftl_key : \"login_form_label_variants-username\""));
+        assert!(inventory_tokens.contains(
+            "StaticFluentMessageId :: new_unchecked (\"login_form_label_variants-username\")"
+        ));
         assert!(inventory_tokens.contains("name : \"Username\""));
         assert!(inventory_tokens.contains("args : & []"));
     }
