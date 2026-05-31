@@ -33,9 +33,19 @@ use std::collections::HashMap;
 
 const ES_FLUENT_LANG_PREFIX: &str = "es-fluent-lang-";
 const DISPLAY_LANGUAGE_FALLBACKS: &[&str] = &["en", "en-001"];
+#[doc(hidden)]
+pub const WASM_FORCE_LINK_MARKER: &str = "es-fluent-lang-wasm-force-link";
+
+#[cfg(target_arch = "wasm32")]
+#[used]
+static WASM_FORCE_LINK_MARKER_BYTES: [u8; WASM_FORCE_LINK_MARKER.len()] =
+    *b"es-fluent-lang-wasm-force-link";
 
 fn parse_message_language(id: &str) -> Option<LanguageIdentifier> {
-    id.strip_prefix(ES_FLUENT_LANG_PREFIX)?.parse().ok()
+    id.strip_prefix(ES_FLUENT_LANG_PREFIX)
+        .unwrap_or(id)
+        .parse()
+        .ok()
 }
 
 fn formatter_candidates(requested: &LanguageIdentifier) -> Vec<LanguageIdentifier> {

@@ -21,7 +21,7 @@ pub struct ChoiceOpts {
 #[getset(get = "pub")]
 pub struct ChoiceAttributeArgs {
     #[darling(default)]
-    pub serialize_all: Option<String>,
+    pub rename_all: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Display, EnumIter, EnumString)]

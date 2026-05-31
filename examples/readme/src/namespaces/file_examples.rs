@@ -7,7 +7,7 @@ pub struct Dialog {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
+#[fluent_label(origin = true)]
 #[fluent(namespace = file)]
 pub enum Status {
     Active,

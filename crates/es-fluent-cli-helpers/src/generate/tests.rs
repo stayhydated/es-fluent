@@ -23,6 +23,14 @@ static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
     module_path: "test_crate",
     namespace: Some(NamespaceRule::Literal(Cow::Borrowed("errors"))),
 };
+static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo {
+    type_kind: TypeKind::Struct,
+    type_name: "InvalidNamespaceType",
+    variants: EMPTY_VARIANTS,
+    file_path: "src/lib.rs",
+    module_path: "test_crate",
+    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("../escape"))),
+};
 static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant {
     name: "Key1",
     ftl_key: "group_a-Key1",
@@ -315,6 +323,23 @@ fn validate_namespaces_allows_configured_namespaces_only() {
             type_name,
             ..
         } if namespace == "errors" && type_name == "DisallowedType"
+    ));
+}
+
+#[test]
+fn validate_namespaces_rejects_malformed_namespace_paths() {
+    let temp = tempfile::tempdir().expect("tempdir");
+
+    let err = super::inventory::validate_namespaces(&[&INVALID_NAMESPACE_INFO], temp.path())
+        .expect_err("malformed namespace should fail");
+
+    assert!(matches!(
+        err,
+        GeneratorError::InvalidNamespacePath {
+            namespace,
+            type_name,
+            details: es_fluent_shared::namespace::NamespacePathError::CurrentOrParentSegment,
+        } if namespace == "../escape" && type_name == "InvalidNamespaceType"
     ));
 }
 

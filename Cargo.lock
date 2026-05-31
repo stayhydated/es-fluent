@@ -5064,6 +5064,7 @@ dependencies = [
 name = "es-fluent-lang-macro"
 version = "0.16.0"
 dependencies = [
+ "es-fluent-derive-core",
  "es-fluent-toml",
  "heck 0.5.0",
  "insta",
@@ -11974,6 +11975,7 @@ dependencies = [
 name = "stayhydated-site"
 version = "0.1.0"
 dependencies = [
+ "bon",
  "dioxus",
  "dioxus-server",
 ]

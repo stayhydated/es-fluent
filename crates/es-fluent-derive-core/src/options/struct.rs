@@ -116,7 +116,7 @@ mod tests {
             struct LoginForm {
                 #[fluent(default)]
                 username: String,
-                #[fluent(choice, value = "|v: &String| v.len()")]
+                #[fluent(choice, value = |v: &String| v.len())]
                 role: String,
                 #[fluent(skip)]
                 hidden: bool,
@@ -131,11 +131,11 @@ mod tests {
 
         let fields = opts.fields();
         assert_eq!(fields.len(), 2);
-        assert_eq!(fields[0].fluent_arg_name(0), "username");
+        assert_eq!(fields[0].fluent_arg(0), "username");
         assert!(fields[0].is_default());
         assert!(!fields[0].is_choice());
 
-        assert_eq!(fields[1].fluent_arg_name(1), "role");
+        assert_eq!(fields[1].fluent_arg(1), "role");
         assert!(fields[1].is_choice());
         let value_expr = fields[1]
             .value()
@@ -160,34 +160,34 @@ mod tests {
         let tuple_opts = StructOpts::from_derive_input(&tuple_input).expect("tuple struct parse");
         let tuple_fields = tuple_opts.fields();
         assert_eq!(tuple_fields.len(), 2);
-        assert_eq!(tuple_fields[0].fluent_arg_name(1), "f1");
-        assert_eq!(tuple_fields[1].fluent_arg_name(2), "f2");
+        assert_eq!(tuple_fields[0].fluent_arg(1), "f1");
+        assert_eq!(tuple_fields[1].fluent_arg(2), "f2");
     }
 
     #[test]
-    fn struct_field_arg_name_overrides_work_for_named_and_tuple() {
+    fn struct_field_arg_overrides_work_for_named_and_tuple() {
         let named_input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             struct Named {
-                #[fluent(arg_name = "display_name")]
+                #[fluent(arg = "display_name")]
                 name: String,
                 value: String,
             }
         };
         let named_opts = StructOpts::from_derive_input(&named_input).expect("named parse");
         let named_fields = named_opts.fields();
-        assert_eq!(named_fields[0].fluent_arg_name(0), "display_name");
-        assert_eq!(named_fields[1].fluent_arg_name(1), "value");
+        assert_eq!(named_fields[0].fluent_arg(0), "display_name");
+        assert_eq!(named_fields[1].fluent_arg(1), "value");
 
         let tuple_input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            struct Tuple(String, #[fluent(arg_name = "f1")] String, String);
+            struct Tuple(String, #[fluent(arg = "f1")] String, String);
         };
         let tuple_opts = StructOpts::from_derive_input(&tuple_input).expect("tuple parse");
         let tuple_fields = tuple_opts.fields();
-        assert_eq!(tuple_fields[0].fluent_arg_name(0), "f0");
-        assert_eq!(tuple_fields[1].fluent_arg_name(1), "f1");
-        assert_eq!(tuple_fields[2].fluent_arg_name(2), "f2");
+        assert_eq!(tuple_fields[0].fluent_arg(0), "f0");
+        assert_eq!(tuple_fields[1].fluent_arg(1), "f1");
+        assert_eq!(tuple_fields[2].fluent_arg(2), "f2");
     }
 
     #[test]

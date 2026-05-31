@@ -53,16 +53,23 @@ crate_root/
 
 The detailed steps are:
 
+1. **Parse Attributes**: The `mode = "builtin"` / `mode = "custom"` argument is parsed through the shared derive-core attribute diagnostic types with `LanguageContainer` context.
 1. **Read Configuration**: The macro reads `i18n.toml` from the crate manifest directory (using `es-fluent-toml`) to determine the `assets_dir` and `fallback_language`. That config layer already enforces canonical locale tags.
 1. **Scan Assets**: It scans the configured assets directory for locale subdirectories. Non-canonical locale directory names are rejected during discovery instead of being silently normalized later.
 1. **Auto-Insert Fallback**: If the `fallback_language` from `i18n.toml` is not found in the assets directory, it is automatically added to the enum.
 1. **Deduplicate**: Languages are sorted alphabetically and deduplicated by their string representation.
+1. **Build Semantic Metadata**: The discovered languages are converted into a
+   `LanguageEnumModel`, which wraps derive-core `GeneratedEnumModel` and
+   `MessageEntryModel` values. Each canonical language key is validated once
+   before token emission.
 1. **Generate Enum**:
    - The user provides an **empty enum**.
    - The macro populates it with variants corresponding to the discovered language codes (converted to PascalCase).
    - Variant keys stay canonical in both default mode and custom mode (for example, `fr-FR` stays `fr-FR`).
    - It implements helper traits for converting between the enum and language identifiers (`From`, `TryFrom`, `FromStr`).
    - It implements `Default` based on the fallback language defined in `i18n.toml`.
+   - `FluentMessage` lookup arms and custom-mode inventory metadata consume the
+     same semantic message entries.
 
 ## Modes
 
@@ -76,30 +83,32 @@ It generates:
 #[es_fluent_language]
 pub enum Languages {}
 // Becomes ->
-#[derive(EsFluent, ...)]
-#[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang", skip_inventory)]
 pub enum Languages {
     En,
     FrFr,
     ZhCn, // PascalCase from language code
 }
+
+impl es_fluent::FluentMessage for Languages {
+    // routes lookups to the built-in es-fluent-lang domain
+}
 ```
 
 - **Expansion**: The empty enum is populated with variants derived from the folder names (converted to PascalCase).
-- `resource = "es-fluent-lang"`: Links to the built-in runtime domain.
-- `skip_inventory`: Skips registration because these are generic language names, not user-app content.
+- **FluentMessage**: The macro emits the lookup implementation from the semantic language model instead of injecting synthetic `#[fluent]` attributes for `EsFluent`.
+- **Inventory**: Default mode skips registration because these are generic language names, not user-app content.
 
-### Custom Mode (`custom`)
+### Custom Mode (`mode = "custom"`)
 
 If you want to provide your own translations for language names, use the `custom` argument:
 
 ```rs
-#[es_fluent_language(custom)]
+#[es_fluent_language(mode = "custom")]
 enum Languages {}
 ```
 
 In this mode:
 
 1. **No Resource Link**: It does _not_ add `resource = "es-fluent-lang"`.
-1. **Inventory Registration**: It does _not_ skip inventory. The enum is registered like any other localized type.
+1. **Inventory Registration**: It emits inventory metadata from the same semantic message entries used for `FluentMessage`. The enum is registered like any other localized type.
 1. **Skeleton Generation**: The CLI will detect this registration and generate skeleton Fluent keys (e.g., `languages-en`, `languages-fr-FR`, `languages-zh-CN`) in your project's FTL files, which you can then translate manually.

@@ -109,11 +109,11 @@ impl DioxusI18nAssetResource {
     }
 
     fn spec(&self) -> ModuleResourceSpec {
-        ModuleResourceSpec {
-            key: ResourceKey::new(self.key),
-            locale_relative_path: self.locale_relative_path.to_string(),
-            required: self.required,
-        }
+        ModuleResourceSpec::new(
+            ResourceKey::new(self.key),
+            self.locale_relative_path,
+            self.required,
+        )
     }
 }
 
@@ -1206,11 +1206,7 @@ mod tests {
     }
 
     fn base_spec() -> ModuleResourceSpec {
-        ModuleResourceSpec {
-            key: ResourceKey::new("test-app"),
-            locale_relative_path: "test-app.ftl".to_string(),
-            required: true,
-        }
+        ModuleResourceSpec::new(ResourceKey::new("test-app"), "test-app.ftl", true)
     }
 
     fn loaded_module() -> LoadedDioxusI18nAssetModule {
@@ -1264,11 +1260,8 @@ mod tests {
 
     fn loaded_fallback_module() -> LoadedDioxusI18nAssetModule {
         let lang = langid!("en");
-        let spec = ModuleResourceSpec {
-            key: ResourceKey::new("fallback-app"),
-            locale_relative_path: "fallback-app.ftl".to_string(),
-            required: true,
-        };
+        let spec =
+            ModuleResourceSpec::new(ResourceKey::new("fallback-app"), "fallback-app.ftl", true);
         LoadedDioxusI18nAssetModule {
             data: &FALLBACK_DATA,
             loaded_resources: Arc::new(HashMap::from([(
@@ -1282,16 +1275,16 @@ mod tests {
 
     fn duplicate_resource_module() -> LoadedDioxusI18nAssetModule {
         let lang = langid!("en");
-        let base_spec = ModuleResourceSpec {
-            key: ResourceKey::new("duplicate-resource-app"),
-            locale_relative_path: "duplicate-resource-app.ftl".to_string(),
-            required: false,
-        };
-        let ui_spec = ModuleResourceSpec {
-            key: ResourceKey::new("duplicate-resource-app/ui"),
-            locale_relative_path: "duplicate-resource-app/ui.ftl".to_string(),
-            required: true,
-        };
+        let base_spec = ModuleResourceSpec::new(
+            ResourceKey::new("duplicate-resource-app"),
+            "duplicate-resource-app.ftl",
+            false,
+        );
+        let ui_spec = ModuleResourceSpec::new(
+            ResourceKey::new("duplicate-resource-app/ui"),
+            "duplicate-resource-app/ui.ftl",
+            true,
+        );
         LoadedDioxusI18nAssetModule {
             data: &DUPLICATE_RESOURCE_DATA,
             loaded_resources: Arc::new(HashMap::from([

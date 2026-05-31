@@ -1,4 +1,5 @@
-use super::resource::ModuleResourceSpec;
+use super::resource::{ModuleResourceSpec, ResourcePlanError};
+use es_fluent_shared::namespace::{NamespacePathError, ResolvedNamespace};
 use std::collections::HashSet;
 use std::fmt;
 use unic_langid::LanguageIdentifier;
@@ -34,6 +35,14 @@ impl ModuleData {
     pub fn resource_plan(&self) -> Vec<ModuleResourceSpec> {
         super::resource::resource_plan_for(self.domain, self.namespaces)
     }
+
+    /// Attempts to return the global/default canonical resource plan.
+    ///
+    /// Unlike [`Self::resource_plan`], invalid namespace metadata is returned as
+    /// a typed error instead of panicking.
+    pub fn try_resource_plan(&self) -> Result<Vec<ModuleResourceSpec>, ResourcePlanError> {
+        super::resource::try_resource_plan_for(self.domain, self.namespaces)
+    }
 }
 
 /// Validation failures for a discovered module registry.
@@ -58,7 +67,7 @@ pub enum ModuleRegistryError {
     InvalidNamespace {
         module: String,
         namespace: String,
-        details: &'static str,
+        details: NamespacePathError,
     },
 }
 
@@ -148,19 +157,21 @@ pub fn validate_module_registry<'a>(
 
         let mut seen_namespaces = HashSet::new();
         for namespace in data.namespaces {
-            let trimmed = namespace.trim();
-            if let Err(details) = es_fluent_shared::namespace::validate_namespace_path(namespace) {
-                errors.push(ModuleRegistryError::InvalidNamespace {
-                    module: data.name.to_string(),
-                    namespace: namespace.to_string(),
-                    details,
-                });
-                continue;
-            }
-            if !seen_namespaces.insert(trimmed) {
+            let namespace = match ResolvedNamespace::new(*namespace) {
+                Ok(namespace) => namespace,
+                Err(details) => {
+                    errors.push(ModuleRegistryError::InvalidNamespace {
+                        module: data.name.to_string(),
+                        namespace: namespace.to_string(),
+                        details,
+                    });
+                    continue;
+                },
+            };
+            if !seen_namespaces.insert(namespace.clone()) {
                 errors.push(ModuleRegistryError::DuplicateNamespace {
                     module: data.name.to_string(),
-                    namespace: trimmed.to_string(),
+                    namespace: namespace.to_string(),
                 });
             }
         }
@@ -329,9 +340,9 @@ mod tests {
                 ModuleRegistryError::InvalidNamespace {
                     module: "demo".to_string(),
                     namespace: "../ui".to_string(),
-                    details: "must not contain '..' segments",
+                    details: NamespacePathError::CurrentOrParentSegment,
                 },
-                "module 'demo' has invalid namespace '../ui': must not contain '..' segments",
+                "module 'demo' has invalid namespace '../ui': namespace path must not contain '.' or '..' segments",
             ),
         ];
 

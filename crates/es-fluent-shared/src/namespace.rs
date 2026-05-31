@@ -2,8 +2,87 @@
 use darling::FromMeta;
 use std::{
     borrow::Cow,
+    fmt,
     path::{Component, Path},
 };
+
+use crate::resource::ResourceKey;
+
+/// Validation failures for resolved namespace paths.
+#[derive(Clone, Copy, Debug, Eq, thiserror::Error, PartialEq)]
+pub enum NamespacePathError {
+    /// The namespace is empty after trimming.
+    #[error("namespace must not be empty")]
+    Empty,
+    /// The namespace has leading or trailing whitespace.
+    #[error("namespace must not have leading or trailing whitespace")]
+    OuterWhitespace,
+    /// The namespace uses a Windows-style separator.
+    #[error("namespace must use '/' as path separator")]
+    BackslashSeparator,
+    /// The namespace contains an empty path segment.
+    #[error("namespace path must not contain empty segments")]
+    EmptySegment,
+    /// The namespace contains `.` or `..`.
+    #[error("namespace path must not contain '.' or '..' segments")]
+    CurrentOrParentSegment,
+    /// The namespace resolves as an absolute path.
+    #[error("namespace must be a relative path")]
+    AbsolutePath,
+    /// The namespace includes the `.ftl` suffix.
+    #[error("namespace must not include file extension")]
+    FileExtension,
+}
+
+impl NamespacePathError {
+    /// Returns the stable validation detail used by existing diagnostics.
+    pub fn details(self) -> &'static str {
+        match self {
+            Self::Empty => "namespace must not be empty",
+            Self::OuterWhitespace => "namespace must not have leading or trailing whitespace",
+            Self::BackslashSeparator => "namespace must use '/' as path separator",
+            Self::EmptySegment => "namespace path must not contain empty segments",
+            Self::CurrentOrParentSegment => "namespace path must not contain '.' or '..' segments",
+            Self::AbsolutePath => "namespace must be a relative path",
+            Self::FileExtension => "namespace must not include file extension",
+        }
+    }
+}
+
+/// A namespace path that has been validated for locale-relative resource use.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ResolvedNamespace(String);
+
+impl ResolvedNamespace {
+    /// Creates a validated resolved namespace.
+    pub fn new(namespace: impl Into<String>) -> Result<Self, NamespacePathError> {
+        let namespace = namespace.into();
+        validate_namespace_path_typed(&namespace)?;
+        Ok(Self(namespace))
+    }
+
+    /// Returns the namespace as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Returns the resource key for this namespace under the given domain.
+    pub fn resource_key(&self, domain: &str) -> ResourceKey {
+        ResourceKey::new(format!("{domain}/{}", self.as_str()))
+    }
+}
+
+impl AsRef<str> for ResolvedNamespace {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl fmt::Display for ResolvedNamespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 /// Namespace selection rules for FTL file output.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -35,37 +114,51 @@ impl NamespaceRule {
             },
         }
     }
+
+    /// Resolve and validate the namespace string using the given file path.
+    pub fn try_resolve(
+        &self,
+        file_path: &str,
+        manifest_dir: Option<&Path>,
+    ) -> Result<ResolvedNamespace, NamespacePathError> {
+        ResolvedNamespace::new(self.resolve(file_path, manifest_dir))
+    }
 }
 
 /// Validate a resolved namespace before using it as a relative output path.
 pub fn validate_namespace_path(namespace: &str) -> Result<(), &'static str> {
+    validate_namespace_path_typed(namespace).map_err(NamespacePathError::details)
+}
+
+/// Validate a resolved namespace and return a typed validation failure.
+pub fn validate_namespace_path_typed(namespace: &str) -> Result<(), NamespacePathError> {
     let trimmed = namespace.trim();
     if trimmed.is_empty() {
-        return Err("namespace must not be empty");
+        return Err(NamespacePathError::Empty);
     }
     if namespace != trimmed {
-        return Err("namespace must not have leading or trailing whitespace");
+        return Err(NamespacePathError::OuterWhitespace);
     }
     if trimmed.contains('\\') {
-        return Err("namespace must use '/' as path separator");
+        return Err(NamespacePathError::BackslashSeparator);
     }
     if trimmed.split('/').any(|segment| segment.is_empty()) {
-        return Err("namespace path must not contain empty segments");
+        return Err(NamespacePathError::EmptySegment);
     }
     if trimmed
         .split('/')
         .any(|segment| matches!(segment, "." | ".."))
     {
-        return Err("namespace path must not contain '.' or '..' segments");
+        return Err(NamespacePathError::CurrentOrParentSegment);
     }
     if Path::new(trimmed)
         .components()
         .any(|component| matches!(component, Component::RootDir | Component::Prefix(_)))
     {
-        return Err("namespace must be a relative path");
+        return Err(NamespacePathError::AbsolutePath);
     }
     if trimmed.ends_with(".ftl") {
-        return Err("namespace must not include file extension");
+        return Err(NamespacePathError::FileExtension);
     }
 
     Ok(())
@@ -82,89 +175,43 @@ impl FromMeta for NamespaceRule {
                 {
                     Ok(Self::Literal(Cow::Owned(s.value())))
                 } else if let syn::Expr::Path(path) = &nv.value {
-                    if path.path.is_ident("file") {
-                        Ok(Self::File)
-                    } else if path.path.is_ident("folder") {
-                        Ok(Self::Folder)
-                    } else {
-                        Err(darling::Error::custom(
-                            "expected string literal, 'file', or 'folder' identifier",
-                        ))
-                    }
-                } else if let syn::Expr::Call(call) = &nv.value {
-                    parse_relative_namespace(call)
+                    parse_namespace_ident(path)
                 } else {
                     Err(darling::Error::unexpected_type(
-                        "expected string literal, 'file', or 'folder'",
+                        "expected string literal, 'file', 'file_relative', 'folder', or 'folder_relative'",
                     ))
                 }
             },
-            syn::Meta::List(list) => {
-                let expr: syn::Expr = syn::parse2(list.tokens.clone()).map_err(|_| {
-                    darling::Error::custom(
-                        "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
-                    )
-                })?;
-
-                match expr {
-                    syn::Expr::Path(path) => {
-                        if path.path.is_ident("file") {
-                            Ok(Self::File)
-                        } else if path.path.is_ident("folder") {
-                            Ok(Self::Folder)
-                        } else {
-                            Err(darling::Error::custom(
-                                "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
-                            ))
-                        }
-                    },
-                    syn::Expr::Call(call) => parse_relative_namespace(&call),
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(lit),
-                        ..
-                    }) => Ok(Self::Literal(Cow::Owned(lit.value()))),
-                    _ => Err(darling::Error::custom(
-                        "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
-                    )),
-                }
-            },
+            syn::Meta::List(_) => Err(darling::Error::unsupported_format(
+                "expected namespace = \"value\", namespace = file, namespace = file_relative, namespace = folder, or namespace = folder_relative",
+            )),
             _ => Err(darling::Error::unsupported_format(
-                "expected namespace = \"value\", namespace = file|folder, or namespace = file(relative)|folder(relative)",
+                "expected namespace = \"value\", namespace = file, namespace = file_relative, namespace = folder, or namespace = folder_relative",
             )),
         }
     }
 }
 
-fn parse_relative_namespace(call: &syn::ExprCall) -> darling::Result<NamespaceRule> {
-    let Some((target, arg)) = parse_single_ident_call(call) else {
-        return Err(darling::Error::custom(
-            "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
-        ));
+fn parse_namespace_ident(path: &syn::ExprPath) -> darling::Result<NamespaceRule> {
+    let Some(ident) = path.path.get_ident() else {
+        return Err(expected_namespace_value_error());
     };
 
-    match (target.as_str(), arg.as_str()) {
-        ("file", "relative") => Ok(NamespaceRule::FileRelative),
-        ("folder", "relative") => Ok(NamespaceRule::FolderRelative),
+    match ident.to_string().as_str() {
+        "file" => Ok(NamespaceRule::File),
+        "file_relative" => Ok(NamespaceRule::FileRelative),
+        "folder" => Ok(NamespaceRule::Folder),
+        "folder_relative" => Ok(NamespaceRule::FolderRelative),
         _ => Err(darling::Error::custom(
-            "expected string literal, 'file', 'folder', 'file(relative)', or 'folder(relative)'",
+            "expected string literal, 'file', 'file_relative', 'folder', or 'folder_relative' identifier",
         )),
     }
 }
 
-fn parse_single_ident_call(call: &syn::ExprCall) -> Option<(String, String)> {
-    let syn::Expr::Path(target_path) = call.func.as_ref() else {
-        return None;
-    };
-    if call.args.len() != 1 {
-        return None;
-    }
-    let arg = call.args.first()?;
-    let syn::Expr::Path(arg_path) = arg else {
-        return None;
-    };
-    let target = target_path.path.get_ident()?.to_string();
-    let arg = arg_path.path.get_ident()?.to_string();
-    Some((target, arg))
+fn expected_namespace_value_error() -> darling::Error {
+    darling::Error::custom(
+        "expected string literal, 'file', 'file_relative', 'folder', or 'folder_relative' identifier",
+    )
 }
 
 #[cfg(test)]
@@ -194,9 +241,21 @@ mod tests {
             NamespaceRule::File
         ));
 
-        let folder_meta: syn::Meta = parse_quote!(namespace(folder(relative)));
+        let file_relative_meta: syn::Meta = parse_quote!(namespace = file_relative);
+        assert!(matches!(
+            NamespaceRule::from_meta(&file_relative_meta).unwrap(),
+            NamespaceRule::FileRelative
+        ));
+
+        let folder_meta: syn::Meta = parse_quote!(namespace = folder);
         assert!(matches!(
             NamespaceRule::from_meta(&folder_meta).unwrap(),
+            NamespaceRule::Folder
+        ));
+
+        let folder_relative_meta: syn::Meta = parse_quote!(namespace = folder_relative);
+        assert!(matches!(
+            NamespaceRule::from_meta(&folder_relative_meta).unwrap(),
             NamespaceRule::FolderRelative
         ));
     }
@@ -214,6 +273,32 @@ mod tests {
     }
 
     #[test]
+    fn resolved_namespace_builds_resource_keys() {
+        let namespace = ResolvedNamespace::new("ui/button").unwrap();
+
+        assert_eq!(namespace.as_str(), "ui/button");
+        assert_eq!(namespace.resource_key("demo").as_str(), "demo/ui/button");
+        assert_eq!(namespace.to_string(), "ui/button");
+    }
+
+    #[test]
+    fn namespace_rule_try_resolve_validates_output() {
+        let ns = NamespaceRule::FileRelative
+            .try_resolve("src/ui/button.rs", None)
+            .unwrap();
+        assert_eq!(ns.as_str(), "ui/button");
+
+        let err = NamespaceRule::Literal(Cow::Borrowed("../escape"))
+            .try_resolve("src/ui/button.rs", None)
+            .unwrap_err();
+        assert_eq!(err, NamespacePathError::CurrentOrParentSegment);
+        assert_eq!(
+            err.details(),
+            "namespace path must not contain '.' or '..' segments"
+        );
+    }
+
+    #[test]
     fn relative_namespace_resolution_normalizes_parent_segments() {
         assert_eq!(
             NamespaceRule::FileRelative.resolve("src/ui/../button.rs", None),
@@ -226,29 +311,12 @@ mod tests {
     }
 
     #[test]
-    fn namespace_rule_parses_list_and_name_value_relative_forms() {
-        let file_relative_meta: syn::Meta = parse_quote!(namespace = file(relative));
-        assert!(matches!(
-            NamespaceRule::from_meta(&file_relative_meta).unwrap(),
-            NamespaceRule::FileRelative
-        ));
-
-        let folder_meta: syn::Meta = parse_quote!(namespace(folder));
-        assert!(matches!(
-            NamespaceRule::from_meta(&folder_meta).unwrap(),
-            NamespaceRule::Folder
-        ));
-
-        let literal_meta: syn::Meta = parse_quote!(namespace("ui/list"));
-        assert!(matches!(
-            NamespaceRule::from_meta(&literal_meta).unwrap(),
-            NamespaceRule::Literal(ref value) if value == "ui/list"
-        ));
-    }
-
-    #[test]
     fn validate_namespace_path_rejects_unsafe_values() {
         assert!(validate_namespace_path("ui/button").is_ok());
+        assert_eq!(
+            validate_namespace_path_typed("../escape").unwrap_err(),
+            NamespacePathError::CurrentOrParentSegment
+        );
         assert_eq!(
             validate_namespace_path("").unwrap_err(),
             "namespace must not be empty"
@@ -290,25 +358,19 @@ mod tests {
         let unsupported_name_value_literal: syn::Meta = parse_quote!(namespace = 42);
         assert!(NamespaceRule::from_meta(&unsupported_name_value_literal).is_err());
 
-        let unknown_list_path: syn::Meta = parse_quote!(namespace(module));
-        assert!(NamespaceRule::from_meta(&unknown_list_path).is_err());
-
-        let unsupported_list_literal: syn::Meta = parse_quote!(namespace(42));
-        assert!(NamespaceRule::from_meta(&unsupported_list_literal).is_err());
-    }
-
-    #[test]
-    fn relative_namespace_calls_require_supported_single_ident_arguments() {
         let unknown_target: syn::Meta = parse_quote!(namespace(module(relative)));
         assert!(NamespaceRule::from_meta(&unknown_target).is_err());
 
-        let unknown_argument: syn::Meta = parse_quote!(namespace(file(crate_root)));
-        assert!(NamespaceRule::from_meta(&unknown_argument).is_err());
+        let list_folder: syn::Meta = parse_quote!(namespace(folder));
+        assert!(NamespaceRule::from_meta(&list_folder).is_err());
+
+        let list_literal: syn::Meta = parse_quote!(namespace("ui/list"));
+        assert!(NamespaceRule::from_meta(&list_literal).is_err());
+
+        let legacy_name_value_call: syn::Meta = parse_quote!(namespace = file(relative));
+        assert!(NamespaceRule::from_meta(&legacy_name_value_call).is_err());
 
         let multiple_arguments: syn::Meta = parse_quote!(namespace(file(relative, extra)));
         assert!(NamespaceRule::from_meta(&multiple_arguments).is_err());
-
-        let literal_argument: syn::Meta = parse_quote!(namespace(file("relative")));
-        assert!(NamespaceRule::from_meta(&literal_argument).is_err());
     }
 }

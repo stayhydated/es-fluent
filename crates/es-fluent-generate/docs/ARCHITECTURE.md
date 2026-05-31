@@ -6,6 +6,12 @@ This document details the architecture of the `es-fluent-generate` crate, which 
 
 `es-fluent-generate` is the backend logic used by `es-fluent-cli-helpers` to physically write translation files. It translates the abstract `FtlTypeInfo` structures into concrete Fluent syntax, while providing sophisticated diffing and merging capabilities to preserve manual edits. When namespaces are present, it splits output into multiple files.
 
+Registered inventory metadata is converted into an owned generator model before
+AST output or merge logic runs. That conversion validates keys as
+`FluentEntryId` values and variables as `FluentArgumentName` values from
+`es-fluent-shared`, so invalid registered metadata fails before it can become a
+partially written `.ftl` file.
+
 ## Architecture
 
 The crate operates on the Fluent Abstract Syntax Tree (AST) provided by the `fluent-syntax` crate, rather than manipulating strings directly.
@@ -74,6 +80,9 @@ If any `FtlTypeInfo` carries a namespace, items are grouped by that namespace an
 - `assets_dir/{locale}/{crate}.ftl` for non-namespaced types (default).
 
 This lets large projects split translations by namespace without changing key formats.
+Output planning carries `ModuleResourceSpec` values from `es-fluent-shared`,
+so generation, clean mode, manager macros, and manager-core use the same
+`ResourceKey` and `LocaleRelativeFtlPath` construction rules.
 
 ### Deterministic Output
 
@@ -87,6 +96,7 @@ The crate uses `IndexMap` instead of `HashMap` for internal data structures to e
 
 - `formatting`: Logic for sorting (including `_label` priority) and comparing entries.
 - `value`: Expansion of placeables and text elements.
+- `model`: Owned, validated generator metadata derived from `FtlTypeInfo`.
 - `clean`: Logic for the `clean` command (identifying and removing orphaned keys
   and stale namespaced files).
 - `error`: Error handling types (`FluentGenerateError`).

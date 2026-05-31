@@ -1,5 +1,6 @@
 use es_fluent_shared::EsFluentResult;
 use es_fluent_shared::registry::FtlTypeInfo;
+use es_fluent_shared::resource::ModuleResourceSpec;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,14 +20,15 @@ pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
     let operation = crate::pipeline::OutputOperation::Clean;
     let planned_outputs =
         crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)?;
-    let main_file_path = i18n_path.join(format!("{}.ftl", crate_name));
+    let main_resource = ModuleResourceSpec::base(crate_name, true);
+    let main_file_path = i18n_path.join(main_resource.locale_relative_path.as_str());
     let has_main_output = planned_outputs
         .iter()
-        .any(|output| output.file_path == main_file_path);
+        .any(|output| output.resource.key == main_resource.key);
     let expected_namespace_files = planned_outputs
         .iter()
+        .filter(|output| output.resource.key != main_resource.key)
         .map(|output| output.file_path.clone())
-        .filter(|path| path.starts_with(i18n_path.join(crate_name)))
         .collect::<HashSet<_>>();
 
     for output in planned_outputs {

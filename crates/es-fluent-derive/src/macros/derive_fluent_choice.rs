@@ -1,10 +1,8 @@
 //! This module provides the implementation of the `EsFluentChoice` derive macro.
 
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::options::choice::{CaseStyle, ChoiceOpts};
-use es_fluent_shared::namer;
+use es_fluent_derive_core::{options::choice::ChoiceOpts, semantic::ChoiceModel};
 use quote::quote;
-use strum::IntoEnumIterator as _;
 use syn::{DeriveInput, parse_macro_input};
 
 /// The entry point for the `EsFluentChoice` derive macro.
@@ -19,39 +17,31 @@ fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
         Err(err) => return err.write_errors(),
     };
 
-    let enum_ident = opts.ident();
-    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
-
     let variants = match opts.data() {
         darling::ast::Data::Enum(variants) => variants,
         _ => unreachable!(),
     };
 
-    let serialize_fn: Box<dyn Fn(&str) -> String> =
-        if let Some(case) = opts.attr_args().serialize_all().as_deref() {
-            match case.parse::<CaseStyle>() {
-                Ok(case_style) => Box::new(move |s: &str| case_style.apply(s)),
-                Err(msg) => {
-                    let supported = CaseStyle::iter()
-                        .map(|c| c.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    return syn::Error::new(
-                        enum_ident.span(),
-                        format!("{}. Supported values are: {}", msg, supported),
-                    )
-                    .to_compile_error();
-                },
-            }
-        } else {
-            Box::new(|s: &str| s.to_string())
-        };
+    let enum_ident = opts.ident();
+    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
 
-    let match_arms = variants.iter().map(|variant| {
-        let variant_ident = &variant.ident;
-        let serialized_name = serialize_fn(&namer::rust_ident_name(variant_ident));
+    let choice_model = match ChoiceModel::from_variant_idents(
+        enum_ident,
+        variants.iter().map(|variant| &variant.ident),
+        opts.attr_args().rename_all().as_deref(),
+    ) {
+        Ok(model) => model,
+        Err(err) => {
+            let span = err.span().unwrap_or_else(|| enum_ident.span());
+            return syn::Error::new(span, err.to_string()).to_compile_error();
+        },
+    };
+
+    let match_arms = choice_model.variants().iter().map(|variant| {
+        let variant_ident = syn::Ident::new(variant.ident(), variant.span());
+        let choice_value = variant.value();
         quote! {
-            Self::#variant_ident => #serialized_name
+            Self::#variant_ident => #choice_value
         }
     });
 
@@ -74,7 +64,7 @@ mod tests {
     use syn::parse_quote;
 
     #[test]
-    fn expand_choice_generates_expected_tokens_for_default_and_serialized_modes() {
+    fn expand_choice_generates_expected_tokens_for_default_and_renamed_modes() {
         let default_input: syn::DeriveInput = parse_quote! {
             enum ChoiceDefault {
                 VeryHigh
@@ -88,7 +78,7 @@ mod tests {
         );
 
         let snake_input: syn::DeriveInput = parse_quote! {
-            #[fluent_choice(serialize_all = "snake_case")]
+            #[fluent_choice(rename_all = "snake_case")]
             enum ChoiceSnake {
                 VeryHigh
             }
@@ -102,9 +92,9 @@ mod tests {
     }
 
     #[test]
-    fn expand_choice_emits_compile_error_for_invalid_serialize_all() {
+    fn expand_choice_emits_compile_error_for_invalid_rename_all() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_choice(serialize_all = "not_a_style")]
+            #[fluent_choice(rename_all = "not_a_style")]
             enum BadChoice {
                 A
             }
@@ -112,7 +102,7 @@ mod tests {
 
         let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_choice(input));
         assert_snapshot!(
-            "expand_choice_emits_compile_error_for_invalid_serialize_all",
+            "expand_choice_emits_compile_error_for_invalid_rename_all",
             tokens
         );
     }

@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
 use crate::site::constants::SITE_URL;
+use stayhydated_site::routing::{Href, SiteUrl};
 
 #[cfg(test)]
 use crate::site::i18n::app_dioxus_i18n_asset_modules;
@@ -41,10 +42,10 @@ pub(crate) fn render_sitemap() -> String {
         .map(|route| route.path())
         .collect::<Vec<_>>();
     paths.extend([
-        "/book/".to_string(),
-        "/llms.txt".to_string(),
-        "/llms-full.txt".to_string(),
+        Href::new("/book/"),
+        Href::new("/llms.txt"),
+        Href::new("/llms-full.txt"),
     ]);
 
-    stayhydated_site::sitemap::render(SITE_URL, paths)
+    stayhydated_site::sitemap::render(&SiteUrl::new(SITE_URL), paths)
 }

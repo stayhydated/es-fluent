@@ -1,15 +1,16 @@
 //! Inventory collection functionality for CLI commands.
 
 use es_fluent_runner::{ExpectedKey, InventoryData, RunnerMetadataStore};
+use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::source::{SourceFile, SourceLine};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 /// Intermediate metadata for a key during collection.
-#[derive(Default)]
 struct KeyMeta {
-    variables: HashSet<String>,
-    source_file: Option<String>,
-    source_line: Option<u32>,
+    variables: HashSet<FluentArgumentName>,
+    source_file: Option<SourceFile>,
+    source_line: SourceLine,
 }
 
 /// Collects inventory data for a crate and writes it to `inventory.json`.
@@ -33,19 +34,29 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
         .collect();
 
     // Build a map of expected keys with their metadata
-    let mut keys_map: HashMap<String, KeyMeta> = HashMap::new();
+    let mut keys_map: HashMap<FluentEntryId, KeyMeta> = HashMap::new();
     for info in &type_infos {
         for variant in info.variants {
-            let key = variant.ftl_key.to_string();
-            let vars: HashSet<String> = variant.args.iter().map(|s| s.to_string()).collect();
+            let key = variant.entry_id().map_err(|err| {
+                es_fluent_runner::RunnerIoError::Message(format!(
+                    "invalid inventory key '{}' for type '{}': {err}",
+                    variant.ftl_key, info.type_name
+                ))
+            })?;
+            let vars: HashSet<FluentArgumentName> = variant
+                .argument_names()
+                .map_err(|err| {
+                    es_fluent_runner::RunnerIoError::Message(format!(
+                        "invalid inventory arguments for key '{}' on type '{}': {err}",
+                        variant.ftl_key, info.type_name
+                    ))
+                })?
+                .into_iter()
+                .collect();
             let entry = keys_map.entry(key).or_insert_with(|| KeyMeta {
                 variables: HashSet::new(),
-                source_file: if info.file_path.is_empty() {
-                    None
-                } else {
-                    Some(info.file_path.to_string())
-                },
-                source_line: Some(variant.line),
+                source_file: info.source_file(),
+                source_line: variant.source_line(),
             });
             entry.variables.extend(vars);
             // Keep the first source location we encounter
@@ -56,10 +67,14 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
     let expected_keys: Vec<ExpectedKey> = keys_map
         .into_iter()
         .map(|(key, meta)| ExpectedKey {
-            key,
-            variables: meta.variables.into_iter().collect(),
-            source_file: meta.source_file,
-            source_line: meta.source_line,
+            key: key.into_string(),
+            variables: meta
+                .variables
+                .into_iter()
+                .map(FluentArgumentName::into_string)
+                .collect(),
+            source_file: meta.source_file.map(|file| file.to_string()),
+            source_line: Some(meta.source_line.get()),
         })
         .collect();
 
@@ -125,6 +140,27 @@ mod tests {
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&INFO_NO_FILE)
+    }
+
+    static INVALID_VARIANTS: &[FtlVariant] = &[FtlVariant {
+        name: "Invalid",
+        ftl_key: "_invalid",
+        args: &[],
+        module_path: "test_crate_invalid_inventory",
+        line: 1,
+    }];
+
+    static INVALID_INFO: FtlTypeInfo = FtlTypeInfo {
+        type_kind: TypeKind::Struct,
+        type_name: "InvalidInventoryType",
+        variants: INVALID_VARIANTS,
+        file_path: "src/lib.rs",
+        module_path: "test_crate_invalid_inventory",
+        namespace: None,
+    };
+
+    es_fluent::__inventory::submit! {
+        RegisteredFtlType(&INVALID_INFO)
     }
 
     fn with_temp_cwd<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
@@ -206,6 +242,19 @@ mod tests {
             assert_eq!(key["key"], "empty_file_key");
             assert!(key["source_file"].is_null());
             assert_eq!(key["source_line"], 7);
+        });
+    }
+
+    #[test]
+    fn write_inventory_rejects_invalid_registered_keys() {
+        with_temp_cwd(|_| {
+            let err = write_inventory_for_crate("test-crate-invalid-inventory")
+                .expect_err("invalid inventory should fail");
+
+            assert!(
+                err.to_string()
+                    .contains("invalid inventory key '_invalid' for type 'InvalidInventoryType'")
+            );
         });
     }
 }

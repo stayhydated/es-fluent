@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-manager-macros/src/assets.rs
+assertion_line: 406
 expression: assets
 ---
 I18nAssets {
@@ -15,9 +16,13 @@ I18nAssets {
         (
             "en",
             [
-                ResourceSpec {
-                    key: "my-crate",
-                    locale_relative_path: "my-crate.ftl",
+                ModuleResourceSpec {
+                    key: ResourceKey(
+                        "my-crate",
+                    ),
+                    locale_relative_path: LocaleRelativeFtlPath(
+                        "my-crate.ftl",
+                    ),
                     required: false,
                 },
             ],
@@ -25,9 +30,13 @@ I18nAssets {
         (
             "fr",
             [
-                ResourceSpec {
-                    key: "my-crate/ui",
-                    locale_relative_path: "my-crate/ui.ftl",
+                ModuleResourceSpec {
+                    key: ResourceKey(
+                        "my-crate/ui",
+                    ),
+                    locale_relative_path: LocaleRelativeFtlPath(
+                        "my-crate/ui.ftl",
+                    ),
                     required: true,
                 },
             ],

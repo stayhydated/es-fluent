@@ -155,11 +155,7 @@ mod tests {
     use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
-        ModuleResourceSpec {
-            key: ResourceKey::new(key),
-            locale_relative_path: format!("{key}.ftl"),
-            required,
-        }
+        ModuleResourceSpec::new(ResourceKey::new(key), format!("{key}.ftl"), required)
     }
 
     #[test]

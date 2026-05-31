@@ -2,17 +2,34 @@
 source: crates/es-fluent-lang-macro/src/lib.rs
 expression: pretty_tokens(&output)
 ---
-#[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang", skip_inventory)]
 enum Languages {
-    #[fluent(key = "en-US")]
     EnUs,
-    #[fluent(key = "zz")]
     Zz,
 }
 #[cfg(target_arch = "wasm32")]
 #[doc(hidden)]
 #[used]
 static __ES_FLUENT_LANG_FORCE_LINK_Languages: fn() -> usize = ::es_fluent_lang::force_link;
+impl ::es_fluent::FluentMessage for Languages {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
+        match self {
+            Self::EnUs => localize("es-fluent-lang", "en-US", None),
+            Self::Zz => localize("es-fluent-lang", "zz", None),
+        }
+    }
+}
 impl From<Languages> for es_fluent::unic_langid::LanguageIdentifier {
     fn from(val: Languages) -> Self {
         match val {

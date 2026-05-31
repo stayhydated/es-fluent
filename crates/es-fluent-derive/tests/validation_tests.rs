@@ -110,26 +110,28 @@ fn validate_struct_skip_and_default_conflict_produces_error() {
 }
 
 #[test]
-fn parse_rejects_variant_level_arg_name() {
+fn parse_rejects_variant_level_arg() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         pub enum TestEnum {
-            #[fluent(arg_name = "value")]
+            #[fluent(arg = "value")]
             Something(String),
         }
     };
 
     let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
-    assert!(err.to_string().contains("arg_name"));
+    let message = err.to_string();
+    assert!(message.contains("field-only attribute"));
+    assert!(message.contains("enum variant `Something`"));
 }
 
 #[test]
-fn validate_enum_field_arg_name_on_named_variant_succeeds() {
+fn validate_enum_field_arg_on_named_variant_succeeds() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         pub enum TestEnum {
             Named {
-                #[fluent(arg_name = "display_value")]
+                #[fluent(arg = "display_value")]
                 value: String,
             },
         }

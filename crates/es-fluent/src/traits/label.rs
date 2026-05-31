@@ -3,7 +3,7 @@ use super::FluentLocalizer;
 /// A trait for types that have a Fluent label key representing the type itself.
 ///
 /// This trait is automatically implemented by `#[derive(EsFluentLabel)]`, or by
-/// `#[derive(EsFluentVariants)]` when combined with `#[fluent_label(variants)]`.
+/// `#[derive(EsFluentVariants)]` when combined with `#[fluent_label(variants = true)]`.
 pub trait FluentLabel {
     /// Returns the localized label for this type using an explicit localization
     /// context.

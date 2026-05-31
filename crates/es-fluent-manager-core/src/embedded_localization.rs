@@ -1,7 +1,7 @@
 //! This module provides types for managing embedded translations.
 
 use crate::asset_localization::{
-    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, ResourceKey, ResourceLoadStatus,
+    I18nModuleDescriptor, ModuleData, ModuleResourceSpec, ResourceLoadStatus, ResourcePlan,
 };
 use crate::localization::{I18nModule, LocalizationError, Localizer, SyncFluentBundle};
 use fluent_bundle::{FluentError, FluentResource, FluentValue};
@@ -63,24 +63,18 @@ pub trait EmbeddedAssets: RustEmbed + Send + Sync + 'static {
             return None;
         }
 
-        let mut plan = Vec::with_capacity(found_namespaces.len() + usize::from(has_base_file));
-        if has_base_file {
-            plan.push(ModuleResourceSpec {
-                key: ResourceKey::new(domain.to_string()),
-                locale_relative_path: format!("{domain}.ftl"),
-                required: false,
-            });
-        }
+        let resolved_namespaces = found_namespaces
+            .into_iter()
+            .map(|namespace| {
+                es_fluent_shared::namespace::ResolvedNamespace::new(namespace)
+                    .expect("embedded namespace was prevalidated from module metadata")
+            })
+            .collect::<Vec<_>>();
 
-        for namespace in found_namespaces {
-            plan.push(ModuleResourceSpec {
-                key: ResourceKey::new(format!("{domain}/{namespace}")),
-                locale_relative_path: format!("{domain}/{namespace}.ftl"),
-                required: true,
-            });
-        }
-
-        Some(plan)
+        Some(
+            ResourcePlan::sparse_for_domain(domain, has_base_file, &resolved_namespaces, false)
+                .into_specs(),
+        )
     }
 }
 
@@ -410,6 +404,7 @@ impl<T: EmbeddedAssets> I18nModule for EmbeddedI18nModule<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::asset_localization::ResourceKey;
     use rust_embed::RustEmbed;
     use std::borrow::Cow;
     use unic_langid::langid;
@@ -528,11 +523,11 @@ mod tests {
         fn resource_plan_for_language(
             _lang: &LanguageIdentifier,
         ) -> Option<Vec<ModuleResourceSpec>> {
-            Some(vec![ModuleResourceSpec {
-                key: ResourceKey::new("test-domain"),
-                locale_relative_path: "test-domain.ftl".to_string(),
-                required: false,
-            }])
+            Some(vec![ModuleResourceSpec::new(
+                ResourceKey::new("test-domain"),
+                "test-domain.ftl",
+                false,
+            )])
         }
     }
 

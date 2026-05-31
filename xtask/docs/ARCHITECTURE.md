@@ -16,7 +16,7 @@
 
 ### build bevy-demo
 
-- `xtask/src/commands/build_bevy_demo.rs`: runs `trunk build index.html --example bevy-example` for `examples/bevy-example`, writes the bundle to `web/public/bevy-demo`, disables Trunk SRI metadata so the Dioxus dev server can serve the generated JS without hash mismatches, validates that the output contains a wasm artifact with the expected language marker, and writes a local `.gitignore` for the generated directory.
+- `xtask/src/commands/build_bevy_demo.rs`: runs `trunk build index.html --example bevy-example` for `examples/bevy-example`, writes the bundle to `web/public/bevy-demo`, disables Trunk SRI metadata so the Dioxus dev server can serve the generated JS without hash mismatches, validates that the output contains a wasm artifact with the `es-fluent-lang` force-link marker, and writes a local `.gitignore` for the generated directory.
 
 ### build gpui-demo
 

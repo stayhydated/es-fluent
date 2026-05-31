@@ -326,14 +326,14 @@ fn es_fluent_choice_attributes_none_snapshot() {
     assert_eq!(opts.ident().to_string(), "Gender");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 3);
-    assert_eq!(opts.attr_args().serialize_all().as_deref(), None);
+    assert_eq!(opts.attr_args().rename_all().as_deref(), None);
 }
 
 #[test]
 fn es_fluent_choice_attributes_snake_case_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentChoice)]
-        #[fluent_choice(serialize_all = "snake_case")]
+        #[fluent_choice(rename_all = "snake_case")]
         enum Severity {
             VeryLow,
             Low,
@@ -347,17 +347,14 @@ fn es_fluent_choice_attributes_snake_case_snapshot() {
     assert_eq!(opts.ident().to_string(), "Severity");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 5);
-    assert_eq!(
-        opts.attr_args().serialize_all().as_deref(),
-        Some("snake_case")
-    );
+    assert_eq!(opts.attr_args().rename_all().as_deref(), Some("snake_case"));
 }
 
 #[test]
 fn es_fluent_choice_attributes_screaming_snake_snapshot() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentChoice)]
-        #[fluent_choice(serialize_all = "SCREAMING_SNAKE_CASE")]
+        #[fluent_choice(rename_all = "SCREAMING_SNAKE_CASE")]
         enum Emphasis {
             None,
             Light,
@@ -371,7 +368,7 @@ fn es_fluent_choice_attributes_screaming_snake_snapshot() {
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 4);
     assert_eq!(
-        opts.attr_args().serialize_all().as_deref(),
+        opts.attr_args().rename_all().as_deref(),
         Some("SCREAMING_SNAKE_CASE")
     );
 }

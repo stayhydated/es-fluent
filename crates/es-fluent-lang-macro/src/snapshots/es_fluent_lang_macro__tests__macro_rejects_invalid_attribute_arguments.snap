@@ -1,7 +1,8 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
+assertion_line: 548
 expression: pretty_tokens(&invalid_attr)
 ---
 ::core::compile_error! {
-    "#[es_fluent_language] only accepts `custom` as an argument; found `bad`"
+    "Attribute error in language container: #[es_fluent_language(custom)] is not accepted\nhelp: use #[es_fluent_language(mode = \"custom\")]"
 }

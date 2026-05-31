@@ -20,12 +20,14 @@ The crate implements a transformation pipeline for attribute-driven macro expans
 flowchart TD
     AST[syn::DeriveInput] --> OPTS[Options Parsing]
     OPTS --> VAL[Validation]
-    VAL --> GEN[Code Generation Helpers]
-    GEN --> OUT[Internal Representation]
+    VAL --> SEM[Semantic Model]
+    SEM --> GEN[Code Generation Helpers]
+    GEN --> OUT[Token Output]
 ```
 
 1. **Parsing (`src/options/`)**: The raw `syn` AST is parsed into structured options using `darling`. This step handles attribute extraction (`#[fluent(...)]`) and type conversion.
 1. **Validation (`src/validation.rs`)**: The parsed options are checked for semantic correctness (e.g., conflicting flags).
+1. **Semantic Model (`src/semantic.rs`)**: Validated values are wrapped with spans and shared newtypes before token emission. Message entries, generated enum metadata, choice mappings, derive path lists, domains, namespaces, and inventory policy live here.
 1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`; this crate uses those shared types instead of defining local mirror types.
 
 ## Modules
@@ -38,8 +40,12 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
 - **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`), including enum resource/domain overrides, inventory suppression, and variant key overrides.
 - **`choice.rs`**: Options for `#[fluent(choice)]` (nested enums).
-- Namespace parsing uses `es_fluent_shared::namespace::NamespaceRule` directly.
-  It supports literal namespaces (`namespace = "ui"`), file stems (`namespace = file`), file-relative paths (`namespace(file(relative))`), parent folder names (`namespace = folder`), and relative parent folder paths (`namespace(folder(relative))`).
+- Namespace parsing stores `es_fluent_shared::namespace::NamespaceRule` in
+  `NamespaceSpec`, preserving the span of the literal or keyword value for
+  diagnostics. It supports literal namespaces (`namespace = "ui"`), file stems
+  (`namespace = file`), file-relative paths (`namespace = file_relative`),
+  parent folder names (`namespace = folder`), and relative parent folder paths
+  (`namespace = folder_relative`).
 
 **Key Traits:**
 
@@ -51,10 +57,18 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - `GeneratedVariantsOptions`: Shared naming/key helpers for `#[fluent_variants]` containers.
 - `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
 
-Field parsing supports `skip`, `arg_name`, `choice`, and `value` transforms.
+Field parsing supports `skip`, `arg`, `choice`, and `value` transforms.
+String literal attribute payloads keep their literal span in `SpannedString`,
+and expose typed accessors for field argument names, variant key suffixes, enum
+resource IDs, and enum lookup domains before code generation consumes them.
+Namespace attributes keep their value span in `NamespaceSpec` while exposing
+`NamespaceRule` accessors for code generation and validation.
 `#[fluent_variants]` parsing supports lowercase snake_case `keys`, generated
 enum `derive(...)`, namespaces, and `#[fluent_variants(skip)]` filtering for
 fields or enum variants.
+Enum `#[fluent(resource = "...")]` values are preserved with the string-literal
+span so semantic validation can report invalid base message IDs at the
+container attribute.
 
 ### 2. Validation (`src/validation.rs`)
 
@@ -65,7 +79,20 @@ Enforces semantic rules that `darling` cannot capture easily. These functions us
 - **Default Field**: Checks that a struct has at most one field marked `#[fluent(default)]`.
 - **Conflict Check**: Ensures a field is not marked both `#[fluent(skip)]` and `#[fluent(default)]`.
 
-### 3. Error (`src/error.rs`)
+### 3. Semantic (`src/semantic.rs`)
+
+Holds typed macro IR shared by token emission paths:
+
+- `SpannedValue<T>` for preserving diagnostic spans with parsed values.
+- `MessageModel`, `MessageEntryModel`, and `ArgumentModel` for runtime lookup
+  and inventory metadata.
+- `ArgumentValueStrategy` and `ValueTransform` for recording how each runtime
+  argument value is produced.
+- `GeneratedEnumModel` and `DerivePathList` for generated unit enums.
+- `ChoiceModel` and `ChoiceVariantModel` for `EsFluentChoice` match output.
+- Span-aware wrappers around shared Fluent identifier/domain validators.
+
+### 4. Error (`src/error.rs`)
 
 Centralized error handling types for macro compilation diagnostics.
 

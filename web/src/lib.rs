@@ -9,12 +9,19 @@ pub fn sitemap_xml() -> String {
     site::render::render_sitemap()
 }
 
-pub fn cleanup_generated_route_cache(public_dir: impl AsRef<Path>) -> std::io::Result<()> {
-    site::routing::cleanup_generated_route_cache(public_dir.as_ref())
+pub fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
+    site::routing::cleanup_generated_route_cache(public_dir)
 }
 
-pub fn mark_generated_route_cache(public_dir: impl AsRef<Path>) -> std::io::Result<()> {
-    site::routing::mark_generated_route_cache(public_dir.as_ref())
+pub fn mark_generated_route_cache(public_dir: &Path) -> std::io::Result<()> {
+    site::routing::mark_generated_route_cache(public_dir)
+}
+
+pub fn route_cache() -> stayhydated_site::RouteCacheHooks {
+    stayhydated_site::RouteCacheHooks::new(
+        cleanup_generated_route_cache,
+        mark_generated_route_cache,
+    )
 }
 
 #[cfg(test)]
@@ -132,9 +139,22 @@ mod tests {
 
     #[test]
     fn computes_site_root_prefixes() {
-        assert_eq!(crate::site::routing::site_root_prefix(""), "./");
-        assert_eq!(crate::site::routing::site_root_prefix("demos"), "../");
-        assert_eq!(crate::site::routing::site_root_prefix("zh/demos"), "../../");
+        assert_eq!(
+            crate::site::routing::site_root_prefix(&stayhydated_site::routing::OutputDir::new("")),
+            "./"
+        );
+        assert_eq!(
+            crate::site::routing::site_root_prefix(&stayhydated_site::routing::OutputDir::new(
+                "demos"
+            )),
+            "../"
+        );
+        assert_eq!(
+            crate::site::routing::site_root_prefix(&stayhydated_site::routing::OutputDir::new(
+                "zh/demos"
+            )),
+            "../../"
+        );
     }
 
     #[test]

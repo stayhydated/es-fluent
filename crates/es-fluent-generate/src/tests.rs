@@ -40,6 +40,10 @@ fn parse_resource_allowing_errors(input: &str) -> ast::Resource<String> {
     parser::parse(input.to_string()).unwrap_or_else(|(resource, _)| resource)
 }
 
+fn owned_variant(name: &str, ftl_key: &str, args: &[&str]) -> OwnedVariant {
+    OwnedVariant::new(name, ftl_key, args.iter().copied()).expect("owned variant")
+}
+
 #[test]
 fn owned_type_info_and_entry_helpers_work() {
     let info = test_type(
@@ -47,10 +51,10 @@ fn owned_type_info_and_entry_helpers_work() {
         vec![test_variant("HelloName", "greeter-hello_name", &["name"])],
     );
 
-    let owned = OwnedTypeInfo::from(&info);
+    let owned = OwnedTypeInfo::from_ftl_type_info(&info).expect("owned type info");
     assert_eq!(owned.type_name, "Greeter");
     assert_eq!(owned.variants.len(), 1);
-    assert_eq!(owned.variants[0].ftl_key, "greeter-hello_name");
+    assert_eq!(owned.variants[0].ftl_key(), "greeter-hello_name");
 
     let message = create_message_entry(&owned.variants[0]);
     assert!(matches!(
@@ -192,19 +196,19 @@ fn remove_empty_group_comments_keeps_top_level_entries_without_group() {
 
 #[test]
 fn insert_late_relocated_handles_empty_groups_and_duplicate_names() {
-    let mut no_groups = vec![create_message_entry(&OwnedVariant {
-        name: "Only".to_string(),
-        ftl_key: "only-key".to_string(),
-        args: vec![],
-    })];
+    let mut no_groups = vec![create_message_entry(&owned_variant(
+        "Only",
+        "only-key",
+        &[],
+    ))];
     let mut late = IndexMap::new();
     late.insert(
         "MissingGroup".to_string(),
-        vec![create_message_entry(&OwnedVariant {
-            name: "Late".to_string(),
-            ftl_key: "late-key".to_string(),
-            args: vec![],
-        })],
+        vec![create_message_entry(&owned_variant(
+            "Late",
+            "late-key",
+            &[],
+        ))],
     );
     insert_late_relocated(&mut no_groups, &late);
     assert_eq!(no_groups.len(), 1);
@@ -216,11 +220,11 @@ fn insert_late_relocated_handles_empty_groups_and_duplicate_names() {
     let mut late_for_group = IndexMap::new();
     late_for_group.insert(
         "GroupA".to_string(),
-        vec![create_message_entry(&OwnedVariant {
-            name: "LateA".to_string(),
-            ftl_key: "group_a-late".to_string(),
-            args: vec![],
-        })],
+        vec![create_message_entry(&owned_variant(
+            "LateA",
+            "group_a-late",
+            &[],
+        ))],
     );
     insert_late_relocated(&mut body, &late_for_group);
 
@@ -246,7 +250,7 @@ fn smart_merge_moves_leading_comments_with_relocated_messages_and_terms() {
     let existing = parse_resource_allowing_errors(
         "## GroupA\n# move-with-message\ngroup_b-B1 = wrong-group\n\n## GroupB\n# move-with-term\n-group_a-term = wrong-group\n",
     );
-    let merged = smart_merge(existing, &items, MergeBehavior::Append);
+    let merged = smart_merge(existing, &items, MergeBehavior::Append).expect("merge");
     let content = fluent_syntax::serializer::serialize(&merged);
 
     let group_a_pos = content.find("## GroupA").expect("group a");
@@ -279,7 +283,8 @@ fn smart_merge_covers_relocation_terms_junk_and_cleanup_modes() {
     let existing_append = parse_resource_allowing_errors(
         "## GroupA\ngroup_b-B1 = wrong-group\n\n## GroupB\n-shared_term = shared\nbroken = {\n",
     );
-    let merged_append = smart_merge(existing_append, &items, MergeBehavior::Append);
+    let merged_append =
+        smart_merge(existing_append, &items, MergeBehavior::Append).expect("append merge");
     let merged_append_text = formatting::sort_ftl_resource(&merged_append);
     assert!(merged_append_text.contains("## GroupA"));
     assert!(merged_append_text.contains("## GroupB"));
@@ -289,7 +294,8 @@ fn smart_merge_covers_relocation_terms_junk_and_cleanup_modes() {
     let existing_clean = parse_resource_allowing_errors(
         "## GroupA\ngroup_b-B1 = wrong-group\n\n## GroupB\n-shared_term = shared\nbroken = {\n",
     );
-    let merged_clean = smart_merge(existing_clean, &items, MergeBehavior::Clean);
+    let merged_clean =
+        smart_merge(existing_clean, &items, MergeBehavior::Clean).expect("clean merge");
     let merged_clean_text = formatting::sort_ftl_resource(&merged_clean);
     assert!(merged_clean_text.contains("-shared_term = shared"));
     assert!(merged_clean_text.contains("group_b-B1 = wrong-group"));
@@ -317,7 +323,7 @@ fn smart_merge_handles_duplicates_empty_group_headers_and_comment_entries() {
         .body
         .push(ast::Entry::GroupComment(ast::Comment { content: vec![] }));
 
-    let merged = smart_merge(existing, &items, MergeBehavior::Append);
+    let merged = smart_merge(existing, &items, MergeBehavior::Append).expect("merge");
     let merged_text = formatting::sort_ftl_resource(&merged);
     assert_eq!(merged_text.matches("dup-key =").count(), 1);
     assert_eq!(merged_text.matches("-dup-term =").count(), 1);
@@ -341,7 +347,7 @@ fn smart_merge_appends_relocated_entries_for_group_switch_and_missing_group_head
     let existing = parse_resource_allowing_errors(
         "## GroupX\ngroup_a-A1 = moved-to-a\ngroup_b-B1 = moved-to-b\n\n## GroupA\ngroup_a-A2 = keep-a2\n\n## GroupC\ngroup_c-C1 = keep-c1\n",
     );
-    let merged = smart_merge(existing, &items, MergeBehavior::Append);
+    let merged = smart_merge(existing, &items, MergeBehavior::Append).expect("merge");
     let merged_text = formatting::sort_ftl_resource(&merged);
 
     assert!(merged_text.contains("group_a-A1 = moved-to-a"));
@@ -374,6 +380,39 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
 
     let dry_run_path = PathBuf::from("dry_run/absent.ftl");
     write_or_preview(&dry_run_path, "a = b\n", "a = c\n", false, true).expect("dry run");
+}
+
+#[test]
+fn plan_outputs_uses_canonical_resource_specs_for_paths() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let i18n_root = temp.path().join("i18n");
+
+    let base = test_type("BaseType", vec![test_variant("Base", "base", &[])]);
+    let mut namespaced = test_type("NamespacedType", vec![test_variant("A1", "ns-a1", &[])]);
+    namespaced.namespace = Some(NamespaceRule::Literal(Cow::Borrowed("ui/forms")));
+    let items = vec![&base, &namespaced];
+
+    let outputs = crate::pipeline::plan_outputs("crate-name", &i18n_root, temp.path(), &items)
+        .expect("planned outputs");
+    let base_output = outputs
+        .iter()
+        .find(|output| output.resource.key.as_str() == "crate-name")
+        .expect("base output");
+    let namespace_output = outputs
+        .iter()
+        .find(|output| output.resource.key.as_str() == "crate-name/ui/forms")
+        .expect("namespaced output");
+
+    assert_eq!(base_output.resource.locale_relative_path, "crate-name.ftl");
+    assert_eq!(
+        namespace_output.resource.locale_relative_path,
+        "crate-name/ui/forms.ftl"
+    );
+    assert_eq!(base_output.file_path, i18n_root.join("crate-name.ftl"));
+    assert_eq!(
+        namespace_output.file_path,
+        i18n_root.join("crate-name/ui/forms.ftl")
+    );
 }
 
 #[test]
@@ -458,5 +497,49 @@ fn generate_rejects_noncanonical_namespace_literals() {
     assert!(
         error_text.contains("Invalid namespace ' ui '")
             || error_text.contains("Invalid namespace 'ui.ftl'")
+    );
+}
+
+#[test]
+fn generate_rejects_invalid_registered_keys_and_arguments() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let i18n_root = temp.path().join("i18n");
+
+    let invalid_key = test_type(
+        "InvalidKey",
+        vec![test_variant("Broken", "_invalid", &["name"])],
+    );
+    let key_err = generate(
+        "crate-name",
+        &i18n_root,
+        temp.path(),
+        &[&invalid_key],
+        FluentParseMode::Conservative,
+        true,
+    )
+    .expect_err("invalid key should fail");
+    assert!(
+        key_err
+            .to_string()
+            .contains("Invalid Fluent metadata '_invalid'")
+    );
+
+    let invalid_arg = test_type(
+        "InvalidArg",
+        vec![test_variant("Broken", "valid-key", &["not valid"])],
+    );
+    let arg_err = generate(
+        "crate-name",
+        &i18n_root,
+        temp.path(),
+        &[&invalid_arg],
+        FluentParseMode::Conservative,
+        true,
+    )
+    .expect_err("invalid argument should fail");
+    assert!(
+        arg_err
+            .to_string()
+            .contains("Invalid Fluent metadata 'not valid'")
     );
 }

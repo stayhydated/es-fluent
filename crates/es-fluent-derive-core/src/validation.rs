@@ -1,13 +1,96 @@
 //! This module provides functions for validating `es-fluent` attributes.
 
-use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::options::r#enum::EnumOpts;
 use crate::options::r#struct::StructOpts;
 use crate::options::{
     EnumDataOptions as _, FluentField as _, StructDataOptions as _, VariantFields as _,
 };
-use es_fluent_shared::namespace::NamespaceRule;
+use es_fluent_shared::namespace::{NamespaceRule, ResolvedNamespace};
 use es_fluent_toml::{I18nConfig, I18nConfigError};
+use syn::{DeriveInput, Meta, Token, punctuated::Punctuated, spanned::Spanned as _};
+
+/// Validates raw `#[fluent(...)]` usage on an `EsFluent` derive input before
+/// Darling parses the attributes.
+pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
+    let syn::Data::Enum(data) = &input.data else {
+        return Ok(());
+    };
+
+    for variant in &data.variants {
+        for attr in variant
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("fluent"))
+        {
+            let Meta::List(list) = &attr.meta else {
+                continue;
+            };
+
+            let items = match list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+            {
+                Ok(items) => items,
+                Err(_) => continue,
+            };
+
+            for item in items {
+                if let Some(attr) = wrong_context_variant_attr(&item) {
+                    return Err(EsFluentCoreError::StructuredAttributeError(AttrError::new(
+                        AttrContext::EnumVariant,
+                        format!(
+                            "`{}` is a field-only attribute and cannot be used on enum variant `{}`",
+                            attr.syntax,
+                            variant.ident
+                        ),
+                        Some(item.span()),
+                    ))
+                    .with_help(
+                        format!(
+                            "move the attribute to a field inside the variant, for example `{}(#[fluent(arg = \"name\")] T)`",
+                            variant.ident
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+struct WrongContextAttribute {
+    syntax: String,
+}
+
+fn wrong_context_variant_attr(meta: &Meta) -> Option<WrongContextAttribute> {
+    match meta {
+        Meta::Path(path) => wrong_context_path_key(path).map(|key| WrongContextAttribute {
+            syntax: format!("#[fluent({key})]"),
+        }),
+        Meta::List(list) => wrong_context_path_key(&list.path).map(|key| WrongContextAttribute {
+            syntax: format!("#[fluent({key}(...))]"),
+        }),
+        Meta::NameValue(name_value) => {
+            wrong_context_path_key(&name_value.path).map(|key| WrongContextAttribute {
+                syntax: format!("#[fluent({key} = ...)]"),
+            })
+        },
+    }
+}
+
+fn wrong_context_path_key(path: &syn::Path) -> Option<&'static str> {
+    if path.is_ident("arg") {
+        Some("arg")
+    } else if path.is_ident("value") {
+        Some("value")
+    } else if path.is_ident("choice") {
+        Some("choice")
+    } else if path.is_ident("default") {
+        Some("default")
+    } else {
+        None
+    }
+}
 
 /// Validates the `es-fluent` attributes on a struct.
 /// Currently only checks that at most one field is marked `#[fluent(default)]`.
@@ -22,19 +105,19 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
             });
         }
 
-        if field.is_skipped() && field.arg_name().is_some() {
+        if field.is_skipped() && field.arg().is_some() {
             return Err(EsFluentCoreError::FieldError {
-                message: "Cannot use #[fluent(arg_name = \"...\")] on a skipped field".to_string(),
+                message: "Cannot use #[fluent(arg = \"...\")] on a skipped field".to_string(),
                 field_name: field.ident().as_ref().map(|i| i.to_string()),
                 span: field.ident().as_ref().map(|ident| ident.span()),
             });
         }
 
-        if let Some(arg_name) = field.arg_name()
-            && arg_name.is_empty()
+        if let Some(arg) = field.arg()
+            && arg.is_empty()
         {
             return Err(EsFluentCoreError::FieldError {
-                message: "`#[fluent(arg_name = \"...\")]` cannot be empty".to_string(),
+                message: "`#[fluent(arg = \"...\")]` cannot be empty".to_string(),
                 field_name: field.ident().as_ref().map(|i| i.to_string()),
                 span: field.ident().as_ref().map(|ident| ident.span()),
             });
@@ -51,8 +134,8 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
         let (first_index, first_field) = &default_fields[0];
         let (second_index, second_field) = &default_fields[1];
 
-        let first_field_name = first_field.fluent_arg_name(*first_index);
-        let second_field_name = second_field.fluent_arg_name(*second_index);
+        let first_field_name = first_field.fluent_arg(*first_index);
+        let second_field_name = second_field.fluent_arg(*second_index);
         let second_span = second_field.ident().as_ref().map(|ident| ident.span());
 
         return Err(EsFluentCoreError::FieldError {
@@ -66,17 +149,17 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
         )));
     }
 
-    // Ensure exposed argument names remain unique after arg_name overrides.
+    // Ensure exposed argument names remain unique after arg overrides.
     let mut seen = std::collections::HashSet::new();
     for (index, field) in opts.indexed_fields() {
-        let arg_name = field.fluent_arg_name(index);
-        if !seen.insert(arg_name.clone()) {
+        let arg = field.fluent_arg(index);
+        if !seen.insert(arg.clone()) {
             return Err(EsFluentCoreError::FieldError {
                 message: format!(
-                    "duplicate argument name '{}' after applying #[fluent(arg_name = \"...\")]",
-                    arg_name
+                    "duplicate argument name '{}' after applying #[fluent(arg = \"...\")]",
+                    arg
                 ),
-                field_name: Some(arg_name),
+                field_name: Some(arg),
                 span: field.ident().as_ref().map(|ident| ident.span()),
             });
         }
@@ -91,18 +174,18 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
         let variant_name = variant.ident().to_string();
         let variant_span = Some(variant.ident().span());
         let all_fields = variant.all_fields();
-        let field_arg_name_overrides: Vec<_> = all_fields
+        let field_arg_overrides: Vec<_> = all_fields
             .iter()
-            .filter_map(|field| field.arg_name().map(|name| (field, name)))
+            .filter_map(|field| field.arg().map(|name| (field, name)))
             .collect();
 
-        if !field_arg_name_overrides.is_empty() {
+        if !field_arg_overrides.is_empty() {
             let mut explicit_seen = std::collections::HashSet::new();
-            for (field, name) in &field_arg_name_overrides {
+            for (field, name) in &field_arg_overrides {
                 if field.is_skipped() {
                     return Err(EsFluentCoreError::VariantError {
                         message: format!(
-                            "`#[fluent(arg_name = \"{}\")]` cannot be used on a skipped field",
+                            "`#[fluent(arg = \"{}\")]` cannot be used on a skipped field",
                             name
                         ),
                         variant_name,
@@ -111,15 +194,14 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
                 }
                 if name.is_empty() {
                     return Err(EsFluentCoreError::VariantError {
-                        message: "`#[fluent(arg_name = \"...\")]` on fields cannot be empty"
-                            .to_string(),
+                        message: "`#[fluent(arg = \"...\")]` on fields cannot be empty".to_string(),
                         variant_name,
                         span: variant_span,
                     });
                 }
                 if !explicit_seen.insert(name.clone()) {
                     return Err(EsFluentCoreError::VariantError {
-                        message: format!("duplicate field arg_name '{}' in variant fields", name),
+                        message: format!("duplicate field arg '{}' in variant fields", name),
                         variant_name,
                         span: variant_span,
                     });
@@ -133,7 +215,7 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
                     continue;
                 }
 
-                let resolved_name = if let Some(name) = field.arg_name() {
+                let resolved_name = if let Some(name) = field.arg() {
                     name
                 } else if is_tuple {
                     format!("f{}", tuple_index)
@@ -148,7 +230,7 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
                 if !final_seen.insert(resolved_name.clone()) {
                     return Err(EsFluentCoreError::VariantError {
                         message: format!(
-                            "duplicate resolved argument name '{}' after applying #[fluent(arg_name = \"...\")]",
+                            "duplicate resolved argument name '{}' after applying #[fluent(arg = \"...\")]",
                             resolved_name
                         ),
                         variant_name,
@@ -186,7 +268,7 @@ pub fn validate_namespace(
         | NamespaceRule::FolderRelative => return Ok(()),
     };
 
-    if let Err(error) = es_fluent_shared::namespace::validate_namespace_path(literal_value) {
+    if let Err(error) = ResolvedNamespace::new(literal_value) {
         return Err(EsFluentCoreError::AttributeError {
             message: format!("invalid namespace '{}': {}", literal_value, error),
             span,

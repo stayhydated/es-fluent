@@ -498,11 +498,7 @@ mod tests {
     #[test]
     fn optional_only_language_rebuilds_ready_and_applies_without_pending_change() {
         let fr = langid!("fr");
-        let optional_spec = ModuleResourceSpec {
-            key: ResourceKey::new("app"),
-            locale_relative_path: "app.ftl".to_string(),
-            required: false,
-        };
+        let optional_spec = ModuleResourceSpec::new(ResourceKey::new("app"), "app.ftl", false);
         let mut i18n_assets = I18nAssets::new();
         i18n_assets.add_optional_asset_spec(fr.clone(), optional_spec, Handle::default());
 

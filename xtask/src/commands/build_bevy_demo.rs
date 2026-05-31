@@ -5,7 +5,8 @@ use anyhow::{Context, bail};
 const EXAMPLE_DIR: &str = "examples/bevy-example";
 const OUTPUT_ROOT: &str = "web/public/bevy-demo";
 const OUTPUT_DIR: &str = "web/public/bevy-demo";
-const REQUIRED_MARKER: &str = "es-fluent-lang-en";
+// Must match `es_fluent_lang::WASM_FORCE_LINK_MARKER`.
+const REQUIRED_MARKER: &str = "es-fluent-lang-wasm-force-link";
 
 pub fn run() -> anyhow::Result<()> {
     run_from_workspace_root(&stayhydated_xtask::workspace_root_from_xtask_manifest()?)

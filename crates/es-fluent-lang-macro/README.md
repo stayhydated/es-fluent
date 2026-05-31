@@ -18,11 +18,13 @@ use es_fluent_lang::es_fluent_language;
 pub enum MyLanguages {}
 ```
 
-Use `#[es_fluent_language(custom)]` when your app provides its own language-name
+Use `#[es_fluent_language(mode = "custom")]` when your app provides its own language-name
 translations. In that mode, the generated enum is inventory-visible and your
 FTL files become the source of truth for the display labels.
 
 For example, locale folders named `en`, `fr-FR`, and `zh-CN` generate enum
-variants `En`, `FrFr`, and `ZhCn`.
+variants `En`, `FrFr`, and `ZhCn`. The macro implements `FluentMessage`
+directly, so manager-backed `localize_message(...)` works without also deriving
+`EsFluent`.
 
 See the [es-fluent-lang documentation](https://docs.rs/es-fluent-lang) for full usage details.

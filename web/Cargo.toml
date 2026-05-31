@@ -9,7 +9,7 @@ publish = false
 [features]
 default = [  ]
 server = [ "dioxus/server", "dep:dioxus-server", "stayhydated-site/server" ]
-web = [ "dioxus/web" ]
+web = [ "dioxus/web", "stayhydated-site/web" ]
 
 [dependencies]
 dioxus = { features = [ "router", "launch", "lib", "fullstack" ], workspace = true }

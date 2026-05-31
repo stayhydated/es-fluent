@@ -1,0 +1,6 @@
+---
+source: crates/es-fluent-derive-core/tests/validation_tests.rs
+assertion_line: 294
+expression: err.to_string()
+---
+Variant 'Named' error: duplicate resolved argument name 'value' after applying #[fluent(arg = "...")]

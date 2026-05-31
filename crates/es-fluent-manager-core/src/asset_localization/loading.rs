@@ -130,7 +130,7 @@ impl ResourceLoadError {
     pub fn missing(spec: &ModuleResourceSpec) -> Self {
         Self::Missing {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
         }
     }
@@ -139,7 +139,7 @@ impl ResourceLoadError {
     pub fn load(spec: &ModuleResourceSpec, details: impl Into<String>) -> Self {
         Self::Load {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
             details: details.into(),
         }
@@ -409,7 +409,7 @@ pub fn parse_fluent_resource_bytes(
     let content =
         String::from_utf8(bytes.to_vec()).map_err(|e| ResourceLoadError::InvalidUtf8 {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
             details: e.to_string(),
         })?;
@@ -426,7 +426,7 @@ pub fn parse_fluent_resource_content(
         .map(Arc::new)
         .map_err(|(_, errs)| ResourceLoadError::Parse {
             key: spec.key.clone(),
-            path: spec.locale_relative_path.clone(),
+            path: spec.locale_relative_path.to_string(),
             required: spec.required,
             details: format!("{errs:?}"),
         })
@@ -440,7 +440,9 @@ mod tests {
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
         ModuleResourceSpec {
             key: ResourceKey::new(key),
-            locale_relative_path: format!("{key}.ftl"),
+            locale_relative_path: es_fluent_shared::resource::LocaleRelativeFtlPath::new(format!(
+                "{key}.ftl"
+            )),
             required,
         }
     }
@@ -573,7 +575,7 @@ mod tests {
                 path,
                 required: true,
                 ..
-            } if key == resource_spec.key && path == resource_spec.locale_relative_path
+            } if key == resource_spec.key && path == resource_spec.locale_relative_path.as_str()
         ));
     }
 

@@ -1,11 +1,21 @@
 #![doc = include_str!("../README.md")]
 
-use heck::ToUpperCamelCase as _;
+use es_fluent_derive_core::{
+    error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError},
+    semantic::{
+        DerivePathList, GeneratedEnumModel, MessageEntryModel, SourceLocation, SpannedValue,
+        parse_domain_name_in_context, parse_fluent_message_id_in_context,
+    },
+};
+use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use proc_macro::TokenStream;
 use proc_macro_error2::proc_macro_error;
 use proc_macro2::Span;
-use quote::{format_ident, quote};
-use syn::{Fields, ItemEnum, LitStr, Variant, parse_quote, spanned::Spanned as _};
+use quote::{format_ident, quote, quote_spanned};
+use syn::{
+    Expr, ExprLit, Fields, ItemEnum, Lit, LitStr, Meta, Path, Token, Variant, parse_quote,
+    punctuated::Punctuated, spanned::Spanned as _,
+};
 
 /// Attribute macro that expands a language enum based on the `i18n.toml` configuration.
 /// Which generates variants for each language in the i18n folder structure.
@@ -14,7 +24,7 @@ use syn::{Fields, ItemEnum, LitStr, Variant, parse_quote, spanned::Spanned as _}
 /// - Links to the built-in `es-fluent-lang` runtime for language name formatting
 /// - Does NOT register the enum with inventory (since it's a language selector, not a translatable item)
 ///
-/// Use `#[es_fluent_language(custom)]` to:
+/// Use `#[es_fluent_language(mode = "custom")]` to:
 /// - NOT link to the built-in `es-fluent-lang` runtime (you provide your own translations)
 /// - Register the enum with inventory (so it appears in generated FTL files)
 /// - Make your FTL files the source of truth for language labels
@@ -28,22 +38,12 @@ fn expand_es_fluent_language(
     attr: proc_macro2::TokenStream,
     item: proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
-    let custom_mode = if attr.is_empty() {
-        false
-    } else {
-        let attr_str = attr.to_string();
-        if attr_str.trim() == "custom" {
-            true
-        } else {
-            return syn::Error::new(
-                Span::call_site(),
-                format!(
-                    "#[es_fluent_language] only accepts `custom` as an argument; found `{}`",
-                    attr_str
-                ),
-            )
-            .to_compile_error();
-        }
+    let mode = match LanguageMode::parse(attr) {
+        Ok(mode) => mode,
+        Err(err) => {
+            let span = err.span().unwrap_or_else(Span::call_site);
+            return syn::Error::new(span, err.to_string()).to_compile_error();
+        },
     };
 
     let mut input_enum: ItemEnum = match syn::parse2(item) {
@@ -116,56 +116,28 @@ fn expand_es_fluent_language(
 
     let fallback_canonical = fallback_language.to_string();
 
-    let mut language_entries: Vec<(String, unic_langid::LanguageIdentifier)> = languages
+    let mut language_entries: Vec<LanguageEntry> = languages
         .into_iter()
         .map(|lang| {
             let canonical = lang.to_string();
-            (canonical, lang)
+            LanguageEntry::new(canonical)
         })
         .collect();
 
-    language_entries.sort_by(|a, b| a.0.cmp(&b.0));
-    language_entries.dedup_by(|a, b| a.0 == b.0);
+    language_entries.sort_by(|a, b| a.canonical.cmp(&b.canonical));
+    language_entries.dedup_by(|a, b| a.canonical == b.canonical);
 
-    let mut variant_idents = Vec::with_capacity(language_entries.len());
-    let mut language_literals = Vec::with_capacity(language_entries.len());
+    input_enum.attrs = remove_es_fluent_derive(input_enum.attrs);
+
     let mut fallback_variant_ident = None;
-
-    // In default mode: use the built-in es-fluent-lang runtime and skip inventory registration.
-    // In custom mode: don't add the resource attribute (user provides translations) and register with inventory.
-    if custom_mode {
-        // No resource attribute - user provides their own translations
-        // No skip_inventory - enum will be registered with inventory
-    } else {
-        input_enum.attrs.push(parse_quote!(
-            #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang", skip_inventory)]
-        ));
-    }
 
     input_enum.variants.clear();
 
-    for (canonical, _language) in &language_entries {
-        let variant_name = canonical.replace('-', "_").to_upper_camel_case();
-        let fluent_key = canonical.clone();
+    for entry in &language_entries {
+        input_enum.variants.push(entry.variant());
 
-        let variant_ident = syn::Ident::new(&variant_name, Span::call_site());
-        let literal = LitStr::new(canonical, Span::call_site());
-        let fluent_key_literal = LitStr::new(&fluent_key, Span::call_site());
-
-        let attr = parse_quote!(#[fluent(key = #fluent_key_literal)]);
-        let variant = Variant {
-            attrs: vec![attr],
-            ident: variant_ident.clone(),
-            fields: Fields::Unit,
-            discriminant: None,
-        };
-
-        input_enum.variants.push(variant);
-        variant_idents.push(variant_ident.clone());
-        language_literals.push(literal);
-
-        if canonical == &fallback_canonical {
-            fallback_variant_ident = Some(variant_idents.last().unwrap().clone());
+        if entry.canonical == fallback_canonical {
+            fallback_variant_ident = Some(entry.ident.clone());
         }
     }
 
@@ -182,11 +154,20 @@ fn expand_es_fluent_language(
 
     let conversion_error_ident = format_ident!("{enum_ident}LanguageConversionError");
     let force_link_static_ident = format_ident!("__ES_FLUENT_LANG_FORCE_LINK_{enum_ident}");
-    let language_literals_for_ref = language_literals.clone();
-    let variant_idents_for_ref = variant_idents.clone();
-    let language_literals_for_try_from = language_literals.clone();
-    let variant_idents_for_try_from = variant_idents.clone();
-    let force_link_keepalive = if custom_mode {
+    let variant_idents: Vec<_> = language_entries.iter().map(|entry| &entry.ident).collect();
+    let language_literals: Vec<_> = language_entries
+        .iter()
+        .map(|entry| &entry.literal)
+        .collect();
+    let language_model =
+        match LanguageEnumModel::new(&enum_ident, enum_span, mode, language_entries.clone()) {
+            Ok(model) => model,
+            Err(err) => {
+                let span = err.span().unwrap_or(enum_span);
+                return syn::Error::new(span, err.to_string()).to_compile_error();
+            },
+        };
+    let force_link_keepalive = if mode.is_custom() {
         quote! {}
     } else {
         quote! {
@@ -196,10 +177,14 @@ fn expand_es_fluent_language(
             static #force_link_static_ident: fn() -> usize = ::es_fluent_lang::force_link;
         }
     };
+    let message_impl = generate_fluent_message_impl(&language_model);
+    let inventory_submit = generate_inventory_submit(&language_model, mode);
 
     let expanded = quote! {
         #input_enum
         #force_link_keepalive
+        #message_impl
+        #inventory_submit
 
         impl From<#enum_ident> for es_fluent::unic_langid::LanguageIdentifier {
             fn from(val: #enum_ident) -> Self {
@@ -212,7 +197,7 @@ fn expand_es_fluent_language(
         impl From<&#enum_ident> for es_fluent::unic_langid::LanguageIdentifier {
             fn from(val: &#enum_ident) -> Self {
                 match val {
-                    #( #enum_ident::#variant_idents_for_ref => es_fluent::unic_langid::langid!(#language_literals_for_ref), )*
+                    #( #enum_ident::#variant_idents => es_fluent::unic_langid::langid!(#language_literals), )*
                 }
             }
         }
@@ -254,7 +239,7 @@ fn expand_es_fluent_language(
             fn try_from(lang: &es_fluent::unic_langid::LanguageIdentifier) -> Result<Self, Self::Error> {
                 let lang_str = lang.to_string();
                 match lang_str.as_str() {
-                    #( #language_literals_for_try_from => Ok(#enum_ident::#variant_idents_for_try_from), )*
+                    #( #language_literals => Ok(#enum_ident::#variant_idents), )*
                     _ => Err(#conversion_error_ident::UnsupportedLanguageIdentifier(lang.clone())),
                 }
             }
@@ -290,6 +275,293 @@ fn expand_es_fluent_language(
     };
 
     expanded
+}
+
+#[derive(Clone, Debug)]
+struct LanguageEntry {
+    canonical: String,
+    ident: syn::Ident,
+    literal: LitStr,
+}
+
+impl LanguageEntry {
+    fn new(canonical: String) -> Self {
+        let variant_name = canonical.replace('-', "_").to_upper_camel_case();
+        Self {
+            ident: syn::Ident::new(&variant_name, Span::call_site()),
+            literal: LitStr::new(&canonical, Span::call_site()),
+            canonical,
+        }
+    }
+
+    fn variant(&self) -> Variant {
+        Variant {
+            attrs: Vec::new(),
+            ident: self.ident.clone(),
+            fields: Fields::Unit,
+            discriminant: None,
+        }
+    }
+}
+
+struct LanguageEnumModel {
+    enum_ident: syn::Ident,
+    entries: Vec<LanguageEntry>,
+    semantic: GeneratedEnumModel,
+}
+
+impl LanguageEnumModel {
+    fn new(
+        enum_ident: &syn::Ident,
+        source_span: Span,
+        mode: LanguageMode,
+        entries: Vec<LanguageEntry>,
+    ) -> Result<Self, EsFluentCoreError> {
+        let messages = entries
+            .iter()
+            .map(|entry| {
+                let message_id = parse_fluent_message_id_in_context(
+                    entry.canonical.clone(),
+                    entry.literal.span(),
+                    AttrContext::LanguageContainer,
+                )?;
+                Ok(MessageEntryModel::new(
+                    entry.ident.to_string(),
+                    SpannedValue::new(message_id, entry.literal.span()),
+                    Vec::new(),
+                    SourceLocation::new(entry.ident.span()),
+                ))
+            })
+            .collect::<Result<Vec<_>, EsFluentCoreError>>()?;
+        let domain = if mode.is_custom() {
+            None
+        } else {
+            Some(parse_domain_name_in_context(
+                "es-fluent-lang",
+                source_span,
+                AttrContext::LanguageContainer,
+            )?)
+        };
+        let semantic = GeneratedEnumModel::new(
+            enum_ident.to_string(),
+            enum_ident.to_string(),
+            DerivePathList::default(),
+            messages,
+            None,
+            domain,
+            None,
+        );
+
+        Ok(Self {
+            enum_ident: enum_ident.clone(),
+            entries,
+            semantic,
+        })
+    }
+
+    fn domain_expr(&self) -> proc_macro2::TokenStream {
+        match self.semantic.domain() {
+            Some(domain) => {
+                let domain = domain.to_string();
+                quote! { #domain }
+            },
+            None => quote! { env!("CARGO_PKG_NAME") },
+        }
+    }
+
+    fn messages(&self) -> &[MessageEntryModel] {
+        self.semantic.messages()
+    }
+}
+
+fn remove_es_fluent_derive(attrs: Vec<syn::Attribute>) -> Vec<syn::Attribute> {
+    attrs
+        .into_iter()
+        .filter_map(|attr| {
+            if !attr.path().is_ident("derive") {
+                return Some(attr);
+            }
+
+            let Ok(paths) = attr.parse_args_with(Punctuated::<Path, Token![,]>::parse_terminated)
+            else {
+                return Some(attr);
+            };
+
+            let kept_paths: Vec<_> = paths
+                .into_iter()
+                .filter(|path| !is_es_fluent_derive_path(path))
+                .collect();
+
+            if kept_paths.is_empty() {
+                None
+            } else {
+                Some(parse_quote!(#[derive(#(#kept_paths),*)]))
+            }
+        })
+        .collect()
+}
+
+fn is_es_fluent_derive_path(path: &Path) -> bool {
+    path.segments
+        .last()
+        .is_some_and(|segment| segment.ident == "EsFluent")
+}
+
+fn generate_fluent_message_impl(model: &LanguageEnumModel) -> proc_macro2::TokenStream {
+    let enum_ident = &model.enum_ident;
+    let domain_expr = model.domain_expr();
+    let match_arms = model
+        .entries
+        .iter()
+        .zip(model.messages())
+        .map(|(entry, message)| {
+            let variant_ident = &entry.ident;
+            let message_id = message.message_id().to_string();
+            quote! {
+                Self::#variant_ident => localize(#domain_expr, #message_id, None)
+            }
+        });
+
+    quote! {
+        impl ::es_fluent::FluentMessage for #enum_ident {
+            fn to_fluent_string_with(
+                &self,
+                localize: &mut dyn for<'__es_fluent_message> FnMut(
+                    &str,
+                    &str,
+                    Option<&::std::collections::HashMap<&str, ::es_fluent::FluentValue<'__es_fluent_message>>>,
+                ) -> String,
+            ) -> String {
+                match self {
+                    #(#match_arms,)*
+                }
+            }
+        }
+    }
+}
+
+fn generate_inventory_submit(
+    model: &LanguageEnumModel,
+    mode: LanguageMode,
+) -> proc_macro2::TokenStream {
+    if !mode.is_custom() {
+        return quote! {};
+    }
+
+    let enum_ident = &model.enum_ident;
+    let type_name = enum_ident.to_string().trim_start_matches("r#").to_string();
+    let module_suffix = type_name.to_snake_case();
+    let mod_name = format_ident!("__es_fluent_language_inventory_{module_suffix}");
+    let variants = model
+        .messages()
+        .iter()
+        .map(language_inventory_variant_tokens);
+
+    quote! {
+        #[doc(hidden)]
+        #[allow(non_snake_case)]
+        mod #mod_name {
+            use super::*;
+
+            static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+                #(#variants),*
+            ];
+
+            static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo =
+                ::es_fluent::registry::FtlTypeInfo {
+                    type_kind: ::es_fluent::meta::TypeKind::Enum,
+                    type_name: #type_name,
+                    variants: VARIANTS,
+                    file_path: file!(),
+                    module_path: module_path!(),
+                    namespace: None,
+                };
+
+            ::es_fluent::__inventory::submit!(::es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
+        }
+    }
+}
+
+fn language_inventory_variant_tokens(message: &MessageEntryModel) -> proc_macro2::TokenStream {
+    let name = message.source_name();
+    let ftl_key = message.message_id().to_string();
+    let source_span = message.source_location().span();
+    let source_line = quote_spanned! { source_span=> line!() };
+
+    quote! {
+        ::es_fluent::registry::FtlVariant {
+            name: #name,
+            ftl_key: #ftl_key,
+            args: &[],
+            module_path: module_path!(),
+            line: #source_line,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LanguageMode {
+    Builtin,
+    Custom,
+}
+
+impl LanguageMode {
+    fn parse(attr: proc_macro2::TokenStream) -> Result<Self, EsFluentCoreError> {
+        if attr.is_empty() {
+            return Ok(Self::Builtin);
+        }
+
+        let meta: Meta = syn::parse2(attr).map_err(|err| {
+            language_attr_error(
+                "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
+                Some(err.span()),
+            )
+        })?;
+        match meta {
+            Meta::NameValue(name_value) if name_value.path.is_ident("mode") => {
+                let Expr::Lit(ExprLit {
+                    lit: Lit::Str(mode),
+                    ..
+                }) = name_value.value
+                else {
+                    return Err(language_attr_error(
+                        "#[es_fluent_language] expects `mode` to be a string literal",
+                        Some(name_value.value.span()),
+                    ));
+                };
+
+                match mode.value().as_str() {
+                    "builtin" => Ok(Self::Builtin),
+                    "custom" => Ok(Self::Custom),
+                    _ => Err(language_attr_error(
+                        "#[es_fluent_language] mode must be \"builtin\" or \"custom\"",
+                        Some(mode.span()),
+                    )),
+                }
+            },
+            Meta::Path(path) if path.is_ident("custom") => Err(language_attr_error(
+                "#[es_fluent_language(custom)] is not accepted",
+                Some(path.span()),
+            )
+            .with_help("use #[es_fluent_language(mode = \"custom\")]".to_string())),
+            other => Err(language_attr_error(
+                "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
+                Some(other.span()),
+            )),
+        }
+    }
+
+    fn is_custom(self) -> bool {
+        matches!(self, Self::Custom)
+    }
+}
+
+fn language_attr_error(message: impl Into<String>, span: Option<Span>) -> EsFluentCoreError {
+    EsFluentCoreError::StructuredAttributeError(AttrError::new(
+        AttrContext::LanguageContainer,
+        message,
+        span,
+    ))
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -362,10 +634,16 @@ mod tests {
 
     #[test]
     fn macro_rejects_invalid_attribute_arguments_and_input_shapes() {
-        let invalid_attr = run_macro("bad", "enum Languages {}");
+        let invalid_attr = run_macro("custom", "enum Languages {}");
         assert_snapshot!(
             "macro_rejects_invalid_attribute_arguments",
             pretty_tokens(&invalid_attr)
+        );
+
+        let invalid_mode = run_macro("mode = \"other\"", "enum Languages {}");
+        assert_snapshot!(
+            "macro_rejects_invalid_language_mode",
+            pretty_tokens(&invalid_mode)
         );
 
         let generic_enum = run_macro("", "enum Languages<T> {}");
@@ -425,7 +703,20 @@ mod tests {
                     pretty_tokens(&default_mode)
                 );
 
-                let custom_mode = run_macro("custom", "enum CustomLanguages {}");
+                let explicit_builtin_mode = run_macro("mode = \"builtin\"", "enum Languages {}");
+                assert_eq!(
+                    pretty_tokens(&default_mode),
+                    pretty_tokens(&explicit_builtin_mode)
+                );
+
+                let stripped_derive = pretty_tokens(&run_macro(
+                    "",
+                    "#[derive(Clone, Debug, EsFluent)] enum Languages {}",
+                ));
+                assert!(stripped_derive.contains("#[derive(Clone, Debug)]"));
+                assert!(!stripped_derive.contains("EsFluent,"));
+
+                let custom_mode = run_macro("mode = \"custom\"", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_adds_missing_fallback_custom_mode",
                     pretty_tokens(&custom_mode)
@@ -446,7 +737,7 @@ mod tests {
                     pretty_tokens(&default_mode)
                 );
 
-                let custom_mode = run_macro("custom", "enum CustomLanguages {}");
+                let custom_mode = run_macro("mode = \"custom\"", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_uses_exact_locale_keys_custom_mode",
                     pretty_tokens(&custom_mode)
@@ -467,7 +758,7 @@ mod tests {
                     pretty_tokens(&output)
                 );
 
-                let custom_output = run_macro("custom", "enum CustomLanguages {}");
+                let custom_output = run_macro("mode = \"custom\"", "enum CustomLanguages {}");
                 assert_snapshot!(
                     "macro_accepts_valid_unlocalized_languages_custom_mode",
                     pretty_tokens(&custom_output)

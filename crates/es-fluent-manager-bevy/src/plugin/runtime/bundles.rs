@@ -280,11 +280,7 @@ mod tests {
     }
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
-        ModuleResourceSpec {
-            key: ResourceKey::new(key),
-            locale_relative_path: format!("{key}.ftl"),
-            required,
-        }
+        ModuleResourceSpec::new(ResourceKey::new(key), format!("{key}.ftl"), required)
     }
 
     fn empty_bundle(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {

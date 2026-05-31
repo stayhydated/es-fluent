@@ -15,12 +15,11 @@ Generates a strongly-typed enum of all available languages in your project. It a
 
 ```rs
 use es_fluent_lang::es_fluent_language;
-use es_fluent::EsFluent;
 use strum::EnumIter;
 
 // Define an empty enum, and the macro fills it
 #[es_fluent_language]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EsFluent, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum Languages {}
 ```
 
@@ -41,15 +40,15 @@ It also implements:
 - `FromStr`: Parses string codes (e.g., "en", "fr-FR", or "zh-CN") into the enum variant.
 - `TryFrom<&LanguageIdentifier>` / `TryFrom<LanguageIdentifier>`: Converts from a locale ID and returns an error for unsupported locales.
 - `Into<LanguageIdentifier>`: Converts back to a standard locale ID.
+- `FluentMessage`: Renders labels through a manager with `localize_message(...)`.
 
-For user-facing labels, derive `EsFluent` on the generated enum and call
-manager-backed `localize_message(...)` instead of relying on `Display`.
+For user-facing labels, call manager-backed `localize_message(...)` instead of
+relying on `Display`.
 
 If you want to provide your own language-name translations, use
-`#[es_fluent_language(custom)]`. Custom mode skips the built-in
-`es-fluent-lang` runtime hook. When combined with `#[derive(EsFluent)]`, it
-also leaves inventory registration enabled so your own FTL resources can
-provide the labels.
+`#[es_fluent_language(mode = "custom")]`. Custom mode skips the built-in
+`es-fluent-lang` runtime hook and registers the enum with inventory so your own
+FTL resources can provide the labels.
 
 ### Feature Flags
 
@@ -78,7 +77,7 @@ for language in Languages::iter() {
 i18n.select_language(Languages::FrFr)?;
 ```
 
-The runtime resolves fallback locales through the shared ICU4X/CLDR fallback chain when a display locale is missing exact display-name data. If you need fully custom labels for project-specific or unsupported locale tags, use `#[es_fluent_language(custom)]` and ship your own translations.
+The runtime resolves fallback locales through the shared ICU4X/CLDR fallback chain when a display locale is missing exact display-name data. If you need fully custom labels for project-specific or unsupported locale tags, use `#[es_fluent_language(mode = "custom")]` and ship your own translations.
 
 The built-in language-name module follows successful manager locale switches
 but does not count as application content support. A manager still reports an

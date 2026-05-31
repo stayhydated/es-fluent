@@ -7,7 +7,8 @@ fn parse_message_language_extracts_language_identifier() {
         parse_message_language("es-fluent-lang-fr-FR"),
         Some(langid!("fr-FR"))
     );
-    assert_eq!(parse_message_language("missing-prefix"), None);
+    assert_eq!(parse_message_language("fr-FR"), Some(langid!("fr-FR")));
+    assert_eq!(parse_message_language("not a language!"), None);
     assert_eq!(parse_message_language("es-fluent-lang-invalid!"), None);
 }
 
@@ -33,16 +34,10 @@ fn language_module_creates_localizer_and_selects_language() {
         .expect("language selection should succeed");
 
     #[cfg(not(feature = "localized-langs"))]
-    assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
-        Some(expected_french_name())
-    );
+    assert_eq!(localizer.localize("fr", None), Some(expected_french_name()));
 
     #[cfg(feature = "localized-langs")]
-    assert_eq!(
-        localizer.localize("es-fluent-lang-fr", None),
-        Some("French".to_string())
-    );
+    assert_eq!(localizer.localize("fr", None), Some("French".to_string()));
 }
 
 #[cfg(not(feature = "localized-langs"))]

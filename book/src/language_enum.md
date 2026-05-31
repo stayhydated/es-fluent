@@ -26,11 +26,10 @@ Define an empty enum and annotate it with `#[es_fluent_language]`:
 
 ```rust
 use es_fluent_lang::es_fluent_language;
-use es_fluent::EsFluent;
 use strum::EnumIter;
 
 #[es_fluent_language]
-#[derive(Debug, Clone, Copy, PartialEq, EsFluent, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, EnumIter)]
 pub enum Languages {}
 ```
 
@@ -54,6 +53,7 @@ The macro also generates these trait implementations:
 | `TryFrom<&LanguageIdentifier>` | Converts from a borrowed `unic-langid` identifier                 |
 | `TryFrom<LanguageIdentifier>`  | Converts from an owned `unic-langid` identifier                   |
 | `Into<LanguageIdentifier>`     | Converts back to a `unic-langid` identifier                       |
+| `FluentMessage`                | Renders language labels through a manager                         |
 
 If the configured fallback language is not present as a locale directory, the
 macro still adds it to the enum so `Default` always has a valid variant.
@@ -72,7 +72,10 @@ Since it implements `Into<LanguageIdentifier>`, you can pass variants anywhere a
 
 ## Language Name Labels
 
-By deriving `EsFluent` alongside `#[es_fluent_language]`, each variant can be rendered through an explicit manager with `i18n.localize_message(&language)`. The crate formats those labels directly from ICU4X display-name data, so a language picker works out of the box:
+Each variant can be rendered through an explicit manager with
+`i18n.localize_message(&language)`. The macro implements `FluentMessage`
+directly, and the crate formats those labels from ICU4X display-name data, so a
+language picker works out of the box:
 
 ```rust
 use es_fluent::FluentMessage;
@@ -114,14 +117,14 @@ unsupported locale when no application translation module can serve it.
 By default, the macro links to the built-in `es-fluent-lang` runtime and skips inventory registration. If you want to provide your own translations for language names (for example, project-specific labels or exact wording control), use **custom mode**:
 
 ```rust
-#[es_fluent_language(custom)]
-#[derive(Debug, Clone, Copy, EsFluent, EnumIter)]
+#[es_fluent_language(mode = "custom")]
+#[derive(Debug, Clone, Copy, EnumIter)]
 pub enum Languages {}
 ```
 
 In custom mode:
 
-- The macro stops injecting the built-in `es-fluent-lang` resource attributes.
-- When you also derive `EsFluent`, `cargo es-fluent generate` will create keys for the enum in your FTL files.
+- The macro skips the built-in `es-fluent-lang` runtime hook.
+- `cargo es-fluent generate` will create keys for the enum in your FTL files.
 - You provide your own translations instead of using ICU4X-backed labels.
 - Use this when your app ships custom language-name translations for project-specific or otherwise unsupported locale tags.

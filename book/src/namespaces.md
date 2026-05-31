@@ -49,14 +49,14 @@ A type in `src/components/dialog.rs` maps to namespace `dialog`.
 
 ### File Relative
 
-`namespace(file(relative))` uses the file path relative to the crate root, strips `src/`, and removes the extension.
+`namespace = file_relative` uses the file path relative to the crate root, strips `src/`, and removes the extension.
 
 ```rust
 use es_fluent::EsFluent;
 
 // In src/ui/button.rs
 #[derive(EsFluent)]
-#[fluent(namespace(file(relative)))]
+#[fluent(namespace = file_relative)]
 pub enum Gender {
     Male,
     Female,
@@ -75,7 +75,7 @@ use es_fluent::EsFluentLabel;
 
 // In src/user/profile.rs
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
+#[fluent_label(origin = true)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus {
     Active,
@@ -87,15 +87,15 @@ A type in `src/user/profile.rs` maps to namespace `user`.
 
 ### Folder Relative
 
-`namespace(folder(relative))` uses the parent folder path relative to the crate root, stripping `src/` when nested and keeping `src` for root module files.
+`namespace = folder_relative` uses the parent folder path relative to the crate root, stripping `src/` when nested and keeping `src` for root module files.
 
 ```rust
 use es_fluent::EsFluentLabel;
 
 // In src/user/profile.rs
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
-#[fluent(namespace(folder(relative)))]
+#[fluent_label(origin = true)]
+#[fluent(namespace = folder_relative)]
 pub struct FolderUserProfile;
 ```
 
@@ -107,9 +107,9 @@ A type in `src/user/profile.rs` maps to namespace `user`.
 | ----------------------------- | ------------------- | ------------------- |
 | `namespace = "name"`          | any                 | `name`              |
 | `namespace = file`            | `src/ui/button.rs`  | `button`            |
-| `namespace(file(relative))`   | `src/ui/button.rs`  | `ui/button`         |
+| `namespace = file_relative`   | `src/ui/button.rs`  | `ui/button`         |
 | `namespace = folder`          | `src/ui/button.rs`  | `ui`                |
-| `namespace(folder(relative))` | `src/ui/button.rs`  | `ui`                |
+| `namespace = folder_relative` | `src/ui/button.rs`  | `ui`                |
 
 ## Validation
 

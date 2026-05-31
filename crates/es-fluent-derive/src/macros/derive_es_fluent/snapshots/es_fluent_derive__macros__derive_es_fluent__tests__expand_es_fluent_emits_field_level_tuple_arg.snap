@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+assertion_line: 262
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for LoginError {
@@ -17,29 +18,13 @@ impl ::es_fluent::FluentMessage for LoginError {
         ) -> String,
     ) -> String {
         match self {
-            Self::Something(f0, f1, f2) => {
+            Self::Something(f0) => {
                 let mut args = ::std::collections::HashMap::new();
                 {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
-                        "f0",
+                        "value",
                         (::es_fluent::__private::FluentBorrowedArgumentValue::new(f0))
-                            .into_fluent_argument_value(localize),
-                    );
-                }
-                {
-                    use ::es_fluent::__private::IntoFluentArgumentValue as _;
-                    args.insert(
-                        "f1",
-                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f1))
-                            .into_fluent_argument_value(localize),
-                    );
-                }
-                {
-                    use ::es_fluent::__private::IntoFluentArgumentValue as _;
-                    args.insert(
-                        "f2",
-                        (::es_fluent::__private::FluentBorrowedArgumentValue::new(f2))
                             .into_fluent_argument_value(localize),
                     );
                 }
@@ -56,7 +41,7 @@ mod __es_fluent_inventory_LoginError {
         ::es_fluent::registry::FtlVariant {
             name: "Something",
             ftl_key: "login_error-Something",
-            args: &["f0", "f1", "f2"],
+            args: &["value"],
             module_path: module_path!(),
             line: line!(),
         },

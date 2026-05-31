@@ -52,7 +52,10 @@ flowchart TD
 
 - `lib.rs`: decodes `RunnerRequest`, builds a `RunnerContext`, dispatches the
   requested operation, and writes `result.json`
-- `cli.rs`: collects registered message metadata and writes `inventory.json`
+- `cli.rs`: collects registered message metadata, validates keys and variables
+  through shared Fluent newtypes, keeps source file/line metadata in shared
+  source newtypes while aggregating, and writes plain JSON only at the
+  `inventory.json` boundary
 - `generate/`: wraps `es-fluent-generate` behind a builder-style API and applies
   namespace validation and config/path resolution
 
@@ -73,7 +76,7 @@ sequenceDiagram
         Helpers->>Helpers: collect inventory and run generation/clean
         Helpers->>Meta: write result.json
     else Check
-        Helpers->>Helpers: collect expected keys from inventory
+        Helpers->>Helpers: collect and validate expected keys from inventory
         Helpers->>Meta: write inventory.json
     end
 ```

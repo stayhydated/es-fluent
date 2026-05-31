@@ -25,6 +25,10 @@ fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span
 fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
     match &input.data {
         Data::Enum(data) => {
+            if let Err(err) = validation::validate_es_fluent_attribute_context(&input) {
+                err.abort();
+            }
+
             let opts = match EnumOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors(),
@@ -34,7 +38,12 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
                 err.abort();
             }
 
-            validate_namespace(opts.attr_args().namespace(), opts.ident().span());
+            validate_namespace(
+                opts.attr_args().namespace(),
+                opts.attr_args()
+                    .namespace_span()
+                    .unwrap_or_else(|| opts.ident().span()),
+            );
 
             r#enum::process_enum(&opts, data)
         },
@@ -48,7 +57,12 @@ fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
                 err.abort();
             }
 
-            validate_namespace(opts.attr_args().namespace(), opts.ident().span());
+            validate_namespace(
+                opts.attr_args().namespace(),
+                opts.attr_args()
+                    .namespace_span()
+                    .unwrap_or_else(|| opts.ident().span()),
+            );
 
             r#struct::process_struct(&opts, data)
         },
@@ -250,31 +264,31 @@ mod tests {
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn expand_es_fluent_emits_field_level_tuple_arg_name() {
+    fn expand_es_fluent_emits_field_level_tuple_arg() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
-                Something(#[fluent(arg_name = "value")] String),
+                Something(#[fluent(arg = "value")] String),
             }
         };
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
-        assert_snapshot!("expand_es_fluent_emits_field_level_tuple_arg_name", tokens);
+        assert_snapshot!("expand_es_fluent_emits_field_level_tuple_arg", tokens);
     }
 
     #[test]
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
-    fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override() {
+    fn expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_override() {
         let enum_input: syn::DeriveInput = parse_quote! {
             enum LoginError {
-                Something(String, #[fluent(arg_name = "f1")] String, String),
+                Something(String, #[fluent(arg = "f1")] String, String),
             }
         };
 
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(enum_input));
         assert_snapshot!(
-            "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_name_override",
+            "expand_es_fluent_keeps_later_tuple_default_names_after_field_arg_override",
             tokens
         );
     }
@@ -296,6 +310,22 @@ mod tests {
             "expand_es_fluent_uses_explicit_domain_override_for_enum_lookup",
             tokens
         );
+    }
+
+    #[test]
+    fn expand_es_fluent_panics_for_invalid_enum_resource_override() {
+        let enum_input: syn::DeriveInput = parse_quote! {
+            #[fluent(resource = "bad key")]
+            enum BadResource {
+                Ready,
+            }
+        };
+
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = super::expand_es_fluent(enum_input);
+        }));
+
+        assert!(panic.is_err());
     }
 
     #[test]

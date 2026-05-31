@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive-core/tests/validation_tests.rs
+assertion_line: 218
 expression: err.to_string()
 ---
-Variant 'Something' error: duplicate field arg_name 'same' in variant fields
+Field 'hidden' error: Cannot use #[fluent(arg = "...")] on a skipped field

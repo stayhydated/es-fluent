@@ -27,7 +27,7 @@ pub enum ButtonState {
 impl gpui::Global for CurrentLanguage {}
 
 #[es_fluent_language]
-#[derive(Clone, Copy, Debug, EnumIter, Eq, EsFluent, PartialEq)]
+#[derive(Clone, Copy, Debug, EnumIter, Eq, PartialEq)]
 pub enum Languages {}
 
 impl Languages {
@@ -51,7 +51,7 @@ pub struct EmptyStructVariants;
 pub enum EmptyEnum {}
 
 #[derive(Clone, EsFluent, EsFluentLabel, EsFluentVariants)]
-#[fluent_label(origin)]
+#[fluent_label(origin = true)]
 #[fluent_variants(keys = ["description", "label"])]
 pub enum Country {
     USA(USAState),
@@ -70,7 +70,7 @@ pub enum CanadaProvince {
 }
 
 #[derive(EsFluent, EsFluentLabel, EsFluentVariants)]
-#[fluent_label(variants)]
+#[fluent_label(variants = true)]
 #[fluent_variants(keys = ["description", "label"])]
 pub struct SplitVariants {
     pub country: Country,

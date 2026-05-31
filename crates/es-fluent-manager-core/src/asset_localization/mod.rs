@@ -16,13 +16,16 @@ pub use module::{
     validate_module_registry,
 };
 pub use resource::{
-    ModuleResourceSpec, ResourceKey, locale_is_ready, optional_resource_keys_from_plan,
-    required_resource_keys_from_plan, resource_plan_for,
+    LocaleRelativeFtlPath, ModuleResourceSpec, ResourceKey, ResourcePlan, ResourcePlanError,
+    locale_is_ready, optional_resource_keys_from_plan, required_resource_keys_from_plan,
+    resource_plan_for, try_resource_plan_for,
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ResourcePlanError;
+    use es_fluent_shared::namespace::NamespacePathError;
     use fluent_bundle::FluentResource;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
@@ -59,14 +62,7 @@ mod tests {
     #[test]
     fn resource_plan_without_namespaces_requires_base_file() {
         let plan = resource_plan_for("app", &[]);
-        assert_eq!(
-            plan,
-            vec![ModuleResourceSpec {
-                key: ResourceKey::new("app"),
-                locale_relative_path: "app.ftl".to_string(),
-                required: true
-            }]
-        );
+        assert_eq!(plan, vec![ModuleResourceSpec::new("app", "app.ftl", true)]);
     }
 
     #[test]
@@ -75,21 +71,9 @@ mod tests {
         assert_eq!(
             plan,
             vec![
-                ModuleResourceSpec {
-                    key: ResourceKey::new("app"),
-                    locale_relative_path: "app.ftl".to_string(),
-                    required: false
-                },
-                ModuleResourceSpec {
-                    key: ResourceKey::new("app/ui"),
-                    locale_relative_path: "app/ui.ftl".to_string(),
-                    required: true
-                },
-                ModuleResourceSpec {
-                    key: ResourceKey::new("app/errors"),
-                    locale_relative_path: "app/errors.ftl".to_string(),
-                    required: true
-                }
+                ModuleResourceSpec::new("app", "app.ftl", false),
+                ModuleResourceSpec::new("app/ui", "app/ui.ftl", true),
+                ModuleResourceSpec::new("app/errors", "app/errors.ftl", true)
             ]
         );
         assert_eq!(plan[0].locale_path(&langid!("en-US")), "en-US/app.ftl");
@@ -102,16 +86,8 @@ mod tests {
         assert_eq!(
             plan,
             vec![
-                ModuleResourceSpec {
-                    key: ResourceKey::new("app"),
-                    locale_relative_path: "app.ftl".to_string(),
-                    required: false
-                },
-                ModuleResourceSpec {
-                    key: ResourceKey::new("app/ui/button"),
-                    locale_relative_path: "app/ui/button.ftl".to_string(),
-                    required: true
-                }
+                ModuleResourceSpec::new("app", "app.ftl", false),
+                ModuleResourceSpec::new("app/ui/button", "app/ui/button.ftl", true)
             ]
         );
     }
@@ -209,28 +185,28 @@ mod tests {
             ModuleRegistryError::InvalidNamespace { module, namespace, details }
                 if module == "test-module"
                     && namespace == "bad//path"
-                    && details == &"namespace path must not contain empty segments"
+                    && details == &NamespacePathError::EmptySegment
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
             ModuleRegistryError::InvalidNamespace { module, namespace, details }
                 if module == "test-module"
                     && namespace == r"bad\path"
-                    && details == &"namespace must use '/' as path separator"
+                    && details == &NamespacePathError::BackslashSeparator
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
             ModuleRegistryError::InvalidNamespace { module, namespace, details }
                 if module == "test-module"
                     && namespace == "../escape"
-                    && details == &"namespace path must not contain '.' or '..' segments"
+                    && details == &NamespacePathError::CurrentOrParentSegment
         )));
         assert!(errs.iter().any(|err| matches!(
             err,
             ModuleRegistryError::InvalidNamespace { module, namespace, details }
                 if module == "test-module"
                     && namespace == " ui "
-                    && details == &"namespace must not have leading or trailing whitespace"
+                    && details == &NamespacePathError::OuterWhitespace
         )));
     }
 
@@ -255,12 +231,30 @@ mod tests {
     }
 
     #[test]
-    fn parse_fluent_resource_content_reports_parse_errors() {
-        let spec = ModuleResourceSpec {
-            key: ResourceKey::new("app/ui"),
-            locale_relative_path: "app/ui.ftl".to_string(),
-            required: true,
+    fn module_data_try_resource_plan_reports_invalid_namespaces() {
+        static BAD_DATA: ModuleData = ModuleData {
+            name: "bad-module",
+            domain: "bad-domain",
+            supported_languages: SUPPORTED,
+            namespaces: &["../outside"],
         };
+
+        let err = BAD_DATA
+            .try_resource_plan()
+            .expect_err("invalid namespace should fail");
+
+        assert_eq!(
+            err,
+            ResourcePlanError::InvalidNamespace {
+                namespace: "../outside".to_string(),
+                details: es_fluent_shared::namespace::NamespacePathError::CurrentOrParentSegment
+            }
+        );
+    }
+
+    #[test]
+    fn parse_fluent_resource_content_reports_parse_errors() {
+        let spec = ModuleResourceSpec::new("app/ui", "app/ui.ftl", true);
 
         let err = parse_fluent_resource_content(&spec, "broken = {".to_string())
             .expect_err("invalid fluent should fail");
@@ -300,11 +294,7 @@ mod tests {
     #[test]
     fn locale_state_helpers_track_reports_resources_and_languages() {
         let lang = langid!("en");
-        let spec = ModuleResourceSpec {
-            key: ResourceKey::new("app/ui"),
-            locale_relative_path: "app/ui.ftl".to_string(),
-            required: true,
-        };
+        let spec = ModuleResourceSpec::new("app/ui", "app/ui.ftl", true);
 
         let mut specs = HashMap::new();
         specs.insert((lang.clone(), spec.key.clone()), spec.clone());

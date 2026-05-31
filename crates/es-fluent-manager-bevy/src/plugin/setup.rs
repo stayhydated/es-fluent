@@ -336,16 +336,12 @@ mod tests {
     fn setup_test_resource_plan(lang: &LanguageIdentifier) -> Option<Vec<ModuleResourceSpec>> {
         (lang == &langid!("en")).then(|| {
             vec![
-                ModuleResourceSpec {
-                    key: ResourceKey::new("setup-domain"),
-                    locale_relative_path: "setup-domain.ftl".to_string(),
-                    required: true,
-                },
-                ModuleResourceSpec {
-                    key: ResourceKey::new("setup-domain/ui"),
-                    locale_relative_path: "setup-domain/ui.ftl".to_string(),
-                    required: false,
-                },
+                ModuleResourceSpec::new(ResourceKey::new("setup-domain"), "setup-domain.ftl", true),
+                ModuleResourceSpec::new(
+                    ResourceKey::new("setup-domain/ui"),
+                    "setup-domain/ui.ftl",
+                    false,
+                ),
             ]
         })
     }

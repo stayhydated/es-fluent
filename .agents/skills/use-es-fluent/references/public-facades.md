@@ -117,7 +117,7 @@ fn app() -> Element {
 
 #[derive(Clone, Copy, EsFluent, EsFluentLabel)]
 #[fluent(namespace = "ui")]
-#[fluent_label(origin)]
+#[fluent_label(origin = true)]
 enum UiMessage {
     Hello,
 }
@@ -231,16 +231,15 @@ For direct localization in systems, request `BevyI18n` as a `SystemParam` and ca
 Use `es-fluent-lang` when the UI needs a type-safe supported-language list:
 
 ```rust
-use es_fluent::EsFluent;
 use es_fluent_lang::es_fluent_language;
 use strum::EnumIter;
 
 #[es_fluent_language]
-#[derive(Clone, Copy, Debug, Eq, EsFluent, EnumIter, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, EnumIter, PartialEq)]
 pub enum Languages {}
 ```
 
-The macro scans `i18n.toml` and canonical locale folders, implements `Default` from `fallback_language`, conversion to/from `LanguageIdentifier`, and can render language labels through the active manager:
+The macro scans `i18n.toml` and canonical locale folders, implements `Default` from `fallback_language`, conversion to/from `LanguageIdentifier`, and `FluentMessage` for rendering language labels through the active manager:
 
 ```rust
 use strum::IntoEnumIterator as _;
@@ -253,4 +252,4 @@ for language in Languages::iter() {
 i18n.select_language(Languages::FrFr)?;
 ```
 
-Use `#[es_fluent_language(custom)]` when the application ships its own translated language names.
+Use `#[es_fluent_language(mode = "custom")]` when the application ships its own translated language names.

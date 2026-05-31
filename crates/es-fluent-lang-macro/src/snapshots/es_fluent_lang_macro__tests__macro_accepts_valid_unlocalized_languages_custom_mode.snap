@@ -3,10 +3,60 @@ source: crates/es-fluent-lang-macro/src/lib.rs
 expression: pretty_tokens(&custom_output)
 ---
 enum CustomLanguages {
-    #[fluent(key = "en-US")]
     EnUs,
-    #[fluent(key = "zz")]
     Zz,
+}
+impl ::es_fluent::FluentMessage for CustomLanguages {
+    fn to_fluent_string_with(
+        &self,
+        localize: &mut dyn for<'__es_fluent_message> FnMut(
+            &str,
+            &str,
+            Option<
+                &::std::collections::HashMap<
+                    &str,
+                    ::es_fluent::FluentValue<'__es_fluent_message>,
+                >,
+            >,
+        ) -> String,
+    ) -> String {
+        match self {
+            Self::EnUs => localize(env!("CARGO_PKG_NAME"), "en-US", None),
+            Self::Zz => localize(env!("CARGO_PKG_NAME"), "zz", None),
+        }
+    }
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod __es_fluent_language_inventory_custom_languages {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::FtlVariant {
+            name: "EnUs",
+            ftl_key: "en-US",
+            args: &[],
+            module_path: module_path!(),
+            line: line!(),
+        },
+        ::es_fluent::registry::FtlVariant {
+            name: "Zz",
+            ftl_key: "zz",
+            args: &[],
+            module_path: module_path!(),
+            line: line!(),
+        },
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
+        type_kind: ::es_fluent::meta::TypeKind::Enum,
+        type_name: "CustomLanguages",
+        variants: VARIANTS,
+        file_path: file!(),
+        module_path: module_path!(),
+        namespace: None,
+    };
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
 }
 impl From<CustomLanguages> for es_fluent::unic_langid::LanguageIdentifier {
     fn from(val: CustomLanguages) -> Self {

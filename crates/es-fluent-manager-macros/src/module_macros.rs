@@ -359,8 +359,8 @@ fn dioxus_asset_resource_tokens(
 
     for (language, specs) in &assets.resource_specs_by_language {
         for spec in specs {
-            let key = &spec.key;
-            let locale_relative_path = &spec.locale_relative_path;
+            let key = spec.key.as_str();
+            let locale_relative_path = spec.locale_relative_path.as_str();
             let required = spec.required;
             let asset_path = dioxus_asset_path(&assets.root_path, language, locale_relative_path)?;
 
@@ -433,25 +433,21 @@ mod tests {
                 (
                     "en-US".to_string(),
                     vec![
-                        ResourceSpec {
-                            key: "my-crate".to_string(),
-                            locale_relative_path: "my-crate.ftl".to_string(),
-                            required: false,
-                        },
-                        ResourceSpec {
-                            key: "my-crate/ui".to_string(),
-                            locale_relative_path: "my-crate/ui.ftl".to_string(),
-                            required: true,
-                        },
+                        ResourceSpec::base("my-crate", false),
+                        ResourceSpec::namespaced(
+                            "my-crate",
+                            &es_fluent_shared::namespace::ResolvedNamespace::new("ui").unwrap(),
+                            true,
+                        ),
                     ],
                 ),
                 (
                     "fr".to_string(),
-                    vec![ResourceSpec {
-                        key: "my-crate/ui".to_string(),
-                        locale_relative_path: "my-crate/ui.ftl".to_string(),
-                        required: true,
-                    }],
+                    vec![ResourceSpec::namespaced(
+                        "my-crate",
+                        &es_fluent_shared::namespace::ResolvedNamespace::new("ui").unwrap(),
+                        true,
+                    )],
                 ),
             ],
         }

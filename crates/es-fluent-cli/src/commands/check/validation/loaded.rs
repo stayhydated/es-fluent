@@ -29,22 +29,26 @@ pub(super) fn validate_loaded_ftl_files(
         };
 
         for variable in &key_info.variables {
-            if actual.variables.contains(variable) {
+            if actual.variables.contains(variable.as_str()) {
                 continue;
             }
 
             issues.push(ctx.missing_variable_issue(
                 key,
-                variable,
+                variable.as_str(),
                 locale,
                 &actual.header_link,
-                key_info.source_file.as_deref(),
-                key_info.source_line,
+                key_info.source_file.as_ref().map(|file| file.as_str()),
+                key_info.source_line.map(|line| line.get()),
             ));
         }
 
         for variable in &actual.variables {
-            if key_info.variables.contains(variable) {
+            if key_info
+                .variables
+                .iter()
+                .any(|expected| expected.as_str() == variable)
+            {
                 continue;
             }
 

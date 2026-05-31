@@ -1,13 +1,19 @@
 use darling::FromDeriveInput as _;
+use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::options::{
     FluentField, GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
 };
+use es_fluent_derive_core::semantic::{
+    ArgumentModel, ArgumentValueStrategy, DerivePathList, GeneratedEnumModel, InventoryPolicy,
+    MessageModel, ValueTransform, parse_domain_name_in_context,
+};
 use es_fluent_shared::{namer, namespace::NamespaceRule};
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput};
 
-use crate::macros::ir::{FluentArgument, GeneratedUnitEnumVariant, InventoryVariantSpec};
+use crate::macros::ir::inventory_variant_tokens_for_model;
+use crate::macros::ir::{FluentArgument, GeneratedUnitEnumVariant, MessageEntrySpec};
 
 pub struct InventoryModuleInput<'a> {
     pub ident: &'a syn::Ident,
@@ -24,8 +30,44 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub domain_override: Option<&'a str>,
     pub derives: &'a [syn::Path],
     pub variants: &'a [GeneratedUnitEnumVariant],
-    pub namespace_expr: TokenStream,
+    pub namespace: Option<&'a NamespaceRule>,
     pub label_key: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct SpannedNamespaceRule {
+    rule: NamespaceRule,
+    span: Span,
+}
+
+impl SpannedNamespaceRule {
+    pub fn new(rule: NamespaceRule, span: Span) -> Self {
+        Self { rule, span }
+    }
+
+    pub fn as_ref(&self) -> SpannedNamespaceRuleRef<'_> {
+        SpannedNamespaceRuleRef::new(&self.rule, self.span)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SpannedNamespaceRuleRef<'a> {
+    rule: &'a NamespaceRule,
+    span: Span,
+}
+
+impl<'a> SpannedNamespaceRuleRef<'a> {
+    pub fn new(rule: &'a NamespaceRule, span: Span) -> Self {
+        Self { rule, span }
+    }
+
+    pub fn rule(self) -> &'a NamespaceRule {
+        self.rule
+    }
+
+    pub fn span(self) -> Span {
+        self.span
+    }
 }
 
 pub fn keyed_variant_idents_or_abort(opts: &impl GeneratedVariantsOptions) -> Vec<syn::Ident> {
@@ -83,29 +125,35 @@ pub fn generate_localize_label_impl(
 }
 
 pub fn generate_field_value_expr(
-    field: &impl FluentField,
+    value_strategy: &ArgumentValueStrategy,
     access_expr: TokenStream,
     transform_arg_expr: TokenStream,
 ) -> TokenStream {
-    if let Some(expr) = field.value() {
-        quote! {
-            ::es_fluent::__private::FluentArgumentValue::new((#expr)(#transform_arg_expr))
-        }
-    } else if field.is_choice() {
-        quote! {
-            ::es_fluent::__private::FluentArgumentValue::new({
-                use ::es_fluent::EsFluentChoice as _;
-                (#access_expr).as_fluent_choice()
-            })
-        }
-    } else if is_option_type(field.ty()) {
-        quote! {
-            ::es_fluent::__private::FluentOptionalArgumentValue::new((#transform_arg_expr).as_ref())
-        }
-    } else {
-        quote! {
-            ::es_fluent::__private::FluentBorrowedArgumentValue::new(#transform_arg_expr)
-        }
+    match value_strategy {
+        ArgumentValueStrategy::Transform(transform) => {
+            let expr = transform.expr();
+            quote! {
+                ::es_fluent::__private::FluentArgumentValue::new((#expr)(#transform_arg_expr))
+            }
+        },
+        ArgumentValueStrategy::Choice => {
+            quote! {
+                ::es_fluent::__private::FluentArgumentValue::new({
+                    use ::es_fluent::EsFluentChoice as _;
+                    (#access_expr).as_fluent_choice()
+                })
+            }
+        },
+        ArgumentValueStrategy::Optional => {
+            quote! {
+                ::es_fluent::__private::FluentOptionalArgumentValue::new((#transform_arg_expr).as_ref())
+            }
+        },
+        ArgumentValueStrategy::Borrowed => {
+            quote! {
+                ::es_fluent::__private::FluentBorrowedArgumentValue::new(#transform_arg_expr)
+            }
+        },
     }
 }
 
@@ -127,16 +175,34 @@ pub fn generate_field_argument(
     access_expr: TokenStream,
     transform_arg_expr: TokenStream,
 ) -> FluentArgument {
-    let value_expr = generate_field_value_expr(field, access_expr, transform_arg_expr);
+    let span = field
+        .ident()
+        .map_or_else(proc_macro2::Span::call_site, syn::Ident::span);
+    let value_strategy = field_value_strategy(field, span);
+    let value_expr = generate_field_value_expr(&value_strategy, access_expr, transform_arg_expr);
+    let name = field
+        .fluent_arg_name(index, AttrContext::MessageField)
+        .unwrap_or_else(|error| error.abort());
 
     FluentArgument {
-        key: field.fluent_arg_name(index),
+        metadata: ArgumentModel::new_with_value_strategy(name, value_strategy),
         value_expr,
     }
 }
 
-pub fn inventory_arg_name(field: &impl FluentField, index: usize) -> String {
-    field.fluent_arg_name(index)
+fn field_value_strategy(
+    field: &impl FluentField,
+    span: proc_macro2::Span,
+) -> ArgumentValueStrategy {
+    if let Some(expr) = field.value() {
+        ArgumentValueStrategy::Transform(ValueTransform::new(expr.clone(), span))
+    } else if field.is_choice() {
+        ArgumentValueStrategy::Choice
+    } else if is_option_type(field.ty()) {
+        ArgumentValueStrategy::Optional
+    } else {
+        ArgumentValueStrategy::Borrowed
+    }
 }
 
 pub fn variant_ftl_key(
@@ -150,21 +216,6 @@ pub fn variant_ftl_key(
     namer::FluentKey::from(base_key)
         .join(&variant_key_suffix)
         .to_string()
-}
-
-pub fn inventory_variant_tokens(
-    name: impl Into<String>,
-    ftl_key: String,
-    arg_names: Vec<String>,
-    source_span: proc_macro2::Span,
-) -> TokenStream {
-    InventoryVariantSpec {
-        name: name.into(),
-        ftl_key,
-        arg_names,
-        source_span,
-    }
-    .tokens()
 }
 
 pub fn generate_fluent_message_impl(
@@ -194,11 +245,12 @@ pub fn generate_unit_enum_definition(
     ident: &syn::Ident,
     origin_ident: &syn::Ident,
     key_name: Option<&str>,
-    derives: &[syn::Path],
+    model: &GeneratedEnumModel,
     variants: &[GeneratedUnitEnumVariant],
 ) -> TokenStream {
     let cleaned_variants = variants.iter().map(|entry| &entry.ident);
-    let derive_attr = if !derives.is_empty() {
+    let derives = model.derives().paths().iter().map(|derive| derive.path());
+    let derive_attr = if !model.derives().is_empty() {
         quote! { #[derive(#(#derives),*)] }
     } else {
         quote! {}
@@ -231,26 +283,37 @@ pub fn generate_unit_enum_definition(
 pub fn generate_optional_label_inventory_module(
     ident: &syn::Ident,
     source_span: proc_macro2::Span,
-    namespace_expr: TokenStream,
+    namespace: Option<&NamespaceRule>,
     label_key: Option<&str>,
 ) -> TokenStream {
     let Some(label_key) = label_key else {
         return quote! {};
     };
 
-    let label_variant = inventory_variant_tokens(
+    let label_entry = MessageEntrySpec::new(
         namer::rust_ident_name(ident),
         label_key.to_string(),
-        Vec::new(),
         source_span,
+        Vec::new(),
     );
+    let label_model = MessageModel::new(
+        namer::rust_ident_name(ident),
+        es_fluent_shared::meta::TypeKind::Enum,
+        None,
+        namespace.cloned(),
+        Vec::new(),
+        Some(label_entry.metadata.clone()),
+        InventoryPolicy::Emit,
+    );
+    let label_variant =
+        inventory_variant_tokens_for_model(label_model.label().expect("label entry"));
 
     generate_inventory_module(InventoryModuleInput {
         ident,
         module_name_prefix: "label_inventory",
         type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
         variants: vec![label_variant],
-        namespace_expr,
+        namespace_expr: namespace_rule_tokens(label_model.namespace()),
     })
 }
 
@@ -262,12 +325,41 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         domain_override,
         derives,
         variants,
-        namespace_expr,
+        namespace,
         label_key,
     } = input;
 
     let empty_generics = syn::Generics::default();
-    let new_enum = generate_unit_enum_definition(ident, origin_ident, key_name, derives, variants);
+    let domain_model = domain_override.map(|domain| {
+        parse_domain_name_in_context(domain, ident.span(), AttrContext::VariantsContainer)
+            .unwrap_or_else(|error| error.abort())
+    });
+    let label_model = label_key.as_ref().map(|label_key| {
+        MessageEntrySpec::new(
+            namer::rust_ident_name(ident),
+            label_key.clone(),
+            origin_ident.span(),
+            Vec::new(),
+        )
+        .metadata
+    });
+    let derive_paths =
+        DerivePathList::from_paths(derives.iter().cloned(), AttrContext::VariantsContainer)
+            .unwrap_or_else(|error| error.abort());
+    let generated_model = GeneratedEnumModel::new(
+        ident.to_string(),
+        origin_ident.to_string(),
+        derive_paths,
+        variants
+            .iter()
+            .map(|variant| variant.message_entry.metadata.clone())
+            .collect(),
+        label_model,
+        domain_model,
+        namespace.cloned(),
+    );
+    let new_enum =
+        generate_unit_enum_definition(ident, origin_ident, key_name, &generated_model, variants);
     let localize_with_match_arms = variants
         .iter()
         .map(|variant| variant.localize_with_match_arm(domain_override));
@@ -284,11 +376,12 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         ident,
         module_name_prefix: "inventory",
         type_kind: quote! { ::es_fluent::meta::TypeKind::Enum },
-        variants: variants
+        variants: generated_model
+            .messages()
             .iter()
-            .map(GeneratedUnitEnumVariant::inventory_variant_tokens)
+            .map(inventory_variant_tokens_for_model)
             .collect(),
-        namespace_expr: namespace_expr.clone(),
+        namespace_expr: namespace_rule_tokens(generated_model.namespace()),
     });
     let label_impl = generate_localize_label_impl(
         ident,
@@ -299,7 +392,7 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
     let label_inventory = generate_optional_label_inventory_module(
         ident,
         origin_ident.span(),
-        namespace_expr,
+        namespace,
         label_key.as_deref(),
     );
 
@@ -390,16 +483,38 @@ pub fn namespace_rule_tokens(namespace: Option<&NamespaceRule>) -> TokenStream {
     }
 }
 
+#[cfg(test)]
 pub fn inherited_fluent_namespace(
     input: &DeriveInput,
 ) -> Result<Option<NamespaceRule>, darling::Error> {
+    inherited_fluent_namespace_with_span(input)
+        .map(|namespace| namespace.map(|namespace| namespace.rule.clone()))
+}
+
+pub fn inherited_fluent_namespace_with_span(
+    input: &DeriveInput,
+) -> Result<Option<SpannedNamespaceRule>, darling::Error> {
     match &input.data {
-        Data::Struct(_) => {
-            StructOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
-        },
-        Data::Enum(_) => {
-            EnumOpts::from_derive_input(input).map(|opts| opts.attr_args().namespace().cloned())
-        },
+        Data::Struct(_) => StructOpts::from_derive_input(input).map(|opts| {
+            opts.attr_args().namespace().map(|namespace| {
+                SpannedNamespaceRule::new(
+                    namespace.clone(),
+                    opts.attr_args()
+                        .namespace_span()
+                        .unwrap_or_else(|| input.ident.span()),
+                )
+            })
+        }),
+        Data::Enum(_) => EnumOpts::from_derive_input(input).map(|opts| {
+            opts.attr_args().namespace().map(|namespace| {
+                SpannedNamespaceRule::new(
+                    namespace.clone(),
+                    opts.attr_args()
+                        .namespace_span()
+                        .unwrap_or_else(|| input.ident.span()),
+                )
+            })
+        }),
         Data::Union(_) => Err(darling::Error::custom(
             "namespace lookup is not supported for unions",
         )),
@@ -409,24 +524,40 @@ pub fn inherited_fluent_namespace(
 pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<String>, darling::Error> {
     match &input.data {
         Data::Struct(_) => Ok(None),
-        Data::Enum(_) => EnumOpts::from_derive_input(input)
-            .map(|opts| opts.attr_args().domain().map(str::to_owned)),
+        Data::Enum(_) => EnumOpts::from_derive_input(input).map(|opts| {
+            opts.attr_args()
+                .domain_name(AttrContext::MessageContainer)
+                .unwrap_or_else(|error| error.abort())
+                .map(|domain| domain.into_value().to_string())
+        }),
         Data::Union(_) => Err(darling::Error::custom(
             "domain lookup is not supported for unions",
         )),
     }
 }
 
+#[cfg(test)]
 pub fn preferred_namespace<'a>(
     namespaces: impl IntoIterator<Item = Option<&'a NamespaceRule>>,
 ) -> Option<&'a NamespaceRule> {
     namespaces.into_iter().flatten().next()
 }
 
+pub fn preferred_spanned_namespace<'a>(
+    namespaces: impl IntoIterator<Item = Option<SpannedNamespaceRuleRef<'a>>>,
+) -> Option<SpannedNamespaceRuleRef<'a>> {
+    namespaces.into_iter().flatten().next()
+}
+
 #[cfg(test)]
 mod tests {
+    use es_fluent_derive_core::error::AttrContext;
+    use es_fluent_derive_core::semantic::{
+        ArgumentValueStrategy, DerivePathList, GeneratedEnumModel, ValueTransform,
+    };
     use es_fluent_shared::namespace::NamespaceRule;
     use insta::assert_snapshot;
+    use quote::quote;
     use syn::parse_quote;
 
     #[test]
@@ -502,6 +633,93 @@ mod tests {
             "generate_localize_label_impl_explicit_domain_override",
             tokens
         );
+    }
+
+    #[test]
+    fn generate_unit_enum_definition_uses_model_derive_paths() {
+        let model = GeneratedEnumModel::new(
+            "StatusFtl",
+            "Status",
+            DerivePathList::from_paths(
+                vec![parse_quote!(Debug), parse_quote!(Clone)],
+                AttrContext::VariantsContainer,
+            )
+            .expect("derive paths"),
+            Vec::new(),
+            None,
+            None,
+            None,
+        );
+
+        let tokens = super::generate_unit_enum_definition(
+            &parse_quote!(StatusFtl),
+            &parse_quote!(Status),
+            None,
+            &model,
+            &[],
+        );
+        let file: syn::File = syn::parse2(tokens).expect("generated enum should parse");
+        let enum_item = file
+            .items
+            .iter()
+            .find_map(|item| match item {
+                syn::Item::Enum(item) => Some(item),
+                _ => None,
+            })
+            .expect("generated enum item");
+        let derive_attr = enum_item
+            .attrs
+            .iter()
+            .find(|attr| attr.path().is_ident("derive"))
+            .expect("derive attr");
+        let derives = derive_attr
+            .parse_args_with(
+                syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated,
+            )
+            .expect("derive paths")
+            .iter()
+            .map(|path| quote!(#path).to_string())
+            .collect::<Vec<_>>();
+
+        assert_eq!(derives, vec!["Debug", "Clone"]);
+    }
+
+    #[test]
+    fn generate_field_value_expr_uses_argument_value_strategy() {
+        let borrowed = super::generate_field_value_expr(
+            &ArgumentValueStrategy::Borrowed,
+            quote!(field),
+            quote!(field),
+        )
+        .to_string();
+        assert!(borrowed.contains("FluentBorrowedArgumentValue"));
+
+        let optional = super::generate_field_value_expr(
+            &ArgumentValueStrategy::Optional,
+            quote!(field),
+            quote!(field),
+        )
+        .to_string();
+        assert!(optional.contains("FluentOptionalArgumentValue"));
+
+        let choice = super::generate_field_value_expr(
+            &ArgumentValueStrategy::Choice,
+            quote!(field),
+            quote!(field),
+        )
+        .to_string();
+        assert!(choice.contains("as_fluent_choice"));
+
+        let transform = super::generate_field_value_expr(
+            &ArgumentValueStrategy::Transform(ValueTransform::new(
+                parse_quote!(|value: &String| value.len()),
+                proc_macro2::Span::call_site(),
+            )),
+            quote!(field),
+            quote!(field),
+        )
+        .to_string();
+        assert!(transform.contains("value . len"));
     }
 
     #[test]

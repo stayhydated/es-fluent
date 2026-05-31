@@ -15,9 +15,9 @@ pub enum LoginError {
     UserNotFound { username: String }, // exposed as $username in the ftl file
     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
     SomethingArgNamed(
-        #[fluent(arg_name = "input")] String,
-        #[fluent(arg_name = "expected")] String,
-        #[fluent(arg_name = "details")] String,
+        #[fluent(arg = "input")] String,
+        #[fluent(arg = "expected")] String,
+        #[fluent(arg = "details")] String,
     ), // exposed as $input, $expected, $details
 }
 
@@ -57,9 +57,9 @@ let _ = i18n.localize_message(&welcome);
 
 Common derive attributes:
 
-- `arg_name = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+- `arg = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 - `#[fluent(skip)]` on a field excludes that field from generated arguments.
-- `#[fluent(value = "...")]` or `#[fluent(value(...))]` transforms a field before inserting it as a Fluent argument.
+- `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
 - `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
 - `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
 - `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.
@@ -103,7 +103,7 @@ Choices allow an enum to be used _inside_ another message as a Fluent selector (
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
-#[fluent_choice(serialize_all = "snake_case")]
+#[fluent_choice(rename_all = "snake_case")]
 pub enum GenderChoice {
     Male,
     Female,
@@ -210,9 +210,10 @@ add derives to the generated enums.
 ### Origin Only
 
 `origin` is enabled by default, so `#[derive(EsFluentLabel)]` creates a single
-key for the type. `#[fluent_label(origin)]` is equivalent; use
+key for the type. `#[fluent_label(origin = true)]` is equivalent; use
 `#[fluent_label(origin = false)]` when deriving only variant labels through
-`EsFluentVariants`.
+`EsFluentVariants`. `origin` and `variants` use explicit booleans when supplied;
+bare flags like `#[fluent_label(origin)]` are not accepted.
 
 ```rust
 use es_fluent::EsFluentLabel;
@@ -236,13 +237,13 @@ let _ = GenderLabelOnly::localize_label(&i18n);
 
 ### Combined with Variants
 
-`#[fluent_label(variants)]` can be combined with `EsFluentVariants` to generate type-level keys for each generated variant enum:
+`#[fluent_label(variants = true)]` can be combined with `EsFluentVariants` to generate type-level keys for each generated variant enum:
 
 ```rust
 use es_fluent::{EsFluentLabel, EsFluentVariants};
 
 #[derive(EsFluentLabel, EsFluentVariants)]
-#[fluent_label(origin, variants)]
+#[fluent_label(origin = true, variants = true)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,

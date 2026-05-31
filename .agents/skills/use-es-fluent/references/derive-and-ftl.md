@@ -15,9 +15,9 @@ pub enum LoginError {
     UserNotFound { username: String },
     Something(String, String, String),
     SomethingArgNamed(
-        #[fluent(arg_name = "input")] String,
-        #[fluent(arg_name = "expected")] String,
-        #[fluent(arg_name = "details")] String,
+        #[fluent(arg = "input")] String,
+        #[fluent(arg = "expected")] String,
+        #[fluent(arg = "details")] String,
     ),
 }
 
@@ -49,9 +49,9 @@ Use `i18n.localize_message(&value)` through the concrete manager or integration 
 
 Common `#[fluent(...)]` attributes:
 
-- `arg_name = "..."`: rename an exposed Fluent argument.
+- `arg = "..."`: rename an exposed Fluent argument.
 - `skip`: exclude a field from arguments, or on a single-field enum variant delegate rendering to the wrapped message.
-- `value = "..."` or `value(...)`: transform a field before inserting it as a Fluent argument.
+- `value = |x: &String| x.len()`: transform a field before inserting it as a Fluent argument.
 - `key = "..."`: override an enum variant key suffix.
 - `resource = "..."`: override the enum base key.
 - `domain = "..."`: route enum lookup to a specific manager domain.
@@ -92,7 +92,7 @@ Use `EsFluentChoice` for selector values inside another message:
 use es_fluent::{EsFluent, EsFluentChoice};
 
 #[derive(EsFluent, EsFluentChoice)]
-#[fluent_choice(serialize_all = "snake_case")]
+#[fluent_choice(rename_all = "snake_case")]
 pub enum GenderChoice {
     Male,
     Female,
@@ -165,7 +165,7 @@ pub enum Gender {
 let title = Gender::localize_label(&i18n);
 ```
 
-`#[fluent_label(origin)]` generates a type-level label. `#[fluent_label(variants)]` can be combined with `EsFluentVariants`.
+`#[fluent_label(origin = true)]` generates a type-level label. `#[fluent_label(variants = true)]` can be combined with `EsFluentVariants`. Label flags use explicit booleans; bare `#[fluent_label(origin)]` is not accepted.
 
 ## Namespaces
 
@@ -181,7 +181,7 @@ struct Button;
 struct Dialog;
 
 #[derive(EsFluent)]
-#[fluent(namespace(file(relative)))] // -> assets_dir/{locale}/{crate}/ui/button.ftl
+#[fluent(namespace = file_relative)] // -> assets_dir/{locale}/{crate}/ui/button.ftl
 struct Modal;
 
 #[derive(EsFluent)]
@@ -189,7 +189,7 @@ struct Modal;
 struct FolderModal;
 
 #[derive(EsFluent)]
-#[fluent(namespace(folder(relative)))] // -> assets_dir/{locale}/{crate}/ui.ftl
+#[fluent(namespace = folder_relative)] // -> assets_dir/{locale}/{crate}/ui.ftl
 struct FolderRelativeModal;
 ```
 

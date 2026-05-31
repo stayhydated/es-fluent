@@ -85,25 +85,27 @@ fn enum_variants_and_fields_skipping_and_choice() {
 }
 
 #[test]
-fn enum_variant_level_arg_name_is_rejected() {
+fn enum_variant_level_arg_is_rejected() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         enum MyEnum {
-            #[fluent(arg_name = "value")]
+            #[fluent(arg = "value")]
             Tuple(String),
         }
     };
 
     let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
-    assert!(err.to_string().contains("arg_name"));
+    let message = err.to_string();
+    assert!(message.contains("field-only attribute"));
+    assert!(message.contains("enum variant `Tuple`"));
 }
 
 #[test]
-fn enum_tuple_field_arg_name_parsing() {
+fn enum_tuple_field_arg_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         enum MyEnum {
-            Tuple(#[fluent(arg_name = "value")] String),
+            Tuple(#[fluent(arg = "value")] String),
         }
     };
 
@@ -115,17 +117,17 @@ fn enum_tuple_field_arg_name_parsing() {
         .expect("Tuple variant present");
 
     let fields = tuple.all_fields();
-    let field_arg_name = fields[0].arg_name().expect("field arg_name should parse");
-    assert_eq!(field_arg_name, "value".to_string());
+    let field_arg = fields[0].arg().expect("field arg should parse");
+    assert_eq!(field_arg, "value".to_string());
 }
 
 #[test]
-fn enum_named_field_arg_name_parsing() {
+fn enum_named_field_arg_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         enum MyEnum {
             Named {
-                #[fluent(arg_name = "display_value")]
+                #[fluent(arg = "display_value")]
                 value: String,
             },
         }
@@ -139,8 +141,8 @@ fn enum_named_field_arg_name_parsing() {
         .expect("Named variant present");
 
     let fields = named.all_fields();
-    let field_arg_name = fields[0].arg_name().expect("field arg_name should parse");
-    assert_eq!(field_arg_name, "display_value".to_string());
+    let field_arg = fields[0].arg().expect("field arg should parse");
+    assert_eq!(field_arg, "display_value".to_string());
 }
 
 #[test]
@@ -260,21 +262,21 @@ fn struct_tuple_fields_parsing() {
 
     let (first_index, first_field) = &indexed_fields[0];
     assert_eq!(*first_index, 1);
-    assert_eq!(first_field.fluent_arg_name(*first_index), "f1");
+    assert_eq!(first_field.fluent_arg(*first_index), "f1");
     assert!(!first_field.is_choice());
 
     let (second_index, second_field) = &indexed_fields[1];
     assert_eq!(*second_index, 2);
-    assert_eq!(second_field.fluent_arg_name(*second_index), "f2");
+    assert_eq!(second_field.fluent_arg(*second_index), "f2");
     assert!(second_field.is_choice());
 }
 
 #[test]
-fn struct_named_field_arg_name_parsing() {
+fn struct_named_field_arg_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
         struct MyStruct {
-            #[fluent(arg_name = "display_name")]
+            #[fluent(arg = "display_name")]
             name: String,
             value: String,
         }
@@ -283,20 +285,17 @@ fn struct_named_field_arg_name_parsing() {
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
     let indexed_fields = opts.indexed_fields();
     assert_eq!(
-        indexed_fields[0].1.fluent_arg_name(indexed_fields[0].0),
+        indexed_fields[0].1.fluent_arg(indexed_fields[0].0),
         "display_name"
     );
-    assert_eq!(
-        indexed_fields[1].1.fluent_arg_name(indexed_fields[1].0),
-        "value"
-    );
+    assert_eq!(indexed_fields[1].1.fluent_arg(indexed_fields[1].0), "value");
 }
 
 #[test]
 fn enum_choice_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluentChoice)]
-        #[fluent_choice(serialize_all = "snake_case")]
+        #[fluent_choice(rename_all = "snake_case")]
         enum MyEnum {
             A,
             B,
@@ -307,10 +306,7 @@ fn enum_choice_parsing() {
     assert_eq!(opts.ident().to_string(), "MyEnum");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 2);
-    assert_eq!(
-        opts.attr_args().serialize_all().as_deref(),
-        Some("snake_case")
-    );
+    assert_eq!(opts.attr_args().rename_all().as_deref(), Some("snake_case"));
 }
 
 #[test]
@@ -365,7 +361,7 @@ fn struct_fluent_with_namespace_file() {
 fn struct_fluent_with_namespace_file_relative() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(namespace(file(relative)))]
+        #[fluent(namespace = file_relative)]
         struct Modal {
             content: String,
         }
@@ -406,7 +402,7 @@ fn struct_fluent_with_namespace_folder() {
 fn struct_fluent_with_namespace_folder_relative() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
-        #[fluent(namespace(folder(relative)))]
+        #[fluent(namespace = folder_relative)]
         struct FolderRelativeModal {
             content: String,
         }

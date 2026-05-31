@@ -120,20 +120,12 @@ fn i18n_assets_namespace_contract_matrix() {
 
     assets.add_optional_asset_spec(
         lang.clone(),
-        ModuleResourceSpec {
-            key: ResourceKey::new("app"),
-            locale_relative_path: "app.ftl".to_string(),
-            required: false,
-        },
+        ModuleResourceSpec::new(ResourceKey::new("app"), "app.ftl", false),
         Handle::default(),
     );
     assets.add_asset_spec(
         lang.clone(),
-        ModuleResourceSpec {
-            key: ResourceKey::new("app/ui"),
-            locale_relative_path: "app/ui.ftl".to_string(),
-            required: true,
-        },
+        ModuleResourceSpec::new(ResourceKey::new("app/ui"), "app/ui.ftl", true),
         Handle::default(),
     );
 

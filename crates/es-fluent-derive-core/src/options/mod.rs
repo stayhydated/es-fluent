@@ -1,17 +1,103 @@
 //! This module provides types for parsing `es-fluent` attributes.
 
-use crate::error::{ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::error::{AttrContext, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::semantic::{
+    ArgName, SpannedValue, VariantKey, parse_arg_name_in_context, parse_variant_key_in_context,
+};
 use bon::Builder;
 use darling::{FromField, FromMeta};
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use getset::Getters;
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use quote::format_ident;
+use syn::spanned::Spanned as _;
 
 pub mod choice;
 pub mod r#enum;
 pub mod label;
 pub mod r#struct;
+
+/// A string parsed from an attribute literal with its original literal span.
+#[derive(Clone, Debug)]
+pub struct SpannedString {
+    value: String,
+    span: proc_macro2::Span,
+}
+
+impl SpannedString {
+    pub fn new(value: impl Into<String>, span: proc_macro2::Span) -> Self {
+        Self {
+            value: value.into(),
+            span,
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.value
+    }
+
+    pub fn span(&self) -> proc_macro2::Span {
+        self.span
+    }
+}
+
+impl FromMeta for SpannedString {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        match item {
+            syn::Meta::NameValue(name_value) => {
+                if let syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(value),
+                    ..
+                }) = &name_value.value
+                {
+                    Ok(Self::new(value.value(), value.span()))
+                } else {
+                    Err(darling::Error::unexpected_type("expected string literal"))
+                }
+            },
+            _ => Err(darling::Error::unsupported_format("string literal")),
+        }
+    }
+}
+
+/// A namespace rule parsed from an attribute, paired with the best source span.
+#[derive(Clone, Debug)]
+pub struct NamespaceSpec {
+    rule: NamespaceRule,
+    span: proc_macro2::Span,
+}
+
+impl NamespaceSpec {
+    pub fn new(rule: NamespaceRule, span: proc_macro2::Span) -> Self {
+        Self { rule, span }
+    }
+
+    pub fn rule(&self) -> &NamespaceRule {
+        &self.rule
+    }
+
+    pub fn span(&self) -> proc_macro2::Span {
+        self.span
+    }
+}
+
+impl FromMeta for NamespaceSpec {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        let rule = NamespaceRule::from_meta(item)?;
+        let span = match item {
+            syn::Meta::NameValue(name_value) => match &name_value.value {
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(value),
+                    ..
+                }) => value.span(),
+                syn::Expr::Path(path) => path.span(),
+                other => other.span(),
+            },
+            other => other.span(),
+        };
+        Ok(Self::new(rule, span))
+    }
+}
 
 /// Validate that a key is lowercase snake_case and return its PascalCase version.
 ///
@@ -329,15 +415,43 @@ pub trait FluentField {
     }
 
     /// Returns explicit field argument name if provided.
-    fn arg_name(&self) -> Option<String> {
-        self.field_attr_args().arg_name()
+    fn arg(&self) -> Option<String> {
+        self.field_attr_args().arg()
+    }
+
+    /// Returns the explicit field argument name as a typed value if provided.
+    fn arg_name(&self, context: AttrContext) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
+        self.field_attr_args().arg_name(context)
     }
 
     /// Resolves the Fluent argument name for this field.
-    fn fluent_arg_name(&self, index: usize) -> String {
-        self.arg_name()
+    fn fluent_arg(&self, index: usize) -> String {
+        self.arg()
             .or_else(|| self.ident().map(namer::rust_ident_name))
             .unwrap_or_else(|| namer::UnnamedItem::from(index).to_string())
+    }
+
+    /// Resolves and validates the Fluent argument name for this field.
+    fn fluent_arg_name(
+        &self,
+        index: usize,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<SpannedValue<ArgName>> {
+        if let Some(arg) = self.arg_name(context)? {
+            return Ok(arg);
+        }
+
+        let (name, span) = self
+            .ident()
+            .map(|ident| (namer::rust_ident_name(ident), ident.span()))
+            .unwrap_or_else(|| {
+                (
+                    namer::UnnamedItem::from(index).to_string(),
+                    proc_macro2::Span::call_site(),
+                )
+            });
+        let name = parse_arg_name_in_context(name, span, context)?;
+        Ok(SpannedValue::new(name, span))
     }
 }
 
@@ -404,7 +518,7 @@ pub struct FluentFieldAttributeArgs {
     value: Option<ValueAttr>,
     /// Optional argument name override.
     #[darling(default)]
-    arg_name: Option<syn::LitStr>,
+    arg: Option<SpannedString>,
 }
 
 impl FluentFieldAttributeArgs {
@@ -420,8 +534,21 @@ impl FluentFieldAttributeArgs {
         self.value.as_ref().map(|value| &value.0)
     }
 
-    pub fn arg_name(&self) -> Option<String> {
-        self.arg_name.as_ref().map(syn::LitStr::value)
+    pub fn arg(&self) -> Option<String> {
+        self.arg.as_ref().map(|arg| arg.as_str().to_string())
+    }
+
+    pub fn arg_name(
+        &self,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
+        self.arg
+            .as_ref()
+            .map(|arg| {
+                let name = parse_arg_name_in_context(arg.as_str(), arg.span(), context)?;
+                Ok(SpannedValue::new(name, arg.span()))
+            })
+            .transpose()
     }
 }
 
@@ -479,7 +606,7 @@ pub struct KeyedVariantAttributeArgs {
     skipped_args: SkippedVariantAttributeArgs,
     /// Overrides the localization key suffix for this variant.
     #[darling(default)]
-    key: Option<String>,
+    key: Option<SpannedString>,
 }
 
 impl KeyedVariantAttributeArgs {
@@ -488,7 +615,20 @@ impl KeyedVariantAttributeArgs {
     }
 
     pub fn key(&self) -> Option<&str> {
-        self.key.as_deref()
+        self.key.as_ref().map(SpannedString::as_str)
+    }
+
+    pub fn variant_key(
+        &self,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<Option<SpannedValue<VariantKey>>> {
+        self.key
+            .as_ref()
+            .map(|key| {
+                let value = parse_variant_key_in_context(key.as_str(), key.span(), context)?;
+                Ok(SpannedValue::new(value, key.span()))
+            })
+            .transpose()
     }
 }
 
@@ -497,16 +637,26 @@ pub struct NamespacedAttributeArgs {
     /// Optional namespace for FTL file generation.
     /// - `namespace = "name"` - writes to `{lang}/{crate}/{name}.ftl`
     /// - `namespace = file` - writes to `{lang}/{crate}/{source_file_stem}.ftl`
-    /// - `namespace(file(relative))` - writes to `{lang}/{crate}/{relative_path}.ftl`
+    /// - `namespace = file_relative` - writes to `{lang}/{crate}/{relative_path}.ftl`
     /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
-    /// - `namespace(folder(relative))` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
+    /// - `namespace = folder_relative` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
     #[darling(default)]
-    namespace: Option<NamespaceRule>,
+    namespace: Option<NamespaceSpec>,
 }
 
 impl NamespacedAttributeArgs {
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
+        self.namespace.as_ref().map(NamespaceSpec::rule)
+    }
+
+    /// Returns the span of the namespace value if provided.
+    pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
+        self.namespace.as_ref().map(NamespaceSpec::span)
+    }
+
+    /// Returns the parsed namespace spec if provided.
+    pub fn namespace_spec(&self) -> Option<&NamespaceSpec> {
         self.namespace.as_ref()
     }
 }
@@ -525,6 +675,11 @@ impl DerivedNamespacedAttributeArgs {
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()
+    }
+
+    /// Returns the span of the namespace value if provided.
+    pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
+        self.namespace_args.namespace_span()
     }
 }
 
@@ -547,6 +702,11 @@ impl VariantsFluentAttributeArgs {
         self.derived_args.namespace()
     }
 
+    /// Returns the span of the namespace value if provided.
+    pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
+        self.derived_args.namespace_span()
+    }
+
     /// Returns the raw key strings if provided.
     pub fn key_strings(&self) -> Option<Vec<String>> {
         key_strings(self.keys.as_deref())
@@ -559,24 +719,23 @@ pub struct ValueAttr(pub syn::Expr);
 impl darling::FromMeta for ValueAttr {
     fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
         match item {
-            syn::Meta::List(list) => {
-                let expr: syn::Expr = syn::parse2(list.tokens.clone())?;
-                Ok(ValueAttr(expr))
-            },
             syn::Meta::NameValue(nv) => {
-                // Also support value = "expr" for convenience
                 if let syn::Expr::Lit(syn::ExprLit {
                     lit: syn::Lit::Str(s),
                     ..
                 }) = &nv.value
                 {
-                    let expr: syn::Expr = s.parse()?;
-                    Ok(ValueAttr(expr))
+                    Err(darling::Error::custom(format!(
+                        "expected Rust expression, not string literal; use `value = {}`",
+                        s.value()
+                    )))
                 } else {
-                    Err(darling::Error::unexpected_type("non-string literal"))
+                    Ok(ValueAttr(nv.value.clone()))
                 }
             },
-            _ => Err(darling::Error::unsupported_format("list or name-value")),
+            _ => Err(darling::Error::unsupported_format(
+                "name-value expression, such as `value = |x: &String| x.len()`",
+            )),
         }
     }
 }
@@ -599,17 +758,9 @@ mod tests {
     }
 
     #[test]
-    fn value_attr_from_meta_supports_list_and_name_value_string() {
-        let list_meta: syn::Meta = syn::parse_quote!(value(|x: &String| x.len()));
-        let list = ValueAttr::from_meta(&list_meta).expect("list format");
-        let list_expr = list.0;
-        assert_eq!(
-            quote::quote!(#list_expr).to_string(),
-            "| x : & String | x . len ()"
-        );
-
-        let nv_meta: syn::Meta = syn::parse_quote!(value = "|x: &str| x.len()");
-        let nv = ValueAttr::from_meta(&nv_meta).expect("name-value string");
+    fn value_attr_from_meta_supports_name_value_expression() {
+        let nv_meta: syn::Meta = syn::parse_quote!(value = |x: &str| x.len());
+        let nv = ValueAttr::from_meta(&nv_meta).expect("name-value expression");
         let nv_expr = nv.0;
         assert_eq!(
             quote::quote!(#nv_expr).to_string(),
@@ -618,11 +769,14 @@ mod tests {
     }
 
     #[test]
-    fn value_attr_from_meta_rejects_non_string_and_unsupported_formats() {
-        let non_string_meta: syn::Meta = syn::parse_quote!(value = 123);
-        let non_string_err =
-            ValueAttr::from_meta(&non_string_meta).expect_err("non-string should fail");
-        assert!(!non_string_err.to_string().is_empty());
+    fn value_attr_from_meta_rejects_legacy_string_list_and_path_formats() {
+        let string_meta: syn::Meta = syn::parse_quote!(value = "|x: &str| x.len()");
+        let string_err = ValueAttr::from_meta(&string_meta).expect_err("string should fail");
+        assert!(string_err.to_string().contains("not string literal"));
+
+        let list_meta: syn::Meta = syn::parse_quote!(value(|x: &String| x.len()));
+        let list_err = ValueAttr::from_meta(&list_meta).expect_err("list format should fail");
+        assert!(!list_err.to_string().is_empty());
 
         let path_meta: syn::Meta = syn::parse_quote!(value);
         let path_err = ValueAttr::from_meta(&path_meta).expect_err("path format should fail");
@@ -683,11 +837,23 @@ mod tests {
             skip: Some(true),
             choice: Some(true),
             value: Some(ValueAttr(syn::parse_quote!(|x: &str| x.len()))),
-            arg_name: Some(syn::parse_quote!("display_name")),
+            arg: Some(SpannedString::new(
+                "display_name",
+                proc_macro2::Span::call_site(),
+            )),
         };
         assert!(field_args.is_skipped());
         assert!(field_args.is_choice());
-        assert_eq!(field_args.arg_name(), Some("display_name".to_string()));
+        assert_eq!(field_args.arg(), Some("display_name".to_string()));
+        assert_eq!(
+            field_args
+                .arg_name(crate::error::AttrContext::MessageField)
+                .expect("arg name")
+                .expect("arg")
+                .value()
+                .as_str(),
+            "display_name"
+        );
         assert!(field_args.value().is_some());
 
         let skipped_variant = SkippedVariantAttributeArgs { skip: Some(true) };
@@ -695,10 +861,19 @@ mod tests {
 
         let keyed_variant = KeyedVariantAttributeArgs {
             skipped_args: SkippedVariantAttributeArgs { skip: Some(false) },
-            key: Some("custom".to_string()),
+            key: Some(SpannedString::new("custom", proc_macro2::Span::call_site())),
         };
         assert!(!keyed_variant.is_skipped());
         assert_eq!(keyed_variant.key(), Some("custom"));
+        assert_eq!(
+            keyed_variant
+                .variant_key(crate::error::AttrContext::EnumVariant)
+                .expect("variant key")
+                .expect("key")
+                .value()
+                .as_str(),
+            "custom"
+        );
 
         let tuple_fields = darling::ast::Fields::new(
             darling::ast::Style::Tuple,

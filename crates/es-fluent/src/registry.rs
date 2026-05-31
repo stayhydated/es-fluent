@@ -1,6 +1,7 @@
 //! This module provides types for representing FTL variants and type information.
 
 pub use es_fluent_shared::registry::{FtlTypeInfo, FtlVariant, NamespaceRule};
+pub use es_fluent_shared::source::{SourceFile, SourceLine, SourceLocation};
 
 /// A wrapper type for `FtlTypeInfo` that enables inventory collection.
 /// This is necessary because `inventory::collect!` requires a type defined

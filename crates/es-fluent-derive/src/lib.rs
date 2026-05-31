@@ -23,9 +23,9 @@ mod snapshot_support;
 ///     UserNotFound { username: String }, // exposed as $username in the ftl file
 ///     Something(String, String, String), // exposed as $f0, $f1, $f2 in the ftl file
 ///     SomethingArgNamed(
-///         #[fluent(arg_name = "input")] String,
-///         #[fluent(arg_name = "expected")] String,
-///         #[fluent(arg_name = "details")] String,
+///         #[fluent(arg = "input")] String,
+///         #[fluent(arg = "expected")] String,
+///         #[fluent(arg = "details")] String,
 ///     ), // exposed as $input, $expected, $details
 /// }
 ///
@@ -39,7 +39,7 @@ mod snapshot_support;
 /// # Field Attributes
 ///
 /// - `#[fluent(choice)]`: Marks a field as a selector for Fluent's select expression.
-/// - `#[fluent(arg_name = "value")]`: On a field, renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
+/// - `#[fluent(arg = "value")]`: On a field, renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 #[proc_macro_derive(EsFluent, attributes(fluent))]
 #[proc_macro_error]
 pub fn derive_es_fluent(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -85,7 +85,7 @@ pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::
 /// use es_fluent::{EsFluent, EsFluentChoice};
 ///
 /// #[derive(EsFluent, EsFluentChoice)]
-/// #[fluent_choice(serialize_all = "snake_case")]
+/// #[fluent_choice(rename_all = "snake_case")]
 /// pub enum Gender {
 ///     Male,
 ///     Female,
@@ -102,7 +102,7 @@ pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::
 ///
 /// # Container Attributes
 ///
-/// - `#[fluent_choice(serialize_all = "...")]`: Controls variant name serialization (e.g., `"snake_case"`).
+/// - `#[fluent_choice(rename_all = "...")]`: Controls variant name serialization (e.g., `"snake_case"`).
 #[proc_macro_derive(EsFluentChoice, attributes(fluent_choice))]
 #[proc_macro_error]
 pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -131,10 +131,11 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 ///
 /// # Attributes
 ///
-/// - `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
-/// - `#[fluent_label(origin)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
-/// - `#[fluent_label(variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated variant enums.
-/// - `#[fluent_label(origin, variants)]`: Combines both behaviors.
+/// - `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin = true)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
+/// - `#[fluent_label(origin = true)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
+/// - `#[fluent_label(variants = true)]`: Can be combined with `EsFluentVariants` derives to generate keys for the generated variant enums.
+/// - `#[fluent_label(origin = true, variants = true)]`: Combines both behaviors.
+/// - `origin` and `variants` use explicit booleans when supplied; bare flags like `#[fluent_label(origin)]` are not accepted.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 #[proc_macro_derive(EsFluentLabel, attributes(fluent_label, fluent))]
 #[proc_macro_error]

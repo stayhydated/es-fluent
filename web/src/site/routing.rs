@@ -8,6 +8,7 @@ use dioxus::prelude::*;
 use dioxus::router as dioxus_router;
 use es_fluent_lang::LanguageIdentifier;
 use es_fluent_manager_dioxus::DioxusAssetI18nHandle;
+use stayhydated_site::routing::{BaseHref, BasePath, Href, OutputDir, RoutePath};
 use std::fmt::{self, Display};
 use std::path::Path;
 use std::str::FromStr;
@@ -64,18 +65,12 @@ impl SiteRoute {
         Self { locale, page }
     }
 
-    pub(crate) fn output_dir(self) -> String {
-        relative_path(self.locale, self.page)
+    pub(crate) fn output_dir(self) -> OutputDir {
+        relative_path(self.locale, self.page).to_output_dir()
     }
 
-    pub(crate) fn path(self) -> String {
-        let relative = self.output_dir();
-
-        if relative.is_empty() {
-            "/".to_string()
-        } else {
-            format!("/{relative}/")
-        }
+    pub(crate) fn path(self) -> Href {
+        stayhydated_site::routing::href(&BaseHref::root(), &relative_path(self.locale, self.page))
     }
 }
 
@@ -92,19 +87,25 @@ pub(crate) fn all_routes() -> Vec<SiteRoute> {
 }
 
 pub(crate) fn app_base_href() -> String {
+    app_base_href_typed().to_string()
+}
+
+fn app_base_href_typed() -> BaseHref {
     let base_path = cli_config::base_path();
-    stayhydated_site::routing::base_href(base_path.as_deref())
+    let base_path = base_path.as_deref().map(BasePath::new);
+    stayhydated_site::routing::base_href(base_path.as_ref())
 }
 
 pub(crate) fn page_href(locale: SiteLanguage, page: PageKind) -> String {
-    stayhydated_site::routing::href(&app_base_href(), &relative_path(locale, page))
+    stayhydated_site::routing::href(&app_base_href_typed(), &relative_path(locale, page))
+        .to_string()
 }
 
 pub(crate) fn book_href() -> String {
-    stayhydated_site::routing::href(&app_base_href(), "book")
+    stayhydated_site::routing::href(&app_base_href_typed(), &RoutePath::new("book")).to_string()
 }
 
-pub(crate) fn site_root_prefix(output_dir: &str) -> String {
+pub(crate) fn site_root_prefix(output_dir: &OutputDir) -> String {
     stayhydated_site::routing::site_root_prefix(output_dir)
 }
 
@@ -203,7 +204,8 @@ pub(crate) fn site_route_from_path_with_base_path(
 
 #[cfg(test)]
 fn normalized_path_segments<'a>(path: &'a str, base_path: Option<&str>) -> Vec<&'a str> {
-    stayhydated_site::routing::normalized_path_segments(path, base_path)
+    let base_path = base_path.map(BasePath::new);
+    stayhydated_site::routing::normalized_path_segments(path, base_path.as_ref())
 }
 
 #[cfg(test)]
@@ -217,7 +219,7 @@ fn page_from_segments(segments: &[&str]) -> PageKind {
     }
 }
 
-fn relative_path(locale: SiteLanguage, page: PageKind) -> String {
+fn relative_path(locale: SiteLanguage, page: PageKind) -> RoutePath {
     let mut segments = Vec::new();
 
     if let Some(slug) = locale.route_slug() {
@@ -229,7 +231,7 @@ fn relative_path(locale: SiteLanguage, page: PageKind) -> String {
         segments.push(page_segment.to_string());
     }
 
-    segments.join("/")
+    RoutePath::new(segments.join("/"))
 }
 
 const GENERATED_ROUTE_CACHE_MARKER: &str = ".es-fluent-generated-route-cache";
@@ -248,6 +250,7 @@ pub(crate) fn cleanup_generated_route_cache(public_dir: &Path) -> std::io::Resul
         .filter_map(|route| {
             route
                 .output_dir()
+                .as_str()
                 .split('/')
                 .next()
                 .filter(|segment| !segment.is_empty())

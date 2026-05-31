@@ -5,8 +5,8 @@ use dioxus::prelude::*;
 
 #[component]
 pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
-    let hero_style = crate::components::use_reveal_style(0, 24.0);
-    let workflow_style = crate::components::use_reveal_style(90, 18.0);
+    let hero_style = crate::components::use_reveal_style(0, 24.0).into_string();
+    let workflow_style = crate::components::use_reveal_style(90, 18.0).into_string();
     let first_card_style = crate::components::use_reveal_style(160, 16.0);
     let second_card_style = crate::components::use_reveal_style(230, 16.0);
     let third_card_style = crate::components::use_reveal_style(300, 16.0);

@@ -27,6 +27,10 @@ pub enum EsFluentError {
     #[error("Invalid language identifier '{identifier}': {reason}")]
     InvalidLanguageIdentifier { identifier: String, reason: String },
 
+    /// Invalid Fluent metadata identifier.
+    #[error("Invalid Fluent metadata '{identifier}': {reason}")]
+    InvalidFluentIdentifier { identifier: String, reason: String },
+
     /// Language not supported.
     #[error("Language '{0}' is not supported")]
     LanguageNotSupported(LanguageIdentifier),
@@ -78,6 +82,17 @@ impl EsFluentError {
         }
     }
 
+    /// Creates an invalid Fluent metadata identifier error.
+    pub fn invalid_fluent_identifier(
+        identifier: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self::InvalidFluentIdentifier {
+            identifier: identifier.into(),
+            reason: reason.into(),
+        }
+    }
+
     /// Creates a fallback language not found error.
     pub fn fallback_language_not_found(language: impl Into<String>) -> Self {
         Self::FallbackLanguageNotFound {
@@ -106,6 +121,12 @@ mod tests {
         assert!(matches!(
             invalid,
             EsFluentError::InvalidLanguageIdentifier { .. }
+        ));
+
+        let invalid_fluent = EsFluentError::invalid_fluent_identifier("bad key", "parse failure");
+        assert!(matches!(
+            invalid_fluent,
+            EsFluentError::InvalidFluentIdentifier { .. }
         ));
 
         let fallback = EsFluentError::fallback_language_not_found("en-US");

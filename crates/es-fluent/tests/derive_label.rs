@@ -51,14 +51,14 @@ impl FluentLocalizer for DomainEchoLocalizer {
 }
 
 #[derive(EsFluent, EsFluentLabel)]
-#[fluent_label(origin)]
+#[fluent_label(origin = true)]
 struct TestStruct {
     field: String,
 }
 
 #[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent_variants(keys = ["label"])]
-#[fluent_label(variants)]
+#[fluent_label(variants = true)]
 #[allow(dead_code)]
 struct TestVariantsStruct {
     field: String,
@@ -66,7 +66,7 @@ struct TestVariantsStruct {
 
 #[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent_variants(keys = ["description"])]
-#[fluent_label(variants)]
+#[fluent_label(variants = true)]
 #[allow(dead_code)]
 enum TestVariantsEnum {
     VariantA,
@@ -78,7 +78,7 @@ enum TestVariantsEnum {
 struct TestLabelNamespace;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin)]
+#[fluent_label(origin = true)]
 #[allow(dead_code)]
 enum TestLabelEnumKind {
     Ready,
@@ -94,7 +94,7 @@ struct TestVariantsNamespace {
 #[derive(EsFluentLabel, EsFluentVariants)]
 #[fluent(namespace = "shared_ns")]
 #[fluent_variants(keys = ["label"])]
-#[fluent_label(origin, variants)]
+#[fluent_label(origin = true, variants = true)]
 #[allow(dead_code)]
 struct TestSharedNamespace {
     field: String,
@@ -106,7 +106,7 @@ struct TestSharedNamespace {
     resource = "custom-domain",
     namespace = "custom_ns"
 )]
-#[fluent_label(origin, variants)]
+#[fluent_label(origin = true, variants = true)]
 #[allow(dead_code)]
 enum TestCustomDomain {
     Ready,

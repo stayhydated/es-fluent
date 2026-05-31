@@ -15,6 +15,7 @@ readme = "README.md"
 proc-macro = true
 
 [dependencies]
+es-fluent-derive-core = { workspace = true }
 es-fluent-toml = { workspace = true }
 heck = { workspace = true }
 proc-macro-error2 = { workspace = true }

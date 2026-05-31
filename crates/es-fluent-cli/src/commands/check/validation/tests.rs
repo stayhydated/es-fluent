@@ -2,15 +2,22 @@ use super::context::ValidationContext;
 use super::*;
 use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
+use es_fluent_shared::{
+    fluent::FluentArgumentName,
+    source::{SourceFile, SourceLine},
+};
 use fs_err as fs;
 use indexmap::IndexMap;
 use std::path::PathBuf;
 
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
     KeyInfo {
-        variables: vars.iter().map(|v| v.to_string()).collect(),
-        source_file: source_file.map(ToString::to_string),
-        source_line,
+        variables: vars
+            .iter()
+            .map(|v| FluentArgumentName::try_new(*v).unwrap())
+            .collect(),
+        source_file: source_file.and_then(SourceFile::new),
+        source_line: source_line.map(SourceLine::new),
     }
 }
 

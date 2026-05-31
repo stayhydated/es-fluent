@@ -1,10 +1,12 @@
 use darling::FromDeriveInput as _;
+use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
 use es_fluent_derive_core::{options::label::LabelOpts, validation};
-use es_fluent_shared::{namer, namespace::NamespaceRule};
+use es_fluent_shared::{meta::TypeKind, namer, namespace::NamespaceRule};
 use quote::quote;
 use syn::{Data, DeriveInput, parse_macro_input};
 
-use crate::macros::utils::InventoryModuleInput;
+use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
+use crate::macros::utils::{InventoryModuleInput, SpannedNamespaceRule, SpannedNamespaceRuleRef};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -32,7 +34,8 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         );
     }
 
-    let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace(&input) {
+    let fluent_namespace = match crate::macros::utils::inherited_fluent_namespace_with_span(&input)
+    {
         Ok(namespace) => namespace,
         Err(err) => return err.write_errors(),
     };
@@ -60,30 +63,58 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
         Data::Enum(_) => quote! { ::es_fluent::meta::TypeKind::Enum },
         Data::Union(_) => unreachable!("EsFluentLabel does not support unions"),
     };
+    let semantic_type_kind = match &input.data {
+        Data::Struct(_) => TypeKind::Struct,
+        Data::Enum(_) => TypeKind::Enum,
+        Data::Union(_) => unreachable!("EsFluentLabel does not support unions"),
+    };
 
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
     let inventory_submit = if let Some(ftl_key_str) = &ftl_key {
         let type_name = namer::rust_ident_name(original_ident);
-        let namespace = crate::macros::utils::preferred_namespace([
-            fluent_namespace.as_ref(),
-            opts.attr_args().namespace(),
+        let label_namespace = opts.attr_args().namespace().map(|namespace| {
+            SpannedNamespaceRuleRef::new(
+                namespace,
+                opts.attr_args()
+                    .namespace_span()
+                    .unwrap_or_else(|| original_ident.span()),
+            )
+        });
+        let namespace = crate::macros::utils::preferred_spanned_namespace([
+            fluent_namespace.as_ref().map(SpannedNamespaceRule::as_ref),
+            label_namespace,
         ]);
-        validate_namespace(namespace, original_ident.span());
-        let namespace_expr = crate::macros::utils::namespace_rule_tokens(namespace);
-        let label_variant = crate::macros::utils::inventory_variant_tokens(
+        validate_namespace(
+            namespace.map(SpannedNamespaceRuleRef::rule),
+            namespace
+                .map(SpannedNamespaceRuleRef::span)
+                .unwrap_or_else(|| original_ident.span()),
+        );
+        let label_entry = MessageEntrySpec::new(
             type_name,
             ftl_key_str.to_string(),
-            Vec::new(),
             original_ident.span(),
+            Vec::new(),
         );
+        let label_model = MessageModel::new(
+            namer::rust_ident_name(original_ident),
+            semantic_type_kind,
+            None,
+            namespace.map(|namespace| namespace.rule().clone()),
+            Vec::new(),
+            Some(label_entry.metadata.clone()),
+            InventoryPolicy::Emit,
+        );
+        let label_variant =
+            inventory_variant_tokens_for_model(label_model.label().expect("label entry"));
 
         crate::macros::utils::generate_inventory_module(InventoryModuleInput {
             ident: original_ident,
             module_name_prefix: "label_inventory",
             type_kind,
             variants: vec![label_variant],
-            namespace_expr,
+            namespace_expr: crate::macros::utils::namespace_rule_tokens(label_model.namespace()),
         })
     } else {
         quote! {}

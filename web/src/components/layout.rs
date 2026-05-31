@@ -6,6 +6,7 @@ use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
 use dioxus::prelude::*;
 use dioxus::router::{navigator, try_router};
+use stayhydated_dioxus::ProjectId;
 
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
@@ -28,7 +29,7 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
         header { class: "page-header",
             ProjectSelect {
                 selected: ProjectOption::builder()
-                    .id("es-fluent")
+                    .id(ProjectId::EsFluent)
                     .mark("EF")
                     .name(site_name)
                     .description(page_kicker)

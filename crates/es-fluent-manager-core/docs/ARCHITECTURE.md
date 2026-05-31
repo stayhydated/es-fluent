@@ -81,6 +81,13 @@ Common metadata contract for manager discovery.
   the namespace list records the module's known split files using canonical
   forward-slash paths like `ui` or `ui/button`, while managers can
   use a more precise per-language resource plan when one is available.
+- Resource keys, locale-relative FTL paths, and module resource specs are
+  defined in `es-fluent-shared` and re-exported here for manager integrations.
+- Dynamic callers can use `ModuleData::try_resource_plan()` to receive typed
+  namespace planning errors instead of using the static panic wrapper.
+- Module registry validation resolves namespace metadata through
+  `ResolvedNamespace` and reports shared `NamespacePathError` values, so strict
+  discovery and resource planning use the same namespace validator.
 
 ### `I18nModuleRegistration`
 
@@ -104,6 +111,9 @@ Unified inventory contract used by managers.
   when a registration provides one. Manager macros use this for locales that
   only ship a subset of the global namespace set, so managers do not require
   namespace files that were never discovered for that locale.
+- Embedded asset backends derive their per-language fallback plan through the
+  shared `ResourcePlan::sparse_for_domain` constructor, keeping runtime
+  discovery aligned with macro-generated sparse plans.
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
 - Successful strict discovery still normalizes one metadata-only registration
   plus one runtime-localizer registration for the same exact identity into a
