@@ -1,8 +1,7 @@
-use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::lowered::{MessageEnumModel, MessageEnumVariant};
 use es_fluent_derive_core::options::FluentField;
 use es_fluent_derive_core::options::r#enum::EnumOpts;
-use es_fluent_derive_core::semantic::{FluentMessageId, InventoryPolicy, MessageModel};
+use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
 use es_fluent_shared::{meta::TypeKind, namer};
 
 use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
@@ -67,59 +66,45 @@ fn skipped_variant_message_match_arm(model: &MessageEnumVariant<'_>) -> TokenStr
 
 fn variant_runtime_arguments(
     model: &MessageEnumVariant<'_>,
-) -> Vec<crate::macros::ir::FluentArgument> {
+) -> es_fluent_derive_core::error::EsFluentCoreResult<Vec<crate::macros::ir::FluentArgument>> {
     match model {
-        MessageEnumVariant::Unit { .. } => Vec::new(),
+        MessageEnumVariant::Unit { .. } => Ok(Vec::new()),
         MessageEnumVariant::Tuple { fields, .. } => fields
             .iter()
             .filter(|field| !field.field.is_skipped())
             .map(|field| {
                 let binding_ident = namer::UnnamedItem::from(field.original_index).to_ident();
-                crate::macros::utils::generate_field_argument(
-                    field.field,
-                    field.original_index,
+                Ok(crate::macros::utils::generate_field_argument(
+                    field.argument_model()?,
                     quote! { #binding_ident },
                     quote! { #binding_ident },
-                )
+                ))
             })
             .collect(),
         MessageEnumVariant::Struct { fields, .. } => fields
             .iter()
             .map(|field| {
                 let arg = field.binding;
-                crate::macros::utils::generate_field_argument(
-                    field.field,
-                    field.exposed_index,
+                Ok(crate::macros::utils::generate_field_argument(
+                    field.argument_model()?,
                     quote! { #arg },
                     quote! { #arg },
-                )
+                ))
             })
             .collect(),
     }
 }
 
 fn variant_message_entry(
-    base_key: &FluentMessageId,
     model: &MessageEnumVariant<'_>,
-) -> MessageEntrySpec {
+) -> es_fluent_derive_core::error::EsFluentCoreResult<MessageEntrySpec> {
     let variant_ident = model.ident();
-    let variant_key = model
-        .opts()
-        .variant_key(AttrContext::EnumVariant)
-        .unwrap_or_else(|error| error.abort());
-    let message_id = es_fluent_derive_core::semantic::variant_message_id(
-        base_key,
-        variant_ident,
-        variant_key.as_ref().map(|key| key.value()),
-        AttrContext::MessageContainer,
-    )
-    .unwrap_or_else(|error| error.abort());
 
-    MessageEntrySpec::new(
+    Ok(MessageEntrySpec::new(
         namer::rust_ident_name(variant_ident),
-        message_id,
-        variant_runtime_arguments(model),
-    )
+        model.message_id().clone(),
+        variant_runtime_arguments(model)?,
+    ))
 }
 
 fn localized_variant_match_arm(
@@ -178,33 +163,36 @@ fn localized_variant_match_arm(
 
 fn generate(opts: &EnumOpts, _data: &syn::DataEnum) -> TokenStream {
     let original_ident = opts.ident();
-    let base_key = opts
-        .base_message_id(AttrContext::MessageContainer)
-        .unwrap_or_else(|error| error.abort())
-        .into_value();
     let domain_model = opts
         .attr_args()
         .domain_name()
         .map(|domain| domain.value().clone());
 
-    let model = MessageEnumModel::from_options(opts).unwrap_or_else(|error| error.abort());
+    let model = match MessageEnumModel::from_options(opts) {
+        Ok(model) => model,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
     let is_empty = model.is_empty();
     let skip_inventory = opts.attr_args().skip_inventory();
-    let message_variants: Vec<_> = model
+    let message_variants = model
         .variants()
         .iter()
         .map(|variant_model| {
             if variant_model.is_skipped() {
-                MessageVariant::Skipped(variant_model)
+                Ok(MessageVariant::Skipped(variant_model))
             } else {
-                let entry = variant_message_entry(&base_key, variant_model);
-                MessageVariant::Localized {
+                let entry = variant_message_entry(variant_model)?;
+                Ok(MessageVariant::Localized {
                     model: variant_model,
                     entry,
-                }
+                })
             }
         })
-        .collect();
+        .collect::<es_fluent_derive_core::error::EsFluentCoreResult<Vec<_>>>();
+    let message_variants = match message_variants {
+        Ok(variants) => variants,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
     let semantic_model = MessageModel::new(
         namer::rust_ident_name(original_ident),
         TypeKind::Enum,
@@ -295,11 +283,7 @@ mod tests {
         let opts = EnumOpts::from_derive_input(&input).expect("enum opts");
         let model = MessageEnumModel::from_options(&opts).expect("lowered enum");
         let variant = &model.variants()[0];
-        let base_key = opts
-            .base_message_id(AttrContext::MessageContainer)
-            .expect("base key")
-            .into_value();
-        let entry = super::variant_message_entry(&base_key, variant);
+        let entry = super::variant_message_entry(variant).expect("message entry");
 
         assert_eq!(entry.metadata.message_id().as_str(), "login_error-Failed");
         assert_eq!(

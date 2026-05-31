@@ -1,13 +1,40 @@
 pub(crate) use es_fluent_shared::resource::ModuleResourceSpec as ResourceSpec;
+use es_fluent_shared::{LanguageIdentifier, namespace::ResolvedNamespace};
 use quote::quote;
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 
-#[derive(Debug)]
 pub(crate) struct I18nAssets {
     pub(crate) root_path: PathBuf,
-    pub(crate) languages: Vec<String>,
-    pub(crate) namespaces: Vec<String>,
-    pub(crate) resource_specs_by_language: Vec<(String, Vec<ResourceSpec>)>,
+    pub(crate) languages: Vec<LanguageIdentifier>,
+    pub(crate) namespaces: Vec<ResolvedNamespace>,
+    pub(crate) resource_specs_by_language: Vec<(LanguageIdentifier, Vec<ResourceSpec>)>,
+}
+
+impl fmt::Debug for I18nAssets {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let languages = self
+            .languages
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+        let namespaces = self
+            .namespaces
+            .iter()
+            .map(ResolvedNamespace::as_str)
+            .collect::<Vec<_>>();
+        let resource_specs_by_language = self
+            .resource_specs_by_language
+            .iter()
+            .map(|(language, specs)| (language.to_string(), specs))
+            .collect::<Vec<_>>();
+
+        f.debug_struct("I18nAssets")
+            .field("root_path", &self.root_path)
+            .field("languages", &languages)
+            .field("namespaces", &namespaces)
+            .field("resource_specs_by_language", &resource_specs_by_language)
+            .finish()
+    }
 }
 
 pub(crate) fn macro_error(message: impl Into<String>) -> syn::Error {
@@ -95,12 +122,21 @@ impl I18nAssets {
     ) -> Vec<proc_macro2::TokenStream> {
         self.languages
             .iter()
-            .map(|lang| quote! { #langid_path::langid!(#lang) })
+            .map(|lang| {
+                let lang = lang.to_string();
+                quote! { #langid_path::langid!(#lang) }
+            })
             .collect()
     }
 
     pub(crate) fn namespace_tokens(&self) -> Vec<proc_macro2::TokenStream> {
-        self.namespaces.iter().map(|ns| quote! { #ns }).collect()
+        self.namespaces
+            .iter()
+            .map(|ns| {
+                let ns = ns.as_str();
+                quote! { #ns }
+            })
+            .collect()
     }
 
     pub(crate) fn resource_plan_match_arms(
@@ -111,6 +147,7 @@ impl I18nAssets {
         self.resource_specs_by_language
             .iter()
             .map(|(language, specs)| {
+                let language = language.to_string();
                 let spec_tokens = specs.iter().map(|spec| {
                     let key = spec.key.as_str();
                     let locale_relative_path = spec.locale_relative_path.as_str();
@@ -285,14 +322,21 @@ mod tests {
 
         with_env_var("CARGO_MANIFEST_DIR", temp.path().to_str(), || {
             let assets = I18nAssets::load("my-crate").expect("load assets");
-            assert_eq!(assets.namespaces, vec!["errors", "ui"]);
+            assert_eq!(
+                assets
+                    .namespaces
+                    .iter()
+                    .map(ResolvedNamespace::as_str)
+                    .collect::<Vec<_>>(),
+                vec!["errors", "ui"]
+            );
 
             let plans = assets
                 .resource_specs_by_language
                 .iter()
                 .map(|(lang, specs)| {
                     (
-                        lang.as_str(),
+                        lang.to_string(),
                         specs
                             .iter()
                             .map(|spec| (spec.key.as_str(), spec.required))

@@ -11,6 +11,7 @@ struct Parent {
 
 #[derive(EsFluent)]
 struct OptionalParent {
+    #[fluent(optional)]
     child: Option<Child>,
 }
 

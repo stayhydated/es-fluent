@@ -1,10 +1,66 @@
-//! Context-aware helpers for raw `#[fluent(...)]` meta items.
+//! Context-aware helpers for raw derive attribute meta items.
 
-use syn::Meta;
+use crate::error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use syn::{Meta, Token, punctuated::Punctuated, spanned::Spanned as _};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AttributeName {
+    Fluent,
+    FluentVariants,
+    FluentLabel,
+    FluentChoice,
+    EsFluentLanguage,
+}
+
+impl AttributeName {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Fluent => "fluent",
+            Self::FluentVariants => "fluent_variants",
+            Self::FluentLabel => "fluent_label",
+            Self::FluentChoice => "fluent_choice",
+            Self::EsFluentLanguage => "es_fluent_language",
+        }
+    }
+
+    pub fn attribute_syntax(self) -> &'static str {
+        match self {
+            Self::Fluent => "#[fluent]",
+            Self::FluentVariants => "#[fluent_variants]",
+            Self::FluentLabel => "#[fluent_label]",
+            Self::FluentChoice => "#[fluent_choice]",
+            Self::EsFluentLanguage => "#[es_fluent_language]",
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AttributeLocation {
+    MessageContainer,
+    MessageField,
     EnumVariant,
+    VariantsContainer,
+    VariantsField,
+    VariantsVariant,
+    LabelContainer,
+    ChoiceContainer,
+    LanguageContainer,
+}
+
+impl AttributeLocation {
+    pub fn context(self) -> AttrContext {
+        match self {
+            Self::MessageContainer => AttrContext::MessageContainer,
+            Self::MessageField => AttrContext::MessageField,
+            Self::EnumVariant => AttrContext::EnumVariant,
+            Self::VariantsContainer => AttrContext::VariantsContainer,
+            Self::VariantsField => AttrContext::VariantsField,
+            Self::VariantsVariant => AttrContext::EnumVariant,
+            Self::LabelContainer => AttrContext::LabelContainer,
+            Self::ChoiceContainer => AttrContext::ChoiceContainer,
+            Self::LanguageContainer => AttrContext::LanguageContainer,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -12,6 +68,7 @@ pub enum FluentAttributeKey {
     Arg,
     Value,
     Choice,
+    Optional,
     Default,
     Skip,
     Key,
@@ -20,6 +77,11 @@ pub enum FluentAttributeKey {
     Namespace,
     Derive,
     SkipInventory,
+    Keys,
+    Origin,
+    Variants,
+    RenameAll,
+    Mode,
 }
 
 impl FluentAttributeKey {
@@ -30,6 +92,8 @@ impl FluentAttributeKey {
             Some(Self::Value)
         } else if path.is_ident("choice") {
             Some(Self::Choice)
+        } else if path.is_ident("optional") {
+            Some(Self::Optional)
         } else if path.is_ident("default") {
             Some(Self::Default)
         } else if path.is_ident("skip") {
@@ -46,43 +110,72 @@ impl FluentAttributeKey {
             Some(Self::Derive)
         } else if path.is_ident("skip_inventory") {
             Some(Self::SkipInventory)
+        } else if path.is_ident("keys") {
+            Some(Self::Keys)
+        } else if path.is_ident("origin") {
+            Some(Self::Origin)
+        } else if path.is_ident("variants") {
+            Some(Self::Variants)
+        } else if path.is_ident("rename_all") {
+            Some(Self::RenameAll)
+        } else if path.is_ident("mode") {
+            Some(Self::Mode)
         } else {
             None
         }
     }
 
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Arg => "arg",
-            Self::Value => "value",
-            Self::Choice => "choice",
-            Self::Default => "default",
-            Self::Skip => "skip",
-            Self::Key => "key",
-            Self::Resource => "resource",
-            Self::Domain => "domain",
-            Self::Namespace => "namespace",
-            Self::Derive => "derive",
-            Self::SkipInventory => "skip_inventory",
-        }
-    }
-
     fn is_allowed_at(self, location: AttributeLocation) -> bool {
         match location {
+            AttributeLocation::MessageContainer => matches!(
+                self,
+                Self::Resource
+                    | Self::Domain
+                    | Self::Namespace
+                    | Self::Derive
+                    | Self::SkipInventory
+            ),
+            AttributeLocation::MessageField => {
+                matches!(
+                    self,
+                    Self::Skip
+                        | Self::Choice
+                        | Self::Optional
+                        | Self::Default
+                        | Self::Arg
+                        | Self::Value
+                )
+            },
             AttributeLocation::EnumVariant => matches!(self, Self::Skip | Self::Key),
+            AttributeLocation::VariantsContainer => {
+                matches!(self, Self::Keys | Self::Derive | Self::Namespace)
+            },
+            AttributeLocation::VariantsField | AttributeLocation::VariantsVariant => {
+                matches!(self, Self::Skip)
+            },
+            AttributeLocation::LabelContainer => {
+                matches!(self, Self::Origin | Self::Variants | Self::Namespace)
+            },
+            AttributeLocation::ChoiceContainer => matches!(self, Self::RenameAll),
+            AttributeLocation::LanguageContainer => matches!(self, Self::Mode),
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FluentAttributeItem {
-    key: FluentAttributeKey,
+    key: Option<FluentAttributeKey>,
+    key_name: String,
     syntax: String,
 }
 
 impl FluentAttributeItem {
-    pub fn key(&self) -> FluentAttributeKey {
+    pub fn key(&self) -> Option<FluentAttributeKey> {
         self.key
+    }
+
+    pub fn key_name(&self) -> &str {
+        &self.key_name
     }
 
     pub fn syntax(&self) -> &str {
@@ -91,26 +184,39 @@ impl FluentAttributeItem {
 }
 
 pub fn parse_fluent_meta_item(meta: &Meta) -> Option<FluentAttributeItem> {
+    parse_attribute_meta_item(meta, AttributeName::Fluent)
+}
+
+pub fn parse_attribute_meta_item(
+    meta: &Meta,
+    attribute_name: AttributeName,
+) -> Option<FluentAttributeItem> {
     match meta {
         Meta::Path(path) => {
-            let key = FluentAttributeKey::from_path(path)?;
+            let key_name = path.get_ident()?.to_string();
+            let key = FluentAttributeKey::from_path(path);
             Some(FluentAttributeItem {
                 key,
-                syntax: format!("#[fluent({})]", key.as_str()),
+                syntax: format!("#[{}({})]", attribute_name.as_str(), key_name),
+                key_name,
             })
         },
         Meta::List(list) => {
-            let key = FluentAttributeKey::from_path(&list.path)?;
+            let key_name = list.path.get_ident()?.to_string();
+            let key = FluentAttributeKey::from_path(&list.path);
             Some(FluentAttributeItem {
                 key,
-                syntax: format!("#[fluent({}(...))]", key.as_str()),
+                syntax: format!("#[{}({}(...))]", attribute_name.as_str(), key_name),
+                key_name,
             })
         },
         Meta::NameValue(name_value) => {
-            let key = FluentAttributeKey::from_path(&name_value.path)?;
+            let key_name = name_value.path.get_ident()?.to_string();
+            let key = FluentAttributeKey::from_path(&name_value.path);
             Some(FluentAttributeItem {
                 key,
-                syntax: format!("#[fluent({} = ...)]", key.as_str()),
+                syntax: format!("#[{}({} = ...)]", attribute_name.as_str(), key_name),
+                key_name,
             })
         },
     }
@@ -120,8 +226,148 @@ pub fn invalid_fluent_meta_item_for_location(
     meta: &Meta,
     location: AttributeLocation,
 ) -> Option<FluentAttributeItem> {
-    let item = parse_fluent_meta_item(meta)?;
-    (!item.key().is_allowed_at(location)).then_some(item)
+    invalid_attribute_meta_item_for_location(meta, AttributeName::Fluent, location)
+}
+
+pub fn invalid_attribute_meta_item_for_location(
+    meta: &Meta,
+    attribute_name: AttributeName,
+    location: AttributeLocation,
+) -> Option<FluentAttributeItem> {
+    let item = parse_attribute_meta_item(meta, attribute_name)?;
+    match item.key() {
+        Some(key) if key.is_allowed_at(location) => None,
+        _ => Some(item),
+    }
+}
+
+pub fn validate_attribute_for_location(
+    attr: &syn::Attribute,
+    attribute_name: AttributeName,
+    location: AttributeLocation,
+    owner: Option<&syn::Ident>,
+) -> EsFluentCoreResult<()> {
+    if !attr.path().is_ident(attribute_name.as_str()) {
+        return Ok(());
+    }
+
+    let Meta::List(list) = &attr.meta else {
+        return Ok(());
+    };
+
+    let items = list
+        .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+        .map_err(|error| {
+            EsFluentCoreError::StructuredAttributeError(AttrError::new(
+                location.context(),
+                format!(
+                    "failed to parse {} arguments: {error}",
+                    attribute_name.attribute_syntax()
+                ),
+                Some(list.tokens.span()),
+            ))
+        })?;
+
+    for item in items {
+        if let Some(invalid) =
+            invalid_attribute_meta_item_for_location(&item, attribute_name, location)
+        {
+            return Err(invalid_attribute_error(
+                invalid,
+                attribute_name,
+                location,
+                owner,
+                item.span(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn invalid_attribute_error(
+    item: FluentAttributeItem,
+    attribute_name: AttributeName,
+    location: AttributeLocation,
+    owner: Option<&syn::Ident>,
+    span: proc_macro2::Span,
+) -> EsFluentCoreError {
+    if attribute_name == AttributeName::Fluent
+        && location == AttributeLocation::EnumVariant
+        && matches!(
+            item.key(),
+            Some(
+                FluentAttributeKey::Arg
+                    | FluentAttributeKey::Value
+                    | FluentAttributeKey::Choice
+                    | FluentAttributeKey::Default
+            )
+        )
+    {
+        let variant_ident = owner
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "the variant".to_string());
+        return EsFluentCoreError::StructuredAttributeError(AttrError::new(
+            location.context(),
+            format!(
+                "`{}` is a field-only attribute and cannot be used on enum variant `{variant_ident}`",
+                item.syntax(),
+            ),
+            Some(span),
+        ))
+        .with_help(format!(
+            "move the attribute to a field inside the variant, for example `{variant_ident}(#[fluent(arg = \"name\")] T)`"
+        ));
+    }
+
+    let owner = owner.map(|ident| format!(" `{ident}`")).unwrap_or_default();
+    let kind = if item.key().is_some() {
+        "cannot be used"
+    } else {
+        "is not supported"
+    };
+
+    EsFluentCoreError::StructuredAttributeError(AttrError::new(
+        location.context(),
+        format!(
+            "`{}` {kind} in {}{owner}",
+            item.syntax(),
+            location.context(),
+        ),
+        Some(span),
+    ))
+    .with_help(help_for_location(attribute_name, location).to_string())
+}
+
+fn help_for_location(attribute_name: AttributeName, location: AttributeLocation) -> &'static str {
+    match (attribute_name, location) {
+        (AttributeName::Fluent, AttributeLocation::MessageContainer) => {
+            "accepted keys here are resource, domain, namespace, derive, and skip_inventory"
+        },
+        (AttributeName::Fluent, AttributeLocation::MessageField) => {
+            "accepted keys here are skip, default, choice, optional, arg, and value"
+        },
+        (AttributeName::Fluent, AttributeLocation::EnumVariant) => {
+            "move field-only attributes to a field inside the variant; accepted variant keys are skip and key"
+        },
+        (AttributeName::FluentVariants, AttributeLocation::VariantsContainer) => {
+            "accepted keys here are keys, derive, and namespace"
+        },
+        (AttributeName::FluentVariants, AttributeLocation::VariantsField)
+        | (AttributeName::FluentVariants, AttributeLocation::VariantsVariant) => {
+            "accepted key here is skip"
+        },
+        (AttributeName::FluentLabel, AttributeLocation::LabelContainer) => {
+            "accepted keys here are origin, variants, and namespace"
+        },
+        (AttributeName::FluentChoice, AttributeLocation::ChoiceContainer) => {
+            "accepted key here is rename_all"
+        },
+        (AttributeName::EsFluentLanguage, AttributeLocation::LanguageContainer) => {
+            "accepted key here is mode"
+        },
+        _ => "move this attribute to a supported derive location",
+    }
 }
 
 #[cfg(test)]
@@ -154,5 +400,78 @@ mod tests {
                 .syntax(),
             "#[fluent(value = ...)]"
         );
+    }
+
+    #[test]
+    fn context_table_covers_supported_attribute_families() {
+        let namespace: Meta = parse_quote!(namespace = "ui");
+        let keys: Meta = parse_quote!(keys = ["label"]);
+        let skip: Meta = parse_quote!(skip);
+        let rename_all: Meta = parse_quote!(rename_all = "snake_case");
+        let mode: Meta = parse_quote!(mode = "custom");
+
+        assert!(
+            invalid_attribute_meta_item_for_location(
+                &namespace,
+                AttributeName::Fluent,
+                AttributeLocation::MessageContainer
+            )
+            .is_none()
+        );
+        assert!(
+            invalid_attribute_meta_item_for_location(
+                &keys,
+                AttributeName::FluentVariants,
+                AttributeLocation::VariantsContainer
+            )
+            .is_none()
+        );
+        assert!(
+            invalid_attribute_meta_item_for_location(
+                &skip,
+                AttributeName::FluentVariants,
+                AttributeLocation::VariantsField
+            )
+            .is_none()
+        );
+        assert!(
+            invalid_attribute_meta_item_for_location(
+                &rename_all,
+                AttributeName::FluentChoice,
+                AttributeLocation::ChoiceContainer
+            )
+            .is_none()
+        );
+        assert!(
+            invalid_attribute_meta_item_for_location(
+                &mode,
+                AttributeName::EsFluentLanguage,
+                AttributeLocation::LanguageContainer
+            )
+            .is_none()
+        );
+
+        let bad = invalid_attribute_meta_item_for_location(
+            &keys,
+            AttributeName::FluentVariants,
+            AttributeLocation::VariantsField,
+        )
+        .expect("keys are container-only");
+        assert_eq!(bad.syntax(), "#[fluent_variants(keys = ...)]");
+    }
+
+    #[test]
+    fn unsupported_keys_are_reported_as_invalid_for_context() {
+        let unknown: Meta = parse_quote!(variantz);
+        let item = invalid_attribute_meta_item_for_location(
+            &unknown,
+            AttributeName::FluentLabel,
+            AttributeLocation::LabelContainer,
+        )
+        .expect("unknown key is invalid");
+
+        assert_eq!(item.key(), None);
+        assert_eq!(item.key_name(), "variantz");
+        assert_eq!(item.syntax(), "#[fluent_label(variantz)]");
     }
 }

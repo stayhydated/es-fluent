@@ -136,6 +136,39 @@ mod validate_struct_tests {
     }
 
     #[test]
+    fn optional_conflicts_with_choice_value_and_skip_on_struct_fields() {
+        for input in [
+            parse_quote! {
+                #[derive(EsFluent)]
+                pub struct TestStruct {
+                    #[fluent(optional, choice)]
+                    field: Option<String>,
+                }
+            },
+            parse_quote! {
+                #[derive(EsFluent)]
+                pub struct TestStruct {
+                    #[fluent(optional, value = |value: &Option<String>| value.is_some())]
+                    field: Option<String>,
+                }
+            },
+            parse_quote! {
+                #[derive(EsFluent)]
+                pub struct TestStruct {
+                    #[fluent(optional, skip)]
+                    field: Option<String>,
+                }
+            },
+        ] {
+            let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
+            let err = es_fluent_derive_core::validation::validate_struct(&opts)
+                .expect_err("optional conflict should fail");
+
+            assert!(err.to_string().contains("#[fluent(optional)]"));
+        }
+    }
+
+    #[test]
     fn no_defaults_succeeds() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -176,9 +209,7 @@ mod validate_struct_tests {
             }
         };
 
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("empty arg should fail");
+        let err = StructOpts::from_derive_input(&input).expect_err("empty arg should fail");
 
         assert!(err.to_string().contains("must not be empty"));
     }
@@ -376,6 +407,36 @@ mod validate_enum_tests {
     }
 
     #[test]
+    fn optional_conflicts_with_choice_value_and_skip_on_enum_fields() {
+        for input in [
+            parse_quote! {
+                #[derive(EsFluent)]
+                pub enum TestEnum {
+                    Something(#[fluent(optional, choice)] Option<String>),
+                }
+            },
+            parse_quote! {
+                #[derive(EsFluent)]
+                pub enum TestEnum {
+                    Something(#[fluent(optional, value = |value: &Option<String>| value.is_some())] Option<String>),
+                }
+            },
+            parse_quote! {
+                #[derive(EsFluent)]
+                pub enum TestEnum {
+                    Something(#[fluent(optional, skip)] Option<String>),
+                }
+            },
+        ] {
+            let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
+            let err = es_fluent_derive_core::validation::validate_enum(&opts)
+                .expect_err("optional conflict should fail");
+
+            assert!(err.to_string().contains("#[fluent(optional)]"));
+        }
+    }
+
+    #[test]
     fn empty_variant_field_arg_fails() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -384,9 +445,7 @@ mod validate_enum_tests {
             }
         };
 
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect_err("empty arg should fail");
+        let err = EnumOpts::from_derive_input(&input).expect_err("empty arg should fail");
 
         assert!(err.to_string().contains("must not be empty"));
     }

@@ -26,6 +26,10 @@ flowchart TD
     GEN --> OUT[Token Output]
 ```
 
+1. **Attribute Context Checking (`src/attribute.rs`)**: Before `darling`
+   option parsing, derive inputs are scanned with an attribute-location model.
+   Unsupported keys are rejected against the specific container, field, variant,
+   label, choice, variants, or language context where they appear.
 1. **Parsing (`src/options/`)**: The raw `syn` AST is parsed into structured options using `darling`. This step handles attribute extraction (`#[fluent(...)]`) and type conversion.
 1. **Shape Lowering (`src/lowered.rs`)**: Parsed options are converted into
    derive-specific container models that encode the accepted Rust shape and
@@ -36,7 +40,21 @@ flowchart TD
 
 ## Modules
 
-### 1. Options (`src/options/`)
+### 1. Attribute Context (`src/attribute.rs`)
+
+The context checker centralizes wrong-location diagnostics for user-facing
+attribute families:
+
+- `#[fluent(...)]` on message containers, fields, and enum variants;
+- `#[fluent_variants(...)]` on containers, fields, and enum variants;
+- `#[fluent_label(...)]` on label containers;
+- `#[fluent(choice)]` / `#[fluent_choice(...)]` choice containers;
+- `#[es_fluent_language(...)]` language enum containers.
+
+The checker accepts only the keys that are meaningful at that location and
+reports the accepted key set in the diagnostic help text.
+
+### 2. Options (`src/options/`)
 
 This module uses `darling` to define the schema for `#[fluent(...)]` attributes. It transforms `syn` types into strictly typed structs.
 
@@ -65,12 +83,15 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - `GeneratedVariantsOptions`: Shared naming/key helpers for `#[fluent_variants]` containers.
 - `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
 
-Field parsing supports `skip`, `arg`, `choice`, and `value` transforms.
-Validation rejects combining `choice` and `value` on the same field because
-the argument cannot be both a Fluent selector value and a transformed value.
-String literal attribute payloads keep their literal span in `SpannedString`,
-and expose typed accessors for field argument names, variant key suffixes, enum
-resource IDs, and enum lookup domains before code generation consumes them.
+Field parsing supports `skip`, `default`, `arg`, `choice`, explicit
+`optional`, and `value` transforms. Validation rejects conflicting field
+strategies such as `choice + value`, `optional + value`, `optional + choice`,
+or `optional` on skipped fields.
+String literal attribute payloads are converted to typed values during option
+parsing where they represent Fluent identifiers. Field argument names, variant
+key suffixes, enum resource IDs, enum lookup domains, generated variant keys,
+and literal namespaces retain their source spans as `SpannedValue<T>` or
+`NamespaceSpec` and are not reparsed by token emission.
 Namespace attributes keep their value span in `NamespaceSpec` while exposing
 `NamespaceRule` accessors for code generation and validation.
 `#[fluent_variants]` parsing converts `keys = [...]` into typed
@@ -82,7 +103,7 @@ Enum `#[fluent(resource = "...")]` values are preserved with the string-literal
 span so semantic validation can report invalid base message IDs at the
 container attribute.
 
-### 2. Validation (`src/validation.rs`)
+### 3. Validation (`src/validation.rs`)
 
 Enforces semantic rules that `darling` cannot capture easily. These functions usually take a populated `*Opts` struct and return `syn::Result<()>`.
 
@@ -90,10 +111,15 @@ Enforces semantic rules that `darling` cannot capture easily. These functions us
 
 - **Default Field**: Checks that a struct has at most one field marked `#[fluent(default)]`.
 - **Conflict Check**: Ensures field attributes do not request incompatible
-  behavior, such as `skip` with `default`, `skip` with `arg`, or `choice` with
-  `value`.
+  behavior, such as `skip` with `default`, `skip` with `arg`, `choice` with
+  `value`, `optional` with `choice`, `optional` with `value`, or `optional` on
+  skipped fields.
+- **Collision Check**: Rejects generated variant keys, Rust idents, and message
+  IDs that would collide after defaulting and case conversion.
+- **Namespace Check**: Rejects multiple namespace sources that apply to the same
+  generated output path instead of relying on implicit precedence.
 
-### 3. Semantic (`src/semantic.rs`)
+### 4. Semantic (`src/semantic.rs`)
 
 Holds typed macro IR shared by token emission paths:
 
@@ -104,14 +130,18 @@ Holds typed macro IR shared by token emission paths:
 - `MessageModel`, `MessageEntryModel`, and `ArgumentModel` for runtime lookup
   and inventory metadata.
 - `ArgumentValueStrategy` and `ValueTransform` for recording how each runtime
-  argument value is produced.
+  argument value is produced. Explicit `#[fluent(optional)]` is the only source
+  of the optional argument strategy; plain `Option<T>` fields remain ordinary
+  values unless marked optional.
 - `GeneratedKeyName` and `GeneratedKeyIdent` for typed generated variant key
   payloads and Rust identifier construction.
+- `GeneratedVariantMessageSeed` for generated variant entries before they are
+  materialized against each generated enum target.
 - `GeneratedEnumModel` and `DerivePathList` for generated unit enums.
 - `ChoiceModel` and `ChoiceVariantModel` for `EsFluentChoice` match output.
 - Span-aware wrappers around shared Fluent identifier/domain validators.
 
-### 4. Error (`src/error.rs`)
+### 5. Error (`src/error.rs`)
 
 Centralized error handling types for macro compilation diagnostics.
 

@@ -55,6 +55,16 @@ impl MessageEntrySpec {
         }
     }
 
+    pub(crate) fn from_metadata(
+        metadata: MessageEntryModel,
+        runtime_arguments: Vec<FluentArgument>,
+    ) -> Self {
+        Self {
+            metadata,
+            runtime_arguments,
+        }
+    }
+
     pub(crate) fn localize_with_expr(&self, domain_override: Option<&DomainName>) -> TokenStream {
         LocalizeCallSpec {
             domain_override: domain_override.cloned(),

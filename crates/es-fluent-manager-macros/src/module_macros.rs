@@ -358,11 +358,12 @@ fn dioxus_asset_resource_tokens(
     let mut tokens = Vec::new();
 
     for (language, specs) in &assets.resource_specs_by_language {
+        let language = language.to_string();
         for spec in specs {
             let key = spec.key.as_str();
             let locale_relative_path = spec.locale_relative_path.as_str();
             let required = spec.required;
-            let asset_path = dioxus_asset_path(&assets.root_path, language, locale_relative_path)?;
+            let asset_path = dioxus_asset_path(&assets.root_path, &language, locale_relative_path)?;
 
             tokens.push(quote! {
                 #manager_path::DioxusI18nAssetResource::new(
@@ -427,11 +428,14 @@ mod tests {
     fn sample_assets(root_path: PathBuf) -> I18nAssets {
         I18nAssets {
             root_path,
-            languages: vec!["en-US".to_string(), "fr".to_string()],
-            namespaces: vec!["ui".to_string()],
+            languages: vec![
+                es_fluent_shared::parse_canonical_language_identifier("en-US").unwrap(),
+                es_fluent_shared::parse_canonical_language_identifier("fr").unwrap(),
+            ],
+            namespaces: vec![es_fluent_shared::namespace::ResolvedNamespace::new("ui").unwrap()],
             resource_specs_by_language: vec![
                 (
-                    "en-US".to_string(),
+                    es_fluent_shared::parse_canonical_language_identifier("en-US").unwrap(),
                     vec![
                         ResourceSpec::base("my-crate", false),
                         ResourceSpec::namespaced(
@@ -442,7 +446,7 @@ mod tests {
                     ],
                 ),
                 (
-                    "fr".to_string(),
+                    es_fluent_shared::parse_canonical_language_identifier("fr").unwrap(),
                     vec![ResourceSpec::namespaced(
                         "my-crate",
                         &es_fluent_shared::namespace::ResolvedNamespace::new("ui").unwrap(),

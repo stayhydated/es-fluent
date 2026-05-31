@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::lowered::LabelModel;
-use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel, label_message_id_for_ident};
+use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
 use es_fluent_derive_core::{options::label::LabelOpts, validation};
 use es_fluent_shared::{meta::TypeKind, namer, namespace::NamespaceRule};
 use quote::quote;
@@ -26,6 +26,10 @@ fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span
 }
 
 fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
+    if let Err(err) = validation::validate_es_fluent_label_attribute_context(&input) {
+        return crate::macros::utils::core_error_to_compile_error(err);
+    }
+
     let opts = match LabelOpts::from_derive_input(&input) {
         Ok(opts) => opts,
         Err(err) => return err.write_errors(),
@@ -49,10 +53,7 @@ fn expand_es_fluent_label(input: DeriveInput) -> proc_macro2::TokenStream {
     let original_ident = model.ident();
     let generics = opts.generics();
     let ftl_key = if opts.attr_args().is_origin() {
-        Some(
-            label_message_id_for_ident(original_ident, AttrContext::LabelContainer)
-                .unwrap_or_else(|error| error.abort()),
-        )
+        Some(model.message_id().clone())
     } else {
         None
     };

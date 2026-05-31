@@ -2,6 +2,7 @@
 #![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 use es_fluent_derive_core::{
+    attribute::{AttributeLocation, AttributeName, invalid_attribute_meta_item_for_location},
     error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError},
     semantic::{
         DerivePathList, GeneratedEnumModel, MessageEntryModel, SourceLocation, SpannedValue,
@@ -518,6 +519,25 @@ impl LanguageMode {
                 Some(err.span()),
             )
         })?;
+        if let Some(item) = invalid_attribute_meta_item_for_location(
+            &meta,
+            AttributeName::EsFluentLanguage,
+            AttributeLocation::LanguageContainer,
+        ) {
+            let error = language_attr_error(
+                format!("{} is not accepted", item.syntax()),
+                Some(meta.span()),
+            );
+            return if item.key_name() == "custom" {
+                Err(error.with_help("use #[es_fluent_language(mode = \"custom\")]".to_string()))
+            } else {
+                Err(error.with_help(
+                    "use #[es_fluent_language(mode = \"builtin\")] or #[es_fluent_language(mode = \"custom\")]"
+                        .to_string(),
+                ))
+            };
+        }
+
         match meta {
             Meta::NameValue(name_value) if name_value.path.is_ident("mode") => {
                 let Expr::Lit(ExprLit {
@@ -540,11 +560,6 @@ impl LanguageMode {
                     )),
                 }
             },
-            Meta::Path(path) if path.is_ident("custom") => Err(language_attr_error(
-                "#[es_fluent_language(custom)] is not accepted",
-                Some(path.span()),
-            )
-            .with_help("use #[es_fluent_language(mode = \"custom\")]".to_string())),
             other => Err(language_attr_error(
                 "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
                 Some(other.span()),

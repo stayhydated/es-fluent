@@ -3,6 +3,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::{
     lowered::ChoiceModel as LoweredChoiceModel, options::choice::ChoiceOpts, semantic::ChoiceModel,
+    validation,
 };
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
@@ -14,6 +15,10 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 fn expand_choice(input: DeriveInput) -> proc_macro2::TokenStream {
+    if let Err(err) = validation::validate_es_fluent_choice_attribute_context(&input) {
+        return crate::macros::utils::core_error_to_compile_error(err);
+    }
+
     let opts = match ChoiceOpts::from_derive_input(&input) {
         Ok(opts) => opts,
         Err(err) => return err.write_errors(),

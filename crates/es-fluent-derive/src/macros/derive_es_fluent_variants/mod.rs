@@ -6,7 +6,7 @@ use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
 use es_fluent_derive_core::options::label::LabelOpts;
 use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
 use es_fluent_derive_core::semantic::{
-    DomainName, FluentMessageId, generated_label_message_id, generated_variant_message_id,
+    DomainName, FluentMessageId, GeneratedVariantMessageSeed, generated_label_message_value,
 };
 use es_fluent_derive_core::validation;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
@@ -32,6 +32,10 @@ fn expand_es_fluent_variants(input: DeriveInput) -> TokenStream {
             input.ident.span(),
             "EsFluentVariants can only be derived for structs and enums"
         );
+    }
+
+    if let Err(err) = validation::validate_es_fluent_variants_attribute_context(&input) {
+        return crate::macros::utils::core_error_to_compile_error(err);
     }
 
     let label_opts = match LabelOpts::from_derive_input(&input) {
@@ -144,7 +148,13 @@ pub fn process_struct(
         Ok(model) => model,
         Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
     };
-    let variant_seeds = build_struct_variant_seeds(&model);
+    if let Err(error) = validation::validate_generated_variants_struct_model(&model) {
+        return crate::macros::utils::core_error_to_compile_error(error);
+    }
+    let variant_seeds = match build_struct_variant_seeds(&model) {
+        Ok(seeds) => seeds,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
     emit_variants_output(
         opts,
         &variant_seeds,
@@ -154,51 +164,33 @@ pub fn process_struct(
     )
 }
 
-#[derive(Clone)]
-struct GeneratedVariantSeed {
-    ident: syn::Ident,
-    doc_name: String,
-    key_fragment: String,
-}
+fn materialize_generated_variant(
+    seed: &GeneratedVariantMessageSeed,
+    base_key: &namer::FluentKey,
+) -> es_fluent_derive_core::error::EsFluentCoreResult<GeneratedUnitEnumVariant> {
+    let message = seed.materialize_message(base_key, AttrContext::VariantsContainer)?;
 
-impl GeneratedVariantSeed {
-    fn materialize(&self, base_key: &namer::FluentKey) -> GeneratedUnitEnumVariant {
-        let message_id = generated_variant_message_id(
-            base_key,
-            &self.key_fragment,
-            self.ident.span(),
-            AttrContext::VariantsContainer,
-        )
-        .unwrap_or_else(|error| error.abort());
-        GeneratedUnitEnumVariant {
-            ident: self.ident.clone(),
-            doc_name: self.doc_name.clone(),
-            message_entry: MessageEntrySpec::new(
-                namer::rust_ident_name(&self.ident),
-                message_id,
-                Vec::new(),
-            ),
-        }
-    }
+    Ok(GeneratedUnitEnumVariant {
+        ident: seed.ident().clone(),
+        doc_name: seed.doc_name().to_string(),
+        message_entry: MessageEntrySpec::from_metadata(message, Vec::new()),
+    })
 }
 
 fn variants_label_key(
     label_opts: Option<&LabelOpts>,
     base_key: &namer::FluentKey,
     span: proc_macro2::Span,
-) -> Option<FluentMessageId> {
+) -> es_fluent_derive_core::error::EsFluentCoreResult<Option<FluentMessageId>> {
     label_opts
         .filter(|opts| opts.attr_args().is_variants())
-        .map(|_| {
-            generated_label_message_id(base_key, span, AttrContext::VariantsContainer)
-                .unwrap_or_else(|error| error.abort())
-                .into_value()
-        })
+        .map(|_| generated_label_message_value(base_key, span, AttrContext::VariantsContainer))
+        .transpose()
 }
 
 fn emit_variants_output(
     opts: &impl GeneratedVariantsOptions,
-    variant_seeds: &[GeneratedVariantSeed],
+    variant_seeds: &[GeneratedVariantMessageSeed],
     label_opts: Option<&LabelOpts>,
     fluent_namespace: Option<SpannedNamespaceRuleRef<'_>>,
     fluent_domain: Option<&DomainName>,
@@ -224,10 +216,19 @@ fn emit_variants_output(
         let ident = &target.ident;
         let key_name = target.key_name.map(|key| key.as_str());
         let base_key = namer::FluentKey::from(ident);
-        let variant_entries: Vec<_> = variant_seeds
+        let variant_entries = variant_seeds
             .iter()
-            .map(|seed| seed.materialize(&base_key))
-            .collect();
+            .map(|seed| materialize_generated_variant(seed, &base_key))
+            .collect::<es_fluent_derive_core::error::EsFluentCoreResult<Vec<_>>>();
+        let variant_entries = match variant_entries {
+            Ok(entries) => entries,
+            Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+        };
+
+        let label_key = match variants_label_key(label_opts, &base_key, origin_ident.span()) {
+            Ok(label_key) => label_key,
+            Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+        };
 
         crate::macros::utils::emit_generated_unit_enum(GeneratedUnitEnumInput {
             ident,
@@ -237,7 +238,7 @@ fn emit_variants_output(
             derives: &derives,
             variants: &variant_entries,
             namespace: namespace.map(SpannedNamespaceRuleRef::rule),
-            label_key: variants_label_key(label_opts, &base_key, origin_ident.span()),
+            label_key,
         })
     });
 
@@ -248,7 +249,7 @@ fn emit_variants_output(
 
 fn build_struct_variant_seeds(
     model: &GeneratedVariantsStructModel<'_>,
-) -> Vec<GeneratedVariantSeed> {
+) -> es_fluent_derive_core::error::EsFluentCoreResult<Vec<GeneratedVariantMessageSeed>> {
     model
         .fields()
         .iter()
@@ -257,11 +258,13 @@ fn build_struct_variant_seeds(
             let original_field_name = namer::rust_ident_name(field_ident);
             let pascal_case_name = original_field_name.to_pascal_case();
             let variant_ident = syn::Ident::new(&pascal_case_name, field_ident.span());
-            GeneratedVariantSeed {
-                ident: variant_ident,
-                doc_name: original_field_name,
-                key_fragment: namer::rust_ident_name(field_ident),
-            }
+            GeneratedVariantMessageSeed::new(
+                variant_ident,
+                original_field_name,
+                namer::rust_ident_name(field_ident),
+                field_ident.span(),
+                AttrContext::VariantsField,
+            )
         })
         .collect()
 }
@@ -276,7 +279,13 @@ pub fn process_enum(
         Ok(model) => model,
         Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
     };
-    let variant_seeds = build_enum_variant_seeds(&model);
+    if let Err(error) = validation::validate_generated_variants_enum_model(&model) {
+        return crate::macros::utils::core_error_to_compile_error(error);
+    }
+    let variant_seeds = match build_enum_variant_seeds(&model) {
+        Ok(seeds) => seeds,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
     emit_variants_output(
         opts,
         &variant_seeds,
@@ -286,18 +295,22 @@ pub fn process_enum(
     )
 }
 
-fn build_enum_variant_seeds(model: &GeneratedVariantsEnumModel<'_>) -> Vec<GeneratedVariantSeed> {
+fn build_enum_variant_seeds(
+    model: &GeneratedVariantsEnumModel<'_>,
+) -> es_fluent_derive_core::error::EsFluentCoreResult<Vec<GeneratedVariantMessageSeed>> {
     model
         .variants()
         .iter()
         .map(|variant| {
             let variant_ident = variant.ident;
             let variant_key = namer::rust_ident_name(variant_ident);
-            GeneratedVariantSeed {
-                ident: variant_ident.clone(),
-                doc_name: variant_key.clone(),
-                key_fragment: variant_key,
-            }
+            GeneratedVariantMessageSeed::new(
+                variant_ident.clone(),
+                variant_key.clone(),
+                variant_key,
+                variant_ident.span(),
+                AttrContext::VariantsVariant,
+            )
         })
         .collect()
 }
@@ -356,14 +369,19 @@ mod tests {
 
     #[test]
     fn generated_variant_entry_drives_runtime_and_inventory_metadata() {
-        let seed = super::GeneratedVariantSeed {
-            ident: syn::parse_quote!(Username),
-            doc_name: "username".to_string(),
-            key_fragment: "username".to_string(),
-        };
-        let entry = seed.materialize(&es_fluent_shared::namer::FluentKey::from(
-            "login_form_label_variants",
-        ));
+        let seed = es_fluent_derive_core::semantic::GeneratedVariantMessageSeed::new(
+            syn::parse_quote!(Username),
+            "username",
+            "username",
+            proc_macro2::Span::call_site(),
+            es_fluent_derive_core::error::AttrContext::VariantsField,
+        )
+        .expect("seed");
+        let entry = super::materialize_generated_variant(
+            &seed,
+            &es_fluent_shared::namer::FluentKey::from("login_form_label_variants"),
+        )
+        .expect("entry");
 
         assert_eq!(
             entry.message_entry.metadata.message_id().as_str(),

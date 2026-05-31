@@ -10,12 +10,17 @@ use crate::{
         label::LabelOpts,
         r#struct::{StructFieldOpts, StructOpts, StructVariantsOpts},
     },
+    semantic::{
+        ArgumentValueStrategy, FluentMessageId, SpannedValue, ValueTransform,
+        label_message_id_for_ident, message_id_for_ident, variant_message_id,
+    },
 };
 use es_fluent_shared::meta::TypeKind;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct MessageStructModel<'a> {
     ident: &'a syn::Ident,
+    message_id: SpannedValue<FluentMessageId>,
     fields: &'a darling::ast::Fields<StructFieldOpts>,
 }
 
@@ -31,12 +36,17 @@ impl<'a> MessageStructModel<'a> {
 
         Ok(Self {
             ident: opts.ident(),
+            message_id: message_id_for_ident(opts.ident(), AttrContext::MessageContainer)?,
             fields,
         })
     }
 
     pub fn ident(&self) -> &'a syn::Ident {
         self.ident
+    }
+
+    pub fn message_id(&self) -> &SpannedValue<FluentMessageId> {
+        &self.message_id
     }
 
     pub fn fields(&self) -> Vec<MessageStructField<'a>> {
@@ -113,6 +123,15 @@ impl MessageStructField<'_> {
             Self::Tuple { .. } => None,
         }
     }
+
+    pub fn argument_model(&self) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
+        field_argument_model(
+            self.field(),
+            self.declaration_index(),
+            self.binding()
+                .map_or_else(proc_macro2::Span::call_site, syn::Ident::span),
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -131,9 +150,12 @@ impl<'a> MessageEnumModel<'a> {
             ));
         };
 
+        let base_key = opts
+            .base_message_id(AttrContext::MessageContainer)?
+            .into_value();
         let variants = variants
             .iter()
-            .map(MessageEnumVariant::from_options)
+            .map(|variant| MessageEnumVariant::from_options(variant, &base_key))
             .collect::<EsFluentCoreResult<Vec<_>>>()?;
 
         Ok(Self {
@@ -159,17 +181,20 @@ impl<'a> MessageEnumModel<'a> {
 pub enum MessageEnumVariant<'a> {
     Unit {
         ident: &'a syn::Ident,
+        message_id: SpannedValue<FluentMessageId>,
         skipped: bool,
         opts: &'a VariantOpts,
     },
     Tuple {
         ident: &'a syn::Ident,
+        message_id: SpannedValue<FluentMessageId>,
         skipped: bool,
         opts: &'a VariantOpts,
         fields: Vec<MessageTupleField<'a>>,
     },
     Struct {
         ident: &'a syn::Ident,
+        message_id: SpannedValue<FluentMessageId>,
         skipped: bool,
         opts: &'a VariantOpts,
         fields: Vec<MessageNamedField<'a>>,
@@ -179,18 +204,30 @@ pub enum MessageEnumVariant<'a> {
 }
 
 impl<'a> MessageEnumVariant<'a> {
-    fn from_options(variant_opt: &'a VariantOpts) -> EsFluentCoreResult<Self> {
+    fn from_options(
+        variant_opt: &'a VariantOpts,
+        base_key: &FluentMessageId,
+    ) -> EsFluentCoreResult<Self> {
         let ident = variant_opt.ident();
         let skipped = variant_opt.is_skipped();
+        let variant_key = variant_opt.variant_key(AttrContext::EnumVariant)?;
+        let message_id = variant_message_id(
+            base_key,
+            ident,
+            variant_key.as_ref().map(|key| key.value()),
+            AttrContext::MessageContainer,
+        )?;
 
         match variant_opt.style() {
             darling::ast::Style::Unit => Ok(Self::Unit {
                 ident,
+                message_id,
                 skipped,
                 opts: variant_opt,
             }),
             darling::ast::Style::Tuple => Ok(Self::Tuple {
                 ident,
+                message_id,
                 skipped,
                 opts: variant_opt,
                 fields: variant_opt
@@ -246,6 +283,7 @@ impl<'a> MessageEnumVariant<'a> {
 
                 Ok(Self::Struct {
                     ident,
+                    message_id,
                     skipped,
                     opts: variant_opt,
                     fields,
@@ -261,6 +299,14 @@ impl<'a> MessageEnumVariant<'a> {
             Self::Unit { ident, .. } | Self::Tuple { ident, .. } | Self::Struct { ident, .. } => {
                 ident
             },
+        }
+    }
+
+    pub fn message_id(&self) -> &SpannedValue<FluentMessageId> {
+        match self {
+            Self::Unit { message_id, .. }
+            | Self::Tuple { message_id, .. }
+            | Self::Struct { message_id, .. } => message_id,
         }
     }
 
@@ -301,11 +347,27 @@ pub struct MessageTupleField<'a> {
     pub field: &'a crate::options::FluentFieldOpts,
 }
 
+impl MessageTupleField<'_> {
+    pub fn argument_model(&self) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
+        field_argument_model(
+            self.field,
+            self.original_index,
+            proc_macro2::Span::call_site(),
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MessageNamedField<'a> {
     pub binding: &'a syn::Ident,
     pub exposed_index: usize,
     pub field: &'a crate::options::FluentFieldOpts,
+}
+
+impl MessageNamedField<'_> {
+    pub fn argument_model(&self) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
+        field_argument_model(self.field, self.exposed_index, self.binding.span())
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -326,6 +388,13 @@ impl MessageEnumField<'_> {
         match self {
             Self::Tuple(field) => field.field,
             Self::Named(field) => field.field,
+        }
+    }
+
+    pub fn argument_model(&self) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
+        match self {
+            Self::Tuple(field) => field.argument_model(),
+            Self::Named(field) => field.argument_model(),
         }
     }
 }
@@ -429,6 +498,7 @@ pub struct GeneratedVariantsVariant<'a> {
 #[derive(Debug)]
 pub struct LabelModel<'a> {
     ident: &'a syn::Ident,
+    message_id: SpannedValue<FluentMessageId>,
     type_kind: TypeKind,
 }
 
@@ -441,12 +511,17 @@ impl<'a> LabelModel<'a> {
 
         Ok(Self {
             ident: opts.ident(),
+            message_id: label_message_id_for_ident(opts.ident(), AttrContext::LabelContainer)?,
             type_kind,
         })
     }
 
     pub fn ident(&self) -> &'a syn::Ident {
         self.ident
+    }
+
+    pub fn message_id(&self) -> &SpannedValue<FluentMessageId> {
+        &self.message_id
     }
 
     pub fn type_kind(&self) -> &TypeKind {
@@ -507,10 +582,79 @@ pub struct ChoiceVariant<'a> {
     pub ident: &'a syn::Ident,
 }
 
+pub fn field_value_strategy(
+    field: &impl FluentField,
+    span: proc_macro2::Span,
+) -> ArgumentValueStrategy {
+    if let Some(expr) = field.value() {
+        ArgumentValueStrategy::Transform(ValueTransform::new(expr.clone(), span))
+    } else if field.is_choice() {
+        ArgumentValueStrategy::Choice
+    } else if field.is_optional() {
+        ArgumentValueStrategy::Optional
+    } else {
+        ArgumentValueStrategy::Borrowed
+    }
+}
+
+pub fn field_argument_model(
+    field: &impl FluentField,
+    index: usize,
+    span: proc_macro2::Span,
+) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
+    let value_strategy = field_value_strategy(field, span);
+    let name = field.fluent_arg_name(index, AttrContext::MessageField)?;
+    Ok(crate::semantic::ArgumentModel::new_with_value_strategy(
+        name,
+        value_strategy,
+    ))
+}
+
 fn internal_shape_error(
     context: AttrContext,
     message: impl Into<String>,
     span: proc_macro2::Span,
 ) -> EsFluentCoreError {
     EsFluentCoreError::StructuredAttributeError(AttrError::new(context, message, Some(span)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use darling::FromDeriveInput as _;
+    use syn::parse_quote;
+
+    #[test]
+    fn field_value_strategy_resolves_transform_choice_optional_and_borrowed() {
+        let input: syn::DeriveInput = parse_quote! {
+            struct FieldStrategies {
+                plain: String,
+                #[fluent(optional)]
+                maybe: Option<String>,
+                #[fluent(choice)]
+                selected: String,
+                #[fluent(value = |value: &String| value.len())]
+                transformed: String,
+            }
+        };
+        let opts = StructOpts::from_derive_input(&input).expect("struct opts");
+        let fields: Vec<_> = opts.fields();
+
+        assert!(matches!(
+            field_value_strategy(fields[0], fields[0].ident().expect("ident").span()),
+            ArgumentValueStrategy::Borrowed
+        ));
+        assert!(matches!(
+            field_value_strategy(fields[1], fields[1].ident().expect("ident").span()),
+            ArgumentValueStrategy::Optional
+        ));
+        assert!(matches!(
+            field_value_strategy(fields[2], fields[2].ident().expect("ident").span()),
+            ArgumentValueStrategy::Choice
+        ));
+        assert!(matches!(
+            field_value_strategy(fields[3], fields[3].ident().expect("ident").span()),
+            ArgumentValueStrategy::Transform(_)
+        ));
+    }
 }

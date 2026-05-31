@@ -154,6 +154,14 @@ pub fn generated_label_message_id(
     )
 }
 
+pub fn generated_label_message_value(
+    base_key: &namer::FluentKey,
+    span: Span,
+    context: AttrContext,
+) -> EsFluentCoreResult<FluentMessageId> {
+    generated_label_message_id(base_key, span, context).map(SpannedValue::into_value)
+}
+
 /// A typed generated variant key from `#[fluent_variants(keys = [...])]`.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GeneratedKeyName {
@@ -233,6 +241,58 @@ impl GeneratedKeyIdent {
 
     pub fn into_ident(self) -> syn::Ident {
         self.ident
+    }
+}
+
+/// Semantic seed for one generated unit-enum variant before the target enum key is known.
+#[derive(Clone, Debug)]
+pub struct GeneratedVariantMessageSeed {
+    ident: syn::Ident,
+    doc_name: String,
+    key_fragment: SpannedValue<VariantKey>,
+}
+
+impl GeneratedVariantMessageSeed {
+    pub fn new(
+        ident: syn::Ident,
+        doc_name: impl Into<String>,
+        key_fragment: impl Into<String>,
+        span: Span,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<Self> {
+        let key_fragment = parse_variant_key_in_context(key_fragment, span, context)?;
+        Ok(Self {
+            ident,
+            doc_name: doc_name.into(),
+            key_fragment: SpannedValue::new(key_fragment, span),
+        })
+    }
+
+    pub fn ident(&self) -> &syn::Ident {
+        &self.ident
+    }
+
+    pub fn doc_name(&self) -> &str {
+        &self.doc_name
+    }
+
+    pub fn materialize_message(
+        &self,
+        base_key: &namer::FluentKey,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<MessageEntryModel> {
+        let message_id = generated_variant_message_id(
+            base_key,
+            self.key_fragment.value().as_str(),
+            self.key_fragment.span(),
+            context,
+        )?;
+        Ok(MessageEntryModel::new(
+            namer::rust_ident_name(&self.ident),
+            message_id.clone(),
+            Vec::new(),
+            SourceLocation::new(message_id.span()),
+        ))
     }
 }
 

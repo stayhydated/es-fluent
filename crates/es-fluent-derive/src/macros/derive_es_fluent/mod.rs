@@ -23,12 +23,12 @@ fn validate_namespace(namespace: Option<&NamespaceRule>, span: proc_macro2::Span
 }
 
 fn expand_es_fluent(input: DeriveInput) -> proc_macro2::TokenStream {
+    if let Err(err) = validation::validate_es_fluent_attribute_context(&input) {
+        err.abort();
+    }
+
     match &input.data {
         Data::Enum(data) => {
-            if let Err(err) = validation::validate_es_fluent_attribute_context(&input) {
-                err.abort();
-            }
-
             let opts = match EnumOpts::from_derive_input(&input) {
                 Ok(opts) => opts,
                 Err(err) => return err.write_errors(),

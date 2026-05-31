@@ -1,7 +1,6 @@
-use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::lowered::{MessageStructField, MessageStructModel};
 use es_fluent_derive_core::options::r#struct::StructOpts;
-use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel, message_id_for_ident};
+use es_fluent_derive_core::semantic::{InventoryPolicy, MessageModel};
 use es_fluent_shared::{meta::TypeKind, namer};
 
 use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
@@ -26,30 +25,34 @@ fn struct_field_access_expr(field: &MessageStructField<'_>) -> TokenStream {
 }
 
 fn generate(opts: &StructOpts) -> TokenStream {
-    let model = MessageStructModel::from_options(opts).unwrap_or_else(|error| error.abort());
+    let model = match MessageStructModel::from_options(opts) {
+        Ok(model) => model,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
     let original_ident = model.ident();
 
-    let message_id = message_id_for_ident(original_ident, AttrContext::MessageContainer)
-        .unwrap_or_else(|error| error.abort());
-
-    let message_arguments: Vec<_> = model
+    let message_arguments = model
         .fields()
         .iter()
         .map(|field_model| {
             let field_access = struct_field_access_expr(field_model);
+            let metadata = field_model.argument_model()?;
 
-            crate::macros::utils::generate_field_argument(
-                field_model.field(),
-                field_model.declaration_index(),
+            Ok(crate::macros::utils::generate_field_argument(
+                metadata,
                 field_access.clone(),
                 quote! { &(#field_access) },
-            )
+            ))
         })
-        .collect();
+        .collect::<es_fluent_derive_core::error::EsFluentCoreResult<Vec<_>>>();
+    let message_arguments = match message_arguments {
+        Ok(arguments) => arguments,
+        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
+    };
 
     let message_entry = MessageEntrySpec::new(
         namer::rust_ident_name(original_ident),
-        message_id,
+        model.message_id().clone(),
         message_arguments,
     );
     let semantic_model = MessageModel::new(

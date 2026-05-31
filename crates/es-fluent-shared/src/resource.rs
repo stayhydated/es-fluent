@@ -4,9 +4,9 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use unic_langid::LanguageIdentifier;
 
 use crate::CanonicalLanguageIdentifierError;
+use crate::LanguageIdentifier;
 use crate::namespace::{NamespacePathError, ResolvedNamespace};
 
 /// Errors produced while building a module resource plan.
@@ -407,24 +407,24 @@ pub struct ResourcePlan {
 /// Sparse per-language resource plans discovered from a locale asset tree.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SparseAssetResourcePlans {
-    languages: Vec<String>,
-    namespaces: Vec<String>,
-    resource_specs_by_language: Vec<(String, Vec<ModuleResourceSpec>)>,
+    languages: Vec<LanguageIdentifier>,
+    namespaces: Vec<ResolvedNamespace>,
+    resource_specs_by_language: Vec<(LanguageIdentifier, Vec<ModuleResourceSpec>)>,
 }
 
 impl SparseAssetResourcePlans {
     /// Returns canonical language identifiers discovered in the assets tree.
-    pub fn languages(&self) -> &[String] {
+    pub fn languages(&self) -> &[LanguageIdentifier] {
         &self.languages
     }
 
     /// Returns all namespace paths discovered across languages.
-    pub fn namespaces(&self) -> &[String] {
+    pub fn namespaces(&self) -> &[ResolvedNamespace] {
         &self.namespaces
     }
 
     /// Returns sparse resource plans keyed by language identifier.
-    pub fn resource_specs_by_language(&self) -> &[(String, Vec<ModuleResourceSpec>)] {
+    pub fn resource_specs_by_language(&self) -> &[(LanguageIdentifier, Vec<ModuleResourceSpec>)] {
         &self.resource_specs_by_language
     }
 
@@ -432,9 +432,9 @@ impl SparseAssetResourcePlans {
     pub fn into_parts(
         self,
     ) -> (
-        Vec<String>,
-        Vec<String>,
-        Vec<(String, Vec<ModuleResourceSpec>)>,
+        Vec<LanguageIdentifier>,
+        Vec<ResolvedNamespace>,
+        Vec<(LanguageIdentifier, Vec<ModuleResourceSpec>)>,
     ) {
         (
             self.languages,
@@ -516,7 +516,8 @@ impl ResourcePlan {
         let mut namespaces = BTreeSet::new();
         let mut languages_with_base_file = BTreeSet::new();
         let mut discovered_languages = BTreeSet::new();
-        let mut namespaces_by_language: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut namespaces_by_language: BTreeMap<LanguageIdentifier, BTreeSet<ResolvedNamespace>> =
+            BTreeMap::new();
 
         for entry in entries {
             let entry =
@@ -535,21 +536,20 @@ impl ResourcePlan {
                 .ok_or_else(|| SparseAssetResourcePlanError::NonUtf8LocaleDirectory {
                     path: path.clone(),
                 })?;
-            let canonical_lang = crate::parse_canonical_language_identifier(raw_name)
-                .map_err(
-                    |details| SparseAssetResourcePlanError::InvalidLocaleDirectory {
+            let canonical_lang =
+                crate::parse_canonical_language_identifier(raw_name).map_err(|details| {
+                    SparseAssetResourcePlanError::InvalidLocaleDirectory {
                         raw_name: raw_name.to_string(),
                         path: path.clone(),
                         details,
-                    },
-                )?
-                .to_string();
+                    }
+                })?;
 
             let base_path = path.join(format!("{domain}.ftl"));
             let namespace_root = path.join(domain);
             let has_base_file = base_path.exists();
             let discovered_namespaces = if namespace_root.is_dir() {
-                discover_namespaces(&namespace_root)?
+                discover_namespaces(domain, &namespace_root)?
             } else {
                 BTreeSet::new()
             };
@@ -569,8 +569,8 @@ impl ResourcePlan {
             }
         }
 
-        let namespaces: Vec<String> = namespaces.into_iter().collect();
-        let languages: Vec<String> = discovered_languages.into_iter().collect();
+        let namespaces: Vec<ResolvedNamespace> = namespaces.into_iter().collect();
+        let languages: Vec<LanguageIdentifier> = discovered_languages.into_iter().collect();
         let mut resource_specs_by_language = Vec::with_capacity(languages.len());
 
         for lang in &languages {
@@ -580,21 +580,12 @@ impl ResourcePlan {
                 continue;
             }
 
-            let mut resolved_namespaces = Vec::new();
-            for namespace in namespaces_by_language
+            let resolved_namespaces = namespaces_by_language
                 .get(lang)
                 .into_iter()
                 .flat_map(|entries| entries.iter())
-            {
-                let namespace = ResolvedNamespace::new(namespace.clone()).map_err(|details| {
-                    SparseAssetResourcePlanError::InvalidNamespace {
-                        namespace: namespace.clone(),
-                        domain: domain.to_string(),
-                        details,
-                    }
-                })?;
-                resolved_namespaces.push(namespace);
-            }
+                .cloned()
+                .collect::<Vec<_>>();
 
             let plan = Self::sparse_for_domain(
                 domain,
@@ -624,9 +615,10 @@ impl ResourcePlan {
 }
 
 fn namespace_from_relative_ftl_path(
+    domain: &str,
     namespace_root: &Path,
     path: &Path,
-) -> Result<Option<String>, SparseAssetResourcePlanError> {
+) -> Result<Option<ResolvedNamespace>, SparseAssetResourcePlanError> {
     if !path.is_file() {
         return Ok(None);
     }
@@ -655,15 +647,23 @@ fn namespace_from_relative_ftl_path(
     }
 
     if components.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(components.join("/")))
+        return Ok(None);
     }
+
+    let namespace = components.join("/");
+    ResolvedNamespace::new(namespace.clone())
+        .map(Some)
+        .map_err(|details| SparseAssetResourcePlanError::InvalidNamespace {
+            namespace,
+            domain: domain.to_string(),
+            details,
+        })
 }
 
 fn discover_namespaces(
+    domain: &str,
     namespace_root: &Path,
-) -> Result<BTreeSet<String>, SparseAssetResourcePlanError> {
+) -> Result<BTreeSet<ResolvedNamespace>, SparseAssetResourcePlanError> {
     let mut namespaces = BTreeSet::new();
     let mut pending = vec![namespace_root.to_path_buf()];
 
@@ -689,7 +689,9 @@ fn discover_namespaces(
                 continue;
             }
 
-            if let Some(namespace) = namespace_from_relative_ftl_path(namespace_root, &path)? {
+            if let Some(namespace) =
+                namespace_from_relative_ftl_path(domain, namespace_root, &path)?
+            {
                 namespaces.insert(namespace);
             }
         }
@@ -899,14 +901,30 @@ mod tests {
 
         let plans = ResourcePlan::sparse_from_assets("demo", assets).expect("plans");
 
-        assert_eq!(plans.languages(), &["en-US".to_string(), "fr".to_string()]);
         assert_eq!(
-            plans.namespaces(),
-            &["forms/button".to_string(), "ui".to_string()]
+            plans
+                .languages()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+            vec!["en-US", "fr"]
         );
         assert_eq!(
-            plans.resource_specs_by_language(),
-            &[
+            plans
+                .namespaces()
+                .iter()
+                .map(ResolvedNamespace::as_str)
+                .collect::<Vec<_>>(),
+            vec!["forms/button", "ui"]
+        );
+        let specs_by_language = plans
+            .resource_specs_by_language()
+            .iter()
+            .map(|(language, specs)| (language.to_string(), specs.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            specs_by_language,
+            vec![
                 (
                     "en-US".to_string(),
                     vec![
@@ -939,9 +957,14 @@ mod tests {
 
         let plans = ResourcePlan::sparse_from_assets("demo", assets).expect("plans");
 
+        let specs_by_language = plans
+            .resource_specs_by_language()
+            .iter()
+            .map(|(language, specs)| (language.to_string(), specs.clone()))
+            .collect::<Vec<_>>();
         assert_eq!(
-            plans.resource_specs_by_language(),
-            &[(
+            specs_by_language,
+            vec![(
                 "en".to_string(),
                 vec![ModuleResourceSpec::base("demo", true)]
             )]

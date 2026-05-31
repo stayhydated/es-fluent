@@ -52,13 +52,14 @@ Common `#[fluent(...)]` attributes:
 - `arg = "..."`: rename an exposed Fluent argument.
 - `skip`: exclude a field from arguments, or on a single-field enum variant delegate rendering to the wrapped message.
 - `value = |x: &String| x.len()`: transform a field before inserting it as a Fluent argument.
-- `choice` and `value = ...` cannot be combined on the same field.
+- `optional`: treat an `Option<T>`-style field as an omitted Fluent argument when it is `None`.
+- `choice`, `optional`, and `value = ...` cannot be combined on the same field.
 - `key = "..."`: override an enum variant key suffix.
 - `resource = "..."`: override the enum base key.
 - `domain = "..."`: route enum lookup to a specific manager domain.
 - `skip_inventory`: suppress CLI inventory registration.
 
-Direct `Option<T>` fields are omitted from arguments when `None`. Type aliases to `Option<T>` are treated as ordinary field types.
+Optional-argument omission is explicit. Plain `Option<T>` fields are treated as ordinary field values unless marked `#[fluent(optional)]`.
 
 Transparent wrapper variants:
 

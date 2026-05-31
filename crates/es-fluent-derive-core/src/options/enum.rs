@@ -1,10 +1,4 @@
-use bon::Builder;
-use darling::{FromDeriveInput, FromMeta, FromVariant};
-use es_fluent_shared::{namer, namespace::NamespaceRule};
-use getset::Getters;
-use syn::{Meta, Token, punctuated::Punctuated};
-
-use crate::attribute::{AttributeLocation, invalid_fluent_meta_item_for_location};
+use crate::attribute::{AttributeLocation, AttributeName, validate_attribute_for_location};
 use crate::options::{
     EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantsOptions, KeyedVariant, Skippable,
     VariantFields,
@@ -15,6 +9,10 @@ use crate::{
         DomainName, FluentMessageId, SpannedValue, VariantKey, spanned_message_id_from_value,
     },
 };
+use bon::Builder;
+use darling::{FromDeriveInput, FromMeta, FromVariant};
+use es_fluent_shared::{namer, namespace::NamespaceRule};
+use getset::Getters;
 
 /// Options for an enum variant.
 #[derive(Clone, Debug, Getters)]
@@ -61,32 +59,14 @@ impl VariantOpts {
 }
 
 fn validate_variant_fluent_attribute_context(variant: &syn::Variant) -> darling::Result<()> {
-    for attr in variant
-        .attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("fluent"))
-    {
-        let Meta::List(list) = &attr.meta else {
-            continue;
-        };
-        let items = match list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) {
-            Ok(items) => items,
-            Err(_) => continue,
-        };
-
-        for item in items {
-            if let Some(attr) =
-                invalid_fluent_meta_item_for_location(&item, AttributeLocation::EnumVariant)
-            {
-                let message = format!(
-                    "Attribute error in enum variant: `{syntax}` is a field-only attribute and cannot be used on enum variant `{}`\nhelp: move the attribute to a field inside the variant, for example `{}(#[fluent(arg = \"name\")] T)`",
-                    variant.ident,
-                    variant.ident,
-                    syntax = attr.syntax(),
-                );
-                return Err(darling::Error::custom(message).with_span(&item));
-            }
-        }
+    for attr in &variant.attrs {
+        validate_attribute_for_location(
+            attr,
+            AttributeName::Fluent,
+            AttributeLocation::EnumVariant,
+            Some(&variant.ident),
+        )
+        .map_err(|error| darling::Error::custom(error.to_string()).with_span(attr))?;
     }
 
     Ok(())
@@ -514,6 +494,17 @@ mod tests {
         let err = EnumVariantsOpts::from_derive_input(&invalid_key_input)
             .expect_err("invalid key should fail during parsing");
         assert!(err.to_string().contains("lowercase snake_case"));
+
+        let duplicate_key_input: DeriveInput = parse_quote! {
+            #[derive(EsFluentVariants)]
+            #[fluent_variants(keys = ["label", "label"])]
+            enum Duplicate {
+                A
+            }
+        };
+        let err = EnumVariantsOpts::from_derive_input(&duplicate_key_input)
+            .expect_err("duplicate keys should fail during parsing");
+        assert!(err.to_string().contains("duplicate key 'label'"));
     }
 
     #[test]

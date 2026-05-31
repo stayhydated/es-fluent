@@ -2,7 +2,8 @@
 
 use icu::locale::{Locale, LocaleCanonicalizer};
 use thiserror::Error;
-use unic_langid::{LanguageIdentifier, LanguageIdentifierError};
+pub use unic_langid::LanguageIdentifier;
+use unic_langid::LanguageIdentifierError;
 
 /// Errors returned when parsing a language identifier that must already be canonicalized.
 #[derive(Debug, Error)]

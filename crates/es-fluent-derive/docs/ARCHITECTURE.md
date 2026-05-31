@@ -22,9 +22,10 @@ type-level key through an explicit `FluentLocalizer`.
 Enum derives can override the generated base key with `resource = "..."`, route
 lookup through an explicit manager domain with `domain = "..."`, and opt out of
 inventory collection with `skip_inventory`. Variant-level `key = "..."`
-overrides the key suffix. Field-level `skip`, `choice`, `value`, and
-`arg` affect the generated argument map before it reaches the localization
-closure. `choice` and `value` are mutually exclusive on the same field.
+overrides the key suffix. Field-level `skip`, `default`, `arg`, `choice`,
+`optional`, and `value` affect the generated argument map before it reaches the
+localization closure. `choice`, `optional`, and `value` are mutually exclusive
+field strategies.
 
 The derive layer consumes typed accessors from `es-fluent-derive-core` for
 field argument names, variant keys, enum resource IDs, and enum domains, so
@@ -59,7 +60,9 @@ Generated argument insertion uses `FluentArgumentValue` autoref dispatch:
 The chosen runtime value strategy (`borrowed`, `optional`, `choice`, or
 explicit `value = ...` transform) is stored in the semantic `ArgumentModel`
 before token emission, so metadata and insertion logic describe the same
-argument entry.
+argument entry. Optional omission is driven by explicit
+`#[fluent(optional)]`; the derive layer does not infer optional behavior from
+the Rust type syntax.
 
 `#[derive(EsFluentChoice)]` builds a semantic `ChoiceModel` before token
 emission. The model owns the final `rename_all` mapping for each variant, and

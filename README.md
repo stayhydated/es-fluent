@@ -393,11 +393,12 @@ Common derive attributes:
 - `arg = "..."` on a field renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 - `#[fluent(skip)]` on a field excludes that field from generated arguments.
 - `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
-- `#[fluent(choice)]` and `#[fluent(value = ...)]` are mutually exclusive on the same field.
+- `#[fluent(optional)]` treats an `Option<T>`-style field as an omitted Fluent argument when it is `None`.
+- `#[fluent(choice)]`, `#[fluent(optional)]`, and `#[fluent(value = ...)]` are mutually exclusive on the same field.
 - `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
 - `#[fluent(resource = "...")]` on an enum overrides the base key, `domain = "..."` routes lookup to a specific manager domain, and `skip_inventory` suppresses CLI inventory registration.
 - `domain = "..."` is enum-only. Struct messages resolve in the current crate's domain.
-- Optional-argument omission is generated for direct `Option<T>` fields, including paths like `std::option::Option<T>`. Type aliases to `Option<T>` are treated like ordinary field types.
+- Optional-argument omission is explicit; plain `Option<T>` fields are treated like ordinary field values unless marked `#[fluent(optional)]`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
 Skipped single-field enum variants:

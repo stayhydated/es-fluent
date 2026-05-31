@@ -6,12 +6,14 @@ use std::collections::HashMap;
 #[derive(EsFluent)]
 struct DerivedBoolStruct {
     enabled: bool,
+    #[fluent(optional)]
     maybe_enabled: Option<bool>,
 }
 
 #[derive(EsFluent)]
 struct DerivedBorrowedBoolStruct<'a> {
     enabled: &'a bool,
+    #[fluent(optional)]
     maybe_enabled: Option<&'a bool>,
 }
 
@@ -20,9 +22,10 @@ struct DerivedBorrowedBoolStruct<'a> {
 enum DerivedBoolEnum {
     Named {
         enabled: bool,
+        #[fluent(optional)]
         maybe_enabled: Option<bool>,
     },
-    Tuple(bool, Option<bool>),
+    Tuple(bool, #[fluent(optional)] Option<bool>),
 }
 
 #[derive(EsFluent)]
@@ -30,9 +33,10 @@ enum DerivedBoolEnum {
 enum DerivedBorrowedBoolEnum<'a> {
     Named {
         enabled: &'a bool,
+        #[fluent(optional)]
         maybe_enabled: Option<&'a bool>,
     },
-    Tuple(&'a bool, Option<&'a bool>),
+    Tuple(&'a bool, #[fluent(optional)] Option<&'a bool>),
 }
 
 fn describe_arg(value: &FluentValue<'_>) -> String {

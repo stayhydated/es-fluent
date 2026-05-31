@@ -1,14 +1,12 @@
 use darling::FromDeriveInput as _;
-use es_fluent_derive_core::error::{
-    AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult,
-};
+use es_fluent_derive_core::error::{AttrContext, EsFluentCoreError};
 use es_fluent_derive_core::options::{
-    FluentField, GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
+    GeneratedVariantsOptions, r#enum::EnumOpts, r#struct::StructOpts,
 };
 use es_fluent_derive_core::semantic::{
     ArgumentModel, ArgumentValueStrategy, DerivePathList, DomainName, FluentMessageId,
     GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, InventoryPolicy, MessageModel,
-    SpannedValue, ValueTransform,
+    SpannedValue,
 };
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use proc_macro2::{Span, TokenStream};
@@ -17,6 +15,10 @@ use syn::{Data, DeriveInput};
 
 use crate::macros::ir::inventory_variant_tokens_for_model;
 use crate::macros::ir::{FluentArgument, GeneratedUnitEnumVariant, MessageEntrySpec};
+
+pub use es_fluent_derive_core::validation::{
+    NamespaceSource, SpannedNamespaceRuleRef, resolve_single_namespace_source,
+};
 
 pub struct InventoryModuleInput<'a> {
     pub ident: &'a syn::Ident,
@@ -42,27 +44,6 @@ pub struct GeneratedVariantsEnumTarget<'a> {
     pub key_name: Option<&'a GeneratedKeyName>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct NamespaceSource<'a> {
-    name: &'static str,
-    context: AttrContext,
-    namespace: Option<SpannedNamespaceRuleRef<'a>>,
-}
-
-impl<'a> NamespaceSource<'a> {
-    pub fn new(
-        name: &'static str,
-        context: AttrContext,
-        namespace: Option<SpannedNamespaceRuleRef<'a>>,
-    ) -> Self {
-        Self {
-            name,
-            context,
-            namespace,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct SpannedNamespaceRule {
     rule: NamespaceRule,
@@ -76,26 +57,6 @@ impl SpannedNamespaceRule {
 
     pub fn as_ref(&self) -> SpannedNamespaceRuleRef<'_> {
         SpannedNamespaceRuleRef::new(&self.rule, self.span)
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct SpannedNamespaceRuleRef<'a> {
-    rule: &'a NamespaceRule,
-    span: Span,
-}
-
-impl<'a> SpannedNamespaceRuleRef<'a> {
-    pub fn new(rule: &'a NamespaceRule, span: Span) -> Self {
-        Self { rule, span }
-    }
-
-    pub fn rule(self) -> &'a NamespaceRule {
-        self.rule
-    }
-
-    pub fn span(self) -> Span {
-        self.span
     }
 }
 
@@ -181,51 +142,17 @@ pub fn generate_field_value_expr(
     }
 }
 
-fn is_option_type(ty: &syn::Type) -> bool {
-    let syn::Type::Path(type_path) = ty else {
-        return false;
-    };
-
-    type_path
-        .path
-        .segments
-        .last()
-        .is_some_and(|segment| segment.ident == "Option")
-}
-
 pub fn generate_field_argument(
-    field: &impl FluentField,
-    index: usize,
+    metadata: ArgumentModel,
     access_expr: TokenStream,
     transform_arg_expr: TokenStream,
 ) -> FluentArgument {
-    let span = field
-        .ident()
-        .map_or_else(proc_macro2::Span::call_site, syn::Ident::span);
-    let value_strategy = field_value_strategy(field, span);
-    let value_expr = generate_field_value_expr(&value_strategy, access_expr, transform_arg_expr);
-    let name = field
-        .fluent_arg_name(index, AttrContext::MessageField)
-        .unwrap_or_else(|error| error.abort());
+    let value_expr =
+        generate_field_value_expr(metadata.value_strategy(), access_expr, transform_arg_expr);
 
     FluentArgument {
-        metadata: ArgumentModel::new_with_value_strategy(name, value_strategy),
+        metadata,
         value_expr,
-    }
-}
-
-fn field_value_strategy(
-    field: &impl FluentField,
-    span: proc_macro2::Span,
-) -> ArgumentValueStrategy {
-    if let Some(expr) = field.value() {
-        ArgumentValueStrategy::Transform(ValueTransform::new(expr.clone(), span))
-    } else if field.is_choice() {
-        ArgumentValueStrategy::Choice
-    } else if is_option_type(field.ty()) {
-        ArgumentValueStrategy::Optional
-    } else {
-        ArgumentValueStrategy::Borrowed
     }
 }
 
@@ -348,8 +275,10 @@ pub fn emit_generated_unit_enum(input: GeneratedUnitEnumInput<'_>) -> TokenStrea
         .metadata
     });
     let derive_paths =
-        DerivePathList::from_paths(derives.iter().cloned(), AttrContext::VariantsContainer)
-            .unwrap_or_else(|error| error.abort());
+        match DerivePathList::from_paths(derives.iter().cloned(), AttrContext::VariantsContainer) {
+            Ok(derive_paths) => derive_paths,
+            Err(error) => return core_error_to_compile_error(error),
+        };
     let generated_model = GeneratedEnumModel::new(
         ident.to_string(),
         origin_ident.to_string(),
@@ -533,40 +462,6 @@ pub fn inherited_fluent_domain(input: &DeriveInput) -> Result<Option<DomainName>
             "domain lookup is not supported for unions",
         )),
     }
-}
-
-pub fn resolve_single_namespace_source<'a>(
-    sources: impl IntoIterator<Item = NamespaceSource<'a>>,
-) -> EsFluentCoreResult<Option<SpannedNamespaceRuleRef<'a>>> {
-    let mut resolved: Option<NamespaceSource<'a>> = None;
-
-    for source in sources {
-        if source.namespace.is_none() {
-            continue;
-        }
-
-        let Some(first) = resolved else {
-            resolved = Some(source);
-            continue;
-        };
-
-        return Err(EsFluentCoreError::StructuredAttributeError(
-            AttrError::new(
-                source.context,
-                format!(
-                    "conflicting namespace declarations: {} and {} both apply to the same generated output",
-                    first.name, source.name
-                ),
-                source.namespace.map(SpannedNamespaceRuleRef::span),
-            )
-        )
-        .with_help(format!(
-            "keep exactly one namespace declaration for this output; remove either {} or {}",
-            first.name, source.name
-        )));
-    }
-
-    Ok(resolved.and_then(|source| source.namespace))
 }
 
 pub fn core_error_to_compile_error(error: EsFluentCoreError) -> TokenStream {

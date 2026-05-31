@@ -17,46 +17,20 @@ pub mod r#enum;
 pub mod label;
 pub mod r#struct;
 
-/// A string parsed from an attribute literal with its original literal span.
-#[derive(Clone, Debug)]
-pub struct SpannedString {
-    value: String,
-    span: proc_macro2::Span,
-}
-
-impl SpannedString {
-    pub fn new(value: impl Into<String>, span: proc_macro2::Span) -> Self {
-        Self {
-            value: value.into(),
-            span,
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.value
-    }
-
-    pub fn span(&self) -> proc_macro2::Span {
-        self.span
-    }
-}
-
-impl FromMeta for SpannedString {
-    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
-        match item {
-            syn::Meta::NameValue(name_value) => {
-                if let syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(value),
-                    ..
-                }) = &name_value.value
-                {
-                    Ok(Self::new(value.value(), value.span()))
-                } else {
-                    Err(darling::Error::unexpected_type("expected string literal"))
-                }
-            },
-            _ => Err(darling::Error::unsupported_format("string literal")),
-        }
+fn string_literal_value(item: &syn::Meta) -> darling::Result<(String, proc_macro2::Span)> {
+    match item {
+        syn::Meta::NameValue(name_value) => {
+            if let syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Str(value),
+                ..
+            }) = &name_value.value
+            {
+                Ok((value.value(), value.span()))
+            } else {
+                Err(darling::Error::unexpected_type("expected string literal"))
+            }
+        },
+        _ => Err(darling::Error::unsupported_format("string literal")),
     }
 }
 
@@ -113,27 +87,38 @@ impl FromMeta for SpannedValue<GeneratedKeyName> {
 
 impl FromMeta for SpannedValue<FluentMessageId> {
     fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
-        let value = SpannedString::from_meta(item)?;
-        let message_id = parse_fluent_message_id_in_context(
-            value.as_str(),
-            value.span(),
-            AttrContext::MessageContainer,
-        )
-        .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
-        Ok(SpannedValue::new(message_id, value.span()))
+        let (value, span) = string_literal_value(item)?;
+        let message_id =
+            parse_fluent_message_id_in_context(value, span, AttrContext::MessageContainer)
+                .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
+        Ok(SpannedValue::new(message_id, span))
+    }
+}
+
+impl FromMeta for SpannedValue<ArgName> {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        let (value, span) = string_literal_value(item)?;
+        let arg = parse_arg_name_in_context(value, span, AttrContext::MessageField)
+            .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
+        Ok(SpannedValue::new(arg, span))
+    }
+}
+
+impl FromMeta for SpannedValue<VariantKey> {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        let (value, span) = string_literal_value(item)?;
+        let key = parse_variant_key_in_context(value, span, AttrContext::EnumVariant)
+            .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
+        Ok(SpannedValue::new(key, span))
     }
 }
 
 impl FromMeta for SpannedValue<DomainName> {
     fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
-        let value = SpannedString::from_meta(item)?;
-        let domain = parse_domain_name_in_context(
-            value.as_str(),
-            value.span(),
-            AttrContext::MessageContainer,
-        )
-        .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
-        Ok(SpannedValue::new(domain, value.span()))
+        let (value, span) = string_literal_value(item)?;
+        let domain = parse_domain_name_in_context(value, span, AttrContext::MessageContainer)
+            .map_err(|error| darling::Error::custom(error.to_string()).with_span(item))?;
+        Ok(SpannedValue::new(domain, span))
     }
 }
 
@@ -143,6 +128,29 @@ pub struct GeneratedKeyList {
 }
 
 impl GeneratedKeyList {
+    fn new(keys: Vec<SpannedValue<GeneratedKeyName>>) -> darling::Result<Self> {
+        let mut seen_values = std::collections::HashSet::new();
+        let mut seen_idents = std::collections::HashSet::new();
+        for key in &keys {
+            if !seen_values.insert(key.value().clone()) {
+                return Err(darling::Error::custom(format!(
+                    "duplicate key '{}' in #[fluent_variants(keys = [...])]",
+                    key.value().as_str()
+                )));
+            }
+            let generated_ident_fragment = key.value().to_pascal_case();
+            if !seen_idents.insert(generated_ident_fragment.clone()) {
+                return Err(darling::Error::custom(format!(
+                    "key '{}' generates duplicate Rust identifier fragment '{}'",
+                    key.value().as_str(),
+                    generated_ident_fragment
+                )));
+            }
+        }
+
+        Ok(Self { keys })
+    }
+
     pub fn as_slice(&self) -> &[SpannedValue<GeneratedKeyName>] {
         &self.keys
     }
@@ -154,7 +162,7 @@ impl FromMeta for GeneratedKeyList {
             .iter()
             .map(<SpannedValue<GeneratedKeyName> as FromMeta>::from_nested_meta)
             .collect::<darling::Result<Vec<_>>>()?;
-        Ok(Self { keys })
+        Self::new(keys)
     }
 
     fn from_value(value: &syn::Lit) -> darling::Result<Self> {
@@ -170,7 +178,7 @@ impl FromMeta for GeneratedKeyList {
                     .iter()
                     .map(<SpannedValue<GeneratedKeyName> as FromMeta>::from_expr)
                     .collect::<darling::Result<Vec<_>>>()?;
-                Ok(Self { keys })
+                Self::new(keys)
             },
             syn::Expr::Lit(expr_lit) => Self::from_value(&expr_lit.lit),
             syn::Expr::Group(group) => Self::from_expr(&group.expr),
@@ -454,6 +462,11 @@ pub trait FluentField {
         self.field_attr_args().is_choice()
     }
 
+    /// Returns `true` if the field should be treated as an optional argument.
+    fn is_optional(&self) -> bool {
+        self.field_attr_args().is_optional()
+    }
+
     /// Returns the value expression if present.
     fn value(&self) -> Option<&syn::Expr> {
         self.field_attr_args().value()
@@ -546,12 +559,15 @@ pub struct FluentFieldAttributeArgs {
     /// Whether this field is a choice.
     #[darling(default)]
     choice: Option<bool>,
+    /// Whether this field should be treated as an optional argument.
+    #[darling(default)]
+    optional: Option<bool>,
     /// A value transformation expression.
     #[darling(default)]
     value: Option<ValueAttr>,
     /// Optional argument name override.
     #[darling(default)]
-    arg: Option<SpannedString>,
+    arg: Option<SpannedValue<ArgName>>,
 }
 
 impl FluentFieldAttributeArgs {
@@ -563,21 +579,19 @@ impl FluentFieldAttributeArgs {
         self.choice.unwrap_or(false)
     }
 
+    pub fn is_optional(&self) -> bool {
+        self.optional.unwrap_or(false)
+    }
+
     pub fn value(&self) -> Option<&syn::Expr> {
         self.value.as_ref().map(|value| &value.0)
     }
 
     pub fn arg_name(
         &self,
-        context: AttrContext,
+        _context: AttrContext,
     ) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
-        self.arg
-            .as_ref()
-            .map(|arg| {
-                let name = parse_arg_name_in_context(arg.as_str(), arg.span(), context)?;
-                Ok(SpannedValue::new(name, arg.span()))
-            })
-            .transpose()
+        Ok(self.arg.clone())
     }
 }
 
@@ -635,7 +649,7 @@ pub struct KeyedVariantAttributeArgs {
     skipped_args: SkippedVariantAttributeArgs,
     /// Overrides the localization key suffix for this variant.
     #[darling(default)]
-    key: Option<SpannedString>,
+    key: Option<SpannedValue<VariantKey>>,
 }
 
 impl KeyedVariantAttributeArgs {
@@ -644,20 +658,14 @@ impl KeyedVariantAttributeArgs {
     }
 
     pub fn key(&self) -> Option<&str> {
-        self.key.as_ref().map(SpannedString::as_str)
+        self.key.as_ref().map(|key| key.value().as_str())
     }
 
     pub fn variant_key(
         &self,
-        context: AttrContext,
+        _context: AttrContext,
     ) -> EsFluentCoreResult<Option<SpannedValue<VariantKey>>> {
-        self.key
-            .as_ref()
-            .map(|key| {
-                let value = parse_variant_key_in_context(key.as_str(), key.span(), context)?;
-                Ok(SpannedValue::new(value, key.span()))
-            })
-            .transpose()
+        Ok(self.key.clone())
     }
 }
 
@@ -874,14 +882,21 @@ mod tests {
         let field_args = FluentFieldAttributeArgs {
             skip: Some(true),
             choice: Some(true),
+            optional: Some(true),
             value: Some(ValueAttr(syn::parse_quote!(|x: &str| x.len()))),
-            arg: Some(SpannedString::new(
-                "display_name",
+            arg: Some(SpannedValue::new(
+                parse_arg_name_in_context(
+                    "display_name",
+                    proc_macro2::Span::call_site(),
+                    crate::error::AttrContext::MessageField,
+                )
+                .expect("arg"),
                 proc_macro2::Span::call_site(),
             )),
         };
         assert!(field_args.is_skipped());
         assert!(field_args.is_choice());
+        assert!(field_args.is_optional());
         assert_eq!(
             field_args
                 .arg_name(crate::error::AttrContext::MessageField)
@@ -898,7 +913,15 @@ mod tests {
 
         let keyed_variant = KeyedVariantAttributeArgs {
             skipped_args: SkippedVariantAttributeArgs { skip: Some(false) },
-            key: Some(SpannedString::new("custom", proc_macro2::Span::call_site())),
+            key: Some(SpannedValue::new(
+                parse_variant_key_in_context(
+                    "custom",
+                    proc_macro2::Span::call_site(),
+                    crate::error::AttrContext::EnumVariant,
+                )
+                .expect("key"),
+                proc_macro2::Span::call_site(),
+            )),
         };
         assert!(!keyed_variant.is_skipped());
         assert_eq!(keyed_variant.key(), Some("custom"));

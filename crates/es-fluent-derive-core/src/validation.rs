@@ -1,61 +1,235 @@
 //! This module provides functions for validating `es-fluent` attributes.
 
-use crate::attribute::{AttributeLocation, invalid_fluent_meta_item_for_location};
+use crate::attribute::{AttributeLocation, AttributeName, validate_attribute_for_location};
 use crate::error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
-use crate::lowered::{MessageEnumModel, MessageStructModel};
+use crate::lowered::{
+    GeneratedVariantsEnumModel, GeneratedVariantsStructModel, MessageEnumModel, MessageStructModel,
+};
 use crate::options::FluentField;
 use crate::options::r#enum::EnumOpts;
 use crate::options::r#struct::StructOpts;
-use crate::semantic::{ArgName, SpannedValue};
-use es_fluent_shared::namespace::{NamespaceRule, ResolvedNamespace};
+use es_fluent_shared::{
+    namer,
+    namespace::{NamespaceRule, ResolvedNamespace},
+};
 use es_fluent_toml::{I18nConfig, I18nConfigError};
-use syn::{DeriveInput, Meta, Token, punctuated::Punctuated, spanned::Spanned as _};
+use heck::ToPascalCase as _;
+use syn::{DeriveInput, spanned::Spanned as _};
+
+#[derive(Clone, Copy, Debug)]
+pub struct NamespaceSource<'a> {
+    name: &'static str,
+    context: AttrContext,
+    namespace: Option<SpannedNamespaceRuleRef<'a>>,
+}
+
+impl<'a> NamespaceSource<'a> {
+    pub fn new(
+        name: &'static str,
+        context: AttrContext,
+        namespace: Option<SpannedNamespaceRuleRef<'a>>,
+    ) -> Self {
+        Self {
+            name,
+            context,
+            namespace,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct SpannedNamespaceRuleRef<'a> {
+    rule: &'a NamespaceRule,
+    span: proc_macro2::Span,
+}
+
+impl<'a> SpannedNamespaceRuleRef<'a> {
+    pub fn new(rule: &'a NamespaceRule, span: proc_macro2::Span) -> Self {
+        Self { rule, span }
+    }
+
+    pub fn rule(self) -> &'a NamespaceRule {
+        self.rule
+    }
+
+    pub fn span(self) -> proc_macro2::Span {
+        self.span
+    }
+}
+
+pub fn resolve_single_namespace_source<'a>(
+    sources: impl IntoIterator<Item = NamespaceSource<'a>>,
+) -> EsFluentCoreResult<Option<SpannedNamespaceRuleRef<'a>>> {
+    let mut resolved: Option<NamespaceSource<'a>> = None;
+
+    for source in sources {
+        if source.namespace.is_none() {
+            continue;
+        }
+
+        let Some(first) = resolved else {
+            resolved = Some(source);
+            continue;
+        };
+
+        return Err(EsFluentCoreError::StructuredAttributeError(
+            AttrError::new(
+                source.context,
+                format!(
+                    "conflicting namespace declarations: {} and {} both apply to the same generated output",
+                    first.name, source.name
+                ),
+                source.namespace.map(SpannedNamespaceRuleRef::span),
+            )
+        )
+        .with_help(format!(
+            "keep exactly one namespace declaration for this output; remove either {} or {}",
+            first.name, source.name
+        )));
+    }
+
+    Ok(resolved.and_then(|source| source.namespace))
+}
 
 /// Validates raw `#[fluent(...)]` usage on an `EsFluent` derive input before
 /// Darling parses the attributes.
 pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
-    let syn::Data::Enum(data) = &input.data else {
-        return Ok(());
-    };
+    for attr in &input.attrs {
+        validate_attribute_for_location(
+            attr,
+            AttributeName::Fluent,
+            AttributeLocation::MessageContainer,
+            Some(&input.ident),
+        )?;
+    }
 
-    for variant in &data.variants {
-        for attr in variant
-            .attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("fluent"))
-        {
-            let Meta::List(list) = &attr.meta else {
-                continue;
-            };
-
-            let items = match list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-            {
-                Ok(items) => items,
-                Err(_) => continue,
-            };
-
-            for item in items {
-                if let Some(attr) =
-                    invalid_fluent_meta_item_for_location(&item, AttributeLocation::EnumVariant)
-                {
-                    return Err(EsFluentCoreError::StructuredAttributeError(AttrError::new(
-                        AttrContext::EnumVariant,
-                        format!(
-                            "`{}` is a field-only attribute and cannot be used on enum variant `{}`",
-                            attr.syntax(),
-                            variant.ident
-                        ),
-                        Some(item.span()),
-                    ))
-                    .with_help(
-                        format!(
-                            "move the attribute to a field inside the variant, for example `{}(#[fluent(arg = \"name\")] T)`",
-                            variant.ident
-                        ),
-                    ));
+    match &input.data {
+        syn::Data::Struct(data) => {
+            for field in &data.fields {
+                for attr in &field.attrs {
+                    validate_attribute_for_location(
+                        attr,
+                        AttributeName::Fluent,
+                        AttributeLocation::MessageField,
+                        field.ident.as_ref(),
+                    )?;
                 }
             }
-        }
+        },
+        syn::Data::Enum(data) => {
+            for variant in &data.variants {
+                for attr in &variant.attrs {
+                    validate_attribute_for_location(
+                        attr,
+                        AttributeName::Fluent,
+                        AttributeLocation::EnumVariant,
+                        Some(&variant.ident),
+                    )?;
+                }
+
+                for field in &variant.fields {
+                    for attr in &field.attrs {
+                        validate_attribute_for_location(
+                            attr,
+                            AttributeName::Fluent,
+                            AttributeLocation::MessageField,
+                            field.ident.as_ref(),
+                        )?;
+                    }
+                }
+            }
+        },
+        syn::Data::Union(_) => {},
+    }
+
+    Ok(())
+}
+
+/// Validates raw attributes used by `EsFluentVariants` before Darling parses them.
+pub fn validate_es_fluent_variants_attribute_context(
+    input: &DeriveInput,
+) -> EsFluentCoreResult<()> {
+    for attr in &input.attrs {
+        validate_attribute_for_location(
+            attr,
+            AttributeName::Fluent,
+            AttributeLocation::MessageContainer,
+            Some(&input.ident),
+        )?;
+        validate_attribute_for_location(
+            attr,
+            AttributeName::FluentVariants,
+            AttributeLocation::VariantsContainer,
+            Some(&input.ident),
+        )?;
+        validate_attribute_for_location(
+            attr,
+            AttributeName::FluentLabel,
+            AttributeLocation::LabelContainer,
+            Some(&input.ident),
+        )?;
+    }
+
+    match &input.data {
+        syn::Data::Struct(data) => {
+            for field in &data.fields {
+                for attr in &field.attrs {
+                    validate_attribute_for_location(
+                        attr,
+                        AttributeName::FluentVariants,
+                        AttributeLocation::VariantsField,
+                        field.ident.as_ref(),
+                    )?;
+                }
+            }
+        },
+        syn::Data::Enum(data) => {
+            for variant in &data.variants {
+                for attr in &variant.attrs {
+                    validate_attribute_for_location(
+                        attr,
+                        AttributeName::FluentVariants,
+                        AttributeLocation::VariantsVariant,
+                        Some(&variant.ident),
+                    )?;
+                }
+            }
+        },
+        syn::Data::Union(_) => {},
+    }
+
+    Ok(())
+}
+
+/// Validates raw attributes used by `EsFluentLabel` before Darling parses them.
+pub fn validate_es_fluent_label_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
+    for attr in &input.attrs {
+        validate_attribute_for_location(
+            attr,
+            AttributeName::Fluent,
+            AttributeLocation::MessageContainer,
+            Some(&input.ident),
+        )?;
+        validate_attribute_for_location(
+            attr,
+            AttributeName::FluentLabel,
+            AttributeLocation::LabelContainer,
+            Some(&input.ident),
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Validates raw attributes used by `EsFluentChoice` before Darling parses them.
+pub fn validate_es_fluent_choice_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
+    for attr in &input.attrs {
+        validate_attribute_for_location(
+            attr,
+            AttributeName::FluentChoice,
+            AttributeLocation::ChoiceContainer,
+            Some(&input.ident),
+        )?;
     }
 
     Ok(())
@@ -88,6 +262,14 @@ pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluent
             });
         }
 
+        if field.is_skipped() && field.is_optional() {
+            return Err(EsFluentCoreError::FieldError {
+                message: "Cannot use #[fluent(optional)] on a skipped field".to_string(),
+                field_name: field.ident().as_ref().map(|i| i.to_string()),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
+
         if field.is_choice() && field.value().is_some() {
             return Err(EsFluentCoreError::FieldError {
                 message:
@@ -97,47 +279,64 @@ pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluent
                 span: field.ident().as_ref().map(|ident| ident.span()),
             });
         }
+
+        if field.is_optional() && field.is_choice() {
+            return Err(EsFluentCoreError::FieldError {
+                message:
+                    "Cannot combine #[fluent(optional)] and #[fluent(choice)] on the same field"
+                        .to_string(),
+                field_name: field.ident().as_ref().map(|i| i.to_string()),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
+
+        if field.is_optional() && field.value().is_some() {
+            return Err(EsFluentCoreError::FieldError {
+                message: "Cannot combine #[fluent(optional)] and #[fluent(value = ...)] on the same field"
+                    .to_string(),
+                field_name: field.ident().as_ref().map(|i| i.to_string()),
+                span: field.ident().as_ref().map(|ident| ident.span()),
+            });
+        }
     }
 
     let default_fields: Vec<_> = model
-        .indexed_fields()
+        .fields()
         .into_iter()
-        .filter(|(_, field)| field.is_default())
+        .filter(|field| field.field().is_default())
         .collect();
 
     if default_fields.len() > 1 {
-        let (first_index, first_field) = &default_fields[0];
-        let (second_index, second_field) = &default_fields[1];
+        let first_field = &default_fields[0];
+        let second_field = &default_fields[1];
 
-        let first_field_name =
-            first_field.fluent_arg_name(*first_index, AttrContext::MessageField)?;
-        let second_field_name =
-            second_field.fluent_arg_name(*second_index, AttrContext::MessageField)?;
-        let second_span = second_field.ident().as_ref().map(|ident| ident.span());
+        let first_field_name = first_field.argument_model()?;
+        let second_field_name = second_field.argument_model()?;
+        let second_span = second_field.binding().map(|ident| ident.span());
 
         return Err(EsFluentCoreError::FieldError {
             message: "Struct cannot have multiple fields marked `#[fluent(default)]`.".to_string(),
-            field_name: Some(second_field_name.value().as_str().to_string()),
+            field_name: Some(second_field_name.name().as_str().to_string()),
             span: second_span,
         }
         .with_note(format!(
             "First `#[fluent(default)]` field found was `{}`.",
-            first_field_name.value().as_str()
+            first_field_name.name().as_str()
         )));
     }
 
     // Ensure exposed argument names remain unique after arg overrides.
     let mut seen = std::collections::HashSet::new();
-    for (index, field) in model.indexed_fields() {
-        let arg = field.fluent_arg_name(index, AttrContext::MessageField)?;
-        if !seen.insert(arg.value().clone()) {
+    for field in model.fields() {
+        let arg = field.argument_model()?;
+        if !seen.insert(arg.name().clone()) {
             return Err(EsFluentCoreError::FieldError {
                 message: format!(
                     "duplicate argument name '{}' after applying #[fluent(arg = \"...\")]",
-                    arg.value().as_str()
+                    arg.name().as_str()
                 ),
-                field_name: Some(arg.value().as_str().to_string()),
-                span: field.ident().as_ref().map(|ident| ident.span()),
+                field_name: Some(arg.name().as_str().to_string()),
+                span: field.binding().map(|ident| ident.span()),
             });
         }
     }
@@ -146,7 +345,9 @@ pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluent
 
 /// Validates enum-specific attributes.
 pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
-    validate_message_enum_model(&MessageEnumModel::from_options(opts)?)
+    let model = MessageEnumModel::from_options(opts)?;
+    validate_message_enum_model(&model)?;
+    validate_message_enum_ids(&model)
 }
 
 pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCoreResult<()> {
@@ -160,6 +361,33 @@ pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCore
             if field.is_choice() && field.value().is_some() {
                 return Err(EsFluentCoreError::VariantError {
                     message: "Cannot combine #[fluent(choice)] and #[fluent(value = ...)] on the same field".to_string(),
+                    variant_name: variant_name.clone(),
+                    span: variant_span,
+                });
+            }
+
+            if field.is_skipped() && field.is_optional() {
+                return Err(EsFluentCoreError::VariantError {
+                    message: "Cannot use #[fluent(optional)] on a skipped field".to_string(),
+                    variant_name: variant_name.clone(),
+                    span: variant_span,
+                });
+            }
+
+            if field.is_optional() && field.is_choice() {
+                return Err(EsFluentCoreError::VariantError {
+                    message:
+                        "Cannot combine #[fluent(optional)] and #[fluent(choice)] on the same field"
+                            .to_string(),
+                    variant_name: variant_name.clone(),
+                    span: variant_span,
+                });
+            }
+
+            if field.is_optional() && field.value().is_some() {
+                return Err(EsFluentCoreError::VariantError {
+                    message: "Cannot combine #[fluent(optional)] and #[fluent(value = ...)] on the same field"
+                        .to_string(),
                     variant_name: variant_name.clone(),
                     span: variant_span,
                 });
@@ -204,16 +432,13 @@ pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCore
                     continue;
                 }
 
-                let resolved_name = resolved_enum_field_arg_name(
-                    field_model.field(),
-                    field_model.declaration_index(),
-                )?;
+                let resolved_name = field_model.argument_model()?;
 
-                if !final_seen.insert(resolved_name.value().clone()) {
+                if !final_seen.insert(resolved_name.name().clone()) {
                     return Err(EsFluentCoreError::VariantError {
                         message: format!(
                             "duplicate resolved argument name '{}' after applying #[fluent(arg = \"...\")]",
-                            resolved_name.value().as_str()
+                            resolved_name.name().as_str()
                         ),
                         variant_name: variant_name.clone(),
                         span: variant_span,
@@ -226,11 +451,103 @@ pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCore
     Ok(())
 }
 
-fn resolved_enum_field_arg_name(
-    field: &impl FluentField,
-    index: usize,
-) -> EsFluentCoreResult<SpannedValue<ArgName>> {
-    field.fluent_arg_name(index, AttrContext::MessageField)
+fn validate_message_enum_ids(model: &MessageEnumModel<'_>) -> EsFluentCoreResult<()> {
+    let mut seen = std::collections::HashMap::new();
+
+    for variant in model
+        .variants()
+        .iter()
+        .filter(|variant| !variant.is_skipped())
+    {
+        reject_duplicate_generated_value(
+            &mut seen,
+            variant.message_id().value().as_str().to_string(),
+            variant.message_id().span(),
+            AttrContext::EnumVariant,
+            "message id",
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Validates generated variant names for a struct-backed `EsFluentVariants` model.
+pub fn validate_generated_variants_struct_model(
+    model: &GeneratedVariantsStructModel<'_>,
+) -> EsFluentCoreResult<()> {
+    let mut rust_idents = std::collections::HashMap::new();
+    let mut key_fragments = std::collections::HashMap::new();
+
+    for field in model.fields() {
+        let source_name = namer::rust_ident_name(field.ident);
+        reject_duplicate_generated_value(
+            &mut rust_idents,
+            source_name.to_pascal_case(),
+            field.ident.span(),
+            AttrContext::VariantsField,
+            "Rust variant identifier",
+        )?;
+        reject_duplicate_generated_value(
+            &mut key_fragments,
+            source_name,
+            field.ident.span(),
+            AttrContext::VariantsField,
+            "message id fragment",
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Validates generated variant names for an enum-backed `EsFluentVariants` model.
+pub fn validate_generated_variants_enum_model(
+    model: &GeneratedVariantsEnumModel<'_>,
+) -> EsFluentCoreResult<()> {
+    let mut rust_idents = std::collections::HashMap::new();
+    let mut key_fragments = std::collections::HashMap::new();
+
+    for variant in model.variants() {
+        let source_name = namer::rust_ident_name(variant.ident);
+        reject_duplicate_generated_value(
+            &mut rust_idents,
+            source_name.clone(),
+            variant.ident.span(),
+            AttrContext::VariantsContainer,
+            "Rust variant identifier",
+        )?;
+        reject_duplicate_generated_value(
+            &mut key_fragments,
+            source_name,
+            variant.ident.span(),
+            AttrContext::VariantsContainer,
+            "message id fragment",
+        )?;
+    }
+
+    Ok(())
+}
+
+fn reject_duplicate_generated_value(
+    seen: &mut std::collections::HashMap<String, proc_macro2::Span>,
+    value: String,
+    span: proc_macro2::Span,
+    context: AttrContext,
+    label: &str,
+) -> EsFluentCoreResult<()> {
+    if seen.contains_key(&value) {
+        return Err(EsFluentCoreError::StructuredAttributeError(AttrError::new(
+            context,
+            format!("generated {label} '{value}' collides with an earlier generated item"),
+            Some(span),
+        ))
+        .with_note(format!(
+            "first generated {label} '{value}' was seen earlier"
+        ))
+        .with_help("rename one source item or skip one generated item".to_string()));
+    }
+
+    seen.insert(value, span);
+    Ok(())
 }
 
 /// Validates that a namespace is in the allowed list from `i18n.toml`.
@@ -327,6 +644,116 @@ pub fn validate_namespace_against_allowed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod generated_collision_tests {
+        use super::*;
+        use crate::lowered::GeneratedVariantsStructModel;
+        use crate::options::r#struct::StructVariantsOpts;
+        use darling::FromDeriveInput as _;
+        use syn::parse_quote;
+
+        #[test]
+        fn duplicate_enum_message_ids_are_rejected_before_emission() {
+            let input: DeriveInput = parse_quote! {
+                enum Status {
+                    #[fluent(key = "same")]
+                    One,
+                    #[fluent(key = "same")]
+                    Two,
+                }
+            };
+            let opts = EnumOpts::from_derive_input(&input).expect("enum opts");
+
+            let err = validate_enum(&opts).expect_err("duplicate message IDs should fail");
+
+            assert!(
+                err.to_string()
+                    .contains("generated message id 'status-same' collides")
+            );
+        }
+
+        #[test]
+        fn struct_generated_variant_ident_collisions_are_rejected_before_emission() {
+            let input: DeriveInput = parse_quote! {
+                #[derive(EsFluentVariants)]
+                struct Form {
+                    foo_bar: String,
+                    fooBar: String,
+                }
+            };
+            let opts = StructVariantsOpts::from_derive_input(&input).expect("struct variants opts");
+            let model = GeneratedVariantsStructModel::from_options(&opts).expect("lowered model");
+
+            let err = validate_generated_variants_struct_model(&model)
+                .expect_err("generated Rust variant collision should fail");
+
+            assert!(
+                err.to_string()
+                    .contains("generated Rust variant identifier 'FooBar' collides")
+            );
+        }
+    }
+
+    mod namespace_source_tests {
+        use super::*;
+
+        #[test]
+        fn resolve_single_namespace_source_rejects_multiple_sources() {
+            let parent = NamespaceRule::Literal("parent".into());
+            let child = NamespaceRule::Literal("child".into());
+
+            let err = resolve_single_namespace_source([
+                NamespaceSource::new(
+                    "#[fluent(namespace = ...)]",
+                    AttrContext::MessageContainer,
+                    Some(SpannedNamespaceRuleRef::new(
+                        &parent,
+                        proc_macro2::Span::call_site(),
+                    )),
+                ),
+                NamespaceSource::new(
+                    "#[fluent_label(namespace = ...)]",
+                    AttrContext::LabelContainer,
+                    Some(SpannedNamespaceRuleRef::new(
+                        &child,
+                        proc_macro2::Span::call_site(),
+                    )),
+                ),
+            ])
+            .expect_err("multiple namespace sources should fail");
+
+            assert!(
+                err.to_string()
+                    .contains("conflicting namespace declarations")
+            );
+            assert!(err.to_string().contains("#[fluent(namespace = ...)]"));
+            assert!(err.to_string().contains("#[fluent_label(namespace = ...)]"));
+        }
+
+        #[test]
+        fn resolve_single_namespace_source_returns_the_only_source() {
+            let namespace = NamespaceRule::Literal("ui".into());
+            let resolved = resolve_single_namespace_source([
+                NamespaceSource::new(
+                    "#[fluent(namespace = ...)]",
+                    AttrContext::MessageContainer,
+                    None,
+                ),
+                NamespaceSource::new(
+                    "#[fluent_label(namespace = ...)]",
+                    AttrContext::LabelContainer,
+                    Some(SpannedNamespaceRuleRef::new(
+                        &namespace,
+                        proc_macro2::Span::call_site(),
+                    )),
+                ),
+            ])
+            .expect("single namespace source should pass")
+            .expect("namespace");
+
+            assert!(matches!(resolved.rule(), NamespaceRule::Literal(value) if value == "ui"));
+        }
+    }
 
     mod validate_namespace_against_allowed_tests {
         use super::*;
