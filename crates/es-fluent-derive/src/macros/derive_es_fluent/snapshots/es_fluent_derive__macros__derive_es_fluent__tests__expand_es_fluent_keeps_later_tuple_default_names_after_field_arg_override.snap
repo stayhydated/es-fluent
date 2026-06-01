@@ -45,7 +45,7 @@ impl ::es_fluent::FluentMessage for LoginError {
                     );
                 }
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
                     ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
@@ -62,28 +62,28 @@ impl ::es_fluent::FluentMessage for LoginError {
 mod __es_fluent_inventory_LoginError {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "Something",
-            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Something",
+            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_error-Something",
             ),
-            args: &[
+            &[
                 ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("f0"),
                 ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("f1"),
                 ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("f2"),
             ],
-            module_path: module_path!(),
-            line: line!(),
-        },
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "LoginError",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginError",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

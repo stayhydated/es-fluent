@@ -7,45 +7,45 @@ use std::path::Path;
 use toml::Value;
 
 static EMPTY_VARIANTS: &[FtlVariant] = &[];
-static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
-    type_kind: TypeKind::Struct,
-    type_name: "AllowedType",
-    variants: EMPTY_VARIANTS,
-    file_path: "src/lib.rs",
-    module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
-};
-static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo {
-    type_kind: TypeKind::Struct,
-    type_name: "DisallowedType",
-    variants: EMPTY_VARIANTS,
-    file_path: "src/lib.rs",
-    module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("errors"))),
-};
-static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo {
-    type_kind: TypeKind::Struct,
-    type_name: "InvalidNamespaceType",
-    variants: EMPTY_VARIANTS,
-    file_path: "src/lib.rs",
-    module_path: "test_crate",
-    namespace: Some(NamespaceRule::Literal(Cow::Borrowed("../escape"))),
-};
-static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant {
-    name: "Key1",
-    ftl_key: StaticFluentEntryId::new_unchecked("group_a-Key1"),
-    args: &[],
-    module_path: "test",
-    line: 0,
-}];
-static CLEAN_INFO: FtlTypeInfo = FtlTypeInfo {
-    type_kind: TypeKind::Enum,
-    type_name: "GroupA",
-    variants: CLEAN_VARIANTS,
-    file_path: "src/lib.rs",
-    module_path: "coverage_test_crate",
-    namespace: None,
-};
+static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Struct,
+    "AllowedType",
+    EMPTY_VARIANTS,
+    "src/lib.rs",
+    "test_crate",
+    Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
+);
+static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Struct,
+    "DisallowedType",
+    EMPTY_VARIANTS,
+    "src/lib.rs",
+    "test_crate",
+    Some(NamespaceRule::Literal(Cow::Borrowed("errors"))),
+);
+static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Struct,
+    "InvalidNamespaceType",
+    EMPTY_VARIANTS,
+    "src/lib.rs",
+    "test_crate",
+    Some(NamespaceRule::Literal(Cow::Borrowed("../escape"))),
+);
+static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant::new(
+    "Key1",
+    StaticFluentEntryId::new_unchecked("group_a-Key1"),
+    &[],
+    "test",
+    0,
+)];
+static CLEAN_INFO: FtlTypeInfo = FtlTypeInfo::new(
+    TypeKind::Enum,
+    "GroupA",
+    CLEAN_VARIANTS,
+    "src/lib.rs",
+    "coverage_test_crate",
+    None,
+);
 es_fluent::__inventory::submit! {
     es_fluent::registry::RegisteredFtlType(&CLEAN_INFO)
 }

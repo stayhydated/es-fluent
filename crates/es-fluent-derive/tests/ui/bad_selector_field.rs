@@ -6,7 +6,7 @@ struct NotChoice;
 
 #[derive(EsFluent)]
 pub struct BadChoiceField {
-    #[fluent(choice)]
+    #[fluent(selector)]
     value: NotChoice,
 }
 

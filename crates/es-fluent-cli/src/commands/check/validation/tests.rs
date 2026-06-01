@@ -5,6 +5,7 @@ use crate::core::ValidationIssue;
 use crate::ftl::LoadedFtlFile;
 use es_fluent_shared::{
     fluent::{FluentArgumentName, FluentEntryId},
+    resource::ModuleResourceSpec,
     source::{SourceFile, SourceLine},
 };
 use fs_err as fs;
@@ -12,14 +13,74 @@ use indexmap::IndexMap;
 use std::path::PathBuf;
 
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
+    key_info_with_resource(
+        vars,
+        source_file,
+        source_line,
+        ModuleResourceSpec::base("test-app", true),
+    )
+}
+
+fn key_info_with_resource(
+    vars: &[&str],
+    source_file: Option<&str>,
+    source_line: Option<u32>,
+    resource: ModuleResourceSpec,
+) -> KeyInfo {
     KeyInfo {
         variables: vars
             .iter()
             .map(|v| FluentArgumentName::try_new(*v).unwrap())
             .collect(),
+        resource,
         source_file: source_file.and_then(SourceFile::new),
         source_line: source_line.map(SourceLine::new),
     }
+}
+
+#[test]
+fn validate_loaded_ftl_files_reports_key_in_wrong_resource_as_missing_from_expected_route() {
+    let temp = tempfile::tempdir().unwrap();
+    let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+    fs::create_dir_all(ftl_path.parent().unwrap()).unwrap();
+    fs::write(&ftl_path, "hello = Hello\n").unwrap();
+
+    let resource = fluent_syntax::parser::parse("hello = Hello\n".to_string()).unwrap();
+    let loaded_files = vec![LoadedFtlFile {
+        abs_path: ftl_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource,
+        keys: std::iter::once("hello".to_string()).collect(),
+    }];
+
+    let namespace = es_fluent_shared::namespace::ResolvedNamespace::new("ui").unwrap();
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert(
+        expected_key("hello"),
+        key_info_with_resource(
+            &[],
+            None,
+            None,
+            ModuleResourceSpec::namespaced("test-app", &namespace, true),
+        ),
+    );
+
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+
+    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    assert!(issues.iter().any(|issue| {
+        matches!(
+            issue,
+            ValidationIssue::MissingKey(err)
+                if err.key == "hello"
+                    && err.help.contains("en/test-app/ui.ftl")
+                    && err.src.name().contains("test-app.ftl")
+        )
+    }));
 }
 
 fn expected_key(value: &str) -> FluentEntryId {

@@ -390,8 +390,8 @@ Common derive attributes:
 - `#[fluent(value = |x: &String| x.len())]` transforms a field before inserting it as a Fluent argument.
 - `#[fluent(optional)]` treats an `Option<T>`-style field as an omitted Fluent argument when it is `None`.
 - `#[fluent(key = "...")]` on an enum variant overrides that variant's key suffix.
-- `#[fluent(resource = "...")]` on an enum overrides the base key, and `domain = "..."` routes lookup to a specific manager domain.
-- `resource = "..."` and `domain = "..."` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
+- `#[fluent(id = "...")]` on an enum overrides the base key, and `domain = "..."` routes lookup to a specific manager domain.
+- `id = "..."` and `domain = "..."` are enum-only. Struct message containers accept `namespace = ...`; struct messages resolve in the current crate's domain.
 - Generated FTL keys must be unique within each output file. `generate`, `clean`, and `check` fail when two derived items produce the same key.
 - Optional-argument omission is explicit; plain `Option<T>` fields are treated like ordinary field values unless marked `#[fluent(optional)]`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
@@ -443,7 +443,7 @@ pub enum GenderChoice {
 #[derive(EsFluent)]
 pub struct Greeting<'a> {
     pub name: &'a str,
-    #[fluent(choice)] // Matches $gender -> [male]...
+    #[fluent(selector)] // Matches $gender -> [male]...
     pub gender: &'a GenderChoice,
 }
 

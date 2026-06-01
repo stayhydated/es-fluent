@@ -43,9 +43,9 @@ fn enum_variants_and_fields_skipping_and_choice() {
         #[derive(EsFluent)]
 
         enum MyEnum {
-            // Struct variant with one skipped field and one choice field
+            // Struct variant with one skipped field and one selector field
             Data {
-                #[fluent(choice)]
+                #[fluent(selector)]
                 a: i32,
                 #[fluent(skip)]
                 b: String,
@@ -76,8 +76,8 @@ fn enum_variants_and_fields_skipping_and_choice() {
         "Expected remaining field to be 'a'"
     );
     assert!(
-        data_fields[0].is_choice(),
-        "Field 'a' should be marked as choice"
+        data_fields[0].is_selector(),
+        "Field 'a' should be marked as selector"
     );
 
     let tuple = opts
@@ -231,7 +231,7 @@ fn struct_fluent_parsing() {
             a: i32,
             #[fluent(skip)]
             b: String,
-            #[fluent(choice)]
+            #[fluent(selector)]
             c: bool,
         }
     };
@@ -244,9 +244,9 @@ fn struct_fluent_parsing() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "a");
-    assert!(!fields[0].is_choice());
+    assert!(!fields[0].is_selector());
     assert_eq!(fields[1].ident().expect("named field").to_string(), "c");
-    assert!(fields[1].is_choice());
+    assert!(fields[1].is_selector());
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);
@@ -262,7 +262,7 @@ fn struct_tuple_fields_parsing() {
     let input: DeriveInput = parse_quote! {
         #[derive(EsFluent)]
 
-        struct TupleStruct(#[fluent(skip)] i32, String, #[fluent(choice)] bool);
+        struct TupleStruct(#[fluent(skip)] i32, String, #[fluent(selector)] bool);
     };
 
     let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
@@ -276,12 +276,12 @@ fn struct_tuple_fields_parsing() {
     let (first_index, first_field) = &indexed_fields[0];
     assert_eq!(*first_index, 1);
     assert_eq!(message_field_arg(*first_field, *first_index), "f1");
-    assert!(!first_field.is_choice());
+    assert!(!first_field.is_selector());
 
     let (second_index, second_field) = &indexed_fields[1];
     assert_eq!(*second_index, 2);
     assert_eq!(message_field_arg(*second_field, *second_index), "f2");
-    assert!(second_field.is_choice());
+    assert!(second_field.is_selector());
 }
 
 #[test]
@@ -451,6 +451,6 @@ fn enum_fluent_with_namespace_literal() {
         opts.attr_args().namespace(),
         Some(NamespaceRule::Literal(value)) if value == "errors"
     ));
-    assert!(opts.attr_args().resource_message_id().is_none());
+    assert!(opts.attr_args().id_message_id().is_none());
     assert!(opts.attr_args().domain_name().is_none());
 }

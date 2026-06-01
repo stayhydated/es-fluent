@@ -1,9 +1,8 @@
 use es_fluent_derive_core::error::{AttrContext, EsFluentCoreError};
-use es_fluent_derive_core::options::GeneratedVariantsOptions;
 use es_fluent_derive_core::semantic::{
     ArgumentModel, ArgumentValueStrategy, DerivePathList, DomainName, FluentMessageId,
-    GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, MessageEntryModel, MessageModel,
-    RustSourceName, RustTypeName, SpannedValue,
+    GeneratedEnumModel, MessageEntryModel, MessageModel, RustSourceName, RustTypeName,
+    SpannedValue,
 };
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
@@ -13,10 +12,6 @@ use quote::{format_ident, quote, quote_spanned};
 
 use crate::macros::ir::inventory_variant_tokens_for_model;
 use crate::macros::ir::{FluentArgument, GeneratedUnitEnumVariant, MessageEntrySpec};
-
-pub use es_fluent_derive_core::validation::{
-    NamespaceSource, SpannedNamespaceRuleRef, resolve_single_namespace_source,
-};
 
 #[derive(Clone)]
 pub struct CodegenContext {
@@ -103,29 +98,6 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub label_key: Option<FluentMessageId>,
 }
 
-pub struct GeneratedVariantsEnumTarget<'a> {
-    pub ident: syn::Ident,
-    pub key_name: Option<&'a GeneratedKeyName>,
-}
-
-pub fn generated_variants_enum_targets<'a>(
-    opts: &'a impl GeneratedVariantsOptions,
-) -> Vec<GeneratedVariantsEnumTarget<'a>> {
-    let Some(keys) = opts.variants_attr_args().keys() else {
-        return vec![GeneratedVariantsEnumTarget {
-            ident: opts.ftl_enum_ident(),
-            key_name: None,
-        }];
-    };
-
-    keys.iter()
-        .map(|key| GeneratedVariantsEnumTarget {
-            ident: GeneratedKeyIdent::variants(opts.variants_ident(), key, "Variants").into_ident(),
-            key_name: Some(key.value()),
-        })
-        .collect()
-}
-
 /// Generates the `FluentLabel` trait implementation.
 pub fn generate_localize_label_impl(
     context: &CodegenContext,
@@ -141,21 +113,31 @@ pub fn generate_localize_label_impl(
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let es_fluent = context.facade_path().tokens();
-    let domain_expr = match domain_override {
-        Some(domain) => {
-            let domain = domain.as_str();
-            quote! { #domain }
-        },
-        None => quote! { env!("CARGO_PKG_NAME") },
-    };
+    let domain_expr = static_domain_expr(context, domain_override);
     quote! {
         impl #impl_generics #es_fluent::FluentLabel for #ident #ty_generics #where_clause {
             fn localize_label<__EsFluentLocalizer: #es_fluent::FluentLocalizer + ?Sized>(
                 localizer: &__EsFluentLocalizer,
             ) -> String {
-                #es_fluent::__private::localize_label(localizer, #domain_expr, #ftl_key)
+                #es_fluent::__private::localize_label(localizer, (#domain_expr).as_str(), #ftl_key)
             }
         }
+    }
+}
+
+pub(crate) fn static_domain_expr(
+    context: &CodegenContext,
+    domain_override: Option<&DomainName>,
+) -> TokenStream {
+    let es_fluent = context.facade_path().tokens();
+    match domain_override {
+        Some(domain) => {
+            let domain = domain.as_str();
+            quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
+        },
+        None => quote! {
+            #es_fluent::registry::StaticFluentDomain::from_package_name(env!("CARGO_PKG_NAME"))
+        },
     }
 }
 
@@ -479,14 +461,14 @@ fn generate_inventory_module(
             ];
 
             static TYPE_INFO: #es_fluent::registry::FtlTypeInfo =
-                #es_fluent::registry::FtlTypeInfo {
-                    type_kind: #type_kind,
-                    type_name: #type_name,
-                    variants: VARIANTS,
-                    file_path: file!(),
-                    module_path: module_path!(),
-                    namespace: #namespace_expr,
-                };
+                #es_fluent::registry::__macro::ftl_type_info(
+                    #type_kind,
+                    #type_name,
+                    VARIANTS,
+                    file!(),
+                    module_path!(),
+                    #namespace_expr,
+                );
 
             #es_fluent::__inventory::submit!(#es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
         }

@@ -28,6 +28,21 @@ impl StaticFluentDomain {
         Ok(Self(value))
     }
 
+    /// Validates and creates the default domain derived from `CARGO_PKG_NAME`.
+    ///
+    /// Generated code uses this for implicit current-package domains because
+    /// the package name is only known in the consuming crate.
+    #[allow(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "invalid package names should fail immediately when generated localization code is used"
+    )]
+    pub fn from_package_name(value: &'static str) -> Self {
+        Self::try_new(value).unwrap_or_else(|error| {
+            panic!("CARGO_PKG_NAME '{value}' is not a valid Fluent domain: {error}")
+        })
+    }
+
     pub fn as_str(self) -> &'static str {
         self.0
     }
@@ -150,16 +165,37 @@ impl PartialEq<&str> for StaticFluentArgumentName {
 /// A variant representing a single FTL key entry.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlVariant {
-    pub name: &'static str,
-    pub ftl_key: StaticFluentEntryId,
-    pub args: &'static [StaticFluentArgumentName],
+    name: &'static str,
+    ftl_key: StaticFluentEntryId,
+    args: &'static [StaticFluentArgumentName],
     /// The module path from `module_path!()`.
-    pub module_path: &'static str,
+    module_path: &'static str,
     /// The line number from `line!()` macro.
-    pub line: u32,
+    line: u32,
 }
 
 impl FtlVariant {
+    /// Creates static variant metadata from validated static parts.
+    pub const fn new(
+        name: &'static str,
+        ftl_key: StaticFluentEntryId,
+        args: &'static [StaticFluentArgumentName],
+        module_path: &'static str,
+        line: u32,
+    ) -> Self {
+        Self {
+            name,
+            ftl_key,
+            args,
+            module_path,
+            line,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
     /// Returns the validated Fluent entry id for this variant.
     ///
     /// Unlike [`Self::message_id`], this accepts both message IDs and term IDs
@@ -170,6 +206,10 @@ impl FtlVariant {
 
     pub fn args(&self) -> &'static [StaticFluentArgumentName] {
         self.args
+    }
+
+    pub fn module_path(&self) -> &'static str {
+        self.module_path
     }
 
     pub fn entry_id(&self) -> FluentEntryId {
@@ -195,16 +235,16 @@ impl FtlVariant {
 /// Type information for FTL registration, used by derive macros and the CLI.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FtlTypeInfo {
-    pub type_kind: TypeKind,
-    pub type_name: &'static str,
-    pub variants: &'static [FtlVariant],
+    type_kind: TypeKind,
+    type_name: &'static str,
+    variants: &'static [FtlVariant],
     /// The file path where this type is defined (from `file!()` macro).
-    pub file_path: &'static str,
+    file_path: &'static str,
     /// The module path where this type is defined (from `module_path!()` macro).
-    pub module_path: &'static str,
+    module_path: &'static str,
     /// Optional namespace for FTL file output. If Some, the type will be written to
     /// `{lang}/{crate}/{namespace}.ftl` instead of `{lang}/{crate}.ftl`.
-    pub namespace: Option<NamespaceRule>,
+    namespace: Option<NamespaceRule>,
 }
 
 impl AsRef<FtlTypeInfo> for FtlTypeInfo {
@@ -214,6 +254,49 @@ impl AsRef<FtlTypeInfo> for FtlTypeInfo {
 }
 
 impl FtlTypeInfo {
+    /// Creates static type metadata from validated static parts.
+    pub const fn new(
+        type_kind: TypeKind,
+        type_name: &'static str,
+        variants: &'static [FtlVariant],
+        file_path: &'static str,
+        module_path: &'static str,
+        namespace: Option<NamespaceRule>,
+    ) -> Self {
+        Self {
+            type_kind,
+            type_name,
+            variants,
+            file_path,
+            module_path,
+            namespace,
+        }
+    }
+
+    pub fn type_kind(&self) -> &TypeKind {
+        &self.type_kind
+    }
+
+    pub fn type_name(&self) -> &'static str {
+        self.type_name
+    }
+
+    pub fn variants(&self) -> &'static [FtlVariant] {
+        self.variants
+    }
+
+    pub fn file_path(&self) -> &'static str {
+        self.file_path
+    }
+
+    pub fn module_path(&self) -> &'static str {
+        self.module_path
+    }
+
+    pub fn namespace(&self) -> Option<&NamespaceRule> {
+        self.namespace.as_ref()
+    }
+
     /// Returns typed source file metadata when this type has a recorded file path.
     pub fn source_file(&self) -> Option<SourceFile> {
         SourceFile::new(self.file_path)
@@ -253,6 +336,46 @@ impl FtlTypeInfo {
             .as_ref()
             .map(|rule| rule.try_resolve(self.file_path, Some(manifest_dir)))
             .transpose()
+    }
+}
+
+/// Constructors used by generated macro output.
+///
+/// These functions keep generated metadata on a narrow construction surface
+/// while the public structs expose read-only accessors.
+#[doc(hidden)]
+pub mod __macro {
+    use super::{
+        FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentEntryId,
+    };
+    use crate::meta::TypeKind;
+
+    pub const fn ftl_variant(
+        name: &'static str,
+        ftl_key: StaticFluentEntryId,
+        args: &'static [StaticFluentArgumentName],
+        module_path: &'static str,
+        line: u32,
+    ) -> FtlVariant {
+        FtlVariant::new(name, ftl_key, args, module_path, line)
+    }
+
+    pub const fn ftl_type_info(
+        type_kind: TypeKind,
+        type_name: &'static str,
+        variants: &'static [FtlVariant],
+        file_path: &'static str,
+        module_path: &'static str,
+        namespace: Option<NamespaceRule>,
+    ) -> FtlTypeInfo {
+        FtlTypeInfo::new(
+            type_kind,
+            type_name,
+            variants,
+            file_path,
+            module_path,
+            namespace,
+        )
     }
 }
 
@@ -370,14 +493,14 @@ mod tests {
     #[test]
     fn ftl_type_info_try_resolved_namespace_returns_validated_namespace() {
         let manifest_dir = test_manifest_dir();
-        let info = FtlTypeInfo {
-            type_kind: TypeKind::Enum,
-            type_name: "ButtonCopy",
-            variants: &[],
-            file_path: "src/ui/button.rs",
-            module_path: "demo",
-            namespace: Some(NamespaceRule::FileRelative),
-        };
+        let info = FtlTypeInfo::new(
+            TypeKind::Enum,
+            "ButtonCopy",
+            &[],
+            "src/ui/button.rs",
+            "demo",
+            Some(NamespaceRule::FileRelative),
+        );
 
         let namespace = info
             .try_resolved_namespace(&manifest_dir)
@@ -391,14 +514,14 @@ mod tests {
     #[test]
     fn ftl_type_info_try_resolved_namespace_rejects_invalid_literal() {
         let manifest_dir = test_manifest_dir();
-        let info = FtlTypeInfo {
-            type_kind: TypeKind::Enum,
-            type_name: "EscapingCopy",
-            variants: &[],
-            file_path: "src/lib.rs",
-            module_path: "demo",
-            namespace: Some(NamespaceRule::Literal("../escape".into())),
-        };
+        let info = FtlTypeInfo::new(
+            TypeKind::Enum,
+            "EscapingCopy",
+            &[],
+            "src/lib.rs",
+            "demo",
+            Some(NamespaceRule::Literal("../escape".into())),
+        );
 
         let err = info
             .try_resolved_namespace(&manifest_dir)
@@ -409,21 +532,21 @@ mod tests {
 
     #[test]
     fn ftl_type_info_exposes_typed_source_metadata() {
-        static VARIANTS: &[FtlVariant] = &[FtlVariant {
-            name: "Ready",
-            ftl_key: StaticFluentEntryId::new_unchecked("status-Ready"),
-            args: &[],
-            module_path: "demo",
-            line: 42,
-        }];
-        let info = FtlTypeInfo {
-            type_kind: TypeKind::Enum,
-            type_name: "Status",
-            variants: VARIANTS,
-            file_path: "src/status.rs",
-            module_path: "demo",
-            namespace: None,
-        };
+        static VARIANTS: &[FtlVariant] = &[FtlVariant::new(
+            "Ready",
+            StaticFluentEntryId::new_unchecked("status-Ready"),
+            &[],
+            "demo",
+            42,
+        )];
+        let info = FtlTypeInfo::new(
+            TypeKind::Enum,
+            "Status",
+            VARIANTS,
+            "src/status.rs",
+            "demo",
+            None,
+        );
 
         assert_eq!(info.source_file().unwrap().as_str(), "src/status.rs");
         assert_eq!(VARIANTS[0].entry_id().as_str(), "status-Ready");
@@ -441,21 +564,14 @@ mod tests {
 
     #[test]
     fn empty_type_file_path_has_no_typed_source_location() {
-        static VARIANTS: &[FtlVariant] = &[FtlVariant {
-            name: "Ready",
-            ftl_key: StaticFluentEntryId::new_unchecked("status-Ready"),
-            args: &[],
-            module_path: "demo",
-            line: 42,
-        }];
-        let info = FtlTypeInfo {
-            type_kind: TypeKind::Enum,
-            type_name: "Status",
-            variants: VARIANTS,
-            file_path: "",
-            module_path: "demo",
-            namespace: None,
-        };
+        static VARIANTS: &[FtlVariant] = &[FtlVariant::new(
+            "Ready",
+            StaticFluentEntryId::new_unchecked("status-Ready"),
+            &[],
+            "demo",
+            42,
+        )];
+        let info = FtlTypeInfo::new(TypeKind::Enum, "Status", VARIANTS, "", "demo", None);
 
         assert!(info.source_file().is_none());
         assert!(info.source_location_for(&VARIANTS[0]).is_none());
@@ -480,6 +596,10 @@ mod tests {
                 .expect("domain")
                 .as_str(),
             "app-domain"
+        );
+        assert_eq!(
+            StaticFluentDomain::from_package_name("package-domain").as_str(),
+            "package-domain"
         );
         assert_eq!(
             StaticFluentArgumentName::try_new("not valid")

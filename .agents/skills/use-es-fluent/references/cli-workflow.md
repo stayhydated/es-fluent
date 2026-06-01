@@ -51,6 +51,7 @@ cargo es-fluent generate
 
 Generation updates fallback FTL, adds new messages, updates declared variables, and preserves existing translations in conservative mode.
 Generation, clean, and check fail when two derived items produce the same FTL key in the same output file; rename one item, override one enum variant key, skip a generated item, or split outputs with namespaces.
+For namespaced types, check validates the expected namespace file; a key in `{crate}.ftl` still counts as missing if the Rust type belongs in `{crate}/{namespace}.ftl`.
 
 Check translations and variables:
 

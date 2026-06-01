@@ -2,9 +2,9 @@
 
 use crate::error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult};
 use crate::semantic::{
-    ArgName, DomainName, FluentMessageId, GeneratedKeyIdent, GeneratedKeyName, SpannedValue,
-    ValueTransform, VariantKey, parse_arg_name_in_context, parse_domain_name_in_context,
-    parse_fluent_message_id_in_context, parse_variant_key_in_context,
+    ArgName, ArgumentValueStrategy, DomainName, FluentMessageId, GeneratedKeyIdent,
+    GeneratedKeyName, SpannedValue, ValueTransform, VariantKey, parse_arg_name_in_context,
+    parse_domain_name_in_context, parse_fluent_message_id_in_context, parse_variant_key_in_context,
 };
 use bon::Builder;
 use darling::{FromField, FromMeta};
@@ -457,9 +457,9 @@ pub trait FluentField {
         self.field_attr_args().is_skipped()
     }
 
-    /// Returns `true` if the field is a choice.
-    fn is_choice(&self) -> bool {
-        self.field_attr_args().is_choice()
+    /// Returns `true` if the field is a Fluent selector.
+    fn is_selector(&self) -> bool {
+        self.field_attr_args().is_selector()
     }
 
     /// Returns `true` if the field should be treated as an optional argument.
@@ -472,9 +472,13 @@ pub trait FluentField {
         self.field_attr_args().value()
     }
 
-    /// Returns the closed behavior strategy for this field.
-    fn field_strategy(&self, span: proc_macro2::Span) -> EsFluentCoreResult<FieldStrategy> {
-        self.field_attr_args().field_strategy(self.ty(), span)
+    /// Returns the argument value strategy for unskipped fields.
+    fn argument_value_strategy(
+        &self,
+        span: proc_macro2::Span,
+    ) -> EsFluentCoreResult<Option<ArgumentValueStrategy>> {
+        self.field_attr_args()
+            .argument_value_strategy(self.ty(), span)
     }
 
     /// Returns the explicit field argument name as a typed value if provided.
@@ -504,15 +508,6 @@ pub trait FluentField {
         let name = parse_arg_name_in_context(name, span, context)?;
         Ok(SpannedValue::new(name, span))
     }
-}
-
-#[derive(Clone, Debug)]
-pub enum FieldStrategy {
-    Borrowed { span: proc_macro2::Span },
-    Optional { span: proc_macro2::Span },
-    Choice { span: proc_macro2::Span },
-    Transform(ValueTransform),
-    Skipped { span: proc_macro2::Span },
 }
 
 impl<T: FluentField> Skippable for T {
@@ -570,9 +565,9 @@ pub struct FluentFieldAttributeArgs {
     /// Whether to skip this field.
     #[darling(default)]
     skip: Option<bool>,
-    /// Whether this field is a choice.
+    /// Whether this field is a selector for a Fluent select expression.
     #[darling(default)]
-    choice: Option<bool>,
+    selector: Option<bool>,
     /// Whether this field should be treated as an optional argument.
     #[darling(default)]
     optional: Option<bool>,
@@ -589,8 +584,8 @@ impl FluentFieldAttributeArgs {
         self.skip.unwrap_or(false)
     }
 
-    pub fn is_choice(&self) -> bool {
-        self.choice.unwrap_or(false)
+    pub fn is_selector(&self) -> bool {
+        self.selector.unwrap_or(false)
     }
 
     pub fn is_optional(&self) -> bool {
@@ -608,13 +603,13 @@ impl FluentFieldAttributeArgs {
         Ok(self.arg.clone())
     }
 
-    pub fn field_strategy(
+    pub fn argument_value_strategy(
         &self,
         ty: &syn::Type,
         span: proc_macro2::Span,
-    ) -> EsFluentCoreResult<FieldStrategy> {
+    ) -> EsFluentCoreResult<Option<ArgumentValueStrategy>> {
         let is_skipped = self.is_skipped();
-        let is_choice = self.is_choice();
+        let is_selector = self.is_selector();
         let is_optional = self.is_optional();
         let has_value = self.value().is_some();
         let has_arg = self.arg.is_some();
@@ -632,9 +627,9 @@ impl FluentFieldAttributeArgs {
                     span,
                 ));
             }
-            if is_choice {
+            if is_selector {
                 return Err(field_strategy_error(
-                    "Cannot use #[fluent(choice)] on a skipped field",
+                    "Cannot use #[fluent(selector)] on a skipped field",
                     span,
                 ));
             }
@@ -645,19 +640,19 @@ impl FluentFieldAttributeArgs {
                 ));
             }
 
-            return Ok(FieldStrategy::Skipped { span });
+            return Ok(None);
         }
 
-        if is_choice && has_value {
+        if is_selector && has_value {
             return Err(field_strategy_error(
-                "Cannot combine #[fluent(choice)] and #[fluent(value = ...)] on the same field",
+                "Cannot combine #[fluent(selector)] and #[fluent(value = ...)] on the same field",
                 span,
             ));
         }
 
-        if is_optional && is_choice {
+        if is_optional && is_selector {
             return Err(field_strategy_error(
-                "Cannot combine #[fluent(optional)] and #[fluent(choice)] on the same field",
+                "Cannot combine #[fluent(optional)] and #[fluent(selector)] on the same field",
                 span,
             ));
         }
@@ -676,21 +671,21 @@ impl FluentFieldAttributeArgs {
                     span,
                 ));
             }
-            return Ok(FieldStrategy::Optional { span });
+            return Ok(Some(ArgumentValueStrategy::Optional { span }));
         }
 
-        if is_choice {
-            return Ok(FieldStrategy::Choice { span });
+        if is_selector {
+            return Ok(Some(ArgumentValueStrategy::Choice { span }));
         }
 
         if let Some(expr) = self.value() {
-            return Ok(FieldStrategy::Transform(ValueTransform::new(
+            return Ok(Some(ArgumentValueStrategy::Transform(ValueTransform::new(
                 expr.clone(),
                 expr.span(),
-            )));
+            ))));
         }
 
-        Ok(FieldStrategy::Borrowed { span })
+        Ok(Some(ArgumentValueStrategy::Borrowed { span }))
     }
 }
 
@@ -999,7 +994,7 @@ mod tests {
 
         let field_args = FluentFieldAttributeArgs {
             skip: Some(true),
-            choice: Some(true),
+            selector: Some(true),
             optional: Some(true),
             value: Some(ValueAttr(syn::parse_quote!(|x: &str| x.len()))),
             arg: Some(SpannedValue::new(
@@ -1013,7 +1008,7 @@ mod tests {
             )),
         };
         assert!(field_args.is_skipped());
-        assert!(field_args.is_choice());
+        assert!(field_args.is_selector());
         assert!(field_args.is_optional());
         assert_eq!(
             field_args

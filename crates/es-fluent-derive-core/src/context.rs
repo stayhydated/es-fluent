@@ -143,7 +143,7 @@ struct ParentFluentContext {
     namespace: Option<NamespaceSpec>,
     domain: Option<SpannedValue<DomainName>>,
     #[allow(dead_code)]
-    resource: Option<SpannedValue<FluentMessageId>>,
+    id: Option<SpannedValue<FluentMessageId>>,
 }
 
 impl ParentFluentContext {
@@ -173,8 +173,8 @@ impl ParentFluentContext {
                                 .map_err(|err| err.with_span(&item))?,
                         );
                     },
-                    Some(AttributeKey::Resource) => {
-                        context.resource = Some(
+                    Some(AttributeKey::Id) => {
+                        context.id = Some(
                             <SpannedValue<FluentMessageId> as darling::FromMeta>::from_meta(&item)
                                 .map_err(|err| err.with_span(&item))?,
                         );

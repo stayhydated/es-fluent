@@ -239,9 +239,11 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
     validate_message_struct_model(&MessageStructModel::from_options(opts)?)
 }
 
-pub fn validate_message_struct_model(model: &MessageStructModel<'_>) -> EsFluentCoreResult<()> {
+pub(crate) fn validate_message_struct_model(
+    model: &MessageStructModel<'_>,
+) -> EsFluentCoreResult<()> {
     for field in model.all_indexed_fields().into_iter().map(|(_, f)| f) {
-        field.field_strategy(field_span(field))?;
+        field.argument_value_strategy(field_span(field))?;
     }
 
     // Ensure exposed argument names remain unique after arg overrides.
@@ -293,7 +295,7 @@ pub fn validate_enum(opts: &EnumOpts) -> EsFluentCoreResult<()> {
     validate_message_enum_ids(&model)
 }
 
-pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCoreResult<()> {
+pub(crate) fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCoreResult<()> {
     for variant in model.variants() {
         let variant_name = variant.ident().to_string();
         let variant_span = Some(variant.ident().span());
@@ -301,7 +303,7 @@ pub fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFluentCore
         let mut field_arg_overrides = Vec::new();
         for field_model in &all_fields {
             let field = field_model.field();
-            field.field_strategy(field_span(field))?;
+            field.argument_value_strategy(field_span(field))?;
 
             if let Some(arg) = field.arg_name(AttrContext::MessageField)? {
                 field_arg_overrides.push((*field_model, arg));
@@ -388,7 +390,7 @@ fn validate_message_enum_ids(model: &MessageEnumModel<'_>) -> EsFluentCoreResult
 }
 
 /// Validates generated variant names for a struct-backed `EsFluentVariants` model.
-pub fn validate_generated_variants_struct_model(
+pub(crate) fn validate_generated_variants_struct_model(
     model: &GeneratedVariantsStructModel<'_>,
 ) -> EsFluentCoreResult<()> {
     let mut rust_idents = std::collections::HashMap::new();
@@ -416,7 +418,7 @@ pub fn validate_generated_variants_struct_model(
 }
 
 /// Validates generated variant names for an enum-backed `EsFluentVariants` model.
-pub fn validate_generated_variants_enum_model(
+pub(crate) fn validate_generated_variants_enum_model(
     model: &GeneratedVariantsEnumModel<'_>,
 ) -> EsFluentCoreResult<()> {
     let mut rust_idents = std::collections::HashMap::new();

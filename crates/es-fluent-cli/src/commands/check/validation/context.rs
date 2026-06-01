@@ -41,11 +41,12 @@ impl ValidationContext<'_> {
 
     pub(super) fn missing_file_issues(&self, locale: &str, ftl_path: &str) -> Vec<ValidationIssue> {
         self.expected_keys
-            .keys()
-            .map(|key| {
-                let help = format!("Add translation for '{}' in {}", key, ftl_path);
+            .iter()
+            .map(|(key, key_info)| {
+                let expected_path = self.expected_resource_path(locale, key_info);
+                let help = format!("Add translation for '{}' in {}", key, expected_path);
                 ValidationIssue::MissingKey(MissingKeyError {
-                    src: NamedSource::new(ftl_path, String::new()),
+                    src: NamedSource::new(ftl_path.to_string(), String::new()),
                     key: key.to_string(),
                     locale: locale.to_string(),
                     help,
@@ -67,6 +68,14 @@ impl ValidationContext<'_> {
             locale: locale.to_string(),
             help: format!("Add translation for '{}' in {}", key, file_path),
         })
+    }
+
+    pub(super) fn expected_resource_path(
+        &self,
+        locale: &str,
+        key_info: &super::super::inventory::KeyInfo,
+    ) -> String {
+        format!("{locale}/{}", key_info.resource.locale_relative_path)
     }
 
     pub(super) fn missing_variable_issue(

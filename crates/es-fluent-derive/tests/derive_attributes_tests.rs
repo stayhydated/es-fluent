@@ -65,7 +65,7 @@ fn es_fluent_enum_attributes_default_snapshot() {
     assert_eq!(opts.ident().to_string(), "ApiError");
     assert_no_generics(opts.generics());
     assert_eq!(opts.variants().len(), 4);
-    assert!(opts.attr_args().resource_message_id().is_none());
+    assert!(opts.attr_args().id_message_id().is_none());
     assert!(opts.attr_args().domain_name().is_none());
     assert!(opts.attr_args().namespace().is_none());
 
@@ -101,9 +101,9 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
         #[derive(EsFluent)]
         enum Status {
             Ok,
-            Mixed(#[fluent(choice)] Severity, #[fluent(skip)] i32),
+            Mixed(#[fluent(selector)] Severity, #[fluent(skip)] i32),
             Info {
-                #[fluent(choice)]
+                #[fluent(selector)]
                 level: Severity,
                 message: String,
             }
@@ -123,7 +123,7 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
     assert!(matches!(mixed.style(), darling::ast::Style::Tuple));
     assert_eq!(mixed.fields().len(), 1);
     assert_eq!(mixed.all_fields().len(), 2);
-    assert!(mixed.fields()[0].is_choice());
+    assert!(mixed.fields()[0].is_selector());
     assert!(mixed.all_fields()[1].is_skipped());
 
     let info = opts
@@ -137,12 +137,12 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
         info.fields()[0].ident().expect("named field").to_string(),
         "level"
     );
-    assert!(info.fields()[0].is_choice());
+    assert!(info.fields()[0].is_selector());
     assert_eq!(
         info.fields()[1].ident().expect("named field").to_string(),
         "message"
     );
-    assert!(!info.fields()[1].is_choice());
+    assert!(!info.fields()[1].is_selector());
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn es_fluent_struct_attributes_label_with_derive_snapshot() {
             name: String,
             #[fluent(skip)]
             password_hash: String,
-            #[fluent(choice)]
+            #[fluent(selector)]
             gender: Gender,
         }
     };
@@ -170,12 +170,12 @@ fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "name");
-    assert!(!fields[0].is_choice());
+    assert!(!fields[0].is_selector());
     assert_eq!(
         fields[1].ident().expect("named field").to_string(),
         "gender"
     );
-    assert!(fields[1].is_choice());
+    assert!(fields[1].is_selector());
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);
@@ -193,7 +193,7 @@ fn es_fluent_struct_attributes_choice_snapshot() {
 
         struct Label {
             text: String,
-            #[fluent(choice)]
+            #[fluent(selector)]
             style: Emphasis,
             #[fluent(skip)]
             developer_only_flag: bool,
@@ -208,9 +208,9 @@ fn es_fluent_struct_attributes_choice_snapshot() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "text");
-    assert!(!fields[0].is_choice());
+    assert!(!fields[0].is_selector());
     assert_eq!(fields[1].ident().expect("named field").to_string(), "style");
-    assert!(fields[1].is_choice());
+    assert!(fields[1].is_selector());
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);

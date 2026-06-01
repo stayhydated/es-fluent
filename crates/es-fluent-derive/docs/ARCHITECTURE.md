@@ -19,16 +19,16 @@ It does not emit context-free display/localization implementations.
 `#[derive(EsFluentLabel)]` emits `FluentLabel::localize_label(localizer)`, which resolves a
 type-level key through an explicit `FluentLocalizer`.
 
-Enum derives can override the generated base key with `resource = "..."` and
+Enum derives can override the generated base key with `id = "..."` and
 route lookup through an explicit manager domain with `domain = "..."`. Struct
 message containers only accept `namespace = ...`. Variant-level `key = "..."`
 overrides the key suffix.
-Field-level `skip`, `arg`, `choice`, `optional`, and `value` affect the
-generated argument map before it reaches the localization closure. `choice`,
+Field-level `skip`, `arg`, `selector`, `optional`, and `value` affect the
+generated argument map before it reaches the localization closure. `selector`,
 `optional`, and `value` are mutually exclusive field strategies.
 
 The derive layer consumes typed accessors from `es-fluent-derive-core` for
-field argument names, variant keys, enum resource IDs, and enum domains, so
+field argument names, variant keys, enum base IDs, and enum domains, so
 literal attribute spans remain available until diagnostics or semantic model
 creation.
 It also consumes derive-core lowered container models for `EsFluent`,
@@ -83,7 +83,7 @@ before token emission, so metadata and insertion logic describe the same
 argument entry. Optional omission is driven by explicit
 `#[fluent(optional)]`; the derive layer does not infer optional behavior from
 the Rust type syntax. Field conversion tokens use the strategy span with
-`quote_spanned!`, so invalid choice fields, optional fields, and transform
+`quote_spanned!`, so invalid selector fields, optional fields, and transform
 signatures report diagnostics against user code rather than only against
 macro-generated internals.
 

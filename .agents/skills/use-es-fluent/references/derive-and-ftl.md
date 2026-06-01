@@ -53,12 +53,12 @@ Common `#[fluent(...)]` attributes:
 - `skip`: exclude a field from arguments, or on a single-field enum variant delegate rendering to the wrapped message.
 - `value = |x: &String| x.len()`: transform a field before inserting it as a Fluent argument.
 - `optional`: treat an `Option<T>`-style field as an omitted Fluent argument when it is `None`.
-- `choice`, `optional`, and `value = ...` cannot be combined on the same field.
+- `selector`, `optional`, and `value = ...` cannot be combined on the same field.
 - `key = "..."`: override an enum variant key suffix.
-- `resource = "..."`: override an enum base key.
+- `id = "..."`: override an enum base key.
 - `domain = "..."`: route enum lookup to a specific manager domain.
 
-`resource` and `domain` are enum-only. Struct message containers accept `namespace = ...`.
+`id` and `domain` are enum-only. Struct message containers accept `namespace = ...`.
 
 Optional-argument omission is explicit. Plain `Option<T>` fields are treated as ordinary field values unless marked `#[fluent(optional)]`.
 
@@ -107,7 +107,7 @@ pub enum GenderChoice {
 #[derive(EsFluent)]
 pub struct Greeting<'a> {
     pub name: &'a str,
-    #[fluent(choice)]
+    #[fluent(selector)]
     pub gender: &'a GenderChoice,
 }
 ```

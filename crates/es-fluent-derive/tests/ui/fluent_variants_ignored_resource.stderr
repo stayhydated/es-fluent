@@ -1,6 +1,6 @@
-error: Attribute error in variants container: `#[fluent(resource = ...)]` cannot be used in variants container `LoginError`
+error: Attribute error in variants container: `#[fluent(id = ...)]` cannot be used in variants container `LoginError`
        help: accepted parent keys here are domain and namespace
  --> tests/ui/fluent_variants_ignored_resource.rs:6:10
   |
-6 | #[fluent(resource = "login_error")]
-  |          ^^^^^^^^
+6 | #[fluent(id = "login_error")]
+  |          ^^

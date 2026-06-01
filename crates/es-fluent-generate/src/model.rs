@@ -41,7 +41,7 @@ impl OwnedVariant {
 
     pub(crate) fn from_ftl_variant(variant: &FtlVariant) -> EsFluentResult<Self> {
         Ok(Self {
-            name: variant.name.to_string(),
+            name: variant.name().to_string(),
             ftl_key: variant.entry_id(),
             args: variant.argument_names(),
         })
@@ -66,9 +66,9 @@ pub(crate) struct OwnedTypeInfo {
 impl OwnedTypeInfo {
     pub(crate) fn from_ftl_type_info(info: &FtlTypeInfo) -> EsFluentResult<Self> {
         Ok(Self {
-            type_name: info.type_name.to_string(),
+            type_name: info.type_name().to_string(),
             variants: info
-                .variants
+                .variants()
                 .iter()
                 .map(OwnedVariant::from_ftl_variant)
                 .collect::<EsFluentResult<Vec<_>>>()?,
@@ -90,7 +90,7 @@ pub(crate) fn validate_no_duplicate_ftl_keys(items: &[&FtlTypeInfo]) -> EsFluent
     let mut seen: BTreeMap<FluentEntryId, (&FtlTypeInfo, &FtlVariant)> = BTreeMap::new();
 
     for info in items {
-        for variant in info.variants {
+        for variant in info.variants() {
             let key = variant.entry_id();
             if let Some((first_info, first_variant)) = seen.get(&key) {
                 return Err(EsFluentError::duplicate_generated_ftl_key(

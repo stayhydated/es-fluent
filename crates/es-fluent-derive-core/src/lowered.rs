@@ -3,8 +3,8 @@
 use crate::{
     error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult},
     options::{
-        EnumDataOptions as _, FieldStrategy, FilteredEnumDataOptions as _, FluentField,
-        Skippable as _, StructDataOptions as _, VariantFields as _,
+        EnumDataOptions as _, FilteredEnumDataOptions as _, FluentField, Skippable as _,
+        StructDataOptions as _, VariantFields as _,
         choice::ChoiceOpts,
         r#enum::{EnumOpts, EnumVariantsOpts, VariantOpts},
         label::LabelOpts,
@@ -80,7 +80,6 @@ impl ArgumentIndex for ExposedArgumentIndex {
 
 #[derive(Clone, Debug)]
 pub struct MessageStructModel<'a> {
-    ident: &'a syn::Ident,
     message_id: SpannedValue<FluentMessageId>,
     fields: &'a darling::ast::Fields<StructFieldOpts>,
 }
@@ -96,14 +95,9 @@ impl<'a> MessageStructModel<'a> {
         };
 
         Ok(Self {
-            ident: opts.ident(),
             message_id: message_id_for_ident(opts.ident(), AttrContext::MessageContainer)?,
             fields,
         })
-    }
-
-    pub fn ident(&self) -> &'a syn::Ident {
-        self.ident
     }
 
     pub fn message_id(&self) -> &SpannedValue<FluentMessageId> {
@@ -131,16 +125,6 @@ impl<'a> MessageStructModel<'a> {
                     }
                 }
             })
-            .collect()
-    }
-
-    pub fn indexed_fields(&self) -> Vec<(DeclarationIndex, &'a StructFieldOpts)> {
-        self.fields
-            .fields
-            .iter()
-            .enumerate()
-            .filter(|(_, field)| !FluentField::is_skipped(*field))
-            .map(|(index, field)| (DeclarationIndex::new(index), field))
             .collect()
     }
 
@@ -204,7 +188,6 @@ impl MessageStructField<'_> {
 
 #[derive(Debug)]
 pub struct MessageEnumModel<'a> {
-    ident: &'a syn::Ident,
     variants: Vec<MessageEnumVariant<'a>>,
 }
 
@@ -226,14 +209,7 @@ impl<'a> MessageEnumModel<'a> {
             .map(|variant| MessageEnumVariant::from_options(variant, &base_key))
             .collect::<EsFluentCoreResult<Vec<_>>>()?;
 
-        Ok(Self {
-            ident: opts.ident(),
-            variants,
-        })
-    }
-
-    pub fn ident(&self) -> &'a syn::Ident {
-        self.ident
+        Ok(Self { variants })
     }
 
     pub fn variants(&self) -> &[MessageEnumVariant<'a>] {
@@ -251,20 +227,17 @@ pub enum MessageEnumVariant<'a> {
         ident: &'a syn::Ident,
         message_id: SpannedValue<FluentMessageId>,
         skipped: bool,
-        opts: &'a VariantOpts,
     },
     Tuple {
         ident: &'a syn::Ident,
         message_id: SpannedValue<FluentMessageId>,
         skipped: bool,
-        opts: &'a VariantOpts,
-        fields: Vec<MessageTupleField<'a>>,
+        all_fields: Vec<MessageTupleField<'a>>,
     },
     Struct {
         ident: &'a syn::Ident,
         message_id: SpannedValue<FluentMessageId>,
         skipped: bool,
-        opts: &'a VariantOpts,
         fields: Vec<MessageNamedField<'a>>,
         all_fields: Vec<MessageNamedField<'a>>,
         has_skipped_fields: bool,
@@ -291,14 +264,9 @@ impl<'a> MessageEnumVariant<'a> {
                 ident,
                 message_id,
                 skipped,
-                opts: variant_opt,
             }),
-            darling::ast::Style::Tuple => Ok(Self::Tuple {
-                ident,
-                message_id,
-                skipped,
-                opts: variant_opt,
-                fields: variant_opt
+            darling::ast::Style::Tuple => {
+                let all_fields = variant_opt
                     .all_fields()
                     .into_iter()
                     .enumerate()
@@ -306,8 +274,15 @@ impl<'a> MessageEnumVariant<'a> {
                         original_index: TupleFieldIndex::new(original_index),
                         field,
                     })
-                    .collect(),
-            }),
+                    .collect::<Vec<_>>();
+
+                Ok(Self::Tuple {
+                    ident,
+                    message_id,
+                    skipped,
+                    all_fields,
+                })
+            },
             darling::ast::Style::Struct => {
                 let fields = variant_opt
                     .fields()
@@ -353,7 +328,6 @@ impl<'a> MessageEnumVariant<'a> {
                     ident,
                     message_id,
                     skipped,
-                    opts: variant_opt,
                     fields,
                     all_fields,
                     has_skipped_fields,
@@ -378,16 +352,10 @@ impl<'a> MessageEnumVariant<'a> {
         }
     }
 
-    pub fn opts(&self) -> &'a VariantOpts {
-        match self {
-            Self::Unit { opts, .. } | Self::Tuple { opts, .. } | Self::Struct { opts, .. } => opts,
-        }
-    }
-
     pub fn all_fields(&self) -> Vec<MessageEnumField<'a>> {
         match self {
             Self::Unit { .. } => Vec::new(),
-            Self::Tuple { fields, .. } => fields
+            Self::Tuple { all_fields, .. } => all_fields
                 .iter()
                 .copied()
                 .map(MessageEnumField::Tuple)
@@ -445,13 +413,6 @@ pub enum MessageEnumField<'a> {
 }
 
 impl MessageEnumField<'_> {
-    pub fn declaration_index(&self) -> DeclarationIndex {
-        match self {
-            Self::Tuple(field) => DeclarationIndex::new(field.original_index.as_usize()),
-            Self::Named(field) => DeclarationIndex::new(field.exposed_index.as_usize()),
-        }
-    }
-
     pub fn field(&self) -> &crate::options::FluentFieldOpts {
         match self {
             Self::Tuple(field) => field.field,
@@ -469,7 +430,6 @@ impl MessageEnumField<'_> {
 
 #[derive(Debug)]
 pub struct GeneratedVariantsStructModel<'a> {
-    ident: &'a syn::Ident,
     fields: Vec<GeneratedVariantsField<'a>>,
 }
 
@@ -499,14 +459,7 @@ impl<'a> GeneratedVariantsStructModel<'a> {
             })
             .collect::<EsFluentCoreResult<Vec<_>>>()?;
 
-        Ok(Self {
-            ident: opts.ident(),
-            fields,
-        })
-    }
-
-    pub fn ident(&self) -> &'a syn::Ident {
-        self.ident
+        Ok(Self { fields })
     }
 
     pub fn fields(&self) -> &[GeneratedVariantsField<'a>] {
@@ -521,7 +474,6 @@ pub struct GeneratedVariantsField<'a> {
 
 #[derive(Debug)]
 pub struct GeneratedVariantsEnumModel<'a> {
-    ident: &'a syn::Ident,
     variants: Vec<GeneratedVariantsVariant<'a>>,
 }
 
@@ -543,14 +495,7 @@ impl<'a> GeneratedVariantsEnumModel<'a> {
             })
             .collect();
 
-        Ok(Self {
-            ident: opts.ident(),
-            variants,
-        })
-    }
-
-    pub fn ident(&self) -> &'a syn::Ident {
-        self.ident
+        Ok(Self { variants })
     }
 
     pub fn variants(&self) -> &[GeneratedVariantsVariant<'a>] {
@@ -654,13 +599,13 @@ pub fn field_value_strategy(
     field: &impl FluentField,
     span: proc_macro2::Span,
 ) -> EsFluentCoreResult<ArgumentValueStrategy> {
-    match field.field_strategy(span)? {
-        FieldStrategy::Borrowed { span } => Ok(ArgumentValueStrategy::Borrowed { span }),
-        FieldStrategy::Optional { span } => Ok(ArgumentValueStrategy::Optional { span }),
-        FieldStrategy::Choice { span } => Ok(ArgumentValueStrategy::Choice { span }),
-        FieldStrategy::Transform(transform) => Ok(ArgumentValueStrategy::Transform(transform)),
-        FieldStrategy::Skipped { span } => Ok(ArgumentValueStrategy::Borrowed { span }),
-    }
+    field.argument_value_strategy(span)?.ok_or_else(|| {
+        internal_shape_error(
+            AttrContext::MessageField,
+            "skipped fields do not expose Fluent argument value strategies",
+            span,
+        )
+    })
 }
 
 fn field_argument_model(
@@ -697,7 +642,7 @@ mod tests {
                 plain: String,
                 #[fluent(optional)]
                 maybe: Option<String>,
-                #[fluent(choice)]
+                #[fluent(selector)]
                 selected: String,
                 #[fluent(value = |value: &String| value.len())]
                 transformed: String,
@@ -767,16 +712,24 @@ mod tests {
         };
         let opts = EnumOpts::from_derive_input(&input).expect("enum opts");
         let model = MessageEnumModel::from_options(&opts).expect("message model");
-        let MessageEnumVariant::Tuple { fields, .. } = &model.variants()[0] else {
+        let MessageEnumVariant::Tuple { all_fields, .. } = &model.variants()[0] else {
             panic!("expected tuple variant model");
         };
+        let fields = all_fields
+            .iter()
+            .copied()
+            .filter(|field| !FluentField::is_skipped(field.field))
+            .collect::<Vec<_>>();
 
-        assert_eq!(fields.len(), 3);
-        assert_eq!(fields[0].original_index.as_usize(), 0);
-        assert_eq!(fields[1].original_index.as_usize(), 1);
-        assert_eq!(fields[2].original_index.as_usize(), 2);
+        assert_eq!(all_fields.len(), 3);
+        assert_eq!(all_fields[0].original_index.as_usize(), 0);
+        assert_eq!(all_fields[1].original_index.as_usize(), 1);
+        assert_eq!(all_fields[2].original_index.as_usize(), 2);
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].original_index.as_usize(), 1);
+        assert_eq!(fields[1].original_index.as_usize(), 2);
         assert_eq!(
-            fields[1]
+            fields[0]
                 .argument_model()
                 .expect("overridden arg")
                 .name()
@@ -784,7 +737,7 @@ mod tests {
             "second"
         );
         assert_eq!(
-            fields[2]
+            fields[1]
                 .argument_model()
                 .expect("default arg")
                 .name()

@@ -123,6 +123,9 @@ comma-separated list. Use `--force-run` to bypass the staleness cache.
 FTL variables that are not declared by Rust code are reported as errors.
 Rust-declared variables omitted by a translation are reported as warnings; any
 reported validation issue makes `check` exit non-zero for CI enforcement.
+For namespaced types, `check` validates the expected namespace file, so a key
+in `{crate}.ftl` still reports as missing when the Rust type belongs in
+`{crate}/{namespace}.ftl`.
 
 ### Clean
 

@@ -140,7 +140,7 @@ fn test_derive_label_variants() {
 #[test]
 fn test_derive_label_namespace_from_fluent() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestLabelNamespace")
+        .filter(|info| info.type_name() == "TestLabelNamespace")
         .collect();
 
     assert_eq!(
@@ -149,16 +149,16 @@ fn test_derive_label_namespace_from_fluent() {
         "Expected one registration for TestLabelNamespace"
     );
     assert_eq!(
-        infos[0].namespace,
-        Some(NamespaceRule::Literal(Cow::Borrowed("label_ns")))
+        infos[0].namespace(),
+        Some(&NamespaceRule::Literal(Cow::Borrowed("label_ns")))
     );
-    assert_eq!(infos[0].type_kind, TypeKind::Struct);
+    assert_eq!(infos[0].type_kind(), &TypeKind::Struct);
 }
 
 #[test]
 fn test_derive_label_origin_preserves_type_kind() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestLabelEnumKind")
+        .filter(|info| info.type_name() == "TestLabelEnumKind")
         .collect();
 
     assert_eq!(
@@ -166,13 +166,13 @@ fn test_derive_label_origin_preserves_type_kind() {
         1,
         "Expected one registration for TestLabelEnumKind"
     );
-    assert_eq!(infos[0].type_kind, TypeKind::Enum);
+    assert_eq!(infos[0].type_kind(), &TypeKind::Enum);
 }
 
 #[test]
 fn test_derive_variants_namespace_from_fluent() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| info.type_name == "TestVariantsNamespaceVariants")
+        .filter(|info| info.type_name() == "TestVariantsNamespaceVariants")
         .collect();
 
     assert_eq!(
@@ -181,8 +181,8 @@ fn test_derive_variants_namespace_from_fluent() {
         "Expected one registration for TestVariantsNamespaceVariants"
     );
     assert_eq!(
-        infos[0].namespace,
-        Some(NamespaceRule::Literal(Cow::Borrowed("variants_ns")))
+        infos[0].namespace(),
+        Some(&NamespaceRule::Literal(Cow::Borrowed("variants_ns")))
     );
 }
 
@@ -190,8 +190,8 @@ fn test_derive_variants_namespace_from_fluent() {
 fn test_derive_label_and_variants_share_fluent_namespace() {
     let infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
-            info.type_name == "TestSharedNamespace"
-                || info.type_name == "TestSharedNamespaceLabelVariants"
+            info.type_name() == "TestSharedNamespace"
+                || info.type_name() == "TestSharedNamespaceLabelVariants"
         })
         .collect();
 
@@ -203,7 +203,8 @@ fn test_derive_label_and_variants_share_fluent_namespace() {
     assert!(
         infos
             .iter()
-            .all(|info| info.namespace == Some(NamespaceRule::Literal(Cow::Borrowed("shared_ns"))))
+            .all(|info| info.namespace()
+                == Some(&NamespaceRule::Literal(Cow::Borrowed("shared_ns"))))
     );
 }
 

@@ -116,7 +116,7 @@ mod tests {
             #[fluent(namespace = "forms")]
             struct LoginForm {
                 username: String,
-                #[fluent(choice)]
+                #[fluent(selector)]
                 role: String,
                 #[fluent(value = |v: &String| v.len())]
                 display_name: String,
@@ -134,10 +134,10 @@ mod tests {
         let fields = opts.fields();
         assert_eq!(fields.len(), 3);
         assert_eq!(message_field_arg(fields[0], 0), "username");
-        assert!(!fields[0].is_choice());
+        assert!(!fields[0].is_selector());
 
         assert_eq!(message_field_arg(fields[1], 1), "role");
-        assert!(fields[1].is_choice());
+        assert!(fields[1].is_selector());
         assert_eq!(message_field_arg(fields[2], 2), "display_name");
         let value_expr = fields[2]
             .value()

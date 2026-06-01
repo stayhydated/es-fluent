@@ -6,7 +6,8 @@ pub use crate::grammar::{
     AttributeValueShape, FluentAttributeKey,
 };
 use crate::grammar::{
-    help_for_location, parse_attribute_meta_item as parse_grammar_attribute_meta_item,
+    attribute_rule, help_for_location,
+    parse_attribute_meta_item as parse_grammar_attribute_meta_item,
 };
 use std::collections::HashMap;
 use syn::{Meta, Token, punctuated::Punctuated, spanned::Spanned as _};
@@ -38,7 +39,7 @@ pub fn invalid_attribute_meta_item_for_location(
 ) -> Option<FluentAttributeItem> {
     let item = parse_attribute_meta_item(meta, attribute_name)?;
     match item.key() {
-        Some(key) if key.is_allowed_at(location) => None,
+        Some(key) if key.is_allowed_in(attribute_name, location) => None,
         _ => Some(item),
     }
 }
@@ -90,7 +91,10 @@ pub fn validate_attribute_for_location(
         let Some(key) = parsed.key() else {
             continue;
         };
-        let expected_shape = AttributeValueShape::for_key(key);
+        let Some(rule) = attribute_rule(attribute_name, location, key) else {
+            continue;
+        };
+        let expected_shape = rule.shape;
         if !expected_shape.matches(&item) {
             return Err(invalid_attribute_value_shape_error(
                 parsed,
@@ -181,7 +185,9 @@ fn invalid_attribute_error(
         && location == AttributeLocation::EnumVariant
         && matches!(
             item.key(),
-            Some(FluentAttributeKey::Arg | FluentAttributeKey::Value | FluentAttributeKey::Choice)
+            Some(
+                FluentAttributeKey::Arg | FluentAttributeKey::Value | FluentAttributeKey::Selector
+            )
         )
     {
         let variant_ident = owner
@@ -222,6 +228,8 @@ fn invalid_attribute_error(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::grammar::{ATTRIBUTE_RULES, AttributeRule};
+    use quote::quote;
     use syn::parse_quote;
 
     #[test]
@@ -280,10 +288,10 @@ mod tests {
             FluentAttributeKey::Value,
         );
         assert_allowed(
-            parse_quote!(choice),
+            parse_quote!(selector),
             AttributeName::Fluent,
             AttributeLocation::MessageField,
-            FluentAttributeKey::Choice,
+            FluentAttributeKey::Selector,
         );
         assert_allowed(
             parse_quote!(optional),
@@ -304,10 +312,10 @@ mod tests {
             FluentAttributeKey::Key,
         );
         assert_allowed(
-            parse_quote!(resource = "auth_error"),
+            parse_quote!(id = "auth_error"),
             AttributeName::Fluent,
             AttributeLocation::MessageEnumContainer,
-            FluentAttributeKey::Resource,
+            FluentAttributeKey::Id,
         );
         assert_allowed(
             parse_quote!(domain = "auth"),
@@ -418,5 +426,167 @@ mod tests {
             )
         );
         assert!(message.contains("use a string literal, for example `arg = \"...\"`"));
+    }
+
+    #[test]
+    fn schema_rules_accept_every_declared_family_location_key() {
+        for rule in ATTRIBUTE_RULES {
+            let meta = valid_meta_for_rule(rule);
+
+            assert!(
+                invalid_attribute_meta_item_for_location(&meta, rule.family, rule.location)
+                    .is_none(),
+                "declared rule should be accepted: {rule:?}"
+            );
+
+            let attr = attr_for_rule(rule, meta);
+            validate_attribute_for_location(&attr, rule.family, rule.location, None)
+                .unwrap_or_else(|error| panic!("declared rule should validate: {rule:?}: {error}"));
+        }
+    }
+
+    #[test]
+    fn schema_rules_reject_every_undeclared_location_for_the_same_family_and_key() {
+        for rule in ATTRIBUTE_RULES {
+            let meta = valid_meta_for_rule(rule);
+
+            for location in all_locations() {
+                if crate::grammar::attribute_rule(rule.family, location, rule.key).is_some() {
+                    continue;
+                }
+
+                let invalid =
+                    invalid_attribute_meta_item_for_location(&meta, rule.family, location);
+                assert!(
+                    invalid.is_some(),
+                    "undeclared location should reject key: {rule:?} at {location:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn schema_rules_reject_wrong_value_shape_for_every_declared_key() {
+        for rule in ATTRIBUTE_RULES {
+            let meta = wrong_shape_meta_for_rule(rule);
+            let attr = attr_for_rule(rule, meta);
+            let error = validate_attribute_for_location(&attr, rule.family, rule.location, None)
+                .unwrap_err();
+            let message = error.to_string();
+
+            assert!(
+                message.contains("wrong value shape"),
+                "wrong shape should report shape error for {rule:?}: {message}"
+            );
+            assert!(
+                message.contains(&rule.shape.help(key_name(rule.key))),
+                "wrong shape should use schema help for {rule:?}: {message}"
+            );
+        }
+    }
+
+    fn all_locations() -> [AttributeLocation; 14] {
+        [
+            AttributeLocation::MessageStructContainer,
+            AttributeLocation::MessageEnumContainer,
+            AttributeLocation::LabelStructParentContainer,
+            AttributeLocation::LabelEnumParentContainer,
+            AttributeLocation::VariantsStructParentContainer,
+            AttributeLocation::VariantsEnumParentContainer,
+            AttributeLocation::MessageField,
+            AttributeLocation::EnumVariant,
+            AttributeLocation::VariantsContainer,
+            AttributeLocation::VariantsField,
+            AttributeLocation::VariantsVariant,
+            AttributeLocation::LabelContainer,
+            AttributeLocation::ChoiceContainer,
+            AttributeLocation::LanguageContainer,
+        ]
+    }
+
+    fn attr_for_rule(rule: &AttributeRule, meta: Meta) -> syn::Attribute {
+        let attr_ident = syn::Ident::new(rule.family.as_str(), proc_macro2::Span::call_site());
+        let item: syn::ItemStruct = syn::parse2(quote! {
+            #[#attr_ident(#meta)]
+            struct SchemaProbe;
+        })
+        .expect("schema probe attribute should parse");
+        item.attrs.into_iter().next().expect("probe attribute")
+    }
+
+    fn valid_meta_for_rule(rule: &AttributeRule) -> Meta {
+        match rule.shape {
+            AttributeValueShape::Flag => {
+                let key = key_ident(rule.key);
+                syn::parse_quote!(#key)
+            },
+            AttributeValueShape::ExplicitBool => {
+                let key = key_ident(rule.key);
+                syn::parse_quote!(#key = true)
+            },
+            AttributeValueShape::StringLiteral
+            | AttributeValueShape::ChoiceCaseStyle
+            | AttributeValueShape::LanguageMode => {
+                let key = key_ident(rule.key);
+                let value = string_value_for_rule(rule);
+                syn::parse_quote!(#key = #value)
+            },
+            AttributeValueShape::RustExpression => {
+                let key = key_ident(rule.key);
+                syn::parse_quote!(#key = |value| value.to_string())
+            },
+            AttributeValueShape::NamespaceRule => {
+                let key = key_ident(rule.key);
+                syn::parse_quote!(#key = "ui")
+            },
+            AttributeValueShape::PathList => {
+                let key = key_ident(rule.key);
+                syn::parse_quote!(#key(Debug, Clone))
+            },
+            AttributeValueShape::GeneratedKeyList => {
+                let key = key_ident(rule.key);
+                syn::parse_quote!(#key = ["label"])
+            },
+        }
+    }
+
+    fn wrong_shape_meta_for_rule(rule: &AttributeRule) -> Meta {
+        let key = key_ident(rule.key);
+        match rule.shape {
+            AttributeValueShape::Flag => syn::parse_quote!(#key = true),
+            _ => syn::parse_quote!(#key),
+        }
+    }
+
+    fn key_ident(key: AttributeKey) -> syn::Ident {
+        syn::Ident::new(key_name(key), proc_macro2::Span::call_site())
+    }
+
+    fn key_name(key: AttributeKey) -> &'static str {
+        match key {
+            AttributeKey::Arg => "arg",
+            AttributeKey::Value => "value",
+            AttributeKey::Selector => "selector",
+            AttributeKey::Optional => "optional",
+            AttributeKey::Skip => "skip",
+            AttributeKey::Key => "key",
+            AttributeKey::Id => "id",
+            AttributeKey::Domain => "domain",
+            AttributeKey::Namespace => "namespace",
+            AttributeKey::Derive => "derive",
+            AttributeKey::Keys => "keys",
+            AttributeKey::Origin => "origin",
+            AttributeKey::Variants => "variants",
+            AttributeKey::RenameAll => "rename_all",
+            AttributeKey::Mode => "mode",
+        }
+    }
+
+    fn string_value_for_rule(rule: &AttributeRule) -> &'static str {
+        match rule.shape {
+            AttributeValueShape::ChoiceCaseStyle => "snake_case",
+            AttributeValueShape::LanguageMode => "custom",
+            _ => "value",
+        }
     }
 }

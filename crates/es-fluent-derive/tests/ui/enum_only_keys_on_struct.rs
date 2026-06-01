@@ -7,7 +7,7 @@ pub struct DomainOnStruct {
 }
 
 #[derive(EsFluent)]
-#[fluent(resource = "auth_error")]
+#[fluent(id = "auth_error")]
 pub struct ResourceOnStruct {
     value: String,
 }

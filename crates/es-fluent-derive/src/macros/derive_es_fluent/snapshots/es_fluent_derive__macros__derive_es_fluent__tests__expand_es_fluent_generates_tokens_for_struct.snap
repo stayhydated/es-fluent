@@ -24,7 +24,7 @@ impl ::es_fluent::FluentMessage for User {
                 );
             }
             localize(
-                ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                ::es_fluent::registry::StaticFluentDomain::from_package_name(
                     env!("CARGO_PKG_NAME"),
                 ),
                 ::es_fluent::registry::StaticFluentEntryId::new_unchecked("user"),
@@ -38,24 +38,22 @@ impl ::es_fluent::FluentMessage for User {
 mod __es_fluent_inventory_User {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "User",
-            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked("user"),
-            args: &[
-                ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("id"),
-            ],
-            module_path: module_path!(),
-            line: line!(),
-        },
+        ::es_fluent::registry::__macro::ftl_variant(
+            "User",
+            ::es_fluent::registry::StaticFluentEntryId::new_unchecked("user"),
+            &[::es_fluent::registry::StaticFluentArgumentName::new_unchecked("id")],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Struct,
-        type_name: "User",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Struct,
+        "User",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

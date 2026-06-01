@@ -6,7 +6,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::Ident;
 
-use crate::macros::utils::CodegenContext;
+use crate::macros::utils::{CodegenContext, static_domain_expr};
 
 #[derive(Clone)]
 pub(crate) struct FluentArgument {
@@ -104,15 +104,7 @@ pub(crate) struct LocalizeCallSpec {
 impl LocalizeCallSpec {
     pub(crate) fn localize_with_expr(&self, context: &CodegenContext) -> TokenStream {
         let es_fluent = context.facade_path().tokens();
-        let domain_expr = match self.domain_override.as_ref() {
-            Some(domain) => {
-                let domain = domain.as_str();
-                quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
-            },
-            None => {
-                quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(env!("CARGO_PKG_NAME")) }
-            },
-        };
+        let domain_expr = static_domain_expr(context, self.domain_override.as_ref());
         let ftl_key = self.ftl_key.as_str();
         let ftl_key_expr = quote! {
             #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key)
@@ -164,13 +156,13 @@ impl InventoryVariantSpec {
         let source_line = quote_spanned! { source_span=> line!() };
 
         quote! {
-            #es_fluent::registry::FtlVariant {
-                name: #name,
-                ftl_key: #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
-                args: &[#(#args_tokens),*],
-                module_path: module_path!(),
-                line: #source_line,
-            }
+            #es_fluent::registry::__macro::ftl_variant(
+                #name,
+                #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
+                &[#(#args_tokens),*],
+                module_path!(),
+                #source_line,
+            )
         }
     }
 }

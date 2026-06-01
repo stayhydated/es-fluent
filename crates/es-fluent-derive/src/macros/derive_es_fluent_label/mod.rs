@@ -1,35 +1,13 @@
-use darling::FromDeriveInput as _;
-use es_fluent_derive_core::context::{ContainerContext, SpannedNamespaceRule};
-use es_fluent_derive_core::error::AttrContext;
-use es_fluent_derive_core::lowered::LabelModel;
-use es_fluent_derive_core::semantic::{MessageModel, RustSourceName, RustTypeName};
-use es_fluent_derive_core::{options::label::LabelOpts, validation};
-use es_fluent_shared::namespace::NamespaceRule;
+use es_fluent_derive_core::expansion::{EsFluentLabelExpansion, ExpansionError};
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
-use crate::macros::ir::MessageEntrySpec;
-use crate::macros::utils::{
-    CodegenContext, InventoryOutput, NamespaceSource, SpannedNamespaceRuleRef,
-};
+use crate::macros::utils::{CodegenContext, InventoryOutput};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let context = CodegenContext::resolve();
     expand_es_fluent_label_with_context(input, &context).into()
-}
-
-fn validate_namespace(
-    namespace: Option<&NamespaceRule>,
-    span: proc_macro2::Span,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<()> {
-    if let Some(ns) = namespace
-        && let Err(error) = validation::validate_namespace(ns, Some(span))
-    {
-        return Err(error);
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -42,98 +20,34 @@ fn expand_es_fluent_label_with_context(
     input: DeriveInput,
     context: &CodegenContext,
 ) -> proc_macro2::TokenStream {
-    if let Err(err) = validation::validate_es_fluent_label_attribute_context(&input) {
-        return crate::macros::utils::core_error_to_compile_error(err);
-    }
-
-    let opts = match LabelOpts::from_derive_input(&input) {
-        Ok(opts) => opts,
-        Err(err) => return err.write_errors(),
-    };
-
-    let container_context = match ContainerContext::from_derive_input(&input) {
-        Ok(context) => context,
-        Err(err) => return err.write_errors(),
-    };
-
-    let model = match LabelModel::from_options(&opts) {
-        Ok(model) => model,
-        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-    };
-
-    let original_ident = model.ident();
-    let generics = opts.generics();
-    let ftl_key = if opts.attr_args().is_origin() {
-        Some(model.message_id().clone())
-    } else {
-        None
+    let expansion = match EsFluentLabelExpansion::from_derive_input(&input) {
+        Ok(expansion) => expansion,
+        Err(ExpansionError::Core(error)) => {
+            return crate::macros::utils::core_error_to_compile_error(error);
+        },
+        Err(ExpansionError::Darling(error)) => return error.write_errors(),
+        Err(ExpansionError::Syn(error)) => return error.to_compile_error(),
     };
 
     let localize_label_impl = crate::macros::utils::generate_localize_label_impl(
         context,
-        original_ident,
-        generics,
-        ftl_key.as_ref().map(|key| key.value()),
-        container_context.fluent_domain(),
+        expansion.ident(),
+        expansion.generics(),
+        expansion.ftl_key(),
+        expansion.domain(),
     );
-    let semantic_type_kind = model.type_kind().clone();
 
-    // Generate inventory submission for types with origin=true
-    // FTL metadata is purely structural and doesn't depend on generic type parameters
-    let inventory_output = if let Some(ftl_key) = &ftl_key {
-        let label_namespace = opts.attr_args().namespace().map(|namespace| {
-            SpannedNamespaceRuleRef::new(
-                namespace,
-                opts.attr_args()
-                    .namespace_span()
-                    .unwrap_or_else(|| original_ident.span()),
+    let inventory_output = if let Some(label_model) = expansion.label_inventory() {
+        if let Some(label) = label_model.label() {
+            crate::macros::utils::label_inventory_output(
+                expansion.ident(),
+                label_model.type_kind().clone(),
+                label_model.namespace().cloned(),
+                label.clone(),
             )
-        });
-        let namespace = match crate::macros::utils::resolve_single_namespace_source([
-            NamespaceSource::new(
-                "#[fluent(namespace = ...)]",
-                AttrContext::MessageContainer,
-                container_context
-                    .fluent_namespace()
-                    .map(SpannedNamespaceRule::as_ref),
-            ),
-            NamespaceSource::new(
-                "#[fluent_label(namespace = ...)]",
-                AttrContext::LabelContainer,
-                label_namespace,
-            ),
-        ]) {
-            Ok(namespace) => namespace,
-            Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-        };
-        if let Err(error) = validate_namespace(
-            namespace.map(SpannedNamespaceRuleRef::rule),
-            namespace
-                .map(SpannedNamespaceRuleRef::span)
-                .unwrap_or_else(|| original_ident.span()),
-        ) {
-            return crate::macros::utils::core_error_to_compile_error(error);
+        } else {
+            InventoryOutput::None
         }
-        let label_entry = MessageEntrySpec::new(
-            RustSourceName::from_ident(original_ident),
-            ftl_key.clone(),
-            Vec::new(),
-        );
-        let label_model = MessageModel::new(
-            RustTypeName::from_ident(original_ident),
-            semantic_type_kind,
-            None,
-            namespace.map(|namespace| namespace.rule().clone()),
-            Vec::new(),
-            Some(label_entry.metadata),
-        );
-
-        crate::macros::utils::label_inventory_output(
-            original_ident,
-            label_model.type_kind().clone(),
-            label_model.namespace().cloned(),
-            label_model.label().expect("label inventory entry").clone(),
-        )
     } else {
         InventoryOutput::None
     };

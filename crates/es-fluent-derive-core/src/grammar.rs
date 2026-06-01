@@ -8,7 +8,7 @@ use syn::{
     spanned::Spanned as _,
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum AttributeFamily {
     Fluent,
     FluentVariants,
@@ -41,7 +41,7 @@ impl AttributeFamily {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum AttributeLocation {
     MessageStructContainer,
     MessageEnumContainer,
@@ -86,11 +86,11 @@ impl AttributeLocation {
 pub enum AttributeKey {
     Arg,
     Value,
-    Choice,
+    Selector,
     Optional,
     Skip,
     Key,
-    Resource,
+    Id,
     Domain,
     Namespace,
     Derive,
@@ -117,16 +117,16 @@ impl AttributeKey {
             Some(Self::Arg)
         } else if path.is_ident("value") {
             Some(Self::Value)
-        } else if path.is_ident("choice") {
-            Some(Self::Choice)
+        } else if path.is_ident("selector") {
+            Some(Self::Selector)
         } else if path.is_ident("optional") {
             Some(Self::Optional)
         } else if path.is_ident("skip") {
             Some(Self::Skip)
         } else if path.is_ident("key") {
             Some(Self::Key)
-        } else if path.is_ident("resource") {
-            Some(Self::Resource)
+        } else if path.is_ident("id") {
+            Some(Self::Id)
         } else if path.is_ident("domain") {
             Some(Self::Domain)
         } else if path.is_ident("namespace") {
@@ -148,37 +148,12 @@ impl AttributeKey {
         }
     }
 
-    pub(crate) fn is_allowed_at(self, location: AttributeLocation) -> bool {
-        match location {
-            AttributeLocation::MessageStructContainer => matches!(self, Self::Namespace),
-            AttributeLocation::MessageEnumContainer => {
-                matches!(self, Self::Resource | Self::Domain | Self::Namespace)
-            },
-            AttributeLocation::LabelStructParentContainer
-            | AttributeLocation::VariantsStructParentContainer => matches!(self, Self::Namespace),
-            AttributeLocation::LabelEnumParentContainer
-            | AttributeLocation::VariantsEnumParentContainer => {
-                matches!(self, Self::Domain | Self::Namespace)
-            },
-            AttributeLocation::MessageField => {
-                matches!(
-                    self,
-                    Self::Skip | Self::Choice | Self::Optional | Self::Arg | Self::Value
-                )
-            },
-            AttributeLocation::EnumVariant => matches!(self, Self::Skip | Self::Key),
-            AttributeLocation::VariantsContainer => {
-                matches!(self, Self::Keys | Self::Derive | Self::Namespace)
-            },
-            AttributeLocation::VariantsField | AttributeLocation::VariantsVariant => {
-                matches!(self, Self::Skip)
-            },
-            AttributeLocation::LabelContainer => {
-                matches!(self, Self::Origin | Self::Variants | Self::Namespace)
-            },
-            AttributeLocation::ChoiceContainer => matches!(self, Self::RenameAll),
-            AttributeLocation::LanguageContainer => matches!(self, Self::Mode),
-        }
+    pub(crate) fn is_allowed_in(
+        self,
+        family: AttributeFamily,
+        location: AttributeLocation,
+    ) -> bool {
+        attribute_rule(family, location, self).is_some()
     }
 }
 
@@ -196,21 +171,13 @@ pub enum AttributeValueShape {
 }
 
 impl AttributeValueShape {
+    #[cfg(test)]
     pub(crate) fn for_key(key: AttributeKey) -> Self {
-        match key {
-            AttributeKey::Skip | AttributeKey::Choice | AttributeKey::Optional => Self::Flag,
-            AttributeKey::Origin | AttributeKey::Variants => Self::ExplicitBool,
-            AttributeKey::Resource
-            | AttributeKey::Domain
-            | AttributeKey::Arg
-            | AttributeKey::Key => Self::StringLiteral,
-            AttributeKey::Value => Self::RustExpression,
-            AttributeKey::Namespace => Self::NamespaceRule,
-            AttributeKey::Derive => Self::PathList,
-            AttributeKey::Keys => Self::GeneratedKeyList,
-            AttributeKey::RenameAll => Self::ChoiceCaseStyle,
-            AttributeKey::Mode => Self::LanguageMode,
-        }
+        ATTRIBUTE_RULES
+            .iter()
+            .find(|rule| rule.key == key)
+            .map(|rule| rule.shape)
+            .unwrap_or_else(|| unreachable!("all AttributeKey variants have schema rules"))
     }
 
     pub(crate) fn matches(self, meta: &Meta) -> bool {
@@ -303,46 +270,235 @@ pub(crate) fn help_for_location(
     attribute_family: AttributeFamily,
     location: AttributeLocation,
 ) -> &'static str {
-    match (attribute_family, location) {
-        (AttributeFamily::Fluent, AttributeLocation::MessageStructContainer) => {
-            "accepted key here is namespace"
-        },
-        (AttributeFamily::Fluent, AttributeLocation::MessageEnumContainer) => {
-            "accepted keys here are resource, domain, and namespace"
-        },
-        (AttributeFamily::Fluent, AttributeLocation::LabelStructParentContainer)
-        | (AttributeFamily::Fluent, AttributeLocation::VariantsStructParentContainer) => {
-            "accepted parent key here is namespace"
-        },
-        (AttributeFamily::Fluent, AttributeLocation::LabelEnumParentContainer)
-        | (AttributeFamily::Fluent, AttributeLocation::VariantsEnumParentContainer) => {
-            "accepted parent keys here are domain and namespace"
-        },
-        (AttributeFamily::Fluent, AttributeLocation::MessageField) => {
-            "accepted keys here are skip, choice, optional, arg, and value"
-        },
-        (AttributeFamily::Fluent, AttributeLocation::EnumVariant) => {
-            "move field-only attributes to a field inside the variant; accepted variant keys are skip and key"
-        },
-        (AttributeFamily::FluentVariants, AttributeLocation::VariantsContainer) => {
-            "accepted keys here are keys, derive, and namespace"
-        },
-        (AttributeFamily::FluentVariants, AttributeLocation::VariantsField)
-        | (AttributeFamily::FluentVariants, AttributeLocation::VariantsVariant) => {
-            "accepted key here is skip"
-        },
-        (AttributeFamily::FluentLabel, AttributeLocation::LabelContainer) => {
-            "accepted keys here are origin, variants, and namespace"
-        },
-        (AttributeFamily::FluentChoice, AttributeLocation::ChoiceContainer) => {
-            "accepted key here is rename_all"
-        },
-        (AttributeFamily::EsFluentLanguage, AttributeLocation::LanguageContainer) => {
-            "accepted key here is mode"
-        },
-        _ => "move this attribute to a supported derive location",
-    }
+    ATTRIBUTE_RULES
+        .iter()
+        .find(|rule| rule.family == attribute_family && rule.location == location)
+        .map(|rule| rule.location_help)
+        .unwrap_or("move this attribute to a supported derive location")
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AttributeRule {
+    pub(crate) family: AttributeFamily,
+    pub(crate) location: AttributeLocation,
+    pub(crate) key: AttributeKey,
+    pub(crate) shape: AttributeValueShape,
+    pub(crate) location_help: &'static str,
+}
+
+pub(crate) fn attribute_rule(
+    family: AttributeFamily,
+    location: AttributeLocation,
+    key: AttributeKey,
+) -> Option<&'static AttributeRule> {
+    ATTRIBUTE_RULES
+        .iter()
+        .find(|rule| rule.family == family && rule.location == location && rule.key == key)
+}
+
+const FLUENT_STRUCT_HELP: &str = "accepted key here is namespace";
+const FLUENT_ENUM_HELP: &str = "accepted keys here are id, domain, and namespace";
+const FLUENT_STRUCT_PARENT_HELP: &str = "accepted parent key here is namespace";
+const FLUENT_ENUM_PARENT_HELP: &str = "accepted parent keys here are domain and namespace";
+const FLUENT_FIELD_HELP: &str = "accepted keys here are skip, selector, optional, arg, and value";
+const FLUENT_VARIANT_HELP: &str = "move field-only attributes to a field inside the variant; accepted variant keys are skip and key";
+const VARIANTS_CONTAINER_HELP: &str = "accepted keys here are keys, derive, and namespace";
+const VARIANTS_FIELD_HELP: &str = "accepted key here is skip";
+const LABEL_CONTAINER_HELP: &str = "accepted keys here are origin, variants, and namespace";
+const CHOICE_CONTAINER_HELP: &str = "accepted key here is rename_all";
+const LANGUAGE_CONTAINER_HELP: &str = "accepted key here is mode";
+
+pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageStructContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: FLUENT_STRUCT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageEnumContainer,
+        key: AttributeKey::Id,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_ENUM_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageEnumContainer,
+        key: AttributeKey::Domain,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_ENUM_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageEnumContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: FLUENT_ENUM_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::LabelStructParentContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: FLUENT_STRUCT_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::VariantsStructParentContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: FLUENT_STRUCT_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::LabelEnumParentContainer,
+        key: AttributeKey::Domain,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_ENUM_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::LabelEnumParentContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: FLUENT_ENUM_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::VariantsEnumParentContainer,
+        key: AttributeKey::Domain,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_ENUM_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::VariantsEnumParentContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: FLUENT_ENUM_PARENT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageField,
+        key: AttributeKey::Skip,
+        shape: AttributeValueShape::Flag,
+        location_help: FLUENT_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageField,
+        key: AttributeKey::Selector,
+        shape: AttributeValueShape::Flag,
+        location_help: FLUENT_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageField,
+        key: AttributeKey::Optional,
+        shape: AttributeValueShape::Flag,
+        location_help: FLUENT_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageField,
+        key: AttributeKey::Arg,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::MessageField,
+        key: AttributeKey::Value,
+        shape: AttributeValueShape::RustExpression,
+        location_help: FLUENT_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::EnumVariant,
+        key: AttributeKey::Skip,
+        shape: AttributeValueShape::Flag,
+        location_help: FLUENT_VARIANT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Fluent,
+        location: AttributeLocation::EnumVariant,
+        key: AttributeKey::Key,
+        shape: AttributeValueShape::StringLiteral,
+        location_help: FLUENT_VARIANT_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentVariants,
+        location: AttributeLocation::VariantsContainer,
+        key: AttributeKey::Keys,
+        shape: AttributeValueShape::GeneratedKeyList,
+        location_help: VARIANTS_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentVariants,
+        location: AttributeLocation::VariantsContainer,
+        key: AttributeKey::Derive,
+        shape: AttributeValueShape::PathList,
+        location_help: VARIANTS_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentVariants,
+        location: AttributeLocation::VariantsContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: VARIANTS_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentVariants,
+        location: AttributeLocation::VariantsField,
+        key: AttributeKey::Skip,
+        shape: AttributeValueShape::Flag,
+        location_help: VARIANTS_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentVariants,
+        location: AttributeLocation::VariantsVariant,
+        key: AttributeKey::Skip,
+        shape: AttributeValueShape::Flag,
+        location_help: VARIANTS_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentLabel,
+        location: AttributeLocation::LabelContainer,
+        key: AttributeKey::Origin,
+        shape: AttributeValueShape::ExplicitBool,
+        location_help: LABEL_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentLabel,
+        location: AttributeLocation::LabelContainer,
+        key: AttributeKey::Variants,
+        shape: AttributeValueShape::ExplicitBool,
+        location_help: LABEL_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentLabel,
+        location: AttributeLocation::LabelContainer,
+        key: AttributeKey::Namespace,
+        shape: AttributeValueShape::NamespaceRule,
+        location_help: LABEL_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::FluentChoice,
+        location: AttributeLocation::ChoiceContainer,
+        key: AttributeKey::RenameAll,
+        shape: AttributeValueShape::ChoiceCaseStyle,
+        location_help: CHOICE_CONTAINER_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::EsFluentLanguage,
+        location: AttributeLocation::LanguageContainer,
+        key: AttributeKey::Mode,
+        shape: AttributeValueShape::LanguageMode,
+        location_help: LANGUAGE_CONTAINER_HELP,
+    },
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LanguageMode {
@@ -495,7 +651,14 @@ impl AttributeItem {
 fn invalid_language_attribute_item(meta: &Meta) -> Option<AttributeItem> {
     let item = parse_attribute_meta_item(meta, AttributeFamily::EsFluentLanguage)?;
     match item.key {
-        Some(key) if key.is_allowed_at(AttributeLocation::LanguageContainer) => None,
+        Some(key)
+            if key.is_allowed_in(
+                AttributeFamily::EsFluentLanguage,
+                AttributeLocation::LanguageContainer,
+            ) =>
+        {
+            None
+        },
         _ => Some(item),
     }
 }
@@ -532,5 +695,90 @@ pub(crate) fn parse_attribute_meta_item(
                 key_name,
             })
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::{HashMap, HashSet};
+
+    #[test]
+    fn attribute_rules_have_unique_family_location_key_entries() {
+        let mut seen = HashSet::new();
+
+        for rule in ATTRIBUTE_RULES {
+            assert!(
+                seen.insert((rule.family, rule.location, rule.key)),
+                "duplicate rule for {:?} {:?} {:?}",
+                rule.family,
+                rule.location,
+                rule.key
+            );
+            assert_eq!(
+                attribute_rule(rule.family, rule.location, rule.key),
+                Some(rule)
+            );
+            assert!(rule.key.is_allowed_in(rule.family, rule.location));
+            assert_eq!(
+                help_for_location(rule.family, rule.location),
+                rule.location_help
+            );
+        }
+    }
+
+    #[test]
+    fn attribute_key_shapes_are_consistent_across_rules() {
+        let mut shapes = HashMap::<AttributeKey, AttributeValueShape>::new();
+
+        for rule in ATTRIBUTE_RULES {
+            if let Some(previous) = shapes.insert(rule.key, rule.shape) {
+                assert_eq!(
+                    previous, rule.shape,
+                    "key {:?} has conflicting value shapes",
+                    rule.key
+                );
+            }
+        }
+
+        for key in [
+            AttributeKey::Arg,
+            AttributeKey::Value,
+            AttributeKey::Selector,
+            AttributeKey::Optional,
+            AttributeKey::Skip,
+            AttributeKey::Key,
+            AttributeKey::Id,
+            AttributeKey::Domain,
+            AttributeKey::Namespace,
+            AttributeKey::Derive,
+            AttributeKey::Keys,
+            AttributeKey::Origin,
+            AttributeKey::Variants,
+            AttributeKey::RenameAll,
+            AttributeKey::Mode,
+        ] {
+            assert_eq!(AttributeValueShape::for_key(key), shapes[&key]);
+        }
+    }
+
+    #[test]
+    fn attribute_rules_are_family_specific() {
+        assert!(AttributeKey::Keys.is_allowed_in(
+            AttributeFamily::FluentVariants,
+            AttributeLocation::VariantsContainer
+        ));
+        assert!(!AttributeKey::Keys.is_allowed_in(
+            AttributeFamily::Fluent,
+            AttributeLocation::VariantsContainer
+        ));
+        assert!(AttributeKey::Mode.is_allowed_in(
+            AttributeFamily::EsFluentLanguage,
+            AttributeLocation::LanguageContainer
+        ));
+        assert!(!AttributeKey::Mode.is_allowed_in(
+            AttributeFamily::FluentChoice,
+            AttributeLocation::LanguageContainer
+        ));
     }
 }

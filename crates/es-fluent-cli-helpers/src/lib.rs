@@ -110,7 +110,10 @@ fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
                 GeneratorRun::Clean { all_locales },
             )?;
         },
-        RunnerRequest::Check { crate_name } => run_check(crate_name.as_str())?,
+        RunnerRequest::Check {
+            crate_name,
+            manifest_dir,
+        } => run_check_at(crate_name.as_str(), &manifest_dir)?,
     }
 
     Ok(())
@@ -158,6 +161,14 @@ pub fn run_generate_with_options(
 /// This writes the collected inventory data for the specified crate.
 pub fn run_check(crate_name: &str) -> Result<(), CliHelpersError> {
     write_inventory_for_crate(crate_name)?;
+    Ok(())
+}
+
+pub fn run_check_at(
+    crate_name: &str,
+    manifest_dir: &std::path::Path,
+) -> Result<(), CliHelpersError> {
+    cli::write_inventory_for_crate_at(crate_name, manifest_dir)?;
     Ok(())
 }
 

@@ -14,7 +14,7 @@ impl ::es_fluent::FluentMessage for Status {
         match self {
             Self::Ready => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
                     ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
@@ -31,24 +31,22 @@ impl ::es_fluent::FluentMessage for Status {
 mod __es_fluent_inventory_Status {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "Ready",
-            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                "status-Ready",
-            ),
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Ready",
+            ::es_fluent::registry::StaticFluentEntryId::new_unchecked("status-Ready"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "Status",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "Status",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

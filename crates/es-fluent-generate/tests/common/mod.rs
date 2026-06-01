@@ -22,28 +22,28 @@ pub fn leak_slice<T>(items: Vec<T>) -> &'static [T] {
 
 /// Create a test variant with minimal boilerplate.
 pub fn variant(name: &str, ftl_key: &str) -> FtlVariant {
-    FtlVariant {
-        name: leak_str(name),
-        ftl_key: StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
-        args: Vec::new().leak(),
-        module_path: "test",
-        line: 0,
-    }
+    FtlVariant::new(
+        leak_str(name),
+        StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
+        Vec::new().leak(),
+        "test",
+        0,
+    )
 }
 
 /// Create a test variant with arguments.
 pub fn variant_with_args(name: &str, ftl_key: &str, args: Vec<&str>) -> FtlVariant {
-    FtlVariant {
-        name: leak_str(name),
-        ftl_key: StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
-        args: leak_slice(
+    FtlVariant::new(
+        leak_str(name),
+        StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
+        leak_slice(
             args.into_iter()
                 .map(|arg| StaticFluentArgumentName::new_unchecked(leak_str(arg)))
                 .collect(),
         ),
-        module_path: "test",
-        line: 0,
-    }
+        "test",
+        0,
+    )
 }
 
 /// Create an FTL key from a group name and variant name.
@@ -60,26 +60,26 @@ pub fn label_key(name: &str) -> String {
 
 /// Create a type info for an enum.
 pub fn enum_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
-    FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: leak_str(name),
-        variants: leak_slice(variants),
-        file_path: "",
-        module_path: "test",
-        namespace: None,
-    }
+    FtlTypeInfo::new(
+        TypeKind::Enum,
+        leak_str(name),
+        leak_slice(variants),
+        "",
+        "test",
+        None,
+    )
 }
 
 /// Create a type info for a struct.
 pub fn struct_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
-    FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: leak_str(name),
-        variants: leak_slice(variants),
-        file_path: "",
-        module_path: "test",
-        namespace: None,
-    }
+    FtlTypeInfo::new(
+        TypeKind::Struct,
+        leak_str(name),
+        leak_slice(variants),
+        "",
+        "test",
+        None,
+    )
 }
 
 /// Create a type info for an enum with a namespace.
@@ -88,12 +88,12 @@ pub fn enum_type_with_namespace(
     variants: Vec<FtlVariant>,
     namespace: &'static str,
 ) -> FtlTypeInfo {
-    FtlTypeInfo {
-        type_kind: TypeKind::Enum,
-        type_name: leak_str(name),
-        variants: leak_slice(variants),
-        file_path: "",
-        module_path: "test",
-        namespace: Some(NamespaceRule::Literal(namespace.into())),
-    }
+    FtlTypeInfo::new(
+        TypeKind::Enum,
+        leak_str(name),
+        leak_slice(variants),
+        "",
+        "test",
+        Some(NamespaceRule::Literal(namespace.into())),
+    )
 }

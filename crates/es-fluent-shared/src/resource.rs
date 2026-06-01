@@ -223,6 +223,25 @@ impl fmt::Display for ResourceKey {
     }
 }
 
+impl serde::Serialize for ResourceKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ResourceKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Locale-relative path to a Fluent resource file.
 ///
 /// Paths use the canonical shape `{domain}.ftl` or
@@ -292,6 +311,25 @@ impl fmt::Display for LocaleRelativeFtlPath {
     }
 }
 
+impl serde::Serialize for LocaleRelativeFtlPath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for LocaleRelativeFtlPath {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
 fn validate_locale_relative_ftl_path(path: &str) -> Result<(), LocaleRelativeFtlPathError> {
     if path.is_empty() {
         return Err(LocaleRelativeFtlPathError::Empty);
@@ -346,7 +384,7 @@ impl ResourceRoute {
 }
 
 /// Canonical description of a single localized resource file.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct ModuleResourceSpec {
     /// Stable resource key used by managers (e.g., `my-crate`, `my-crate/ui`, `my-crate/ui/button`).
     pub key: ResourceKey,

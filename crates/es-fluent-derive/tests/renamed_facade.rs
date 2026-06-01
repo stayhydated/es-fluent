@@ -46,7 +46,7 @@ pub enum Tone {
 #[derive(EsFluent)]
 pub struct Greeting {
     pub name: String,
-    #[fluent(choice)]
+    #[fluent(selector)]
     pub tone: Tone,
 }
 

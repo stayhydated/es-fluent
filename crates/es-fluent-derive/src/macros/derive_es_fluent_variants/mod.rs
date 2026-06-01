@@ -1,26 +1,12 @@
-use darling::FromDeriveInput as _;
-use es_fluent_derive_core::context::{ContainerContext, SpannedNamespaceRule};
-use es_fluent_derive_core::error::AttrContext;
-use es_fluent_derive_core::lowered::{GeneratedVariantsEnumModel, GeneratedVariantsStructModel};
-use es_fluent_derive_core::options::GeneratedVariantsOptions;
-use es_fluent_derive_core::options::r#enum::EnumVariantsOpts;
-use es_fluent_derive_core::options::label::LabelOpts;
-use es_fluent_derive_core::options::r#struct::StructVariantsOpts;
-use es_fluent_derive_core::semantic::{
-    FluentMessageId, GeneratedVariantMessageSeed, generated_label_message_value,
+use es_fluent_derive_core::expansion::{
+    EsFluentGeneratedVariant, EsFluentVariantsExpansion, ExpansionError,
 };
-use es_fluent_derive_core::validation;
-use es_fluent_shared::{namer, namespace::NamespaceRule};
-
-use heck::ToPascalCase as _;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput, parse_macro_input};
+use syn::{DeriveInput, parse_macro_input};
 
 use crate::macros::ir::{GeneratedUnitEnumVariant, MessageEntrySpec};
-use crate::macros::utils::{
-    CodegenContext, GeneratedUnitEnumInput, NamespaceSource, SpannedNamespaceRuleRef,
-};
+use crate::macros::utils::{CodegenContext, GeneratedUnitEnumInput};
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -38,213 +24,51 @@ fn expand_es_fluent_variants_with_context(
     input: DeriveInput,
     context: &CodegenContext,
 ) -> TokenStream {
-    if matches!(&input.data, Data::Union(_)) {
-        return syn::Error::new(
-            input.ident.span(),
-            "EsFluentVariants can only be derived for structs and enums",
-        )
-        .to_compile_error();
-    }
-
-    if let Err(err) = validation::validate_es_fluent_variants_attribute_context(&input) {
-        return crate::macros::utils::core_error_to_compile_error(err);
-    }
-
-    let label_opts = match LabelOpts::from_derive_input(&input) {
-        Ok(opts) => opts,
-        Err(err) => return err.write_errors(),
-    };
-    let container_context = match ContainerContext::from_derive_input(&input) {
-        Ok(context) => context,
-        Err(err) => return err.write_errors(),
-    };
-
-    match &input.data {
-        Data::Struct(_) => {
-            let opts = match StructVariantsOpts::from_derive_input(&input) {
-                Ok(opts) => opts,
-                Err(err) => return err.write_errors(),
-            };
-
-            process_struct(context, &container_context, &opts, Some(&label_opts))
-        },
-        Data::Enum(_) => {
-            let opts = match EnumVariantsOpts::from_derive_input(&input) {
-                Ok(opts) => opts,
-                Err(err) => return err.write_errors(),
-            };
-
-            process_enum(context, &container_context, &opts, Some(&label_opts))
-        },
-        Data::Union(_) => syn::Error::new(
-            input.ident.span(),
-            "EsFluentVariants can only be derived for structs and enums",
-        )
-        .to_compile_error(),
+    match EsFluentVariantsExpansion::from_derive_input(&input) {
+        Ok(expansion) => emit_variants_expansion(context, &expansion),
+        Err(error) => expansion_error_to_tokens(error),
     }
 }
 
-fn validate_namespace(
-    namespace: Option<&NamespaceRule>,
-    span: proc_macro2::Span,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<()> {
-    if let Some(ns) = namespace
-        && let Err(error) = validation::validate_namespace(ns, Some(span))
-    {
-        return Err(error);
-    }
-
-    Ok(())
-}
-
-fn resolved_variants_namespace<'a>(
-    opts: &'a impl GeneratedVariantsOptions,
-    label_opts: Option<&'a LabelOpts>,
-    fluent_namespace: Option<SpannedNamespaceRuleRef<'a>>,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<Option<SpannedNamespaceRuleRef<'a>>> {
-    let variants_namespace = opts.variants_attr_args().namespace().map(|namespace| {
-        SpannedNamespaceRuleRef::new(
-            namespace,
-            opts.variants_attr_args()
-                .namespace_span()
-                .unwrap_or_else(|| opts.variants_ident().span()),
-        )
-    });
-    let label_namespace = label_opts.and_then(|opts| {
-        opts.attr_args().namespace().map(|namespace| {
-            SpannedNamespaceRuleRef::new(
-                namespace,
-                opts.attr_args()
-                    .namespace_span()
-                    .unwrap_or_else(|| opts.ident().span()),
-            )
-        })
-    });
-
-    crate::macros::utils::resolve_single_namespace_source([
-        NamespaceSource::new(
-            "#[fluent(namespace = ...)]",
-            AttrContext::MessageContainer,
-            fluent_namespace,
-        ),
-        NamespaceSource::new(
-            "#[fluent_variants(namespace = ...)]",
-            AttrContext::VariantsContainer,
-            variants_namespace,
-        ),
-        NamespaceSource::new(
-            "#[fluent_label(namespace = ...)]",
-            AttrContext::LabelContainer,
-            label_namespace,
-        ),
-    ])
-}
-
+#[cfg(test)]
 pub fn process_struct(
     context: &CodegenContext,
-    container_context: &ContainerContext,
-    opts: &StructVariantsOpts,
-    label_opts: Option<&LabelOpts>,
+    container_context: &es_fluent_derive_core::context::ContainerContext,
+    opts: &es_fluent_derive_core::options::r#struct::StructVariantsOpts,
+    label_opts: Option<&es_fluent_derive_core::options::label::LabelOpts>,
 ) -> TokenStream {
-    let model = match GeneratedVariantsStructModel::from_options(opts) {
-        Ok(model) => model,
-        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-    };
-    if let Err(error) = validation::validate_generated_variants_struct_model(&model) {
-        return crate::macros::utils::core_error_to_compile_error(error);
+    match EsFluentVariantsExpansion::from_struct_options(container_context, opts, label_opts) {
+        Ok(expansion) => emit_variants_expansion(context, &expansion),
+        Err(error) => expansion_error_to_tokens(error),
     }
-    let variant_seeds = match build_struct_variant_seeds(&model) {
-        Ok(seeds) => seeds,
-        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-    };
-    emit_variants_output(context, container_context, opts, &variant_seeds, label_opts)
 }
 
-fn materialize_generated_variant(
-    seed: &GeneratedVariantMessageSeed,
-    base_key: &namer::FluentKey,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<GeneratedUnitEnumVariant> {
-    let message = seed.materialize_message(base_key, AttrContext::VariantsContainer)?;
-
-    Ok(GeneratedUnitEnumVariant {
-        ident: seed.ident().clone(),
-        doc_name: seed.doc_name().to_string(),
-        message_entry: MessageEntrySpec::from_metadata(message, Vec::new()),
-    })
-}
-
-fn variants_label_key(
-    label_opts: Option<&LabelOpts>,
-    base_key: &namer::FluentKey,
-    span: proc_macro2::Span,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<Option<FluentMessageId>> {
-    label_opts
-        .filter(|opts| opts.attr_args().is_variants())
-        .map(|_| generated_label_message_value(base_key, span, AttrContext::VariantsContainer))
-        .transpose()
-}
-
-fn emit_variants_output(
+fn emit_variants_expansion(
     context: &CodegenContext,
-    container_context: &ContainerContext,
-    opts: &impl GeneratedVariantsOptions,
-    variant_seeds: &[GeneratedVariantMessageSeed],
-    label_opts: Option<&LabelOpts>,
+    expansion: &EsFluentVariantsExpansion,
 ) -> TokenStream {
-    if variant_seeds.is_empty() {
+    if expansion.targets().is_empty() {
         return quote! {};
     }
 
-    let targets = crate::macros::utils::generated_variants_enum_targets(opts);
-    let derives: Vec<syn::Path> = (*opts.variants_attr_args().derive()).to_vec();
-    let namespace = match resolved_variants_namespace(
-        opts,
-        label_opts,
-        container_context
-            .fluent_namespace()
-            .map(SpannedNamespaceRule::as_ref),
-    ) {
-        Ok(namespace) => namespace,
-        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-    };
-    let origin_ident = opts.variants_ident();
-    if let Err(error) = validate_namespace(
-        namespace.map(SpannedNamespaceRuleRef::rule),
-        namespace
-            .map(SpannedNamespaceRuleRef::span)
-            .unwrap_or_else(|| origin_ident.span()),
-    ) {
-        return crate::macros::utils::core_error_to_compile_error(error);
-    }
-    let items = targets.iter().map(|target| {
-        let ident = &target.ident;
-        let key_name = target.key_name.map(|key| key.as_str());
-        let base_key = namer::FluentKey::from(ident);
-        let variant_entries = variant_seeds
+    let items = expansion.targets().iter().map(|target| {
+        let variant_entries = target
+            .variants()
             .iter()
-            .map(|seed| materialize_generated_variant(seed, &base_key))
-            .collect::<es_fluent_derive_core::error::EsFluentCoreResult<Vec<_>>>();
-        let variant_entries = match variant_entries {
-            Ok(entries) => entries,
-            Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-        };
-
-        let label_key = match variants_label_key(label_opts, &base_key, origin_ident.span()) {
-            Ok(label_key) => label_key,
-            Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-        };
+            .map(generated_variant_from_expansion)
+            .collect::<Vec<_>>();
 
         crate::macros::utils::emit_generated_unit_enum(
             context,
             GeneratedUnitEnumInput {
-                ident,
-                origin_ident,
-                key_name,
-                domain_override: container_context.fluent_domain(),
-                derives: &derives,
+                ident: target.ident(),
+                origin_ident: expansion.origin_ident(),
+                key_name: target.key_name().map(|key| key.as_str()),
+                domain_override: expansion.domain(),
+                derives: target.derives(),
                 variants: &variant_entries,
-                namespace: namespace.map(SpannedNamespaceRuleRef::rule),
-                label_key,
+                namespace: expansion.namespace(),
+                label_key: target.label_key().cloned(),
             },
         )
     });
@@ -254,66 +78,35 @@ fn emit_variants_output(
     }
 }
 
-fn build_struct_variant_seeds(
-    model: &GeneratedVariantsStructModel<'_>,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<Vec<GeneratedVariantMessageSeed>> {
-    model
-        .fields()
-        .iter()
-        .map(|field| {
-            let field_ident = field.ident;
-            let original_field_name = namer::rust_ident_name(field_ident);
-            let pascal_case_name = original_field_name.to_pascal_case();
-            let variant_ident = syn::Ident::new(&pascal_case_name, field_ident.span());
-            GeneratedVariantMessageSeed::new(
-                variant_ident,
-                original_field_name,
-                namer::rust_ident_name(field_ident),
-                field_ident.span(),
-                AttrContext::VariantsField,
-            )
-        })
-        .collect()
+fn generated_variant_from_expansion(
+    variant: &EsFluentGeneratedVariant,
+) -> GeneratedUnitEnumVariant {
+    GeneratedUnitEnumVariant {
+        ident: variant.ident().clone(),
+        doc_name: variant.doc_name().to_string(),
+        message_entry: MessageEntrySpec::from_metadata(variant.message_entry().clone(), Vec::new()),
+    }
 }
 
+#[cfg(test)]
 pub fn process_enum(
     context: &CodegenContext,
-    container_context: &ContainerContext,
-    opts: &EnumVariantsOpts,
-    label_opts: Option<&LabelOpts>,
+    container_context: &es_fluent_derive_core::context::ContainerContext,
+    opts: &es_fluent_derive_core::options::r#enum::EnumVariantsOpts,
+    label_opts: Option<&es_fluent_derive_core::options::label::LabelOpts>,
 ) -> TokenStream {
-    let model = match GeneratedVariantsEnumModel::from_options(opts) {
-        Ok(model) => model,
-        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-    };
-    if let Err(error) = validation::validate_generated_variants_enum_model(&model) {
-        return crate::macros::utils::core_error_to_compile_error(error);
+    match EsFluentVariantsExpansion::from_enum_options(container_context, opts, label_opts) {
+        Ok(expansion) => emit_variants_expansion(context, &expansion),
+        Err(error) => expansion_error_to_tokens(error),
     }
-    let variant_seeds = match build_enum_variant_seeds(&model) {
-        Ok(seeds) => seeds,
-        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-    };
-    emit_variants_output(context, container_context, opts, &variant_seeds, label_opts)
 }
 
-fn build_enum_variant_seeds(
-    model: &GeneratedVariantsEnumModel<'_>,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<Vec<GeneratedVariantMessageSeed>> {
-    model
-        .variants()
-        .iter()
-        .map(|variant| {
-            let variant_ident = variant.ident;
-            let variant_key = namer::rust_ident_name(variant_ident);
-            GeneratedVariantMessageSeed::new(
-                variant_ident.clone(),
-                variant_key.clone(),
-                variant_key,
-                variant_ident.span(),
-                AttrContext::VariantsVariant,
-            )
-        })
-        .collect()
+fn expansion_error_to_tokens(error: ExpansionError) -> TokenStream {
+    match error {
+        ExpansionError::Core(error) => crate::macros::utils::core_error_to_compile_error(error),
+        ExpansionError::Darling(error) => error.write_errors(),
+        ExpansionError::Syn(error) => error.to_compile_error(),
+    }
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -370,23 +163,22 @@ mod tests {
 
     #[test]
     fn generated_variant_entry_drives_runtime_and_inventory_metadata() {
-        let seed = es_fluent_derive_core::semantic::GeneratedVariantMessageSeed::new(
-            syn::parse_quote!(Username),
-            "username",
-            "username",
-            proc_macro2::Span::call_site(),
-            es_fluent_derive_core::error::AttrContext::VariantsField,
-        )
-        .expect("seed");
-        let entry = super::materialize_generated_variant(
-            &seed,
-            &es_fluent_shared::namer::FluentKey::from("login_form_label_variants"),
-        )
-        .expect("entry");
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_variants]
+            struct LoginForm {
+                username: String,
+            }
+        };
+        let expansion =
+            es_fluent_derive_core::expansion::EsFluentVariantsExpansion::from_derive_input(&input)
+                .expect("expansion");
+        let target = expansion.targets().first().expect("target");
+        let variant = target.variants().first().expect("variant");
+        let entry = super::generated_variant_from_expansion(variant);
 
         assert_eq!(
             entry.message_entry.metadata.message_id().as_str(),
-            "login_form_label_variants-username"
+            "login_form_variants-username"
         );
         assert_eq!(
             entry.message_entry.metadata.argument_names(),
@@ -398,12 +190,15 @@ mod tests {
         let inventory_tokens =
             inventory_variant_tokens_for_model(&context, &entry.message_entry.metadata).to_string();
 
-        assert!(runtime_tokens.contains("\"login_form_label_variants-username\""));
-        assert!(inventory_tokens.contains(
-            "StaticFluentEntryId :: new_unchecked (\"login_form_label_variants-username\")"
-        ));
-        assert!(inventory_tokens.contains("name : \"Username\""));
-        assert!(inventory_tokens.contains("args : & []"));
+        assert!(runtime_tokens.contains("\"login_form_variants-username\""));
+        assert!(
+            inventory_tokens.contains(
+                "StaticFluentEntryId :: new_unchecked (\"login_form_variants-username\")"
+            )
+        );
+        assert!(inventory_tokens.contains("__macro :: ftl_variant"));
+        assert!(inventory_tokens.contains("\"Username\""));
+        assert!(inventory_tokens.contains("& []"));
     }
 
     #[test]
@@ -434,7 +229,7 @@ mod tests {
     #[test]
     fn process_enum_uses_parent_domain_for_generated_variants_and_label() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent(domain = "es-fluent-lang", resource = "es-fluent-lang", namespace = "languages")]
+            #[fluent(domain = "es-fluent-lang", id = "es-fluent-lang", namespace = "languages")]
             #[fluent_label(variants = true)]
             enum Language {
                 English,
@@ -459,9 +254,10 @@ mod tests {
         assert!(tokens.contains("StaticFluentEntryId"));
         assert!(tokens.contains("\"language_variants-English\""));
         assert!(tokens.contains("\"language_variants-French\""));
-        assert!(tokens.contains(
-            "::es_fluent::__private::localize_label(\n            localizer,\n            \"es-fluent-lang\",\n            \"language_variants_label\","
-        ));
+        assert!(tokens.contains("::es_fluent::__private::localize_label"));
+        assert!(tokens.contains("StaticFluentDomain::new_unchecked(\"es-fluent-lang\")"));
+        assert!(tokens.contains(".as_str()"));
+        assert!(tokens.contains("\"language_variants_label\""));
         assert!(!tokens.contains("CARGO_PKG_NAME"));
     }
 

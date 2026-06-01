@@ -40,7 +40,7 @@ mod attribute_context_tests {
             },
             parse_quote! {
                 #[derive(EsFluent)]
-                #[fluent(resource = "shared")]
+                #[fluent(id = "shared")]
                 pub struct LoginForm {
                     username: String,
                 }
@@ -70,7 +70,9 @@ mod attribute_context_tests {
         let message = err.to_string();
         assert!(message.contains("#[fluent(default)]"));
         assert!(message.contains("message field"));
-        assert!(message.contains("accepted keys here are skip, choice, optional, arg, and value"));
+        assert!(
+            message.contains("accepted keys here are skip, selector, optional, arg, and value")
+        );
     }
 
     #[test]
@@ -101,7 +103,7 @@ mod attribute_context_tests {
         assert!(err.to_string().contains("message enum container"));
         assert!(
             err.to_string()
-                .contains("accepted keys here are resource, domain, and namespace")
+                .contains("accepted keys here are id, domain, and namespace")
         );
     }
 
@@ -109,7 +111,7 @@ mod attribute_context_tests {
     fn enum_fluent_keys_remain_allowed_on_enum_containers() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            #[fluent(resource = "login_error", domain = "auth", namespace = "errors")]
+            #[fluent(id = "login_error", domain = "auth", namespace = "errors")]
             pub enum LoginError {
                 InvalidPassword,
             }
@@ -141,7 +143,7 @@ mod attribute_context_tests {
     fn label_and_variants_reject_unused_parent_resource() {
         let label_input: DeriveInput = parse_quote! {
             #[derive(EsFluentLabel)]
-            #[fluent(resource = "login_error")]
+            #[fluent(id = "login_error")]
             pub enum LoginError {
                 InvalidPassword,
             }
@@ -158,7 +160,7 @@ mod attribute_context_tests {
 
         let variants_input: DeriveInput = parse_quote! {
             #[derive(EsFluentVariants)]
-            #[fluent(resource = "login_error")]
+            #[fluent(id = "login_error")]
             pub enum LoginError {
                 InvalidPassword,
             }
@@ -245,7 +247,7 @@ mod validate_struct_tests {
             parse_quote! {
                 #[derive(EsFluent)]
                 pub struct TestStruct {
-                    #[fluent(optional, choice)]
+                    #[fluent(optional, selector)]
                     field: Option<String>,
                 }
             },
@@ -361,18 +363,18 @@ mod validate_struct_tests {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub struct TestStruct {
-                #[fluent(choice, value = |name: &String| name.len())]
+                #[fluent(selector, value = |name: &String| name.len())]
                 name: String,
             }
         };
 
         let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
         let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("choice and value should conflict");
+            .expect_err("selector and value should conflict");
 
         assert!(
             err.to_string()
-                .contains("Cannot combine #[fluent(choice)] and #[fluent(value = ...)]")
+                .contains("Cannot combine #[fluent(selector)] and #[fluent(value = ...)]")
         );
     }
 }
@@ -516,7 +518,7 @@ mod validate_enum_tests {
             parse_quote! {
                 #[derive(EsFluent)]
                 pub enum TestEnum {
-                    Something(#[fluent(optional, choice)] Option<String>),
+                    Something(#[fluent(optional, selector)] Option<String>),
                 }
             },
             parse_quote! {
@@ -576,17 +578,17 @@ mod validate_enum_tests {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub enum TestEnum {
-                Something(#[fluent(choice, value = |name: &String| name.len())] String),
+                Something(#[fluent(selector, value = |name: &String| name.len())] String),
             }
         };
 
         let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
         let err = es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect_err("choice and value should conflict");
+            .expect_err("selector and value should conflict");
 
         assert!(
             err.to_string()
-                .contains("Cannot combine #[fluent(choice)] and #[fluent(value = ...)]")
+                .contains("Cannot combine #[fluent(selector)] and #[fluent(value = ...)]")
         );
     }
 }

@@ -10,6 +10,7 @@ use std::collections::HashSet;
 struct ActualKeyInfo {
     variables: HashSet<FluentArgumentName>,
     file_path: String,
+    locale_relative_path: String,
     header_link: String,
 }
 
@@ -22,10 +23,24 @@ pub(super) fn validate_loaded_ftl_files(
     let actual_keys = collect_actual_keys(ctx, loaded_files, locale, &mut issues);
 
     for (key, key_info) in ctx.expected_keys {
+        let expected_path = ctx.expected_resource_path(locale, key_info);
         let Some(actual) = actual_keys.get(key) else {
-            let fallback = first_actual_file(&actual_keys)
-                .unwrap_or_else(|| ("unknown.ftl".to_string(), "unknown.ftl".to_string()));
-            issues.push(ctx.missing_key_issue(key.as_str(), locale, &fallback.0, &fallback.1));
+            issues.push(ctx.missing_key_issue(
+                key.as_str(),
+                locale,
+                &expected_path,
+                &expected_path,
+            ));
+            continue;
+        };
+
+        if actual.locale_relative_path != key_info.resource.locale_relative_path.as_str() {
+            issues.push(ctx.missing_key_issue(
+                key.as_str(),
+                locale,
+                &expected_path,
+                &actual.header_link,
+            ));
             continue;
         };
 
@@ -105,6 +120,10 @@ fn collect_actual_keys(
                     ActualKeyInfo {
                         variables: collect_actual_variables(ctx, msg, locale, &file, issues),
                         file_path: relative_path.clone(),
+                        locale_relative_path: file
+                            .relative_path
+                            .to_string_lossy()
+                            .replace('\\', "/"),
                         header_link: header_link.clone(),
                     },
                 );
@@ -141,13 +160,4 @@ fn collect_actual_variables(
             },
         )
         .collect()
-}
-
-fn first_actual_file(
-    actual_keys: &IndexMap<FluentEntryId, ActualKeyInfo>,
-) -> Option<(String, String)> {
-    actual_keys
-        .values()
-        .next()
-        .map(|info| (info.file_path.clone(), info.header_link.clone()))
 }

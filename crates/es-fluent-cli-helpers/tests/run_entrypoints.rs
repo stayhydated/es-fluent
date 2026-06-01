@@ -31,6 +31,7 @@ fn run_entrypoint_dispatches_check_generate_clean_and_unknown() {
 
     let check_request = RunnerRequest::Check {
         crate_name: package("unknown-crate"),
+        manifest_dir: temp.path().to_path_buf(),
     };
     Command::cargo_bin("cli_helpers_run")
         .expect("binary exists")

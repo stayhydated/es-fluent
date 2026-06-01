@@ -403,13 +403,15 @@ impl LanguageEnumModel {
         })
     }
 
-    fn domain_expr(&self) -> proc_macro2::TokenStream {
+    fn static_domain_expr(&self, es_fluent: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         match self.semantic.domain() {
             Some(domain) => {
                 let domain = domain.to_string();
-                quote! { #domain }
+                quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
             },
-            None => quote! { env!("CARGO_PKG_NAME") },
+            None => quote! {
+                #es_fluent::registry::StaticFluentDomain::from_package_name(env!("CARGO_PKG_NAME"))
+            },
         }
     }
 
@@ -457,10 +459,7 @@ fn generate_fluent_message_impl(
 ) -> proc_macro2::TokenStream {
     let enum_ident = &model.enum_ident;
     let es_fluent = crate_paths.facade();
-    let domain_expr = {
-        let domain = model.domain_expr();
-        quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
-    };
+    let domain_expr = model.static_domain_expr(es_fluent);
     let match_arms = model
         .entries
         .iter()
@@ -524,14 +523,14 @@ fn generate_inventory_submit(
             ];
 
             static TYPE_INFO: #es_fluent::registry::FtlTypeInfo =
-                #es_fluent::registry::FtlTypeInfo {
-                    type_kind: #es_fluent::meta::TypeKind::Enum,
-                    type_name: #type_name,
-                    variants: VARIANTS,
-                    file_path: file!(),
-                    module_path: module_path!(),
-                    namespace: None,
-                };
+                #es_fluent::registry::__macro::ftl_type_info(
+                    #es_fluent::meta::TypeKind::Enum,
+                    #type_name,
+                    VARIANTS,
+                    file!(),
+                    module_path!(),
+                    None,
+                );
 
             #es_fluent::__inventory::submit!(#es_fluent::registry::RegisteredFtlType(&TYPE_INFO));
         }
@@ -549,13 +548,13 @@ fn language_inventory_variant_tokens(
     let es_fluent = crate_paths.facade();
 
     quote! {
-        #es_fluent::registry::FtlVariant {
-            name: #name,
-            ftl_key: #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
-            args: &[],
-            module_path: module_path!(),
-            line: #source_line,
-        }
+        #es_fluent::registry::__macro::ftl_variant(
+            #name,
+            #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
+            &[],
+            module_path!(),
+            #source_line,
+        )
     }
 }
 

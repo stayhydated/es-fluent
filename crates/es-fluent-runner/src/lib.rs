@@ -3,6 +3,7 @@
 
 use es_fluent_shared::{
     fluent::{FluentArgumentName, FluentEntryId},
+    resource::ModuleResourceSpec,
     source::{SourceFile, SourceLine},
 };
 use fs_err as fs;
@@ -22,6 +23,8 @@ pub struct RunnerResult {
 pub struct ExpectedKey {
     pub key: FluentEntryId,
     pub variables: Vec<FluentArgumentName>,
+    #[serde(default)]
+    pub resource: Option<ModuleResourceSpec>,
     pub source_file: Option<SourceFile>,
     pub source_line: Option<SourceLine>,
 }
@@ -176,6 +179,7 @@ pub enum RunnerRequest {
     },
     Check {
         crate_name: PackageName,
+        manifest_dir: PathBuf,
     },
 }
 
@@ -184,7 +188,7 @@ impl RunnerRequest {
         match self {
             Self::Generate { crate_name, .. }
             | Self::Clean { crate_name, .. }
-            | Self::Check { crate_name } => crate_name,
+            | Self::Check { crate_name, .. } => crate_name,
         }
     }
 
@@ -380,6 +384,7 @@ mod tests {
             expected_keys: vec![ExpectedKey {
                 key: FluentEntryId::try_new("hello").expect("key"),
                 variables: vec![FluentArgumentName::try_new("name").expect("variable")],
+                resource: Some(ModuleResourceSpec::base("crate-x", true)),
                 source_file: SourceFile::new("src/lib.rs"),
                 source_line: Some(SourceLine::new(7)),
             }],

@@ -1,5 +1,7 @@
 //! This module provides types for representing FTL variants and type information.
 
+#[doc(hidden)]
+pub use es_fluent_shared::registry::__macro;
 pub use es_fluent_shared::registry::{
     FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentDomain,
     StaticFluentEntryId,

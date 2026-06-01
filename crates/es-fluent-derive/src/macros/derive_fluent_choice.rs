@@ -1,10 +1,6 @@
 //! This module provides the implementation of the `EsFluentChoice` derive macro.
 
-use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{
-    lowered::ChoiceModel as LoweredChoiceModel, options::choice::ChoiceOpts, semantic::ChoiceModel,
-    validation,
-};
+use es_fluent_derive_core::expansion::{EsFluentChoiceExpansion, ExpansionError};
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
@@ -27,35 +23,18 @@ fn expand_choice_with_context(
     input: DeriveInput,
     context: &CodegenContext,
 ) -> proc_macro2::TokenStream {
-    if let Err(err) = validation::validate_es_fluent_choice_attribute_context(&input) {
-        return crate::macros::utils::core_error_to_compile_error(err);
-    }
-
-    let opts = match ChoiceOpts::from_derive_input(&input) {
-        Ok(opts) => opts,
-        Err(err) => return err.write_errors(),
-    };
-
-    let lowered = match LoweredChoiceModel::from_options(&opts) {
-        Ok(model) => model,
-        Err(error) => return crate::macros::utils::core_error_to_compile_error(error),
-    };
-    let enum_ident = lowered.ident();
-    let (impl_generics, ty_generics, where_clause) = opts.generics().split_for_impl();
-
-    let choice_model = match ChoiceModel::from_variant_idents(
-        enum_ident,
-        lowered.variants().iter().map(|variant| variant.ident),
-        opts.attr_args().rename_all().as_deref(),
-    ) {
-        Ok(model) => model,
-        Err(err) => {
-            let span = err.span().unwrap_or_else(|| enum_ident.span());
-            return syn::Error::new(span, err.to_string()).to_compile_error();
+    let expansion = match EsFluentChoiceExpansion::from_derive_input(&input) {
+        Ok(expansion) => expansion,
+        Err(ExpansionError::Core(error)) => {
+            return crate::macros::utils::core_error_to_compile_error(error);
         },
+        Err(ExpansionError::Darling(error)) => return error.write_errors(),
+        Err(ExpansionError::Syn(error)) => return error.to_compile_error(),
     };
+    let enum_ident = expansion.ident();
+    let (impl_generics, ty_generics, where_clause) = expansion.generics().split_for_impl();
 
-    let match_arms = choice_model.variants().iter().map(|variant| {
+    let match_arms = expansion.choice().variants().iter().map(|variant| {
         let variant_ident = variant.ident();
         let choice_value = variant.value();
         quote! {

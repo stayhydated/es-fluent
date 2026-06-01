@@ -38,7 +38,7 @@ fn test_enum_variants_preserves_pascal_case_in_ftl_output() {
     let all_infos = es_fluent::registry::get_all_ftl_type_infos();
     let usa_state_infos: Vec<_> = all_infos
         .into_iter()
-        .filter(|info| info.type_name == "USAStateLabelVariants")
+        .filter(|info| info.type_name() == "USAStateLabelVariants")
         .collect();
 
     assert!(
@@ -103,7 +103,7 @@ fn test_struct_variants_preserves_snake_case_in_ftl_output() {
     let all_infos = es_fluent::registry::get_all_ftl_type_infos();
     let user_profile_infos: Vec<_> = all_infos
         .into_iter()
-        .filter(|info| info.type_name == "UserProfileDescriptionVariants")
+        .filter(|info| info.type_name() == "UserProfileDescriptionVariants")
         .collect();
 
     assert!(

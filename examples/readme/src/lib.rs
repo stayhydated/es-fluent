@@ -45,7 +45,7 @@ pub enum GenderChoice {
 #[derive(EsFluent)]
 pub struct Greeting<'a> {
     pub name: &'a str,
-    #[fluent(choice)] // Matches $gender -> [male]...
+    #[fluent(selector)] // Matches $gender -> [male]...
     pub gender: &'a GenderChoice,
 }
 

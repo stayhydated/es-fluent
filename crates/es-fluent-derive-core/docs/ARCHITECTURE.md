@@ -65,13 +65,13 @@ user-facing attribute families:
 - `#[fluent(...)]` on message containers, fields, and enum variants;
 - `#[fluent_variants(...)]` on containers, fields, and enum variants;
 - `#[fluent_label(...)]` on label containers;
-- `#[fluent(choice)]` / `#[fluent_choice(...)]` choice containers;
+- `#[fluent(selector)]` selector fields and `#[fluent_choice(...)]` choice containers;
 - `#[es_fluent_language(...)]` language enum containers.
 
 The checker accepts only the keys that are meaningful at that location and
 reports the grammar-owned accepted key set in the diagnostic help text.
 Message containers are split by Rust shape: structs accept only
-`namespace = ...`, while enums accept `resource`, `domain`, and `namespace`.
+`namespace = ...`, while enums accept `id`, `domain`, and `namespace`.
 The language macro uses the same grammar module for `mode = "builtin"` /
 `mode = "custom"` parsing, so wrong-key and wrong-shape diagnostics stay aligned
 with derive attribute diagnostics.
@@ -101,8 +101,8 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 
 - **`mod.rs`**: Shared parsing helpers and traits. This now holds the common field/variant/container helper surface (`FluentField`, `VariantFields`, `StructDataOptions`, `EnumDataOptions`, `FilteredEnumDataOptions`, `GeneratedVariantsOptions`, `KeyedVariant`, `Skippable`) plus reusable attribute payload types.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
-- **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`), including enum resource/domain overrides and variant key overrides.
-- **`choice.rs`**: Options for `#[fluent(choice)]` (nested enums).
+- **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`), including enum base ID/domain overrides and variant key overrides.
+- **`choice.rs`**: Options for `#[fluent_choice(...)]` enum choices.
 - **`label.rs`**: Options for `#[fluent_label(...)]` origin and variants label generation.
 - **`lowered.rs`**: Lowered message, generated-variants, label, choice, and
   field models used by code generation to avoid defensive empty collections
@@ -124,13 +124,13 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
 - `GeneratedVariantsOptions`: Shared naming/key helpers for `#[fluent_variants]` containers.
 - `KeyedVariant` / `Skippable`: Shared lightweight traits used by validation and codegen to avoid per-wrapper boilerplate.
 
-Field parsing supports `skip`, `arg`, `choice`, explicit `optional`, and
+Field parsing supports `skip`, `arg`, `selector`, explicit `optional`, and
 `value` transforms. Validation rejects conflicting field
-strategies such as `choice + value`, `optional + value`, `optional + choice`,
+strategies such as `selector + value`, `optional + value`, `optional + selector`,
 or `optional` on skipped fields.
 String literal attribute payloads are converted to typed values during option
 parsing where they represent Fluent identifiers. Field argument names, variant
-key suffixes, enum resource IDs, enum lookup domains, generated variant keys,
+key suffixes, enum base IDs, enum lookup domains, generated variant keys,
 and literal namespaces retain their source spans as `SpannedValue<T>` or
 `NamespaceSpec` and are not reparsed by token emission.
 Namespace attributes keep their value span in `NamespaceSpec` while exposing
@@ -140,7 +140,7 @@ Namespace attributes keep their value span in `NamespaceSpec` while exposing
 during attribute parsing. It also supports generated enum `derive(...)`,
 namespaces, and `#[fluent_variants(skip)]` filtering for fields or enum
 variants.
-Enum `#[fluent(resource = "...")]` values are preserved with the string-literal
+Enum `#[fluent(id = "...")]` values are preserved with the string-literal
 span so semantic validation can report invalid base message IDs at the
 container attribute.
 
@@ -151,8 +151,8 @@ Enforces semantic rules that `darling` cannot capture easily. These functions us
 **Common Checks:**
 
 - **Conflict Check**: Ensures field attributes do not request incompatible
-  behavior, such as `skip` with `arg`, `choice` with `value`, `optional` with
-  `choice`, `optional` with `value`, or `optional` on skipped fields.
+  behavior, such as `skip` with `arg`, `selector` with `value`, `optional`
+  with `selector`, `optional` with `value`, or `optional` on skipped fields.
 - **Collision Check**: Rejects generated variant keys, Rust idents, and message
   IDs that would collide after defaulting and case conversion.
 - **Namespace Check**: Rejects multiple namespace sources that apply to the same

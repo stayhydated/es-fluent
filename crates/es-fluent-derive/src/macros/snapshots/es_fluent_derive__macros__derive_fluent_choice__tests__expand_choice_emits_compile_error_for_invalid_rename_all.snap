@@ -1,8 +1,8 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_fluent_choice.rs
-assertion_line: 104
+assertion_line: 101
 expression: tokens
 ---
-::core::compile_error! {
+compile_error!(
     "Attribute error in choice container: Matching variant not found\nhelp: supported values are: snake_case, PascalCase, camelCase, kebab-case, SCREAMING_SNAKE_CASE, SCREAMING-KEBAB-CASE, Title Case, Train-Case, lowercase, UPPERCASE"
-}
+);

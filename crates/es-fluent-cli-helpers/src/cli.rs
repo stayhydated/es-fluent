@@ -2,6 +2,7 @@
 
 use es_fluent_runner::{ExpectedKey, InventoryData, PackageName, RunnerMetadataStore};
 use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::resource::{ModuleResourceSpec, ResourceRoute};
 use es_fluent_shared::source::{SourceFile, SourceLine};
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 use std::path::Path;
@@ -9,6 +10,7 @@ use std::path::Path;
 /// Intermediate metadata for a key during collection.
 struct KeyMeta {
     variables: BTreeSet<FluentArgumentName>,
+    resource: ModuleResourceSpec,
     source_file: Option<SourceFile>,
     source_line: SourceLine,
     source_description: String,
@@ -24,14 +26,22 @@ struct KeyMeta {
 /// * `crate_name` - The name of the crate to collect inventory for (e.g., "my-crate")
 ///
 pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runner::RunnerIoError> {
+    let manifest_dir = std::env::current_dir()?;
+    write_inventory_for_crate_at(crate_name, &manifest_dir)
+}
+
+pub fn write_inventory_for_crate_at(
+    crate_name: &str,
+    manifest_dir: &Path,
+) -> Result<(), es_fluent_runner::RunnerIoError> {
     let crate_ident = PackageName::try_new(crate_name)?.rust_module_prefix();
 
     // Collect all registered type infos for this crate
     let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
-            info.module_path == crate_ident.as_str()
+            info.module_path() == crate_ident.as_str()
                 || info
-                    .module_path
+                    .module_path()
                     .starts_with(&format!("{}::", crate_ident.as_str()))
         })
         .collect();
@@ -39,13 +49,24 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
     // Build a map of expected keys with their metadata
     let mut keys_map: BTreeMap<FluentEntryId, KeyMeta> = BTreeMap::new();
     for info in &type_infos {
-        for variant in info.variants {
+        let resource = ResourceRoute::from_namespace(
+            info.try_resolved_namespace(manifest_dir)
+                .map_err(|details| {
+                    es_fluent_runner::RunnerIoError::Message(format!(
+                        "invalid namespace for type '{}': {details}",
+                        info.type_name()
+                    ))
+                })?,
+        )
+        .resource_spec(crate_name, true);
+        for variant in info.variants() {
             let key = variant.entry_id();
             let vars: BTreeSet<FluentArgumentName> = variant.argument_names().into_iter().collect();
             let source_description = info.source_description_for(variant);
             let entry = match keys_map.entry(key.clone()) {
                 Entry::Vacant(entry) => entry.insert(KeyMeta {
                     variables: BTreeSet::new(),
+                    resource: resource.clone(),
                     source_file: info.source_file(),
                     source_line: variant.source_line(),
                     source_description: source_description.clone(),
@@ -69,6 +90,7 @@ pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runne
         .map(|(key, meta)| ExpectedKey {
             key,
             variables: meta.variables.into_iter().collect(),
+            resource: Some(meta.resource),
             source_file: meta.source_file,
             source_line: Some(meta.source_line),
         })
@@ -91,84 +113,84 @@ mod tests {
     use std::borrow::Cow;
 
     static VARIANTS: &[FtlVariant] = &[
-        FtlVariant {
-            name: "Primary",
-            ftl_key: StaticFluentEntryId::new_unchecked("my_key"),
-            args: &[
+        FtlVariant::new(
+            "Primary",
+            StaticFluentEntryId::new_unchecked("my_key"),
+            &[
                 StaticFluentArgumentName::new_unchecked("name"),
                 StaticFluentArgumentName::new_unchecked("count"),
             ],
-            module_path: "test_crate",
-            line: 42,
-        },
-        FtlVariant {
-            name: "Secondary",
-            ftl_key: StaticFluentEntryId::new_unchecked("secondary_key"),
-            args: &[StaticFluentArgumentName::new_unchecked("extra")],
-            module_path: "test_crate",
-            line: 55,
-        },
+            "test_crate",
+            42,
+        ),
+        FtlVariant::new(
+            "Secondary",
+            StaticFluentEntryId::new_unchecked("secondary_key"),
+            &[StaticFluentArgumentName::new_unchecked("extra")],
+            "test_crate",
+            55,
+        ),
     ];
 
-    static INFO: FtlTypeInfo = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "InventoryType",
-        variants: VARIANTS,
-        file_path: "src/lib.rs",
-        module_path: "test_crate",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
-    };
+    static INFO: FtlTypeInfo = FtlTypeInfo::new(
+        TypeKind::Struct,
+        "InventoryType",
+        VARIANTS,
+        "src/lib.rs",
+        "test_crate",
+        Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
+    );
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&INFO)
     }
 
     static DUPLICATE_VARIANTS: &[FtlVariant] = &[
-        FtlVariant {
-            name: "Primary",
-            ftl_key: StaticFluentEntryId::new_unchecked("duplicated_key"),
-            args: &[StaticFluentArgumentName::new_unchecked("name")],
-            module_path: "test_crate_duplicate_inventory",
-            line: 42,
-        },
-        FtlVariant {
-            name: "Secondary",
-            ftl_key: StaticFluentEntryId::new_unchecked("duplicated_key"),
-            args: &[StaticFluentArgumentName::new_unchecked("extra")],
-            module_path: "test_crate_duplicate_inventory",
-            line: 55,
-        },
+        FtlVariant::new(
+            "Primary",
+            StaticFluentEntryId::new_unchecked("duplicated_key"),
+            &[StaticFluentArgumentName::new_unchecked("name")],
+            "test_crate_duplicate_inventory",
+            42,
+        ),
+        FtlVariant::new(
+            "Secondary",
+            StaticFluentEntryId::new_unchecked("duplicated_key"),
+            &[StaticFluentArgumentName::new_unchecked("extra")],
+            "test_crate_duplicate_inventory",
+            55,
+        ),
     ];
 
-    static DUPLICATE_INFO: FtlTypeInfo = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "DuplicateInventoryType",
-        variants: DUPLICATE_VARIANTS,
-        file_path: "src/lib.rs",
-        module_path: "test_crate_duplicate_inventory",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
-    };
+    static DUPLICATE_INFO: FtlTypeInfo = FtlTypeInfo::new(
+        TypeKind::Struct,
+        "DuplicateInventoryType",
+        DUPLICATE_VARIANTS,
+        "src/lib.rs",
+        "test_crate_duplicate_inventory",
+        Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
+    );
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&DUPLICATE_INFO)
     }
 
-    static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant {
-        name: "NoFilePath",
-        ftl_key: StaticFluentEntryId::new_unchecked("empty_file_key"),
-        args: &[],
-        module_path: "test_crate_empty_file",
-        line: 7,
-    }];
+    static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant::new(
+        "NoFilePath",
+        StaticFluentEntryId::new_unchecked("empty_file_key"),
+        &[],
+        "test_crate_empty_file",
+        7,
+    )];
 
-    static INFO_NO_FILE: FtlTypeInfo = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "InventoryTypeNoFile",
-        variants: VARIANTS_NO_FILE,
-        file_path: "",
-        module_path: "test_crate_empty_file",
-        namespace: None,
-    };
+    static INFO_NO_FILE: FtlTypeInfo = FtlTypeInfo::new(
+        TypeKind::Struct,
+        "InventoryTypeNoFile",
+        VARIANTS_NO_FILE,
+        "",
+        "test_crate_empty_file",
+        None,
+    );
 
     es_fluent::__inventory::submit! {
         RegisteredFtlType(&INFO_NO_FILE)
@@ -203,6 +225,8 @@ mod tests {
 
             let key = &keys[0];
             assert_eq!(key["key"], "my_key");
+            assert_eq!(key["resource"]["key"], "test-crate/ui");
+            assert_eq!(key["resource"]["locale_relative_path"], "test-crate/ui.ftl");
             assert_eq!(key["source_file"], "src/lib.rs");
             assert_eq!(key["source_line"], 42);
 
@@ -216,6 +240,8 @@ mod tests {
 
             let key = &keys[1];
             assert_eq!(key["key"], "secondary_key");
+            assert_eq!(key["resource"]["key"], "test-crate/ui");
+            assert_eq!(key["resource"]["locale_relative_path"], "test-crate/ui.ftl");
             assert_eq!(key["source_file"], "src/lib.rs");
             assert_eq!(key["source_line"], 55);
             let vars: Vec<_> = key["variables"]

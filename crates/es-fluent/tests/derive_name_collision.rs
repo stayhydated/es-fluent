@@ -36,7 +36,7 @@ fn same_snake_case_type_names_compile_but_generator_rejects_duplicate_key() {
     assert_eq!(IdLocalizer.localize_message(&UrlMessage), "url_message");
 
     let infos = es_fluent::registry::get_all_ftl_type_infos()
-        .filter(|info| matches!(info.type_name, "URLMessage" | "UrlMessage"))
+        .filter(|info| matches!(info.type_name(), "URLMessage" | "UrlMessage"))
         .collect::<Vec<_>>();
     assert_eq!(infos.len(), 2);
 

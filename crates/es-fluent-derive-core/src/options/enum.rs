@@ -109,8 +109,8 @@ pub struct EnumOpts {
 impl EnumOpts {
     /// Returns the base localization key used for this enum.
     pub fn base_key(&self) -> String {
-        if let Some(resource) = self.attr_args().resource_message_id() {
-            resource.value().as_str().to_string()
+        if let Some(id) = self.attr_args().id_message_id() {
+            id.value().as_str().to_string()
         } else {
             namer::FluentKey::from(self.ident()).to_string()
         }
@@ -121,8 +121,8 @@ impl EnumOpts {
         &self,
         context: AttrContext,
     ) -> EsFluentCoreResult<SpannedValue<FluentMessageId>> {
-        if let Some(resource) = self.attr_args().resource_message_id() {
-            return Ok(resource.clone());
+        if let Some(id) = self.attr_args().id_message_id() {
+            return Ok(id.clone());
         }
 
         spanned_message_id_from_value(
@@ -145,7 +145,7 @@ impl EnumDataOptions for EnumOpts {
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
 pub struct FluentEnumAttributeArgs {
     #[darling(default)]
-    resource: Option<SpannedValue<FluentMessageId>>,
+    id: Option<SpannedValue<FluentMessageId>>,
     #[darling(default)]
     domain: Option<SpannedValue<DomainName>>,
     #[darling(flatten)]
@@ -153,14 +153,14 @@ pub struct FluentEnumAttributeArgs {
 }
 
 impl FluentEnumAttributeArgs {
-    /// Returns the span of the explicit resource base key if provided.
-    pub fn resource_span(&self) -> Option<proc_macro2::Span> {
-        self.resource.as_ref().map(SpannedValue::span)
+    /// Returns the span of the explicit enum base id if provided.
+    pub fn id_span(&self) -> Option<proc_macro2::Span> {
+        self.id.as_ref().map(SpannedValue::span)
     }
 
-    /// Returns the typed explicit resource base key if provided.
-    pub fn resource_message_id(&self) -> Option<&SpannedValue<FluentMessageId>> {
-        self.resource.as_ref()
+    /// Returns the typed explicit enum base id if provided.
+    pub fn id_message_id(&self) -> Option<&SpannedValue<FluentMessageId>> {
+        self.id.as_ref()
     }
 
     /// Returns the typed explicit lookup domain if provided.
@@ -274,10 +274,10 @@ mod tests {
     fn enum_opts_cover_base_key_variant_helpers_and_field_flags() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
-            #[fluent(resource = "custom_error", namespace = "errors")]
+            #[fluent(id = "custom_error", namespace = "errors")]
             enum StatusCode {
                 Data {
-                    #[fluent(choice)]
+                    #[fluent(selector)]
                     label: String,
                     #[fluent(value = |x: &String| x.len())]
                     display: String,
@@ -294,8 +294,8 @@ mod tests {
         assert_eq!(opts.base_key(), "custom_error");
         assert_eq!(
             opts.attr_args()
-                .resource_message_id()
-                .expect("resource")
+                .id_message_id()
+                .expect("id")
                 .value()
                 .as_str(),
             "custom_error"
@@ -313,7 +313,7 @@ mod tests {
             .expect("Data variant should exist");
         assert_eq!(data.fields().len(), 2);
         assert_eq!(data.all_fields().len(), 3);
-        assert!(data.fields()[0].is_choice());
+        assert!(data.fields()[0].is_selector());
 
         let value_expr = data.fields()[1]
             .value()
@@ -357,7 +357,7 @@ mod tests {
         assert_eq!(no_resource_opts.base_key(), "http_status");
 
         let domain_input: DeriveInput = parse_quote! {
-            #[fluent(resource = "custom_error", domain = "shared-errors")]
+            #[fluent(id = "custom_error", domain = "shared-errors")]
             enum DomainLinked {
                 A
             }

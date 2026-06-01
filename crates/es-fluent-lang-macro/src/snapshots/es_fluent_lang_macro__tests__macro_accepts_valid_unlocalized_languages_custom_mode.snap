@@ -18,7 +18,7 @@ impl ::es_fluent::FluentMessage for CustomLanguages {
         match self {
             Self::EnUs => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
                     ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en-US"),
@@ -27,7 +27,7 @@ impl ::es_fluent::FluentMessage for CustomLanguages {
             }
             Self::Zz => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                    ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
                     ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zz"),
@@ -42,29 +42,29 @@ impl ::es_fluent::FluentMessage for CustomLanguages {
 mod __es_fluent_language_inventory_custom_languages {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "EnUs",
-            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en-US"),
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-        ::es_fluent::registry::FtlVariant {
-            name: "Zz",
-            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zz"),
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
+        ::es_fluent::registry::__macro::ftl_variant(
+            "EnUs",
+            ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en-US"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
+        ::es_fluent::registry::__macro::ftl_variant(
+            "Zz",
+            ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zz"),
+            &[],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "CustomLanguages",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "CustomLanguages",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

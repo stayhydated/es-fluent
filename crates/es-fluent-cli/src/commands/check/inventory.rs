@@ -1,6 +1,7 @@
 use anyhow::Result;
 use es_fluent_runner::{RunnerIoError, RunnerMetadataStore};
 use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
+use es_fluent_shared::resource::ModuleResourceSpec;
 use es_fluent_shared::source::{SourceFile, SourceLine};
 use indexmap::IndexMap;
 use std::collections::HashSet;
@@ -11,6 +12,7 @@ pub(crate) type ExpectedKeys = IndexMap<FluentEntryId, KeyInfo>;
 #[derive(Clone)]
 pub(crate) struct KeyInfo {
     pub(crate) variables: HashSet<FluentArgumentName>,
+    pub(crate) resource: ModuleResourceSpec,
     pub(crate) source_file: Option<SourceFile>,
     pub(crate) source_line: Option<SourceLine>,
 }
@@ -43,6 +45,9 @@ pub(crate) fn read_inventory_file(
             key.clone(),
             KeyInfo {
                 variables,
+                resource: key_info
+                    .resource
+                    .unwrap_or_else(|| ModuleResourceSpec::base(crate_name, true)),
                 source_file: key_info.source_file,
                 source_line: key_info.source_line,
             },

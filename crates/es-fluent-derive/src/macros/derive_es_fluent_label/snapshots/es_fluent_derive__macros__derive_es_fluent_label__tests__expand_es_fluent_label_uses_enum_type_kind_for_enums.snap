@@ -8,7 +8,10 @@ impl ::es_fluent::FluentLabel for LoginState {
     ) -> String {
         ::es_fluent::__private::localize_label(
             localizer,
-            env!("CARGO_PKG_NAME"),
+            (::es_fluent::registry::StaticFluentDomain::from_package_name(
+                env!("CARGO_PKG_NAME"),
+            ))
+                .as_str(),
             "login_state_label",
         )
     }
@@ -18,24 +21,24 @@ impl ::es_fluent::FluentLabel for LoginState {
 mod __es_fluent_label_inventory_LoginState {
     use super::*;
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "LoginState",
-            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+        ::es_fluent::registry::__macro::ftl_variant(
+            "LoginState",
+            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_state_label",
             ),
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
+            &[],
+            module_path!(),
+            line!(),
+        ),
     ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "LoginState",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: None,
-    };
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::__macro::ftl_type_info(
+        ::es_fluent::meta::TypeKind::Enum,
+        "LoginState",
+        VARIANTS,
+        file!(),
+        module_path!(),
+        None,
+    );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
     );

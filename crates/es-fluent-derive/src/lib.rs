@@ -39,7 +39,7 @@ mod snapshot_support;
 ///
 /// # Field Attributes
 ///
-/// - `#[fluent(choice)]`: Marks a field as a selector for Fluent's select expression.
+/// - `#[fluent(selector)]`: Marks a field as a selector for Fluent's select expression.
 /// - `#[fluent(arg = "value")]`: On a field, renames that exposed Fluent argument (works on struct fields, enum named fields, and enum tuple fields).
 #[proc_macro_derive(EsFluent, attributes(fluent))]
 #[proc_macro_error]
@@ -96,7 +96,7 @@ pub fn derive_es_fluent_variants(input: proc_macro::TokenStream) -> proc_macro::
 /// #[derive(EsFluent)]
 /// pub struct UserProfile<'a> {
 ///     pub name: &'a str,
-///     #[fluent(choice)] // Matches $gender -> [male]...
+///     #[fluent(selector)] // Matches $gender -> [male]...
 ///     pub gender: &'a Gender,
 /// }
 /// ```

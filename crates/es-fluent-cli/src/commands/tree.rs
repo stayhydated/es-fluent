@@ -1191,6 +1191,9 @@ mod tests {
                         es_fluent_shared::fluent::FluentArgumentName::try_new("name")
                             .expect("variable"),
                     ],
+                    resource: Some(es_fluent_shared::resource::ModuleResourceSpec::base(
+                        "test-app", true,
+                    )),
                     source_file: es_fluent_shared::source::SourceFile::new("src/lib.rs"),
                     source_line: Some(es_fluent_shared::source::SourceLine::new(42)),
                 }],

@@ -40,6 +40,7 @@ impl CrateInfo {
         RunnerRequest::Check {
             crate_name: PackageName::try_new(self.name.clone())
                 .expect("discovered crate names should be valid package names"),
+            manifest_dir: self.manifest_dir.clone(),
         }
     }
 
@@ -211,6 +212,7 @@ mod tests {
             krate.check_request(),
             RunnerRequest::Check {
                 crate_name: package("test-crate"),
+                manifest_dir: PathBuf::from("/tmp/test-crate"),
             }
         );
     }

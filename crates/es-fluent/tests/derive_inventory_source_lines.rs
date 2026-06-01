@@ -39,15 +39,15 @@ fn marker_line(marker: &str) -> u32 {
 
 fn inventory_line(type_name: &str, ftl_key: &str) -> u32 {
     let info = es_fluent::registry::get_all_ftl_type_infos()
-        .find(|info| info.type_name == type_name)
+        .find(|info| info.type_name() == type_name)
         .unwrap_or_else(|| panic!("registered type {type_name} exists"));
     let variant = info
-        .variants
+        .variants()
         .iter()
         .find(|variant| variant.ftl_key() == ftl_key)
         .unwrap_or_else(|| panic!("registered key {ftl_key} exists"));
 
-    variant.line
+    variant.source_line().get()
 }
 
 #[test]

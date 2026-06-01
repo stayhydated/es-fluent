@@ -1,5 +1,5 @@
 error[E0599]: no method named `as_fluent_choice` found for struct `NotChoice` in the current scope
-  --> tests/ui/bad_choice_field.rs:10:5
+  --> tests/ui/bad_selector_field.rs:10:5
    |
  5 | struct NotChoice;
    | ---------------- method `as_fluent_choice` not found for this struct

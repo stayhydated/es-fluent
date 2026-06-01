@@ -1,14 +1,8 @@
 mod r#enum;
 mod r#struct;
 
-use darling::FromDeriveInput as _;
-use es_fluent_derive_core::{
-    context::{ContainerContext, SpannedNamespaceRule},
-    options::{r#enum::EnumOpts, r#struct::StructOpts},
-    validation,
-};
-use es_fluent_shared::namespace::NamespaceRule;
-use syn::{Data, DeriveInput, parse_macro_input};
+use es_fluent_derive_core::expansion::{EsFluentExpansion, ExpansionError};
+use syn::{DeriveInput, parse_macro_input};
 
 use crate::macros::utils::CodegenContext;
 
@@ -16,19 +10,6 @@ pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let context = CodegenContext::resolve();
     expand_es_fluent_with_context(input, &context).into()
-}
-
-fn validate_namespace(
-    namespace: Option<&NamespaceRule>,
-    span: proc_macro2::Span,
-) -> es_fluent_derive_core::error::EsFluentCoreResult<()> {
-    if let Some(ns) = namespace
-        && let Err(error) = validation::validate_namespace(ns, Some(span))
-    {
-        return Err(error);
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -41,66 +22,18 @@ fn expand_es_fluent_with_context(
     input: DeriveInput,
     context: &CodegenContext,
 ) -> proc_macro2::TokenStream {
-    if let Err(err) = validation::validate_es_fluent_attribute_context(&input) {
-        return crate::macros::utils::core_error_to_compile_error(err);
+    match EsFluentExpansion::from_derive_input(&input) {
+        Ok(EsFluentExpansion::Struct(expansion)) => r#struct::process_struct(context, &expansion),
+        Ok(EsFluentExpansion::Enum(expansion)) => r#enum::process_enum(context, &expansion),
+        Err(error) => expansion_error_to_tokens(error),
     }
+}
 
-    match &input.data {
-        Data::Enum(data) => {
-            let opts = match EnumOpts::from_derive_input(&input) {
-                Ok(opts) => opts,
-                Err(err) => return err.write_errors(),
-            };
-            let container_context = ContainerContext::from_enum_options(&opts);
-
-            if let Err(err) = validation::validate_enum(&opts) {
-                return crate::macros::utils::core_error_to_compile_error(err);
-            }
-
-            if let Err(err) = validate_namespace(
-                container_context
-                    .fluent_namespace()
-                    .map(SpannedNamespaceRule::rule),
-                container_context
-                    .fluent_namespace()
-                    .map(SpannedNamespaceRule::span)
-                    .unwrap_or_else(|| opts.ident().span()),
-            ) {
-                return crate::macros::utils::core_error_to_compile_error(err);
-            }
-
-            r#enum::process_enum(context, &container_context, &opts, data)
-        },
-        Data::Struct(data) => {
-            let opts = match StructOpts::from_derive_input(&input) {
-                Ok(opts) => opts,
-                Err(err) => return err.write_errors(),
-            };
-            let container_context = ContainerContext::from_struct_options(&opts);
-
-            if let Err(err) = validation::validate_struct(&opts) {
-                return crate::macros::utils::core_error_to_compile_error(err);
-            }
-
-            if let Err(err) = validate_namespace(
-                container_context
-                    .fluent_namespace()
-                    .map(SpannedNamespaceRule::rule),
-                container_context
-                    .fluent_namespace()
-                    .map(SpannedNamespaceRule::span)
-                    .unwrap_or_else(|| opts.ident().span()),
-            ) {
-                return crate::macros::utils::core_error_to_compile_error(err);
-            }
-
-            r#struct::process_struct(context, &container_context, &opts, data)
-        },
-        _ => syn::Error::new(
-            input.ident.span(),
-            "EsFluent can only be derived for structs and enums",
-        )
-        .to_compile_error(),
+fn expansion_error_to_tokens(error: ExpansionError) -> proc_macro2::TokenStream {
+    match error {
+        ExpansionError::Core(error) => crate::macros::utils::core_error_to_compile_error(error),
+        ExpansionError::Darling(error) => error.write_errors(),
+        ExpansionError::Syn(error) => error.to_compile_error(),
     }
 }
 
@@ -207,8 +140,8 @@ mod tests {
         assert!(tokens.contains("StaticFluentEntryId"));
         assert!(tokens.contains("\"type\""));
         assert!(tokens.contains("Some(&args)"));
-        assert!(tokens.contains("type_name: \"type\""));
-        assert!(tokens.contains("name: \"type\""));
+        assert!(tokens.contains("registry::__macro::ftl_type_info"));
+        assert!(tokens.contains("registry::__macro::ftl_variant"));
         assert!(tokens.contains("StaticFluentArgumentName::new_unchecked(\"match\")"));
     }
 
@@ -338,7 +271,7 @@ mod tests {
     #[cfg_attr(not(target_os = "linux"), ignore = "insta snapshots are Linux-only")]
     fn expand_es_fluent_uses_explicit_domain_override_for_enum_lookup() {
         let enum_input: syn::DeriveInput = parse_quote! {
-            #[fluent(resource = "es-fluent-lang", domain = "es-fluent-lang")]
+            #[fluent(id = "es-fluent-lang", domain = "es-fluent-lang")]
             enum Languages {
                 #[fluent(key = "en")]
                 En,
@@ -356,7 +289,7 @@ mod tests {
     #[test]
     fn expand_es_fluent_returns_compile_error_for_invalid_enum_resource_override() {
         let enum_input: syn::DeriveInput = parse_quote! {
-            #[fluent(resource = "bad key")]
+            #[fluent(id = "bad key")]
             enum BadResource {
                 Ready,
             }

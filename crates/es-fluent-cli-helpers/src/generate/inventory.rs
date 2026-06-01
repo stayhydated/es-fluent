@@ -11,8 +11,10 @@ pub(super) fn collect_type_infos(crate_name: &str) -> Vec<&'static FtlTypeInfo> 
         .to_string();
     es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
-            info.module_path == crate_ident
-                || info.module_path.starts_with(&format!("{}::", crate_ident))
+            info.module_path() == crate_ident
+                || info
+                    .module_path()
+                    .starts_with(&format!("{}::", crate_ident))
         })
         .collect()
 }
@@ -33,7 +35,7 @@ pub(super) fn validate_namespaces(
                 namespace: info
                     .resolved_namespace(manifest_dir)
                     .unwrap_or_else(|| "<none>".to_string()),
-                type_name: info.type_name.to_string(),
+                type_name: info.type_name().to_string(),
                 details,
             })?
         else {
@@ -47,7 +49,7 @@ pub(super) fn validate_namespaces(
         {
             return Err(GeneratorError::InvalidNamespace {
                 namespace: ns.to_string(),
-                type_name: info.type_name.to_string(),
+                type_name: info.type_name().to_string(),
                 allowed: allowed_namespaces
                     .iter()
                     .map(|namespace| namespace.as_str().to_string())

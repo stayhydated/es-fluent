@@ -22,17 +22,17 @@ fn test_variant(name: &str, ftl_key: &str, args: &[&str]) -> FtlVariant {
 }
 
 fn test_variant_at(name: &str, ftl_key: &str, args: &[&str], line: u32) -> FtlVariant {
-    FtlVariant {
-        name: leak_str(name),
-        ftl_key: StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
-        args: leak_slice(
+    FtlVariant::new(
+        leak_str(name),
+        StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
+        leak_slice(
             args.iter()
                 .map(|arg| StaticFluentArgumentName::new_unchecked(leak_str(arg)))
                 .collect(),
         ),
-        module_path: "test",
+        "test",
         line,
-    }
+    )
 }
 
 fn test_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
@@ -40,14 +40,23 @@ fn test_type(name: &str, variants: Vec<FtlVariant>) -> FtlTypeInfo {
 }
 
 fn test_type_at(name: &str, variants: Vec<FtlVariant>, file_path: &str) -> FtlTypeInfo {
-    FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: leak_str(name),
-        variants: leak_slice(variants),
-        file_path: leak_str(file_path),
-        module_path: "test",
-        namespace: None,
-    }
+    test_type_at_with_namespace(name, variants, file_path, None)
+}
+
+fn test_type_at_with_namespace(
+    name: &str,
+    variants: Vec<FtlVariant>,
+    file_path: &str,
+    namespace: Option<NamespaceRule>,
+) -> FtlTypeInfo {
+    FtlTypeInfo::new(
+        TypeKind::Struct,
+        leak_str(name),
+        leak_slice(variants),
+        leak_str(file_path),
+        "test",
+        namespace,
+    )
 }
 
 fn parse_resource_allowing_errors(input: &str) -> ast::Resource<String> {
@@ -512,10 +521,14 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
     let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
-    let mut namespaced = test_type("NamespacedType", vec![test_variant("A1", "ns-a1", &[])]);
-    namespaced.namespace = Some(es_fluent_shared::registry::NamespaceRule::Literal(
-        std::borrow::Cow::Borrowed("ui"),
-    ));
+    let namespaced = test_type_at_with_namespace(
+        "NamespacedType",
+        vec![test_variant("A1", "ns-a1", &[])],
+        "",
+        Some(es_fluent_shared::registry::NamespaceRule::Literal(
+            std::borrow::Cow::Borrowed("ui"),
+        )),
+    );
     let items = vec![&namespaced];
 
     let changed = generate(
@@ -540,8 +553,12 @@ fn plan_outputs_uses_canonical_resource_specs_for_paths() {
     let i18n_root = temp.path().join("i18n");
 
     let base = test_type("BaseType", vec![test_variant("Base", "base", &[])]);
-    let mut namespaced = test_type("NamespacedType", vec![test_variant("A1", "ns-a1", &[])]);
-    namespaced.namespace = Some(NamespaceRule::Literal(Cow::Borrowed("ui/forms")));
+    let namespaced = test_type_at_with_namespace(
+        "NamespacedType",
+        vec![test_variant("A1", "ns-a1", &[])],
+        "",
+        Some(NamespaceRule::Literal(Cow::Borrowed("ui/forms"))),
+    );
     let items = vec![&base, &namespaced];
 
     let outputs = crate::pipeline::plan_outputs("crate-name", &i18n_root, temp.path(), &items)
@@ -586,23 +603,19 @@ fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
     let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
-    let escaping = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "EscapingType",
-        variants: leak_slice(vec![test_variant("Hello", "hello", &[])]),
-        file_path: "src/../escape.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::FileRelative),
-    };
+    let escaping = test_type_at_with_namespace(
+        "EscapingType",
+        vec![test_variant("Hello", "hello", &[])],
+        "src/../escape.rs",
+        Some(NamespaceRule::FileRelative),
+    );
 
-    let literal_escape = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "LiteralEscape",
-        variants: leak_slice(vec![test_variant("Bye", "bye", &[])]),
-        file_path: "src/lib.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("../literal-escape"))),
-    };
+    let literal_escape = test_type_at_with_namespace(
+        "LiteralEscape",
+        vec![test_variant("Bye", "bye", &[])],
+        "src/lib.rs",
+        Some(NamespaceRule::Literal(Cow::Borrowed("../literal-escape"))),
+    );
 
     let err = generate(
         "crate-name",
@@ -631,23 +644,19 @@ fn generate_rejects_noncanonical_namespace_literals() {
     let temp = tempfile::tempdir().expect("tempdir");
     let i18n_root = temp.path().join("i18n");
 
-    let padded = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "PaddedNamespace",
-        variants: leak_slice(vec![test_variant("Hello", "hello", &[])]),
-        file_path: "src/lib.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed(" ui "))),
-    };
+    let padded = test_type_at_with_namespace(
+        "PaddedNamespace",
+        vec![test_variant("Hello", "hello", &[])],
+        "src/lib.rs",
+        Some(NamespaceRule::Literal(Cow::Borrowed(" ui "))),
+    );
 
-    let with_extension = FtlTypeInfo {
-        type_kind: TypeKind::Struct,
-        type_name: "FileNamespace",
-        variants: leak_slice(vec![test_variant("Bye", "bye", &[])]),
-        file_path: "src/lib.rs",
-        module_path: "test",
-        namespace: Some(NamespaceRule::Literal(Cow::Borrowed("ui.ftl"))),
-    };
+    let with_extension = test_type_at_with_namespace(
+        "FileNamespace",
+        vec![test_variant("Bye", "bye", &[])],
+        "src/lib.rs",
+        Some(NamespaceRule::Literal(Cow::Borrowed("ui.ftl"))),
+    );
 
     let err = generate(
         "crate-name",

@@ -69,7 +69,7 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
                     ErrorKind::InvalidInput,
                     format!(
                         "Invalid namespace '{namespace}' for type '{}': {reason}",
-                        item.type_name
+                        item.type_name()
                     ),
                 )
             })?;

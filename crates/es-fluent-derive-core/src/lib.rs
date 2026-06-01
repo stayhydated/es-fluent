@@ -4,8 +4,9 @@
 pub mod attribute;
 pub mod context;
 pub mod error;
+pub mod expansion;
 pub mod grammar;
-pub mod lowered;
+pub(crate) mod lowered;
 pub mod options;
 pub mod semantic;
 pub mod validation;

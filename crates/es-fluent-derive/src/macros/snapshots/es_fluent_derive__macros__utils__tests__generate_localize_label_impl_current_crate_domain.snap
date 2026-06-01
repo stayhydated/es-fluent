@@ -8,7 +8,10 @@ impl ::es_fluent::FluentLabel for Greeting {
     ) -> String {
         ::es_fluent::__private::localize_label(
             localizer,
-            env!("CARGO_PKG_NAME"),
+            (::es_fluent::registry::StaticFluentDomain::from_package_name(
+                env!("CARGO_PKG_NAME"),
+            ))
+                .as_str(),
             "hello",
         )
     }
