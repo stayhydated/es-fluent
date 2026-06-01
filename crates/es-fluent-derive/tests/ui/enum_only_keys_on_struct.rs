@@ -12,10 +12,4 @@ pub struct ResourceOnStruct {
     value: String,
 }
 
-#[derive(EsFluent)]
-#[fluent(skip_inventory)]
-pub struct SkipInventoryOnStruct {
-    value: String,
-}
-
 fn main() {}

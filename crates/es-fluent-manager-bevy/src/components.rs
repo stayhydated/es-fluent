@@ -75,9 +75,9 @@ mod tests {
         fn to_fluent_string_with(
             &self,
             _localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&std::collections::HashMap<&str, es_fluent::FluentValue<'a>>>,
+                es_fluent::registry::StaticFluentDomain,
+                es_fluent::registry::StaticFluentEntryId,
+                Option<&es_fluent::FluentArgs<'a>>,
             ) -> String,
         ) -> String {
             self.0.to_string()
@@ -112,11 +112,10 @@ mod tests {
     #[test]
     fn fluent_text_value_can_render_through_fluent_message_trait() {
         let component = FluentText::new(FakeMessage("hello"));
-        let mut localize = |_domain: &str,
-                            _id: &str,
-                            _args: Option<
-            &std::collections::HashMap<&str, es_fluent::FluentValue<'_>>,
-        >| { "unused".to_string() };
+        let mut localize =
+            |_domain: es_fluent::registry::StaticFluentDomain,
+             _id: es_fluent::registry::StaticFluentEntryId,
+             _args: Option<&es_fluent::FluentArgs<'_>>| { "unused".to_string() };
 
         assert_eq!(
             component.value.to_fluent_string_with(&mut localize),

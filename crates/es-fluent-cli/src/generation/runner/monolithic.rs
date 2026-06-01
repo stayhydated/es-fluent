@@ -14,7 +14,7 @@ use cargo_manifest::{
 use es_fluent_runner::{RunnerMetadataStore, RunnerRequest};
 use fs_err as fs;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use toml::{Value, map::Map as TomlMap};
 
@@ -111,13 +111,17 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
         .iter()
         .filter(|c| c.has_lib_rs)
         .map(|c| {
+            let crate_ident = es_fluent_runner::PackageName::try_new(c.name.clone())
+                .context("workspace crate name should be a valid package name")?
+                .rust_module_prefix()
+                .to_string();
             Ok(MonolithicCrateDep {
                 name: &c.name,
                 path: super::utf8_path_string(
                     &c.manifest_dir,
                     &format!("workspace manifest directory for crate '{}'", c.name),
                 )?,
-                ident: c.name.replace('-', "_"),
+                ident: crate_ident,
                 has_features: !c.fluent_features.is_empty(),
                 features: &c.fluent_features,
             })
@@ -205,11 +209,14 @@ fn render_monolithic_cargo_toml(
     toml::to_string(&manifest).context("Failed to serialize runner Cargo.toml")
 }
 
-fn render_cargo_config_toml(target_dir: &str) -> Result<String> {
+fn render_cargo_config_toml(target_dir: &Path) -> Result<String> {
     let mut build = TomlMap::new();
     build.insert(
         "target-dir".to_string(),
-        Value::String(target_dir.to_string()),
+        Value::String(super::utf8_path_string(
+            target_dir,
+            "runner target directory",
+        )?),
     );
 
     let mut config = TomlMap::new();

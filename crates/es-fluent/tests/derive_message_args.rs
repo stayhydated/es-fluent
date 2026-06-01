@@ -1,6 +1,7 @@
 #![cfg(feature = "derive")]
 
-use es_fluent::{EsFluent, FluentMessage, FluentValue};
+use es_fluent::registry::{StaticFluentDomain, StaticFluentEntryId};
+use es_fluent::{EsFluent, FluentArgs, FluentMessage, FluentValue};
 use std::collections::HashMap;
 
 #[derive(EsFluent)]
@@ -50,16 +51,17 @@ fn describe_arg(value: &FluentValue<'_>) -> String {
 fn render_args(message: &impl FluentMessage) -> HashMap<String, String> {
     let mut rendered = HashMap::new();
     {
-        let mut localize =
-            |_domain: &str, _id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                if let Some(args) = args {
-                    for (name, value) in args {
-                        rendered.insert((*name).to_string(), describe_arg(value));
-                    }
+        let mut localize = |_domain: StaticFluentDomain,
+                            _id: StaticFluentEntryId,
+                            args: Option<&FluentArgs<'_>>| {
+            if let Some(args) = args {
+                for (name, value) in args.as_raw() {
+                    rendered.insert((*name).to_string(), describe_arg(value));
                 }
+            }
 
-                "rendered".to_string()
-            };
+            "rendered".to_string()
+        };
 
         message.to_fluent_string_with(&mut localize);
     }

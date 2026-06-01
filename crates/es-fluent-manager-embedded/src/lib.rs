@@ -321,12 +321,16 @@ mod tests {
         fn to_fluent_string_with(
             &self,
             localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
+                es_fluent::registry::StaticFluentDomain,
+                es_fluent::registry::StaticFluentEntryId,
+                Option<&es_fluent::FluentArgs<'a>>,
             ) -> String,
         ) -> String {
-            localize("embedded-test-module", "hello", None)
+            localize(
+                es_fluent::registry::StaticFluentDomain::new_unchecked("embedded-test-module"),
+                es_fluent::registry::StaticFluentEntryId::new_unchecked("hello"),
+                None,
+            )
         }
     }
 

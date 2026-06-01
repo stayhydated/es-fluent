@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 mod error;
 
 pub use error::RunnerIoError;
+pub use es_fluent_shared::FluentParseMode;
 
 #[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 pub struct RunnerResult {
@@ -30,35 +31,156 @@ pub struct InventoryData {
     pub expected_keys: Vec<ExpectedKey>,
 }
 
-#[derive(Clone, Copy, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RunnerParseMode {
-    Conservative,
-    Aggressive,
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct PackageName(String);
+
+impl PackageName {
+    pub fn try_new(value: impl Into<String>) -> Result<Self, RunnerIoError> {
+        let value = value.into();
+        if value.is_empty() {
+            return Err(RunnerIoError::InvalidRunnerRequest(
+                "package name must not be empty".to_string(),
+            ));
+        }
+        if let Some(invalid) = value
+            .chars()
+            .find(|ch| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')))
+        {
+            return Err(RunnerIoError::InvalidRunnerRequest(format!(
+                "package name contains invalid character '{invalid}'"
+            )));
+        }
+
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn rust_module_prefix(&self) -> RustModulePrefix {
+        RustModulePrefix(self.0.replace('-', "_"))
+    }
+}
+
+impl AsRef<str> for PackageName {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl std::fmt::Display for PackageName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl serde::Serialize for PackageName {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PackageName {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Self::try_new(value).map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct RustModulePrefix(String);
+
+impl RustModulePrefix {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<str> for RustModulePrefix {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl std::fmt::Display for RustModulePrefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct I18nTomlPath(PathBuf);
+
+impl I18nTomlPath {
+    pub fn new(path: impl Into<PathBuf>) -> Result<Self, RunnerIoError> {
+        let path = path.into();
+        if path.as_os_str().is_empty() {
+            return Err(RunnerIoError::InvalidRunnerRequest(
+                "i18n.toml path must not be empty".to_string(),
+            ));
+        }
+        Ok(Self(path))
+    }
+
+    pub fn as_path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for I18nTomlPath {
+    fn as_ref(&self) -> &Path {
+        self.as_path()
+    }
+}
+
+impl serde::Serialize for I18nTomlPath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string_lossy())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for I18nTomlPath {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
 }
 
 #[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
 pub enum RunnerRequest {
     Generate {
-        crate_name: String,
-        i18n_toml_path: String,
-        mode: RunnerParseMode,
+        crate_name: PackageName,
+        i18n_toml_path: I18nTomlPath,
+        mode: FluentParseMode,
         dry_run: bool,
     },
     Clean {
-        crate_name: String,
-        i18n_toml_path: String,
+        crate_name: PackageName,
+        i18n_toml_path: I18nTomlPath,
         all_locales: bool,
         dry_run: bool,
     },
     Check {
-        crate_name: String,
+        crate_name: PackageName,
     },
 }
 
 impl RunnerRequest {
-    pub fn crate_name(&self) -> &str {
+    pub fn crate_name(&self) -> &PackageName {
         match self {
             Self::Generate { crate_name, .. }
             | Self::Clean { crate_name, .. }
@@ -201,9 +323,9 @@ mod tests {
     #[test]
     fn runner_request_round_trips_through_json() {
         let request = RunnerRequest::Generate {
-            crate_name: "app".to_string(),
-            i18n_toml_path: "/tmp/app/i18n.toml".to_string(),
-            mode: RunnerParseMode::Aggressive,
+            crate_name: PackageName::try_new("app").expect("package"),
+            i18n_toml_path: I18nTomlPath::new("/tmp/app/i18n.toml").expect("path"),
+            mode: FluentParseMode::Aggressive,
             dry_run: true,
         };
 
@@ -211,7 +333,28 @@ mod tests {
         let decoded = RunnerRequest::decode(&encoded).expect("decode request");
 
         assert_eq!(decoded, request);
-        assert_eq!(decoded.crate_name(), "app");
+        assert_eq!(decoded.crate_name().as_str(), "app");
+    }
+
+    #[test]
+    fn runner_request_rejects_invalid_typed_fields() {
+        let empty_name =
+            RunnerRequest::decode(r#"{"command":"check","crate_name":""}"#).unwrap_err();
+        assert!(
+            empty_name
+                .to_string()
+                .contains("package name must not be empty")
+        );
+
+        let empty_path = RunnerRequest::decode(
+            r#"{"command":"generate","crate_name":"app","i18n_toml_path":"","mode":"conservative","dry_run":false}"#,
+        )
+        .unwrap_err();
+        assert!(
+            empty_path
+                .to_string()
+                .contains("i18n.toml path must not be empty")
+        );
     }
 
     #[test]

@@ -5195,6 +5195,7 @@ version = "0.16.0"
 dependencies = [
  "anyhow",
  "camino",
+ "clap",
  "darling 0.23.0",
  "derive_more",
  "fluent-syntax",

@@ -27,7 +27,7 @@ impl FluentArgument {
             {
                 use #es_fluent::__private::IntoFluentArgumentValue as _;
                 args.insert(
-                    #key,
+                    #es_fluent::registry::StaticFluentArgumentName::new_unchecked(#key),
                     (#value_expr).into_fluent_argument_value(localize),
                 );
             }
@@ -103,18 +103,24 @@ pub(crate) struct LocalizeCallSpec {
 
 impl LocalizeCallSpec {
     pub(crate) fn localize_with_expr(&self, context: &CodegenContext) -> TokenStream {
+        let es_fluent = context.facade_path().tokens();
         let domain_expr = match self.domain_override.as_ref() {
             Some(domain) => {
                 let domain = domain.as_str();
-                quote! { #domain }
+                quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
             },
-            None => quote! { env!("CARGO_PKG_NAME") },
+            None => {
+                quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(env!("CARGO_PKG_NAME")) }
+            },
         };
         let ftl_key = self.ftl_key.as_str();
+        let ftl_key_expr = quote! {
+            #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key)
+        };
 
         if self.arguments.is_empty() {
             quote! {
-                localize(#domain_expr, #ftl_key, None)
+                localize(#domain_expr, #ftl_key_expr, None)
             }
         } else {
             let inserts: Vec<_> = self
@@ -125,9 +131,9 @@ impl LocalizeCallSpec {
 
             quote! {
                 {
-                    let mut args = ::std::collections::HashMap::new();
+                    let mut args = #es_fluent::FluentArgs::new();
                     #(#inserts)*
-                    localize(#domain_expr, #ftl_key, Some(&args))
+                    localize(#domain_expr, #ftl_key_expr, Some(&args))
                 }
             }
         }
@@ -160,7 +166,7 @@ impl InventoryVariantSpec {
         quote! {
             #es_fluent::registry::FtlVariant {
                 name: #name,
-                ftl_key: #es_fluent::registry::StaticFluentMessageId::new_unchecked(#ftl_key),
+                ftl_key: #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
                 args: &[#(#args_tokens),*],
                 module_path: module_path!(),
                 line: #source_line,

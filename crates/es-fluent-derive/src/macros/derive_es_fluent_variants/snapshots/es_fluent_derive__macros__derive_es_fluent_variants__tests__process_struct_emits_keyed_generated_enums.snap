@@ -14,28 +14,31 @@ impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
             Self::Username => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_label_variants-username",
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "login_form_label_variants-username",
+                    ),
                     None,
                 )
             }
             Self::Password => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_label_variants-password",
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "login_form_label_variants-password",
+                    ),
                     None,
                 )
             }
@@ -49,7 +52,7 @@ mod __es_fluent_inventory_LoginFormLabelVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Username",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_form_label_variants-username",
             ),
             args: &[],
@@ -58,7 +61,7 @@ mod __es_fluent_inventory_LoginFormLabelVariants {
         },
         ::es_fluent::registry::FtlVariant {
             name: "Password",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_form_label_variants-password",
             ),
             args: &[],
@@ -94,28 +97,31 @@ impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
             Self::Username => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_placeholder_variants-username",
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "login_form_placeholder_variants-username",
+                    ),
                     None,
                 )
             }
             Self::Password => {
                 localize(
-                    env!("CARGO_PKG_NAME"),
-                    "login_form_placeholder_variants-password",
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "login_form_placeholder_variants-password",
+                    ),
                     None,
                 )
             }
@@ -129,7 +135,7 @@ mod __es_fluent_inventory_LoginFormPlaceholderVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Username",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_form_placeholder_variants-username",
             ),
             args: &[],
@@ -138,7 +144,7 @@ mod __es_fluent_inventory_LoginFormPlaceholderVariants {
         },
         ::es_fluent::registry::FtlVariant {
             name: "Password",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_form_placeholder_variants-password",
             ),
             args: &[],

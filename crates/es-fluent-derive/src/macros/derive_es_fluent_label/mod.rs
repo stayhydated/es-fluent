@@ -4,13 +4,13 @@ use es_fluent_derive_core::error::AttrContext;
 use es_fluent_derive_core::lowered::LabelModel;
 use es_fluent_derive_core::semantic::{MessageModel, RustSourceName, RustTypeName};
 use es_fluent_derive_core::{options::label::LabelOpts, validation};
-use es_fluent_shared::{meta::TypeKind, namespace::NamespaceRule};
+use es_fluent_shared::namespace::NamespaceRule;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
-use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
+use crate::macros::ir::MessageEntrySpec;
 use crate::macros::utils::{
-    CodegenContext, InventoryModuleInput, NamespaceSource, SpannedNamespaceRuleRef,
+    CodegenContext, InventoryOutput, NamespaceSource, SpannedNamespaceRuleRef,
 };
 
 pub fn from(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -76,26 +76,11 @@ fn expand_es_fluent_label_with_context(
         ftl_key.as_ref().map(|key| key.value()),
         container_context.fluent_domain(),
     );
-    let (type_kind, semantic_type_kind) = match model.type_kind() {
-        TypeKind::Struct => (
-            {
-                let es_fluent = context.facade_path().tokens();
-                quote! { #es_fluent::meta::TypeKind::Struct }
-            },
-            TypeKind::Struct,
-        ),
-        TypeKind::Enum => (
-            {
-                let es_fluent = context.facade_path().tokens();
-                quote! { #es_fluent::meta::TypeKind::Enum }
-            },
-            TypeKind::Enum,
-        ),
-    };
+    let semantic_type_kind = model.type_kind().clone();
 
     // Generate inventory submission for types with origin=true
     // FTL metadata is purely structural and doesn't depend on generic type parameters
-    let inventory_submit = if let Some(ftl_key) = &ftl_key {
+    let inventory_output = if let Some(ftl_key) = &ftl_key {
         let label_namespace = opts.attr_args().namespace().map(|namespace| {
             SpannedNamespaceRuleRef::new(
                 namespace,
@@ -134,7 +119,6 @@ fn expand_es_fluent_label_with_context(
             ftl_key.clone(),
             Vec::new(),
         );
-        let label_variant = inventory_variant_tokens_for_model(context, &label_entry.metadata);
         let label_model = MessageModel::new(
             RustTypeName::from_ident(original_ident),
             semantic_type_kind,
@@ -144,22 +128,16 @@ fn expand_es_fluent_label_with_context(
             Some(label_entry.metadata),
         );
 
-        crate::macros::utils::generate_inventory_module(
-            context,
-            InventoryModuleInput {
-                ident: original_ident,
-                module_name_prefix: "label_inventory",
-                type_kind,
-                variants: vec![label_variant],
-                namespace_expr: crate::macros::utils::namespace_rule_tokens(
-                    context,
-                    label_model.namespace(),
-                ),
-            },
+        crate::macros::utils::label_inventory_output(
+            original_ident,
+            label_model.type_kind().clone(),
+            label_model.namespace().cloned(),
+            label_model.label().expect("label inventory entry").clone(),
         )
     } else {
-        quote! {}
+        InventoryOutput::None
     };
+    let inventory_submit = crate::macros::utils::emit_inventory_output(context, inventory_output);
 
     let tokens = quote! {
         #localize_label_impl

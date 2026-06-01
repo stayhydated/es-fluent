@@ -11,10 +11,3 @@ error: Attribute error in message struct container: `#[fluent(resource = ...)]` 
    |
 10 | #[fluent(resource = "auth_error")]
    |          ^^^^^^^^
-
-error: Attribute error in message struct container: `#[fluent(skip_inventory)]` cannot be used in message struct container `SkipInventoryOnStruct`
-       help: accepted key here is namespace
-  --> tests/ui/enum_only_keys_on_struct.rs:16:10
-   |
-16 | #[fluent(skip_inventory)]
-   |          ^^^^^^^^^^^^^^

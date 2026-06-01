@@ -5,7 +5,7 @@
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::namer::FluentKey;
 use es_fluent_shared::registry::{
-    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentMessageId,
+    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentEntryId,
 };
 use proc_macro2::Span;
 use syn::Ident;
@@ -24,7 +24,7 @@ pub fn leak_slice<T>(items: Vec<T>) -> &'static [T] {
 pub fn variant(name: &str, ftl_key: &str) -> FtlVariant {
     FtlVariant {
         name: leak_str(name),
-        ftl_key: StaticFluentMessageId::new_unchecked(leak_str(ftl_key)),
+        ftl_key: StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
         args: Vec::new().leak(),
         module_path: "test",
         line: 0,
@@ -35,7 +35,7 @@ pub fn variant(name: &str, ftl_key: &str) -> FtlVariant {
 pub fn variant_with_args(name: &str, ftl_key: &str, args: Vec<&str>) -> FtlVariant {
     FtlVariant {
         name: leak_str(name),
-        ftl_key: StaticFluentMessageId::new_unchecked(leak_str(ftl_key)),
+        ftl_key: StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
         args: leak_slice(
             args.into_iter()
                 .map(|arg| StaticFluentArgumentName::new_unchecked(leak_str(arg)))

@@ -6,18 +6,23 @@ impl ::es_fluent::FluentMessage for Status {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
-            Self::Ready => localize(env!("CARGO_PKG_NAME"), "status-Ready", None),
+            Self::Ready => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "status-Ready",
+                    ),
+                    None,
+                )
+            }
         }
     }
 }
@@ -28,7 +33,7 @@ mod __es_fluent_inventory_Status {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Ready",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "status-Ready",
             ),
             args: &[],

@@ -42,12 +42,16 @@ Namespace values are also carried with spans through derive-core and the derive
 namespace resolver. Labels and generated variant enums may inherit a container
 namespace, but multiple namespace sources for the same generated output are
 reported as attribute conflicts instead of being resolved by precedence.
+Inventory token emission consumes a closed derive-local `InventoryOutput`
+model, so callers choose explicitly between no inventory, message entries,
+label entries, and generated-enum inventory with an optional label instead of
+assembling raw inventory modules from ad hoc token lists.
 Parent message-container state flows through derive-core `ContainerContext`.
 `EsFluent`, `EsFluentLabel`, and `EsFluentVariants` read source identity,
-generics, inherited namespace, enum domain overrides, and inventory policy from
-that shared context instead of reparsing parent `#[fluent(...)]` attributes in
-codegen helpers. `EsFluentChoice` has no inherited parent Fluent attributes, so
-it keeps its choice-specific option path.
+generics, inherited namespace, and enum domain overrides from that shared
+context instead of reparsing parent `#[fluent(...)]` attributes in codegen
+helpers. `EsFluentChoice` has no inherited parent Fluent attributes, so it keeps
+its choice-specific option path.
 Raw attribute validation is shape-aware before Darling parsing, so enum-only
 `#[fluent(...)]` keys never reach the struct parser and struct-only diagnostics
 can list the exact accepted key set.

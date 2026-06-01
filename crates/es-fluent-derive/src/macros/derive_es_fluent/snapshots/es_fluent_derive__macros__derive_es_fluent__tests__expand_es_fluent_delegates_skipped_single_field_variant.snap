@@ -6,14 +6,9 @@ impl ::es_fluent::FluentMessage for LoginError {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {

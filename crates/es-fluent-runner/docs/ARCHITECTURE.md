@@ -8,7 +8,8 @@ workspace created by `es-fluent-cli`.
 This crate keeps the boundary between the CLI host process and the generated
 runner binary small and explicit. It owns:
 
-1. Serialized requests sent into the runner (`RunnerRequest`, `RunnerParseMode`)
+1. Serialized requests sent into the runner (`RunnerRequest` with typed
+   package, path, and parse-mode fields)
 1. Serialized outputs written by runner-backed commands (`RunnerResult`,
    `InventoryData`, `ExpectedKey`)
 1. Filesystem conventions for `.es-fluent/metadata/{crate}/...`
@@ -35,8 +36,8 @@ paths defined in this crate.
 
 The runner currently supports three commands:
 
-- `Generate`: generate or update fallback-locale FTL files, carrying
-  `RunnerParseMode` and dry-run intent from the CLI
+- `Generate`: generate or update fallback-locale FTL files, carrying the shared
+  `FluentParseMode` and dry-run intent from the CLI
 - `Clean`: remove generated keys and stale namespace files in the generator
   clean flow, with fallback-only or all-locale scope controlled by the request
 - `Check`: collect expected keys, variables, and optional Rust source locations

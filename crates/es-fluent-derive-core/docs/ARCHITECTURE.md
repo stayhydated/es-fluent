@@ -32,17 +32,17 @@ flowchart TD
     GEN --> OUT[Token Output]
 ```
 
-1. **Attribute Context Checking (`src/attribute.rs`)**: Before `darling`
-   option parsing, derive inputs are scanned with an attribute-location model.
-   Unsupported keys are rejected against the specific struct container, enum
-   container, field, variant, label, choice, variants, or language context
-   where they appear.
+1. **Attribute Grammar And Context Checking (`src/grammar.rs`,
+   `src/attribute.rs`)**: Before `darling` option parsing, derive inputs are
+   scanned with a shared attribute-location model. `grammar.rs` owns attribute
+   families, keys, accepted locations, accepted-key help text, and the
+   `es_fluent_language` mode parser. `attribute.rs` turns those grammar results
+   into context-aware diagnostics for derive inputs.
 1. **Parsing (`src/options/`)**: The raw `syn` AST is parsed into structured options using `darling`. This step handles attribute extraction (`#[fluent(...)]`) and type conversion.
 1. **Container Context (`src/context.rs`)**: Message container identity and
    inherited `#[fluent(...)]` data are captured once from parsed struct or enum
    options. The context carries the source ident, kind, generics, namespace
-   with span, enum domain with span, and inventory policy for downstream
-   derives.
+   with span, and enum domain with span for downstream derives.
 1. **Shape Lowering (`src/lowered.rs`)**: Parsed options are converted into
    derive-specific container models that encode the accepted Rust shape and
    reject impossible internal data before token emission.
@@ -50,16 +50,17 @@ flowchart TD
 1. **Semantic Model (`src/semantic.rs`)**: Validated values are wrapped with
    spans and shared newtypes before token emission. Message entries, generated
    enum metadata, choice mappings, derive path lists, domains, namespaces, and
-   inventory policy live here. Rust identifiers needed by codegen are preserved
-   as `syn::Ident` rather than being stringified and reconstructed later.
+   inventory metadata live here. Rust identifiers needed by codegen are
+   preserved as `syn::Ident` rather than being stringified and reconstructed
+   later.
 1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`; this crate uses those shared types instead of defining local mirror types.
 
 ## Modules
 
-### 1. Attribute Context (`src/attribute.rs`)
+### 1. Attribute Grammar And Context (`src/grammar.rs`, `src/attribute.rs`)
 
-The context checker centralizes wrong-location diagnostics for user-facing
-attribute families:
+The grammar module centralizes the accepted key set and wrong-location help for
+user-facing attribute families:
 
 - `#[fluent(...)]` on message containers, fields, and enum variants;
 - `#[fluent_variants(...)]` on containers, fields, and enum variants;
@@ -68,9 +69,12 @@ attribute families:
 - `#[es_fluent_language(...)]` language enum containers.
 
 The checker accepts only the keys that are meaningful at that location and
-reports the accepted key set in the diagnostic help text.
+reports the grammar-owned accepted key set in the diagnostic help text.
 Message containers are split by Rust shape: structs accept only
 `namespace = ...`, while enums accept `resource`, `domain`, and `namespace`.
+The language macro uses the same grammar module for `mode = "builtin"` /
+`mode = "custom"` parsing, so wrong-key and wrong-shape diagnostics stay aligned
+with derive attribute diagnostics.
 
 ### 2. Container Context (`src/context.rs`)
 
@@ -84,8 +88,7 @@ The context stores:
 - the original source ident and Rust container kind;
 - cloned generics for emitted impl blocks;
 - the container namespace plus the span of the namespace value;
-- enum domain overrides as a spanned semantic domain value;
-- the inventory policy used by message metadata.
+- enum domain overrides as a spanned semantic domain value.
 
 `EsFluent`, `EsFluentLabel`, and `EsFluentVariants` consume this context where
 they need inherited container state. `EsFluentChoice` has no parent

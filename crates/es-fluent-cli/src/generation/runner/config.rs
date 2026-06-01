@@ -3,7 +3,10 @@ use anyhow::Result;
 use cargo_manifest::{Dependency, DependencyDetail};
 use es_fluent_runner::RunnerMetadataStore;
 use fs_err as fs;
-use std::{env, path::Path};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 type ManifestOverrides = toml::map::Map<String, toml::Value>;
 
@@ -11,7 +14,7 @@ type ManifestOverrides = toml::map::Map<String, toml::Value>;
 pub(super) struct TempCrateConfig {
     pub(super) es_fluent_dep: Dependency,
     pub(super) es_fluent_cli_helpers_dep: Dependency,
-    pub(super) target_dir: String,
+    pub(super) target_dir: PathBuf,
     pub(super) manifest_overrides: ManifestOverrides,
 }
 
@@ -20,7 +23,7 @@ impl TempCrateConfig {
     pub(super) fn from_manifest(manifest_path: &Path) -> Result<Self> {
         use crate::generation::cache::MetadataCache;
 
-        let target_dir_from_env = std::env::var("CARGO_TARGET_DIR").ok();
+        let target_dir_from_env = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
         let manifest_overrides = Self::extract_manifest_overrides(manifest_path);
 
         let workspace_root = manifest_path.parent().unwrap_or(Path::new("."));
@@ -32,7 +35,7 @@ impl TempCrateConfig {
             return Ok(Self {
                 es_fluent_dep: cache.es_fluent_dep,
                 es_fluent_cli_helpers_dep: cache.es_fluent_cli_helpers_dep,
-                target_dir: target_dir_from_env.unwrap_or(cache.target_dir),
+                target_dir: target_dir_from_env.unwrap_or_else(|| PathBuf::from(cache.target_dir)),
                 manifest_overrides,
             });
         }
@@ -51,8 +54,8 @@ impl TempCrateConfig {
                 let helpers = Self::find_local_dep(meta, "es-fluent-cli-helpers")?
                     .or(Self::find_cli_workspace_dep_helpers()?)
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION));
-                let target =
-                    target_dir_from_env.unwrap_or_else(|| meta.target_directory.to_string());
+                let target = target_dir_from_env
+                    .unwrap_or_else(|| PathBuf::from(meta.target_directory.as_str()));
                 (es_fluent, helpers, target)
             },
             None => (
@@ -60,7 +63,7 @@ impl TempCrateConfig {
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION)),
                 Self::find_cli_workspace_dep_helpers()?
                     .unwrap_or_else(|| Self::version_dep(CLI_VERSION)),
-                target_dir_from_env.unwrap_or_else(|| "../target".to_string()),
+                target_dir_from_env.unwrap_or_else(|| PathBuf::from("../target")),
             ),
         };
 
@@ -70,7 +73,7 @@ impl TempCrateConfig {
                 cargo_lock_hash,
                 es_fluent_dep: es_fluent_dep.clone(),
                 es_fluent_cli_helpers_dep: es_fluent_cli_helpers_dep.clone(),
-                target_dir: target_dir.clone(),
+                target_dir: target_dir.to_string_lossy().into_owned(),
             };
             let _ = cache.save(temp_dir.base_dir());
         }

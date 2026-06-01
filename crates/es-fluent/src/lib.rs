@@ -26,7 +26,9 @@ pub use es_fluent_manager_core as __manager_core;
 pub use unic_langid;
 
 mod traits;
-pub use traits::{EsFluentChoice, FluentLabel, FluentLocalizer, FluentLocalizerExt, FluentMessage};
+pub use traits::{
+    EsFluentChoice, FluentArgs, FluentLabel, FluentLocalizer, FluentLocalizerExt, FluentMessage,
+};
 
 #[doc(hidden)]
 pub mod __private {

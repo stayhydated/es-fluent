@@ -4,6 +4,7 @@
 pub mod attribute;
 pub mod context;
 pub mod error;
+pub mod grammar;
 pub mod lowered;
 pub mod options;
 pub mod semantic;

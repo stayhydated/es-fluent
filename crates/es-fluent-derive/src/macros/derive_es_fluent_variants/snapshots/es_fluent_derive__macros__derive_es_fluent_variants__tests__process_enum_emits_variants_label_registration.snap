@@ -13,22 +13,33 @@ impl ::es_fluent::FluentMessage for StatusVariants {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
             Self::Ready => {
-                localize(env!("CARGO_PKG_NAME"), "status_variants-Ready", None)
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "status_variants-Ready",
+                    ),
+                    None,
+                )
             }
             Self::Failed => {
-                localize(env!("CARGO_PKG_NAME"), "status_variants-Failed", None)
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "status_variants-Failed",
+                    ),
+                    None,
+                )
             }
         }
     }
@@ -40,7 +51,7 @@ mod __es_fluent_inventory_StatusVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Ready",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "status_variants-Ready",
             ),
             args: &[],
@@ -49,8 +60,39 @@ mod __es_fluent_inventory_StatusVariants {
         },
         ::es_fluent::registry::FtlVariant {
             name: "Failed",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "status_variants-Failed",
+            ),
+            args: &[],
+            module_path: module_path!(),
+            line: line!(),
+        },
+    ];
+    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
+        type_kind: ::es_fluent::meta::TypeKind::Enum,
+        type_name: "StatusVariants",
+        variants: VARIANTS,
+        file_path: file!(),
+        module_path: module_path!(),
+        namespace: Some(
+            ::es_fluent::registry::NamespaceRule::Literal(
+                ::std::borrow::Cow::Borrowed("ui"),
+            ),
+        ),
+    };
+    ::es_fluent::__inventory::submit!(
+        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
+    );
+}
+#[doc(hidden)]
+#[allow(non_snake_case)]
+mod __es_fluent_label_inventory_StatusVariants {
+    use super::*;
+    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
+        ::es_fluent::registry::FtlVariant {
+            name: "StatusVariants",
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                "status_variants_label",
             ),
             args: &[],
             module_path: module_path!(),
@@ -83,35 +125,4 @@ impl ::es_fluent::FluentLabel for StatusVariants {
             "status_variants_label",
         )
     }
-}
-#[doc(hidden)]
-#[allow(non_snake_case)]
-mod __es_fluent_label_inventory_StatusVariants {
-    use super::*;
-    static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
-        ::es_fluent::registry::FtlVariant {
-            name: "StatusVariants",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
-                "status_variants_label",
-            ),
-            args: &[],
-            module_path: module_path!(),
-            line: line!(),
-        },
-    ];
-    static TYPE_INFO: ::es_fluent::registry::FtlTypeInfo = ::es_fluent::registry::FtlTypeInfo {
-        type_kind: ::es_fluent::meta::TypeKind::Enum,
-        type_name: "StatusVariants",
-        variants: VARIANTS,
-        file_path: file!(),
-        module_path: module_path!(),
-        namespace: Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
-            ),
-        ),
-    };
-    ::es_fluent::__inventory::submit!(
-        ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
-    );
 }

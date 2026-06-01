@@ -6,23 +6,20 @@ impl ::es_fluent::FluentMessage for LoginError {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
             Self::Something(f0, f1, f2) => {
-                let mut args = ::std::collections::HashMap::new();
+                let mut args = ::es_fluent::FluentArgs::new();
                 {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
-                        "f0",
+                        ::es_fluent::registry::StaticFluentArgumentName::new_unchecked(
+                            "f0",
+                        ),
                         (::es_fluent::__private::FluentBorrowedArgumentValue::new(f0))
                             .into_fluent_argument_value(localize),
                     );
@@ -30,7 +27,9 @@ impl ::es_fluent::FluentMessage for LoginError {
                 {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
-                        "f1",
+                        ::es_fluent::registry::StaticFluentArgumentName::new_unchecked(
+                            "f1",
+                        ),
                         (::es_fluent::__private::FluentBorrowedArgumentValue::new(f1))
                             .into_fluent_argument_value(localize),
                     );
@@ -38,12 +37,22 @@ impl ::es_fluent::FluentMessage for LoginError {
                 {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
-                        "f2",
+                        ::es_fluent::registry::StaticFluentArgumentName::new_unchecked(
+                            "f2",
+                        ),
                         (::es_fluent::__private::FluentBorrowedArgumentValue::new(f2))
                             .into_fluent_argument_value(localize),
                     );
                 }
-                localize(env!("CARGO_PKG_NAME"), "login_error-Something", Some(&args))
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "login_error-Something",
+                    ),
+                    Some(&args),
+                )
             }
         }
     }
@@ -55,7 +64,7 @@ mod __es_fluent_inventory_LoginError {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "Something",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_error-Something",
             ),
             args: &[

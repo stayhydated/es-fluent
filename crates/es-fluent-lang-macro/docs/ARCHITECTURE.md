@@ -53,7 +53,7 @@ crate_root/
 
 The detailed steps are:
 
-1. **Parse Attributes**: The `mode = "builtin"` / `mode = "custom"` argument is parsed through the shared derive-core attribute diagnostic types with `LanguageContainer` context.
+1. **Parse Attributes**: The `mode = "builtin"` / `mode = "custom"` argument is parsed through the shared derive-core grammar with `LanguageContainer` diagnostics.
 1. **Read Configuration**: The macro reads `i18n.toml` from the crate manifest directory (using `es-fluent-toml`) to determine the `assets_dir` and `fallback_language`. That config layer already enforces canonical locale tags.
 1. **Scan Assets**: It scans the configured assets directory for locale subdirectories. Non-canonical locale directory names are rejected during discovery instead of being silently normalized later.
 1. **Auto-Insert Fallback**: If the `fallback_language` from `i18n.toml` is not found in the assets directory, it is automatically added to the enum.

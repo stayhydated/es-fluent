@@ -5,8 +5,8 @@ use es_fluent_derive_core::options::r#enum::EnumOpts;
 use es_fluent_derive_core::semantic::{MessageModel, RustSourceName, RustTypeName};
 use es_fluent_shared::{meta::TypeKind, namer};
 
-use crate::macros::ir::{MessageEntrySpec, inventory_variant_tokens_for_model};
-use crate::macros::utils::{CodegenContext, InventoryModuleInput};
+use crate::macros::ir::MessageEntrySpec;
+use crate::macros::utils::{CodegenContext, InventoryOutput};
 use proc_macro2::TokenStream;
 use quote::quote;
 
@@ -84,7 +84,8 @@ fn variant_runtime_arguments(
             .iter()
             .filter(|field| !field.field.is_skipped())
             .map(|field| {
-                let binding_ident = namer::UnnamedItem::from(field.original_index).to_ident();
+                let binding_ident =
+                    namer::UnnamedItem::from(field.original_index.as_usize()).to_ident();
                 Ok(crate::macros::utils::generate_field_argument(
                     context,
                     field.argument_model()?,
@@ -143,7 +144,8 @@ fn localized_variant_match_arm(
                     if field.field.is_skipped() {
                         quote! { _ }
                     } else {
-                        let name = namer::UnnamedItem::from(field.original_index).to_ident();
+                        let name =
+                            namer::UnnamedItem::from(field.original_index.as_usize()).to_ident();
                         quote! { #name }
                     }
                 })
@@ -250,29 +252,10 @@ fn generate(
     // Generate inventory submission for all non-empty types.
     // FTL metadata is purely structural (type name, field names, variant names)
     // and doesn't depend on generic type parameters
-    let inventory_submit = if !is_empty {
-        let static_variants: Vec<_> = semantic_model
-            .messages()
-            .iter()
-            .map(|metadata| inventory_variant_tokens_for_model(context, metadata))
-            .collect();
-        let es_fluent = context.facade_path().tokens();
-
-        crate::macros::utils::generate_inventory_module(
-            context,
-            InventoryModuleInput {
-                ident: original_ident,
-                module_name_prefix: "inventory",
-                type_kind: quote! { #es_fluent::meta::TypeKind::Enum },
-                variants: static_variants,
-                namespace_expr: crate::macros::utils::namespace_rule_tokens(
-                    context,
-                    semantic_model.namespace(),
-                ),
-            },
-        )
+    let inventory_output = if is_empty {
+        InventoryOutput::None
     } else {
-        quote! {}
+        crate::macros::utils::message_inventory_output(original_ident, "inventory", &semantic_model)
     };
 
     crate::macros::utils::emit_message_inventory_impls(
@@ -280,13 +263,14 @@ fn generate(
         original_ident,
         container_context.generics(),
         fluent_message_body,
-        inventory_submit,
+        inventory_output,
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::macros::ir::inventory_variant_tokens_for_model;
     use darling::FromDeriveInput as _;
     use syn::parse_quote;
 
@@ -327,7 +311,7 @@ mod tests {
         assert!(runtime_tokens.contains("\"f1\""));
         assert!(
             inventory_tokens
-                .contains("StaticFluentMessageId :: new_unchecked (\"login_error-Failed\")")
+                .contains("StaticFluentEntryId :: new_unchecked (\"login_error-Failed\")")
         );
         assert!(
             inventory_tokens

@@ -2,9 +2,10 @@ use es_fluent_derive_core::error::{AttrContext, EsFluentCoreError};
 use es_fluent_derive_core::options::GeneratedVariantsOptions;
 use es_fluent_derive_core::semantic::{
     ArgumentModel, ArgumentValueStrategy, DerivePathList, DomainName, FluentMessageId,
-    GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, MessageModel, RustSourceName,
-    RustTypeName, SpannedValue,
+    GeneratedEnumModel, GeneratedKeyIdent, GeneratedKeyName, MessageEntryModel, MessageModel,
+    RustSourceName, RustTypeName, SpannedValue,
 };
+use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::TokenStream;
@@ -76,9 +77,19 @@ impl FacadePath {
 pub struct InventoryModuleInput<'a> {
     pub ident: &'a syn::Ident,
     pub module_name_prefix: &'a str,
-    pub type_kind: TokenStream,
-    pub variants: Vec<TokenStream>,
-    pub namespace_expr: TokenStream,
+    pub type_kind: TypeKind,
+    pub entries: Vec<MessageEntryModel>,
+    pub namespace: Option<NamespaceRule>,
+}
+
+pub enum InventoryOutput<'a> {
+    None,
+    MessageEntries(InventoryModuleInput<'a>),
+    LabelEntry(InventoryModuleInput<'a>),
+    GeneratedEnum {
+        messages: InventoryModuleInput<'a>,
+        label: Option<InventoryModuleInput<'a>>,
+    },
 }
 
 pub struct GeneratedUnitEnumInput<'a> {
@@ -217,9 +228,9 @@ pub fn generate_fluent_message_impl(
             fn to_fluent_string_with(
                 &self,
                 localize: &mut dyn for<'__es_fluent_message> FnMut(
-                    &str,
-                    &str,
-                    Option<&::std::collections::HashMap<&str, #es_fluent::FluentValue<'__es_fluent_message>>>,
+                    #es_fluent::registry::StaticFluentDomain,
+                    #es_fluent::registry::StaticFluentEntryId,
+                    Option<&#es_fluent::FluentArgs<'__es_fluent_message>>,
                 ) -> String,
             ) -> String {
                 #body
@@ -265,47 +276,6 @@ pub fn generate_unit_enum_definition(
             #(#[doc = #variant_docs] #cleaned_variants),*
         }
     }
-}
-
-pub fn generate_optional_label_inventory_module(
-    context: &CodegenContext,
-    ident: &syn::Ident,
-    source_span: proc_macro2::Span,
-    namespace: Option<&NamespaceRule>,
-    label_key: Option<&FluentMessageId>,
-) -> TokenStream {
-    let Some(label_key) = label_key else {
-        return quote! {};
-    };
-
-    let label_entry = MessageEntrySpec::new(
-        RustSourceName::from_ident(ident),
-        SpannedValue::new(label_key.clone(), source_span),
-        Vec::new(),
-    );
-    let label_variant = inventory_variant_tokens_for_model(context, &label_entry.metadata);
-    let label_model = MessageModel::new(
-        RustTypeName::from_ident(ident),
-        es_fluent_shared::meta::TypeKind::Enum,
-        None,
-        namespace.cloned(),
-        Vec::new(),
-        Some(label_entry.metadata),
-    );
-
-    generate_inventory_module(
-        context,
-        InventoryModuleInput {
-            ident,
-            module_name_prefix: "label_inventory",
-            type_kind: {
-                let es_fluent = context.facade_path().tokens();
-                quote! { #es_fluent::meta::TypeKind::Enum }
-            },
-            variants: vec![label_variant],
-            namespace_expr: namespace_rule_tokens(context, label_model.namespace()),
-        },
-    )
 }
 
 pub fn emit_generated_unit_enum(
@@ -364,23 +334,26 @@ pub fn emit_generated_unit_enum(
             }
         },
     );
-    let inventory_submit = generate_inventory_module(
-        context,
-        InventoryModuleInput {
+    let inventory_output = InventoryOutput::GeneratedEnum {
+        messages: InventoryModuleInput {
             ident,
             module_name_prefix: "inventory",
-            type_kind: {
-                let es_fluent = context.facade_path().tokens();
-                quote! { #es_fluent::meta::TypeKind::Enum }
-            },
-            variants: generated_model
-                .messages()
-                .iter()
-                .map(|metadata| inventory_variant_tokens_for_model(context, metadata))
-                .collect(),
-            namespace_expr: namespace_rule_tokens(context, generated_model.namespace()),
+            type_kind: TypeKind::Enum,
+            entries: generated_model.messages().to_vec(),
+            namespace: generated_model.namespace().cloned(),
         },
-    );
+        label: generated_model
+            .label()
+            .cloned()
+            .map(|label_entry| InventoryModuleInput {
+                ident,
+                module_name_prefix: "label_inventory",
+                type_kind: TypeKind::Enum,
+                entries: vec![label_entry],
+                namespace: generated_model.namespace().cloned(),
+            }),
+    };
+    let inventory_submit = emit_inventory_output(context, inventory_output);
     let label_impl = generate_localize_label_impl(
         context,
         ident,
@@ -388,14 +361,6 @@ pub fn emit_generated_unit_enum(
         label_key.as_ref(),
         domain_override,
     );
-    let label_inventory = generate_optional_label_inventory_module(
-        context,
-        ident,
-        origin_ident.span(),
-        namespace,
-        label_key.as_ref(),
-    );
-
     quote! {
         #new_enum
 
@@ -404,7 +369,6 @@ pub fn emit_generated_unit_enum(
         #inventory_submit
 
         #label_impl
-        #label_inventory
     }
 }
 
@@ -413,9 +377,10 @@ pub fn emit_message_inventory_impls(
     ident: &syn::Ident,
     generics: &syn::Generics,
     fluent_message_body: TokenStream,
-    inventory_submit: TokenStream,
+    inventory_output: InventoryOutput<'_>,
 ) -> TokenStream {
     let message_impl = generate_fluent_message_impl(context, ident, generics, fluent_message_body);
+    let inventory_submit = emit_inventory_output(context, inventory_output);
 
     quote! {
         #message_impl
@@ -424,7 +389,64 @@ pub fn emit_message_inventory_impls(
     }
 }
 
-pub fn generate_inventory_module(
+pub fn message_inventory_output<'a>(
+    ident: &'a syn::Ident,
+    module_name_prefix: &'a str,
+    model: &MessageModel,
+) -> InventoryOutput<'a> {
+    InventoryOutput::MessageEntries(InventoryModuleInput {
+        ident,
+        module_name_prefix,
+        type_kind: model.type_kind().clone(),
+        entries: model.messages().to_vec(),
+        namespace: model.namespace().cloned(),
+    })
+}
+
+pub fn label_inventory_output<'a>(
+    ident: &'a syn::Ident,
+    type_kind: TypeKind,
+    namespace: Option<NamespaceRule>,
+    label_entry: MessageEntryModel,
+) -> InventoryOutput<'a> {
+    InventoryOutput::LabelEntry(InventoryModuleInput {
+        ident,
+        module_name_prefix: "label_inventory",
+        type_kind,
+        entries: vec![label_entry],
+        namespace,
+    })
+}
+
+pub fn emit_inventory_output(context: &CodegenContext, output: InventoryOutput<'_>) -> TokenStream {
+    match output {
+        InventoryOutput::None => quote! {},
+        InventoryOutput::MessageEntries(input) | InventoryOutput::LabelEntry(input) => {
+            generate_inventory_module(context, input)
+        },
+        InventoryOutput::GeneratedEnum { messages, label } => {
+            let message_inventory = generate_inventory_module(context, messages);
+            let label_inventory = label
+                .map(|input| generate_inventory_module(context, input))
+                .unwrap_or_else(|| quote! {});
+
+            quote! {
+                #message_inventory
+                #label_inventory
+            }
+        },
+    }
+}
+
+fn type_kind_tokens(context: &CodegenContext, type_kind: &TypeKind) -> TokenStream {
+    let es_fluent = context.facade_path().tokens();
+    match type_kind {
+        TypeKind::Enum => quote! { #es_fluent::meta::TypeKind::Enum },
+        TypeKind::Struct => quote! { #es_fluent::meta::TypeKind::Struct },
+    }
+}
+
+fn generate_inventory_module(
     context: &CodegenContext,
     input: InventoryModuleInput<'_>,
 ) -> TokenStream {
@@ -432,13 +454,19 @@ pub fn generate_inventory_module(
         ident,
         module_name_prefix,
         type_kind,
-        variants,
-        namespace_expr,
+        entries,
+        namespace,
     } = input;
 
     let type_name = namer::rust_ident_name(ident);
     let mod_name = format_ident!("__es_fluent_{}_{}", module_name_prefix, type_name);
     let es_fluent = context.facade_path().tokens();
+    let type_kind = type_kind_tokens(context, &type_kind);
+    let variants: Vec<_> = entries
+        .iter()
+        .map(|metadata| inventory_variant_tokens_for_model(context, metadata))
+        .collect();
+    let namespace_expr = namespace_rule_tokens(context, namespace.as_ref());
 
     quote! {
         #[doc(hidden)]

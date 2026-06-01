@@ -22,12 +22,10 @@ pub fn clean<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
         crate::pipeline::plan_outputs(crate_name, i18n_path, manifest_dir, items)?;
     let main_resource = ModuleResourceSpec::base(crate_name, true);
     let main_file_path = i18n_path.join(main_resource.locale_relative_path.as_str());
-    let has_main_output = planned_outputs
-        .iter()
-        .any(|output| output.resource.key == main_resource.key);
+    let has_main_output = planned_outputs.iter().any(|output| output.route.is_base());
     let expected_namespace_files = planned_outputs
         .iter()
-        .filter(|output| output.resource.key != main_resource.key)
+        .filter(|output| !output.route.is_base())
         .map(|output| output.file_path.clone())
         .collect::<HashSet<_>>();
 

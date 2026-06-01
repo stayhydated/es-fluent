@@ -30,9 +30,9 @@ impl FluentMessage for RefreshableMessage {
     fn to_fluent_string_with(
         &self,
         _localize: &mut dyn for<'a> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'a>>>,
+            es_fluent::registry::StaticFluentDomain,
+            es_fluent::registry::StaticFluentEntryId,
+            Option<&es_fluent::FluentArgs<'a>>,
         ) -> String,
     ) -> String {
         self.0.clone()
@@ -45,12 +45,16 @@ impl FluentMessage for DomainMessage {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'a> FnMut(
-            &str,
-            &str,
-            Option<&HashMap<&str, FluentValue<'a>>>,
+            es_fluent::registry::StaticFluentDomain,
+            es_fluent::registry::StaticFluentEntryId,
+            Option<&es_fluent::FluentArgs<'a>>,
         ) -> String,
     ) -> String {
-        localize("app", self.0, None)
+        localize(
+            es_fluent::registry::StaticFluentDomain::new_unchecked("app"),
+            es_fluent::registry::StaticFluentEntryId::new_unchecked(self.0),
+            None,
+        )
     }
 }
 

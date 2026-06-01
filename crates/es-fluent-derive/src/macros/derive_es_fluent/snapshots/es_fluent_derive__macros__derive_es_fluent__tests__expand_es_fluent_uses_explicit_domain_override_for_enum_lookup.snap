@@ -6,18 +6,23 @@ impl ::es_fluent::FluentMessage for Languages {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
-            Self::En => localize("es-fluent-lang", "es-fluent-lang-en", None),
+            Self::En => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        "es-fluent-lang",
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                        "es-fluent-lang-en",
+                    ),
+                    None,
+                )
+            }
         }
     }
 }
@@ -28,7 +33,7 @@ mod __es_fluent_inventory_Languages {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "En",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "es-fluent-lang-en",
             ),
             args: &[],

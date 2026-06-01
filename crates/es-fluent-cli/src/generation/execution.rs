@@ -1,6 +1,6 @@
 use crate::core::{CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
 use anyhow::{Result, bail};
-use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
+use es_fluent_runner::{I18nTomlPath, PackageName, RunnerMetadataStore, RunnerRequest};
 use std::time::Instant;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -11,22 +11,23 @@ pub struct RunnerExecution {
 
 impl GenerationAction {
     pub(crate) fn to_runner_request(&self, krate: &CrateInfo) -> RunnerRequest {
+        let crate_name = PackageName::try_new(krate.name.clone())
+            .expect("discovered crate names should be valid package names");
+        let i18n_toml_path = I18nTomlPath::new(krate.i18n_config_path.clone())
+            .expect("discovered i18n.toml paths should be non-empty");
         match self {
             GenerationAction::Generate { mode, dry_run } => RunnerRequest::Generate {
-                crate_name: krate.name.clone(),
-                i18n_toml_path: krate.i18n_config_path.display().to_string(),
-                mode: match mode {
-                    crate::core::FluentParseMode::Conservative => RunnerParseMode::Conservative,
-                    crate::core::FluentParseMode::Aggressive => RunnerParseMode::Aggressive,
-                },
+                crate_name,
+                i18n_toml_path,
+                mode: *mode,
                 dry_run: *dry_run,
             },
             GenerationAction::Clean {
                 all_locales,
                 dry_run,
             } => RunnerRequest::Clean {
-                crate_name: krate.name.clone(),
-                i18n_toml_path: krate.i18n_config_path.display().to_string(),
+                crate_name,
+                i18n_toml_path,
                 all_locales: *all_locales,
                 dry_run: *dry_run,
             },
@@ -37,7 +38,8 @@ impl GenerationAction {
 impl CrateInfo {
     pub(crate) fn check_request(&self) -> RunnerRequest {
         RunnerRequest::Check {
-            crate_name: self.name.clone(),
+            crate_name: PackageName::try_new(self.name.clone())
+                .expect("discovered crate names should be valid package names"),
         }
     }
 
@@ -75,7 +77,7 @@ impl<'a> MonolithicExecutor<'a> {
         let changed = match request {
             RunnerRequest::Generate { crate_name, .. }
             | RunnerRequest::Clean { crate_name, .. } => {
-                self.metadata_store.result_changed(crate_name)
+                self.metadata_store.result_changed(crate_name.as_str())
             },
             RunnerRequest::Check { .. } => false,
         };
@@ -134,6 +136,14 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
+    fn package(name: &str) -> PackageName {
+        PackageName::try_new(name).expect("package")
+    }
+
+    fn i18n_path(path: &str) -> I18nTomlPath {
+        I18nTomlPath::new(path).expect("i18n path")
+    }
+
     fn test_crate_info(has_lib_rs: bool) -> CrateInfo {
         CrateInfo {
             name: "test-crate".to_string(),
@@ -166,9 +176,9 @@ mod tests {
         assert_eq!(
             request,
             RunnerRequest::Generate {
-                crate_name: "test-crate".to_string(),
-                i18n_toml_path: "/tmp/test-crate/i18n.toml".to_string(),
-                mode: RunnerParseMode::Conservative,
+                crate_name: package("test-crate"),
+                i18n_toml_path: i18n_path("/tmp/test-crate/i18n.toml"),
+                mode: FluentParseMode::Conservative,
                 dry_run: true,
             }
         );
@@ -186,8 +196,8 @@ mod tests {
         assert_eq!(
             request,
             RunnerRequest::Clean {
-                crate_name: "test-crate".to_string(),
-                i18n_toml_path: "/tmp/test-crate/i18n.toml".to_string(),
+                crate_name: package("test-crate"),
+                i18n_toml_path: i18n_path("/tmp/test-crate/i18n.toml"),
                 all_locales: true,
                 dry_run: true,
             }
@@ -200,7 +210,7 @@ mod tests {
         assert_eq!(
             krate.check_request(),
             RunnerRequest::Check {
-                crate_name: "test-crate".to_string(),
+                crate_name: package("test-crate"),
             }
         );
     }

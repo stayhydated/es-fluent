@@ -6,29 +6,30 @@ impl ::es_fluent::FluentMessage for User {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         {
-            let mut args = ::std::collections::HashMap::new();
+            let mut args = ::es_fluent::FluentArgs::new();
             {
                 use ::es_fluent::__private::IntoFluentArgumentValue as _;
                 args.insert(
-                    "id",
+                    ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("id"),
                     (::es_fluent::__private::FluentBorrowedArgumentValue::new(
                         &(self.id),
                     ))
                         .into_fluent_argument_value(localize),
                 );
             }
-            localize(env!("CARGO_PKG_NAME"), "user", Some(&args))
+            localize(
+                ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                    env!("CARGO_PKG_NAME"),
+                ),
+                ::es_fluent::registry::StaticFluentEntryId::new_unchecked("user"),
+                Some(&args),
+            )
         }
     }
 }
@@ -39,7 +40,7 @@ mod __es_fluent_inventory_User {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "User",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked("user"),
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked("user"),
             args: &[
                 ::es_fluent::registry::StaticFluentArgumentName::new_unchecked("id"),
             ],

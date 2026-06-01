@@ -20,7 +20,7 @@ mod __es_fluent_label_inventory_LoginForm {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "LoginForm",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
                 "login_form_label",
             ),
             args: &[],

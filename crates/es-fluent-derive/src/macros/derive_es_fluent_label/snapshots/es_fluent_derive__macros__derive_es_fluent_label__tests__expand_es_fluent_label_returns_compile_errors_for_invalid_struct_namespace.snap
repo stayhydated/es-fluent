@@ -1,8 +1,8 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
-assertion_line: 160
+assertion_line: 232
 expression: struct_tokens
 ---
-::core::compile_error! {
-    "Unexpected type `expected string literal, 'file', 'file_relative', 'folder', or 'folder_relative'`"
-}
+compile_error!(
+    "Attribute error in label container: `#[fluent(namespace = ...)]` has the wrong value shape for key `namespace` in label container `InvalidStructNamespace`\nhelp: use a namespace rule, for example `namespace = \"ui\"` or `namespace = file`"
+);

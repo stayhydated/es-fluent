@@ -202,10 +202,13 @@ mod tests {
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
 
         assert!(tokens.contains("mod __es_fluent_inventory_type"));
-        assert!(tokens.contains("localize(env!(\"CARGO_PKG_NAME\"), \"type\", Some(&args))"));
+        assert!(tokens.contains("StaticFluentDomain"));
+        assert!(tokens.contains("CARGO_PKG_NAME"));
+        assert!(tokens.contains("StaticFluentEntryId"));
+        assert!(tokens.contains("\"type\""));
+        assert!(tokens.contains("Some(&args)"));
         assert!(tokens.contains("type_name: \"type\""));
         assert!(tokens.contains("name: \"type\""));
-        assert!(tokens.contains("StaticFluentMessageId::new_unchecked(\"type\")"));
         assert!(tokens.contains("StaticFluentArgumentName::new_unchecked(\"match\")"));
     }
 

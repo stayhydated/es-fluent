@@ -400,7 +400,7 @@ mod tests {
 
         assert!(runtime_tokens.contains("\"login_form_label_variants-username\""));
         assert!(inventory_tokens.contains(
-            "StaticFluentMessageId :: new_unchecked (\"login_form_label_variants-username\")"
+            "StaticFluentEntryId :: new_unchecked (\"login_form_label_variants-username\")"
         ));
         assert!(inventory_tokens.contains("name : \"Username\""));
         assert!(inventory_tokens.contains("args : & []"));
@@ -454,18 +454,15 @@ mod tests {
             label_opts.as_ref(),
         ));
 
-        assert!(
-            tokens.contains("localize(\"es-fluent-lang\", \"language_variants-English\", None)")
-        );
-        assert!(
-            tokens.contains("localize(\"es-fluent-lang\", \"language_variants-French\", None)")
-        );
+        assert!(tokens.contains("StaticFluentDomain"));
+        assert!(tokens.contains("\"es-fluent-lang\""));
+        assert!(tokens.contains("StaticFluentEntryId"));
+        assert!(tokens.contains("\"language_variants-English\""));
+        assert!(tokens.contains("\"language_variants-French\""));
         assert!(tokens.contains(
             "::es_fluent::__private::localize_label(\n            localizer,\n            \"es-fluent-lang\",\n            \"language_variants_label\","
         ));
-        assert!(
-            !tokens.contains("localize(env!(\"CARGO_PKG_NAME\"), \"language_variants-English\"")
-        );
+        assert!(!tokens.contains("CARGO_PKG_NAME"));
     }
 
     #[test]

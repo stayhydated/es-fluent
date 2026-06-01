@@ -5,6 +5,7 @@ use es_fluent_shared::namespace::NamespaceRule;
 use proc_macro2::Span;
 use syn::{Data, DeriveInput, Meta, Token, punctuated::Punctuated};
 
+use crate::grammar::AttributeKey;
 use crate::options::{NamespaceSpec, r#enum::EnumOpts, r#struct::StructOpts};
 use crate::semantic::{DomainName, FluentMessageId, SpannedValue};
 use crate::validation::SpannedNamespaceRuleRef;
@@ -160,19 +161,25 @@ impl ParentFluentContext {
             let items = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
 
             for item in items {
-                if item.path().is_ident("namespace") {
-                    context.namespace =
-                        Some(NamespaceSpec::from_meta(&item).map_err(|err| err.with_span(&item))?);
-                } else if item.path().is_ident("domain") {
-                    context.domain = Some(
-                        <SpannedValue<DomainName> as darling::FromMeta>::from_meta(&item)
-                            .map_err(|err| err.with_span(&item))?,
-                    );
-                } else if item.path().is_ident("resource") {
-                    context.resource = Some(
-                        <SpannedValue<FluentMessageId> as darling::FromMeta>::from_meta(&item)
-                            .map_err(|err| err.with_span(&item))?,
-                    );
+                match AttributeKey::from_meta(&item) {
+                    Some(AttributeKey::Namespace) => {
+                        context.namespace = Some(
+                            NamespaceSpec::from_meta(&item).map_err(|err| err.with_span(&item))?,
+                        );
+                    },
+                    Some(AttributeKey::Domain) => {
+                        context.domain = Some(
+                            <SpannedValue<DomainName> as darling::FromMeta>::from_meta(&item)
+                                .map_err(|err| err.with_span(&item))?,
+                        );
+                    },
+                    Some(AttributeKey::Resource) => {
+                        context.resource = Some(
+                            <SpannedValue<FluentMessageId> as darling::FromMeta>::from_meta(&item)
+                                .map_err(|err| err.with_span(&item))?,
+                        );
+                    },
+                    _ => {},
                 }
             }
         }

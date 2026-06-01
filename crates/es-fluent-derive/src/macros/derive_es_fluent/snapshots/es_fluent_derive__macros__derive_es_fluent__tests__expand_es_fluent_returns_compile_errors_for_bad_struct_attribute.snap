@@ -1,8 +1,8 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
-assertion_line: 191
+assertion_line: 236
 expression: struct_tokens
 ---
-::core::compile_error! {
-    "Unexpected type `expected string literal, 'file', 'file_relative', 'folder', or 'folder_relative'`"
-}
+compile_error!(
+    "Attribute error in message struct container: `#[fluent(namespace = ...)]` has the wrong value shape for key `namespace` in message struct container `BadStruct`\nhelp: use a namespace rule, for example `namespace = \"ui\"` or `namespace = file`"
+);

@@ -15,20 +15,39 @@ impl ::es_fluent::FluentMessage for Languages {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
-            Self::En => localize("es-fluent-lang", "en", None),
-            Self::FrFr => localize("es-fluent-lang", "fr-FR", None),
-            Self::ZhCn => localize("es-fluent-lang", "zh-CN", None),
+            Self::En => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        "es-fluent-lang",
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en"),
+                    None,
+                )
+            }
+            Self::FrFr => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        "es-fluent-lang",
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("fr-FR"),
+                    None,
+                )
+            }
+            Self::ZhCn => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        "es-fluent-lang",
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zh-CN"),
+                    None,
+                )
+            }
         }
     }
 }

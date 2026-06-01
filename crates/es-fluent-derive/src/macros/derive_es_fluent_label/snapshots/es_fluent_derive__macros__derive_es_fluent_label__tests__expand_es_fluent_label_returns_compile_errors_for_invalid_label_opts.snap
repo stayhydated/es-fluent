@@ -1,7 +1,8 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
+assertion_line: 219
 expression: label_opts_tokens
 ---
-::core::compile_error! {
-    "Unexpected type `expected boolean literal`"
-}
+compile_error!(
+    "Attribute error in label container: `#[fluent_label(origin = ...)]` has the wrong value shape for key `origin` in label container `InvalidLabelOpts`\nhelp: use an explicit boolean, for example `origin = true`"
+);

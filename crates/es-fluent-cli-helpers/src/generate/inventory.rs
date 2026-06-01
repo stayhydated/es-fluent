@@ -1,10 +1,14 @@
 use super::GeneratorError;
 use es_fluent::registry::FtlTypeInfo;
+use es_fluent_runner::PackageName;
 use es_fluent_toml::ResolvedI18nLayout;
 use std::path::Path;
 
 pub(super) fn collect_type_infos(crate_name: &str) -> Vec<&'static FtlTypeInfo> {
-    let crate_ident = crate_name.replace('-', "_");
+    let crate_ident = PackageName::try_new(crate_name)
+        .expect("crate names should be valid package names")
+        .rust_module_prefix()
+        .to_string();
     es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
             info.module_path == crate_ident

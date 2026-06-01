@@ -1,7 +1,7 @@
 use super::*;
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::registry::{
-    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentMessageId,
+    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentEntryId,
 };
 use fluent_syntax::{ast, parser};
 use fs_err as fs;
@@ -24,7 +24,7 @@ fn test_variant(name: &str, ftl_key: &str, args: &[&str]) -> FtlVariant {
 fn test_variant_at(name: &str, ftl_key: &str, args: &[&str], line: u32) -> FtlVariant {
     FtlVariant {
         name: leak_str(name),
-        ftl_key: StaticFluentMessageId::new_unchecked(leak_str(ftl_key)),
+        ftl_key: StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
         args: leak_slice(
             args.iter()
                 .map(|arg| StaticFluentArgumentName::new_unchecked(leak_str(arg)))
@@ -548,16 +548,30 @@ fn plan_outputs_uses_canonical_resource_specs_for_paths() {
         .expect("planned outputs");
     let base_output = outputs
         .iter()
-        .find(|output| output.resource.key.as_str() == "crate-name")
+        .find(|output| output.route.is_base())
         .expect("base output");
     let namespace_output = outputs
         .iter()
-        .find(|output| output.resource.key.as_str() == "crate-name/ui/forms")
+        .find(|output| {
+            matches!(
+                &output.route,
+                es_fluent_shared::resource::ResourceRoute::Namespaced(namespace)
+                    if namespace.as_str() == "ui/forms"
+            )
+        })
         .expect("namespaced output");
+    let base_resource = base_output.route.resource_spec("crate-name", true);
+    let namespace_resource = namespace_output.route.resource_spec("crate-name", true);
 
-    assert_eq!(base_output.resource.locale_relative_path, "crate-name.ftl");
+    assert_eq!(base_resource.locale_relative_path, "crate-name.ftl");
+    assert!(base_output.route.is_base());
+    assert!(matches!(
+        &namespace_output.route,
+        es_fluent_shared::resource::ResourceRoute::Namespaced(namespace)
+            if namespace.as_str() == "ui/forms"
+    ));
     assert_eq!(
-        namespace_output.resource.locale_relative_path,
+        namespace_resource.locale_relative_path,
         "crate-name/ui/forms.ftl"
     );
     assert_eq!(base_output.file_path, i18n_root.join("crate-name.ftl"));
@@ -654,11 +668,11 @@ fn generate_rejects_noncanonical_namespace_literals() {
 
 #[test]
 fn static_registry_wrappers_reject_invalid_manual_keys_and_arguments() {
-    let key_err = StaticFluentMessageId::try_new("_invalid").expect_err("invalid key should fail");
+    let key_err = StaticFluentEntryId::try_new("_invalid").expect_err("invalid key should fail");
     assert!(
         key_err
             .to_string()
-            .contains("Fluent message id must start with an ASCII letter")
+            .contains("Fluent entry id must start with an ASCII letter")
     );
 
     let arg_err =

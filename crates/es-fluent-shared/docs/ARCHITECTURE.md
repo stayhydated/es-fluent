@@ -11,7 +11,8 @@ This crate centralizes reusable pieces that are needed by multiple layers:
 1. **Fluent Identifiers**: validated message IDs, argument names, variant keys, and domains shared by derive and tooling layers.
 1. **Naming Helpers**: `FluentKey`, `FluentDoc`, and tuple-field naming utilities.
 1. **Path and Locale Helpers**: asset-directory validation and locale directory parsing.
-1. **Resource Planning**: `ResourceKey`, `ModuleResourceSpec`, and canonical resource-plan helpers shared by manager and tooling crates.
+1. **Resource Planning**: `ResourceRoute`, `ResourceKey`, `ModuleResourceSpec`, and canonical resource-plan helpers shared by manager and tooling crates.
+1. **Generation Mode**: `FluentParseMode`, the single parse/generation mode enum used by CLI arguments, generator behavior, and runner requests.
 
 ## Architecture Role
 
@@ -86,6 +87,7 @@ Defines `NamespaceRule`, including literal, file-based, and folder-based namespa
 
 Defines shared resource-planning primitives:
 
+- `ResourceRoute`
 - `ResourceKey`
 - `LocaleRelativeFtlPath`
 - `ModuleResourceSpec`
@@ -94,11 +96,18 @@ Defines shared resource-planning primitives:
 - sparse asset-tree discovery for compile-time manager module manifests
 - required/optional resource-key set helpers
 
-`ResourceKey` validates the canonical `{domain}` or `{domain}/{namespace}`
-shape, and `ModuleResourceSpec` carries `ResourceKey` plus
-`LocaleRelativeFtlPath` rather than raw strings. This keeps manager macros,
+`ResourceRoute` models base vs namespaced output before a crate domain is
+applied. `ResourceKey` validates the canonical `{domain}` or
+`{domain}/{namespace}` shape, and `ModuleResourceSpec` carries `ResourceKey`
+plus `LocaleRelativeFtlPath` rather than raw strings. This keeps manager macros,
 manager-core, and generation tooling on one constructor path for resource
 identity and locale-relative file paths.
+
+### `mode.rs`
+
+Defines `FluentParseMode`, the shared conservative/aggressive mode used by
+`es-fluent-generate`, `es-fluent-cli`, `es-fluent-cli-helpers`, and the runner
+wire protocol.
 
 Use `try_resource_plan_for` for dynamic planning paths that need typed
 namespace failures. `resource_plan_for` is a panic wrapper for static metadata

@@ -30,7 +30,9 @@ pub(crate) fn read_inventory_file(
             RunnerIoError::Json(_) => {
                 anyhow::Error::new(error).context("Failed to parse inventory JSON")
             },
-            RunnerIoError::Message(_) => anyhow::Error::new(error),
+            RunnerIoError::InvalidRunnerRequest(_) | RunnerIoError::Message(_) => {
+                anyhow::Error::new(error)
+            },
         })?;
 
     let mut expected_keys = IndexMap::new();

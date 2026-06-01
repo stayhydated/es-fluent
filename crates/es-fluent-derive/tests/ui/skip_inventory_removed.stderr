@@ -1,6 +1,0 @@
-error: Attribute error in message enum container: `#[fluent(skip_inventory)]` cannot be used in message enum container `InternalOnly`
-       help: accepted keys here are resource, domain, and namespace
- --> tests/ui/skip_inventory_removed.rs:4:10
-  |
-4 | #[fluent(skip_inventory)]
-  |          ^^^^^^^^^^^^^^

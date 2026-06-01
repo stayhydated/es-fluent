@@ -5,10 +5,20 @@ use super::*;
 use crate::core::{CrateInfo, WorkspaceInfo};
 use crate::generation::cache::{MetadataCache, RunnerCache};
 use crate::test_fixtures::FakeRunnerBehavior;
-use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest};
+use es_fluent_runner::{
+    FluentParseMode, I18nTomlPath, PackageName, RunnerMetadataStore, RunnerRequest,
+};
 use fs_err as fs;
 use std::path::Path;
 use toml::Value;
+
+fn package(name: &str) -> PackageName {
+    PackageName::try_new(name).expect("valid package name")
+}
+
+fn i18n_path(path: impl AsRef<Path>) -> I18nTomlPath {
+    I18nTomlPath::new(path.as_ref().to_path_buf()).expect("valid i18n.toml path")
+}
 
 fn package_manifest(name: &str) -> Value {
     package_manifest_with_version(name, "0.1.0")
@@ -278,7 +288,7 @@ fn temp_crate_config_uses_valid_cached_metadata() {
         },
         dep => panic!("expected detailed dependency, got {dep:?}"),
     }
-    assert_eq!(config.target_dir, "/tmp/target");
+    assert_eq!(config.target_dir.as_path(), Path::new("/tmp/target"));
 }
 
 #[test]
@@ -422,9 +432,9 @@ fn run_monolithic_uses_fast_path_binary_when_cache_is_fresh() {
     let krate = &workspace.crates[0];
 
     let request = RunnerRequest::Generate {
-        crate_name: krate.name.clone(),
-        i18n_toml_path: krate.i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&krate.name),
+        i18n_toml_path: i18n_path(&krate.i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: true,
     };
     let output = run_monolithic(&workspace, &request, false).expect("run monolithic");
@@ -445,9 +455,9 @@ fn run_monolithic_fast_path_reports_binary_failure() {
     let krate = &workspace.crates[0];
 
     let request = RunnerRequest::Generate {
-        crate_name: krate.name.clone(),
-        i18n_toml_path: krate.i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&krate.name),
+        i18n_toml_path: i18n_path(&krate.i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: false,
     };
     let err = run_monolithic(&workspace, &request, false).expect_err("expected fast-path failure");
@@ -700,9 +710,9 @@ fn run_monolithic_fast_path_surfaces_execution_errors() {
     );
 
     let request = RunnerRequest::Generate {
-        crate_name: workspace.crates[0].name.clone(),
-        i18n_toml_path: workspace.crates[0].i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&workspace.crates[0].name),
+        i18n_toml_path: i18n_path(&workspace.crates[0].i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: false,
     };
     let err = run_monolithic(&workspace, &request, false).expect_err("expected execution failure");
@@ -751,9 +761,9 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     );
 
     let request = RunnerRequest::Generate {
-        crate_name: workspace.crates[0].name.clone(),
-        i18n_toml_path: workspace.crates[0].i18n_config_path.display().to_string(),
-        mode: RunnerParseMode::Conservative,
+        crate_name: package(&workspace.crates[0].name),
+        i18n_toml_path: i18n_path(&workspace.crates[0].i18n_config_path),
+        mode: FluentParseMode::Conservative,
         dry_run: true,
     };
     let output = run_monolithic(&workspace, &request, true).expect("slow path run should succeed");

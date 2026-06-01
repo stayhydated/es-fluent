@@ -97,9 +97,9 @@ mod tests {
         fn to_fluent_string_with(
             &self,
             _localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&std::collections::HashMap<&str, es_fluent::FluentValue<'a>>>,
+                es_fluent::registry::StaticFluentDomain,
+                es_fluent::registry::StaticFluentEntryId,
+                Option<&es_fluent::FluentArgs<'a>>,
             ) -> String,
         ) -> String {
             self.0.to_string()
@@ -116,12 +116,16 @@ mod tests {
         fn to_fluent_string_with(
             &self,
             localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&std::collections::HashMap<&str, es_fluent::FluentValue<'a>>>,
+                es_fluent::registry::StaticFluentDomain,
+                es_fluent::registry::StaticFluentEntryId,
+                Option<&es_fluent::FluentArgs<'a>>,
             ) -> String,
         ) -> String {
-            localize(self.domain, self.id, None)
+            localize(
+                es_fluent::registry::StaticFluentDomain::new_unchecked(self.domain),
+                es_fluent::registry::StaticFluentEntryId::new_unchecked(self.id),
+                None,
+            )
         }
     }
 

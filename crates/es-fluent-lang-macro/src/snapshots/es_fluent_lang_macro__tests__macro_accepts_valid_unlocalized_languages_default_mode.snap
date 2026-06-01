@@ -14,19 +14,30 @@ impl ::es_fluent::FluentMessage for Languages {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
-            Self::EnUs => localize("es-fluent-lang", "en-US", None),
-            Self::Zz => localize("es-fluent-lang", "zz", None),
+            Self::EnUs => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        "es-fluent-lang",
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en-US"),
+                    None,
+                )
+            }
+            Self::Zz => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        "es-fluent-lang",
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zz"),
+                    None,
+                )
+            }
         }
     }
 }

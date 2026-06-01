@@ -12,6 +12,7 @@ readme = "README.md"
 [dependencies]
 anyhow = { workspace = true }
 camino = { workspace = true }
+clap = { features = [ "derive" ], workspace = true }
 darling = { workspace = true }
 derive_more = { features = [ "full" ], workspace = true }
 fluent-syntax = { workspace = true }

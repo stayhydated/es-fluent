@@ -3,7 +3,7 @@
 mod cli;
 mod generate;
 
-use es_fluent_runner::{RunnerMetadataStore, RunnerParseMode, RunnerRequest, RunnerResult};
+use es_fluent_runner::{PackageName, RunnerMetadataStore, RunnerRequest, RunnerResult};
 use es_fluent_toml::ResolvedI18nLayout;
 #[cfg(test)]
 use std::path::Path;
@@ -22,7 +22,7 @@ pub enum CliHelpersError {
 
 #[derive(Clone, Debug)]
 struct RunnerContext {
-    crate_name: String,
+    crate_name: PackageName,
     layout: ResolvedI18nLayout,
 }
 
@@ -35,14 +35,15 @@ enum GeneratorRun {
 impl RunnerContext {
     fn from_i18n_path(i18n_toml_path: &str, crate_name: &str) -> Result<Self, GeneratorError> {
         Ok(Self {
-            crate_name: crate_name.to_string(),
+            crate_name: PackageName::try_new(crate_name)
+                .map_err(|error| GeneratorError::CrateName(error.to_string()))?,
             layout: ResolvedI18nLayout::from_config_path(i18n_toml_path)?,
         })
     }
 
     fn write_changed_result(&self, changed: bool) -> Result<(), es_fluent_runner::RunnerIoError> {
         let result = RunnerResult { changed };
-        RunnerMetadataStore::new(".").write_result(&self.crate_name, &result)
+        RunnerMetadataStore::new(".").write_result(self.crate_name.as_str(), &result)
     }
 }
 
@@ -55,7 +56,7 @@ fn build_generator(
         .output_path(ctx.layout.output_dir.clone())
         .assets_dir(ctx.layout.assets_dir.clone())
         .manifest_dir(ctx.layout.manifest_dir.clone())
-        .crate_name(&ctx.crate_name)
+        .crate_name(ctx.crate_name.as_str())
         .mode(mode)
         .dry_run(dry_run)
         .build()
@@ -79,13 +80,6 @@ fn run_generator_command(
     Ok(changed)
 }
 
-fn parse_mode(mode: RunnerParseMode) -> FluentParseMode {
-    match mode {
-        RunnerParseMode::Conservative => FluentParseMode::Conservative,
-        RunnerParseMode::Aggressive => FluentParseMode::Aggressive,
-    }
-}
-
 fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
     match request {
         RunnerRequest::Generate {
@@ -95,9 +89,9 @@ fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
             dry_run,
         } => {
             run_generator_command(
-                &i18n_toml_path,
-                &crate_name,
-                parse_mode(mode),
+                i18n_toml_path.as_path().to_string_lossy().as_ref(),
+                crate_name.as_str(),
+                mode,
                 dry_run,
                 GeneratorRun::Generate,
             )?;
@@ -109,14 +103,14 @@ fn run_request(request: RunnerRequest) -> Result<(), CliHelpersError> {
             dry_run,
         } => {
             run_generator_command(
-                &i18n_toml_path,
-                &crate_name,
+                i18n_toml_path.as_path().to_string_lossy().as_ref(),
+                crate_name.as_str(),
                 FluentParseMode::default(),
                 dry_run,
                 GeneratorRun::Clean { all_locales },
             )?;
         },
-        RunnerRequest::Check { crate_name } => run_check(&crate_name)?,
+        RunnerRequest::Check { crate_name } => run_check(crate_name.as_str())?,
     }
 
     Ok(())

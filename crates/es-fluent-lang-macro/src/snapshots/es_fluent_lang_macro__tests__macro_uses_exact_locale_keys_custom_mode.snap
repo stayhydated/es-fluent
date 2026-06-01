@@ -11,20 +11,39 @@ impl ::es_fluent::FluentMessage for CustomLanguages {
     fn to_fluent_string_with(
         &self,
         localize: &mut dyn for<'__es_fluent_message> FnMut(
-            &str,
-            &str,
-            Option<
-                &::std::collections::HashMap<
-                    &str,
-                    ::es_fluent::FluentValue<'__es_fluent_message>,
-                >,
-            >,
+            ::es_fluent::registry::StaticFluentDomain,
+            ::es_fluent::registry::StaticFluentEntryId,
+            Option<&::es_fluent::FluentArgs<'__es_fluent_message>>,
         ) -> String,
     ) -> String {
         match self {
-            Self::En => localize(env!("CARGO_PKG_NAME"), "en", None),
-            Self::FrFr => localize(env!("CARGO_PKG_NAME"), "fr-FR", None),
-            Self::ZhCn => localize(env!("CARGO_PKG_NAME"), "zh-CN", None),
+            Self::En => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en"),
+                    None,
+                )
+            }
+            Self::FrFr => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("fr-FR"),
+                    None,
+                )
+            }
+            Self::ZhCn => {
+                localize(
+                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
+                        env!("CARGO_PKG_NAME"),
+                    ),
+                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zh-CN"),
+                    None,
+                )
+            }
         }
     }
 }
@@ -35,25 +54,21 @@ mod __es_fluent_language_inventory_custom_languages {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::FtlVariant {
             name: "En",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked("en"),
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en"),
             args: &[],
             module_path: module_path!(),
             line: line!(),
         },
         ::es_fluent::registry::FtlVariant {
             name: "FrFr",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
-                "fr-FR",
-            ),
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked("fr-FR"),
             args: &[],
             module_path: module_path!(),
             line: line!(),
         },
         ::es_fluent::registry::FtlVariant {
             name: "ZhCn",
-            ftl_key: ::es_fluent::registry::StaticFluentMessageId::new_unchecked(
-                "zh-CN",
-            ),
+            ftl_key: ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zh-CN"),
             args: &[],
             module_path: module_path!(),
             line: line!(),

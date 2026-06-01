@@ -1,0 +1,20 @@
+error: Attribute error in message field: `#[fluent(arg)]` has the wrong value shape for key `arg` in message field `value`
+       help: use a string literal, for example `arg = "..."`
+ --> tests/ui/wrong_attribute_value_shapes.rs:5:14
+  |
+5 |     #[fluent(arg)]
+  |              ^^^
+
+error: Attribute error in variants container: `#[fluent_variants(keys(...))]` has the wrong value shape for key `keys` in variants container `WrongVariantsKeysShape`
+       help: use a string array, for example `keys = ["label"]`
+  --> tests/ui/wrong_attribute_value_shapes.rs:10:19
+   |
+10 | #[fluent_variants(keys("label"))]
+   |                   ^^^^
+
+error: Attribute error in choice container: `#[fluent_choice(rename_all)]` has the wrong value shape for key `rename_all` in choice container `WrongChoiceRenameShape`
+       help: use a case style string, for example `rename_all = "snake_case"`
+  --> tests/ui/wrong_attribute_value_shapes.rs:16:17
+   |
+16 | #[fluent_choice(rename_all)]
+   |                 ^^^^^^^^^^

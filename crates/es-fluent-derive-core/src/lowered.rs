@@ -16,6 +16,68 @@ use crate::{
     },
 };
 use es_fluent_shared::meta::TypeKind;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DeclarationIndex(usize);
+
+impl DeclarationIndex {
+    pub fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    pub fn as_usize(self) -> usize {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TupleFieldIndex(usize);
+
+impl TupleFieldIndex {
+    pub fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    pub fn as_usize(self) -> usize {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExposedArgumentIndex(usize);
+
+impl ExposedArgumentIndex {
+    pub fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    pub fn as_usize(self) -> usize {
+        self.0
+    }
+}
+
+trait ArgumentIndex {
+    fn as_usize(self) -> usize;
+}
+
+impl ArgumentIndex for DeclarationIndex {
+    fn as_usize(self) -> usize {
+        self.as_usize()
+    }
+}
+
+impl ArgumentIndex for TupleFieldIndex {
+    fn as_usize(self) -> usize {
+        self.as_usize()
+    }
+}
+
+impl ArgumentIndex for ExposedArgumentIndex {
+    fn as_usize(self) -> usize {
+        self.as_usize()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct MessageStructModel<'a> {
     ident: &'a syn::Ident,
@@ -55,6 +117,7 @@ impl<'a> MessageStructModel<'a> {
             .enumerate()
             .filter(|(_, field)| !FluentField::is_skipped(*field))
             .map(|(declaration_index, field)| {
+                let declaration_index = DeclarationIndex::new(declaration_index);
                 if let Some(binding) = field.ident() {
                     MessageStructField::Named {
                         binding,
@@ -71,17 +134,23 @@ impl<'a> MessageStructModel<'a> {
             .collect()
     }
 
-    pub fn indexed_fields(&self) -> Vec<(usize, &'a StructFieldOpts)> {
+    pub fn indexed_fields(&self) -> Vec<(DeclarationIndex, &'a StructFieldOpts)> {
         self.fields
             .fields
             .iter()
             .enumerate()
             .filter(|(_, field)| !FluentField::is_skipped(*field))
+            .map(|(index, field)| (DeclarationIndex::new(index), field))
             .collect()
     }
 
-    pub fn all_indexed_fields(&self) -> Vec<(usize, &'a StructFieldOpts)> {
-        self.fields.fields.iter().enumerate().collect()
+    pub fn all_indexed_fields(&self) -> Vec<(DeclarationIndex, &'a StructFieldOpts)> {
+        self.fields
+            .fields
+            .iter()
+            .enumerate()
+            .map(|(index, field)| (DeclarationIndex::new(index), field))
+            .collect()
     }
 }
 
@@ -89,17 +158,17 @@ impl<'a> MessageStructModel<'a> {
 pub enum MessageStructField<'a> {
     Named {
         binding: &'a syn::Ident,
-        declaration_index: usize,
+        declaration_index: DeclarationIndex,
         field: &'a StructFieldOpts,
     },
     Tuple {
-        declaration_index: usize,
+        declaration_index: DeclarationIndex,
         field: &'a StructFieldOpts,
     },
 }
 
 impl MessageStructField<'_> {
-    pub fn declaration_index(&self) -> usize {
+    pub fn declaration_index(&self) -> DeclarationIndex {
         match self {
             Self::Named {
                 declaration_index, ..
@@ -234,7 +303,7 @@ impl<'a> MessageEnumVariant<'a> {
                     .into_iter()
                     .enumerate()
                     .map(|(original_index, field)| MessageTupleField {
-                        original_index,
+                        original_index: TupleFieldIndex::new(original_index),
                         field,
                     })
                     .collect(),
@@ -254,7 +323,7 @@ impl<'a> MessageEnumVariant<'a> {
                         };
                         Ok(MessageNamedField {
                             binding,
-                            exposed_index,
+                            exposed_index: ExposedArgumentIndex::new(exposed_index),
                             field,
                         })
                     })
@@ -273,7 +342,7 @@ impl<'a> MessageEnumVariant<'a> {
                         };
                         Ok(MessageNamedField {
                             binding,
-                            exposed_index: declaration_index,
+                            exposed_index: ExposedArgumentIndex::new(declaration_index),
                             field,
                         })
                     })
@@ -342,7 +411,7 @@ impl<'a> MessageEnumVariant<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct MessageTupleField<'a> {
-    pub original_index: usize,
+    pub original_index: TupleFieldIndex,
     pub field: &'a crate::options::FluentFieldOpts,
 }
 
@@ -359,7 +428,7 @@ impl MessageTupleField<'_> {
 #[derive(Clone, Copy, Debug)]
 pub struct MessageNamedField<'a> {
     pub binding: &'a syn::Ident,
-    pub exposed_index: usize,
+    pub exposed_index: ExposedArgumentIndex,
     pub field: &'a crate::options::FluentFieldOpts,
 }
 
@@ -376,10 +445,10 @@ pub enum MessageEnumField<'a> {
 }
 
 impl MessageEnumField<'_> {
-    pub fn declaration_index(&self) -> usize {
+    pub fn declaration_index(&self) -> DeclarationIndex {
         match self {
-            Self::Tuple(field) => field.original_index,
-            Self::Named(field) => field.exposed_index,
+            Self::Tuple(field) => DeclarationIndex::new(field.original_index.as_usize()),
+            Self::Named(field) => DeclarationIndex::new(field.exposed_index.as_usize()),
         }
     }
 
@@ -594,13 +663,13 @@ pub fn field_value_strategy(
     }
 }
 
-pub fn field_argument_model(
+fn field_argument_model(
     field: &impl FluentField,
-    index: usize,
+    index: impl ArgumentIndex,
     span: proc_macro2::Span,
 ) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
     let value_strategy = field_value_strategy(field, span)?;
-    let name = field.fluent_arg_name(index, AttrContext::MessageField)?;
+    let name = field.fluent_arg_name(index.as_usize(), AttrContext::MessageField)?;
     Ok(crate::semantic::ArgumentModel::new_with_value_strategy(
         name,
         value_strategy,
@@ -657,5 +726,70 @@ mod tests {
                 .expect("strategy"),
             ArgumentValueStrategy::Transform(_)
         ));
+    }
+
+    #[test]
+    fn message_struct_model_preserves_declaration_indexes_for_skipped_tuple_fields() {
+        let input: syn::DeriveInput = parse_quote! {
+            struct TupleMessage(#[fluent(skip)] u8, String, bool);
+        };
+        let opts = StructOpts::from_derive_input(&input).expect("struct opts");
+        let model = MessageStructModel::from_options(&opts).expect("message model");
+        let fields = model.fields();
+
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].declaration_index().as_usize(), 1);
+        assert_eq!(fields[1].declaration_index().as_usize(), 2);
+        assert_eq!(
+            fields[0]
+                .argument_model()
+                .expect("first arg")
+                .name()
+                .as_str(),
+            "f1"
+        );
+        assert_eq!(
+            fields[1]
+                .argument_model()
+                .expect("second arg")
+                .name()
+                .as_str(),
+            "f2"
+        );
+    }
+
+    #[test]
+    fn message_enum_model_preserves_tuple_indexes_after_skips_and_arg_overrides() {
+        let input: syn::DeriveInput = parse_quote! {
+            enum TupleMessage {
+                Mixed(#[fluent(skip)] u8, #[fluent(arg = "second")] String, bool),
+            }
+        };
+        let opts = EnumOpts::from_derive_input(&input).expect("enum opts");
+        let model = MessageEnumModel::from_options(&opts).expect("message model");
+        let MessageEnumVariant::Tuple { fields, .. } = &model.variants()[0] else {
+            panic!("expected tuple variant model");
+        };
+
+        assert_eq!(fields.len(), 3);
+        assert_eq!(fields[0].original_index.as_usize(), 0);
+        assert_eq!(fields[1].original_index.as_usize(), 1);
+        assert_eq!(fields[2].original_index.as_usize(), 2);
+        assert_eq!(
+            fields[1]
+                .argument_model()
+                .expect("overridden arg")
+                .name()
+                .as_str(),
+            "second"
+        );
+        assert_eq!(
+            fields[2]
+                .argument_model()
+                .expect("default arg")
+                .name()
+                .as_str(),
+            "f2"
+        );
     }
 }

@@ -2,8 +2,8 @@
 #![cfg_attr(not(test), deny(clippy::panic, clippy::unwrap_used))]
 
 use es_fluent_derive_core::{
-    attribute::{AttributeLocation, AttributeName, invalid_attribute_meta_item_for_location},
-    error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError},
+    error::{AttrContext, EsFluentCoreError},
+    grammar::LanguageMode,
     semantic::{
         DerivePathList, GeneratedEnumModel, MessageEntryModel, RustSourceName, RustTypeName,
         SourceLocation, SpannedValue, parse_domain_name_in_context,
@@ -17,8 +17,8 @@ use proc_macro_error2::proc_macro_error;
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned};
 use syn::{
-    Expr, ExprLit, Fields, ItemEnum, Lit, LitStr, Meta, Path, Token, Variant, parse_quote,
-    punctuated::Punctuated, spanned::Spanned as _,
+    Fields, ItemEnum, LitStr, Path, Token, Variant, parse_quote, punctuated::Punctuated,
+    spanned::Spanned as _,
 };
 
 #[derive(Clone)]
@@ -457,7 +457,10 @@ fn generate_fluent_message_impl(
 ) -> proc_macro2::TokenStream {
     let enum_ident = &model.enum_ident;
     let es_fluent = crate_paths.facade();
-    let domain_expr = model.domain_expr();
+    let domain_expr = {
+        let domain = model.domain_expr();
+        quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
+    };
     let match_arms = model
         .entries
         .iter()
@@ -465,6 +468,9 @@ fn generate_fluent_message_impl(
         .map(|(entry, message)| {
             let variant_ident = &entry.ident;
             let message_id = message.message_id().to_string();
+            let message_id = quote! {
+                #es_fluent::registry::StaticFluentEntryId::new_unchecked(#message_id)
+            };
             quote! {
                 Self::#variant_ident => localize(#domain_expr, #message_id, None)
             }
@@ -475,9 +481,9 @@ fn generate_fluent_message_impl(
             fn to_fluent_string_with(
                 &self,
                 localize: &mut dyn for<'__es_fluent_message> FnMut(
-                    &str,
-                    &str,
-                    Option<&::std::collections::HashMap<&str, #es_fluent::FluentValue<'__es_fluent_message>>>,
+                    #es_fluent::registry::StaticFluentDomain,
+                    #es_fluent::registry::StaticFluentEntryId,
+                    Option<&#es_fluent::FluentArgs<'__es_fluent_message>>,
                 ) -> String,
             ) -> String {
                 match self {
@@ -545,91 +551,12 @@ fn language_inventory_variant_tokens(
     quote! {
         #es_fluent::registry::FtlVariant {
             name: #name,
-            ftl_key: #es_fluent::registry::StaticFluentMessageId::new_unchecked(#ftl_key),
+            ftl_key: #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
             args: &[],
             module_path: module_path!(),
             line: #source_line,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum LanguageMode {
-    Builtin,
-    Custom,
-}
-
-impl LanguageMode {
-    fn parse(attr: proc_macro2::TokenStream) -> Result<Self, EsFluentCoreError> {
-        if attr.is_empty() {
-            return Ok(Self::Builtin);
-        }
-
-        let meta: Meta = syn::parse2(attr).map_err(|err| {
-            language_attr_error(
-                "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
-                Some(err.span()),
-            )
-        })?;
-        if let Some(item) = invalid_attribute_meta_item_for_location(
-            &meta,
-            AttributeName::EsFluentLanguage,
-            AttributeLocation::LanguageContainer,
-        ) {
-            let error = language_attr_error(
-                format!("{} is not accepted", item.syntax()),
-                Some(meta.span()),
-            );
-            return if item.key_name() == "custom" {
-                Err(error.with_help("use #[es_fluent_language(mode = \"custom\")]".to_string()))
-            } else {
-                Err(error.with_help(
-                    "use #[es_fluent_language(mode = \"builtin\")] or #[es_fluent_language(mode = \"custom\")]"
-                        .to_string(),
-                ))
-            };
-        }
-
-        match meta {
-            Meta::NameValue(name_value) if name_value.path.is_ident("mode") => {
-                let Expr::Lit(ExprLit {
-                    lit: Lit::Str(mode),
-                    ..
-                }) = name_value.value
-                else {
-                    return Err(language_attr_error(
-                        "#[es_fluent_language] expects `mode` to be a string literal",
-                        Some(name_value.value.span()),
-                    ));
-                };
-
-                match mode.value().as_str() {
-                    "builtin" => Ok(Self::Builtin),
-                    "custom" => Ok(Self::Custom),
-                    _ => Err(language_attr_error(
-                        "#[es_fluent_language] mode must be \"builtin\" or \"custom\"",
-                        Some(mode.span()),
-                    )),
-                }
-            },
-            other => Err(language_attr_error(
-                "#[es_fluent_language] expects `mode = \"builtin\"` or `mode = \"custom\"`",
-                Some(other.span()),
-            )),
-        }
-    }
-
-    fn is_custom(self) -> bool {
-        matches!(self, Self::Custom)
-    }
-}
-
-fn language_attr_error(message: impl Into<String>, span: Option<Span>) -> EsFluentCoreError {
-    EsFluentCoreError::StructuredAttributeError(AttrError::new(
-        AttrContext::LanguageContainer,
-        message,
-        span,
-    ))
 }
 
 #[cfg(all(test, target_os = "linux"))]
@@ -712,6 +639,13 @@ mod tests {
         assert_snapshot!(
             "macro_rejects_invalid_language_mode",
             pretty_tokens(&invalid_mode)
+        );
+
+        let duplicate_mode =
+            run_macro("mode = \"builtin\", mode = \"custom\"", "enum Languages {}");
+        assert_snapshot!(
+            "macro_rejects_duplicate_language_mode",
+            pretty_tokens(&duplicate_mode)
         );
 
         let generic_enum = run_macro("", "enum Languages<T> {}");

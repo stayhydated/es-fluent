@@ -4,7 +4,7 @@ use crate::merge::MergeBehavior;
 use es_fluent_shared::EsFluentResult;
 use es_fluent_shared::namespace::ResolvedNamespace;
 use es_fluent_shared::registry::FtlTypeInfo;
-use es_fluent_shared::resource::ModuleResourceSpec;
+use es_fluent_shared::resource::ResourceRoute;
 use fluent_syntax::{ast, serializer};
 use indexmap::IndexMap;
 use std::fs;
@@ -12,7 +12,7 @@ use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
 pub(crate) struct PlannedOutput<'a> {
-    pub(crate) resource: ModuleResourceSpec,
+    pub(crate) route: ResourceRoute,
     pub(crate) file_path: PathBuf,
     pub(crate) items: Vec<&'a FtlTypeInfo>,
 }
@@ -79,14 +79,12 @@ pub(crate) fn plan_outputs<'a, I: AsRef<FtlTypeInfo>>(
     Ok(namespaced
         .into_iter()
         .map(|(namespace, items)| {
-            let resource = match namespace {
-                Some(namespace) => ModuleResourceSpec::namespaced(crate_name, &namespace, true),
-                None => ModuleResourceSpec::base(crate_name, true),
-            };
+            let route = ResourceRoute::from_namespace(namespace);
+            let resource = route.resource_spec(crate_name, true);
             let file_path = i18n_path.join(resource.locale_relative_path.as_str());
 
             PlannedOutput {
-                resource,
+                route,
                 file_path,
                 items,
             }

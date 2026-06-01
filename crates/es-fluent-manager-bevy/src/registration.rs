@@ -146,8 +146,7 @@ impl FluentTextRegistration for App {
 mod tests {
     use super::*;
     use crate::{FluentText, LocaleChangedEvent, RefreshForLocale};
-    use es_fluent::{FluentMessage, FluentValue};
-    use std::collections::HashMap;
+    use es_fluent::FluentMessage;
     use unic_langid::{LanguageIdentifier, langid};
 
     #[derive(Clone)]
@@ -161,12 +160,16 @@ mod tests {
         fn to_fluent_string_with(
             &self,
             localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
+                es_fluent::registry::StaticFluentDomain,
+                es_fluent::registry::StaticFluentEntryId,
+                Option<&es_fluent::FluentArgs<'a>>,
             ) -> String,
         ) -> String {
-            localize("registration-test", "refreshable", None)
+            localize(
+                es_fluent::registry::StaticFluentDomain::new_unchecked("registration-test"),
+                es_fluent::registry::StaticFluentEntryId::new_unchecked("refreshable"),
+                None,
+            )
         }
     }
 
@@ -187,12 +190,16 @@ mod tests {
         fn to_fluent_string_with(
             &self,
             localize: &mut dyn for<'a> FnMut(
-                &str,
-                &str,
-                Option<&HashMap<&str, FluentValue<'a>>>,
+                es_fluent::registry::StaticFluentDomain,
+                es_fluent::registry::StaticFluentEntryId,
+                Option<&es_fluent::FluentArgs<'a>>,
             ) -> String,
         ) -> String {
-            localize("registration-test", self.0, None)
+            localize(
+                es_fluent::registry::StaticFluentDomain::new_unchecked("registration-test"),
+                es_fluent::registry::StaticFluentEntryId::new_unchecked(self.0),
+                None,
+            )
         }
     }
 
@@ -201,9 +208,9 @@ mod tests {
         let mut app = App::new();
         let mut message = RefreshableMessage;
         let mut localize =
-            |_domain: &str, _id: &str, _args: Option<&HashMap<&str, FluentValue<'_>>>| {
-                "unused".to_string()
-            };
+            |_domain: es_fluent::registry::StaticFluentDomain,
+             _id: es_fluent::registry::StaticFluentEntryId,
+             _args: Option<&es_fluent::FluentArgs<'_>>| { "unused".to_string() };
 
         message.refresh_for_locale(&langid!("en-US"));
         assert_eq!(message.to_fluent_string_with(&mut localize), "unused");

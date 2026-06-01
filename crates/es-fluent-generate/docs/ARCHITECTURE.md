@@ -84,9 +84,11 @@ If any `FtlTypeInfo` carries a namespace, items are grouped by that namespace an
 - `assets_dir/{locale}/{crate}.ftl` for non-namespaced types (default).
 
 This lets large projects split translations by namespace without changing key formats.
-Output planning carries `ModuleResourceSpec` values from `es-fluent-shared`,
-so generation, clean mode, manager macros, and manager-core use the same
-`ResourceKey` and `LocaleRelativeFtlPath` construction rules.
+Output planning carries `ResourceRoute` values from `es-fluent-shared`, then
+expands them into `ModuleResourceSpec` values for file paths. That keeps base
+vs namespaced routing explicit while generation, clean mode, manager macros,
+and manager-core still use the same `ResourceKey` and
+`LocaleRelativeFtlPath` construction rules.
 
 ### Deterministic Output
 

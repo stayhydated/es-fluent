@@ -1,6 +1,6 @@
 //! Inventory collection functionality for CLI commands.
 
-use es_fluent_runner::{ExpectedKey, InventoryData, RunnerMetadataStore};
+use es_fluent_runner::{ExpectedKey, InventoryData, PackageName, RunnerMetadataStore};
 use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
 use es_fluent_shared::source::{SourceFile, SourceLine};
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
@@ -24,13 +24,15 @@ struct KeyMeta {
 /// * `crate_name` - The name of the crate to collect inventory for (e.g., "my-crate")
 ///
 pub fn write_inventory_for_crate(crate_name: &str) -> Result<(), es_fluent_runner::RunnerIoError> {
-    let crate_ident = crate_name.replace('-', "_");
+    let crate_ident = PackageName::try_new(crate_name)?.rust_module_prefix();
 
     // Collect all registered type infos for this crate
     let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
         .filter(|info| {
-            info.module_path == crate_ident
-                || info.module_path.starts_with(&format!("{}::", crate_ident))
+            info.module_path == crate_ident.as_str()
+                || info
+                    .module_path
+                    .starts_with(&format!("{}::", crate_ident.as_str()))
         })
         .collect();
 
@@ -83,7 +85,7 @@ mod tests {
     use super::*;
     use es_fluent::registry::{
         FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType, StaticFluentArgumentName,
-        StaticFluentMessageId,
+        StaticFluentEntryId,
     };
     use es_fluent_shared::meta::TypeKind;
     use std::borrow::Cow;
@@ -91,7 +93,7 @@ mod tests {
     static VARIANTS: &[FtlVariant] = &[
         FtlVariant {
             name: "Primary",
-            ftl_key: StaticFluentMessageId::new_unchecked("my_key"),
+            ftl_key: StaticFluentEntryId::new_unchecked("my_key"),
             args: &[
                 StaticFluentArgumentName::new_unchecked("name"),
                 StaticFluentArgumentName::new_unchecked("count"),
@@ -101,7 +103,7 @@ mod tests {
         },
         FtlVariant {
             name: "Secondary",
-            ftl_key: StaticFluentMessageId::new_unchecked("secondary_key"),
+            ftl_key: StaticFluentEntryId::new_unchecked("secondary_key"),
             args: &[StaticFluentArgumentName::new_unchecked("extra")],
             module_path: "test_crate",
             line: 55,
@@ -124,14 +126,14 @@ mod tests {
     static DUPLICATE_VARIANTS: &[FtlVariant] = &[
         FtlVariant {
             name: "Primary",
-            ftl_key: StaticFluentMessageId::new_unchecked("duplicated_key"),
+            ftl_key: StaticFluentEntryId::new_unchecked("duplicated_key"),
             args: &[StaticFluentArgumentName::new_unchecked("name")],
             module_path: "test_crate_duplicate_inventory",
             line: 42,
         },
         FtlVariant {
             name: "Secondary",
-            ftl_key: StaticFluentMessageId::new_unchecked("duplicated_key"),
+            ftl_key: StaticFluentEntryId::new_unchecked("duplicated_key"),
             args: &[StaticFluentArgumentName::new_unchecked("extra")],
             module_path: "test_crate_duplicate_inventory",
             line: 55,
@@ -153,7 +155,7 @@ mod tests {
 
     static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant {
         name: "NoFilePath",
-        ftl_key: StaticFluentMessageId::new_unchecked("empty_file_key"),
+        ftl_key: StaticFluentEntryId::new_unchecked("empty_file_key"),
         args: &[],
         module_path: "test_crate_empty_file",
         line: 7,
@@ -284,7 +286,7 @@ mod tests {
     #[test]
     fn static_inventory_wrappers_validate_manual_values() {
         assert!(
-            StaticFluentMessageId::try_new("_invalid")
+            StaticFluentEntryId::try_new("_invalid")
                 .expect_err("invalid message id")
                 .to_string()
                 .contains("must start with an ASCII letter")

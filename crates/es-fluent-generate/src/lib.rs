@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 
-use clap::ValueEnum;
 use es_fluent_shared::EsFluentResult;
+pub use es_fluent_shared::FluentParseMode;
 use es_fluent_shared::registry::FtlTypeInfo;
 use std::path::Path;
 
@@ -32,17 +32,6 @@ pub(crate) use merge::{
 };
 #[cfg(test)]
 pub(crate) use model::{OwnedTypeInfo, OwnedVariant};
-
-/// The mode to use when parsing Fluent files.
-#[derive(Clone, Debug, Default, strum::Display, Eq, PartialEq, ValueEnum)]
-#[strum(serialize_all = "snake_case")]
-pub enum FluentParseMode {
-    /// Overwrite existing translations.
-    Aggressive,
-    /// Preserve existing translations.
-    #[default]
-    Conservative,
-}
 
 /// Generates a Fluent translation file from a list of `FtlTypeInfo` objects.
 pub fn generate<P: AsRef<Path>, M: AsRef<Path>, I: AsRef<FtlTypeInfo>>(
