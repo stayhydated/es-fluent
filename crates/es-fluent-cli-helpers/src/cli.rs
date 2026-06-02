@@ -34,7 +34,8 @@ pub fn write_inventory_for_crate_at(
     crate_name: &str,
     manifest_dir: &Path,
 ) -> Result<(), es_fluent_runner::RunnerIoError> {
-    let crate_ident = PackageName::try_new(crate_name)?.rust_module_prefix();
+    let package_name = PackageName::try_new(crate_name)?;
+    let crate_ident = package_name.rust_module_prefix();
 
     // Collect all registered type infos for this crate
     let type_infos: Vec<_> = es_fluent::registry::get_all_ftl_type_infos()
@@ -98,7 +99,7 @@ pub fn write_inventory_for_crate_at(
 
     let data = InventoryData { expected_keys };
 
-    RunnerMetadataStore::new(Path::new(".")).write_inventory(crate_name, &data)
+    RunnerMetadataStore::new(Path::new(".")).write_inventory(&package_name, &data)
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
-use crate::core::{CrateInfo, WorkspaceInfo};
+use crate::core::{CrateInfo, ManifestDir, SourceDir, WorkspaceInfo};
 use anyhow::{Context as _, Result};
 use cargo_metadata::MetadataCommand;
+use es_fluent_runner::PackageName;
 use es_fluent_toml::ResolvedI18nLayout;
 use std::path::{Path, PathBuf};
 
@@ -38,10 +39,13 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
         let src_dir = manifest_dir.join("src");
         let has_lib_rs = src_dir.join("lib.rs").exists();
 
+        let package_name = PackageName::try_new(package.name.to_string())
+            .with_context(|| format!("invalid package name `{}`", package.name))?;
+
         crates.push(CrateInfo {
-            name: package.name.to_string(),
-            manifest_dir,
-            src_dir,
+            name: package_name,
+            manifest_dir: ManifestDir::from_discovered(manifest_dir),
+            src_dir: SourceDir::from_discovered(src_dir),
             i18n_config_path,
             ftl_output_dir,
             has_lib_rs,
@@ -50,7 +54,7 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
     }
 
     // Sort by name for consistent ordering
-    crates.sort_by(|a, b| a.name.cmp(&b.name));
+    crates.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
 
     Ok(WorkspaceInfo {
         root_dir: workspace_root,

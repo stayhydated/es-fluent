@@ -14,7 +14,7 @@ use es_fluent_shared::{
 };
 use es_fluent_toml::{I18nConfig, I18nConfigError};
 use heck::ToPascalCase as _;
-use syn::{DeriveInput, spanned::Spanned as _};
+use syn::DeriveInput;
 
 #[derive(Clone, Copy, Debug)]
 pub struct NamespaceSource<'a> {
@@ -242,10 +242,6 @@ pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
 pub(crate) fn validate_message_struct_model(
     model: &MessageStructModel<'_>,
 ) -> EsFluentCoreResult<()> {
-    for field in model.all_indexed_fields().into_iter().map(|(_, f)| f) {
-        field.argument_value_strategy(field_span(field))?;
-    }
-
     // Ensure exposed argument names remain unique after arg overrides.
     let mut seen = std::collections::HashSet::new();
     for field in model.fields() {
@@ -303,27 +299,15 @@ pub(crate) fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFlu
         let mut field_arg_overrides = Vec::new();
         for field_model in &all_fields {
             let field = field_model.field();
-            field.argument_value_strategy(field_span(field))?;
 
-            if let Some(arg) = field.arg_name(AttrContext::MessageField)? {
-                field_arg_overrides.push((*field_model, arg));
+            if let Some(arg) = field.arg_name() {
+                field_arg_overrides.push((*field_model, arg.clone()));
             }
         }
 
         if !field_arg_overrides.is_empty() {
             let mut explicit_seen = std::collections::HashSet::new();
-            for (field_model, name) in &field_arg_overrides {
-                let field = field_model.field();
-                if field.is_skipped() {
-                    return Err(EsFluentCoreError::VariantError {
-                        message: format!(
-                            "`#[fluent(arg = \"{}\")]` cannot be used on a skipped field",
-                            name.value().as_str()
-                        ),
-                        variant_name: variant_name.clone(),
-                        span: variant_span,
-                    });
-                }
+            for (_field_model, name) in &field_arg_overrides {
                 if !explicit_seen.insert(name.value().clone()) {
                     return Err(EsFluentCoreError::VariantError {
                         message: format!(
@@ -361,12 +345,6 @@ pub(crate) fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFlu
     }
 
     Ok(())
-}
-
-fn field_span(field: &impl FluentField) -> proc_macro2::Span {
-    field
-        .ident()
-        .map_or_else(|| field.ty().span(), syn::Ident::span)
 }
 
 fn validate_message_enum_ids(model: &MessageEnumModel<'_>) -> EsFluentCoreResult<()> {

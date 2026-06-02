@@ -1,12 +1,13 @@
 use es_fluent_derive_core::semantic::{
-    ArgName, ArgumentModel, DomainName, FluentMessageId, MessageEntryModel, RustSourceName,
-    SourceLocation, SpannedValue,
+    ArgName, ArgumentModel, DomainName, FluentMessageId, MessageEntryModel, SourceLocation,
 };
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::Ident;
 
-use crate::macros::utils::{CodegenContext, static_domain_expr};
+use crate::macros::utils::{
+    CodegenContext, static_argument_name_tokens, static_domain_tokens, static_entry_id_tokens,
+};
 
 #[derive(Clone)]
 pub(crate) struct FluentArgument {
@@ -15,19 +16,15 @@ pub(crate) struct FluentArgument {
 }
 
 impl FluentArgument {
-    pub(crate) fn name(&self) -> &str {
-        self.metadata.name().as_str()
-    }
-
     fn context_bound_insert_statement(&self, context: &CodegenContext) -> TokenStream {
-        let key = self.name();
         let value_expr = &self.value_expr;
         let es_fluent = context.facade_path().tokens();
+        let key = static_argument_name_tokens(context, self.metadata.name());
         quote! {
             {
                 use #es_fluent::__private::IntoFluentArgumentValue as _;
                 args.insert(
-                    #es_fluent::registry::StaticFluentArgumentName::new_unchecked(#key),
+                    #key,
                     (#value_expr).into_fluent_argument_value(localize),
                 );
             }
@@ -41,23 +38,6 @@ pub(crate) struct MessageEntrySpec {
 }
 
 impl MessageEntrySpec {
-    pub(crate) fn new(
-        source_name: RustSourceName,
-        message_id: SpannedValue<FluentMessageId>,
-        runtime_arguments: Vec<FluentArgument>,
-    ) -> Self {
-        let arguments = runtime_arguments
-            .iter()
-            .map(|argument| argument.metadata.clone())
-            .collect();
-        let source_location = SourceLocation::new(message_id.span());
-
-        Self {
-            metadata: MessageEntryModel::new(source_name, message_id, arguments, source_location),
-            runtime_arguments,
-        }
-    }
-
     pub(crate) fn from_metadata(
         metadata: MessageEntryModel,
         runtime_arguments: Vec<FluentArgument>,
@@ -104,11 +84,8 @@ pub(crate) struct LocalizeCallSpec {
 impl LocalizeCallSpec {
     pub(crate) fn localize_with_expr(&self, context: &CodegenContext) -> TokenStream {
         let es_fluent = context.facade_path().tokens();
-        let domain_expr = static_domain_expr(context, self.domain_override.as_ref());
-        let ftl_key = self.ftl_key.as_str();
-        let ftl_key_expr = quote! {
-            #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key)
-        };
+        let domain_expr = static_domain_tokens(context, self.domain_override.as_ref());
+        let ftl_key_expr = static_entry_id_tokens(context, &self.ftl_key);
 
         if self.arguments.is_empty() {
             quote! {
@@ -142,23 +119,20 @@ pub(crate) struct InventoryVariantSpec {
 impl InventoryVariantSpec {
     pub(crate) fn tokens(&self, context: &CodegenContext) -> TokenStream {
         let name = &self.name;
-        let ftl_key = self.ftl_key.as_str();
         let es_fluent = context.facade_path().tokens();
         let args_tokens: Vec<_> = self
             .arg_names
             .iter()
-            .map(|arg| {
-                let arg = arg.as_str();
-                quote! { #es_fluent::registry::StaticFluentArgumentName::new_unchecked(#arg) }
-            })
+            .map(|arg| static_argument_name_tokens(context, arg))
             .collect();
+        let entry_id = static_entry_id_tokens(context, &self.ftl_key);
         let source_span = self.source_location.span();
         let source_line = quote_spanned! { source_span=> line!() };
 
         quote! {
             #es_fluent::registry::__macro::ftl_variant(
                 #name,
-                #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
+                #entry_id,
                 &[#(#args_tokens),*],
                 module_path!(),
                 #source_line,

@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
-    EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
-    VariantFields as _,
+    EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
+    StructDataOptions as _, VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
@@ -11,6 +11,16 @@ use syn::{DeriveInput, parse_quote};
 fn assert_no_generics(generics: &syn::Generics) {
     assert!(generics.params.is_empty());
     assert!(generics.where_clause.is_none());
+}
+
+fn is_selector(field: &impl es_fluent_derive_core::options::FluentField) -> bool {
+    matches!(
+        field
+            .directive()
+            .argument()
+            .map(|argument| argument.value()),
+        Some(FieldValueDirective::Choice { .. })
+    )
 }
 
 fn message_field_arg(
@@ -76,7 +86,7 @@ fn enum_variants_and_fields_skipping_and_choice() {
         "Expected remaining field to be 'a'"
     );
     assert!(
-        data_fields[0].is_selector(),
+        is_selector(data_fields[0]),
         "Field 'a' should be marked as selector"
     );
 
@@ -244,9 +254,9 @@ fn struct_fluent_parsing() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "a");
-    assert!(!fields[0].is_selector());
+    assert!(!is_selector(fields[0]));
     assert_eq!(fields[1].ident().expect("named field").to_string(), "c");
-    assert!(fields[1].is_selector());
+    assert!(is_selector(fields[1]));
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);
@@ -276,12 +286,12 @@ fn struct_tuple_fields_parsing() {
     let (first_index, first_field) = &indexed_fields[0];
     assert_eq!(*first_index, 1);
     assert_eq!(message_field_arg(*first_field, *first_index), "f1");
-    assert!(!first_field.is_selector());
+    assert!(!is_selector(*first_field));
 
     let (second_index, second_field) = &indexed_fields[1];
     assert_eq!(*second_index, 2);
     assert_eq!(message_field_arg(*second_field, *second_index), "f2");
-    assert!(second_field.is_selector());
+    assert!(is_selector(*second_field));
 }
 
 #[test]

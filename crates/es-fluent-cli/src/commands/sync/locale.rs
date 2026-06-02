@@ -191,9 +191,9 @@ mod tests {
         .expect("write i18n.toml");
 
         CrateInfo {
-            name: "test-crate".to_string(),
-            manifest_dir: manifest_dir.clone(),
-            src_dir,
+            name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+            src_dir: crate::core::SourceDir::from_discovered(src_dir),
             i18n_config_path: i18n_toml,
             ftl_output_dir: manifest_dir.join("i18n/en"),
             has_lib_rs: true,

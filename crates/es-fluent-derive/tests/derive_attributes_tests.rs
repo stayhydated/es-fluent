@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
-    EnumDataOptions as _, FluentField as _, GeneratedVariantsOptions as _, StructDataOptions as _,
-    VariantFields as _,
+    EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
+    StructDataOptions as _, VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
@@ -10,6 +10,16 @@ use syn::{DeriveInput, parse_quote};
 fn assert_no_generics(generics: &syn::Generics) {
     assert!(generics.params.is_empty());
     assert!(generics.where_clause.is_none());
+}
+
+fn is_selector(field: &impl es_fluent_derive_core::options::FluentField) -> bool {
+    matches!(
+        field
+            .directive()
+            .argument()
+            .map(|argument| argument.value()),
+        Some(FieldValueDirective::Choice { .. })
+    )
 }
 
 fn derive_names(paths: &darling::util::PathList) -> Vec<String> {
@@ -123,7 +133,7 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
     assert!(matches!(mixed.style(), darling::ast::Style::Tuple));
     assert_eq!(mixed.fields().len(), 1);
     assert_eq!(mixed.all_fields().len(), 2);
-    assert!(mixed.fields()[0].is_selector());
+    assert!(is_selector(mixed.fields()[0]));
     assert!(mixed.all_fields()[1].is_skipped());
 
     let info = opts
@@ -137,12 +147,12 @@ fn es_fluent_enum_attributes_label_choice_snapshot() {
         info.fields()[0].ident().expect("named field").to_string(),
         "level"
     );
-    assert!(info.fields()[0].is_selector());
+    assert!(is_selector(info.fields()[0]));
     assert_eq!(
         info.fields()[1].ident().expect("named field").to_string(),
         "message"
     );
-    assert!(!info.fields()[1].is_selector());
+    assert!(!is_selector(info.fields()[1]));
 }
 
 #[test]
@@ -170,12 +180,12 @@ fn es_fluent_struct_attributes_label_with_derive_snapshot() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "name");
-    assert!(!fields[0].is_selector());
+    assert!(!is_selector(fields[0]));
     assert_eq!(
         fields[1].ident().expect("named field").to_string(),
         "gender"
     );
-    assert!(fields[1].is_selector());
+    assert!(is_selector(fields[1]));
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);
@@ -208,9 +218,9 @@ fn es_fluent_struct_attributes_choice_snapshot() {
     let fields = opts.fields();
     assert_eq!(fields.len(), 2);
     assert_eq!(fields[0].ident().expect("named field").to_string(), "text");
-    assert!(!fields[0].is_selector());
+    assert!(!is_selector(fields[0]));
     assert_eq!(fields[1].ident().expect("named field").to_string(), "style");
-    assert!(fields[1].is_selector());
+    assert!(is_selector(fields[1]));
 
     let all_fields = opts.all_indexed_fields();
     assert_eq!(all_fields.len(), 3);

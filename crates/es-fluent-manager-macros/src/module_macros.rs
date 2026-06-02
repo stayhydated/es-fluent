@@ -6,6 +6,7 @@ use quote::quote;
 use std::path::{Path, PathBuf};
 
 struct ManagerPaths {
+    manager_path: es_fluent_derive_core::macro_support::ResolvedCratePath,
     manager_core_path: proc_macro2::TokenStream,
     langid_path: proc_macro2::TokenStream,
     module_data_suffix: &'static str,
@@ -13,26 +14,35 @@ struct ManagerPaths {
 
 impl ManagerPaths {
     fn embedded() -> Self {
+        let manager_path = crate::support::embedded_manager_path();
+        let manager_path_tokens = manager_path.tokens();
         Self {
-            manager_core_path: quote! { ::es_fluent_manager_embedded::__manager_core },
-            langid_path: quote! { ::es_fluent_manager_embedded::__unic_langid },
+            manager_core_path: quote! { #manager_path_tokens::__manager_core },
+            langid_path: quote! { #manager_path_tokens::__unic_langid },
             module_data_suffix: "EMBEDDED_I18N_MODULE_DATA",
+            manager_path,
         }
     }
 
     fn bevy() -> Self {
+        let manager_path = crate::support::bevy_manager_path();
+        let manager_path_tokens = manager_path.tokens();
         Self {
-            manager_core_path: quote! { ::es_fluent_manager_bevy::__manager_core },
-            langid_path: quote! { ::es_fluent_manager_bevy::__unic_langid },
+            manager_core_path: quote! { #manager_path_tokens::__manager_core },
+            langid_path: quote! { #manager_path_tokens::__unic_langid },
             module_data_suffix: "BEVY_I18N_MODULE_DATA",
+            manager_path,
         }
     }
 
     fn dioxus() -> Self {
+        let manager_path = crate::support::dioxus_manager_path();
+        let manager_path_tokens = manager_path.tokens();
         Self {
-            manager_core_path: quote! { ::es_fluent_manager_dioxus::__manager_core },
-            langid_path: quote! { ::es_fluent_manager_dioxus::__unic_langid },
+            manager_core_path: quote! { #manager_path_tokens::__manager_core },
+            langid_path: quote! { #manager_path_tokens::__unic_langid },
             module_data_suffix: "DIOXUS_I18N_ASSET_MODULE_DATA",
+            manager_path,
         }
     }
 }
@@ -151,13 +161,14 @@ fn generate_embedded_tokens(
     );
 
     let i18n_root_str = utf8_folder_literal(&assets.root_path)?;
-    let rust_embed_path = quote! { ::es_fluent_manager_embedded::__rust_embed };
+    let manager_path = manager_paths.manager_path.tokens();
+    let rust_embed_path = quote! { #manager_path::__rust_embed };
     let rust_embed_attr_path = syn::LitStr::new(
-        "::es_fluent_manager_embedded::__rust_embed",
+        &format!("{}::__rust_embed", manager_paths.manager_path.rust_path()),
         proc_macro2::Span::call_site(),
     );
     let manager_core_path = &manager_paths.manager_core_path;
-    let inventory_path = quote! { ::es_fluent_manager_embedded::__inventory };
+    let inventory_path = quote! { #manager_path::__inventory };
 
     let expanded = quote! {
         #[derive(#rust_embed_path::RustEmbed)]
@@ -217,7 +228,8 @@ fn generate_bevy_tokens(
         .resource_plan_match_arms(&manager_paths.manager_core_path, &manager_paths.langid_path);
     let manager_core_path = &manager_paths.manager_core_path;
     let langid_path = &manager_paths.langid_path;
-    let inventory_path = quote! { ::es_fluent_manager_bevy::__inventory };
+    let manager_path = manager_paths.manager_path.tokens();
+    let inventory_path = quote! { #manager_path::__inventory };
 
     let expanded = quote! {
         #module_data_static
@@ -286,7 +298,7 @@ fn generate_dioxus_asset_loader_tokens(
     );
     let manager_core_path = &manager_paths.manager_core_path;
     let langid_path = &manager_paths.langid_path;
-    let manager_path = quote! { ::es_fluent_manager_dioxus };
+    let manager_path = manager_paths.manager_path.tokens();
     let asset_tokens = dioxus_asset_resource_tokens(&assets, manager_paths)?;
 
     let expanded = quote! {
@@ -353,7 +365,7 @@ fn dioxus_asset_resource_tokens(
     assets: &I18nAssets,
     manager_paths: &ManagerPaths,
 ) -> syn::Result<Vec<proc_macro2::TokenStream>> {
-    let manager_path = quote! { ::es_fluent_manager_dioxus };
+    let manager_path = manager_paths.manager_path.tokens();
     let langid_path = &manager_paths.langid_path;
     let mut tokens = Vec::new();
 

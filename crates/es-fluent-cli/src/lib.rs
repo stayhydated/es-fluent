@@ -249,9 +249,9 @@ mod tests {
     }
 
     #[test]
-    fn cli_rejects_old_format_command_name() {
+    fn cli_rejects_removed_format_command_alias() {
         let error = match Cli::try_parse_from(["cargo", "es-fluent", "format"]) {
-            Ok(_) => panic!("old format command name should be rejected"),
+            Ok(_) => panic!("removed format command alias should be rejected"),
             Err(error) => error,
         };
         assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);

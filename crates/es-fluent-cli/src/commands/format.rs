@@ -286,9 +286,9 @@ mod tests {
             .expect("write namespaced ftl");
 
         CrateInfo {
-            name: "test-app".to_string(),
-            manifest_dir: temp_dir.to_path_buf(),
-            src_dir,
+            name: es_fluent_runner::PackageName::try_new("test-app").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.to_path_buf()),
+            src_dir: crate::core::SourceDir::from_discovered(src_dir),
             i18n_config_path: config_path,
             ftl_output_dir: temp_dir.join("i18n/en"),
             has_lib_rs: true,

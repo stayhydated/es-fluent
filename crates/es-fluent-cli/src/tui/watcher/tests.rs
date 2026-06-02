@@ -15,9 +15,9 @@ use toml::Value;
 
 fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
     CrateInfo {
-        name: name.to_string(),
-        manifest_dir: PathBuf::from("/tmp/test"),
-        src_dir: PathBuf::from("/tmp/test/src"),
+        name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
+        src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
         i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
         ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
         has_lib_rs,
@@ -135,18 +135,18 @@ fn compute_watch_inputs_hash_changes_when_manifest_or_build_script_changes() {
 #[test]
 fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
     let crate_a = CrateInfo {
-        name: "crate-a".to_string(),
-        manifest_dir: PathBuf::from("/tmp/ws/crate-a"),
-        src_dir: PathBuf::from("/tmp/ws/crate-a/src"),
+        name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/ws/crate-a")),
+        src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/crate-a/src")),
         i18n_config_path: PathBuf::from("/tmp/ws/crate-a/i18n.toml"),
         ftl_output_dir: PathBuf::from("/tmp/ws/crate-a/i18n/en"),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
     let crate_b = CrateInfo {
-        name: "crate-b".to_string(),
-        manifest_dir: PathBuf::from("/tmp/ws/crate-b"),
-        src_dir: PathBuf::from("/tmp/ws/crate-b/src"),
+        name: es_fluent_runner::PackageName::try_new("crate-b").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/ws/crate-b")),
+        src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/crate-b/src")),
         i18n_config_path: PathBuf::from("/tmp/ws/crate-b/i18n.toml"),
         ftl_output_dir: PathBuf::from("/tmp/ws/crate-b/i18n/en"),
         has_lib_rs: true,
@@ -217,9 +217,9 @@ fn create_valid_workspace_with_fake_runner_behavior(
     );
 
     let krate = CrateInfo {
-        name: "watch-crate".to_string(),
-        manifest_dir: temp.path().to_path_buf(),
-        src_dir: src_dir.clone(),
+        name: es_fluent_runner::PackageName::try_new("watch-crate").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir.clone()),
         i18n_config_path: i18n_toml.clone(),
         ftl_output_dir: temp.path().join("i18n/en"),
         has_lib_rs: true,
@@ -238,7 +238,7 @@ fn create_valid_workspace_with_fake_runner_behavior(
         Some(&i18n_toml),
     );
     let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.clone(), hash);
+    crate_hashes.insert(krate.name.to_string(), hash);
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     crate::test_fixtures::install_fake_runner_with_cache(
         &binary_path,
@@ -386,9 +386,12 @@ fn run_watch_loop_with_file_rx_accepts_no_iteration_limit_when_poll_quits() {
 fn configure_file_watcher_reports_invalid_watch_roots() {
     let temp = tempfile::tempdir().expect("tempdir");
     let krate = CrateInfo {
-        name: "broken-watch-root".to_string(),
-        manifest_dir: temp.path().join("missing-manifest"),
-        src_dir: temp.path().join("missing-src"),
+        name: es_fluent_runner::PackageName::try_new("broken-watch-root")
+            .expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(
+            temp.path().join("missing-manifest"),
+        ),
+        src_dir: crate::core::SourceDir::from_discovered(temp.path().join("missing-src")),
         i18n_config_path: temp.path().join("i18n.toml"),
         ftl_output_dir: temp.path().join("i18n/en"),
         has_lib_rs: true,
@@ -406,9 +409,12 @@ fn configure_file_watcher_reports_invalid_manifest_watch_root() {
     let src_dir = temp.path().join("src");
     fs::create_dir_all(&src_dir).expect("create src dir");
     let krate = CrateInfo {
-        name: "broken-manifest-watch-root".to_string(),
-        manifest_dir: temp.path().join("missing-manifest"),
-        src_dir,
+        name: es_fluent_runner::PackageName::try_new("broken-manifest-watch-root")
+            .expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(
+            temp.path().join("missing-manifest"),
+        ),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
         i18n_config_path: temp.path().join("i18n.toml"),
         ftl_output_dir: temp.path().join("i18n/en"),
         has_lib_rs: true,
@@ -562,9 +568,9 @@ fn watch_all_propagates_runner_preparation_errors() {
     fs::write(&workspace_root, "not-a-directory").expect("write workspace root sentinel");
 
     let krate = CrateInfo {
-        name: "broken-watch".to_string(),
-        manifest_dir: temp.path().to_path_buf(),
-        src_dir: temp.path().join("src"),
+        name: es_fluent_runner::PackageName::try_new("broken-watch").expect("valid package name"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
         i18n_config_path: temp.path().join("i18n.toml"),
         ftl_output_dir: temp.path().join("i18n/en"),
         has_lib_rs: true,

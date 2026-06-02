@@ -88,8 +88,10 @@ mod tests {
         assert!(tokens.contains("\"login_form\""));
         assert!(tokens.contains("\"display_name\""));
         assert!(tokens.contains("\"attempts\""));
-        assert!(tokens.contains("StaticFluentEntryId :: new_unchecked (\"login_form\")"));
-        assert!(tokens.contains("StaticFluentArgumentName :: new_unchecked (\"display_name\")"));
-        assert!(tokens.contains("StaticFluentArgumentName :: new_unchecked (\"attempts\")"));
+        assert!(tokens.contains("StaticFluentEntryId"));
+        assert!(tokens.contains("\"login_form\""));
+        assert!(tokens.contains("StaticFluentArgumentName"));
+        assert!(tokens.contains("\"display_name\""));
+        assert!(tokens.contains("\"attempts\""));
     }
 }

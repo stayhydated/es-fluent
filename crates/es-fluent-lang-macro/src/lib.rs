@@ -4,6 +4,10 @@
 use es_fluent_derive_core::{
     error::{AttrContext, EsFluentCoreError},
     grammar::LanguageMode,
+    macro_support::{
+        core_error_to_compile_error, resolve_crate_path, static_domain_tokens,
+        static_entry_id_tokens,
+    },
     semantic::{
         DerivePathList, GeneratedEnumModel, MessageEntryModel, RustSourceName, RustTypeName,
         SourceLocation, SpannedValue, parse_domain_name_in_context,
@@ -12,7 +16,6 @@ use es_fluent_derive_core::{
 };
 use heck::{ToSnakeCase as _, ToUpperCamelCase as _};
 use proc_macro::TokenStream;
-use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro_error2::proc_macro_error;
 use proc_macro2::Span;
 use quote::{format_ident, quote, quote_spanned};
@@ -30,8 +33,8 @@ struct CratePaths {
 impl CratePaths {
     fn resolve() -> Self {
         Self {
-            facade: resolve_crate_path("es-fluent", quote! { ::es_fluent }),
-            lang: resolve_crate_path("es-fluent-lang", quote! { ::es_fluent_lang }),
+            facade: resolve_crate_path("es-fluent", "es_fluent"),
+            lang: resolve_crate_path("es-fluent-lang", "es_fluent_lang"),
         }
     }
 
@@ -41,20 +44,6 @@ impl CratePaths {
 
     fn lang(&self) -> &proc_macro2::TokenStream {
         &self.lang
-    }
-}
-
-fn resolve_crate_path(
-    package_name: &str,
-    fallback: proc_macro2::TokenStream,
-) -> proc_macro2::TokenStream {
-    match crate_name(package_name) {
-        Ok(FoundCrate::Itself) => quote! { crate },
-        Ok(FoundCrate::Name(name)) => {
-            let ident = format_ident!("{name}");
-            quote! { ::#ident }
-        },
-        Err(_) => fallback,
     }
 }
 
@@ -81,10 +70,7 @@ fn expand_es_fluent_language(
 ) -> proc_macro2::TokenStream {
     let mode = match LanguageMode::parse(attr) {
         Ok(mode) => mode,
-        Err(err) => {
-            let span = err.span().unwrap_or_else(Span::call_site);
-            return syn::Error::new(span, err.to_string()).to_compile_error();
-        },
+        Err(err) => return core_error_to_compile_error(err),
     };
 
     let mut input_enum: ItemEnum = match syn::parse2(item) {
@@ -404,15 +390,7 @@ impl LanguageEnumModel {
     }
 
     fn static_domain_expr(&self, es_fluent: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-        match self.semantic.domain() {
-            Some(domain) => {
-                let domain = domain.to_string();
-                quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
-            },
-            None => quote! {
-                #es_fluent::registry::StaticFluentDomain::from_package_name(env!("CARGO_PKG_NAME"))
-            },
-        }
+        static_domain_tokens(es_fluent, self.semantic.domain())
     }
 
     fn messages(&self) -> &[MessageEntryModel] {
@@ -466,10 +444,7 @@ fn generate_fluent_message_impl(
         .zip(model.messages())
         .map(|(entry, message)| {
             let variant_ident = &entry.ident;
-            let message_id = message.message_id().to_string();
-            let message_id = quote! {
-                #es_fluent::registry::StaticFluentEntryId::new_unchecked(#message_id)
-            };
+            let message_id = static_entry_id_tokens(es_fluent, message.message_id());
             quote! {
                 Self::#variant_ident => localize(#domain_expr, #message_id, None)
             }
@@ -542,15 +517,15 @@ fn language_inventory_variant_tokens(
     crate_paths: &CratePaths,
 ) -> proc_macro2::TokenStream {
     let name = message.source_name();
-    let ftl_key = message.message_id().to_string();
     let source_span = message.source_location().span();
     let source_line = quote_spanned! { source_span=> line!() };
     let es_fluent = crate_paths.facade();
+    let ftl_key = static_entry_id_tokens(es_fluent, message.message_id());
 
     quote! {
         #es_fluent::registry::__macro::ftl_variant(
             #name,
-            #es_fluent::registry::StaticFluentEntryId::new_unchecked(#ftl_key),
+            #ftl_key,
             &[],
             module_path!(),
             #source_line,

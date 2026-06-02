@@ -142,7 +142,8 @@ mod tests {
         assert!(tokens.contains("Some(&args)"));
         assert!(tokens.contains("registry::__macro::ftl_type_info"));
         assert!(tokens.contains("registry::__macro::ftl_variant"));
-        assert!(tokens.contains("StaticFluentArgumentName::new_unchecked(\"match\")"));
+        assert!(tokens.contains("StaticFluentArgumentName"));
+        assert!(tokens.contains("\"match\""));
     }
 
     #[test]

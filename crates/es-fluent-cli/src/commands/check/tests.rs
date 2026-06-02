@@ -3,6 +3,10 @@ use fs_err as fs;
 
 use crate::test_fixtures::{FakeRunnerBehavior, INVENTORY_WITH_HELLO, INVENTORY_WITH_MISSING_KEY};
 
+fn package(name: &str) -> es_fluent_runner::PackageName {
+    es_fluent_runner::PackageName::try_new(name).expect("valid package name")
+}
+
 fn setup_fake_runner_and_cache_with_behavior(
     temp: &tempfile::TempDir,
     behavior: FakeRunnerBehavior,
@@ -57,7 +61,7 @@ fn run_check_succeeds_with_fake_runner_and_matching_inventory() {
     setup_fake_runner_and_cache(&temp);
 
     let inventory_path = es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
-        .inventory_path("test-app");
+        .inventory_path(&package("test-app"));
     fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
     fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
 
@@ -72,7 +76,7 @@ fn run_check_returns_validation_error_for_missing_key() {
     setup_fake_runner_and_cache(&temp);
 
     let inventory_path = es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
-        .inventory_path("test-app");
+        .inventory_path(&package("test-app"));
     fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
     fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
 
@@ -246,7 +250,7 @@ fn run_check_json_returns_exit_status_when_issues_exist() {
     setup_fake_runner_and_cache(&temp);
 
     let inventory_path = es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
-        .inventory_path("test-app");
+        .inventory_path(&package("test-app"));
     fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
     fs::write(&inventory_path, INVENTORY_WITH_MISSING_KEY).expect("write inventory");
 

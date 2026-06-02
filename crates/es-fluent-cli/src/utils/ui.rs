@@ -329,9 +329,13 @@ mod tests {
 
     fn test_crate(name: &str) -> CrateInfo {
         CrateInfo {
-            name: name.to_string(),
-            manifest_dir: std::path::PathBuf::from("/tmp/test"),
-            src_dir: std::path::PathBuf::from("/tmp/test/src"),
+            name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(std::path::PathBuf::from(
+                "/tmp/test",
+            )),
+            src_dir: crate::core::SourceDir::from_discovered(std::path::PathBuf::from(
+                "/tmp/test/src",
+            )),
             i18n_config_path: std::path::PathBuf::from("/tmp/test/i18n.toml"),
             ftl_output_dir: std::path::PathBuf::from("/tmp/test/i18n/en"),
             has_lib_rs: true,

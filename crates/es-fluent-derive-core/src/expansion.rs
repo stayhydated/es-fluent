@@ -6,7 +6,7 @@ use heck::ToPascalCase as _;
 use syn::Data;
 
 use crate::{
-    context::{ContainerContext, SpannedNamespaceRule},
+    context::{ContainerContext, ContainerEnvelope, SpannedNamespaceRule},
     error::{AttrContext, EsFluentCoreError},
     lowered,
     options::{
@@ -17,9 +17,9 @@ use crate::{
         r#struct::{StructOpts, StructVariantsOpts},
     },
     semantic::{
-        ArgumentModel, ChoiceModel, GeneratedKeyIdent, GeneratedKeyName,
-        GeneratedVariantMessageSeed, MessageEntryModel, MessageModel, RustSourceName, RustTypeName,
-        SpannedValue, generated_label_message_value,
+        ArgumentModel, ChoiceModel, DerivePathList, GeneratedEnumModel, GeneratedKeyIdent,
+        GeneratedKeyName, GeneratedVariantMessageSeed, MessageEntryModel, MessageModel,
+        RustSourceName, RustTypeName, SpannedValue, generated_label_message_value,
     },
     validation::{self, NamespaceSource, SpannedNamespaceRuleRef, resolve_single_namespace_source},
 };
@@ -354,28 +354,32 @@ pub enum EsFluentEnumVariantShape {
     },
 }
 
-/// Tuple variant field binding and optional argument metadata.
+/// Tuple variant field binding and argument metadata.
 #[derive(Clone, Debug)]
-pub struct EsFluentTupleField {
-    original_index: usize,
-    skipped: bool,
-    argument: Option<ArgumentModel>,
+pub enum EsFluentTupleField {
+    /// A tuple field ignored by generated Fluent arguments.
+    Skipped { index: lowered::TupleFieldIndex },
+    /// A tuple field that contributes one generated Fluent argument.
+    Argument {
+        index: lowered::TupleFieldIndex,
+        argument: ArgumentModel,
+    },
 }
 
 impl EsFluentTupleField {
     /// Original declaration index in the tuple variant.
-    pub fn original_index(&self) -> usize {
-        self.original_index
-    }
-
-    /// Whether this field is skipped for FTL arguments.
-    pub fn is_skipped(&self) -> bool {
-        self.skipped
+    pub fn index(&self) -> lowered::TupleFieldIndex {
+        match self {
+            Self::Skipped { index } | Self::Argument { index, .. } => *index,
+        }
     }
 
     /// Final argument metadata when the field contributes to localization.
     pub fn argument(&self) -> Option<&ArgumentModel> {
-        self.argument.as_ref()
+        match self {
+            Self::Skipped { .. } => None,
+            Self::Argument { argument, .. } => Some(argument),
+        }
     }
 }
 
@@ -435,17 +439,16 @@ fn enum_variant_shape(
         lowered::MessageEnumVariant::Tuple { all_fields, .. } => all_fields
             .iter()
             .map(|field| {
-                let skipped = FluentField::is_skipped(field.field);
-                let argument = if skipped {
-                    None
+                if FluentField::is_skipped(field.field) {
+                    Ok(EsFluentTupleField::Skipped {
+                        index: field.original_index,
+                    })
                 } else {
-                    Some(field.argument_model()?)
-                };
-                Ok(EsFluentTupleField {
-                    original_index: field.original_index.as_usize(),
-                    skipped,
-                    argument,
-                })
+                    Ok(EsFluentTupleField::Argument {
+                        index: field.original_index,
+                        argument: field.argument_model()?,
+                    })
+                }
             })
             .collect::<Result<Vec<_>, EsFluentCoreError>>()
             .map(|fields| EsFluentEnumVariantShape::Tuple { fields }),
@@ -558,8 +561,9 @@ impl EsFluentLabelExpansion {
     pub fn from_derive_input(input: &syn::DeriveInput) -> ExpansionResult<Self> {
         validation::validate_es_fluent_label_attribute_context(input)?;
 
+        let envelope = ContainerEnvelope::from_derive_input(input)?;
         let opts = LabelOpts::from_derive_input(input)?;
-        let container_context = ContainerContext::from_derive_input(input)?;
+        let container_context = ContainerContext::from_envelope(&envelope);
         let model = lowered::LabelModel::from_options(&opts)?;
 
         let original_ident = model.ident();
@@ -643,9 +647,8 @@ impl EsFluentGeneratedVariant {
 pub struct EsFluentVariantsTarget {
     ident: syn::Ident,
     key_name: Option<GeneratedKeyName>,
-    derives: Vec<syn::Path>,
     variants: Vec<EsFluentGeneratedVariant>,
-    label_key: Option<FluentMessageId>,
+    generated_model: GeneratedEnumModel,
 }
 
 impl EsFluentVariantsTarget {
@@ -659,11 +662,6 @@ impl EsFluentVariantsTarget {
         self.key_name.as_ref()
     }
 
-    /// Derives requested on the generated enum.
-    pub fn derives(&self) -> &[syn::Path] {
-        &self.derives
-    }
-
     /// Generated unit variants and metadata.
     pub fn variants(&self) -> &[EsFluentGeneratedVariant] {
         &self.variants
@@ -671,7 +669,14 @@ impl EsFluentVariantsTarget {
 
     /// Optional generated label key when `#[fluent_label(variants = true)]` is present.
     pub fn label_key(&self) -> Option<&FluentMessageId> {
-        self.label_key.as_ref()
+        self.generated_model
+            .label()
+            .map(MessageEntryModel::message_id)
+    }
+
+    /// Validated semantic model for the generated enum target.
+    pub fn generated_model(&self) -> &GeneratedEnumModel {
+        &self.generated_model
     }
 }
 
@@ -697,8 +702,9 @@ impl EsFluentVariantsExpansion {
 
         validation::validate_es_fluent_variants_attribute_context(input)?;
 
+        let envelope = ContainerEnvelope::from_derive_input(input)?;
         let label_opts = LabelOpts::from_derive_input(input)?;
-        let container_context = ContainerContext::from_derive_input(input)?;
+        let container_context = ContainerContext::from_envelope(&envelope);
 
         match &input.data {
             Data::Struct(_) => {
@@ -787,7 +793,10 @@ fn build_variants_expansion(
             .unwrap_or_else(|| opts.variants_ident().span()),
     )?;
     let namespace = namespace.map(|namespace| namespace.rule().clone());
-    let derives: Vec<syn::Path> = (*opts.variants_attr_args().derive()).to_vec();
+    let derives = DerivePathList::from_paths(
+        opts.variants_attr_args().derive().iter().cloned(),
+        AttrContext::VariantsContainer,
+    )?;
     let targets = generated_variants_targets(opts)
         .into_iter()
         .map(|target| {
@@ -798,13 +807,32 @@ fn build_variants_expansion(
                 .collect::<Result<Vec<_>, _>>()?;
             let label_key =
                 variants_label_key(label_opts, &base_key, opts.variants_ident().span())?;
+            let label_model = label_key.clone().map(|label_key| {
+                MessageEntryModel::new(
+                    RustSourceName::from_ident(&target.ident),
+                    SpannedValue::new(label_key, opts.variants_ident().span()),
+                    Vec::new(),
+                    crate::semantic::SourceLocation::new(opts.variants_ident().span()),
+                )
+            });
+            let generated_model = GeneratedEnumModel::new(
+                RustTypeName::from_ident(&target.ident),
+                RustTypeName::from_ident(opts.variants_ident()),
+                derives.clone(),
+                variants
+                    .iter()
+                    .map(|variant| variant.message_entry().clone())
+                    .collect(),
+                label_model,
+                container_context.fluent_domain().cloned(),
+                namespace.clone(),
+            );
 
             Ok(EsFluentVariantsTarget {
                 ident: target.ident,
                 key_name: target.key_name,
-                derives: derives.clone(),
                 variants,
-                label_key,
+                generated_model,
             })
         })
         .collect::<Result<Vec<_>, EsFluentCoreError>>()?;
@@ -1286,7 +1314,10 @@ mod tests {
             "label"
         );
         assert_eq!(
-            expansion.targets()[0].derives()[0].segments[0].ident,
+            expansion.targets()[0].generated_model().derives().paths()[0]
+                .path()
+                .segments[0]
+                .ident,
             "Debug"
         );
         assert_eq!(expansion.targets()[0].variants().len(), 1);

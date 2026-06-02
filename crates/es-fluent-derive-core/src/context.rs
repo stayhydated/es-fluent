@@ -1,13 +1,12 @@
 //! Shared derive container context built once from the raw derive input.
 
-use darling::FromMeta as _;
+use darling::FromDeriveInput as _;
 use es_fluent_shared::namespace::NamespaceRule;
 use proc_macro2::Span;
-use syn::{Data, DeriveInput, Meta, Token, punctuated::Punctuated};
+use syn::{Data, DeriveInput};
 
-use crate::grammar::AttributeKey;
 use crate::options::{NamespaceSpec, r#enum::EnumOpts, r#struct::StructOpts};
-use crate::semantic::{DomainName, FluentMessageId, SpannedValue};
+use crate::semantic::{DomainName, SpannedValue};
 use crate::validation::SpannedNamespaceRuleRef;
 
 /// Rust container kind for a derive input.
@@ -42,6 +41,137 @@ impl SpannedNamespaceRule {
     }
 }
 
+/// Typed container metadata parsed once from a derive input.
+#[derive(Clone, Debug)]
+pub enum ContainerEnvelope {
+    Struct(StructContainer),
+    Enum(EnumContainer),
+}
+
+impl ContainerEnvelope {
+    pub fn from_derive_input(input: &DeriveInput) -> darling::Result<Self> {
+        match &input.data {
+            Data::Struct(_) => {
+                let opts = ParentStructOpts::from_derive_input(input)?;
+                Ok(Self::Struct(StructContainer {
+                    ident: opts.ident,
+                    generics: opts.generics,
+                    namespace: opts.attr_args.namespace_spec().map(|namespace| {
+                        SpannedNamespaceRule::new(namespace.rule().clone(), namespace.span())
+                    }),
+                }))
+            },
+            Data::Enum(_) => {
+                let opts = ParentEnumOpts::from_derive_input(input)?;
+                let namespace = opts.attr_args.namespace_spec().map(|namespace| {
+                    SpannedNamespaceRule::new(namespace.rule().clone(), namespace.span())
+                });
+                Ok(Self::Enum(EnumContainer {
+                    ident: opts.ident,
+                    generics: opts.generics,
+                    domain: opts.attr_args.domain,
+                    namespace,
+                }))
+            },
+            Data::Union(_) => Err(darling::Error::custom(
+                "container context is not supported for unions",
+            )),
+        }
+    }
+
+    pub fn source_ident(&self) -> &syn::Ident {
+        match self {
+            Self::Struct(container) => container.source_ident(),
+            Self::Enum(container) => container.source_ident(),
+        }
+    }
+
+    pub fn kind(&self) -> ContainerKind {
+        match self {
+            Self::Struct(_) => ContainerKind::Struct,
+            Self::Enum(_) => ContainerKind::Enum,
+        }
+    }
+
+    pub fn generics(&self) -> &syn::Generics {
+        match self {
+            Self::Struct(container) => container.generics(),
+            Self::Enum(container) => container.generics(),
+        }
+    }
+
+    pub fn fluent_namespace(&self) -> Option<&SpannedNamespaceRule> {
+        match self {
+            Self::Struct(container) => container.fluent_namespace(),
+            Self::Enum(container) => container.fluent_namespace(),
+        }
+    }
+
+    pub fn fluent_domain_with_span(&self) -> Option<&SpannedValue<DomainName>> {
+        match self {
+            Self::Struct(_) => None,
+            Self::Enum(container) => container.fluent_domain_with_span(),
+        }
+    }
+
+    pub fn fluent_domain(&self) -> Option<&DomainName> {
+        self.fluent_domain_with_span().map(SpannedValue::value)
+    }
+}
+
+/// Typed struct container metadata shared by non-message derives.
+#[derive(Clone, Debug)]
+pub struct StructContainer {
+    ident: syn::Ident,
+    generics: syn::Generics,
+    namespace: Option<SpannedNamespaceRule>,
+}
+
+impl StructContainer {
+    pub fn source_ident(&self) -> &syn::Ident {
+        &self.ident
+    }
+
+    pub fn generics(&self) -> &syn::Generics {
+        &self.generics
+    }
+
+    pub fn fluent_namespace(&self) -> Option<&SpannedNamespaceRule> {
+        self.namespace.as_ref()
+    }
+}
+
+/// Typed enum container metadata shared by non-message derives.
+#[derive(Clone, Debug)]
+pub struct EnumContainer {
+    ident: syn::Ident,
+    generics: syn::Generics,
+    domain: Option<SpannedValue<DomainName>>,
+    namespace: Option<SpannedNamespaceRule>,
+}
+
+impl EnumContainer {
+    pub fn source_ident(&self) -> &syn::Ident {
+        &self.ident
+    }
+
+    pub fn generics(&self) -> &syn::Generics {
+        &self.generics
+    }
+
+    pub fn fluent_domain_with_span(&self) -> Option<&SpannedValue<DomainName>> {
+        self.domain.as_ref()
+    }
+
+    pub fn fluent_domain(&self) -> Option<&DomainName> {
+        self.domain.as_ref().map(SpannedValue::value)
+    }
+
+    pub fn fluent_namespace(&self) -> Option<&SpannedNamespaceRule> {
+        self.namespace.as_ref()
+    }
+}
+
 /// Context shared by derives that need parent `#[fluent(...)]` information.
 #[derive(Clone, Debug)]
 pub struct ContainerContext {
@@ -54,29 +184,18 @@ pub struct ContainerContext {
 
 impl ContainerContext {
     pub fn from_derive_input(input: &DeriveInput) -> darling::Result<Self> {
-        let kind = match &input.data {
-            Data::Struct(_) => ContainerKind::Struct,
-            Data::Enum(_) => ContainerKind::Enum,
-            Data::Union(_) => {
-                return Err(darling::Error::custom(
-                    "container context is not supported for unions",
-                ));
-            },
-        };
-        let fluent = ParentFluentContext::from_attrs(&input.attrs)?;
+        let envelope = ContainerEnvelope::from_derive_input(input)?;
+        Ok(Self::from_envelope(&envelope))
+    }
 
-        Ok(Self {
-            source_ident: input.ident.clone(),
-            kind,
-            generics: input.generics.clone(),
-            fluent_namespace: fluent.namespace.map(|namespace| {
-                SpannedNamespaceRule::new(namespace.rule().clone(), namespace.span())
-            }),
-            fluent_domain: match kind {
-                ContainerKind::Struct => None,
-                ContainerKind::Enum => fluent.domain,
-            },
-        })
+    pub fn from_envelope(envelope: &ContainerEnvelope) -> Self {
+        Self {
+            source_ident: envelope.source_ident().clone(),
+            kind: envelope.kind(),
+            generics: envelope.generics().clone(),
+            fluent_namespace: envelope.fluent_namespace().cloned(),
+            fluent_domain: envelope.fluent_domain_with_span().cloned(),
+        }
     }
 
     pub fn from_struct_options(opts: &StructOpts) -> Self {
@@ -138,53 +257,35 @@ impl ContainerContext {
     }
 }
 
-#[derive(Default)]
-struct ParentFluentContext {
-    namespace: Option<NamespaceSpec>,
-    domain: Option<SpannedValue<DomainName>>,
-    #[allow(dead_code)]
-    id: Option<SpannedValue<FluentMessageId>>,
+#[derive(Clone, Debug, darling::FromDeriveInput)]
+#[darling(supports(struct_any), attributes(fluent))]
+struct ParentStructOpts {
+    ident: syn::Ident,
+    generics: syn::Generics,
+    #[darling(flatten)]
+    attr_args: crate::options::NamespacedAttributeArgs,
 }
 
-impl ParentFluentContext {
-    fn from_attrs(attrs: &[syn::Attribute]) -> darling::Result<Self> {
-        let mut context = Self::default();
+#[derive(Clone, Debug, darling::FromDeriveInput)]
+#[darling(supports(enum_any), attributes(fluent))]
+struct ParentEnumOpts {
+    ident: syn::Ident,
+    generics: syn::Generics,
+    #[darling(flatten)]
+    attr_args: ParentEnumAttributeArgs,
+}
 
-        for attr in attrs {
-            if !attr.path().is_ident("fluent") {
-                continue;
-            }
+#[derive(Clone, Debug, Default, darling::FromMeta)]
+struct ParentEnumAttributeArgs {
+    #[darling(default)]
+    domain: Option<SpannedValue<DomainName>>,
+    #[darling(flatten)]
+    namespace_args: crate::options::NamespacedAttributeArgs,
+}
 
-            let Meta::List(list) = &attr.meta else {
-                continue;
-            };
-            let items = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-
-            for item in items {
-                match AttributeKey::from_meta(&item) {
-                    Some(AttributeKey::Namespace) => {
-                        context.namespace = Some(
-                            NamespaceSpec::from_meta(&item).map_err(|err| err.with_span(&item))?,
-                        );
-                    },
-                    Some(AttributeKey::Domain) => {
-                        context.domain = Some(
-                            <SpannedValue<DomainName> as darling::FromMeta>::from_meta(&item)
-                                .map_err(|err| err.with_span(&item))?,
-                        );
-                    },
-                    Some(AttributeKey::Id) => {
-                        context.id = Some(
-                            <SpannedValue<FluentMessageId> as darling::FromMeta>::from_meta(&item)
-                                .map_err(|err| err.with_span(&item))?,
-                        );
-                    },
-                    _ => {},
-                }
-            }
-        }
-
-        Ok(context)
+impl ParentEnumAttributeArgs {
+    fn namespace_spec(&self) -> Option<&NamespaceSpec> {
+        self.namespace_args.namespace_spec()
     }
 }
 
@@ -230,5 +331,21 @@ mod tests {
             context.fluent_namespace().map(SpannedNamespaceRule::rule),
             Some(NamespaceRule::Literal(value)) if value == "errors"
         ));
+    }
+
+    #[test]
+    fn container_envelope_rejects_parent_message_id() {
+        let input: DeriveInput = parse_quote! {
+            #[fluent(id = "login_error")]
+            enum LoginError {
+                Failed,
+            }
+        };
+
+        let err = ContainerEnvelope::from_derive_input(&input)
+            .expect_err("non-message parent context should reject id");
+
+        assert!(err.to_string().contains("Unknown field"));
+        assert!(err.to_string().contains("id"));
     }
 }

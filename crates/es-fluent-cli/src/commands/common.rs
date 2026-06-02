@@ -89,7 +89,7 @@ impl WorkspaceCrates {
         ui::Ui::print_discovered(&self.crates);
 
         for krate in &self.skipped {
-            ui::Ui::print_missing_lib_rs(&krate.name);
+            ui::Ui::print_missing_lib_rs(krate.name.as_str());
         }
 
         true
@@ -115,7 +115,11 @@ pub fn run_generation_for_crates(
         return crates
             .iter()
             .map(|k| {
-                GenerateResult::failure(k.name.clone(), std::time::Duration::ZERO, e.to_string())
+                GenerateResult::failure(
+                    k.name.to_string(),
+                    std::time::Duration::ZERO,
+                    e.to_string(),
+                )
             })
             .collect();
     }
@@ -263,14 +267,18 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Duration;
 
+    fn package(name: &str) -> es_fluent_runner::PackageName {
+        es_fluent_runner::PackageName::try_new(name).expect("valid package name")
+    }
+
     fn create_workspace_info(temp: &tempfile::TempDir) -> WorkspaceInfo {
         let manifest_dir = temp.path().to_path_buf();
         let src_dir = manifest_dir.join("src");
         let i18n_toml = manifest_dir.join("i18n.toml");
         let krate = CrateInfo {
-            name: "test-app".to_string(),
-            manifest_dir: manifest_dir.clone(),
-            src_dir,
+            name: package("test-app"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+            src_dir: crate::core::SourceDir::from_discovered(src_dir),
             i18n_config_path: i18n_toml,
             ftl_output_dir: manifest_dir.join("i18n/en"),
             has_lib_rs: true,
@@ -289,16 +297,17 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let crate_name = "demo";
         let store = es_fluent_runner::RunnerMetadataStore::new(temp.path());
-        let result_path = store.result_path(crate_name);
+        let package_name = package(crate_name);
+        let result_path = store.result_path(&package_name);
         fs::create_dir_all(result_path.parent().unwrap()).unwrap();
 
-        assert!(!store.result_changed(crate_name));
+        assert!(!store.result_changed(&package_name));
 
         fs::write(&result_path, "{not-json").unwrap();
-        assert!(!store.result_changed(crate_name));
+        assert!(!store.result_changed(&package_name));
 
         fs::write(&result_path, r#"{"changed":true}"#).unwrap();
-        assert!(store.result_changed(crate_name));
+        assert!(store.result_changed(&package_name));
     }
 
     #[test]
@@ -415,9 +424,10 @@ mod tests {
         assert!(!empty.print_discovery(|| {}));
 
         let skipped_crate = CrateInfo {
-            name: "missing-lib".to_string(),
-            manifest_dir: PathBuf::from("/tmp/test"),
-            src_dir: PathBuf::from("/tmp/test/src"),
+            name: es_fluent_runner::PackageName::try_new("missing-lib")
+                .expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
             i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
             ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
             has_lib_rs: false,
@@ -439,9 +449,9 @@ mod tests {
     #[test]
     fn run_generation_for_crates_returns_failures_when_runner_preparation_fails() {
         let krate = CrateInfo {
-            name: "broken".to_string(),
-            manifest_dir: PathBuf::from("/dev/null"),
-            src_dir: PathBuf::from("/dev/null/src"),
+            name: es_fluent_runner::PackageName::try_new("broken").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/dev/null")),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/dev/null/src")),
             i18n_config_path: PathBuf::from("/dev/null/i18n.toml"),
             ftl_output_dir: PathBuf::from("/dev/null/i18n/en"),
             has_lib_rs: true,

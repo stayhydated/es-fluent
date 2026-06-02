@@ -265,7 +265,7 @@ impl GeneratedVariantsOptions for EnumVariantsOpts {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::FluentField as _;
+    use crate::options::{FieldValueDirective, FluentField as _};
     use es_fluent_shared::namespace::NamespaceRule;
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
@@ -313,11 +313,22 @@ mod tests {
             .expect("Data variant should exist");
         assert_eq!(data.fields().len(), 2);
         assert_eq!(data.all_fields().len(), 3);
-        assert!(data.fields()[0].is_selector());
+        assert!(matches!(
+            data.fields()[0]
+                .directive()
+                .argument()
+                .map(|arg| arg.value()),
+            Some(FieldValueDirective::Choice { .. })
+        ));
 
-        let value_expr = data.fields()[1]
-            .value()
-            .expect("value expression should be present");
+        let Some(FieldValueDirective::Transform(transform)) = data.fields()[1]
+            .directive()
+            .argument()
+            .map(|arg| arg.value())
+        else {
+            panic!("value expression should be present");
+        };
+        let value_expr = transform.expr();
         assert_eq!(
             quote!(#value_expr).to_string(),
             "| x : & String | x . len ()"
@@ -549,10 +560,7 @@ mod tests {
             .expect("Something variant should exist");
 
         let fields = variant.all_fields();
-        let field_arg = fields[0]
-            .arg_name(crate::error::AttrContext::MessageField)
-            .expect("field arg should parse")
-            .expect("field arg");
+        let field_arg = fields[0].arg_name().expect("field arg");
         assert_eq!(field_arg.value().as_str(), "value");
     }
 

@@ -18,7 +18,10 @@ pub fn filter_crates_by_package(
 ) -> Vec<CrateInfo> {
     match package {
         Some(pkg) => {
-            let filtered: Vec<_> = crates.into_iter().filter(|c| &c.name == pkg).collect();
+            let filtered: Vec<_> = crates
+                .into_iter()
+                .filter(|c| c.name.as_str() == pkg)
+                .collect();
             if filtered.is_empty() {
                 ui::Ui::print_package_not_found(pkg);
             }
@@ -53,9 +56,9 @@ mod tests {
 
     fn make_crate_info(name: &str, has_lib_rs: bool) -> CrateInfo {
         CrateInfo {
-            name: name.to_string(),
-            manifest_dir: PathBuf::new(),
-            src_dir: PathBuf::new(),
+            name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::new()),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::new()),
             i18n_config_path: PathBuf::new(),
             ftl_output_dir: PathBuf::new(),
             has_lib_rs,

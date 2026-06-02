@@ -5,6 +5,7 @@
 mod assets;
 mod bevy_fluent_text;
 mod module_macros;
+mod support;
 
 use proc_macro::TokenStream;
 

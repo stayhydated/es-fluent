@@ -270,9 +270,9 @@ mod tests {
         .expect("write i18n.toml");
 
         let krate = crate::core::CrateInfo {
-            name: "test-app".to_string(),
-            manifest_dir: manifest_dir.clone(),
-            src_dir,
+            name: es_fluent_runner::PackageName::try_new("test-app").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+            src_dir: crate::core::SourceDir::from_discovered(src_dir),
             i18n_config_path: i18n_toml,
             ftl_output_dir: manifest_dir.join("i18n/en"),
             has_lib_rs: true,
@@ -381,18 +381,18 @@ mod tests {
         .expect("write i18n.toml");
 
         let crate_a = crate::core::CrateInfo {
-            name: "crate-a".to_string(),
-            manifest_dir: manifest_dir.clone(),
-            src_dir: src_dir.clone(),
+            name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+            src_dir: crate::core::SourceDir::from_discovered(src_dir.clone()),
             i18n_config_path: i18n_toml.clone(),
             ftl_output_dir: manifest_dir.join("i18n/en"),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         };
         let crate_b = crate::core::CrateInfo {
-            name: "crate-b".to_string(),
-            manifest_dir: manifest_dir.clone(),
-            src_dir,
+            name: es_fluent_runner::PackageName::try_new("crate-b").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
+            src_dir: crate::core::SourceDir::from_discovered(src_dir),
             i18n_config_path: i18n_toml,
             ftl_output_dir: manifest_dir.join("i18n/en"),
             has_lib_rs: true,

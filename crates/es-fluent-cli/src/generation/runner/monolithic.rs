@@ -56,7 +56,7 @@ impl<'a> MonolithicRunner<'a> {
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
                 );
-                current_hashes.insert(krate.name.clone(), hash);
+                current_hashes.insert(krate.name.to_string(), hash);
             }
         }
 
@@ -69,13 +69,13 @@ impl<'a> MonolithicRunner<'a> {
 
             if cache.runner_mtime == runner_mtime_secs {
                 for (name, current_hash) in &current_hashes {
-                    match cache.crate_hashes.get(name) {
+                    match cache.crate_hashes.get(name.as_str()) {
                         Some(cached_hash) if cached_hash == current_hash => continue,
                         _ => return true,
                     }
                 }
                 for cached_name in cache.crate_hashes.keys() {
-                    if !current_hashes.contains_key(cached_name) {
+                    if !current_hashes.contains_key(cached_name.as_str()) {
                         return true;
                     }
                 }
@@ -111,12 +111,9 @@ pub fn prepare_monolithic_runner_crate(workspace: &WorkspaceInfo) -> Result<Path
         .iter()
         .filter(|c| c.has_lib_rs)
         .map(|c| {
-            let crate_ident = es_fluent_runner::PackageName::try_new(c.name.clone())
-                .context("workspace crate name should be a valid package name")?
-                .rust_module_prefix()
-                .to_string();
+            let crate_ident = c.name.rust_module_prefix().to_string();
             Ok(MonolithicCrateDep {
-                name: &c.name,
+                name: c.name.as_str(),
                 path: super::utf8_path_string(
                     &c.manifest_dir,
                     &format!("workspace manifest directory for crate '{}'", c.name),
@@ -293,7 +290,7 @@ fn write_runner_cache(runner: &MonolithicRunner<'_>) {
                     &krate.src_dir,
                     Some(&krate.i18n_config_path),
                 );
-                crate_hashes.insert(krate.name.clone(), hash);
+                crate_hashes.insert(krate.name.to_string(), hash);
             }
         }
 

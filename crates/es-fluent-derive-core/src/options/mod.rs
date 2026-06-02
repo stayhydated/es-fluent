@@ -449,41 +449,22 @@ pub trait FluentField {
     fn ident(&self) -> Option<&syn::Ident>;
     /// Returns the source field type.
     fn ty(&self) -> &syn::Type;
-    /// Returns the shared fluent field attribute arguments.
-    fn field_attr_args(&self) -> &FluentFieldAttributeArgs;
+    /// Returns the closed field directive built from the raw field attributes.
+    fn directive(&self) -> &FieldDirective;
 
     /// Returns `true` if the field should be skipped.
     fn is_skipped(&self) -> bool {
-        self.field_attr_args().is_skipped()
+        matches!(self.directive(), FieldDirective::Skip)
     }
 
-    /// Returns `true` if the field is a Fluent selector.
-    fn is_selector(&self) -> bool {
-        self.field_attr_args().is_selector()
-    }
-
-    /// Returns `true` if the field should be treated as an optional argument.
-    fn is_optional(&self) -> bool {
-        self.field_attr_args().is_optional()
-    }
-
-    /// Returns the value expression if present.
-    fn value(&self) -> Option<&syn::Expr> {
-        self.field_attr_args().value()
-    }
-
-    /// Returns the argument value strategy for unskipped fields.
-    fn argument_value_strategy(
-        &self,
-        span: proc_macro2::Span,
-    ) -> EsFluentCoreResult<Option<ArgumentValueStrategy>> {
-        self.field_attr_args()
-            .argument_value_strategy(self.ty(), span)
+    /// Returns the argument value strategy for fields that expose an argument.
+    fn argument_value_strategy(&self, span: proc_macro2::Span) -> Option<ArgumentValueStrategy> {
+        self.directive().argument_value_strategy(span)
     }
 
     /// Returns the explicit field argument name as a typed value if provided.
-    fn arg_name(&self, context: AttrContext) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
-        self.field_attr_args().arg_name(context)
+    fn arg_name(&self) -> Option<&SpannedValue<ArgName>> {
+        self.directive().arg_name()
     }
 
     /// Resolves and validates the Fluent argument name for this field.
@@ -492,8 +473,8 @@ pub trait FluentField {
         index: usize,
         context: AttrContext,
     ) -> EsFluentCoreResult<SpannedValue<ArgName>> {
-        if let Some(arg) = self.arg_name(context)? {
-            return Ok(arg);
+        if let Some(arg) = self.arg_name() {
+            return Ok(arg.clone());
         }
 
         let (name, span) = self
@@ -580,34 +561,27 @@ pub struct FluentFieldAttributeArgs {
 }
 
 impl FluentFieldAttributeArgs {
-    pub fn is_skipped(&self) -> bool {
+    fn is_skipped(&self) -> bool {
         self.skip.unwrap_or(false)
     }
 
-    pub fn is_selector(&self) -> bool {
+    fn is_selector(&self) -> bool {
         self.selector.unwrap_or(false)
     }
 
-    pub fn is_optional(&self) -> bool {
+    fn is_optional(&self) -> bool {
         self.optional.unwrap_or(false)
     }
 
-    pub fn value(&self) -> Option<&syn::Expr> {
+    fn value(&self) -> Option<&syn::Expr> {
         self.value.as_ref().map(|value| &value.0)
     }
 
-    pub fn arg_name(
-        &self,
-        _context: AttrContext,
-    ) -> EsFluentCoreResult<Option<SpannedValue<ArgName>>> {
-        Ok(self.arg.clone())
-    }
-
-    pub fn argument_value_strategy(
+    fn directive(
         &self,
         ty: &syn::Type,
         span: proc_macro2::Span,
-    ) -> EsFluentCoreResult<Option<ArgumentValueStrategy>> {
+    ) -> EsFluentCoreResult<FieldDirective> {
         let is_skipped = self.is_skipped();
         let is_selector = self.is_selector();
         let is_optional = self.is_optional();
@@ -640,7 +614,7 @@ impl FluentFieldAttributeArgs {
                 ));
             }
 
-            return Ok(None);
+            return Ok(FieldDirective::Skip);
         }
 
         if is_selector && has_value {
@@ -665,27 +639,134 @@ impl FluentFieldAttributeArgs {
         }
 
         if is_optional {
-            if !is_option_type(ty) {
+            let Some(inner_ty) = option_inner_type(ty) else {
                 return Err(field_strategy_error(
                     "#[fluent(optional)] can only be used on Option<T> fields",
                     span,
                 ));
-            }
-            return Ok(Some(ArgumentValueStrategy::Optional { span }));
+            };
+            return Ok(FieldDirective::Argument(FieldArgumentDirective {
+                name: self.arg.clone(),
+                value: FieldValueDirective::Optional {
+                    span: ty.span(),
+                    inner_ty: inner_ty.clone(),
+                },
+            }));
         }
 
         if is_selector {
-            return Ok(Some(ArgumentValueStrategy::Choice { span }));
+            return Ok(FieldDirective::Argument(FieldArgumentDirective {
+                name: self.arg.clone(),
+                value: FieldValueDirective::Choice { span },
+            }));
         }
 
         if let Some(expr) = self.value() {
-            return Ok(Some(ArgumentValueStrategy::Transform(ValueTransform::new(
-                expr.clone(),
-                expr.span(),
-            ))));
+            return Ok(FieldDirective::Argument(FieldArgumentDirective {
+                name: self.arg.clone(),
+                value: FieldValueDirective::Transform(ValueTransform::new(
+                    expr.clone(),
+                    expr.span(),
+                )),
+            }));
         }
 
-        Ok(Some(ArgumentValueStrategy::Borrowed { span }))
+        Ok(FieldDirective::Argument(FieldArgumentDirective {
+            name: self.arg.clone(),
+            value: FieldValueDirective::Borrowed { span },
+        }))
+    }
+}
+
+/// Closed representation of a field's message-argument behavior.
+#[derive(Clone, Debug)]
+pub enum FieldDirective {
+    /// The field is ignored by generated Fluent arguments.
+    Skip,
+    /// The field contributes one generated Fluent argument.
+    Argument(FieldArgumentDirective),
+}
+
+impl FieldDirective {
+    pub(crate) fn from_attr_args(
+        attr_args: &FluentFieldAttributeArgs,
+        ty: &syn::Type,
+        span: proc_macro2::Span,
+    ) -> EsFluentCoreResult<Self> {
+        attr_args.directive(ty, span)
+    }
+
+    pub fn argument(&self) -> Option<&FieldArgumentDirective> {
+        match self {
+            Self::Skip => None,
+            Self::Argument(argument) => Some(argument),
+        }
+    }
+
+    pub fn arg_name(&self) -> Option<&SpannedValue<ArgName>> {
+        self.argument().and_then(FieldArgumentDirective::name)
+    }
+
+    pub fn argument_value_strategy(
+        &self,
+        fallback_span: proc_macro2::Span,
+    ) -> Option<ArgumentValueStrategy> {
+        self.argument()
+            .map(|argument| argument.value().argument_value_strategy(fallback_span))
+    }
+}
+
+/// Argument metadata for a field that contributes to a generated Fluent call.
+#[derive(Clone, Debug)]
+pub struct FieldArgumentDirective {
+    name: Option<SpannedValue<ArgName>>,
+    value: FieldValueDirective,
+}
+
+impl FieldArgumentDirective {
+    pub fn name(&self) -> Option<&SpannedValue<ArgName>> {
+        self.name.as_ref()
+    }
+
+    pub fn value(&self) -> &FieldValueDirective {
+        &self.value
+    }
+}
+
+/// Value handling strategy selected by field attributes.
+#[derive(Clone, Debug)]
+pub enum FieldValueDirective {
+    /// Borrow the field value and let runtime autoref dispatch choose the final value form.
+    Borrowed { span: proc_macro2::Span },
+    /// Treat the field value as an `Option<T>`.
+    Optional {
+        span: proc_macro2::Span,
+        inner_ty: syn::Type,
+    },
+    /// Convert the field value through `EsFluentChoice`.
+    Choice { span: proc_macro2::Span },
+    /// Apply an explicit field-level transform expression.
+    Transform(ValueTransform),
+}
+
+impl FieldValueDirective {
+    pub fn argument_value_strategy(
+        &self,
+        _fallback_span: proc_macro2::Span,
+    ) -> ArgumentValueStrategy {
+        match self {
+            Self::Borrowed { span } => ArgumentValueStrategy::Borrowed { span: *span },
+            Self::Optional { span, .. } => ArgumentValueStrategy::Optional { span: *span },
+            Self::Choice { span } => ArgumentValueStrategy::Choice { span: *span },
+            Self::Transform(transform) => ArgumentValueStrategy::Transform(transform.clone()),
+        }
+    }
+
+    pub fn optional_inner_ty(&self) -> Option<&syn::Type> {
+        match self {
+            Self::Optional { inner_ty, .. } => Some(inner_ty),
+            _ => None,
+        }
     }
 }
 
@@ -697,26 +778,57 @@ fn field_strategy_error(message: impl Into<String>, span: proc_macro2::Span) -> 
     ))
 }
 
-fn is_option_type(ty: &syn::Type) -> bool {
+fn option_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
     let syn::Type::Path(type_path) = ty else {
-        return false;
+        return None;
     };
-    type_path
+    let segment = type_path
         .path
         .segments
         .last()
-        .is_some_and(|segment| segment.ident == "Option")
+        .filter(|segment| segment.ident == "Option")?;
+    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    arguments.args.iter().find_map(|arg| match arg {
+        syn::GenericArgument::Type(ty) => Some(ty),
+        _ => None,
+    })
 }
 
-#[derive(Clone, Debug, FromField)]
-#[darling(attributes(fluent))]
+#[derive(Clone, Debug)]
 pub struct FluentFieldOpts {
     /// The identifier of the field.
     ident: Option<syn::Ident>,
     /// The type of the field.
     ty: syn::Type,
+    directive: FieldDirective,
+}
+
+#[derive(Clone, Debug, FromField)]
+#[darling(attributes(fluent))]
+struct RawFluentFieldOpts {
+    ident: Option<syn::Ident>,
+    ty: syn::Type,
     #[darling(flatten)]
     attr_args: FluentFieldAttributeArgs,
+}
+
+impl FromField for FluentFieldOpts {
+    fn from_field(field: &syn::Field) -> darling::Result<Self> {
+        let raw = RawFluentFieldOpts::from_field(field)?;
+        let span = raw
+            .ident
+            .as_ref()
+            .map_or_else(|| raw.ty.span(), syn::Ident::span);
+        let directive = FieldDirective::from_attr_args(&raw.attr_args, &raw.ty, span)
+            .map_err(|error| darling::Error::custom(error.to_string()).with_span(field))?;
+        Ok(Self {
+            ident: raw.ident,
+            ty: raw.ty,
+            directive,
+        })
+    }
 }
 
 impl FluentFieldOpts {
@@ -726,6 +838,10 @@ impl FluentFieldOpts {
 
     pub fn ty(&self) -> &syn::Type {
         &self.ty
+    }
+
+    pub fn directive(&self) -> &FieldDirective {
+        &self.directive
     }
 }
 
@@ -738,8 +854,8 @@ impl FluentField for FluentFieldOpts {
         &self.ty
     }
 
-    fn field_attr_args(&self) -> &FluentFieldAttributeArgs {
-        &self.attr_args
+    fn directive(&self) -> &FieldDirective {
+        &self.directive
     }
 }
 
@@ -930,7 +1046,7 @@ mod tests {
     }
 
     #[test]
-    fn value_attr_from_meta_rejects_legacy_string_list_and_path_formats() {
+    fn value_attr_from_meta_rejects_non_expression_formats() {
         let string_meta: syn::Meta = syn::parse_quote!(value = "|x: &str| x.len()");
         let string_err = ValueAttr::from_meta(&string_meta).expect_err("string should fail");
         assert!(string_err.to_string().contains("not string literal"));
@@ -1011,12 +1127,7 @@ mod tests {
         assert!(field_args.is_selector());
         assert!(field_args.is_optional());
         assert_eq!(
-            field_args
-                .arg_name(crate::error::AttrContext::MessageField)
-                .expect("arg name")
-                .expect("arg")
-                .value()
-                .as_str(),
+            field_args.arg.as_ref().expect("arg").value().as_str(),
             "display_name"
         );
         assert!(field_args.value().is_some());
@@ -1055,5 +1166,118 @@ mod tests {
         assert!(is_single_tuple_variant(&tuple_fields));
         assert_eq!(filtered_variant_fields(&tuple_fields).len(), 1);
         assert_eq!(all_variant_fields(&tuple_fields).len(), 1);
+    }
+
+    #[test]
+    fn field_directive_rejects_conflicting_strategies_at_typed_boundary() {
+        fn arg() -> SpannedValue<ArgName> {
+            SpannedValue::new(
+                parse_arg_name_in_context(
+                    "display_name",
+                    proc_macro2::Span::call_site(),
+                    crate::error::AttrContext::MessageField,
+                )
+                .expect("arg"),
+                proc_macro2::Span::call_site(),
+            )
+        }
+
+        fn err_for(attr_args: FluentFieldAttributeArgs, ty: syn::Type) -> String {
+            FieldDirective::from_attr_args(&attr_args, &ty, proc_macro2::Span::call_site())
+                .expect_err("conflicting field strategy should fail")
+                .to_string()
+        }
+
+        let string_ty: syn::Type = syn::parse_quote!(String);
+        let option_ty: syn::Type = syn::parse_quote!(Option<String>);
+        let transform = || ValueAttr(syn::parse_quote!(|x: &str| x.len()));
+
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    skip: Some(true),
+                    arg: Some(arg()),
+                    ..Default::default()
+                },
+                string_ty.clone(),
+            )
+            .contains("arg")
+        );
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    skip: Some(true),
+                    optional: Some(true),
+                    ..Default::default()
+                },
+                option_ty.clone(),
+            )
+            .contains("optional")
+        );
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    skip: Some(true),
+                    selector: Some(true),
+                    ..Default::default()
+                },
+                string_ty.clone(),
+            )
+            .contains("selector")
+        );
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    skip: Some(true),
+                    value: Some(transform()),
+                    ..Default::default()
+                },
+                string_ty.clone(),
+            )
+            .contains("value")
+        );
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    selector: Some(true),
+                    value: Some(transform()),
+                    ..Default::default()
+                },
+                string_ty.clone(),
+            )
+            .contains("selector")
+        );
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    optional: Some(true),
+                    selector: Some(true),
+                    ..Default::default()
+                },
+                option_ty,
+            )
+            .contains("optional")
+        );
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    optional: Some(true),
+                    value: Some(transform()),
+                    ..Default::default()
+                },
+                syn::parse_quote!(Option<String>),
+            )
+            .contains("optional")
+        );
+        assert!(
+            err_for(
+                FluentFieldAttributeArgs {
+                    optional: Some(true),
+                    ..Default::default()
+                },
+                string_ty,
+            )
+            .contains("Option<T>")
+        );
     }
 }

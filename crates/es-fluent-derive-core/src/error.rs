@@ -19,6 +19,7 @@ pub enum AttrContext {
     LabelContainer,
     ChoiceContainer,
     LanguageContainer,
+    LocaleField,
 }
 
 impl fmt::Display for AttrContext {
@@ -35,6 +36,7 @@ impl fmt::Display for AttrContext {
             Self::LabelContainer => "label container",
             Self::ChoiceContainer => "choice container",
             Self::LanguageContainer => "language container",
+            Self::LocaleField => "locale field",
         };
         f.write_str(label)
     }
@@ -90,6 +92,10 @@ pub enum EsFluentCoreError {
     #[error("{0}")]
     StructuredAttributeError(AttrError),
 
+    /// Multiple structured errors related to one parsed attribute list.
+    #[error("{}", attr_errors_fmt(.0))]
+    StructuredAttributeErrors(Vec<AttrError>),
+
     /// An error related to variant consistency.
     #[error("Variant '{variant_name}' error: {message}")]
     VariantError {
@@ -124,6 +130,9 @@ impl EsFluentCoreError {
         match self {
             EsFluentCoreError::AttributeError { span, .. } => *span,
             EsFluentCoreError::StructuredAttributeError(error) => error.span,
+            EsFluentCoreError::StructuredAttributeErrors(errors) => {
+                errors.first().and_then(|error| error.span)
+            },
             EsFluentCoreError::VariantError { span, .. } => *span,
             EsFluentCoreError::FieldError { span, .. } => *span,
             EsFluentCoreError::TransformError { span, .. } => *span,
@@ -135,11 +144,23 @@ impl EsFluentCoreError {
         match self {
             EsFluentCoreError::AttributeError { message, .. } => message,
             EsFluentCoreError::StructuredAttributeError(error) => error.message_mut(),
+            EsFluentCoreError::StructuredAttributeErrors(errors) => errors
+                .first_mut()
+                .map(AttrError::message_mut)
+                .expect("structured attribute error list is non-empty"),
             EsFluentCoreError::VariantError { message, .. } => message,
             EsFluentCoreError::FieldError { message, .. } => message,
             EsFluentCoreError::TransformError { message, .. } => message,
         }
     }
+}
+
+fn attr_errors_fmt(errors: &[AttrError]) -> String {
+    errors
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// A trait for adding notes and help messages to an error.
@@ -156,6 +177,12 @@ impl ErrorExt for EsFluentCoreError {
             error.note = Some(note_msg);
             return self;
         }
+        if let EsFluentCoreError::StructuredAttributeErrors(errors) = &mut self {
+            if let Some(error) = errors.first_mut() {
+                error.note = Some(note_msg);
+            }
+            return self;
+        }
 
         let message = self.message_mut();
         *message = format!("{}\nnote: {}", message, note_msg);
@@ -165,6 +192,12 @@ impl ErrorExt for EsFluentCoreError {
     fn with_help(mut self, help_msg: String) -> Self {
         if let EsFluentCoreError::StructuredAttributeError(error) = &mut self {
             error.help = Some(help_msg);
+            return self;
+        }
+        if let EsFluentCoreError::StructuredAttributeErrors(errors) = &mut self {
+            if let Some(error) = errors.first_mut() {
+                error.help = Some(help_msg);
+            }
             return self;
         }
 

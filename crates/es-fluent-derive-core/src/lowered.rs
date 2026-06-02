@@ -127,15 +127,6 @@ impl<'a> MessageStructModel<'a> {
             })
             .collect()
     }
-
-    pub fn all_indexed_fields(&self) -> Vec<(DeclarationIndex, &'a StructFieldOpts)> {
-        self.fields
-            .fields
-            .iter()
-            .enumerate()
-            .map(|(index, field)| (DeclarationIndex::new(index), field))
-            .collect()
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -599,7 +590,7 @@ pub fn field_value_strategy(
     field: &impl FluentField,
     span: proc_macro2::Span,
 ) -> EsFluentCoreResult<ArgumentValueStrategy> {
-    field.argument_value_strategy(span)?.ok_or_else(|| {
+    field.argument_value_strategy(span).ok_or_else(|| {
         internal_shape_error(
             AttrContext::MessageField,
             "skipped fields do not expose Fluent argument value strategies",

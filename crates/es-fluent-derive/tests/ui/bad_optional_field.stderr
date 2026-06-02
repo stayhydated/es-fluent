@@ -1,5 +1,5 @@
 error: Attribute error in message field: #[fluent(optional)] can only be used on Option<T> fields
- --> tests/ui/bad_optional_field.rs:8:5
+ --> tests/ui/bad_optional_field.rs:7:5
   |
-8 |     value: String,
-  |     ^^^^^
+7 |     #[fluent(optional)]
+  |     ^

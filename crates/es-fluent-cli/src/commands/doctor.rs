@@ -52,7 +52,7 @@ pub fn run_doctor(args: DoctorArgs) -> Result<(), CliError> {
     for krate in &workspace.skipped {
         issues.push(DoctorIssue {
             severity: "error",
-            crate_name: Some(krate.name.clone()),
+            crate_name: Some(krate.name.to_string()),
             message: "crate has i18n.toml but no library target".to_string(),
             help: "Add src/lib.rs or move localizable types into a library crate.".to_string(),
         });
@@ -97,7 +97,7 @@ fn inspect_crate(krate: &CrateInfo, issues: &mut Vec<DoctorIssue>) {
             if !fallback_dir.exists() {
                 issues.push(DoctorIssue {
                     severity: "error",
-                    crate_name: Some(krate.name.clone()),
+                    crate_name: Some(krate.name.to_string()),
                     message: format!("fallback locale directory '{}' is missing", ctx.fallback),
                     help: format!("Create {}", fallback_dir.display()),
                 });
@@ -105,7 +105,7 @@ fn inspect_crate(krate: &CrateInfo, issues: &mut Vec<DoctorIssue>) {
         },
         Err(error) => issues.push(DoctorIssue {
             severity: "error",
-            crate_name: Some(krate.name.clone()),
+            crate_name: Some(krate.name.to_string()),
             message: "i18n.toml or locale assets could not be read".to_string(),
             help: error.to_string(),
         }),
@@ -120,7 +120,7 @@ fn inspect_crate(krate: &CrateInfo, issues: &mut Vec<DoctorIssue>) {
     {
         issues.push(DoctorIssue {
             severity: "warning",
-            crate_name: Some(krate.name.clone()),
+            crate_name: Some(krate.name.to_string()),
             message: format!(
                 "src/i18n.rs references {manager_dependency}, but Cargo.toml does not"
             ),
@@ -152,7 +152,7 @@ fn inspect_build_script(krate: &CrateInfo, i18n_module: &str, issues: &mut Vec<D
     if !build_rs.exists() {
         issues.push(DoctorIssue {
             severity: "warning",
-            crate_name: Some(krate.name.clone()),
+            crate_name: Some(krate.name.to_string()),
             message: "build.rs does not track locale asset changes".to_string(),
             help: "Run `cargo es-fluent init --build-rs --force` or add `es_fluent_build::track_i18n_assets();` manually.".to_string(),
         });
@@ -162,7 +162,7 @@ fn inspect_build_script(krate: &CrateInfo, i18n_module: &str, issues: &mut Vec<D
     if !file_contains(&build_rs, "track_i18n_assets") {
         issues.push(DoctorIssue {
             severity: "warning",
-            crate_name: Some(krate.name.clone()),
+            crate_name: Some(krate.name.to_string()),
             message: "build.rs exists but does not call track_i18n_assets".to_string(),
             help: "Call `es_fluent_build::track_i18n_assets();` from build.rs.".to_string(),
         });
@@ -276,9 +276,9 @@ mod tests {
 
         let temp = crate::test_fixtures::create_test_crate_workspace();
         let krate = CrateInfo {
-            name: "test-app".to_string(),
-            manifest_dir: temp.path().to_path_buf(),
-            src_dir: temp.path().join("src"),
+            name: es_fluent_runner::PackageName::try_new("test-app").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+            src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
             i18n_config_path: temp.path().join("i18n.toml"),
             ftl_output_dir: temp.path().join("i18n/en"),
             has_lib_rs: true,

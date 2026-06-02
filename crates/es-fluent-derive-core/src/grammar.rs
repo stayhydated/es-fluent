@@ -1,8 +1,8 @@
 //! Shared attribute grammar for derive and language macro validation.
 
-use crate::error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult};
 use proc_macro2::Span;
-use std::collections::HashMap;
+use std::marker::PhantomData;
 use syn::{
     Expr, ExprLit, Lit, Meta, Token, parse::Parser as _, punctuated::Punctuated,
     spanned::Spanned as _,
@@ -277,6 +277,297 @@ pub(crate) fn help_for_location(
         .unwrap_or("move this attribute to a supported derive location")
 }
 
+pub(crate) trait AttributeSpec {
+    const FAMILY: AttributeFamily;
+
+    fn rule(location: AttributeLocation, key: AttributeKey) -> Option<&'static AttributeRule> {
+        attribute_rule(Self::FAMILY, location, key)
+    }
+
+    fn help_for_location(location: AttributeLocation) -> &'static str {
+        help_for_location(Self::FAMILY, location)
+    }
+
+    fn invalid_attribute_error(
+        item: AttributeItem,
+        location: AttributeLocation,
+        owner: Option<&syn::Ident>,
+        span: Span,
+    ) -> AttrError {
+        if Self::FAMILY == AttributeFamily::Fluent
+            && location == AttributeLocation::EnumVariant
+            && matches!(
+                item.key(),
+                Some(AttributeKey::Arg | AttributeKey::Value | AttributeKey::Selector)
+            )
+        {
+            let variant_ident = owner
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "the variant".to_string());
+            return AttrError {
+                context: location.context(),
+                message: format!(
+                    "`{}` is a field-only attribute and cannot be used on enum variant `{variant_ident}`",
+                    item.syntax(),
+                ),
+                span: Some(span),
+                note: None,
+                help: Some(format!(
+                    "move the attribute to a field inside the variant, for example `{variant_ident}(#[fluent(arg = \"name\")] T)`"
+                )),
+            };
+        }
+
+        let owner = owner.map(|ident| format!(" `{ident}`")).unwrap_or_default();
+        let kind = if item.key().is_some() {
+            "cannot be used"
+        } else {
+            "is not supported"
+        };
+        AttrError {
+            context: location.context(),
+            message: format!(
+                "`{}` {kind} in {}{owner}",
+                item.syntax(),
+                location.context(),
+            ),
+            span: Some(span),
+            note: None,
+            help: Some(Self::help_for_location(location).to_string()),
+        }
+    }
+}
+
+pub(crate) struct FluentSpec;
+pub(crate) struct FluentVariantsSpec;
+pub(crate) struct FluentLabelSpec;
+pub(crate) struct FluentChoiceSpec;
+pub(crate) struct LanguageSpec;
+
+impl AttributeSpec for FluentSpec {
+    const FAMILY: AttributeFamily = AttributeFamily::Fluent;
+}
+
+impl AttributeSpec for FluentVariantsSpec {
+    const FAMILY: AttributeFamily = AttributeFamily::FluentVariants;
+}
+
+impl AttributeSpec for FluentLabelSpec {
+    const FAMILY: AttributeFamily = AttributeFamily::FluentLabel;
+}
+
+impl AttributeSpec for FluentChoiceSpec {
+    const FAMILY: AttributeFamily = AttributeFamily::FluentChoice;
+}
+
+impl AttributeSpec for LanguageSpec {
+    const FAMILY: AttributeFamily = AttributeFamily::EsFluentLanguage;
+
+    fn invalid_attribute_error(
+        item: AttributeItem,
+        location: AttributeLocation,
+        _owner: Option<&syn::Ident>,
+        span: Span,
+    ) -> AttrError {
+        let help = if item.key_name() == "custom" {
+            "use #[es_fluent_language(mode = \"custom\")]".to_string()
+        } else {
+            "use #[es_fluent_language(mode = \"builtin\")] or #[es_fluent_language(mode = \"custom\")]"
+                .to_string()
+        };
+        AttrError {
+            context: location.context(),
+            message: format!("{} is not accepted", item.syntax()),
+            span: Some(span),
+            note: None,
+            help: Some(help),
+        }
+    }
+}
+
+pub(crate) struct AttributeSet<F> {
+    _family: PhantomData<F>,
+}
+
+impl<F: AttributeSpec> AttributeSet<F> {
+    pub(crate) fn validate_items<'a>(
+        items: impl IntoIterator<Item = &'a Meta>,
+        location: AttributeLocation,
+        owner: Option<&syn::Ident>,
+    ) -> EsFluentCoreResult<()> {
+        let mut seen_keys = Vec::<(AttributeKey, String, Span)>::new();
+        let mut errors = Vec::<AttrError>::new();
+
+        for item in items {
+            let Some(parsed) = parse_attribute_meta_item(item, F::FAMILY) else {
+                continue;
+            };
+            let Some(key) = parsed.key() else {
+                errors.push(F::invalid_attribute_error(
+                    parsed,
+                    location,
+                    owner,
+                    item.span(),
+                ));
+                continue;
+            };
+            let Some(rule) = F::rule(location, key) else {
+                errors.push(F::invalid_attribute_error(
+                    parsed,
+                    location,
+                    owner,
+                    item.span(),
+                ));
+                continue;
+            };
+
+            if let Some((_first_key, first_key_name, _first_span)) =
+                seen_keys.iter().find(|(seen, _, _)| *seen == key)
+            {
+                errors.push(duplicate_attribute_key_error(
+                    parsed.clone(),
+                    F::FAMILY,
+                    location,
+                    owner,
+                    item.span(),
+                    first_key_name.clone(),
+                ));
+            } else {
+                seen_keys.push((key, parsed.key_name().to_string(), item.span()));
+            }
+
+            if !rule.shape.matches(item) {
+                errors.push(invalid_attribute_value_shape_error(
+                    parsed,
+                    rule.shape,
+                    location,
+                    owner,
+                    item.span(),
+                ));
+            }
+        }
+
+        attribute_errors_result(errors)
+    }
+
+    pub(crate) fn validate_attribute(
+        attr: &syn::Attribute,
+        location: AttributeLocation,
+        owner: Option<&syn::Ident>,
+    ) -> EsFluentCoreResult<()> {
+        if !attr.path().is_ident(F::FAMILY.as_str()) {
+            return Ok(());
+        }
+
+        let Meta::List(list) = &attr.meta else {
+            return Ok(());
+        };
+
+        let items = list
+            .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+            .map_err(|error| {
+                EsFluentCoreError::StructuredAttributeError(AttrError::new(
+                    location.context(),
+                    format!(
+                        "failed to parse {} arguments: {error}",
+                        F::FAMILY.attribute_syntax()
+                    ),
+                    Some(list.tokens.span()),
+                ))
+            })?;
+
+        Self::validate_items(items.iter(), location, owner)
+    }
+}
+
+pub(crate) fn validate_attribute_for_family(
+    attr: &syn::Attribute,
+    family: AttributeFamily,
+    location: AttributeLocation,
+    owner: Option<&syn::Ident>,
+) -> EsFluentCoreResult<()> {
+    match family {
+        AttributeFamily::Fluent => {
+            AttributeSet::<FluentSpec>::validate_attribute(attr, location, owner)
+        },
+        AttributeFamily::FluentVariants => {
+            AttributeSet::<FluentVariantsSpec>::validate_attribute(attr, location, owner)
+        },
+        AttributeFamily::FluentLabel => {
+            AttributeSet::<FluentLabelSpec>::validate_attribute(attr, location, owner)
+        },
+        AttributeFamily::FluentChoice => {
+            AttributeSet::<FluentChoiceSpec>::validate_attribute(attr, location, owner)
+        },
+        AttributeFamily::EsFluentLanguage => {
+            AttributeSet::<LanguageSpec>::validate_attribute(attr, location, owner)
+        },
+    }
+}
+
+fn invalid_attribute_value_shape_error(
+    item: AttributeItem,
+    expected_shape: AttributeValueShape,
+    location: AttributeLocation,
+    owner: Option<&syn::Ident>,
+    span: Span,
+) -> AttrError {
+    let owner = owner.map(|ident| format!(" `{ident}`")).unwrap_or_default();
+    AttrError {
+        context: location.context(),
+        message: format!(
+            "`{}` has the wrong value shape for key `{}` in {}{}",
+            item.syntax(),
+            item.key_name(),
+            location.context(),
+            owner
+        ),
+        span: Some(span),
+        note: None,
+        help: Some(expected_shape.help(item.key_name())),
+    }
+}
+
+fn duplicate_attribute_key_error(
+    item: AttributeItem,
+    attribute_name: AttributeName,
+    location: AttributeLocation,
+    owner: Option<&syn::Ident>,
+    span: Span,
+    first_key_name: String,
+) -> AttrError {
+    let owner = owner.map(|ident| format!(" `{ident}`")).unwrap_or_default();
+    AttrError {
+        context: location.context(),
+        message: format!(
+            "duplicate key `{}` in {}{}",
+            item.key_name(),
+            location.context(),
+            owner
+        ),
+        span: Some(span),
+        note: Some(format!(
+            "first `{first_key_name}` key in {} appears earlier",
+            attribute_name.attribute_syntax()
+        )),
+        help: Some(format!(
+            "keep only one `{}` entry in {}",
+            item.key_name(),
+            attribute_name.attribute_syntax()
+        )),
+    }
+}
+
+fn attribute_errors_result(errors: Vec<AttrError>) -> EsFluentCoreResult<()> {
+    match errors.len() {
+        0 => Ok(()),
+        1 => Err(EsFluentCoreError::StructuredAttributeError(
+            errors.into_iter().next().expect("one error"),
+        )),
+        _ => Err(EsFluentCoreError::StructuredAttributeErrors(errors)),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct AttributeRule {
     pub(crate) family: AttributeFamily,
@@ -521,38 +812,11 @@ impl LanguageMode {
                 )
             })?;
 
-        let mut seen_keys = HashMap::<AttributeKey, String>::new();
-        for item in &items {
-            if let Some(invalid) = invalid_language_attribute_item(item) {
-                let error = language_attr_error(
-                    format!("{} is not accepted", invalid.syntax()),
-                    Some(item.span()),
-                );
-                return if invalid.key_name() == "custom" {
-                    Err(error.with_help("use #[es_fluent_language(mode = \"custom\")]".to_string()))
-                } else {
-                    Err(error.with_help(
-                        "use #[es_fluent_language(mode = \"builtin\")] or #[es_fluent_language(mode = \"custom\")]"
-                            .to_string(),
-                    ))
-                };
-            }
-
-            let Some(parsed) = parse_attribute_meta_item(item, AttributeFamily::EsFluentLanguage)
-            else {
-                continue;
-            };
-            let Some(key) = parsed.key() else {
-                continue;
-            };
-            if let Some(first_key_name) = seen_keys.insert(key, parsed.key_name().to_string()) {
-                return Err(language_duplicate_key_error(
-                    parsed,
-                    first_key_name,
-                    item.span(),
-                ));
-            }
-        }
+        AttributeSet::<LanguageSpec>::validate_items(
+            items.iter(),
+            AttributeLocation::LanguageContainer,
+            None,
+        )?;
 
         let mut items = items.into_iter();
         let Some(meta) = items.next() else {
@@ -608,25 +872,6 @@ fn language_attr_error(message: impl Into<String>, span: Option<Span>) -> EsFlue
     ))
 }
 
-fn language_duplicate_key_error(
-    item: AttributeItem,
-    first_key_name: String,
-    span: Span,
-) -> EsFluentCoreError {
-    EsFluentCoreError::StructuredAttributeError(AttrError::new(
-        AttrContext::LanguageContainer,
-        format!("duplicate key `{}` in language container", item.key_name()),
-        Some(span),
-    ))
-    .with_note(format!(
-        "first `{first_key_name}` key in #[es_fluent_language] appears earlier"
-    ))
-    .with_help(format!(
-        "keep only one `{}` entry in #[es_fluent_language]",
-        item.key_name()
-    ))
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttributeItem {
     key: Option<AttributeKey>,
@@ -645,21 +890,6 @@ impl AttributeItem {
 
     pub fn syntax(&self) -> &str {
         &self.syntax
-    }
-}
-
-fn invalid_language_attribute_item(meta: &Meta) -> Option<AttributeItem> {
-    let item = parse_attribute_meta_item(meta, AttributeFamily::EsFluentLanguage)?;
-    match item.key {
-        Some(key)
-            if key.is_allowed_in(
-                AttributeFamily::EsFluentLanguage,
-                AttributeLocation::LanguageContainer,
-            ) =>
-        {
-            None
-        },
-        _ => Some(item),
     }
 }
 

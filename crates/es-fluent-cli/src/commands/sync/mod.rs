@@ -159,7 +159,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
 
         for result in results {
             json_results.push(SyncResultJson {
-                crate_name: krate.name.clone(),
+                crate_name: krate.name.to_string(),
                 locale: result.locale.clone(),
                 keys_added: result.keys_added,
                 added_keys: result.added_keys.clone(),
@@ -174,7 +174,7 @@ pub fn run_sync(args: SyncArgs) -> Result<(), CliError> {
                             ui::Ui::print_would_add_keys(
                                 result.keys_added,
                                 &result.locale,
-                                &krate.name,
+                                krate.name.as_str(),
                             );
                             if let Some(diff) = &result.diff_info {
                                 diff.print();

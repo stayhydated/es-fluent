@@ -266,9 +266,8 @@ mod validate_struct_tests {
                 }
             },
         ] {
-            let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-            let err = es_fluent_derive_core::validation::validate_struct(&opts)
-                .expect_err("optional conflict should fail");
+            let err = StructOpts::from_derive_input(&input)
+                .expect_err("optional conflict should fail during typed field parsing");
 
             assert!(err.to_string().contains("#[fluent(optional)]"));
         }
@@ -349,9 +348,8 @@ mod validate_struct_tests {
             }
         };
 
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("Expected validation error");
+        let err = StructOpts::from_derive_input(&input)
+            .expect_err("arg on skipped field should fail during typed field parsing");
         assert_snapshot!(
             "validate_struct_arg_on_skipped_field_fails",
             err.to_string()
@@ -368,9 +366,8 @@ mod validate_struct_tests {
             }
         };
 
-        let opts = StructOpts::from_derive_input(&input).expect("StructOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_struct(&opts)
-            .expect_err("selector and value should conflict");
+        let err = StructOpts::from_derive_input(&input)
+            .expect_err("selector and value should conflict during typed field parsing");
 
         assert!(
             err.to_string()
@@ -502,9 +499,8 @@ mod validate_enum_tests {
             }
         };
 
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect_err("arg on skipped field should fail");
+        let err = EnumOpts::from_derive_input(&input)
+            .expect_err("arg on skipped field should fail during typed field parsing");
 
         assert!(
             err.to_string()
@@ -534,9 +530,8 @@ mod validate_enum_tests {
                 }
             },
         ] {
-            let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-            let err = es_fluent_derive_core::validation::validate_enum(&opts)
-                .expect_err("optional conflict should fail");
+            let err = EnumOpts::from_derive_input(&input)
+                .expect_err("optional conflict should fail during typed field parsing");
 
             assert!(err.to_string().contains("#[fluent(optional)]"));
         }
@@ -582,9 +577,8 @@ mod validate_enum_tests {
             }
         };
 
-        let opts = EnumOpts::from_derive_input(&input).expect("EnumOpts should parse");
-        let err = es_fluent_derive_core::validation::validate_enum(&opts)
-            .expect_err("selector and value should conflict");
+        let err = EnumOpts::from_derive_input(&input)
+            .expect_err("selector and value should conflict during typed field parsing");
 
         assert!(
             err.to_string()

@@ -1,71 +1,37 @@
-use es_fluent_derive_core::error::{AttrContext, EsFluentCoreError};
+use es_fluent_derive_core::macro_support::{self, ResolvedCratePath};
 use es_fluent_derive_core::semantic::{
-    ArgumentModel, ArgumentValueStrategy, DerivePathList, DomainName, FluentMessageId,
-    GeneratedEnumModel, MessageEntryModel, MessageModel, RustSourceName, RustTypeName,
-    SpannedValue,
+    ArgName, ArgumentModel, ArgumentValueStrategy, DomainName, FluentMessageId, GeneratedEnumModel,
+    MessageEntryModel, MessageModel,
 };
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
-use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 
 use crate::macros::ir::inventory_variant_tokens_for_model;
-use crate::macros::ir::{FluentArgument, GeneratedUnitEnumVariant, MessageEntrySpec};
+use crate::macros::ir::{FluentArgument, GeneratedUnitEnumVariant};
 
 #[derive(Clone)]
 pub struct CodegenContext {
-    facade_path: FacadePath,
+    facade_path: ResolvedCratePath,
 }
 
 impl CodegenContext {
     pub fn resolve() -> Self {
         Self {
-            facade_path: FacadePath::resolve(),
+            facade_path: ResolvedCratePath::resolve("es-fluent", "es_fluent"),
         }
     }
 
     #[cfg(test)]
     pub fn fallback() -> Self {
         Self {
-            facade_path: FacadePath::fallback(),
+            facade_path: ResolvedCratePath::fallback("es_fluent"),
         }
     }
 
-    pub fn facade_path(&self) -> &FacadePath {
+    pub fn facade_path(&self) -> &ResolvedCratePath {
         &self.facade_path
-    }
-}
-
-#[derive(Clone)]
-pub struct FacadePath {
-    tokens: TokenStream,
-}
-
-impl FacadePath {
-    fn resolve() -> Self {
-        match crate_name("es-fluent") {
-            Ok(FoundCrate::Itself) => Self {
-                tokens: quote! { crate },
-            },
-            Ok(FoundCrate::Name(name)) => {
-                let ident = format_ident!("{name}");
-                Self {
-                    tokens: quote! { ::#ident },
-                }
-            },
-            Err(_) => Self::fallback(),
-        }
-    }
-
-    fn fallback() -> Self {
-        Self {
-            tokens: quote! { ::es_fluent },
-        }
-    }
-
-    pub fn tokens(&self) -> &TokenStream {
-        &self.tokens
     }
 }
 
@@ -91,11 +57,8 @@ pub struct GeneratedUnitEnumInput<'a> {
     pub ident: &'a syn::Ident,
     pub origin_ident: &'a syn::Ident,
     pub key_name: Option<&'a str>,
-    pub domain_override: Option<&'a DomainName>,
-    pub derives: &'a [syn::Path],
+    pub model: &'a GeneratedEnumModel,
     pub variants: &'a [GeneratedUnitEnumVariant],
-    pub namespace: Option<&'a NamespaceRule>,
-    pub label_key: Option<FluentMessageId>,
 }
 
 /// Generates the `FluentLabel` trait implementation.
@@ -113,7 +76,7 @@ pub fn generate_localize_label_impl(
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let es_fluent = context.facade_path().tokens();
-    let domain_expr = static_domain_expr(context, domain_override);
+    let domain_expr = static_domain_tokens(context, domain_override);
     quote! {
         impl #impl_generics #es_fluent::FluentLabel for #ident #ty_generics #where_clause {
             fn localize_label<__EsFluentLocalizer: #es_fluent::FluentLocalizer + ?Sized>(
@@ -125,20 +88,28 @@ pub fn generate_localize_label_impl(
     }
 }
 
-pub(crate) fn static_domain_expr(
+pub(crate) fn static_domain_tokens(
     context: &CodegenContext,
     domain_override: Option<&DomainName>,
 ) -> TokenStream {
     let es_fluent = context.facade_path().tokens();
-    match domain_override {
-        Some(domain) => {
-            let domain = domain.as_str();
-            quote! { #es_fluent::registry::StaticFluentDomain::new_unchecked(#domain) }
-        },
-        None => quote! {
-            #es_fluent::registry::StaticFluentDomain::from_package_name(env!("CARGO_PKG_NAME"))
-        },
-    }
+    es_fluent_derive_core::macro_support::static_domain_tokens(es_fluent, domain_override)
+}
+
+pub(crate) fn static_entry_id_tokens(
+    context: &CodegenContext,
+    entry_id: &FluentMessageId,
+) -> TokenStream {
+    let es_fluent = context.facade_path().tokens();
+    es_fluent_derive_core::macro_support::static_entry_id_tokens(es_fluent, entry_id)
+}
+
+pub(crate) fn static_argument_name_tokens(
+    context: &CodegenContext,
+    argument_name: &ArgName,
+) -> TokenStream {
+    let es_fluent = context.facade_path().tokens();
+    es_fluent_derive_core::macro_support::static_argument_name_tokens(es_fluent, argument_name)
 }
 
 pub fn generate_field_value_expr(
@@ -268,41 +239,14 @@ pub fn emit_generated_unit_enum(
         ident,
         origin_ident,
         key_name,
-        domain_override,
-        derives,
+        model,
         variants,
-        namespace,
-        label_key,
     } = input;
 
     let empty_generics = syn::Generics::default();
-    let label_model = label_key.as_ref().map(|label_key| {
-        MessageEntrySpec::new(
-            RustSourceName::from_ident(ident),
-            SpannedValue::new(label_key.clone(), origin_ident.span()),
-            Vec::new(),
-        )
-        .metadata
-    });
-    let derive_paths =
-        match DerivePathList::from_paths(derives.iter().cloned(), AttrContext::VariantsContainer) {
-            Ok(derive_paths) => derive_paths,
-            Err(error) => return core_error_to_compile_error(error),
-        };
-    let generated_model = GeneratedEnumModel::new(
-        RustTypeName::from_ident(ident),
-        RustTypeName::from_ident(origin_ident),
-        derive_paths,
-        variants
-            .iter()
-            .map(|variant| variant.message_entry.metadata.clone())
-            .collect(),
-        label_model,
-        domain_override.cloned(),
-        namespace.cloned(),
-    );
-    let new_enum =
-        generate_unit_enum_definition(ident, origin_ident, key_name, &generated_model, variants);
+    let domain_override = model.domain();
+    let label_key = model.label().map(|label| label.message_id().clone());
+    let new_enum = generate_unit_enum_definition(ident, origin_ident, key_name, model, variants);
     let localize_with_match_arms = variants
         .iter()
         .map(|variant| variant.localize_with_match_arm(context, domain_override));
@@ -321,10 +265,10 @@ pub fn emit_generated_unit_enum(
             ident,
             module_name_prefix: "inventory",
             type_kind: TypeKind::Enum,
-            entries: generated_model.messages().to_vec(),
-            namespace: generated_model.namespace().cloned(),
+            entries: model.messages().to_vec(),
+            namespace: model.namespace().cloned(),
         },
-        label: generated_model
+        label: model
             .label()
             .cloned()
             .map(|label_entry| InventoryModuleInput {
@@ -332,7 +276,7 @@ pub fn emit_generated_unit_enum(
                 module_name_prefix: "label_inventory",
                 type_kind: TypeKind::Enum,
                 entries: vec![label_entry],
-                namespace: generated_model.namespace().cloned(),
+                namespace: model.namespace().cloned(),
             }),
     };
     let inventory_submit = emit_inventory_output(context, inventory_output);
@@ -502,19 +446,17 @@ pub fn namespace_rule_tokens(
     }
 }
 
-pub fn core_error_to_compile_error(error: EsFluentCoreError) -> TokenStream {
-    let message = error.to_string();
-    match error.span() {
-        Some(span) => quote_spanned! { span=> compile_error!(#message); },
-        None => quote! { compile_error!(#message); },
-    }
+pub fn core_error_to_compile_error(
+    error: es_fluent_derive_core::error::EsFluentCoreError,
+) -> TokenStream {
+    macro_support::core_error_to_compile_error(error)
 }
 
 #[cfg(test)]
 mod tests {
     use es_fluent_derive_core::error::AttrContext;
     use es_fluent_derive_core::semantic::{
-        ArgumentValueStrategy, DerivePathList, GeneratedEnumModel, ValueTransform,
+        ArgumentValueStrategy, DerivePathList, GeneratedEnumModel, RustTypeName, ValueTransform,
     };
     use insta::assert_snapshot;
     use quote::quote;
@@ -578,8 +520,8 @@ mod tests {
     #[test]
     fn generate_unit_enum_definition_uses_model_derive_paths() {
         let model = GeneratedEnumModel::new(
-            super::RustTypeName::new("StatusFtl", proc_macro2::Span::call_site()),
-            super::RustTypeName::new("Status", proc_macro2::Span::call_site()),
+            RustTypeName::new("StatusFtl", proc_macro2::Span::call_site()),
+            RustTypeName::new("Status", proc_macro2::Span::call_site()),
             DerivePathList::from_paths(
                 vec![parse_quote!(Debug), parse_quote!(Clone)],
                 AttrContext::VariantsContainer,

@@ -12,6 +12,10 @@ use fs_err as fs;
 use indexmap::IndexMap;
 use std::path::PathBuf;
 
+fn package(name: &str) -> es_fluent_runner::PackageName {
+    es_fluent_runner::PackageName::try_new(name).expect("valid package name")
+}
+
 fn key_info(vars: &[&str], source_file: Option<&str>, source_line: Option<u32>) -> KeyInfo {
     key_info_with_resource(
         vars,
@@ -251,8 +255,8 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
         &crate::test_fixtures::toml_helpers::i18n_config("en", "i18n"),
     );
 
-    let inventory_path =
-        es_fluent_runner::RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
+    let inventory_path = es_fluent_runner::RunnerMetadataStore::new(temp.path())
+        .inventory_path(&package("test-crate"));
     fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
     fs::write(
         &inventory_path,
@@ -270,9 +274,9 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
     .unwrap();
 
     let krate = CrateInfo {
-        name: "test-crate".to_string(),
-        manifest_dir: temp.path().to_path_buf(),
-        src_dir: temp.path().join("src"),
+        name: package("test-crate"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
         i18n_config_path: temp.path().join("i18n.toml"),
         ftl_output_dir: temp.path().join("i18n/en"),
         has_lib_rs: true,
@@ -394,9 +398,9 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
     fs::write(&broken_dir, "not a directory").unwrap();
 
     let krate = CrateInfo {
-        name: "test-crate".to_string(),
-        manifest_dir: temp.path().to_path_buf(),
-        src_dir,
+        name: package("test-crate"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
         i18n_config_path: temp.path().join("i18n.toml"),
         ftl_output_dir: temp.path().join("i18n/en"),
         has_lib_rs: true,

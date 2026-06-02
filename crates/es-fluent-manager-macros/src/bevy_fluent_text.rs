@@ -1,11 +1,12 @@
 use heck::ToSnakeCase as _;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Meta, parse_macro_input, spanned::Spanned as _};
+use syn::{DeriveInput, parse_macro_input};
 
 fn bevy_fluent_text_registration_module(
     mod_name: &syn::Ident,
     register_call: proc_macro2::TokenStream,
+    manager_path: &proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
     quote! {
         #[doc(hidden)]
@@ -14,14 +15,14 @@ fn bevy_fluent_text_registration_module(
 
             struct Registration;
 
-            impl ::es_fluent_manager_bevy::BevyFluentTextRegistration for Registration {
-                fn register(&self, app: &mut ::es_fluent_manager_bevy::bevy::prelude::App) {
+            impl #manager_path::BevyFluentTextRegistration for Registration {
+                fn register(&self, app: &mut #manager_path::bevy::prelude::App) {
                     #register_call
                 }
             }
 
-            ::es_fluent_manager_bevy::inventory::submit!(
-                &Registration as &dyn ::es_fluent_manager_bevy::BevyFluentTextRegistration
+            #manager_path::inventory::submit!(
+                &Registration as &dyn #manager_path::BevyFluentTextRegistration
             );
         }
     }
@@ -31,6 +32,8 @@ pub(crate) fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let ident = &input.ident;
     let type_name = ident.to_string();
+    let manager_path = crate::support::bevy_manager_path();
+    let manager_path_tokens = manager_path.tokens();
 
     if matches!(&input.data, syn::Data::Union(_)) {
         return TokenStream::from(
@@ -45,7 +48,7 @@ pub(crate) fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
     // Collect all locale fields from all variants/fields
     let locale_fields = match collect_locale_fields(&input.data) {
         Ok(locale_fields) => locale_fields,
-        Err(err) => return TokenStream::from(err.to_compile_error()),
+        Err(err) => return TokenStream::from(crate::support::core_error_to_compile_error(err)),
     };
 
     let mod_name = quote::format_ident!(
@@ -58,18 +61,25 @@ pub(crate) fn derive_bevy_fluent_text(input: TokenStream) -> TokenStream {
         let registration_module = bevy_fluent_text_registration_module(
             &mod_name,
             quote! {
-                ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text::<#ident>(app);
+                #manager_path_tokens::FluentTextRegistration::register_fluent_text::<#ident>(app);
             },
+            manager_path_tokens,
         );
         TokenStream::from(quote! { #registration_module })
     } else {
         // Generate RefreshForLocale impl and use locale-aware registration
-        let refresh_impl = generate_refresh_for_locale_impl(ident, &input.data, &locale_fields);
+        let refresh_impl = generate_refresh_for_locale_impl(
+            ident,
+            &input.data,
+            &locale_fields,
+            manager_path_tokens,
+        );
         let registration_module = bevy_fluent_text_registration_module(
             &mod_name,
             quote! {
-                ::es_fluent_manager_bevy::FluentTextRegistration::register_fluent_text_from_locale::<#ident>(app);
+                #manager_path_tokens::FluentTextRegistration::register_fluent_text_from_locale::<#ident>(app);
             },
+            manager_path_tokens,
         );
 
         TokenStream::from(quote! {
@@ -91,7 +101,9 @@ struct LocaleFieldInfo {
 }
 
 /// Collects all fields marked with #[locale] from the data structure
-fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> {
+fn collect_locale_fields(
+    data: &syn::Data,
+) -> Result<Vec<LocaleFieldInfo>, es_fluent_derive_core::error::EsFluentCoreError> {
     let mut locale_fields = Vec::new();
 
     match data {
@@ -128,7 +140,10 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
                     syn::Fields::Unnamed(fields) => {
                         for field in &fields.unnamed {
                             if has_locale_attr(field)? {
-                                return Err(unsupported_locale_field_error(field));
+                                return Err(crate::support::unsupported_locale_field_error(
+                                    field,
+                                    "tuple enum variant fields",
+                                ));
                             }
                         }
                     },
@@ -158,7 +173,10 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
             syn::Fields::Unnamed(fields) => {
                 for field in &fields.unnamed {
                     if has_locale_attr(field)? {
-                        return Err(unsupported_locale_field_error(field));
+                        return Err(crate::support::unsupported_locale_field_error(
+                            field,
+                            "tuple struct fields",
+                        ));
                     }
                 }
             },
@@ -171,37 +189,18 @@ fn collect_locale_fields(data: &syn::Data) -> syn::Result<Vec<LocaleFieldInfo>> 
 }
 
 /// Checks if a field has the #[locale] attribute
-fn has_locale_attr(field: &syn::Field) -> syn::Result<bool> {
+fn has_locale_attr(
+    field: &syn::Field,
+) -> Result<bool, es_fluent_derive_core::error::EsFluentCoreError> {
     for attr in &field.attrs {
-        if !attr.path().is_ident("locale") {
-            continue;
-        }
-
-        match &attr.meta {
-            Meta::Path(_) => return Ok(true),
-            Meta::List(_) | Meta::NameValue(_) => {
-                return Err(syn::Error::new(
-                    attr.span(),
-                    "#[locale] does not accept arguments; use #[locale]",
-                ));
-            },
+        match crate::support::validate_locale_marker(attr) {
+            Ok(true) => return Ok(true),
+            Ok(false) => {},
+            Err(error) => return Err(error),
         }
     }
 
     Ok(false)
-}
-
-fn unsupported_locale_field_error(field: &syn::Field) -> syn::Error {
-    let span = field
-        .attrs
-        .iter()
-        .find(|attr| attr.path().is_ident("locale"))
-        .map(|attr| attr.span())
-        .unwrap_or_else(|| field.span());
-    syn::Error::new(
-        span,
-        "#[locale] is only supported on named struct fields and named enum variant fields",
-    )
 }
 
 /// Generates the RefreshForLocale implementation
@@ -209,6 +208,7 @@ fn generate_refresh_for_locale_impl(
     ident: &syn::Ident,
     data: &syn::Data,
     locale_fields: &[LocaleFieldInfo],
+    manager_path: &proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
     match data {
         syn::Data::Enum(_) => {
@@ -250,8 +250,8 @@ fn generate_refresh_for_locale_impl(
                 .collect();
 
             quote! {
-                impl ::es_fluent_manager_bevy::RefreshForLocale for #ident {
-                    fn refresh_for_locale(&mut self, lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier) {
+                impl #manager_path::RefreshForLocale for #ident {
+                    fn refresh_for_locale(&mut self, lang: &#manager_path::unic_langid::LanguageIdentifier) {
                         match self {
                             #(#match_arms)*
                             _ => {}
@@ -274,8 +274,8 @@ fn generate_refresh_for_locale_impl(
                 .collect();
 
             quote! {
-                impl ::es_fluent_manager_bevy::RefreshForLocale for #ident {
-                    fn refresh_for_locale(&mut self, lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier) {
+                impl #manager_path::RefreshForLocale for #ident {
+                    fn refresh_for_locale(&mut self, lang: &#manager_path::unic_langid::LanguageIdentifier) {
                         #(#field_updates)*
                     }
                 }
@@ -334,8 +334,13 @@ mod tests {
             ]
         );
         assert_eq!(enum_fields[0].other_fields.len(), 1);
-        let enum_tokens =
-            generate_refresh_for_locale_impl(&enum_input.ident, &enum_input.data, &enum_fields);
+        let manager_path = crate::support::bevy_manager_path();
+        let enum_tokens = generate_refresh_for_locale_impl(
+            &enum_input.ident,
+            &enum_input.data,
+            &enum_fields,
+            manager_path.tokens(),
+        );
         assert_snapshot!(
             "generate_refresh_for_locale_impl_enum",
             pretty_tokens(enum_tokens)
@@ -356,6 +361,7 @@ mod tests {
             &struct_input.ident,
             &struct_input.data,
             &struct_fields,
+            manager_path.tokens(),
         );
         assert_snapshot!(
             "generate_refresh_for_locale_impl_struct",
@@ -370,9 +376,13 @@ mod tests {
         };
         let union_fields = collect_locale_fields(&union_input.data).expect("collect union fields");
         assert!(union_fields.is_empty());
-        let union_tokens =
-            generate_refresh_for_locale_impl(&union_input.ident, &union_input.data, &union_fields)
-                .to_string();
+        let union_tokens = generate_refresh_for_locale_impl(
+            &union_input.ident,
+            &union_input.data,
+            &union_fields,
+            manager_path.tokens(),
+        )
+        .to_string();
         assert_eq!(union_tokens, "");
     }
 
@@ -393,14 +403,13 @@ mod tests {
             language: Lang
         };
         let err = has_locale_attr(&invalid_locale_field).expect_err("invalid locale attr");
-        assert_eq!(
-            err.to_string(),
-            "#[locale] does not accept arguments; use #[locale]"
-        );
+        assert!(err.to_string().contains("wrong value shape"));
+        assert!(err.to_string().contains("help: use #[locale]"));
 
         let module_tokens = bevy_fluent_text_registration_module(
             &syn::Ident::new("__test_module", proc_macro2::Span::call_site()),
             quote! { register_me(app); },
+            crate::support::bevy_manager_path().tokens(),
         );
         assert_snapshot!(
             "bevy_fluent_text_registration_module",
@@ -440,9 +449,7 @@ mod tests {
         };
         let invalid_attr_err =
             collect_locale_fields(&invalid_attr_input.data).expect_err("attr syntax should error");
-        assert_eq!(
-            invalid_attr_err.to_string(),
-            "#[locale] does not accept arguments; use #[locale]"
-        );
+        assert!(invalid_attr_err.to_string().contains("wrong value shape"));
+        assert!(invalid_attr_err.to_string().contains("help: use #[locale]"));
     }
 }

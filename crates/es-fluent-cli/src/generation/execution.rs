@@ -1,6 +1,6 @@
 use crate::core::{CrateInfo, GenerateResult, GenerationAction, WorkspaceInfo};
 use anyhow::{Result, bail};
-use es_fluent_runner::{I18nTomlPath, PackageName, RunnerMetadataStore, RunnerRequest};
+use es_fluent_runner::{I18nTomlPath, RunnerMetadataStore, RunnerRequest};
 use std::time::Instant;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -11,8 +11,7 @@ pub struct RunnerExecution {
 
 impl GenerationAction {
     pub(crate) fn to_runner_request(&self, krate: &CrateInfo) -> RunnerRequest {
-        let crate_name = PackageName::try_new(krate.name.clone())
-            .expect("discovered crate names should be valid package names");
+        let crate_name = krate.name.clone();
         let i18n_toml_path = I18nTomlPath::new(krate.i18n_config_path.clone())
             .expect("discovered i18n.toml paths should be non-empty");
         match self {
@@ -38,9 +37,8 @@ impl GenerationAction {
 impl CrateInfo {
     pub(crate) fn check_request(&self) -> RunnerRequest {
         RunnerRequest::Check {
-            crate_name: PackageName::try_new(self.name.clone())
-                .expect("discovered crate names should be valid package names"),
-            manifest_dir: self.manifest_dir.clone(),
+            crate_name: self.name.clone(),
+            manifest_dir: self.manifest_dir.to_path_buf(),
         }
     }
 
@@ -78,7 +76,7 @@ impl<'a> MonolithicExecutor<'a> {
         let changed = match request {
             RunnerRequest::Generate { crate_name, .. }
             | RunnerRequest::Clean { crate_name, .. } => {
-                self.metadata_store.result_changed(crate_name.as_str())
+                self.metadata_store.result_changed(crate_name)
             },
             RunnerRequest::Check { .. } => false,
         };
@@ -98,14 +96,14 @@ impl<'a> MonolithicExecutor<'a> {
 
         match execution {
             Ok(execution) => GenerateResult::success(
-                krate.name.clone(),
+                krate.name.to_string(),
                 duration,
-                crate::utils::count_ftl_resources(&krate.ftl_output_dir, &krate.name),
+                crate::utils::count_ftl_resources(&krate.ftl_output_dir, krate.name.as_str()),
                 normalize_output(execution.output),
                 execution.changed,
             ),
             Err(error) => {
-                GenerateResult::failure(krate.name.clone(), duration, format!("{error:#}"))
+                GenerateResult::failure(krate.name.to_string(), duration, format!("{error:#}"))
             },
         }
     }
@@ -134,6 +132,7 @@ fn normalize_output(output: String) -> Option<String> {
 mod tests {
     use super::*;
     use crate::core::FluentParseMode;
+    use es_fluent_runner::PackageName;
     use std::fs;
     use std::path::PathBuf;
 
@@ -147,9 +146,11 @@ mod tests {
 
     fn test_crate_info(has_lib_rs: bool) -> CrateInfo {
         CrateInfo {
-            name: "test-crate".to_string(),
-            manifest_dir: PathBuf::from("/tmp/test-crate"),
-            src_dir: PathBuf::from("/tmp/test-crate/src"),
+            name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from(
+                "/tmp/test-crate",
+            )),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test-crate/src")),
             i18n_config_path: PathBuf::from("/tmp/test-crate/i18n.toml"),
             ftl_output_dir: PathBuf::from("/tmp/test-crate/i18n/en"),
             has_lib_rs,
@@ -221,17 +222,18 @@ mod tests {
     fn metadata_store_handles_missing_invalid_and_valid_changed_status() {
         let temp = tempfile::tempdir().expect("tempdir");
         let crate_name = "demo";
+        let package_name = package(crate_name);
         let store = RunnerMetadataStore::new(temp.path());
-        let result_path = store.result_path(crate_name);
+        let result_path = store.result_path(&package_name);
         fs::create_dir_all(result_path.parent().expect("result parent")).expect("create dir");
 
-        assert!(!store.result_changed(crate_name));
+        assert!(!store.result_changed(&package_name));
 
         fs::write(&result_path, "{not-json").expect("write invalid json");
-        assert!(!store.result_changed(crate_name));
+        assert!(!store.result_changed(&package_name));
 
         fs::write(&result_path, r#"{"changed":true}"#).expect("write valid json");
-        assert!(store.result_changed(crate_name));
+        assert!(store.result_changed(&package_name));
     }
 
     #[test]

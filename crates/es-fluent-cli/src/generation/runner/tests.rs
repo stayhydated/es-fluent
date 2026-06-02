@@ -12,8 +12,8 @@ use fs_err as fs;
 use std::path::Path;
 use toml::Value;
 
-fn package(name: &str) -> PackageName {
-    PackageName::try_new(name).expect("valid package name")
+fn package(name: impl AsRef<str>) -> PackageName {
+    PackageName::try_new(name.as_ref()).expect("valid package name")
 }
 
 fn i18n_path(path: impl AsRef<Path>) -> I18nTomlPath {
@@ -66,9 +66,9 @@ fn create_workspace_fixture(
     );
 
     let krate = CrateInfo {
-        name: crate_name.to_string(),
-        manifest_dir: temp.path().to_path_buf(),
-        src_dir,
+        name: package(crate_name),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(src_dir),
         i18n_config_path,
         ftl_output_dir: temp.path().join("i18n/en"),
         has_lib_rs,
@@ -96,7 +96,7 @@ fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<Strin
     workspace
         .crates
         .iter()
-        .map(|krate| (krate.name.clone(), crate_inputs_hash(krate)))
+        .map(|krate| (krate.name.to_string(), crate_inputs_hash(krate)))
         .collect()
 }
 

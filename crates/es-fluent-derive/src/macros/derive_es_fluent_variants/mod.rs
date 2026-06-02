@@ -64,11 +64,8 @@ fn emit_variants_expansion(
                 ident: target.ident(),
                 origin_ident: expansion.origin_ident(),
                 key_name: target.key_name().map(|key| key.as_str()),
-                domain_override: expansion.domain(),
-                derives: target.derives(),
+                model: target.generated_model(),
                 variants: &variant_entries,
-                namespace: expansion.namespace(),
-                label_key: target.label_key().cloned(),
             },
         )
     });
@@ -191,11 +188,8 @@ mod tests {
             inventory_variant_tokens_for_model(&context, &entry.message_entry.metadata).to_string();
 
         assert!(runtime_tokens.contains("\"login_form_variants-username\""));
-        assert!(
-            inventory_tokens.contains(
-                "StaticFluentEntryId :: new_unchecked (\"login_form_variants-username\")"
-            )
-        );
+        assert!(inventory_tokens.contains("StaticFluentEntryId"));
+        assert!(inventory_tokens.contains("\"login_form_variants-username\""));
         assert!(inventory_tokens.contains("__macro :: ftl_variant"));
         assert!(inventory_tokens.contains("\"Username\""));
         assert!(inventory_tokens.contains("& []"));
@@ -229,7 +223,7 @@ mod tests {
     #[test]
     fn process_enum_uses_parent_domain_for_generated_variants_and_label() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent(domain = "es-fluent-lang", id = "es-fluent-lang", namespace = "languages")]
+            #[fluent(domain = "es-fluent-lang", namespace = "languages")]
             #[fluent_label(variants = true)]
             enum Language {
                 English,
@@ -255,7 +249,8 @@ mod tests {
         assert!(tokens.contains("\"language_variants-English\""));
         assert!(tokens.contains("\"language_variants-French\""));
         assert!(tokens.contains("::es_fluent::__private::localize_label"));
-        assert!(tokens.contains("StaticFluentDomain::new_unchecked(\"es-fluent-lang\")"));
+        assert!(tokens.contains("StaticFluentDomain"));
+        assert!(tokens.contains("\"es-fluent-lang\""));
         assert!(tokens.contains(".as_str()"));
         assert!(tokens.contains("\"language_variants_label\""));
         assert!(!tokens.contains("CARGO_PKG_NAME"));

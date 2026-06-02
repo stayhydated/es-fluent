@@ -45,7 +45,7 @@ impl LocaleContext {
             assets_dir: layout.assets_dir,
             fallback,
             locales,
-            crate_name: krate.name.clone(),
+            crate_name: krate.name.to_string(),
         })
     }
 
@@ -136,9 +136,9 @@ mod tests {
         .unwrap();
 
         let krate = CrateInfo {
-            name: "test-crate".to_string(),
-            manifest_dir: temp_dir.path().to_path_buf(),
-            src_dir: temp_dir.path().join("src"),
+            name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
+            src_dir: crate::core::SourceDir::from_discovered(temp_dir.path().join("src")),
             i18n_config_path: config_path,
             ftl_output_dir: assets.join("en"),
             has_lib_rs: true,
@@ -166,9 +166,9 @@ mod tests {
         .unwrap();
 
         let crates = vec![CrateInfo {
-            name: "test-crate".to_string(),
-            manifest_dir: temp_dir.path().to_path_buf(),
-            src_dir: PathBuf::new(),
+            name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::new()),
             i18n_config_path: config_path,
             ftl_output_dir: PathBuf::new(),
             has_lib_rs: true,
@@ -256,9 +256,9 @@ mod tests {
         .unwrap();
 
         let krate = CrateInfo {
-            name: "test-crate".to_string(),
-            manifest_dir: temp_dir.path().to_path_buf(),
-            src_dir: temp_dir.path().join("src"),
+            name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
+            src_dir: crate::core::SourceDir::from_discovered(temp_dir.path().join("src")),
             i18n_config_path: config_path,
             ftl_output_dir: assets.join("en-US"),
             has_lib_rs: true,

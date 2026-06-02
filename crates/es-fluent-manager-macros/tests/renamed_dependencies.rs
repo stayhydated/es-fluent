@@ -1,0 +1,94 @@
+use std::process::Command;
+
+use tempfile::TempDir;
+
+#[test]
+fn manager_macros_compile_when_runtime_dependencies_are_renamed() {
+    let temp = TempDir::new().expect("create temp crate");
+    let crate_dir = temp.path();
+    let src_dir = crate_dir.join("src");
+    std::fs::create_dir_all(src_dir).expect("create src dir");
+    std::fs::create_dir_all(crate_dir.join("i18n/en")).expect("create locale dir");
+
+    let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("workspace root");
+    let facade_path = workspace_root.join("crates/es-fluent");
+    let embedded_path = workspace_root.join("crates/es-fluent-manager-embedded");
+    let bevy_path = workspace_root.join("crates/es-fluent-manager-bevy");
+    let dioxus_path = workspace_root.join("crates/es-fluent-manager-dioxus");
+
+    std::fs::write(
+        crate_dir.join("Cargo.toml"),
+        format!(
+            r#"
+[package]
+name = "renamed-manager-fixture"
+version = "0.0.0"
+edition = "2024"
+
+[dependencies]
+localized = {{ package = "es-fluent", path = "{}" }}
+embedded_runtime = {{ package = "es-fluent-manager-embedded", path = "{}" }}
+bevy_runtime = {{ package = "es-fluent-manager-bevy", path = "{}", default-features = false, features = ["macros"] }}
+dioxus_runtime = {{ package = "es-fluent-manager-dioxus", path = "{}" }}
+"#,
+            facade_path.display(),
+            embedded_path.display(),
+            bevy_path.display(),
+            dioxus_path.display()
+        ),
+    )
+    .expect("write Cargo.toml");
+
+    std::fs::write(
+        crate_dir.join("i18n.toml"),
+        r#"
+fallback_language = "en"
+assets_dir = "i18n"
+"#,
+    )
+    .expect("write i18n.toml");
+    std::fs::write(crate_dir.join("i18n/en/renamed-manager-fixture.ftl"), "").expect("write ftl");
+
+    std::fs::write(
+        crate_dir.join("src/lib.rs"),
+        r#"
+embedded_runtime::define_i18n_module!();
+dioxus_runtime::define_i18n_module!();
+
+#[derive(bevy_runtime::BevyFluentText, Clone)]
+pub struct Message;
+
+impl localized::FluentMessage for Message {
+    fn to_fluent_string_with(
+        &self,
+        _localize: &mut dyn for<'a> FnMut(
+            localized::registry::StaticFluentDomain,
+            localized::registry::StaticFluentEntryId,
+            Option<&localized::FluentArgs<'a>>,
+        ) -> String,
+    ) -> String {
+        String::new()
+    }
+}
+"#,
+    )
+    .expect("write lib.rs");
+
+    let output = Command::new("cargo")
+        .arg("check")
+        .arg("--manifest-path")
+        .arg(crate_dir.join("Cargo.toml"))
+        .output()
+        .expect("run cargo check");
+
+    assert!(
+        output.status.success(),
+        "cargo check failed\nstatus: {}\nstdout:\n{}\nstderr:\n{}",
+        output.status,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

@@ -78,6 +78,18 @@ impl std::fmt::Display for PackageName {
     }
 }
 
+impl PartialEq<&str> for PackageName {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<PackageName> for &str {
+    fn eq(&self, other: &PackageName) -> bool {
+        *self == other.as_str()
+    }
+}
+
 impl serde::Serialize for PackageName {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -221,59 +233,65 @@ impl RunnerMetadataStore {
         &self.base_dir
     }
 
-    pub fn metadata_dir_path(&self, crate_name: &str) -> PathBuf {
-        self.base_dir.join("metadata").join(crate_name)
+    pub fn metadata_dir_path(&self, package_name: &PackageName) -> PathBuf {
+        self.base_dir.join("metadata").join(package_name.as_str())
     }
 
-    pub fn ensure_metadata_dir(&self, crate_name: &str) -> Result<PathBuf, RunnerIoError> {
-        let metadata_dir = self.metadata_dir_path(crate_name);
+    pub fn ensure_metadata_dir(
+        &self,
+        package_name: &PackageName,
+    ) -> Result<PathBuf, RunnerIoError> {
+        let metadata_dir = self.metadata_dir_path(package_name);
         fs::create_dir_all(&metadata_dir)?;
         Ok(metadata_dir)
     }
 
-    pub fn result_path(&self, crate_name: &str) -> PathBuf {
-        self.metadata_dir_path(crate_name).join("result.json")
+    pub fn result_path(&self, package_name: &PackageName) -> PathBuf {
+        self.metadata_dir_path(package_name).join("result.json")
     }
 
-    pub fn inventory_path(&self, crate_name: &str) -> PathBuf {
-        self.metadata_dir_path(crate_name).join("inventory.json")
+    pub fn inventory_path(&self, package_name: &PackageName) -> PathBuf {
+        self.metadata_dir_path(package_name).join("inventory.json")
     }
 
     pub fn write_result(
         &self,
-        crate_name: &str,
+        package_name: &PackageName,
         result: &RunnerResult,
     ) -> Result<(), RunnerIoError> {
-        self.ensure_metadata_dir(crate_name)?;
+        self.ensure_metadata_dir(package_name)?;
         let json = serde_json::to_string(result)?;
-        fs::write(self.result_path(crate_name), json)?;
+        fs::write(self.result_path(package_name), json)?;
         Ok(())
     }
 
-    pub fn read_result(&self, crate_name: &str) -> Result<RunnerResult, RunnerIoError> {
-        let content = fs::read_to_string(self.result_path(crate_name))?;
+    pub fn read_result(&self, package_name: &PackageName) -> Result<RunnerResult, RunnerIoError> {
+        let content = fs::read_to_string(self.result_path(package_name))?;
         Ok(serde_json::from_str(&content)?)
     }
 
-    pub fn result_changed(&self, crate_name: &str) -> bool {
-        self.read_result(crate_name)
+    pub fn result_changed(&self, package_name: &PackageName) -> bool {
+        self.read_result(package_name)
             .map(|result| result.changed)
             .unwrap_or(false)
     }
 
     pub fn write_inventory(
         &self,
-        crate_name: &str,
+        package_name: &PackageName,
         inventory: &InventoryData,
     ) -> Result<(), RunnerIoError> {
-        self.ensure_metadata_dir(crate_name)?;
+        self.ensure_metadata_dir(package_name)?;
         let json = serde_json::to_string(inventory)?;
-        fs::write(self.inventory_path(crate_name), json)?;
+        fs::write(self.inventory_path(package_name), json)?;
         Ok(())
     }
 
-    pub fn read_inventory(&self, crate_name: &str) -> Result<InventoryData, RunnerIoError> {
-        let content = fs::read_to_string(self.inventory_path(crate_name))?;
+    pub fn read_inventory(
+        &self,
+        package_name: &PackageName,
+    ) -> Result<InventoryData, RunnerIoError> {
+        let content = fs::read_to_string(self.inventory_path(package_name))?;
         Ok(serde_json::from_str(&content)?)
     }
 }
@@ -303,19 +321,24 @@ pub fn get_all_locales(assets_dir: &Path) -> Result<Vec<String>, RunnerIoError> 
 mod tests {
     use super::*;
 
+    fn package(name: &str) -> PackageName {
+        PackageName::try_new(name).expect("valid package name")
+    }
+
     #[test]
     fn metadata_store_builds_expected_locations() {
         let store = RunnerMetadataStore::new("/tmp/example");
+        let package = package("crate-x");
         assert_eq!(
-            store.metadata_dir_path("crate-x"),
+            store.metadata_dir_path(&package),
             Path::new("/tmp/example/metadata/crate-x")
         );
         assert_eq!(
-            store.result_path("crate-x"),
+            store.result_path(&package),
             Path::new("/tmp/example/metadata/crate-x/result.json")
         );
         assert_eq!(
-            store.inventory_path("crate-x"),
+            store.inventory_path(&package),
             Path::new("/tmp/example/metadata/crate-x/inventory.json")
         );
         assert_eq!(
@@ -366,20 +389,20 @@ mod tests {
         let temp = tempfile::tempdir().expect("tempdir");
         let result = RunnerResult { changed: true };
         let store = RunnerMetadataStore::new(temp.path());
+        let package = package("crate-x");
 
-        store
-            .write_result("crate-x", &result)
-            .expect("write result");
-        let decoded = store.read_result("crate-x").expect("read result");
+        store.write_result(&package, &result).expect("write result");
+        let decoded = store.read_result(&package).expect("read result");
 
         assert_eq!(decoded, result);
-        assert!(store.result_changed("crate-x"));
+        assert!(store.result_changed(&package));
     }
 
     #[test]
     fn write_and_read_inventory_round_trip() {
         let temp = tempfile::tempdir().expect("tempdir");
         let store = RunnerMetadataStore::new(temp.path());
+        let package = package("crate-x");
         let inventory = InventoryData {
             expected_keys: vec![ExpectedKey {
                 key: FluentEntryId::try_new("hello").expect("key"),
@@ -391,9 +414,9 @@ mod tests {
         };
 
         store
-            .write_inventory("crate-x", &inventory)
+            .write_inventory(&package, &inventory)
             .expect("write inventory");
-        let decoded = store.read_inventory("crate-x").expect("read inventory");
+        let decoded = store.read_inventory(&package).expect("read inventory");
 
         assert_eq!(decoded, inventory);
     }
@@ -402,15 +425,16 @@ mod tests {
     fn read_inventory_rejects_invalid_typed_metadata() {
         let temp = tempfile::tempdir().expect("tempdir");
         let store = RunnerMetadataStore::new(temp.path());
-        store.ensure_metadata_dir("crate-x").expect("metadata dir");
+        let package = package("crate-x");
+        store.ensure_metadata_dir(&package).expect("metadata dir");
         std::fs::write(
-            store.inventory_path("crate-x"),
+            store.inventory_path(&package),
             r#"{"expected_keys":[{"key":"_invalid","variables":["name"],"source_file":"src/lib.rs","source_line":7}]}"#,
         )
         .expect("write inventory");
 
         let error = store
-            .read_inventory("crate-x")
+            .read_inventory(&package)
             .expect_err("invalid inventory should fail");
 
         assert!(

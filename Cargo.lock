@@ -5017,6 +5017,7 @@ dependencies = [
  "getset",
  "heck 0.5.0",
  "insta",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "serial_test",
@@ -5163,6 +5164,7 @@ name = "es-fluent-manager-macros"
 version = "0.16.0"
 dependencies = [
  "es-fluent-build",
+ "es-fluent-derive-core",
  "es-fluent-shared",
  "es-fluent-toml",
  "heck 0.5.0",

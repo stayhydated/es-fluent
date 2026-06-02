@@ -1,16 +1,14 @@
 //! Context-aware helpers for raw derive attribute meta items.
 
-use crate::error::{AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
+use crate::error::EsFluentCoreResult;
 pub use crate::grammar::{
     AttributeFamily, AttributeItem, AttributeKey, AttributeLocation, AttributeName,
     AttributeValueShape, FluentAttributeKey,
 };
 use crate::grammar::{
-    attribute_rule, help_for_location,
-    parse_attribute_meta_item as parse_grammar_attribute_meta_item,
+    parse_attribute_meta_item as parse_grammar_attribute_meta_item, validate_attribute_for_family,
 };
-use std::collections::HashMap;
-use syn::{Meta, Token, punctuated::Punctuated, spanned::Spanned as _};
+use syn::Meta;
 
 pub type FluentAttributeItem = AttributeItem;
 
@@ -50,179 +48,7 @@ pub fn validate_attribute_for_location(
     location: AttributeLocation,
     owner: Option<&syn::Ident>,
 ) -> EsFluentCoreResult<()> {
-    if !attr.path().is_ident(attribute_name.as_str()) {
-        return Ok(());
-    }
-
-    let Meta::List(list) = &attr.meta else {
-        return Ok(());
-    };
-
-    let items = list
-        .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-        .map_err(|error| {
-            EsFluentCoreError::StructuredAttributeError(AttrError::new(
-                location.context(),
-                format!(
-                    "failed to parse {} arguments: {error}",
-                    attribute_name.attribute_syntax()
-                ),
-                Some(list.tokens.span()),
-            ))
-        })?;
-
-    let mut seen_keys = HashMap::<AttributeKey, (String, proc_macro2::Span)>::new();
-    for item in items {
-        if let Some(invalid) =
-            invalid_attribute_meta_item_for_location(&item, attribute_name, location)
-        {
-            return Err(invalid_attribute_error(
-                invalid,
-                attribute_name,
-                location,
-                owner,
-                item.span(),
-            ));
-        }
-
-        let Some(parsed) = parse_attribute_meta_item(&item, attribute_name) else {
-            continue;
-        };
-        let Some(key) = parsed.key() else {
-            continue;
-        };
-        let Some(rule) = attribute_rule(attribute_name, location, key) else {
-            continue;
-        };
-        let expected_shape = rule.shape;
-        if !expected_shape.matches(&item) {
-            return Err(invalid_attribute_value_shape_error(
-                parsed,
-                expected_shape,
-                location,
-                owner,
-                item.span(),
-            ));
-        }
-
-        if let Some((first_key_name, _first_span)) =
-            seen_keys.insert(key, (parsed.key_name().to_string(), item.span()))
-        {
-            return Err(duplicate_attribute_key_error(
-                parsed,
-                attribute_name,
-                location,
-                owner,
-                item.span(),
-                first_key_name,
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-fn invalid_attribute_value_shape_error(
-    item: FluentAttributeItem,
-    expected_shape: AttributeValueShape,
-    location: AttributeLocation,
-    owner: Option<&syn::Ident>,
-    span: proc_macro2::Span,
-) -> EsFluentCoreError {
-    let owner = owner.map(|ident| format!(" `{ident}`")).unwrap_or_default();
-    EsFluentCoreError::StructuredAttributeError(AttrError::new(
-        location.context(),
-        format!(
-            "`{}` has the wrong value shape for key `{}` in {}{}",
-            item.syntax(),
-            item.key_name(),
-            location.context(),
-            owner
-        ),
-        Some(span),
-    ))
-    .with_help(expected_shape.help(item.key_name()))
-}
-
-fn duplicate_attribute_key_error(
-    item: FluentAttributeItem,
-    attribute_name: AttributeName,
-    location: AttributeLocation,
-    owner: Option<&syn::Ident>,
-    span: proc_macro2::Span,
-    first_key_name: String,
-) -> EsFluentCoreError {
-    let owner = owner.map(|ident| format!(" `{ident}`")).unwrap_or_default();
-    EsFluentCoreError::StructuredAttributeError(AttrError::new(
-        location.context(),
-        format!(
-            "duplicate key `{}` in {}{}",
-            item.key_name(),
-            location.context(),
-            owner
-        ),
-        Some(span),
-    ))
-    .with_note(format!(
-        "first `{first_key_name}` key in {} appears earlier",
-        attribute_name.attribute_syntax()
-    ))
-    .with_help(format!(
-        "keep only one `{}` entry in {}",
-        item.key_name(),
-        attribute_name.attribute_syntax()
-    ))
-}
-
-fn invalid_attribute_error(
-    item: FluentAttributeItem,
-    attribute_name: AttributeName,
-    location: AttributeLocation,
-    owner: Option<&syn::Ident>,
-    span: proc_macro2::Span,
-) -> EsFluentCoreError {
-    if attribute_name == AttributeName::Fluent
-        && location == AttributeLocation::EnumVariant
-        && matches!(
-            item.key(),
-            Some(
-                FluentAttributeKey::Arg | FluentAttributeKey::Value | FluentAttributeKey::Selector
-            )
-        )
-    {
-        let variant_ident = owner
-            .map(ToString::to_string)
-            .unwrap_or_else(|| "the variant".to_string());
-        return EsFluentCoreError::StructuredAttributeError(AttrError::new(
-            location.context(),
-            format!(
-                "`{}` is a field-only attribute and cannot be used on enum variant `{variant_ident}`",
-                item.syntax(),
-            ),
-            Some(span),
-        ))
-        .with_help(format!(
-            "move the attribute to a field inside the variant, for example `{variant_ident}(#[fluent(arg = \"name\")] T)`"
-        ));
-    }
-
-    let owner = owner.map(|ident| format!(" `{ident}`")).unwrap_or_default();
-    let kind = if item.key().is_some() {
-        "cannot be used"
-    } else {
-        "is not supported"
-    };
-
-    EsFluentCoreError::StructuredAttributeError(AttrError::new(
-        location.context(),
-        format!(
-            "`{}` {kind} in {}{owner}",
-            item.syntax(),
-            location.context(),
-        ),
-        Some(span),
-    ))
-    .with_help(help_for_location(attribute_name, location).to_string())
+    validate_attribute_for_family(attr, attribute_name, location, owner)
 }
 
 #[cfg(test)]
@@ -426,6 +252,41 @@ mod tests {
             )
         );
         assert!(message.contains("use a string literal, for example `arg = \"...\"`"));
+    }
+
+    #[test]
+    fn validate_attribute_for_location_accumulates_related_errors() {
+        let attr: syn::Attribute =
+            parse_quote!(#[fluent(arg, selector = true, unknown, arg = "name")]);
+        let err = validate_attribute_for_location(
+            &attr,
+            AttributeName::Fluent,
+            AttributeLocation::MessageField,
+            None,
+        )
+        .expect_err("attribute validation should collect every invalid item");
+
+        let message = err.to_string();
+        assert!(
+            message.contains(
+                "`#[fluent(arg)]` has the wrong value shape for key `arg` in message field"
+            ),
+            "{message}"
+        );
+        assert!(
+            message.contains(
+                "`#[fluent(selector = ...)]` has the wrong value shape for key `selector` in message field"
+            ),
+            "{message}"
+        );
+        assert!(
+            message.contains("`#[fluent(unknown)]` is not supported in message field"),
+            "{message}"
+        );
+        assert!(
+            message.contains("duplicate key `arg` in message field"),
+            "{message}"
+        );
     }
 
     #[test]

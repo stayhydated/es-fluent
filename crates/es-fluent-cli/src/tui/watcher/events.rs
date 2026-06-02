@@ -14,15 +14,15 @@ pub(super) fn build_path_to_crate(valid_crates: &[&CrateInfo]) -> PathToCrateMap
     PathToCrateMap {
         manifest_dirs: valid_crates
             .iter()
-            .map(|krate| (krate.manifest_dir.clone(), krate.name.clone()))
+            .map(|krate| (krate.manifest_dir.to_path_buf(), krate.name.to_string()))
             .collect(),
         src_dirs: valid_crates
             .iter()
-            .map(|krate| (krate.src_dir.clone(), krate.name.clone()))
+            .map(|krate| (krate.src_dir.to_path_buf(), krate.name.to_string()))
             .collect(),
         i18n_configs: valid_crates
             .iter()
-            .map(|krate| (krate.i18n_config_path.clone(), krate.name.clone()))
+            .map(|krate| (krate.i18n_config_path.clone(), krate.name.to_string()))
             .collect(),
     }
 }

@@ -31,9 +31,9 @@ impl<'a> WatchRuntime<'a> {
         let mut observed_hashes = HashMap::new();
 
         for krate in &valid_crates {
-            crates_by_name.insert(krate.name.clone(), *krate);
+            crates_by_name.insert(krate.name.to_string(), *krate);
             observed_hashes.insert(
-                krate.name.clone(),
+                krate.name.to_string(),
                 super::generation::compute_watch_inputs_hash(
                     &krate.manifest_dir,
                     &krate.src_dir,
@@ -114,13 +114,13 @@ impl<'a> WatchRuntime<'a> {
     fn start_generation(&mut self, app: &mut TuiApp<'_>, krate: &CrateInfo, report_change: bool) {
         if report_change {
             app.update(Message::FileChanged {
-                crate_name: krate.name.clone(),
+                crate_name: krate.name.to_string(),
             });
         }
 
-        self.begin_generation(&krate.name);
+        self.begin_generation(krate.name.as_str());
         app.update(Message::GenerationStarted {
-            crate_name: krate.name.clone(),
+            crate_name: krate.name.to_string(),
         });
         self.spawn_for(krate);
     }
@@ -183,9 +183,9 @@ mod tests {
 
     fn test_crate() -> CrateInfo {
         CrateInfo {
-            name: "crate-a".to_string(),
-            manifest_dir: PathBuf::from("/tmp/test"),
-            src_dir: PathBuf::from("/tmp/test/src"),
+            name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
             i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
             ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
             has_lib_rs: true,
@@ -213,16 +213,20 @@ mod tests {
         let mut runtime = test_runtime(&krate);
         runtime
             .observed_hashes
-            .insert(krate.name.clone(), "hash-a".to_string());
+            .insert(krate.name.to_string(), "hash-a".to_string());
 
-        runtime.begin_generation(&krate.name);
+        runtime.begin_generation(krate.name.as_str());
         assert_eq!(
-            runtime.active_generation_hashes.get(&krate.name),
+            runtime.active_generation_hashes.get(krate.name.as_str()),
             Some(&"hash-a".to_string())
         );
 
-        assert!(runtime.observe_hash(&krate.name, "hash-b".to_string()));
-        assert!(runtime.dirty_generating_crates.contains(&krate.name));
+        assert!(runtime.observe_hash(krate.name.as_str(), "hash-b".to_string()));
+        assert!(
+            runtime
+                .dirty_generating_crates
+                .contains(krate.name.as_str())
+        );
     }
 
     #[test]
@@ -231,13 +235,21 @@ mod tests {
         let mut runtime = test_runtime(&krate);
         runtime
             .observed_hashes
-            .insert(krate.name.clone(), "hash-a".to_string());
+            .insert(krate.name.to_string(), "hash-a".to_string());
 
-        runtime.begin_generation(&krate.name);
-        runtime.observe_hash(&krate.name, "hash-b".to_string());
+        runtime.begin_generation(krate.name.as_str());
+        runtime.observe_hash(krate.name.as_str(), "hash-b".to_string());
 
-        assert!(runtime.finish_generation(&krate.name));
-        assert!(!runtime.dirty_generating_crates.contains(&krate.name));
-        assert!(!runtime.active_generation_hashes.contains_key(&krate.name));
+        assert!(runtime.finish_generation(krate.name.as_str()));
+        assert!(
+            !runtime
+                .dirty_generating_crates
+                .contains(krate.name.as_str())
+        );
+        assert!(
+            !runtime
+                .active_generation_hashes
+                .contains_key(krate.name.as_str())
+        );
     }
 }

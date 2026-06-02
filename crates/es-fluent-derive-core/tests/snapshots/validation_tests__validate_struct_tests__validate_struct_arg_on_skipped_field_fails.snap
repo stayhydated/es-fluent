@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive-core/tests/validation_tests.rs
+assertion_line: 353
 expression: err.to_string()
 ---
-Attribute error in message field: Cannot use #[fluent(arg = "...")] on a skipped field
+Attribute error in message field: Cannot use #[fluent(arg = "...")] on a skipped field at hidden

@@ -182,13 +182,13 @@ pub(crate) fn collect_check_run(
     let crates_to_check: Vec<_> = workspace
         .valid
         .iter()
-        .filter(|k| !ignore_crates.contains(&k.name))
+        .filter(|k| !ignore_crates.contains(k.name.as_str()))
         .collect();
 
     // Validate that all ignored crates are known
     if !ignore_crates.is_empty() {
         let all_crate_names: HashSet<String> =
-            workspace.valid.iter().map(|k| k.name.clone()).collect();
+            workspace.valid.iter().map(|k| k.name.to_string()).collect();
 
         let mut unknown_crates: Vec<&String> = ignore_crates
             .iter()
@@ -274,13 +274,13 @@ pub(crate) fn collect_check_run(
                 // If error, print above progress bar
                 if show_progress {
                     pb.suspend(|| {
-                        ui::Ui::print_check_error(&krate.name, &error);
+                        ui::Ui::print_check_error(krate.name.as_str(), &error);
                     });
                 }
                 all_issues.push(ValidationIssue::ValidationExecution(
                     ValidationExecutionError {
-                        src: NamedSource::new(krate.name.clone(), String::new()),
-                        crate_name: krate.name.clone(),
+                        src: NamedSource::new(krate.name.to_string(), String::new()),
+                        crate_name: krate.name.to_string(),
                         help: error,
                     },
                 ));

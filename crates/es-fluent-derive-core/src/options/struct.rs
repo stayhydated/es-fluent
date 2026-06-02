@@ -1,18 +1,43 @@
 use darling::{FromDeriveInput, FromField};
 use getset::Getters;
 
-use crate::options::{FluentField, GeneratedVariantsOptions, StructDataOptions};
+use crate::options::{FieldDirective, FluentField, GeneratedVariantsOptions, StructDataOptions};
+use syn::spanned::Spanned as _;
 
 /// Options for a struct field.
-#[derive(Clone, Debug, FromField)]
-#[darling(attributes(fluent))]
+#[derive(Clone, Debug)]
 pub struct StructFieldOpts {
     /// The identifier of the field.
     ident: Option<syn::Ident>,
     /// The type of the field.
     ty: syn::Type,
+    directive: FieldDirective,
+}
+
+#[derive(Clone, Debug, FromField)]
+#[darling(attributes(fluent))]
+struct RawStructFieldOpts {
+    ident: Option<syn::Ident>,
+    ty: syn::Type,
     #[darling(flatten)]
     attr_args: super::FluentFieldAttributeArgs,
+}
+
+impl FromField for StructFieldOpts {
+    fn from_field(field: &syn::Field) -> darling::Result<Self> {
+        let raw = RawStructFieldOpts::from_field(field)?;
+        let span = raw
+            .ident
+            .as_ref()
+            .map_or_else(|| raw.ty.span(), syn::Ident::span);
+        let directive = FieldDirective::from_attr_args(&raw.attr_args, &raw.ty, span)
+            .map_err(|error| darling::Error::custom(error.to_string()).with_span(field))?;
+        Ok(Self {
+            ident: raw.ident,
+            ty: raw.ty,
+            directive,
+        })
+    }
 }
 
 impl StructFieldOpts {
@@ -22,6 +47,10 @@ impl StructFieldOpts {
 
     pub fn ty(&self) -> &syn::Type {
         &self.ty
+    }
+
+    pub fn directive(&self) -> &FieldDirective {
+        &self.directive
     }
 }
 
@@ -34,8 +63,8 @@ impl FluentField for StructFieldOpts {
         &self.ty
     }
 
-    fn field_attr_args(&self) -> &super::FluentFieldAttributeArgs {
-        &self.attr_args
+    fn directive(&self) -> &FieldDirective {
+        &self.directive
     }
 }
 
@@ -96,6 +125,7 @@ impl GeneratedVariantsOptions for StructVariantsOpts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::options::FieldValueDirective;
     use es_fluent_shared::namespace::NamespaceRule;
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
@@ -134,14 +164,23 @@ mod tests {
         let fields = opts.fields();
         assert_eq!(fields.len(), 3);
         assert_eq!(message_field_arg(fields[0], 0), "username");
-        assert!(!fields[0].is_selector());
+        assert!(matches!(
+            fields[0].directive().argument().map(|arg| arg.value()),
+            Some(FieldValueDirective::Borrowed { .. })
+        ));
 
         assert_eq!(message_field_arg(fields[1], 1), "role");
-        assert!(fields[1].is_selector());
+        assert!(matches!(
+            fields[1].directive().argument().map(|arg| arg.value()),
+            Some(FieldValueDirective::Choice { .. })
+        ));
         assert_eq!(message_field_arg(fields[2], 2), "display_name");
-        let value_expr = fields[2]
-            .value()
-            .expect("value expression should be present");
+        let Some(FieldValueDirective::Transform(transform)) =
+            fields[2].directive().argument().map(|arg| arg.value())
+        else {
+            panic!("value transform should be present");
+        };
+        let value_expr = transform.expr();
         assert_eq!(
             quote!(#value_expr).to_string(),
             "| v : & String | v . len ()"

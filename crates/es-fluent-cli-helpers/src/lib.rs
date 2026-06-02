@@ -43,7 +43,7 @@ impl RunnerContext {
 
     fn write_changed_result(&self, changed: bool) -> Result<(), es_fluent_runner::RunnerIoError> {
         let result = RunnerResult { changed };
-        RunnerMetadataStore::new(".").write_result(self.crate_name.as_str(), &result)
+        RunnerMetadataStore::new(".").write_result(&self.crate_name, &result)
     }
 }
 
@@ -238,8 +238,9 @@ mod tests {
     }
 
     fn read_changed_result(base: &Path, crate_name: &str) -> bool {
+        let package_name = PackageName::try_new(crate_name).expect("valid package name");
         RunnerMetadataStore::new(base)
-            .read_result(crate_name)
+            .read_result(&package_name)
             .expect("read result json")
             .changed
     }
@@ -276,7 +277,7 @@ mod tests {
             run_check("unknown-crate").expect("run check");
 
             let value = RunnerMetadataStore::new(cwd)
-                .read_inventory("unknown-crate")
+                .read_inventory(&PackageName::try_new("unknown-crate").expect("package"))
                 .expect("read inventory");
             assert_eq!(value.expected_keys.len(), 0);
         });

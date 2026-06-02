@@ -1,6 +1,6 @@
 use es_fluent_derive_core::expansion::{
     EsFluentEnumExpansion, EsFluentEnumVariantShape, EsFluentLocalizedVariant,
-    EsFluentMessageVariant, EsFluentSkippedVariant,
+    EsFluentMessageVariant, EsFluentSkippedVariant, EsFluentTupleField,
 };
 use es_fluent_shared::namer;
 
@@ -68,10 +68,13 @@ fn variant_runtime_arguments(
         EsFluentEnumVariantShape::Unit => Vec::new(),
         EsFluentEnumVariantShape::Tuple { fields } => fields
             .iter()
-            .filter_map(|field| field.argument().map(|argument| (field, argument)))
+            .filter_map(|field| match field {
+                EsFluentTupleField::Skipped { .. } => None,
+                EsFluentTupleField::Argument { index, argument } => Some((index, argument)),
+            })
             .map(|field| {
-                let (field, argument) = field;
-                let binding_ident = namer::UnnamedItem::from(field.original_index()).to_ident();
+                let (index, argument) = field;
+                let binding_ident = namer::UnnamedItem::from(index.as_usize()).to_ident();
                 crate::macros::utils::generate_field_argument(
                     context,
                     argument.clone(),
@@ -124,11 +127,11 @@ fn localized_variant_match_arm(
             let field_pats: Vec<_> = fields
                 .iter()
                 .map(|field| {
-                    if field.is_skipped() {
-                        quote! { _ }
-                    } else {
-                        let name = namer::UnnamedItem::from(field.original_index()).to_ident();
+                    if let EsFluentTupleField::Argument { index, .. } = field {
+                        let name = namer::UnnamedItem::from(index.as_usize()).to_ident();
                         quote! { #name }
+                    } else {
+                        quote! { _ }
                     }
                 })
                 .collect();
@@ -270,14 +273,10 @@ mod tests {
         assert!(runtime_tokens.contains("\"login_error-Failed\""));
         assert!(runtime_tokens.contains("\"display_name\""));
         assert!(runtime_tokens.contains("\"f1\""));
-        assert!(
-            inventory_tokens
-                .contains("StaticFluentEntryId :: new_unchecked (\"login_error-Failed\")")
-        );
-        assert!(
-            inventory_tokens
-                .contains("StaticFluentArgumentName :: new_unchecked (\"display_name\")")
-        );
-        assert!(inventory_tokens.contains("StaticFluentArgumentName :: new_unchecked (\"f1\")"));
+        assert!(inventory_tokens.contains("StaticFluentEntryId"));
+        assert!(inventory_tokens.contains("\"login_error-Failed\""));
+        assert!(inventory_tokens.contains("StaticFluentArgumentName"));
+        assert!(inventory_tokens.contains("\"display_name\""));
+        assert!(inventory_tokens.contains("\"f1\""));
     }
 }

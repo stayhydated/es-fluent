@@ -659,7 +659,7 @@ pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
             args.variables,
             terminal_links,
             args.link_mode,
-            rust_link_indexes.get(&krate.name),
+            rust_link_indexes.get(krate.name.as_str()),
         )?;
     }
 
@@ -698,7 +698,7 @@ fn collect_rust_link_indexes(
             .read_inventory(&krate.name)
             .map_err(|error| CliError::Other(error.to_string()))?;
         indexes.insert(
-            krate.name.clone(),
+            krate.name.to_string(),
             RustLinkIndex::from_inventory(&krate.manifest_dir, inventory),
         );
     }
@@ -738,7 +738,7 @@ fn build_crate_tree_json(
     }
 
     Ok(TreeCrateJson {
-        name: krate.name.clone(),
+        name: krate.name.to_string(),
         locales,
     })
 }
@@ -854,7 +854,7 @@ fn print_crate_tree(
     }
 
     let crate_label = renderer.path_link_label(
-        krate.name.bold().cyan().to_string(),
+        krate.name.as_str().bold().cyan().to_string(),
         &krate.manifest_dir,
         None,
     );
@@ -937,9 +937,9 @@ mod tests {
 
     fn crate_info_from_temp(temp: &tempfile::TempDir) -> CrateInfo {
         CrateInfo {
-            name: "test-app".to_string(),
-            manifest_dir: temp.path().to_path_buf(),
-            src_dir: temp.path().join("src"),
+            name: es_fluent_runner::PackageName::try_new("test-app").expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+            src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
             i18n_config_path: temp.path().join("i18n.toml"),
             ftl_output_dir: temp.path().join("i18n/en"),
             has_lib_rs: true,

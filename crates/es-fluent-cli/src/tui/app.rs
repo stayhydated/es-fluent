@@ -41,9 +41,9 @@ impl<'a> TuiApp<'a> {
         let mut states = IndexMap::new();
         for krate in crates {
             if krate.has_lib_rs {
-                states.insert(krate.name.clone(), CrateState::Generating);
+                states.insert(krate.name.to_string(), CrateState::Generating);
             } else {
-                states.insert(krate.name.clone(), CrateState::MissingLibRs);
+                states.insert(krate.name.to_string(), CrateState::MissingLibRs);
             }
         }
 
@@ -180,7 +180,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         .crates
         .iter()
         .map(|krate| {
-            let state = app.states.get(&krate.name);
+            let state = app.states.get(krate.name.as_str());
             let (symbol, status_text, status_color) = match state {
                 Some(CrateState::MissingLibRs) => ("!", "missing lib.rs", Color::Red),
                 Some(CrateState::Generating) => (throbber_symbol, "generating", Color::Yellow),
@@ -194,7 +194,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
                                 .add_modifier(Modifier::BOLD),
                         ),
                         Span::styled(
-                            krate.name.clone(),
+                            krate.name.as_str(),
                             Style::default()
                                 .fg(Color::White)
                                 .add_modifier(Modifier::BOLD),
@@ -210,7 +210,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
                             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                         ),
                         Span::styled(
-                            krate.name.clone(),
+                            krate.name.as_str(),
                             Style::default()
                                 .fg(Color::White)
                                 .add_modifier(Modifier::BOLD),
@@ -233,7 +233,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    krate.name.clone(),
+                    krate.name.as_str(),
                     Style::default()
                         .fg(Color::White)
                         .add_modifier(Modifier::BOLD),
@@ -272,9 +272,9 @@ mod tests {
 
     fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
         CrateInfo {
-            name: name.to_string(),
-            manifest_dir: PathBuf::from("/tmp/test"),
-            src_dir: PathBuf::from("/tmp/test/src"),
+            name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
+            manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
+            src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
             i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
             ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
             has_lib_rs,

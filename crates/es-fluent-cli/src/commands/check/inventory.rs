@@ -1,5 +1,5 @@
 use anyhow::Result;
-use es_fluent_runner::{RunnerIoError, RunnerMetadataStore};
+use es_fluent_runner::{PackageName, RunnerIoError, RunnerMetadataStore};
 use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
 use es_fluent_shared::resource::ModuleResourceSpec;
 use es_fluent_shared::source::{SourceFile, SourceLine};
@@ -20,12 +20,12 @@ pub(crate) struct KeyInfo {
 /// Read inventory data from the generated inventory.json file.
 pub(crate) fn read_inventory_file(
     temp_dir: &std::path::Path,
-    crate_name: &str,
+    package_name: &PackageName,
 ) -> Result<ExpectedKeys> {
     let store = RunnerMetadataStore::new(temp_dir);
-    let inventory_path = store.inventory_path(crate_name);
+    let inventory_path = store.inventory_path(package_name);
     let data = store
-        .read_inventory(crate_name)
+        .read_inventory(package_name)
         .map_err(|error| match error {
             RunnerIoError::Io(_) => anyhow::Error::new(error)
                 .context(format!("Failed to read {}", inventory_path.display())),
@@ -47,7 +47,7 @@ pub(crate) fn read_inventory_file(
                 variables,
                 resource: key_info
                     .resource
-                    .unwrap_or_else(|| ModuleResourceSpec::base(crate_name, true)),
+                    .unwrap_or_else(|| ModuleResourceSpec::base(package_name.as_str(), true)),
                 source_file: key_info.source_file,
                 source_line: key_info.source_line,
             },
@@ -68,10 +68,15 @@ mod tests {
     use super::*;
     use std::fs;
 
+    fn package(name: &str) -> PackageName {
+        PackageName::try_new(name).expect("valid package name")
+    }
+
     #[test]
     fn read_inventory_file_parses_expected_key_metadata() {
         let temp = tempfile::tempdir().unwrap();
-        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
+        let inventory_path =
+            RunnerMetadataStore::new(temp.path()).inventory_path(&package("test-crate"));
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(
             &inventory_path,
@@ -94,7 +99,7 @@ mod tests {
         )
         .unwrap();
 
-        let inventory = read_inventory_file(temp.path(), "test-crate").unwrap();
+        let inventory = read_inventory_file(temp.path(), &package("test-crate")).unwrap();
 
         assert_eq!(inventory.len(), 2);
         let hello_key = FluentEntryId::try_new("hello").unwrap();
@@ -125,7 +130,8 @@ mod tests {
     #[test]
     fn read_inventory_file_rejects_invalid_key_metadata_at_protocol_boundary() {
         let temp = tempfile::tempdir().unwrap();
-        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
+        let inventory_path =
+            RunnerMetadataStore::new(temp.path()).inventory_path(&package("test-crate"));
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(
             &inventory_path,
@@ -142,7 +148,7 @@ mod tests {
         )
         .unwrap();
 
-        let error = read_inventory_file(temp.path(), "test-crate")
+        let error = read_inventory_file(temp.path(), &package("test-crate"))
             .err()
             .expect("invalid key should fail");
         assert!(error.to_string().contains("Failed to parse inventory JSON"));
@@ -151,7 +157,8 @@ mod tests {
     #[test]
     fn read_inventory_file_rejects_duplicate_typed_keys() {
         let temp = tempfile::tempdir().unwrap();
-        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
+        let inventory_path =
+            RunnerMetadataStore::new(temp.path()).inventory_path(&package("test-crate"));
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(
             &inventory_path,
@@ -174,7 +181,7 @@ mod tests {
         )
         .unwrap();
 
-        let error = read_inventory_file(temp.path(), "test-crate")
+        let error = read_inventory_file(temp.path(), &package("test-crate"))
             .err()
             .expect("duplicate key should fail");
         assert!(
@@ -187,11 +194,12 @@ mod tests {
     #[test]
     fn read_inventory_file_returns_error_for_invalid_json() {
         let temp = tempfile::tempdir().unwrap();
-        let inventory_path = RunnerMetadataStore::new(temp.path()).inventory_path("test-crate");
+        let inventory_path =
+            RunnerMetadataStore::new(temp.path()).inventory_path(&package("test-crate"));
         fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
         fs::write(&inventory_path, "{invalid-json").unwrap();
 
-        let error = read_inventory_file(temp.path(), "test-crate")
+        let error = read_inventory_file(temp.path(), &package("test-crate"))
             .err()
             .expect("expected invalid json to fail");
         assert!(error.to_string().contains("Failed to parse inventory JSON"));
@@ -200,7 +208,7 @@ mod tests {
     #[test]
     fn read_inventory_file_returns_error_when_missing() {
         let temp = tempfile::tempdir().unwrap();
-        let error = read_inventory_file(temp.path(), "missing-crate")
+        let error = read_inventory_file(temp.path(), &package("missing-crate"))
             .err()
             .expect("missing inventory should fail");
         assert!(error.to_string().contains("Failed to read"));
