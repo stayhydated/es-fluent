@@ -15,6 +15,7 @@ pub enum AttributeFamily {
     FluentLabel,
     FluentChoice,
     EsFluentLanguage,
+    Locale,
 }
 
 pub type AttributeName = AttributeFamily;
@@ -27,6 +28,7 @@ impl AttributeFamily {
             Self::FluentLabel => "fluent_label",
             Self::FluentChoice => "fluent_choice",
             Self::EsFluentLanguage => "es_fluent_language",
+            Self::Locale => "locale",
         }
     }
 
@@ -37,6 +39,7 @@ impl AttributeFamily {
             Self::FluentLabel => "#[fluent_label]",
             Self::FluentChoice => "#[fluent_choice]",
             Self::EsFluentLanguage => "#[es_fluent_language]",
+            Self::Locale => "#[locale]",
         }
     }
 }
@@ -57,6 +60,10 @@ pub enum AttributeLocation {
     LabelContainer,
     ChoiceContainer,
     LanguageContainer,
+    LocaleNamedStructField,
+    LocaleNamedEnumVariantField,
+    LocaleTupleStructField,
+    LocaleTupleEnumVariantField,
 }
 
 impl AttributeLocation {
@@ -78,6 +85,10 @@ impl AttributeLocation {
             Self::LabelContainer => AttrContext::LabelContainer,
             Self::ChoiceContainer => AttrContext::ChoiceContainer,
             Self::LanguageContainer => AttrContext::LanguageContainer,
+            Self::LocaleNamedStructField
+            | Self::LocaleNamedEnumVariantField
+            | Self::LocaleTupleStructField
+            | Self::LocaleTupleEnumVariantField => AttrContext::LocaleField,
         }
     }
 }
@@ -99,6 +110,7 @@ pub enum AttributeKey {
     Variants,
     RenameAll,
     Mode,
+    Locale,
 }
 
 pub type FluentAttributeKey = AttributeKey;
@@ -143,6 +155,8 @@ impl AttributeKey {
             Some(Self::RenameAll)
         } else if path.is_ident("mode") {
             Some(Self::Mode)
+        } else if path.is_ident("locale") {
+            Some(Self::Locale)
         } else {
             None
         }
@@ -168,6 +182,7 @@ pub enum AttributeValueShape {
     GeneratedKeyList,
     ChoiceCaseStyle,
     LanguageMode,
+    Marker,
 }
 
 impl AttributeValueShape {
@@ -183,6 +198,7 @@ impl AttributeValueShape {
     pub(crate) fn matches(self, meta: &Meta) -> bool {
         match self {
             Self::Flag => matches!(meta, Meta::Path(_)),
+            Self::Marker => matches!(meta, Meta::Path(_)),
             Self::ExplicitBool => matches!(
                 meta,
                 Meta::NameValue(name_value)
@@ -222,6 +238,7 @@ impl AttributeValueShape {
     pub(crate) fn help(self, key_name: &str) -> String {
         match self {
             Self::Flag => format!("use a bare flag, for example `{key_name}`"),
+            Self::Marker => format!("use a bare marker, for example `#[{key_name}]`"),
             Self::ExplicitBool => {
                 format!("use an explicit boolean, for example `{key_name} = true`")
             },
@@ -279,6 +296,7 @@ pub(crate) fn help_for_location(
 
 pub(crate) trait AttributeSpec {
     const FAMILY: AttributeFamily;
+    const MARKER_KEY: Option<AttributeKey> = None;
 
     fn rule(location: AttributeLocation, key: AttributeKey) -> Option<&'static AttributeRule> {
         attribute_rule(Self::FAMILY, location, key)
@@ -343,6 +361,7 @@ pub(crate) struct FluentVariantsSpec;
 pub(crate) struct FluentLabelSpec;
 pub(crate) struct FluentChoiceSpec;
 pub(crate) struct LanguageSpec;
+pub(crate) struct LocaleSpec;
 
 impl AttributeSpec for FluentSpec {
     const FAMILY: AttributeFamily = AttributeFamily::Fluent;
@@ -381,6 +400,42 @@ impl AttributeSpec for LanguageSpec {
             span: Some(span),
             note: None,
             help: Some(help),
+        }
+    }
+}
+
+impl AttributeSpec for LocaleSpec {
+    const FAMILY: AttributeFamily = AttributeFamily::Locale;
+    const MARKER_KEY: Option<AttributeKey> = Some(AttributeKey::Locale);
+
+    fn invalid_attribute_error(
+        item: AttributeItem,
+        location: AttributeLocation,
+        _owner: Option<&syn::Ident>,
+        span: Span,
+    ) -> AttrError {
+        let target = match location {
+            AttributeLocation::LocaleTupleStructField => Some("tuple struct fields"),
+            AttributeLocation::LocaleTupleEnumVariantField => Some("tuple enum variant fields"),
+            _ => None,
+        };
+
+        if let Some(target) = target {
+            return AttrError {
+                context: location.context(),
+                message: format!("`{}` cannot be used on {target}", item.syntax()),
+                span: Some(span),
+                note: None,
+                help: Some(LOCALE_TUPLE_FIELD_HELP.to_string()),
+            };
+        }
+
+        AttrError {
+            context: location.context(),
+            message: format!("{} is not accepted here", item.syntax()),
+            span: Some(span),
+            note: None,
+            help: Some(Self::help_for_location(location).to_string()),
         }
     }
 }
@@ -459,6 +514,29 @@ impl<F: AttributeSpec> AttributeSet<F> {
             return Ok(());
         }
 
+        if let Some(marker_key) = F::MARKER_KEY {
+            let parsed = AttributeItem::from_marker_attribute(attr, F::FAMILY, marker_key);
+            let Some(rule) = F::rule(location, marker_key) else {
+                return Err(EsFluentCoreError::StructuredAttributeError(
+                    F::invalid_attribute_error(parsed, location, owner, attr.span()),
+                ));
+            };
+
+            if !rule.shape.matches(&attr.meta) {
+                return Err(EsFluentCoreError::StructuredAttributeError(
+                    invalid_attribute_value_shape_error(
+                        parsed,
+                        rule.shape,
+                        location,
+                        owner,
+                        attr.span(),
+                    ),
+                ));
+            }
+
+            return Ok(());
+        }
+
         let Meta::List(list) = &attr.meta else {
             return Ok(());
         };
@@ -501,6 +579,9 @@ pub(crate) fn validate_attribute_for_family(
         },
         AttributeFamily::EsFluentLanguage => {
             AttributeSet::<LanguageSpec>::validate_attribute(attr, location, owner)
+        },
+        AttributeFamily::Locale => {
+            AttributeSet::<LocaleSpec>::validate_attribute(attr, location, owner)
         },
     }
 }
@@ -598,6 +679,9 @@ const VARIANTS_FIELD_HELP: &str = "accepted key here is skip";
 const LABEL_CONTAINER_HELP: &str = "accepted keys here are origin, variants, and namespace";
 const CHOICE_CONTAINER_HELP: &str = "accepted key here is rename_all";
 const LANGUAGE_CONTAINER_HELP: &str = "accepted key here is mode";
+const LOCALE_FIELD_HELP: &str = "use #[locale] on a named struct field or named enum variant field";
+const LOCALE_TUPLE_FIELD_HELP: &str =
+    "move #[locale] to a named struct field or named enum variant field";
 
 pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
     AttributeRule {
@@ -789,6 +873,20 @@ pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
         shape: AttributeValueShape::LanguageMode,
         location_help: LANGUAGE_CONTAINER_HELP,
     },
+    AttributeRule {
+        family: AttributeFamily::Locale,
+        location: AttributeLocation::LocaleNamedStructField,
+        key: AttributeKey::Locale,
+        shape: AttributeValueShape::Marker,
+        location_help: LOCALE_FIELD_HELP,
+    },
+    AttributeRule {
+        family: AttributeFamily::Locale,
+        location: AttributeLocation::LocaleNamedEnumVariantField,
+        key: AttributeKey::Locale,
+        shape: AttributeValueShape::Marker,
+        location_help: LOCALE_FIELD_HELP,
+    },
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -880,6 +978,23 @@ pub struct AttributeItem {
 }
 
 impl AttributeItem {
+    fn from_marker_attribute(
+        attr: &syn::Attribute,
+        attribute_family: AttributeFamily,
+        key: AttributeKey,
+    ) -> Self {
+        let syntax = match attr.meta {
+            Meta::Path(_) => attribute_family.attribute_syntax().to_string(),
+            Meta::List(_) => format!("#[{}(...)]", attribute_family.as_str()),
+            Meta::NameValue(_) => format!("#[{} = ...]", attribute_family.as_str()),
+        };
+        Self {
+            key: Some(key),
+            key_name: attribute_family.as_str().to_string(),
+            syntax,
+        }
+    }
+
     pub fn key(&self) -> Option<AttributeKey> {
         self.key
     }

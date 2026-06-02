@@ -1,4 +1,7 @@
-use crate::core::{CrateInfo, ManifestDir, SourceDir, WorkspaceInfo};
+use crate::core::{
+    CrateInfo, DiscoveredFtlOutputDir, DiscoveredI18nConfigPath, ManifestDir, SourceDir,
+    WorkspaceInfo,
+};
 use anyhow::{Context as _, Result};
 use cargo_metadata::MetadataCommand;
 use es_fluent_runner::PackageName;
@@ -46,8 +49,8 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
             name: package_name,
             manifest_dir: ManifestDir::from_discovered(manifest_dir),
             src_dir: SourceDir::from_discovered(src_dir),
-            i18n_config_path,
-            ftl_output_dir,
+            i18n_config_path: DiscoveredI18nConfigPath::from_discovered(i18n_config_path),
+            ftl_output_dir: DiscoveredFtlOutputDir::from_discovered(ftl_output_dir),
             has_lib_rs,
             fluent_features,
         });

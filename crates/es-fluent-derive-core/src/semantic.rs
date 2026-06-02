@@ -306,11 +306,31 @@ impl GeneratedKeyIdent {
     }
 }
 
+/// Display/source name used in generated enum documentation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GeneratedDocName(String);
+
+impl GeneratedDocName {
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for GeneratedDocName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
 /// Semantic seed for one generated unit-enum variant before the target enum key is known.
 #[derive(Clone, Debug)]
 pub struct GeneratedVariantMessageSeed {
     ident: syn::Ident,
-    doc_name: String,
+    doc_name: GeneratedDocName,
     key_fragment: SpannedValue<VariantKey>,
 }
 
@@ -325,7 +345,7 @@ impl GeneratedVariantMessageSeed {
         let key_fragment = parse_variant_key_in_context(key_fragment, span, context)?;
         Ok(Self {
             ident,
-            doc_name: doc_name.into(),
+            doc_name: GeneratedDocName::new(doc_name),
             key_fragment: SpannedValue::new(key_fragment, span),
         })
     }
@@ -334,7 +354,7 @@ impl GeneratedVariantMessageSeed {
         &self.ident
     }
 
-    pub fn doc_name(&self) -> &str {
+    pub fn doc_name(&self) -> &GeneratedDocName {
         &self.doc_name
     }
 
@@ -479,6 +499,10 @@ impl MessageEntryModel {
 
     pub fn source_name(&self) -> &str {
         self.source_name.as_str()
+    }
+
+    pub fn rust_source_name(&self) -> &RustSourceName {
+        &self.source_name
     }
 
     pub fn message_id(&self) -> &FluentMessageId {

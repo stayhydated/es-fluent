@@ -229,19 +229,28 @@ pub fn indexed_items<T>(items: &[T]) -> Vec<(usize, &T)> {
     items.iter().enumerate().collect()
 }
 
-pub trait Skippable {
+pub trait SkipDirective {
     fn is_skipped(&self) -> bool;
 }
 
+pub trait Skippable {
+    type Directive: SkipDirective;
+
+    fn skip_directive(&self) -> &Self::Directive;
+}
+
 pub fn filter_unskipped<T: Skippable>(items: &[T]) -> Vec<&T> {
-    items.iter().filter(|item| !item.is_skipped()).collect()
+    items
+        .iter()
+        .filter(|item| !item.skip_directive().is_skipped())
+        .collect()
 }
 
 pub fn indexed_unskipped<T: Skippable>(items: &[T]) -> Vec<(usize, &T)> {
     items
         .iter()
         .enumerate()
-        .filter(|(_, item)| !item.is_skipped())
+        .filter(|(_, item)| !item.skip_directive().is_skipped())
         .collect()
 }
 
@@ -336,7 +345,7 @@ pub trait VariantFields {
 /// Shared behavior for variants that allow overriding their localization key.
 pub trait KeyedVariant {
     /// Returns the explicit localization key for the variant, if provided.
-    fn key(&self) -> Option<&str>;
+    fn directive(&self) -> &MessageVariantDirective;
 }
 
 pub fn ftl_variants_ident(ident: &syn::Ident) -> syn::Ident {
@@ -491,34 +500,64 @@ pub trait FluentField {
     }
 }
 
-impl<T: FluentField> Skippable for T {
+impl SkipDirective for FieldDirective {
     fn is_skipped(&self) -> bool {
-        FluentField::is_skipped(self)
+        matches!(self, Self::Skip)
+    }
+}
+
+impl<T: FluentField> Skippable for T {
+    type Directive = FieldDirective;
+
+    fn skip_directive(&self) -> &Self::Directive {
+        FluentField::directive(self)
     }
 }
 
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct SkippableFieldAttributeArgs {
+struct SkippableFieldAttributeArgs {
     /// Whether to skip this field.
     #[darling(default)]
     skip: Option<bool>,
 }
 
 impl SkippableFieldAttributeArgs {
-    pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+    fn directive(&self) -> GeneratedVariantDirective {
+        if self.skip.unwrap_or(false) {
+            GeneratedVariantDirective::Skip
+        } else {
+            GeneratedVariantDirective::Include
+        }
     }
 }
 
-#[derive(Clone, Debug, FromField)]
-#[darling(attributes(fluent_variants))]
+#[derive(Clone, Debug)]
 pub struct SkippableFieldOpts {
     /// The identifier of the field.
     ident: Option<syn::Ident>,
     /// The type of the field.
     ty: syn::Type,
+    directive: GeneratedVariantDirective,
+}
+
+#[derive(Clone, Debug, FromField)]
+#[darling(attributes(fluent_variants))]
+struct RawSkippableFieldOpts {
+    ident: Option<syn::Ident>,
+    ty: syn::Type,
     #[darling(flatten)]
     attr_args: SkippableFieldAttributeArgs,
+}
+
+impl FromField for SkippableFieldOpts {
+    fn from_field(field: &syn::Field) -> darling::Result<Self> {
+        let raw = RawSkippableFieldOpts::from_field(field)?;
+        Ok(Self {
+            ident: raw.ident,
+            ty: raw.ty,
+            directive: raw.attr_args.directive(),
+        })
+    }
 }
 
 impl SkippableFieldOpts {
@@ -530,19 +569,21 @@ impl SkippableFieldOpts {
         &self.ty
     }
 
-    pub fn is_skipped(&self) -> bool {
-        self.attr_args.is_skipped()
+    pub fn directive(&self) -> &GeneratedVariantDirective {
+        &self.directive
     }
 }
 
 impl Skippable for SkippableFieldOpts {
-    fn is_skipped(&self) -> bool {
-        self.attr_args.is_skipped()
+    type Directive = GeneratedVariantDirective;
+
+    fn skip_directive(&self) -> &Self::Directive {
+        &self.directive
     }
 }
 
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct FluentFieldAttributeArgs {
+struct FluentFieldAttributeArgs {
     /// Whether to skip this field.
     #[darling(default)]
     skip: Option<bool>,
@@ -688,7 +729,7 @@ pub enum FieldDirective {
 }
 
 impl FieldDirective {
-    pub(crate) fn from_attr_args(
+    fn from_attr_args(
         attr_args: &FluentFieldAttributeArgs,
         ty: &syn::Type,
         span: proc_macro2::Span,
@@ -859,21 +900,70 @@ impl FluentField for FluentFieldOpts {
     }
 }
 
+/// Closed representation of a message variant's localization behavior.
+#[derive(Clone, Debug)]
+pub enum MessageVariantDirective {
+    Localized {
+        key: Option<SpannedValue<VariantKey>>,
+    },
+    Skipped {
+        key: Option<SpannedValue<VariantKey>>,
+    },
+}
+
+impl MessageVariantDirective {
+    pub fn key(&self) -> Option<&SpannedValue<VariantKey>> {
+        match self {
+            Self::Localized { key } | Self::Skipped { key } => key.as_ref(),
+        }
+    }
+
+    pub fn variant_key(
+        &self,
+        _context: AttrContext,
+    ) -> EsFluentCoreResult<Option<SpannedValue<VariantKey>>> {
+        Ok(self.key().cloned())
+    }
+}
+
+impl SkipDirective for MessageVariantDirective {
+    fn is_skipped(&self) -> bool {
+        matches!(self, Self::Skipped { .. })
+    }
+}
+
+/// Closed representation of generated-variant inclusion behavior.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GeneratedVariantDirective {
+    Include,
+    Skip,
+}
+
+impl SkipDirective for GeneratedVariantDirective {
+    fn is_skipped(&self) -> bool {
+        matches!(self, Self::Skip)
+    }
+}
+
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct SkippedVariantAttributeArgs {
+struct SkippedVariantAttributeArgs {
     /// Whether to skip this variant.
     #[darling(default)]
     skip: Option<bool>,
 }
 
 impl SkippedVariantAttributeArgs {
-    pub fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+    fn directive(&self) -> GeneratedVariantDirective {
+        if self.skip.unwrap_or(false) {
+            GeneratedVariantDirective::Skip
+        } else {
+            GeneratedVariantDirective::Include
+        }
     }
 }
 
 #[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-pub struct KeyedVariantAttributeArgs {
+struct KeyedVariantAttributeArgs {
     #[darling(flatten)]
     skipped_args: SkippedVariantAttributeArgs,
     /// Overrides the localization key suffix for this variant.
@@ -882,19 +972,19 @@ pub struct KeyedVariantAttributeArgs {
 }
 
 impl KeyedVariantAttributeArgs {
-    pub fn is_skipped(&self) -> bool {
-        self.skipped_args.is_skipped()
-    }
-
-    pub fn key(&self) -> Option<&str> {
-        self.key.as_ref().map(|key| key.value().as_str())
-    }
-
-    pub fn variant_key(
-        &self,
-        _context: AttrContext,
-    ) -> EsFluentCoreResult<Option<SpannedValue<VariantKey>>> {
-        Ok(self.key.clone())
+    fn directive(&self) -> MessageVariantDirective {
+        if matches!(
+            self.skipped_args.directive(),
+            GeneratedVariantDirective::Skip
+        ) {
+            MessageVariantDirective::Skipped {
+                key: self.key.clone(),
+            }
+        } else {
+            MessageVariantDirective::Localized {
+                key: self.key.clone(),
+            }
+        }
     }
 }
 
@@ -1009,6 +1099,7 @@ impl darling::FromMeta for ValueAttr {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use darling::FromVariant as _;
 
     fn generated_key(name: &str) -> SpannedValue<GeneratedKeyName> {
         let span = proc_macro2::Span::call_site();
@@ -1064,19 +1155,27 @@ mod tests {
     fn shared_helpers_cover_typed_keys_and_item_filtering() {
         #[derive(Clone, Debug, PartialEq)]
         struct Item {
-            skipped: bool,
+            directive: GeneratedVariantDirective,
         }
 
         impl Skippable for Item {
-            fn is_skipped(&self) -> bool {
-                self.skipped
+            type Directive = GeneratedVariantDirective;
+
+            fn skip_directive(&self) -> &Self::Directive {
+                &self.directive
             }
         }
 
         let items = vec![
-            Item { skipped: false },
-            Item { skipped: true },
-            Item { skipped: false },
+            Item {
+                directive: GeneratedVariantDirective::Include,
+            },
+            Item {
+                directive: GeneratedVariantDirective::Skip,
+            },
+            Item {
+                directive: GeneratedVariantDirective::Include,
+            },
         ];
 
         assert_eq!(collect_items(&items).len(), 3);
@@ -1096,72 +1195,82 @@ mod tests {
     }
 
     #[test]
-    fn shared_field_and_variant_helpers_cover_common_attribute_args() {
+    fn shared_field_and_variant_helpers_cover_closed_directives() {
         #[derive(Clone, Debug, PartialEq)]
         struct LocalItem {
-            skipped: bool,
+            directive: GeneratedVariantDirective,
         }
 
         impl Skippable for LocalItem {
-            fn is_skipped(&self) -> bool {
-                self.skipped
+            type Directive = GeneratedVariantDirective;
+
+            fn skip_directive(&self) -> &Self::Directive {
+                &self.directive
             }
         }
 
-        let field_args = FluentFieldAttributeArgs {
-            skip: Some(true),
-            selector: Some(true),
-            optional: Some(true),
-            value: Some(ValueAttr(syn::parse_quote!(|x: &str| x.len()))),
-            arg: Some(SpannedValue::new(
-                parse_arg_name_in_context(
-                    "display_name",
-                    proc_macro2::Span::call_site(),
-                    crate::error::AttrContext::MessageField,
-                )
-                .expect("arg"),
-                proc_macro2::Span::call_site(),
-            )),
+        let skipped_field: syn::Field = syn::parse_quote! {
+            #[fluent(skip)]
+            hidden: bool
         };
-        assert!(field_args.is_skipped());
-        assert!(field_args.is_selector());
-        assert!(field_args.is_optional());
+        let skipped_field = FluentFieldOpts::from_field(&skipped_field).expect("field parse");
+        assert!(skipped_field.directive().is_skipped());
+
+        let transformed_field: syn::Field = syn::parse_quote! {
+            #[fluent(arg = "display_name", value = |x: &str| x.len())]
+            name: String
+        };
+        let transformed_field =
+            FluentFieldOpts::from_field(&transformed_field).expect("field parse");
         assert_eq!(
-            field_args.arg.as_ref().expect("arg").value().as_str(),
+            transformed_field
+                .directive()
+                .arg_name()
+                .expect("arg")
+                .value()
+                .as_str(),
             "display_name"
         );
-        assert!(field_args.value().is_some());
+        assert!(matches!(
+            transformed_field
+                .directive()
+                .argument()
+                .expect("argument")
+                .value(),
+            FieldValueDirective::Transform(_)
+        ));
 
-        let skipped_variant = SkippedVariantAttributeArgs { skip: Some(true) };
-        assert!(skipped_variant.is_skipped());
-
-        let keyed_variant = KeyedVariantAttributeArgs {
-            skipped_args: SkippedVariantAttributeArgs { skip: Some(false) },
-            key: Some(SpannedValue::new(
-                parse_variant_key_in_context(
-                    "custom",
-                    proc_macro2::Span::call_site(),
-                    crate::error::AttrContext::EnumVariant,
-                )
-                .expect("key"),
-                proc_macro2::Span::call_site(),
-            )),
-        };
-        assert!(!keyed_variant.is_skipped());
-        assert_eq!(keyed_variant.key(), Some("custom"));
+        let skipped_variant: syn::Variant = syn::parse_quote!(
+            #[fluent(skip, key = "skipped")]
+            Skipped
+        );
+        let skipped_variant = crate::options::r#enum::VariantOpts::from_variant(&skipped_variant)
+            .expect("variant parse");
+        assert!(skipped_variant.directive().is_skipped());
         assert_eq!(
-            keyed_variant
-                .variant_key(crate::error::AttrContext::EnumVariant)
-                .expect("variant key")
+            skipped_variant
+                .directive()
+                .key()
                 .expect("key")
                 .value()
                 .as_str(),
-            "custom"
+            "skipped"
         );
+
+        let generated_variant: syn::Variant = syn::parse_quote!(
+            #[fluent_variants(skip)]
+            Hidden
+        );
+        let generated_variant =
+            crate::options::r#enum::EnumVariantOpts::from_variant(&generated_variant)
+                .expect("generated variant parse");
+        assert!(generated_variant.skip_directive().is_skipped());
 
         let tuple_fields = darling::ast::Fields::new(
             darling::ast::Style::Tuple,
-            vec![LocalItem { skipped: false }],
+            vec![LocalItem {
+                directive: GeneratedVariantDirective::Include,
+            }],
         );
         assert!(is_single_tuple_variant(&tuple_fields));
         assert_eq!(filtered_variant_fields(&tuple_fields).len(), 1);
@@ -1170,113 +1279,66 @@ mod tests {
 
     #[test]
     fn field_directive_rejects_conflicting_strategies_at_typed_boundary() {
-        fn arg() -> SpannedValue<ArgName> {
-            SpannedValue::new(
-                parse_arg_name_in_context(
-                    "display_name",
-                    proc_macro2::Span::call_site(),
-                    crate::error::AttrContext::MessageField,
-                )
-                .expect("arg"),
-                proc_macro2::Span::call_site(),
-            )
-        }
-
-        fn err_for(attr_args: FluentFieldAttributeArgs, ty: syn::Type) -> String {
-            FieldDirective::from_attr_args(&attr_args, &ty, proc_macro2::Span::call_site())
+        fn err_for(field: syn::Field) -> String {
+            FluentFieldOpts::from_field(&field)
                 .expect_err("conflicting field strategy should fail")
                 .to_string()
         }
 
-        let string_ty: syn::Type = syn::parse_quote!(String);
-        let option_ty: syn::Type = syn::parse_quote!(Option<String>);
-        let transform = || ValueAttr(syn::parse_quote!(|x: &str| x.len()));
-
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    skip: Some(true),
-                    arg: Some(arg()),
-                    ..Default::default()
-                },
-                string_ty.clone(),
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(skip, arg = "display_name")]
+                name: String
+            })
             .contains("arg")
         );
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    skip: Some(true),
-                    optional: Some(true),
-                    ..Default::default()
-                },
-                option_ty.clone(),
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(skip, optional)]
+                name: Option<String>
+            })
             .contains("optional")
         );
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    skip: Some(true),
-                    selector: Some(true),
-                    ..Default::default()
-                },
-                string_ty.clone(),
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(skip, selector)]
+                name: String
+            })
             .contains("selector")
         );
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    skip: Some(true),
-                    value: Some(transform()),
-                    ..Default::default()
-                },
-                string_ty.clone(),
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(skip, value = |x: &str| x.len())]
+                name: String
+            })
             .contains("value")
         );
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    selector: Some(true),
-                    value: Some(transform()),
-                    ..Default::default()
-                },
-                string_ty.clone(),
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(selector, value = |x: &str| x.len())]
+                name: String
+            })
             .contains("selector")
         );
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    optional: Some(true),
-                    selector: Some(true),
-                    ..Default::default()
-                },
-                option_ty,
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(optional, selector)]
+                name: Option<String>
+            })
             .contains("optional")
         );
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    optional: Some(true),
-                    value: Some(transform()),
-                    ..Default::default()
-                },
-                syn::parse_quote!(Option<String>),
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(optional, value = |x: &str| x.len())]
+                name: Option<String>
+            })
             .contains("optional")
         );
         assert!(
-            err_for(
-                FluentFieldAttributeArgs {
-                    optional: Some(true),
-                    ..Default::default()
-                },
-                string_ty,
-            )
+            err_for(syn::parse_quote! {
+                #[fluent(optional)]
+                name: String
+            })
             .contains("Option<T>")
         );
     }

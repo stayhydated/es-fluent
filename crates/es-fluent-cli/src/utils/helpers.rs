@@ -59,8 +59,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::new()),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::new()),
-            i18n_config_path: PathBuf::new(),
-            ftl_output_dir: PathBuf::new(),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::new()),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::new()),
             has_lib_rs,
             fluent_features: Vec::new(),
         }

@@ -277,8 +277,12 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
         name: package("test-crate"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
-        i18n_config_path: temp.path().join("i18n.toml"),
-        ftl_output_dir: temp.path().join("i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+            temp.path().join("i18n.toml"),
+        ),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
@@ -401,8 +405,12 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
         name: package("test-crate"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
-        i18n_config_path: temp.path().join("i18n.toml"),
-        ftl_output_dir: temp.path().join("i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+            temp.path().join("i18n.toml"),
+        ),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };

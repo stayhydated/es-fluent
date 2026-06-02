@@ -1,7 +1,6 @@
-use crate::attribute::{AttributeLocation, AttributeName, validate_attribute_for_location};
 use crate::options::{
-    EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantsOptions, KeyedVariant, Skippable,
-    VariantFields,
+    EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantDirective, GeneratedVariantsOptions,
+    KeyedVariant, MessageVariantDirective, Skippable, VariantFields,
 };
 use crate::{
     error::{AttrContext, EsFluentCoreResult},
@@ -21,7 +20,7 @@ pub struct VariantOpts {
     #[getset(get = "pub")]
     ident: syn::Ident,
     fields: darling::ast::Fields<super::FluentFieldOpts>,
-    attr_args: super::KeyedVariantAttributeArgs,
+    directive: MessageVariantDirective,
 }
 
 #[derive(Clone, Debug, FromVariant, Getters)]
@@ -37,13 +36,11 @@ struct RawVariantOpts {
 
 impl FromVariant for VariantOpts {
     fn from_variant(variant: &syn::Variant) -> darling::Result<Self> {
-        validate_variant_fluent_attribute_context(variant)?;
-
         let raw = RawVariantOpts::from_variant(variant)?;
         Ok(Self {
             ident: raw.ident,
             fields: raw.fields,
-            attr_args: raw.attr_args,
+            directive: raw.attr_args.directive(),
         })
     }
 }
@@ -54,22 +51,12 @@ impl VariantOpts {
         &self,
         context: AttrContext,
     ) -> EsFluentCoreResult<Option<SpannedValue<VariantKey>>> {
-        self.attr_args.variant_key(context)
-    }
-}
-
-fn validate_variant_fluent_attribute_context(variant: &syn::Variant) -> darling::Result<()> {
-    for attr in &variant.attrs {
-        validate_attribute_for_location(
-            attr,
-            AttributeName::Fluent,
-            AttributeLocation::EnumVariant,
-            Some(&variant.ident),
-        )
-        .map_err(|error| darling::Error::custom(error.to_string()).with_span(attr))?;
+        self.directive.variant_key(context)
     }
 
-    Ok(())
+    pub fn directive(&self) -> &MessageVariantDirective {
+        &self.directive
+    }
 }
 
 impl VariantFields for VariantOpts {
@@ -81,14 +68,16 @@ impl VariantFields for VariantOpts {
 }
 
 impl KeyedVariant for VariantOpts {
-    fn key(&self) -> Option<&str> {
-        self.attr_args.key()
+    fn directive(&self) -> &MessageVariantDirective {
+        &self.directive
     }
 }
 
 impl Skippable for VariantOpts {
-    fn is_skipped(&self) -> bool {
-        self.attr_args.is_skipped()
+    type Directive = MessageVariantDirective;
+
+    fn skip_directive(&self) -> &Self::Directive {
+        &self.directive
     }
 }
 
@@ -202,15 +191,34 @@ pub struct EnumChoiceAttributeArgs {
 }
 
 /// Options for an enum variant in EsFluentVariants context.
-#[derive(Clone, Debug, FromVariant, Getters)]
-#[darling(attributes(fluent_variants))]
+#[derive(Clone, Debug, Getters)]
 pub struct EnumVariantOpts {
     /// The identifier of the variant.
     #[getset(get = "pub")]
     ident: syn::Ident,
     fields: darling::ast::Fields<darling::util::Ignored>,
+    directive: GeneratedVariantDirective,
+}
+
+#[derive(Clone, Debug, FromVariant, Getters)]
+#[darling(attributes(fluent_variants))]
+struct RawEnumVariantOpts {
+    #[getset(get = "pub")]
+    ident: syn::Ident,
+    fields: darling::ast::Fields<darling::util::Ignored>,
     #[darling(flatten)]
     attr_args: super::SkippedVariantAttributeArgs,
+}
+
+impl FromVariant for EnumVariantOpts {
+    fn from_variant(variant: &syn::Variant) -> darling::Result<Self> {
+        let raw = RawEnumVariantOpts::from_variant(variant)?;
+        Ok(Self {
+            ident: raw.ident,
+            fields: raw.fields,
+            directive: raw.attr_args.directive(),
+        })
+    }
 }
 
 impl VariantFields for EnumVariantOpts {
@@ -222,8 +230,10 @@ impl VariantFields for EnumVariantOpts {
 }
 
 impl Skippable for EnumVariantOpts {
-    fn is_skipped(&self) -> bool {
-        self.attr_args.is_skipped()
+    type Directive = GeneratedVariantDirective;
+
+    fn skip_directive(&self) -> &Self::Directive {
+        &self.directive
     }
 }
 
@@ -265,7 +275,7 @@ impl GeneratedVariantsOptions for EnumVariantsOpts {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::options::{FieldValueDirective, FluentField as _};
+    use crate::options::{FieldValueDirective, FluentField as _, SkipDirective as _};
     use es_fluent_shared::namespace::NamespaceRule;
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
@@ -346,8 +356,11 @@ mod tests {
             .iter()
             .find(|variant| *variant.ident() == "Skipped")
             .expect("Skipped variant should exist");
-        assert!(skipped.is_skipped());
-        assert_eq!(skipped.key(), Some("skipped"));
+        assert!(skipped.directive().is_skipped());
+        assert_eq!(
+            skipped.directive().key().expect("key").value().as_str(),
+            "skipped"
+        );
         assert_eq!(
             skipped
                 .variant_key(crate::error::AttrContext::EnumVariant)
@@ -562,21 +575,5 @@ mod tests {
         let fields = variant.all_fields();
         let field_arg = fields[0].arg_name().expect("field arg");
         assert_eq!(field_arg.value().as_str(), "value");
-    }
-
-    #[test]
-    fn enum_variant_arg_is_rejected() {
-        let input: DeriveInput = parse_quote! {
-            #[derive(EsFluent)]
-            enum TupleNames {
-                #[fluent(arg = "value")]
-                Something(String),
-            }
-        };
-
-        let err = EnumOpts::from_derive_input(&input).expect_err("variant-level arg is removed");
-        let message = err.to_string();
-        assert!(message.contains("field-only attribute"));
-        assert!(message.contains("enum variant `Something`"));
     }
 }

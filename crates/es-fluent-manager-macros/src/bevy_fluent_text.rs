@@ -3,6 +3,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
+use es_fluent_derive_core::attribute::AttributeLocation;
+
 fn bevy_fluent_text_registration_module(
     mod_name: &syn::Ident,
     register_call: proc_macro2::TokenStream,
@@ -100,6 +102,18 @@ struct LocaleFieldInfo {
     other_fields: Vec<syn::Ident>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LocaleFieldDirective {
+    Locale,
+    NotLocale,
+}
+
+impl LocaleFieldDirective {
+    fn is_locale(self) -> bool {
+        matches!(self, Self::Locale)
+    }
+}
+
 /// Collects all fields marked with #[locale] from the data structure
 fn collect_locale_fields(
     data: &syn::Data,
@@ -117,7 +131,12 @@ fn collect_locale_fields(
                         for field in &fields.named {
                             if let Some(ident) = field.ident.clone() {
                                 all_field_idents.push(ident.clone());
-                                if has_locale_attr(field)? {
+                                if locale_field_directive(
+                                    field,
+                                    AttributeLocation::LocaleNamedEnumVariantField,
+                                )?
+                                .is_locale()
+                                {
                                     locale_field_idents.push(ident);
                                 }
                             }
@@ -139,12 +158,10 @@ fn collect_locale_fields(
                     },
                     syn::Fields::Unnamed(fields) => {
                         for field in &fields.unnamed {
-                            if has_locale_attr(field)? {
-                                return Err(crate::support::unsupported_locale_field_error(
-                                    field,
-                                    "tuple enum variant fields",
-                                ));
-                            }
+                            locale_field_directive(
+                                field,
+                                AttributeLocation::LocaleTupleEnumVariantField,
+                            )?;
                         }
                     },
                     syn::Fields::Unit => {},
@@ -155,7 +172,9 @@ fn collect_locale_fields(
             syn::Fields::Named(fields) => {
                 let mut locale_field_idents = Vec::new();
                 for field in &fields.named {
-                    if has_locale_attr(field)? {
+                    if locale_field_directive(field, AttributeLocation::LocaleNamedStructField)?
+                        .is_locale()
+                    {
                         if let Some(ident) = field.ident.clone() {
                             locale_field_idents.push(ident);
                         }
@@ -172,12 +191,7 @@ fn collect_locale_fields(
             },
             syn::Fields::Unnamed(fields) => {
                 for field in &fields.unnamed {
-                    if has_locale_attr(field)? {
-                        return Err(crate::support::unsupported_locale_field_error(
-                            field,
-                            "tuple struct fields",
-                        ));
-                    }
+                    locale_field_directive(field, AttributeLocation::LocaleTupleStructField)?;
                 }
             },
             syn::Fields::Unit => {},
@@ -188,19 +202,17 @@ fn collect_locale_fields(
     Ok(locale_fields)
 }
 
-/// Checks if a field has the #[locale] attribute
-fn has_locale_attr(
+fn locale_field_directive(
     field: &syn::Field,
-) -> Result<bool, es_fluent_derive_core::error::EsFluentCoreError> {
+    location: AttributeLocation,
+) -> Result<LocaleFieldDirective, es_fluent_derive_core::error::EsFluentCoreError> {
     for attr in &field.attrs {
-        match crate::support::validate_locale_marker(attr) {
-            Ok(true) => return Ok(true),
-            Ok(false) => {},
-            Err(error) => return Err(error),
+        if crate::support::validate_locale_marker(attr, location)? {
+            return Ok(LocaleFieldDirective::Locale);
         }
     }
 
-    Ok(false)
+    Ok(LocaleFieldDirective::NotLocale)
 }
 
 /// Generates the RefreshForLocale implementation
@@ -395,16 +407,28 @@ mod tests {
         let plain_field: syn::Field = syn::parse_quote! {
             language: Lang
         };
-        assert!(has_locale_attr(&locale_field).expect("locale attr"));
-        assert!(!has_locale_attr(&plain_field).expect("plain field"));
+        assert!(
+            locale_field_directive(&locale_field, AttributeLocation::LocaleNamedStructField)
+                .expect("locale attr")
+                .is_locale()
+        );
+        assert!(
+            !locale_field_directive(&plain_field, AttributeLocation::LocaleNamedStructField)
+                .expect("plain field")
+                .is_locale()
+        );
 
         let invalid_locale_field: syn::Field = syn::parse_quote! {
             #[locale(true)]
             language: Lang
         };
-        let err = has_locale_attr(&invalid_locale_field).expect_err("invalid locale attr");
+        let err = locale_field_directive(
+            &invalid_locale_field,
+            AttributeLocation::LocaleNamedStructField,
+        )
+        .expect_err("invalid locale attr");
         assert!(err.to_string().contains("wrong value shape"));
-        assert!(err.to_string().contains("help: use #[locale]"));
+        assert!(err.to_string().contains("help: use a bare marker"));
 
         let module_tokens = bevy_fluent_text_registration_module(
             &syn::Ident::new("__test_module", proc_macro2::Span::call_site()),
@@ -450,6 +474,10 @@ mod tests {
         let invalid_attr_err =
             collect_locale_fields(&invalid_attr_input.data).expect_err("attr syntax should error");
         assert!(invalid_attr_err.to_string().contains("wrong value shape"));
-        assert!(invalid_attr_err.to_string().contains("help: use #[locale]"));
+        assert!(
+            invalid_attr_err
+                .to_string()
+                .contains("help: use a bare marker")
+        );
     }
 }

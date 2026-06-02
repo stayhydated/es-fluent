@@ -1,6 +1,7 @@
 //! Tests for validation functions.
 
 use darling::FromDeriveInput as _;
+use es_fluent_derive_core::expansion::EsFluentExpansion;
 use es_fluent_derive_core::options::r#enum::EnumOpts;
 use es_fluent_derive_core::options::r#struct::StructOpts;
 use syn::{DeriveInput, parse_quote};
@@ -37,7 +38,7 @@ fn parse_rejects_variant_level_arg() {
         }
     };
 
-    let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
+    let err = EsFluentExpansion::from_derive_input(&input).expect_err("Expected validation error");
     let message = err.to_string();
     assert!(message.contains("field-only attribute"));
     assert!(message.contains("enum variant `Something`"));

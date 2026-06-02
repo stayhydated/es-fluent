@@ -115,11 +115,7 @@ pub fn run_generation_for_crates(
         return crates
             .iter()
             .map(|k| {
-                GenerateResult::failure(
-                    k.name.to_string(),
-                    std::time::Duration::ZERO,
-                    e.to_string(),
-                )
+                GenerateResult::failure(k.name.clone(), std::time::Duration::ZERO, e.to_string())
             })
             .collect();
     }
@@ -214,10 +210,14 @@ impl GenerationVerb {
     fn print_changed(self, result: &GenerateResult) {
         match self {
             GenerationVerb::Generate => {
-                ui::Ui::print_generated(&result.name, result.duration, result.resource_count);
+                ui::Ui::print_generated(
+                    result.name.as_str(),
+                    result.duration,
+                    result.resource_count,
+                );
             },
             GenerationVerb::Clean => {
-                ui::Ui::print_cleaned(&result.name, result.duration, result.resource_count);
+                ui::Ui::print_cleaned(result.name.as_str(), result.duration, result.resource_count);
             },
         }
     }
@@ -245,15 +245,17 @@ pub fn render_generation_results_with_dry_run(
                         result.resource_count.to_string().cyan()
                     );
                 } else {
-                    println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
+                    println!("{} {}", "Unchanged:".dimmed(), result.name.as_str().bold());
                 }
             } else if result.changed {
                 verb.print_changed(result);
             } else {
-                println!("{} {}", "Unchanged:".dimmed(), result.name.bold());
+                println!("{} {}", "Unchanged:".dimmed(), result.name.as_str().bold());
             }
         },
-        |result| ui::Ui::print_generation_error(&result.name, result.error.as_ref().unwrap()),
+        |result| {
+            ui::Ui::print_generation_error(result.name.as_str(), result.error.as_ref().unwrap())
+        },
     )
 }
 
@@ -279,8 +281,10 @@ mod tests {
             name: package("test-app"),
             manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
             src_dir: crate::core::SourceDir::from_discovered(src_dir),
-            i18n_config_path: i18n_toml,
-            ftl_output_dir: manifest_dir.join("i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+                manifest_dir.join("i18n/en"),
+            ),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         };
@@ -313,14 +317,14 @@ mod tests {
     #[test]
     fn render_generation_results_reports_error_presence() {
         let success = GenerateResult::success(
-            "ok-crate".to_string(),
+            package("ok-crate"),
             Duration::from_millis(10),
             1,
             None,
             false,
         );
         let failure = GenerateResult::failure(
-            "bad-crate".to_string(),
+            package("bad-crate"),
             Duration::from_millis(5),
             "boom".to_string(),
         );
@@ -428,8 +432,12 @@ mod tests {
                 .expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
-            i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
-            ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+                PathBuf::from("/tmp/test/i18n.toml"),
+            ),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+                "/tmp/test/i18n/en",
+            )),
             has_lib_rs: false,
             fluent_features: Vec::new(),
         };
@@ -452,8 +460,12 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("broken").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/dev/null")),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/dev/null/src")),
-            i18n_config_path: PathBuf::from("/dev/null/i18n.toml"),
-            ftl_output_dir: PathBuf::from("/dev/null/i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+                PathBuf::from("/dev/null/i18n.toml"),
+            ),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+                "/dev/null/i18n/en",
+            )),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         };
@@ -511,7 +523,7 @@ mod tests {
         assert!(!dry_run_has_errors);
 
         let clean_result = GenerateResult::success(
-            "crate-clean".to_string(),
+            package("crate-clean"),
             Duration::from_millis(1),
             1,
             None,

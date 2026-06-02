@@ -139,8 +139,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
             src_dir: crate::core::SourceDir::from_discovered(temp_dir.path().join("src")),
-            i18n_config_path: config_path,
-            ftl_output_dir: assets.join("en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(config_path),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(assets.join("en")),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         };
@@ -169,8 +169,8 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::new()),
-            i18n_config_path: config_path,
-            ftl_output_dir: PathBuf::new(),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(config_path),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::new()),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }];
@@ -259,8 +259,10 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.path().to_path_buf()),
             src_dir: crate::core::SourceDir::from_discovered(temp_dir.path().join("src")),
-            i18n_config_path: config_path,
-            ftl_output_dir: assets.join("en-US"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(config_path),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+                assets.join("en-US"),
+            ),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         };

@@ -336,8 +336,12 @@ mod tests {
             src_dir: crate::core::SourceDir::from_discovered(std::path::PathBuf::from(
                 "/tmp/test/src",
             )),
-            i18n_config_path: std::path::PathBuf::from("/tmp/test/i18n.toml"),
-            ftl_output_dir: std::path::PathBuf::from("/tmp/test/i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+                std::path::PathBuf::from("/tmp/test/i18n.toml"),
+            ),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+                std::path::PathBuf::from("/tmp/test/i18n/en"),
+            ),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }

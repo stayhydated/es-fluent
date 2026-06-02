@@ -96,14 +96,14 @@ impl<'a> MonolithicExecutor<'a> {
 
         match execution {
             Ok(execution) => GenerateResult::success(
-                krate.name.to_string(),
+                krate.name.clone(),
                 duration,
                 crate::utils::count_ftl_resources(&krate.ftl_output_dir, krate.name.as_str()),
                 normalize_output(execution.output),
                 execution.changed,
             ),
             Err(error) => {
-                GenerateResult::failure(krate.name.to_string(), duration, format!("{error:#}"))
+                GenerateResult::failure(krate.name.clone(), duration, format!("{error:#}"))
             },
         }
     }
@@ -151,8 +151,12 @@ mod tests {
                 "/tmp/test-crate",
             )),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test-crate/src")),
-            i18n_config_path: PathBuf::from("/tmp/test-crate/i18n.toml"),
-            ftl_output_dir: PathBuf::from("/tmp/test-crate/i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+                PathBuf::from("/tmp/test-crate/i18n.toml"),
+            ),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+                "/tmp/test-crate/i18n/en",
+            )),
             has_lib_rs,
             fluent_features: Vec::new(),
         }

@@ -77,10 +77,12 @@ impl<'a> WatchRuntime<'a> {
     pub(super) fn handle_generation_results(&mut self, app: &mut TuiApp<'_>) {
         while let Ok(result) = self.result_rx.try_recv() {
             let crate_name = result.name.clone();
-            let rerun_needed = self.finish_generation(&crate_name);
+            let rerun_needed = self.finish_generation(crate_name.as_str());
             app.update(Message::GenerationComplete { result });
 
-            if rerun_needed && let Some(krate) = self.crates_by_name.get(&crate_name).copied() {
+            if rerun_needed
+                && let Some(krate) = self.crates_by_name.get(crate_name.as_str()).copied()
+            {
                 self.start_generation(app, krate, false);
             }
         }
@@ -186,8 +188,12 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
-            i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
-            ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+                PathBuf::from("/tmp/test/i18n.toml"),
+            ),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+                "/tmp/test/i18n/en",
+            )),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }

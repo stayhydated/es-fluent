@@ -346,8 +346,8 @@ mod tests {
         }
     }
 
-    fn all_locations() -> [AttributeLocation; 14] {
-        [
+    fn all_locations() -> Vec<AttributeLocation> {
+        vec![
             AttributeLocation::MessageStructContainer,
             AttributeLocation::MessageEnumContainer,
             AttributeLocation::LabelStructParentContainer,
@@ -362,10 +362,32 @@ mod tests {
             AttributeLocation::LabelContainer,
             AttributeLocation::ChoiceContainer,
             AttributeLocation::LanguageContainer,
+            AttributeLocation::LocaleNamedStructField,
+            AttributeLocation::LocaleNamedEnumVariantField,
+            AttributeLocation::LocaleTupleStructField,
+            AttributeLocation::LocaleTupleEnumVariantField,
         ]
     }
 
     fn attr_for_rule(rule: &AttributeRule, meta: Meta) -> syn::Attribute {
+        if rule.family == AttributeFamily::Locale {
+            let item: syn::ItemStruct = match meta {
+                Meta::Path(_) => syn::parse_quote! {
+                    #[locale]
+                    struct SchemaProbe;
+                },
+                Meta::List(_) => syn::parse_quote! {
+                    #[locale(true)]
+                    struct SchemaProbe;
+                },
+                Meta::NameValue(_) => syn::parse_quote! {
+                    #[locale = true]
+                    struct SchemaProbe;
+                },
+            };
+            return item.attrs.into_iter().next().expect("probe attribute");
+        }
+
         let attr_ident = syn::Ident::new(rule.family.as_str(), proc_macro2::Span::call_site());
         let item: syn::ItemStruct = syn::parse2(quote! {
             #[#attr_ident(#meta)]
@@ -378,6 +400,10 @@ mod tests {
     fn valid_meta_for_rule(rule: &AttributeRule) -> Meta {
         match rule.shape {
             AttributeValueShape::Flag => {
+                let key = key_ident(rule.key);
+                syn::parse_quote!(#key)
+            },
+            AttributeValueShape::Marker => {
                 let key = key_ident(rule.key);
                 syn::parse_quote!(#key)
             },
@@ -414,7 +440,9 @@ mod tests {
     fn wrong_shape_meta_for_rule(rule: &AttributeRule) -> Meta {
         let key = key_ident(rule.key);
         match rule.shape {
-            AttributeValueShape::Flag => syn::parse_quote!(#key = true),
+            AttributeValueShape::Flag | AttributeValueShape::Marker => {
+                syn::parse_quote!(#key = true)
+            },
             _ => syn::parse_quote!(#key),
         }
     }
@@ -440,6 +468,7 @@ mod tests {
             AttributeKey::Variants => "variants",
             AttributeKey::RenameAll => "rename_all",
             AttributeKey::Mode => "mode",
+            AttributeKey::Locale => "locale",
         }
     }
 

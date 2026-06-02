@@ -23,6 +23,7 @@ use syn::{
     Fields, ItemEnum, LitStr, Path, Token, Variant, parse_quote, punctuated::Punctuated,
     spanned::Spanned as _,
 };
+use unic_langid::LanguageIdentifier;
 
 #[derive(Clone)]
 struct CratePaths {
@@ -141,76 +142,213 @@ fn expand_es_fluent_language(
         .to_compile_error();
     }
 
-    let fallback_canonical = fallback_language.to_string();
-
-    let mut language_entries: Vec<LanguageEntry> = languages
-        .into_iter()
-        .map(|lang| {
-            let canonical = lang.to_string();
-            LanguageEntry::new(canonical)
-        })
-        .collect();
-
-    language_entries.sort_by(|a, b| a.canonical.cmp(&b.canonical));
-    language_entries.dedup_by(|a, b| a.canonical == b.canonical);
-
     input_enum.attrs = remove_es_fluent_derive(input_enum.attrs);
 
-    let mut fallback_variant_ident = None;
-
-    input_enum.variants.clear();
-
-    for entry in &language_entries {
-        input_enum.variants.push(entry.variant());
-
-        if entry.canonical == fallback_canonical {
-            fallback_variant_ident = Some(entry.ident.clone());
-        }
-    }
-
-    let fallback_variant_ident = match fallback_variant_ident {
-        Some(ident) => ident,
-        None => {
-            return syn::Error::new(
-                enum_span,
-                "fallback language was not found among available languages",
-            )
-            .to_compile_error();
-        },
-    };
-
-    let conversion_error_ident = format_ident!("{enum_ident}LanguageConversionError");
-    let force_link_static_ident = format_ident!("__ES_FLUENT_LANG_FORCE_LINK_{enum_ident}");
-    let crate_paths = CratePaths::resolve();
-    let es_fluent = crate_paths.facade();
-    let es_fluent_lang = crate_paths.lang();
-    let variant_idents: Vec<_> = language_entries.iter().map(|entry| &entry.ident).collect();
-    let language_literals: Vec<_> = language_entries
-        .iter()
-        .map(|entry| &entry.literal)
-        .collect();
-    let language_model =
-        match LanguageEnumModel::new(&enum_ident, enum_span, mode, language_entries.clone()) {
-            Ok(model) => model,
+    let expansion =
+        match LanguageExpansion::new(enum_ident, enum_span, mode, languages, fallback_language) {
+            Ok(expansion) => expansion,
             Err(err) => {
                 let span = err.span().unwrap_or(enum_span);
                 return syn::Error::new(span, err.to_string()).to_compile_error();
             },
         };
-    let force_link_keepalive = if mode.is_custom() {
-        quote! {}
-    } else {
+
+    emit_language_expansion(input_enum, &expansion)
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct CanonicalLanguageId {
+    canonical: String,
+}
+
+impl CanonicalLanguageId {
+    fn from_identifier(identifier: LanguageIdentifier) -> Self {
+        Self {
+            canonical: identifier.to_string(),
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        &self.canonical
+    }
+
+    fn literal(&self, span: Span) -> LitStr {
+        LitStr::new(self.as_str(), span)
+    }
+
+    fn variant_ident(&self, span: Span) -> syn::Ident {
+        let variant_name = self.as_str().replace('-', "_").to_upper_camel_case();
+        syn::Ident::new(&variant_name, span)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct LanguageEntryModel {
+    canonical: CanonicalLanguageId,
+    variant_ident: syn::Ident,
+    literal: LitStr,
+    message: MessageEntryModel,
+}
+
+impl LanguageEntryModel {
+    fn new(canonical: CanonicalLanguageId) -> Result<Self, EsFluentCoreError> {
+        let variant_ident = canonical.variant_ident(Span::call_site());
+        let literal = canonical.literal(Span::call_site());
+        let message_id = parse_fluent_message_id_in_context(
+            canonical.as_str().to_string(),
+            literal.span(),
+            AttrContext::LanguageContainer,
+        )?;
+        let message = MessageEntryModel::new(
+            RustSourceName::from_ident(&variant_ident),
+            SpannedValue::new(message_id, literal.span()),
+            Vec::new(),
+            SourceLocation::new(variant_ident.span()),
+        );
+
+        Ok(Self {
+            canonical,
+            variant_ident,
+            literal,
+            message,
+        })
+    }
+
+    fn variant(&self) -> Variant {
+        Variant {
+            attrs: Vec::new(),
+            ident: self.variant_ident.clone(),
+            fields: Fields::Unit,
+            discriminant: None,
+        }
+    }
+}
+
+struct LanguageExpansion {
+    enum_ident: syn::Ident,
+    fallback_variant: syn::Ident,
+    entries: Vec<LanguageEntryModel>,
+    message_model: GeneratedEnumModel,
+    inventory: Option<GeneratedEnumModel>,
+    link_builtin: bool,
+}
+
+impl LanguageExpansion {
+    fn new(
+        enum_ident: syn::Ident,
+        source_span: Span,
+        mode: LanguageMode,
+        languages: Vec<LanguageIdentifier>,
+        fallback_language: LanguageIdentifier,
+    ) -> Result<Self, EsFluentCoreError> {
+        let fallback = CanonicalLanguageId::from_identifier(fallback_language);
+        let mut languages = languages
+            .into_iter()
+            .map(CanonicalLanguageId::from_identifier)
+            .collect::<Vec<_>>();
+
+        if !languages.iter().any(|language| language == &fallback) {
+            languages.push(fallback.clone());
+        }
+
+        languages.sort();
+        languages.dedup();
+
+        let entries = languages
+            .into_iter()
+            .map(LanguageEntryModel::new)
+            .collect::<Result<Vec<_>, EsFluentCoreError>>()?;
+        let fallback_variant = entries
+            .iter()
+            .find_map(|entry| (entry.canonical == fallback).then(|| entry.variant_ident.clone()))
+            .ok_or_else(|| {
+                EsFluentCoreError::StructuredAttributeError(
+                    es_fluent_derive_core::error::AttrError::new(
+                        AttrContext::LanguageContainer,
+                        "fallback language was not found among available languages",
+                        Some(source_span),
+                    ),
+                )
+            })?;
+        let messages = entries
+            .iter()
+            .map(|entry| entry.message.clone())
+            .collect::<Vec<_>>();
+        let domain = if mode.is_custom() {
+            None
+        } else {
+            Some(parse_domain_name_in_context(
+                "es-fluent-lang",
+                source_span,
+                AttrContext::LanguageContainer,
+            )?)
+        };
+        let message_model = GeneratedEnumModel::new(
+            RustTypeName::from_ident(&enum_ident),
+            RustTypeName::from_ident(&enum_ident),
+            DerivePathList::default(),
+            messages,
+            None,
+            domain,
+            None,
+        );
+        let inventory = mode.is_custom().then(|| message_model.clone());
+
+        Ok(Self {
+            enum_ident,
+            fallback_variant,
+            entries,
+            message_model,
+            inventory,
+            link_builtin: !mode.is_custom(),
+        })
+    }
+
+    fn static_domain_expr(&self, es_fluent: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        static_domain_tokens(es_fluent, self.message_model.domain())
+    }
+}
+
+fn emit_language_expansion(
+    mut input_enum: ItemEnum,
+    expansion: &LanguageExpansion,
+) -> proc_macro2::TokenStream {
+    input_enum.variants.clear();
+    input_enum
+        .variants
+        .extend(expansion.entries.iter().map(LanguageEntryModel::variant));
+
+    let enum_ident = &expansion.enum_ident;
+    let conversion_error_ident = format_ident!("{enum_ident}LanguageConversionError");
+    let force_link_static_ident = format_ident!("__ES_FLUENT_LANG_FORCE_LINK_{enum_ident}");
+    let crate_paths = CratePaths::resolve();
+    let es_fluent = crate_paths.facade();
+    let es_fluent_lang = crate_paths.lang();
+    let fallback_variant_ident = &expansion.fallback_variant;
+    let variant_idents: Vec<_> = expansion
+        .entries
+        .iter()
+        .map(|entry| &entry.variant_ident)
+        .collect();
+    let language_literals: Vec<_> = expansion
+        .entries
+        .iter()
+        .map(|entry| &entry.literal)
+        .collect();
+    let force_link_keepalive = if expansion.link_builtin {
         quote! {
             #[cfg(target_arch = "wasm32")]
             #[doc(hidden)]
             #[used]
             static #force_link_static_ident: fn() -> usize = #es_fluent_lang::force_link;
         }
+    } else {
+        quote! {}
     };
-    let message_impl = generate_fluent_message_impl(&language_model, &crate_paths);
-    let inventory_submit = generate_inventory_submit(&language_model, mode, &crate_paths);
+    let message_impl = generate_fluent_message_impl(expansion, &crate_paths);
+    let inventory_submit = generate_inventory_submit(expansion, &crate_paths);
 
-    let expanded = quote! {
+    quote! {
         #input_enum
         #force_link_keepalive
         #message_impl
@@ -302,99 +440,6 @@ fn expand_es_fluent_language(
                 #enum_ident::#fallback_variant_ident
             }
         }
-    };
-
-    expanded
-}
-
-#[derive(Clone, Debug)]
-struct LanguageEntry {
-    canonical: String,
-    ident: syn::Ident,
-    literal: LitStr,
-}
-
-impl LanguageEntry {
-    fn new(canonical: String) -> Self {
-        let variant_name = canonical.replace('-', "_").to_upper_camel_case();
-        Self {
-            ident: syn::Ident::new(&variant_name, Span::call_site()),
-            literal: LitStr::new(&canonical, Span::call_site()),
-            canonical,
-        }
-    }
-
-    fn variant(&self) -> Variant {
-        Variant {
-            attrs: Vec::new(),
-            ident: self.ident.clone(),
-            fields: Fields::Unit,
-            discriminant: None,
-        }
-    }
-}
-
-struct LanguageEnumModel {
-    enum_ident: syn::Ident,
-    entries: Vec<LanguageEntry>,
-    semantic: GeneratedEnumModel,
-}
-
-impl LanguageEnumModel {
-    fn new(
-        enum_ident: &syn::Ident,
-        source_span: Span,
-        mode: LanguageMode,
-        entries: Vec<LanguageEntry>,
-    ) -> Result<Self, EsFluentCoreError> {
-        let messages = entries
-            .iter()
-            .map(|entry| {
-                let message_id = parse_fluent_message_id_in_context(
-                    entry.canonical.clone(),
-                    entry.literal.span(),
-                    AttrContext::LanguageContainer,
-                )?;
-                Ok(MessageEntryModel::new(
-                    RustSourceName::from_ident(&entry.ident),
-                    SpannedValue::new(message_id, entry.literal.span()),
-                    Vec::new(),
-                    SourceLocation::new(entry.ident.span()),
-                ))
-            })
-            .collect::<Result<Vec<_>, EsFluentCoreError>>()?;
-        let domain = if mode.is_custom() {
-            None
-        } else {
-            Some(parse_domain_name_in_context(
-                "es-fluent-lang",
-                source_span,
-                AttrContext::LanguageContainer,
-            )?)
-        };
-        let semantic = GeneratedEnumModel::new(
-            RustTypeName::from_ident(enum_ident),
-            RustTypeName::from_ident(enum_ident),
-            DerivePathList::default(),
-            messages,
-            None,
-            domain,
-            None,
-        );
-
-        Ok(Self {
-            enum_ident: enum_ident.clone(),
-            entries,
-            semantic,
-        })
-    }
-
-    fn static_domain_expr(&self, es_fluent: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-        static_domain_tokens(es_fluent, self.semantic.domain())
-    }
-
-    fn messages(&self) -> &[MessageEntryModel] {
-        self.semantic.messages()
     }
 }
 
@@ -432,23 +477,19 @@ fn is_es_fluent_derive_path(path: &Path) -> bool {
 }
 
 fn generate_fluent_message_impl(
-    model: &LanguageEnumModel,
+    model: &LanguageExpansion,
     crate_paths: &CratePaths,
 ) -> proc_macro2::TokenStream {
     let enum_ident = &model.enum_ident;
     let es_fluent = crate_paths.facade();
     let domain_expr = model.static_domain_expr(es_fluent);
-    let match_arms = model
-        .entries
-        .iter()
-        .zip(model.messages())
-        .map(|(entry, message)| {
-            let variant_ident = &entry.ident;
-            let message_id = static_entry_id_tokens(es_fluent, message.message_id());
-            quote! {
-                Self::#variant_ident => localize(#domain_expr, #message_id, None)
-            }
-        });
+    let match_arms = model.entries.iter().map(|entry| {
+        let variant_ident = &entry.variant_ident;
+        let message_id = static_entry_id_tokens(es_fluent, entry.message.message_id());
+        quote! {
+            Self::#variant_ident => localize(#domain_expr, #message_id, None)
+        }
+    });
 
     quote! {
         impl #es_fluent::FluentMessage for #enum_ident {
@@ -469,20 +510,19 @@ fn generate_fluent_message_impl(
 }
 
 fn generate_inventory_submit(
-    model: &LanguageEnumModel,
-    mode: LanguageMode,
+    model: &LanguageExpansion,
     crate_paths: &CratePaths,
 ) -> proc_macro2::TokenStream {
-    if !mode.is_custom() {
+    let Some(inventory) = model.inventory.as_ref() else {
         return quote! {};
-    }
+    };
 
     let es_fluent = crate_paths.facade();
     let enum_ident = &model.enum_ident;
     let type_name = enum_ident.to_string().trim_start_matches("r#").to_string();
     let module_suffix = type_name.to_snake_case();
     let mod_name = format_ident!("__es_fluent_language_inventory_{module_suffix}");
-    let variants = model
+    let variants = inventory
         .messages()
         .iter()
         .map(|message| language_inventory_variant_tokens(message, crate_paths));
@@ -599,6 +639,35 @@ mod tests {
             .replace(i18n_escaped.as_str(), "<manifest-dir>/i18n.toml")
             .replace(manifest.as_ref(), "<manifest-dir>")
             .replace(manifest_escaped.as_str(), "<manifest-dir>")
+    }
+
+    #[test]
+    fn language_expansion_deduplicates_typed_canonical_ids_and_finds_fallback() {
+        let enum_ident: syn::Ident = syn::parse_quote!(Languages);
+        let languages = vec![
+            "fr".parse().expect("fr language id"),
+            "en-US".parse().expect("en-US language id"),
+            "fr".parse().expect("duplicate fr language id"),
+        ];
+        let fallback = "en-US".parse().expect("fallback language id");
+
+        let expansion = super::LanguageExpansion::new(
+            enum_ident,
+            proc_macro2::Span::call_site(),
+            es_fluent_derive_core::grammar::LanguageMode::Builtin,
+            languages,
+            fallback,
+        )
+        .expect("language expansion");
+
+        let canonical = expansion
+            .entries
+            .iter()
+            .map(|entry| entry.canonical.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(canonical, vec!["en-US", "fr"]);
+        assert_eq!(expansion.fallback_variant.to_string(), "EnUs");
+        assert!(expansion.inventory.is_none());
     }
 
     #[test]

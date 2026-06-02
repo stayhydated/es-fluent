@@ -22,7 +22,7 @@ pub(super) fn build_path_to_crate(valid_crates: &[&CrateInfo]) -> PathToCrateMap
             .collect(),
         i18n_configs: valid_crates
             .iter()
-            .map(|krate| (krate.i18n_config_path.clone(), krate.name.to_string()))
+            .map(|krate| (krate.i18n_config_path.to_path_buf(), krate.name.to_string()))
             .collect(),
     }
 }

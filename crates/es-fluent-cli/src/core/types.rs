@@ -26,6 +26,12 @@ macro_rules! typed_discovered_dir {
             }
         }
 
+        impl From<$name> for PathBuf {
+            fn from(path: $name) -> Self {
+                path.0
+            }
+        }
+
         impl Deref for $name {
             type Target = Path;
 
@@ -44,6 +50,14 @@ typed_discovered_dir!(
     SourceDir,
     "A crate source directory path derived during discovery."
 );
+typed_discovered_dir!(
+    DiscoveredI18nConfigPath,
+    "An i18n.toml path accepted by workspace discovery."
+);
+typed_discovered_dir!(
+    DiscoveredFtlOutputDir,
+    "A fallback FTL output directory path resolved during discovery."
+);
 
 /// Information about a crate that uses es-fluent.
 #[derive(Clone, Debug)]
@@ -55,9 +69,9 @@ pub struct CrateInfo {
     /// The path to the crate's src directory.
     pub src_dir: SourceDir,
     /// The path to the i18n.toml config file.
-    pub i18n_config_path: PathBuf,
+    pub i18n_config_path: DiscoveredI18nConfigPath,
     /// The path to the FTL output directory (e.g., assets/i18n/en).
-    pub ftl_output_dir: PathBuf,
+    pub ftl_output_dir: DiscoveredFtlOutputDir,
     /// Whether the crate has a lib.rs (required for inventory linking).
     pub has_lib_rs: bool,
     /// Feature flags that enable es-fluent derives in the crate.
@@ -81,7 +95,7 @@ pub struct WorkspaceInfo {
 #[derive(Clone, Debug)]
 pub struct GenerateResult {
     /// The name of the crate.
-    pub name: String,
+    pub name: PackageName,
     /// How long the generation took.
     pub duration: Duration,
     /// Number of FTL resource keys generated.
@@ -97,7 +111,7 @@ pub struct GenerateResult {
 impl GenerateResult {
     /// Create a new successful result.
     pub fn success(
-        name: String,
+        name: PackageName,
         duration: Duration,
         resource_count: usize,
         output: Option<String>,
@@ -114,7 +128,7 @@ impl GenerateResult {
     }
 
     /// Create a new error result.
-    pub fn failure(name: String, duration: Duration, error: String) -> Self {
+    pub fn failure(name: PackageName, duration: Duration, error: String) -> Self {
         Self {
             name,
             duration,

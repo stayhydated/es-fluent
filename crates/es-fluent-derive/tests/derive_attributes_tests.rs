@@ -1,7 +1,7 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
     EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
-    StructDataOptions as _, VariantFields as _,
+    SkipDirective as _, StructDataOptions as _, VariantFields as _,
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
@@ -228,7 +228,7 @@ fn es_fluent_struct_attributes_choice_snapshot() {
         all_fields[2].1.ident().expect("named field").to_string(),
         "developer_only_flag"
     );
-    assert!(all_fields[2].1.is_skipped());
+    assert!(all_fields[2].1.directive().is_skipped());
 }
 
 #[test]
@@ -268,7 +268,7 @@ fn es_fluent_variants_attributes_no_keys_snapshot() {
         all_fields[2].1.ident().expect("named field").to_string(),
         "archived"
     );
-    assert!(all_fields[2].1.is_skipped());
+    assert!(all_fields[2].1.directive().is_skipped());
 }
 
 #[test]

@@ -289,8 +289,10 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-app").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(temp_dir.to_path_buf()),
             src_dir: crate::core::SourceDir::from_discovered(src_dir),
-            i18n_config_path: config_path,
-            ftl_output_dir: temp_dir.join("i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(config_path),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+                temp_dir.join("i18n/en"),
+            ),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }

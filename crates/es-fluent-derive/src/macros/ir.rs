@@ -1,5 +1,6 @@
 use es_fluent_derive_core::semantic::{
-    ArgName, ArgumentModel, DomainName, FluentMessageId, MessageEntryModel, SourceLocation,
+    ArgName, ArgumentModel, DomainName, FluentMessageId, GeneratedDocName, MessageEntryModel,
+    RustSourceName, SourceLocation,
 };
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
@@ -67,7 +68,7 @@ pub(crate) fn inventory_variant_tokens_for_model(
     metadata: &MessageEntryModel,
 ) -> TokenStream {
     InventoryVariantSpec {
-        name: metadata.source_name().to_string(),
+        name: metadata.rust_source_name().clone(),
         ftl_key: metadata.message_id().clone(),
         arg_names: metadata.argument_names(),
         source_location: metadata.source_location().clone(),
@@ -110,7 +111,7 @@ impl LocalizeCallSpec {
 }
 
 pub(crate) struct InventoryVariantSpec {
-    pub(crate) name: String,
+    pub(crate) name: RustSourceName,
     pub(crate) ftl_key: FluentMessageId,
     pub(crate) arg_names: Vec<ArgName>,
     pub(crate) source_location: SourceLocation,
@@ -118,7 +119,7 @@ pub(crate) struct InventoryVariantSpec {
 
 impl InventoryVariantSpec {
     pub(crate) fn tokens(&self, context: &CodegenContext) -> TokenStream {
-        let name = &self.name;
+        let name = self.name.as_str();
         let es_fluent = context.facade_path().tokens();
         let args_tokens: Vec<_> = self
             .arg_names
@@ -143,7 +144,7 @@ impl InventoryVariantSpec {
 
 pub(crate) struct GeneratedUnitEnumVariant {
     pub(crate) ident: Ident,
-    pub(crate) doc_name: String,
+    pub(crate) doc_name: GeneratedDocName,
     pub(crate) message_entry: MessageEntrySpec,
 }
 

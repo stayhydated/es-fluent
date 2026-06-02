@@ -1,7 +1,7 @@
 use es_fluent_derive_core::macro_support::{self, ResolvedCratePath};
 use es_fluent_derive_core::semantic::{
     ArgName, ArgumentModel, ArgumentValueStrategy, DomainName, FluentMessageId, GeneratedEnumModel,
-    MessageEntryModel, MessageModel,
+    GeneratedKeyName, MessageEntryModel, MessageModel,
 };
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::{namer, namespace::NamespaceRule};
@@ -56,7 +56,7 @@ pub enum InventoryOutput<'a> {
 pub struct GeneratedUnitEnumInput<'a> {
     pub ident: &'a syn::Ident,
     pub origin_ident: &'a syn::Ident,
-    pub key_name: Option<&'a str>,
+    pub key_name: Option<&'a GeneratedKeyName>,
     pub model: &'a GeneratedEnumModel,
     pub variants: &'a [GeneratedUnitEnumVariant],
 }
@@ -195,7 +195,7 @@ pub fn generate_fluent_message_impl(
 pub fn generate_unit_enum_definition(
     ident: &syn::Ident,
     origin_ident: &syn::Ident,
-    key_name: Option<&str>,
+    key_name: Option<&GeneratedKeyName>,
     model: &GeneratedEnumModel,
     variants: &[GeneratedUnitEnumVariant],
 ) -> TokenStream {
@@ -208,17 +208,21 @@ pub fn generate_unit_enum_definition(
     };
 
     let enum_doc = match key_name {
-        Some(key) => format!("`{key}` variants of [`{origin_ident}`]."),
+        Some(key) => format!("`{}` variants of [`{origin_ident}`].", key.as_str()),
         None => format!("Variants of [`{origin_ident}`]."),
     };
     let variant_docs: Vec<_> = variants
         .iter()
         .map(|entry| match key_name {
             Some(key) => format!(
-                "The `{}` `{key}` variant of [`{origin_ident}`].",
-                entry.doc_name
+                "The `{}` `{}` variant of [`{origin_ident}`].",
+                entry.doc_name.as_str(),
+                key.as_str()
             ),
-            None => format!("The `{}` variant of [`{origin_ident}`].", entry.doc_name),
+            None => format!(
+                "The `{}` variant of [`{origin_ident}`].",
+                entry.doc_name.as_str()
+            ),
         })
         .collect();
 

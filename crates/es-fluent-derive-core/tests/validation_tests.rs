@@ -108,6 +108,39 @@ mod attribute_context_tests {
     }
 
     #[test]
+    fn message_attribute_context_aggregates_container_variant_and_field_errors() {
+        let input: DeriveInput = parse_quote! {
+            #[derive(EsFluent)]
+            #[fluent(unknown)]
+            pub enum LoginError {
+                #[fluent(value = |value| value.to_string())]
+                InvalidPassword(
+                    #[fluent(default)]
+                    String,
+                ),
+            }
+        };
+
+        let err = es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
+            .expect_err("multiple malformed attributes should be aggregated");
+        let es_fluent_derive_core::error::EsFluentCoreError::StructuredAttributeErrors(errors) =
+            err
+        else {
+            panic!("expected aggregated structured errors");
+        };
+
+        assert_eq!(errors.len(), 3);
+        let rendered = errors
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(rendered.contains("message enum container"));
+        assert!(rendered.contains("enum variant"));
+        assert!(rendered.contains("message field"));
+    }
+
+    #[test]
     fn enum_fluent_keys_remain_allowed_on_enum_containers() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]

@@ -69,8 +69,10 @@ fn create_workspace_fixture(
         name: package(crate_name),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
-        i18n_config_path,
-        ftl_output_dir: temp.path().join("i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_config_path),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs,
         fluent_features: Vec::new(),
     };
@@ -92,11 +94,11 @@ fn crate_inputs_hash(krate: &CrateInfo) -> String {
     )
 }
 
-fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<String, String> {
+fn workspace_crate_hashes(workspace: &WorkspaceInfo) -> indexmap::IndexMap<PackageName, String> {
     workspace
         .crates
         .iter()
-        .map(|krate| (krate.name.to_string(), crate_inputs_hash(krate)))
+        .map(|krate| (krate.name.clone(), crate_inputs_hash(krate)))
         .collect()
 }
 
@@ -151,7 +153,7 @@ fn write_cached_runner(
     workspace: &WorkspaceInfo,
     runner_mtime: u64,
     cli_version: &str,
-    crate_hashes: indexmap::IndexMap<String, String>,
+    crate_hashes: indexmap::IndexMap<PackageName, String>,
 ) {
     ensure_runner_dirs(runner);
     crate::test_fixtures::save_runner_cache(
@@ -530,7 +532,7 @@ fn monolithic_runner_staleness_handles_missing_cache_and_metadata_variants() {
     write_cached_runner(&runner, &workspace, mtime, "0.0.0", crate_hashes.clone());
     assert!(runner.is_stale(), "version mismatch should be stale");
 
-    crate_hashes.insert("removed-crate".to_string(), "abc".to_string());
+    crate_hashes.insert(package("removed-crate"), "abc".to_string());
     write_cached_runner(&runner, &workspace, mtime, CLI_VERSION, crate_hashes);
     assert!(runner.is_stale(), "removed crate should be stale");
 }
@@ -775,5 +777,5 @@ fn run_monolithic_force_run_uses_slow_path_and_writes_runner_cache() {
     );
 
     let cache = RunnerCache::load(runner_dir.base_dir()).expect("runner cache should be written");
-    assert!(cache.crate_hashes.contains_key("slow-path"));
+    assert!(cache.crate_hashes.contains_key(&package("slow-path")));
 }

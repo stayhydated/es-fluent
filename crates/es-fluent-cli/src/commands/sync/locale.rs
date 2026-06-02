@@ -194,8 +194,10 @@ mod tests {
             name: es_fluent_runner::PackageName::try_new("test-crate").expect("valid package name"),
             manifest_dir: crate::core::ManifestDir::from_discovered(manifest_dir.clone()),
             src_dir: crate::core::SourceDir::from_discovered(src_dir),
-            i18n_config_path: i18n_toml,
-            ftl_output_dir: manifest_dir.join("i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+                manifest_dir.join("i18n/en"),
+            ),
             has_lib_rs: true,
             fluent_features: Vec::new(),
         }

@@ -16,7 +16,7 @@ fn struct_field_access_expr(access: &EsFluentStructFieldAccess) -> TokenStream {
     match access {
         EsFluentStructFieldAccess::Named(binding) => quote! { self.#binding },
         EsFluentStructFieldAccess::Tuple(declaration_index) => {
-            let field_index = syn::Index::from(*declaration_index);
+            let field_index = syn::Index::from(declaration_index.as_usize());
             quote! { self.#field_index }
         },
     }

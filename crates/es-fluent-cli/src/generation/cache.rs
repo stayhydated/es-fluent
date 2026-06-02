@@ -4,6 +4,7 @@
 //! - Cargo metadata results
 //! - Runner binary staleness detection via content hashing
 
+use es_fluent_runner::PackageName;
 use fs_err as fs;
 use indexmap::IndexMap;
 use path_slash::PathExt as _;
@@ -144,8 +145,8 @@ pub fn compute_workspace_inputs_hash(workspace_root: &Path) -> String {
 /// Stored at the workspace level since the runner is monolithic.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct RunnerCache {
-    /// Map of crate name -> content hash when runner was last built
-    pub crate_hashes: IndexMap<String, String>,
+    /// Map of crate name -> content hash when runner was last built.
+    pub crate_hashes: IndexMap<PackageName, String>,
     /// Mtime of runner binary when cache was created
     pub runner_mtime: u64,
     /// Version of es-fluent-cli that built this runner
@@ -441,7 +442,10 @@ mod tests {
     fn runner_cache_save_and_load_round_trip() {
         let temp_dir = tempfile::tempdir().unwrap();
         let mut hashes = IndexMap::new();
-        hashes.insert("test-crate".to_string(), "abc123".to_string());
+        hashes.insert(
+            PackageName::try_new("test-crate").expect("valid package name"),
+            "abc123".to_string(),
+        );
 
         let cache = RunnerCache {
             crate_hashes: hashes.clone(),

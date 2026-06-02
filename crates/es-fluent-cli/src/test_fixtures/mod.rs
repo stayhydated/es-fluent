@@ -329,7 +329,7 @@ pub fn save_runner_cache(
     workspace_root: &Path,
     runner_mtime: u64,
     cli_version: &str,
-    crate_hashes: indexmap::IndexMap<String, String>,
+    crate_hashes: indexmap::IndexMap<es_fluent_runner::PackageName, String>,
 ) {
     fs::create_dir_all(temp_store.base_dir()).expect("create temp dir");
     RunnerCache {
@@ -351,7 +351,7 @@ pub fn install_fake_runner_with_cache(
     workspace_root: &Path,
     behavior: &FakeRunnerBehavior,
     cli_version: &str,
-    crate_hashes: indexmap::IndexMap<String, String>,
+    crate_hashes: indexmap::IndexMap<es_fluent_runner::PackageName, String>,
 ) -> u64 {
     install_fake_runner(binary_path, behavior);
     let runner_mtime = runner_binary_mtime(binary_path);
@@ -377,7 +377,10 @@ pub fn setup_fake_runner_and_cache(temp: &tempfile::TempDir, behavior: FakeRunne
     );
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert("test-app".to_string(), hash);
+    crate_hashes.insert(
+        es_fluent_runner::PackageName::try_new("test-app").expect("valid package name"),
+        hash,
+    );
     install_fake_runner_with_cache(
         &binary_path,
         &temp_store,

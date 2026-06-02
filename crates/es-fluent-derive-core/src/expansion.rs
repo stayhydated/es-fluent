@@ -17,9 +17,9 @@ use crate::{
         r#struct::{StructOpts, StructVariantsOpts},
     },
     semantic::{
-        ArgumentModel, ChoiceModel, DerivePathList, GeneratedEnumModel, GeneratedKeyIdent,
-        GeneratedKeyName, GeneratedVariantMessageSeed, MessageEntryModel, MessageModel,
-        RustSourceName, RustTypeName, SpannedValue, generated_label_message_value,
+        ArgumentModel, ChoiceModel, DerivePathList, GeneratedDocName, GeneratedEnumModel,
+        GeneratedKeyIdent, GeneratedKeyName, GeneratedVariantMessageSeed, MessageEntryModel,
+        MessageModel, RustSourceName, RustTypeName, SpannedValue, generated_label_message_value,
     },
     validation::{self, NamespaceSource, SpannedNamespaceRuleRef, resolve_single_namespace_source},
 };
@@ -41,6 +41,93 @@ pub enum ExpansionError {
 /// A result type for expansion model construction.
 pub type ExpansionResult<T> = Result<T, ExpansionError>;
 
+/// Derive surface whose raw input has been grammar-validated.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeriveFamily {
+    EsFluent,
+    EsFluentLabel,
+    EsFluentVariants,
+    EsFluentChoice,
+}
+
+/// A derive input after the raw attribute grammar has been validated once.
+#[derive(Clone, Debug)]
+pub struct ValidatedDeriveInput<'a> {
+    input: &'a syn::DeriveInput,
+    family: DeriveFamily,
+    envelope: Option<ContainerEnvelope>,
+}
+
+impl<'a> ValidatedDeriveInput<'a> {
+    pub fn for_es_fluent(input: &'a syn::DeriveInput) -> ExpansionResult<Self> {
+        validation::validate_es_fluent_attribute_context(input)?;
+        Ok(Self {
+            input,
+            family: DeriveFamily::EsFluent,
+            envelope: None,
+        })
+    }
+
+    pub fn for_es_fluent_label(input: &'a syn::DeriveInput) -> ExpansionResult<Self> {
+        validation::validate_es_fluent_label_attribute_context(input)?;
+        let envelope = ContainerEnvelope::from_derive_input(input)?;
+        Ok(Self {
+            input,
+            family: DeriveFamily::EsFluentLabel,
+            envelope: Some(envelope),
+        })
+    }
+
+    pub fn for_es_fluent_variants(input: &'a syn::DeriveInput) -> ExpansionResult<Self> {
+        if matches!(&input.data, Data::Union(_)) {
+            return Err(syn::Error::new(
+                input.ident.span(),
+                "EsFluentVariants can only be derived for structs and enums",
+            )
+            .into());
+        }
+
+        validation::validate_es_fluent_variants_attribute_context(input)?;
+        let envelope = ContainerEnvelope::from_derive_input(input)?;
+        Ok(Self {
+            input,
+            family: DeriveFamily::EsFluentVariants,
+            envelope: Some(envelope),
+        })
+    }
+
+    pub fn for_es_fluent_choice(input: &'a syn::DeriveInput) -> ExpansionResult<Self> {
+        validation::validate_es_fluent_choice_attribute_context(input)?;
+        Ok(Self {
+            input,
+            family: DeriveFamily::EsFluentChoice,
+            envelope: None,
+        })
+    }
+
+    pub fn input(&self) -> &'a syn::DeriveInput {
+        self.input
+    }
+
+    pub fn family(&self) -> DeriveFamily {
+        self.family
+    }
+
+    pub fn envelope(&self) -> Option<&ContainerEnvelope> {
+        self.envelope.as_ref()
+    }
+
+    fn required_envelope(&self) -> ExpansionResult<&ContainerEnvelope> {
+        self.envelope.as_ref().ok_or_else(|| {
+            syn::Error::new(
+                self.input.ident.span(),
+                "internal error: validated derive input is missing container context",
+            )
+            .into()
+        })
+    }
+}
+
 /// Validated data needed to emit an `EsFluent` implementation.
 #[derive(Clone, Debug)]
 pub enum EsFluentExpansion {
@@ -53,7 +140,8 @@ pub enum EsFluentExpansion {
 impl EsFluentExpansion {
     /// Builds a validated expansion model from the user's derive input.
     pub fn from_derive_input(input: &syn::DeriveInput) -> ExpansionResult<Self> {
-        validation::validate_es_fluent_attribute_context(input)?;
+        let input = ValidatedDeriveInput::for_es_fluent(input)?;
+        let input = input.input();
 
         match &input.data {
             Data::Struct(_) => {
@@ -101,7 +189,7 @@ impl EsFluentStructExpansion {
                     },
                     lowered::MessageStructField::Tuple {
                         declaration_index, ..
-                    } => EsFluentStructFieldAccess::Tuple(declaration_index.as_usize()),
+                    } => EsFluentStructFieldAccess::Tuple(*declaration_index),
                 };
 
                 Ok(EsFluentStructField {
@@ -191,7 +279,7 @@ pub enum EsFluentStructFieldAccess {
     /// Named-field access through `self.name`.
     Named(syn::Ident),
     /// Tuple-field access through `self.N`.
-    Tuple(usize),
+    Tuple(lowered::DeclarationIndex),
 }
 
 /// Validated data needed to emit an `EsFluent` enum implementation.
@@ -512,7 +600,8 @@ pub struct EsFluentChoiceExpansion {
 impl EsFluentChoiceExpansion {
     /// Builds a validated expansion model from the user's derive input.
     pub fn from_derive_input(input: &syn::DeriveInput) -> ExpansionResult<Self> {
-        validation::validate_es_fluent_choice_attribute_context(input)?;
+        let input = ValidatedDeriveInput::for_es_fluent_choice(input)?;
+        let input = input.input();
 
         let opts = ChoiceOpts::from_derive_input(input)?;
         let lowered = lowered::ChoiceModel::from_options(&opts)?;
@@ -559,11 +648,9 @@ pub struct EsFluentLabelExpansion {
 impl EsFluentLabelExpansion {
     /// Builds a validated expansion model from the user's derive input.
     pub fn from_derive_input(input: &syn::DeriveInput) -> ExpansionResult<Self> {
-        validation::validate_es_fluent_label_attribute_context(input)?;
-
-        let envelope = ContainerEnvelope::from_derive_input(input)?;
-        let opts = LabelOpts::from_derive_input(input)?;
-        let container_context = ContainerContext::from_envelope(&envelope);
+        let validated = ValidatedDeriveInput::for_es_fluent_label(input)?;
+        let opts = LabelOpts::from_derive_input(validated.input())?;
+        let container_context = ContainerContext::from_envelope(validated.required_envelope()?);
         let model = lowered::LabelModel::from_options(&opts)?;
 
         let original_ident = model.ident();
@@ -621,7 +708,7 @@ impl EsFluentLabelExpansion {
 #[derive(Clone, Debug)]
 pub struct EsFluentGeneratedVariant {
     ident: syn::Ident,
-    doc_name: String,
+    doc_name: GeneratedDocName,
     message_entry: MessageEntryModel,
 }
 
@@ -632,7 +719,7 @@ impl EsFluentGeneratedVariant {
     }
 
     /// The source name used for documentation and FTL default values.
-    pub fn doc_name(&self) -> &str {
+    pub fn doc_name(&self) -> &GeneratedDocName {
         &self.doc_name
     }
 
@@ -692,19 +779,10 @@ pub struct EsFluentVariantsExpansion {
 impl EsFluentVariantsExpansion {
     /// Builds a validated expansion model from the user's derive input.
     pub fn from_derive_input(input: &syn::DeriveInput) -> ExpansionResult<Self> {
-        if matches!(&input.data, Data::Union(_)) {
-            return Err(syn::Error::new(
-                input.ident.span(),
-                "EsFluentVariants can only be derived for structs and enums",
-            )
-            .into());
-        }
-
-        validation::validate_es_fluent_variants_attribute_context(input)?;
-
-        let envelope = ContainerEnvelope::from_derive_input(input)?;
+        let validated = ValidatedDeriveInput::for_es_fluent_variants(input)?;
+        let input = validated.input();
         let label_opts = LabelOpts::from_derive_input(input)?;
-        let container_context = ContainerContext::from_envelope(&envelope);
+        let container_context = ContainerContext::from_envelope(validated.required_envelope()?);
 
         match &input.data {
             Data::Struct(_) => {
@@ -876,7 +954,7 @@ fn materialize_generated_variant(
 
     Ok(EsFluentGeneratedVariant {
         ident: seed.ident().clone(),
-        doc_name: seed.doc_name().to_string(),
+        doc_name: seed.doc_name().clone(),
         message_entry: message,
     })
 }
@@ -1057,10 +1135,89 @@ fn validate_namespace(
 mod tests {
     use super::{
         EsFluentChoiceExpansion, EsFluentExpansion, EsFluentLabelExpansion, EsFluentMessageVariant,
-        EsFluentVariantsExpansion, ExpansionError,
+        EsFluentVariantsExpansion, ExpansionError, ValidatedDeriveInput,
     };
+    use crate::expansion::DeriveFamily;
     use es_fluent_shared::namespace::NamespaceRule;
     use syn::parse_quote;
+
+    #[test]
+    fn validated_input_covers_es_fluent_boundary() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(namespace = "forms")]
+            struct Login {
+                name: String,
+            }
+        };
+
+        let validated = ValidatedDeriveInput::for_es_fluent(&input).expect("input should validate");
+
+        assert_eq!(validated.family(), DeriveFamily::EsFluent);
+        assert_eq!(validated.input().ident, "Login");
+        assert!(validated.envelope().is_none());
+    }
+
+    #[test]
+    fn validated_input_captures_label_parent_context() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(domain = "shared", namespace = "labels")]
+            #[fluent_label(origin = true)]
+            enum Status {
+                Active,
+            }
+        };
+
+        let validated =
+            ValidatedDeriveInput::for_es_fluent_label(&input).expect("input should validate");
+        let envelope = validated.envelope().expect("label captures envelope");
+
+        assert_eq!(validated.family(), DeriveFamily::EsFluentLabel);
+        assert_eq!(envelope.source_ident(), "Status");
+        assert_eq!(envelope.fluent_domain().expect("domain").as_str(), "shared");
+        assert!(matches!(
+            envelope.fluent_namespace().map(|namespace| namespace.rule()),
+            Some(NamespaceRule::Literal(value)) if value == "labels"
+        ));
+    }
+
+    #[test]
+    fn validated_input_captures_variants_parent_context() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent(namespace = "forms")]
+            #[fluent_variants(keys = ["label"])]
+            struct Profile {
+                name: String,
+            }
+        };
+
+        let validated =
+            ValidatedDeriveInput::for_es_fluent_variants(&input).expect("input should validate");
+        let envelope = validated.envelope().expect("variants captures envelope");
+
+        assert_eq!(validated.family(), DeriveFamily::EsFluentVariants);
+        assert_eq!(envelope.source_ident(), "Profile");
+        assert!(matches!(
+            envelope.fluent_namespace().map(|namespace| namespace.rule()),
+            Some(NamespaceRule::Literal(value)) if value == "forms"
+        ));
+    }
+
+    #[test]
+    fn validated_input_covers_choice_boundary() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_choice(rename_all = "snake_case")]
+            enum Priority {
+                VeryHigh,
+            }
+        };
+
+        let validated =
+            ValidatedDeriveInput::for_es_fluent_choice(&input).expect("input should validate");
+
+        assert_eq!(validated.family(), DeriveFamily::EsFluentChoice);
+        assert_eq!(validated.input().ident, "Priority");
+        assert!(validated.envelope().is_none());
+    }
 
     #[test]
     fn choice_expansion_builds_validated_choice_model() {

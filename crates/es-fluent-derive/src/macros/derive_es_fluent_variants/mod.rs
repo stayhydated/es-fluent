@@ -63,7 +63,7 @@ fn emit_variants_expansion(
             GeneratedUnitEnumInput {
                 ident: target.ident(),
                 origin_ident: expansion.origin_ident(),
-                key_name: target.key_name().map(|key| key.as_str()),
+                key_name: target.key_name(),
                 model: target.generated_model(),
                 variants: &variant_entries,
             },
@@ -80,7 +80,7 @@ fn generated_variant_from_expansion(
 ) -> GeneratedUnitEnumVariant {
     GeneratedUnitEnumVariant {
         ident: variant.ident().clone(),
-        doc_name: variant.doc_name().to_string(),
+        doc_name: variant.doc_name().clone(),
         message_entry: MessageEntrySpec::from_metadata(variant.message_entry().clone(), Vec::new()),
     }
 }

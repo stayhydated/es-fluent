@@ -1,4 +1,5 @@
 use darling::FromDeriveInput as _;
+use es_fluent_derive_core::expansion::EsFluentExpansion;
 use es_fluent_derive_core::options::{
     EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
     StructDataOptions as _, VariantFields as _,
@@ -119,7 +120,7 @@ fn enum_variant_level_arg_is_rejected() {
         }
     };
 
-    let err = EnumOpts::from_derive_input(&input).expect_err("Expected parse error");
+    let err = EsFluentExpansion::from_derive_input(&input).expect_err("Expected validation error");
     let message = err.to_string();
     assert!(message.contains("field-only attribute"));
     assert!(message.contains("enum variant `Tuple`"));

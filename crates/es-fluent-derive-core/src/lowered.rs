@@ -3,8 +3,8 @@
 use crate::{
     error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult},
     options::{
-        EnumDataOptions as _, FilteredEnumDataOptions as _, FluentField, Skippable as _,
-        StructDataOptions as _, VariantFields as _,
+        EnumDataOptions as _, FilteredEnumDataOptions as _, FluentField, SkipDirective as _,
+        Skippable as _, StructDataOptions as _, VariantFields as _,
         choice::ChoiceOpts,
         r#enum::{EnumOpts, EnumVariantsOpts, VariantOpts},
         label::LabelOpts,
@@ -241,7 +241,7 @@ impl<'a> MessageEnumVariant<'a> {
         base_key: &FluentMessageId,
     ) -> EsFluentCoreResult<Self> {
         let ident = variant_opt.ident();
-        let skipped = variant_opt.is_skipped();
+        let skipped = variant_opt.directive().is_skipped();
         let variant_key = variant_opt.variant_key(AttrContext::EnumVariant)?;
         let message_id = variant_message_id(
             base_key,
@@ -437,7 +437,7 @@ impl<'a> GeneratedVariantsStructModel<'a> {
         let fields = fields
             .fields
             .iter()
-            .filter(|field| !field.is_skipped())
+            .filter(|field| !field.directive().is_skipped())
             .map(|field| {
                 let Some(ident) = field.ident() else {
                     return Err(internal_shape_error(
@@ -480,7 +480,7 @@ impl<'a> GeneratedVariantsEnumModel<'a> {
 
         let variants = variants
             .iter()
-            .filter(|variant| !variant.is_skipped())
+            .filter(|variant| !variant.skip_directive().is_skipped())
             .map(|variant| GeneratedVariantsVariant {
                 ident: variant.ident(),
             })

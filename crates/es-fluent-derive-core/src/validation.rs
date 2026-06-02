@@ -57,6 +57,36 @@ impl<'a> SpannedNamespaceRuleRef<'a> {
     }
 }
 
+#[derive(Default)]
+struct AttributeDiagnostics {
+    errors: Vec<AttrError>,
+}
+
+impl AttributeDiagnostics {
+    fn record(&mut self, result: EsFluentCoreResult<()>) -> EsFluentCoreResult<()> {
+        match result {
+            Ok(()) => Ok(()),
+            Err(EsFluentCoreError::StructuredAttributeError(error)) => {
+                self.errors.push(error);
+                Ok(())
+            },
+            Err(EsFluentCoreError::StructuredAttributeErrors(errors)) => {
+                self.errors.extend(errors);
+                Ok(())
+            },
+            Err(error) => Err(error),
+        }
+    }
+
+    fn finish(self) -> EsFluentCoreResult<()> {
+        if self.errors.is_empty() {
+            Ok(())
+        } else {
+            Err(EsFluentCoreError::StructuredAttributeErrors(self.errors))
+        }
+    }
+}
+
 pub fn resolve_single_namespace_source<'a>(
     sources: impl IntoIterator<Item = NamespaceSource<'a>>,
 ) -> EsFluentCoreResult<Option<SpannedNamespaceRuleRef<'a>>> {
@@ -94,47 +124,49 @@ pub fn resolve_single_namespace_source<'a>(
 /// Validates raw `#[fluent(...)]` usage on an `EsFluent` derive input before
 /// Darling parses the attributes.
 pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
+    let mut diagnostics = AttributeDiagnostics::default();
+
     for attr in &input.attrs {
-        validate_attribute_for_location(
+        diagnostics.record(validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
             message_container_location(input),
             Some(&input.ident),
-        )?;
+        ))?;
     }
 
     match &input.data {
         syn::Data::Struct(data) => {
             for field in &data.fields {
                 for attr in &field.attrs {
-                    validate_attribute_for_location(
+                    diagnostics.record(validate_attribute_for_location(
                         attr,
                         AttributeName::Fluent,
                         AttributeLocation::MessageField,
                         field.ident.as_ref(),
-                    )?;
+                    ))?;
                 }
             }
         },
         syn::Data::Enum(data) => {
             for variant in &data.variants {
                 for attr in &variant.attrs {
-                    validate_attribute_for_location(
+                    diagnostics.record(validate_attribute_for_location(
                         attr,
                         AttributeName::Fluent,
                         AttributeLocation::EnumVariant,
                         Some(&variant.ident),
-                    )?;
+                    ))?;
                 }
 
                 for field in &variant.fields {
                     for attr in &field.attrs {
-                        validate_attribute_for_location(
+                        diagnostics.record(validate_attribute_for_location(
                             attr,
                             AttributeName::Fluent,
                             AttributeLocation::MessageField,
                             field.ident.as_ref(),
-                        )?;
+                        ))?;
                     }
                 }
             }
@@ -142,97 +174,103 @@ pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCore
         syn::Data::Union(_) => {},
     }
 
-    Ok(())
+    diagnostics.finish()
 }
 
 /// Validates raw attributes used by `EsFluentVariants` before Darling parses them.
 pub fn validate_es_fluent_variants_attribute_context(
     input: &DeriveInput,
 ) -> EsFluentCoreResult<()> {
+    let mut diagnostics = AttributeDiagnostics::default();
+
     for attr in &input.attrs {
-        validate_attribute_for_location(
+        diagnostics.record(validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
             variants_parent_location(input),
             Some(&input.ident),
-        )?;
-        validate_attribute_for_location(
+        ))?;
+        diagnostics.record(validate_attribute_for_location(
             attr,
             AttributeName::FluentVariants,
             AttributeLocation::VariantsContainer,
             Some(&input.ident),
-        )?;
-        validate_attribute_for_location(
+        ))?;
+        diagnostics.record(validate_attribute_for_location(
             attr,
             AttributeName::FluentLabel,
             AttributeLocation::LabelContainer,
             Some(&input.ident),
-        )?;
+        ))?;
     }
 
     match &input.data {
         syn::Data::Struct(data) => {
             for field in &data.fields {
                 for attr in &field.attrs {
-                    validate_attribute_for_location(
+                    diagnostics.record(validate_attribute_for_location(
                         attr,
                         AttributeName::FluentVariants,
                         AttributeLocation::VariantsField,
                         field.ident.as_ref(),
-                    )?;
+                    ))?;
                 }
             }
         },
         syn::Data::Enum(data) => {
             for variant in &data.variants {
                 for attr in &variant.attrs {
-                    validate_attribute_for_location(
+                    diagnostics.record(validate_attribute_for_location(
                         attr,
                         AttributeName::FluentVariants,
                         AttributeLocation::VariantsVariant,
                         Some(&variant.ident),
-                    )?;
+                    ))?;
                 }
             }
         },
         syn::Data::Union(_) => {},
     }
 
-    Ok(())
+    diagnostics.finish()
 }
 
 /// Validates raw attributes used by `EsFluentLabel` before Darling parses them.
 pub fn validate_es_fluent_label_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
+    let mut diagnostics = AttributeDiagnostics::default();
+
     for attr in &input.attrs {
-        validate_attribute_for_location(
+        diagnostics.record(validate_attribute_for_location(
             attr,
             AttributeName::Fluent,
             label_parent_location(input),
             Some(&input.ident),
-        )?;
-        validate_attribute_for_location(
+        ))?;
+        diagnostics.record(validate_attribute_for_location(
             attr,
             AttributeName::FluentLabel,
             AttributeLocation::LabelContainer,
             Some(&input.ident),
-        )?;
+        ))?;
     }
 
-    Ok(())
+    diagnostics.finish()
 }
 
 /// Validates raw attributes used by `EsFluentChoice` before Darling parses them.
 pub fn validate_es_fluent_choice_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
+    let mut diagnostics = AttributeDiagnostics::default();
+
     for attr in &input.attrs {
-        validate_attribute_for_location(
+        diagnostics.record(validate_attribute_for_location(
             attr,
             AttributeName::FluentChoice,
             AttributeLocation::ChoiceContainer,
             Some(&input.ident),
-        )?;
+        ))?;
     }
 
-    Ok(())
+    diagnostics.finish()
 }
 
 pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {

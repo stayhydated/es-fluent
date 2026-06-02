@@ -18,8 +18,12 @@ fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
         name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
-        i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
-        ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
+            "/tmp/test/i18n.toml",
+        )),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+            "/tmp/test/i18n/en",
+        )),
         has_lib_rs,
         fluent_features: Vec::new(),
     }
@@ -138,8 +142,12 @@ fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
         name: es_fluent_runner::PackageName::try_new("crate-a").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/ws/crate-a")),
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/crate-a/src")),
-        i18n_config_path: PathBuf::from("/tmp/ws/crate-a/i18n.toml"),
-        ftl_output_dir: PathBuf::from("/tmp/ws/crate-a/i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
+            "/tmp/ws/crate-a/i18n.toml",
+        )),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+            "/tmp/ws/crate-a/i18n/en",
+        )),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
@@ -147,8 +155,12 @@ fn process_file_events_matches_i18n_toml_to_exact_owning_crate() {
         name: es_fluent_runner::PackageName::try_new("crate-b").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/ws/crate-b")),
         src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/ws/crate-b/src")),
-        i18n_config_path: PathBuf::from("/tmp/ws/crate-b/i18n.toml"),
-        ftl_output_dir: PathBuf::from("/tmp/ws/crate-b/i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(PathBuf::from(
+            "/tmp/ws/crate-b/i18n.toml",
+        )),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+            "/tmp/ws/crate-b/i18n/en",
+        )),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
@@ -220,8 +232,10 @@ fn create_valid_workspace_with_fake_runner_behavior(
         name: es_fluent_runner::PackageName::try_new("watch-crate").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(src_dir.clone()),
-        i18n_config_path: i18n_toml.clone(),
-        ftl_output_dir: temp.path().join("i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(i18n_toml.clone()),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
@@ -238,7 +252,7 @@ fn create_valid_workspace_with_fake_runner_behavior(
         Some(&i18n_toml),
     );
     let mut crate_hashes = indexmap::IndexMap::new();
-    crate_hashes.insert(krate.name.to_string(), hash);
+    crate_hashes.insert(krate.name.clone(), hash);
     let temp_store = es_fluent_runner::RunnerMetadataStore::temp_for_workspace(temp.path());
     crate::test_fixtures::install_fake_runner_with_cache(
         &binary_path,
@@ -392,8 +406,12 @@ fn configure_file_watcher_reports_invalid_watch_roots() {
             temp.path().join("missing-manifest"),
         ),
         src_dir: crate::core::SourceDir::from_discovered(temp.path().join("missing-src")),
-        i18n_config_path: temp.path().join("i18n.toml"),
-        ftl_output_dir: temp.path().join("i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+            temp.path().join("i18n.toml"),
+        ),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
@@ -415,8 +433,12 @@ fn configure_file_watcher_reports_invalid_manifest_watch_root() {
             temp.path().join("missing-manifest"),
         ),
         src_dir: crate::core::SourceDir::from_discovered(src_dir),
-        i18n_config_path: temp.path().join("i18n.toml"),
-        ftl_output_dir: temp.path().join("i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+            temp.path().join("i18n.toml"),
+        ),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };
@@ -571,8 +593,12 @@ fn watch_all_propagates_runner_preparation_errors() {
         name: es_fluent_runner::PackageName::try_new("broken-watch").expect("valid package name"),
         manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
         src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
-        i18n_config_path: temp.path().join("i18n.toml"),
-        ftl_output_dir: temp.path().join("i18n/en"),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+            temp.path().join("i18n.toml"),
+        ),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
         has_lib_rs: true,
         fluent_features: Vec::new(),
     };

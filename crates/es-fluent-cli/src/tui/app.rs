@@ -100,14 +100,14 @@ impl<'a> TuiApp<'a> {
             Message::GenerationComplete { result } => {
                 if let Some(ref error) = result.error {
                     self.set_state(
-                        &result.name,
+                        result.name.as_str(),
                         CrateState::Error {
                             message: error.clone(),
                         },
                     );
                 } else {
                     self.set_state(
-                        &result.name,
+                        result.name.as_str(),
                         CrateState::Watching {
                             resource_count: result.resource_count,
                         },
@@ -270,13 +270,21 @@ mod tests {
     use ratatui::{Terminal, backend::TestBackend};
     use std::path::PathBuf;
 
+    fn package(name: &str) -> es_fluent_runner::PackageName {
+        es_fluent_runner::PackageName::try_new(name).expect("valid package name")
+    }
+
     fn test_crate(name: &str, has_lib_rs: bool) -> CrateInfo {
         CrateInfo {
-            name: es_fluent_runner::PackageName::try_new(name).expect("valid package name"),
+            name: package(name),
             manifest_dir: crate::core::ManifestDir::from_discovered(PathBuf::from("/tmp/test")),
             src_dir: crate::core::SourceDir::from_discovered(PathBuf::from("/tmp/test/src")),
-            i18n_config_path: PathBuf::from("/tmp/test/i18n.toml"),
-            ftl_output_dir: PathBuf::from("/tmp/test/i18n/en"),
+            i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+                PathBuf::from("/tmp/test/i18n.toml"),
+            ),
+            ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(PathBuf::from(
+                "/tmp/test/i18n/en",
+            )),
             has_lib_rs,
             fluent_features: Vec::new(),
         }
@@ -319,13 +327,7 @@ mod tests {
         }));
 
         assert!(app.update(Message::GenerationComplete {
-            result: GenerateResult::success(
-                "a".to_string(),
-                Duration::from_millis(1),
-                3,
-                None,
-                true,
-            ),
+            result: GenerateResult::success(package("a"), Duration::from_millis(1), 3, None, true,),
         }));
         assert!(matches!(
             app.states.get("a"),
@@ -334,7 +336,7 @@ mod tests {
 
         assert!(app.update(Message::GenerationComplete {
             result: GenerateResult::failure(
-                "a".to_string(),
+                package("a"),
                 Duration::from_millis(1),
                 "boom".to_string(),
             ),
