@@ -42,7 +42,14 @@ pub(crate) fn macro_error(message: impl Into<String>) -> syn::Error {
 }
 
 pub(crate) fn current_crate_name() -> syn::Result<String> {
-    std::env::var("CARGO_PKG_NAME").map_err(|_| macro_error("CARGO_PKG_NAME must be set"))
+    let crate_name =
+        std::env::var("CARGO_PKG_NAME").map_err(|_| macro_error("CARGO_PKG_NAME must be set"))?;
+    es_fluent_shared::fluent::FluentDomain::try_new(crate_name.clone()).map_err(|error| {
+        macro_error(format!(
+            "CARGO_PKG_NAME '{crate_name}' is not a valid Fluent domain: {error}"
+        ))
+    })?;
+    Ok(crate_name)
 }
 
 pub(crate) fn module_data_static_tokens(
@@ -55,7 +62,7 @@ pub(crate) fn module_data_static_tokens(
     quote! {
         static #static_name: #manager_core_path::ModuleData = #manager_core_path::ModuleData {
             name: #crate_name,
-            domain: #crate_name,
+            domain: #manager_core_path::StaticFluentDomain::new_unchecked(#crate_name),
             supported_languages: &[
                 #(#language_identifiers),*
             ],
@@ -154,7 +161,7 @@ impl I18nAssets {
                     let required = spec.required;
                     quote! {
                         #manager_core_path::ModuleResourceSpec::new(
-                            #manager_core_path::ResourceKey::new(#key),
+                            #manager_core_path::ResourceKey::from_static_path_unchecked(#key),
                             #locale_relative_path,
                             #required,
                         )
@@ -229,6 +236,12 @@ mod tests {
         with_env_var("CARGO_PKG_NAME", None, || {
             let err = current_crate_name().expect_err("missing env should fail");
             assert_snapshot!("current_crate_name_reports_missing_env", err.to_string());
+        });
+
+        with_env_var("CARGO_PKG_NAME", Some("../bad"), || {
+            let err = current_crate_name().expect_err("invalid domain should fail");
+            let message = err.to_string();
+            assert!(message.contains("CARGO_PKG_NAME '../bad' is not a valid Fluent domain"));
         });
     }
 

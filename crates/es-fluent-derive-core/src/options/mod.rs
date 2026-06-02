@@ -1,6 +1,7 @@
 //! This module provides types for parsing `es-fluent` attributes.
 
 use crate::error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult};
+use crate::namespace::SpannedNamespaceRule;
 use crate::semantic::{
     ArgName, ArgumentValueStrategy, DomainName, FluentMessageId, GeneratedKeyIdent,
     GeneratedKeyName, SpannedValue, ValueTransform, VariantKey, parse_arg_name_in_context,
@@ -34,42 +35,25 @@ fn string_literal_value(item: &syn::Meta) -> darling::Result<(String, proc_macro
     }
 }
 
-/// A namespace rule parsed from an attribute, paired with the best source span.
-#[derive(Clone, Debug)]
-pub struct NamespaceSpec {
-    rule: NamespaceRule,
-    span: proc_macro2::Span,
-}
+/// Marker for a bare attribute flag whose grammar accepts only path syntax.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct PresentFlag;
 
-impl NamespaceSpec {
-    pub fn new(rule: NamespaceRule, span: proc_macro2::Span) -> Self {
-        Self { rule, span }
-    }
-
-    pub fn rule(&self) -> &NamespaceRule {
-        &self.rule
-    }
-
-    pub fn span(&self) -> proc_macro2::Span {
-        self.span
+impl PresentFlag {
+    fn is_present(self) -> bool {
+        true
     }
 }
 
-impl FromMeta for NamespaceSpec {
-    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
-        let rule = NamespaceRule::from_meta(item)?;
-        let span = match item {
-            syn::Meta::NameValue(name_value) => match &name_value.value {
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(value),
-                    ..
-                }) => value.span(),
-                syn::Expr::Path(path) => path.span(),
-                other => other.span(),
-            },
-            other => other.span(),
-        };
-        Ok(Self::new(rule, span))
+impl FromMeta for PresentFlag {
+    fn from_word() -> darling::Result<Self> {
+        Ok(Self)
+    }
+
+    fn from_bool(_value: bool) -> darling::Result<Self> {
+        Err(darling::Error::custom(
+            "expected bare flag syntax without `= true`",
+        ))
     }
 }
 
@@ -518,12 +502,12 @@ impl<T: FluentField> Skippable for T {
 struct SkippableFieldAttributeArgs {
     /// Whether to skip this field.
     #[darling(default)]
-    skip: Option<bool>,
+    skip: Option<PresentFlag>,
 }
 
 impl SkippableFieldAttributeArgs {
     fn directive(&self) -> GeneratedVariantDirective {
-        if self.skip.unwrap_or(false) {
+        if self.skip.is_some_and(PresentFlag::is_present) {
             GeneratedVariantDirective::Skip
         } else {
             GeneratedVariantDirective::Include
@@ -586,13 +570,13 @@ impl Skippable for SkippableFieldOpts {
 struct FluentFieldAttributeArgs {
     /// Whether to skip this field.
     #[darling(default)]
-    skip: Option<bool>,
+    skip: Option<PresentFlag>,
     /// Whether this field is a selector for a Fluent select expression.
     #[darling(default)]
-    selector: Option<bool>,
+    selector: Option<PresentFlag>,
     /// Whether this field should be treated as an optional argument.
     #[darling(default)]
-    optional: Option<bool>,
+    optional: Option<PresentFlag>,
     /// A value transformation expression.
     #[darling(default)]
     value: Option<ValueAttr>,
@@ -603,15 +587,15 @@ struct FluentFieldAttributeArgs {
 
 impl FluentFieldAttributeArgs {
     fn is_skipped(&self) -> bool {
-        self.skip.unwrap_or(false)
+        self.skip.is_some_and(PresentFlag::is_present)
     }
 
     fn is_selector(&self) -> bool {
-        self.selector.unwrap_or(false)
+        self.selector.is_some_and(PresentFlag::is_present)
     }
 
     fn is_optional(&self) -> bool {
-        self.optional.unwrap_or(false)
+        self.optional.is_some_and(PresentFlag::is_present)
     }
 
     fn value(&self) -> Option<&syn::Expr> {
@@ -686,36 +670,36 @@ impl FluentFieldAttributeArgs {
                     span,
                 ));
             };
-            return Ok(FieldDirective::Argument(FieldArgumentDirective {
+            return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
                 name: self.arg.clone(),
                 value: FieldValueDirective::Optional {
                     span: ty.span(),
                     inner_ty: inner_ty.clone(),
                 },
-            }));
+            })));
         }
 
         if is_selector {
-            return Ok(FieldDirective::Argument(FieldArgumentDirective {
+            return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
                 name: self.arg.clone(),
                 value: FieldValueDirective::Choice { span },
-            }));
+            })));
         }
 
         if let Some(expr) = self.value() {
-            return Ok(FieldDirective::Argument(FieldArgumentDirective {
+            return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
                 name: self.arg.clone(),
                 value: FieldValueDirective::Transform(ValueTransform::new(
                     expr.clone(),
                     expr.span(),
                 )),
-            }));
+            })));
         }
 
-        Ok(FieldDirective::Argument(FieldArgumentDirective {
+        Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
             name: self.arg.clone(),
             value: FieldValueDirective::Borrowed { span },
-        }))
+        })))
     }
 }
 
@@ -725,7 +709,7 @@ pub enum FieldDirective {
     /// The field is ignored by generated Fluent arguments.
     Skip,
     /// The field contributes one generated Fluent argument.
-    Argument(FieldArgumentDirective),
+    Argument(Box<FieldArgumentDirective>),
 }
 
 impl FieldDirective {
@@ -740,7 +724,7 @@ impl FieldDirective {
     pub fn argument(&self) -> Option<&FieldArgumentDirective> {
         match self {
             Self::Skip => None,
-            Self::Argument(argument) => Some(argument),
+            Self::Argument(argument) => Some(argument.as_ref()),
         }
     }
 
@@ -799,7 +783,9 @@ impl FieldValueDirective {
             Self::Borrowed { span } => ArgumentValueStrategy::Borrowed { span: *span },
             Self::Optional { span, .. } => ArgumentValueStrategy::Optional { span: *span },
             Self::Choice { span } => ArgumentValueStrategy::Choice { span: *span },
-            Self::Transform(transform) => ArgumentValueStrategy::Transform(transform.clone()),
+            Self::Transform(transform) => {
+                ArgumentValueStrategy::Transform(Box::new(transform.clone()))
+            },
         }
     }
 
@@ -949,12 +935,12 @@ impl SkipDirective for GeneratedVariantDirective {
 struct SkippedVariantAttributeArgs {
     /// Whether to skip this variant.
     #[darling(default)]
-    skip: Option<bool>,
+    skip: Option<PresentFlag>,
 }
 
 impl SkippedVariantAttributeArgs {
     fn directive(&self) -> GeneratedVariantDirective {
-        if self.skip.unwrap_or(false) {
+        if self.skip.is_some_and(PresentFlag::is_present) {
             GeneratedVariantDirective::Skip
         } else {
             GeneratedVariantDirective::Include
@@ -997,22 +983,22 @@ pub struct NamespacedAttributeArgs {
     /// - `namespace = folder` - writes to `{lang}/{crate}/{source_parent_folder}.ftl`
     /// - `namespace = folder_relative` - writes to `{lang}/{crate}/{relative_parent_folder_path}.ftl`
     #[darling(default)]
-    namespace: Option<NamespaceSpec>,
+    namespace: Option<SpannedNamespaceRule>,
 }
 
 impl NamespacedAttributeArgs {
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
-        self.namespace.as_ref().map(NamespaceSpec::rule)
+        self.namespace.as_ref().map(SpannedNamespaceRule::rule)
     }
 
     /// Returns the span of the namespace value if provided.
     pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
-        self.namespace.as_ref().map(NamespaceSpec::span)
+        self.namespace.as_ref().map(SpannedNamespaceRule::span)
     }
 
     /// Returns the parsed namespace spec if provided.
-    pub fn namespace_spec(&self) -> Option<&NamespaceSpec> {
+    pub fn namespace_spec(&self) -> Option<&SpannedNamespaceRule> {
         self.namespace.as_ref()
     }
 }
@@ -1099,6 +1085,8 @@ impl darling::FromMeta for ValueAttr {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::options::r#struct::StructOpts;
+    use darling::FromDeriveInput as _;
     use darling::FromVariant as _;
 
     fn generated_key(name: &str) -> SpannedValue<GeneratedKeyName> {
@@ -1133,6 +1121,26 @@ mod tests {
         assert_eq!(
             quote::quote!(#nv_expr).to_string(),
             "| x : & str | x . len ()"
+        );
+    }
+
+    #[test]
+    fn bare_flag_parser_rejects_name_value_booleans() {
+        let input: syn::DeriveInput = syn::parse_quote! {
+            struct Message {
+                #[fluent(skip = true)]
+                hidden: String,
+            }
+        };
+
+        let err = match StructOpts::from_derive_input(&input) {
+            Ok(_) => panic!("name-value booleans should not parse as bare flags"),
+            Err(error) => error,
+        };
+
+        assert!(
+            err.to_string()
+                .contains("expected bare flag syntax without `= true`")
         );
     }
 

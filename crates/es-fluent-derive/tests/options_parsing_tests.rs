@@ -3,6 +3,7 @@ use es_fluent_derive_core::expansion::EsFluentExpansion;
 use es_fluent_derive_core::options::{
     EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
     StructDataOptions as _, VariantFields as _,
+    choice::CaseStyle,
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
@@ -333,7 +334,7 @@ fn enum_choice_parsing() {
     assert_eq!(opts.ident().to_string(), "MyEnum");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 2);
-    assert_eq!(opts.attr_args().rename_all().as_deref(), Some("snake_case"));
+    assert_eq!(opts.attr_args().rename_all(), &Some(CaseStyle::SnakeCase));
 }
 
 #[test]

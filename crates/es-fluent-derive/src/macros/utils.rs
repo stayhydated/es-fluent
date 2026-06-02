@@ -608,10 +608,10 @@ mod tests {
 
         let transform = super::generate_field_value_expr(
             &context,
-            &ArgumentValueStrategy::Transform(ValueTransform::new(
+            &ArgumentValueStrategy::Transform(Box::new(ValueTransform::new(
                 parse_quote!(|value: &String| value.len()),
                 proc_macro2::Span::call_site(),
-            )),
+            ))),
             quote!(field),
             quote!(field),
         )

@@ -262,9 +262,7 @@ impl AttributeValueShape {
             Self::ChoiceCaseStyle => {
                 format!("use a case style string, for example `{key_name} = \"snake_case\"`")
             },
-            Self::LanguageMode => {
-                format!("use `mode = \"builtin\"` or `mode = \"custom\"`")
-            },
+            Self::LanguageMode => "use `mode = \"builtin\"` or `mode = \"custom\"`".to_string(),
         }
     }
 }

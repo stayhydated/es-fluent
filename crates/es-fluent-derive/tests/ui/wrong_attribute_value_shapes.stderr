@@ -5,16 +5,37 @@ error: Attribute error in message field: `#[fluent(arg)]` has the wrong value sh
 5 |     #[fluent(arg)]
   |              ^^^
 
+error: Attribute error in message field: `#[fluent(skip = ...)]` has the wrong value shape for key `skip` in message field `hidden`
+       help: use a bare flag, for example `skip`
+  --> tests/ui/wrong_attribute_value_shapes.rs:11:14
+   |
+11 |     #[fluent(skip = true)]
+   |              ^^^^
+
+error: Attribute error in message field: `#[fluent(selector = ...)]` has the wrong value shape for key `selector` in message field `kind`
+       help: use a bare flag, for example `selector`
+  --> tests/ui/wrong_attribute_value_shapes.rs:13:14
+   |
+13 |     #[fluent(selector = true)]
+   |              ^^^^^^^^
+
+error: Attribute error in message field: `#[fluent(optional = ...)]` has the wrong value shape for key `optional` in message field `maybe`
+       help: use a bare flag, for example `optional`
+  --> tests/ui/wrong_attribute_value_shapes.rs:15:14
+   |
+15 |     #[fluent(optional = true)]
+   |              ^^^^^^^^
+
 error: Attribute error in variants container: `#[fluent_variants(keys(...))]` has the wrong value shape for key `keys` in variants container `WrongVariantsKeysShape`
        help: use a string array, for example `keys = ["label"]`
-  --> tests/ui/wrong_attribute_value_shapes.rs:10:19
+  --> tests/ui/wrong_attribute_value_shapes.rs:20:19
    |
-10 | #[fluent_variants(keys("label"))]
+20 | #[fluent_variants(keys("label"))]
    |                   ^^^^
 
 error: Attribute error in choice container: `#[fluent_choice(rename_all)]` has the wrong value shape for key `rename_all` in choice container `WrongChoiceRenameShape`
        help: use a case style string, for example `rename_all = "snake_case"`
-  --> tests/ui/wrong_attribute_value_shapes.rs:16:17
+  --> tests/ui/wrong_attribute_value_shapes.rs:26:17
    |
-16 | #[fluent_choice(rename_all)]
+26 | #[fluent_choice(rename_all)]
    |                 ^^^^^^^^^^

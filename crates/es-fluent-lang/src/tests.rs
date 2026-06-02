@@ -151,7 +151,7 @@ fn localized_mode_ignores_unused_args() {
 #[test]
 fn uses_standard_module_registration() {
     let registration = inventory::iter::<&'static dyn I18nModuleRegistration>()
-        .find(|registration| registration.data().domain == "es-fluent-lang")
+        .find(|registration| registration.data().domain() == "es-fluent-lang")
         .expect("es-fluent-lang module registration should be present");
     let localizer = registration
         .create_localizer()

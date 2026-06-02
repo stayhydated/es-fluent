@@ -64,8 +64,6 @@ fn generate(context: &CodegenContext, expansion: &EsFluentStructExpansion) -> To
 #[cfg(test)]
 mod tests {
     use super::*;
-    use darling::FromDeriveInput as _;
-    use es_fluent_derive_core::options::r#struct::StructOpts;
     use syn::parse_quote;
 
     #[test]
@@ -77,10 +75,13 @@ mod tests {
                 attempts: u16,
             }
         };
-        let opts = StructOpts::from_derive_input(&input).expect("struct opts");
         let expansion =
-            es_fluent_derive_core::expansion::EsFluentStructExpansion::from_options(&opts)
-                .expect("struct expansion");
+            es_fluent_derive_core::expansion::EsFluentExpansion::from_derive_input(&input)
+                .expect("expansion");
+        let es_fluent_derive_core::expansion::EsFluentExpansion::Struct(expansion) = expansion
+        else {
+            panic!("expected struct expansion");
+        };
 
         let context = CodegenContext::fallback();
         let tokens = generate(&context, &expansion).to_string();

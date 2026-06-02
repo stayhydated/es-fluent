@@ -2,6 +2,7 @@ use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
     EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
     SkipDirective as _, StructDataOptions as _, VariantFields as _,
+    choice::CaseStyle,
     r#enum::{EnumChoiceOpts, EnumOpts},
     r#struct::{StructOpts, StructVariantsOpts},
 };
@@ -339,7 +340,7 @@ fn es_fluent_choice_attributes_none_snapshot() {
     assert_eq!(opts.ident().to_string(), "Gender");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 3);
-    assert_eq!(opts.attr_args().rename_all().as_deref(), None);
+    assert_eq!(opts.attr_args().rename_all(), &None);
 }
 
 #[test]
@@ -360,7 +361,7 @@ fn es_fluent_choice_attributes_snake_case_snapshot() {
     assert_eq!(opts.ident().to_string(), "Severity");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 5);
-    assert_eq!(opts.attr_args().rename_all().as_deref(), Some("snake_case"));
+    assert_eq!(opts.attr_args().rename_all(), &Some(CaseStyle::SnakeCase));
 }
 
 #[test]
@@ -381,7 +382,7 @@ fn es_fluent_choice_attributes_screaming_snake_snapshot() {
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 4);
     assert_eq!(
-        opts.attr_args().rename_all().as_deref(),
-        Some("SCREAMING_SNAKE_CASE")
+        opts.attr_args().rename_all(),
+        &Some(CaseStyle::ScreamingSnakeCase)
     );
 }

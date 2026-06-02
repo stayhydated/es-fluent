@@ -46,7 +46,7 @@ impl<'a> WatchRuntime<'a> {
 
         Self {
             workspace: Arc::new(workspace.clone()),
-            mode: mode.clone(),
+            mode: *mode,
             valid_crates,
             crates_by_name,
             path_to_crate,
@@ -131,7 +131,7 @@ impl<'a> WatchRuntime<'a> {
         super::generation::spawn_generation(
             krate.clone(),
             self.workspace.clone(),
-            self.mode.clone(),
+            self.mode,
             self.result_tx.clone(),
         );
     }

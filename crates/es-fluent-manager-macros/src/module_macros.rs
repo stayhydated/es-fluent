@@ -56,15 +56,12 @@ type ModuleTokenGenerator = fn(
 ) -> syn::Result<proc_macro2::TokenStream>;
 
 fn reject_unexpected_input(input: TokenStream, macro_name: &str) -> Option<TokenStream> {
-    (!input.is_empty()).then(|| TokenStream::from(unexpected_input_error(macro_name)))
-}
-
-fn unexpected_input_error(macro_name: &str) -> proc_macro2::TokenStream {
-    syn::Error::new(
-        proc_macro2::Span::call_site(),
-        format!("`{macro_name}` does not accept arguments"),
+    es_fluent_derive_core::macro_input::ValidatedMacroInput::reject_argument_free(
+        input.into(),
+        macro_name,
     )
-    .to_compile_error()
+    .err()
+    .map(|error| TokenStream::from(error.to_compile_error()))
 }
 
 fn expand_define_i18n_module_tokens(
@@ -177,8 +174,8 @@ fn generate_embedded_tokens(
         struct #assets_struct_name;
 
         impl #manager_core_path::EmbeddedAssets for #assets_struct_name {
-            fn domain() -> &'static str {
-                #crate_name
+            fn domain() -> #manager_core_path::StaticFluentDomain {
+                #manager_core_path::StaticFluentDomain::new_unchecked(#crate_name)
             }
 
             fn namespaces() -> &'static [&'static str] {
@@ -474,7 +471,7 @@ mod tests {
             static #module_data_name: ::es_fluent_manager_core::ModuleData =
                 ::es_fluent_manager_core::ModuleData {
                     name: "my-crate",
-                    domain: "my-crate",
+                    domain: ::es_fluent_manager_core::StaticFluentDomain::new_unchecked("my-crate"),
                     supported_languages: &[],
                     namespaces: &[],
                 };
@@ -496,7 +493,12 @@ mod tests {
 
     #[test]
     fn unexpected_input_error_names_the_rejecting_macro() {
-        let error = unexpected_input_error("define_i18n_module!").to_string();
+        let error = es_fluent_derive_core::macro_input::ValidatedMacroInput::reject_argument_free(
+            quote! { unexpected },
+            "define_i18n_module!",
+        )
+        .expect_err("unexpected macro input should fail")
+        .to_string();
 
         assert!(error.contains("define_i18n_module"));
         assert!(error.contains("does not accept arguments"));

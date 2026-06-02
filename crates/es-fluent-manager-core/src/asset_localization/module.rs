@@ -1,5 +1,6 @@
 use super::resource::{ModuleResourceSpec, ResourcePlanError};
 use es_fluent_shared::namespace::{NamespacePathError, ResolvedNamespace};
+use es_fluent_shared::registry::StaticFluentDomain;
 use std::collections::HashSet;
 use std::fmt;
 use unic_langid::LanguageIdentifier;
@@ -13,7 +14,7 @@ pub struct ModuleData {
     /// The unique module name (typically crate name).
     pub name: &'static str,
     /// The Fluent domain for this module.
-    pub domain: &'static str,
+    pub domain: StaticFluentDomain,
     /// Languages that this module can provide.
     pub supported_languages: &'static [LanguageIdentifier],
     /// Namespaces used by the module (e.g., "ui", "ui/button").
@@ -33,14 +34,22 @@ impl ModuleData {
     /// [`crate::I18nModuleRegistration::resource_plan_for_language`] when a
     /// registration provides a sparse per-language manifest plan.
     pub fn resource_plan(&self) -> Vec<ModuleResourceSpec> {
-        super::resource::resource_plan_for(self.domain, self.namespaces)
+        super::resource::ResourcePlan::for_static_domain(self.domain, self.namespaces)
+            .expect("module metadata domains are statically validated")
+            .into_specs()
     }
 
     /// Attempts to return the global/default canonical resource plan.
     ///
     /// Returns invalid namespace metadata as a typed error.
     pub fn try_resource_plan(&self) -> Result<Vec<ModuleResourceSpec>, ResourcePlanError> {
-        super::resource::try_resource_plan_for(self.domain, self.namespaces)
+        super::resource::ResourcePlan::for_static_domain(self.domain, self.namespaces)
+            .map(super::resource::ResourcePlan::into_specs)
+    }
+
+    /// Returns the Fluent domain as a string slice for display and lookup edges.
+    pub fn domain(&self) -> &'static str {
+        self.domain.as_str()
     }
 }
 
@@ -134,13 +143,13 @@ pub fn validate_module_registry<'a>(
             });
         }
 
-        if data.domain.trim().is_empty() {
+        if data.domain().trim().is_empty() {
             errors.push(ModuleRegistryError::EmptyDomain {
                 module: data.name.to_string(),
             });
         } else if !module_domains.insert(data.domain) {
             errors.push(ModuleRegistryError::DuplicateDomain {
-                domain: data.domain.to_string(),
+                domain: data.domain().to_string(),
             });
         }
 
@@ -219,20 +228,20 @@ mod tests {
 
     static VALID_MODULE: ModuleData = ModuleData {
         name: "demo-module",
-        domain: "demo-domain",
+        domain: crate::StaticFluentDomain::new_unchecked("demo-domain"),
         supported_languages: &[langid!("en"), langid!("fr")],
         namespaces: &["ui", "errors"],
     };
     static DUPLICATE_MODULES: [&ModuleData; 2] = [
         &ModuleData {
             name: "dup-name",
-            domain: "dup-domain-a",
+            domain: crate::StaticFluentDomain::new_unchecked("dup-domain-a"),
             supported_languages: &[langid!("en"), langid!("en")],
             namespaces: &["ui", "ui"],
         },
         &ModuleData {
             name: "dup-name",
-            domain: "dup-domain-a",
+            domain: crate::StaticFluentDomain::new_unchecked("dup-domain-a"),
             supported_languages: &[],
             namespaces: &["../bad"],
         },

@@ -166,7 +166,7 @@ mod tests {
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en"), langid!("fr")];
     static MODULE_DATA: ModuleData = ModuleData {
         name: "asset-test",
-        domain: "asset-test",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("asset-test"),
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };

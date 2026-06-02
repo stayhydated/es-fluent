@@ -4,6 +4,7 @@
 use es_fluent_derive_core::{
     error::{AttrContext, EsFluentCoreError},
     grammar::LanguageMode,
+    macro_input::ValidatedMacroInput,
     macro_support::{
         core_error_to_compile_error, resolve_crate_path, static_domain_tokens,
         static_entry_id_tokens,
@@ -69,7 +70,7 @@ fn expand_es_fluent_language(
     attr: proc_macro2::TokenStream,
     item: proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
-    let mode = match LanguageMode::parse(attr) {
+    let mode = match ValidatedMacroInput::language_mode(attr) {
         Ok(mode) => mode,
         Err(err) => return core_error_to_compile_error(err),
     };

@@ -5,7 +5,8 @@ use crate::error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsF
 use crate::lowered::{
     GeneratedVariantsEnumModel, GeneratedVariantsStructModel, MessageEnumModel, MessageStructModel,
 };
-use crate::options::FluentField;
+use crate::namespace::SpannedNamespaceRuleRef;
+use crate::options::FluentField as _;
 use crate::options::r#enum::EnumOpts;
 use crate::options::r#struct::StructOpts;
 use es_fluent_shared::{
@@ -34,26 +35,6 @@ impl<'a> NamespaceSource<'a> {
             context,
             namespace,
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct SpannedNamespaceRuleRef<'a> {
-    rule: &'a NamespaceRule,
-    span: proc_macro2::Span,
-}
-
-impl<'a> SpannedNamespaceRuleRef<'a> {
-    pub fn new(rule: &'a NamespaceRule, span: proc_macro2::Span) -> Self {
-        Self { rule, span }
-    }
-
-    pub fn rule(self) -> &'a NamespaceRule {
-        self.rule
-    }
-
-    pub fn span(self) -> proc_macro2::Span {
-        self.span
     }
 }
 
@@ -352,7 +333,7 @@ pub(crate) fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFlu
                             "duplicate field arg '{}' in variant fields",
                             name.value().as_str()
                         ),
-                        variant_name: variant_name.clone(),
+                        variant_name,
                         span: variant_span,
                     });
                 }
@@ -374,7 +355,7 @@ pub(crate) fn validate_message_enum_model(model: &MessageEnumModel<'_>) -> EsFlu
                             "duplicate resolved argument name '{}' after applying #[fluent(arg = \"...\")]",
                             resolved_name.name().as_str()
                         ),
-                        variant_name: variant_name.clone(),
+                        variant_name,
                         span: variant_span,
                     });
                 }

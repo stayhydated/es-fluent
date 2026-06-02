@@ -1,44 +1,17 @@
 //! Shared derive container context built once from the raw derive input.
 
 use darling::FromDeriveInput as _;
-use es_fluent_shared::namespace::NamespaceRule;
-use proc_macro2::Span;
 use syn::{Data, DeriveInput};
 
-use crate::options::{NamespaceSpec, r#enum::EnumOpts, r#struct::StructOpts};
+use crate::namespace::SpannedNamespaceRule;
+use crate::options::{r#enum::EnumOpts, r#struct::StructOpts};
 use crate::semantic::{DomainName, SpannedValue};
-use crate::validation::SpannedNamespaceRuleRef;
 
 /// Rust container kind for a derive input.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ContainerKind {
     Struct,
     Enum,
-}
-
-/// Owned namespace rule with the source span of the namespace value.
-#[derive(Clone, Debug)]
-pub struct SpannedNamespaceRule {
-    rule: NamespaceRule,
-    span: Span,
-}
-
-impl SpannedNamespaceRule {
-    pub fn new(rule: NamespaceRule, span: Span) -> Self {
-        Self { rule, span }
-    }
-
-    pub fn rule(&self) -> &NamespaceRule {
-        &self.rule
-    }
-
-    pub fn span(&self) -> Span {
-        self.span
-    }
-
-    pub fn as_ref(&self) -> SpannedNamespaceRuleRef<'_> {
-        SpannedNamespaceRuleRef::new(&self.rule, self.span)
-    }
 }
 
 /// Typed container metadata parsed once from a derive input.
@@ -284,7 +257,7 @@ struct ParentEnumAttributeArgs {
 }
 
 impl ParentEnumAttributeArgs {
-    fn namespace_spec(&self) -> Option<&NamespaceSpec> {
+    fn namespace_spec(&self) -> Option<&SpannedNamespaceRule> {
         self.namespace_args.namespace_spec()
     }
 }

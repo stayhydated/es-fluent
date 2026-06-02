@@ -15,67 +15,67 @@ static SELECT_OK_CALLS: AtomicUsize = AtomicUsize::new(0);
 static SELECT_ERR_CALLS: AtomicUsize = AtomicUsize::new(0);
 static MODULE_OK_DATA: ModuleData = ModuleData {
     name: "module-ok",
-    domain: "module-ok",
+    domain: crate::StaticFluentDomain::new_unchecked("module-ok"),
     supported_languages: &[],
     namespaces: &[],
 };
 static MODULE_ERR_DATA: ModuleData = ModuleData {
     name: "module-err",
-    domain: "module-err",
+    domain: crate::StaticFluentDomain::new_unchecked("module-err"),
     supported_languages: &[],
     namespaces: &[],
 };
 static STATEFUL_SUCCESS_DATA: ModuleData = ModuleData {
     name: "stateful-success",
-    domain: "stateful-success",
+    domain: crate::StaticFluentDomain::new_unchecked("stateful-success"),
     supported_languages: &[],
     namespaces: &[],
 };
 static STATEFUL_FAIL_DATA: ModuleData = ModuleData {
     name: "stateful-fail",
-    domain: "stateful-fail",
+    domain: crate::StaticFluentDomain::new_unchecked("stateful-fail"),
     supported_languages: &[],
     namespaces: &[],
 };
 static HARD_FAIL_DATA: ModuleData = ModuleData {
     name: "hard-fail",
-    domain: "hard-fail",
+    domain: crate::StaticFluentDomain::new_unchecked("hard-fail"),
     supported_languages: &[],
     namespaces: &[],
 };
 static MISSING_LOCALIZER_DATA: ModuleData = ModuleData {
     name: "missing-localizer",
-    domain: "missing-localizer",
+    domain: crate::StaticFluentDomain::new_unchecked("missing-localizer"),
     supported_languages: &[],
     namespaces: &[],
 };
 static EXPLICIT_RUNTIME_DATA: ModuleData = ModuleData {
     name: "explicit-runtime",
-    domain: "explicit-runtime",
+    domain: crate::StaticFluentDomain::new_unchecked("explicit-runtime"),
     supported_languages: &[],
     namespaces: &[],
 };
 static FILTER_MODULE_DATA: ModuleData = ModuleData {
     name: "filter-module",
-    domain: "filter-domain",
+    domain: crate::StaticFluentDomain::new_unchecked("filter-domain"),
     supported_languages: &[],
     namespaces: &[],
 };
 static FILTER_EXACT_DUP_DATA: ModuleData = ModuleData {
     name: "filter-exact-module",
-    domain: "filter-exact-domain",
+    domain: crate::StaticFluentDomain::new_unchecked("filter-exact-domain"),
     supported_languages: &[],
     namespaces: &[],
 };
 static FILTER_EXACT_DUP_RUNTIME_MISMATCH_DATA: ModuleData = ModuleData {
     name: "filter-exact-module",
-    domain: "filter-exact-domain",
+    domain: crate::StaticFluentDomain::new_unchecked("filter-exact-domain"),
     supported_languages: &[langid!("en")],
     namespaces: &["ui"],
 };
 static FILTER_INVALID_NAMESPACE_DATA: ModuleData = ModuleData {
     name: "filter-invalid-namespace",
-    domain: "filter-invalid-namespace",
+    domain: crate::StaticFluentDomain::new_unchecked("filter-invalid-namespace"),
     supported_languages: &[],
     namespaces: &[" ../escape "],
 };
@@ -90,7 +90,7 @@ static DIAGNOSTIC_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[
 ];
 static DIAGNOSTIC_MODULE_DATA: ModuleData = ModuleData {
     name: "diagnostic-module",
-    domain: "diagnostic-domain",
+    domain: crate::StaticFluentDomain::new_unchecked("diagnostic-domain"),
     supported_languages: DIAGNOSTIC_SUPPORTED_LANGUAGES,
     namespaces: &[],
 };

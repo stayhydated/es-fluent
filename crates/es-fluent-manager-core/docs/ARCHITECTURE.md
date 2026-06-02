@@ -75,7 +75,7 @@ Represents a source of localization data (e.g., a crate's translations).
 
 Common metadata contract for manager discovery.
 
-- Returns a shared `ModuleData` shape (`name`, `domain`, languages, namespaces).
+- Returns a shared `ModuleData` shape (`name`, typed `StaticFluentDomain`, languages, namespaces).
 - Enables metadata-only registration for managers that don't create `Localizer`s (for example Bevy runtime asset loading).
 - Namespace semantics are shared across managers: when `namespaces` is non-empty,
   the namespace list records the module's known split files using canonical
@@ -83,8 +83,12 @@ Common metadata contract for manager discovery.
   use a more precise per-language resource plan when one is available.
 - Resource keys, locale-relative FTL paths, and module resource specs are
   defined in `es-fluent-shared` and re-exported here for manager integrations.
-- Dynamic callers can use `ModuleData::try_resource_plan()` to receive typed
-  namespace planning errors.
+- Dynamic callers can use `ModuleData::domain()` for string lookups and
+  `ModuleData::try_resource_plan()` to receive typed namespace planning errors.
+- Hand-written resource keys use `ResourceKey::try_new(...)` for dynamic input
+  or `ResourceKey::from_static_path(...)` for static literals. Generated manager
+  macros are the narrow unchecked construction point after macro-side metadata
+  validation.
 - Module registry validation resolves namespace metadata through
   `ResolvedNamespace` and reports shared `NamespacePathError` values, so strict
   discovery and resource planning use the same namespace validator.
@@ -112,7 +116,7 @@ Unified inventory contract used by managers.
   only ship a subset of the global namespace set, so managers do not require
   namespace files that were never discovered for that locale.
 - Embedded asset backends derive their per-language fallback plan through the
-  shared `ResourcePlan::sparse_for_domain` constructor, keeping runtime
+  shared `ResourcePlan::sparse_for_static_domain` constructor, keeping runtime
   discovery aligned with macro-generated sparse plans.
 - `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity are hard errors.
 - Successful strict discovery still normalizes one metadata-only registration

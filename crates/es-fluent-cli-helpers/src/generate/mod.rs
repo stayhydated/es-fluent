@@ -146,7 +146,7 @@ impl EsFluentGenerator {
             output_path,
             &manifest_dir,
             &type_infos,
-            self.mode.clone(),
+            self.mode,
             self.dry_run,
         )?;
 

@@ -169,7 +169,7 @@ fn inspect_module_registry(
 
     for module in modules {
         let data = module.data();
-        let inspection = inspections.entry((data.name, data.domain)).or_default();
+        let inspection = inspections.entry((data.name, data.domain())).or_default();
         inspection.chosen_data.get_or_insert(data);
 
         match module.registration_kind() {
@@ -200,13 +200,13 @@ mod tests {
     static REGISTRY_TEST_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static REGISTRY_TEST_DATA: ModuleData = ModuleData {
         name: "registry-test",
-        domain: "registry-domain",
+        domain: crate::StaticFluentDomain::new_unchecked("registry-domain"),
         supported_languages: REGISTRY_TEST_LANGUAGES,
         namespaces: &[],
     };
     static REGISTRY_INVALID_DATA: ModuleData = ModuleData {
         name: "registry-invalid",
-        domain: "registry-invalid",
+        domain: crate::StaticFluentDomain::new_unchecked("registry-invalid"),
         supported_languages: &[],
         namespaces: &[" ../escape "],
     };

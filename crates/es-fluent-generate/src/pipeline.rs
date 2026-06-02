@@ -99,10 +99,8 @@ pub(crate) fn apply_output_operation(
 ) -> EsFluentResult<bool> {
     crate::model::validate_no_duplicate_ftl_keys(&output.items)?;
 
-    if !dry_run {
-        if let Some(parent) = output.file_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
+    if !dry_run && let Some(parent) = output.file_path.parent() {
+        fs::create_dir_all(parent)?;
     }
 
     let existing_resource = crate::io::read_existing_resource(&output.file_path)?;

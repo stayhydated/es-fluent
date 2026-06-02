@@ -6,9 +6,10 @@ use heck::ToPascalCase as _;
 use syn::Data;
 
 use crate::{
-    context::{ContainerContext, ContainerEnvelope, SpannedNamespaceRule},
+    context::{ContainerContext, ContainerEnvelope},
     error::{AttrContext, EsFluentCoreError},
     lowered,
+    namespace::{SpannedNamespaceRule, SpannedNamespaceRuleRef},
     options::{
         FluentField, GeneratedVariantsOptions,
         choice::ChoiceOpts,
@@ -21,7 +22,7 @@ use crate::{
         GeneratedKeyIdent, GeneratedKeyName, GeneratedVariantMessageSeed, MessageEntryModel,
         MessageModel, RustSourceName, RustTypeName, SpannedValue, generated_label_message_value,
     },
-    validation::{self, NamespaceSource, SpannedNamespaceRuleRef, resolve_single_namespace_source},
+    validation::{self, NamespaceSource, resolve_single_namespace_source},
 };
 
 /// Errors that can occur while building a derive expansion model.
@@ -450,7 +451,7 @@ pub enum EsFluentTupleField {
     /// A tuple field that contributes one generated Fluent argument.
     Argument {
         index: lowered::TupleFieldIndex,
-        argument: ArgumentModel,
+        argument: Box<ArgumentModel>,
     },
 }
 
@@ -466,7 +467,7 @@ impl EsFluentTupleField {
     pub fn argument(&self) -> Option<&ArgumentModel> {
         match self {
             Self::Skipped { .. } => None,
-            Self::Argument { argument, .. } => Some(argument),
+            Self::Argument { argument, .. } => Some(argument.as_ref()),
         }
     }
 }
@@ -534,7 +535,7 @@ fn enum_variant_shape(
                 } else {
                     Ok(EsFluentTupleField::Argument {
                         index: field.original_index,
-                        argument: field.argument_model()?,
+                        argument: Box::new(field.argument_model()?),
                     })
                 }
             })
@@ -609,7 +610,7 @@ impl EsFluentChoiceExpansion {
         let choice = ChoiceModel::from_variant_idents(
             enum_ident,
             lowered.variants().iter().map(|variant| variant.ident),
-            opts.attr_args().rename_all().as_deref(),
+            *opts.attr_args().rename_all(),
         )?;
 
         Ok(Self {
@@ -885,7 +886,7 @@ fn build_variants_expansion(
                 .collect::<Result<Vec<_>, _>>()?;
             let label_key =
                 variants_label_key(label_opts, &base_key, opts.variants_ident().span())?;
-            let label_model = label_key.clone().map(|label_key| {
+            let label_model = label_key.map(|label_key| {
                 MessageEntryModel::new(
                     RustSourceName::from_ident(&target.ident),
                     SpannedValue::new(label_key, opts.variants_ident().span()),

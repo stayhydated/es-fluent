@@ -4,6 +4,7 @@ use heck::{
     ToKebabCase as _, ToLowerCamelCase as _, ToPascalCase as _, ToShoutyKebabCase as _,
     ToShoutySnakeCase as _, ToSnakeCase as _, ToTitleCase as _, ToTrainCase as _,
 };
+use strum::IntoEnumIterator as _;
 use strum::{Display, EnumIter, EnumString};
 
 #[derive(FromDeriveInput, Getters)]
@@ -21,10 +22,10 @@ pub struct ChoiceOpts {
 #[getset(get = "pub")]
 pub struct ChoiceAttributeArgs {
     #[darling(default)]
-    pub rename_all: Option<String>,
+    pub rename_all: Option<CaseStyle>,
 }
 
-#[derive(Clone, Copy, Debug, Display, EnumIter, EnumString)]
+#[derive(Clone, Copy, Debug, Display, EnumIter, EnumString, Eq, PartialEq)]
 pub enum CaseStyle {
     #[strum(serialize = "snake_case")]
     SnakeCase,
@@ -65,6 +66,22 @@ impl CaseStyle {
     }
 }
 
+impl FromMeta for CaseStyle {
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        let (value, _span) = super::string_literal_value(item)?;
+        value.parse::<Self>().map_err(|message| {
+            let supported = Self::iter()
+                .map(|style| style.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            darling::Error::custom(format!(
+                "invalid #[fluent_choice(rename_all = ...)] value `{value}`: {message}; supported values are: {supported}"
+            ))
+            .with_span(item)
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::CaseStyle;
@@ -90,6 +107,40 @@ mod tests {
         assert_eq!(CaseStyle::TrainCase.apply("hello world"), "Hello-World");
         assert_eq!(CaseStyle::Lowercase.apply("Hello_World"), "hello_world");
         assert_eq!(CaseStyle::Uppercase.apply("Hello_World"), "HELLO_WORLD");
+    }
+
+    #[test]
+    fn choice_options_parse_rename_all_as_case_style() {
+        let input: DeriveInput = parse_quote! {
+            #[fluent_choice(rename_all = "snake_case")]
+            enum Priority {
+                VeryHigh,
+            }
+        };
+
+        let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts");
+
+        assert!(matches!(
+            opts.attr_args().rename_all(),
+            Some(CaseStyle::SnakeCase)
+        ));
+    }
+
+    #[test]
+    fn choice_options_reject_invalid_rename_all_during_option_parsing() {
+        let input: DeriveInput = parse_quote! {
+            #[fluent_choice(rename_all = "not_a_style")]
+            enum Priority {
+                VeryHigh,
+            }
+        };
+
+        let err = match ChoiceOpts::from_derive_input(&input) {
+            Ok(_) => panic!("invalid style should fail"),
+            Err(error) => error,
+        };
+
+        assert!(err.to_string().contains("supported values are"));
     }
 
     #[test]

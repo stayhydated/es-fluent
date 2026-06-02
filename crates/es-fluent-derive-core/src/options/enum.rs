@@ -1,6 +1,6 @@
 use crate::options::{
     EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantDirective, GeneratedVariantsOptions,
-    KeyedVariant, MessageVariantDirective, Skippable, VariantFields,
+    KeyedVariant, MessageVariantDirective, Skippable, VariantFields, choice::CaseStyle,
 };
 use crate::{
     error::{AttrContext, EsFluentCoreResult},
@@ -187,7 +187,7 @@ pub struct EnumChoiceOpts {
 #[getset(get = "pub")]
 pub struct EnumChoiceAttributeArgs {
     #[darling(default)]
-    rename_all: Option<String>,
+    rename_all: Option<CaseStyle>,
 }
 
 /// Options for an enum variant in EsFluentVariants context.

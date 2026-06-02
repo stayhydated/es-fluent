@@ -86,7 +86,9 @@ impl I18nAssets {
 
     #[cfg(test)]
     fn inferred_spec_for_key(key: &str, required: bool) -> ModuleResourceSpec {
-        ModuleResourceSpec::new(ResourceKey::new(key), format!("{key}.ftl"), required)
+        let resource_key = ResourceKey::try_new(key)
+            .unwrap_or_else(|error| panic!("test resource key '{key}' should be valid: {error}"));
+        ModuleResourceSpec::new(resource_key, format!("{key}.ftl"), required)
     }
 
     pub(crate) fn load_state_mut(
@@ -485,7 +487,11 @@ mod tests {
     fn optional_asset_specs_do_not_block_language_readiness() {
         let lang = langid!("en");
         let mut assets = I18nAssets::new();
-        let spec = ModuleResourceSpec::new(ResourceKey::new("optional"), "optional.ftl", false);
+        let spec = ModuleResourceSpec::new(
+            ResourceKey::from_static_path("optional"),
+            "optional.ftl",
+            false,
+        );
 
         assets.add_optional_asset_spec(lang.clone(), spec, Handle::default());
 

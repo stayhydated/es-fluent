@@ -46,7 +46,7 @@ impl ValidationContext<'_> {
                 let expected_path = self.expected_resource_path(locale, key_info);
                 let help = format!("Add translation for '{}' in {}", key, expected_path);
                 ValidationIssue::MissingKey(MissingKeyError {
-                    src: NamedSource::new(ftl_path.to_string(), String::new()),
+                    src: NamedSource::new(ftl_path, String::new()),
                     key: key.to_string(),
                     locale: locale.to_string(),
                     help,

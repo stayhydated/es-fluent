@@ -11,14 +11,14 @@ mod tests {
     use unic_langid::langid;
 
     #[test]
-    fn resource_key_conversions_preserve_key_and_domain() {
-        let from_string: ResourceKey = "demo/ui".to_string().into();
-        let from_str: ResourceKey = "demo/errors".into();
+    fn resource_key_explicit_constructors_preserve_key_and_domain() {
+        let dynamic = ResourceKey::try_new("demo/ui").expect("dynamic key");
+        let static_key = ResourceKey::from_static_path("demo/errors");
 
-        assert_eq!(from_string.as_str(), "demo/ui");
-        assert_eq!(from_string.domain(), "demo");
-        assert_eq!(from_string.as_ref(), "demo/ui");
-        assert_eq!(from_str.to_string(), "demo/errors");
+        assert_eq!(dynamic.as_str(), "demo/ui");
+        assert_eq!(dynamic.domain(), "demo");
+        assert_eq!(dynamic.as_ref(), "demo/ui");
+        assert_eq!(static_key.to_string(), "demo/errors");
     }
 
     #[test]
@@ -58,19 +58,23 @@ mod tests {
     #[test]
     fn required_and_optional_keys_reflect_plan_membership() {
         let plan = vec![
-            ModuleResourceSpec::new("demo", "demo.ftl", true),
-            ModuleResourceSpec::new("demo/optional", "demo/optional.ftl", false),
+            ModuleResourceSpec::new(ResourceKey::from_static_path("demo"), "demo.ftl", true),
+            ModuleResourceSpec::new(
+                ResourceKey::from_static_path("demo/optional"),
+                "demo/optional.ftl",
+                false,
+            ),
         ];
 
         let required = required_resource_keys_from_plan(&plan);
         let optional = optional_resource_keys_from_plan(&plan);
 
-        assert!(required.contains(&ResourceKey::from("demo")));
-        assert!(!required.contains(&ResourceKey::from("demo/optional")));
-        assert!(optional.contains(&ResourceKey::from("demo/optional")));
-        assert!(!optional.contains(&ResourceKey::from("demo")));
+        assert!(required.contains(&ResourceKey::from_static_path("demo")));
+        assert!(!required.contains(&ResourceKey::from_static_path("demo/optional")));
+        assert!(optional.contains(&ResourceKey::from_static_path("demo/optional")));
+        assert!(!optional.contains(&ResourceKey::from_static_path("demo")));
 
-        let loaded = HashSet::from([ResourceKey::from("demo")]);
+        let loaded = HashSet::from([ResourceKey::from_static_path("demo")]);
         assert!(locale_is_ready(&required, &loaded));
 
         let unloaded = HashSet::new();

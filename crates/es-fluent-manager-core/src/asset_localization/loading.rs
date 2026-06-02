@@ -439,7 +439,9 @@ mod tests {
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
         ModuleResourceSpec {
-            key: ResourceKey::new(key),
+            key: ResourceKey::try_new(key).unwrap_or_else(|error| {
+                panic!("test resource key '{key}' should be valid: {error}")
+            }),
             locale_relative_path: es_fluent_shared::resource::LocaleRelativeFtlPath::new(format!(
                 "{key}.ftl"
             )),

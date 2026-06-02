@@ -110,7 +110,7 @@ impl DioxusI18nAssetResource {
 
     fn spec(&self) -> ModuleResourceSpec {
         ModuleResourceSpec::new(
-            ResourceKey::new(self.key),
+            ResourceKey::from_static_path(self.key),
             self.locale_relative_path,
             self.required,
         )
@@ -630,7 +630,7 @@ impl FluentLocalizer for DioxusAssetI18n {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         for (data, localizer) in self.inner.localizers.read().iter() {
-            if data.domain == domain
+            if data.domain() == domain
                 && let Some(message) = localizer.localize(id, args)
             {
                 return Some(message);
@@ -659,7 +659,7 @@ impl FluentLocalizer for DioxusAssetI18n {
                 let mut lookup =
                     |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
                         for (data, localizer) in localizers.iter() {
-                            if data.domain == domain
+                            if data.domain() == domain
                                 && let Some(message) = localizer.localize(id, args)
                             {
                                 return Some(message);
@@ -674,7 +674,7 @@ impl FluentLocalizer for DioxusAssetI18n {
             let mut lookup =
                 |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
                     for (data, localizer) in localizers.iter() {
-                        if data.domain == domain
+                        if data.domain() == domain
                             && let Some(message) = localizer.localize(id, args)
                         {
                             return Some(message);
@@ -1142,32 +1142,32 @@ mod tests {
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en"), langid!("fr")];
     static TEST_DATA: ModuleData = ModuleData {
         name: "test-app",
-        domain: "test-app",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("test-app"),
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
     static FALLBACK_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("en")];
     static FALLBACK_DATA: ModuleData = ModuleData {
         name: "fallback-app",
-        domain: "fallback-app",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("fallback-app"),
         supported_languages: FALLBACK_LANGUAGES,
         namespaces: &[],
     };
     static DUPLICATE_RESOURCE_DATA: ModuleData = ModuleData {
         name: "duplicate-resource-app",
-        domain: "duplicate-resource-app",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("duplicate-resource-app"),
         supported_languages: &[langid!("en")],
         namespaces: &["ui"],
     };
     static ASSET_DATA: ModuleData = ModuleData {
         name: "asset-test",
-        domain: "asset-test",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("asset-test"),
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
     static INVALID_ASSET_DATA: ModuleData = ModuleData {
         name: "invalid-asset-test",
-        domain: "invalid-asset-test",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("invalid-asset-test"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
@@ -1206,7 +1206,11 @@ mod tests {
     }
 
     fn base_spec() -> ModuleResourceSpec {
-        ModuleResourceSpec::new(ResourceKey::new("test-app"), "test-app.ftl", true)
+        ModuleResourceSpec::new(
+            ResourceKey::from_static_path("test-app"),
+            "test-app.ftl",
+            true,
+        )
     }
 
     fn loaded_module() -> LoadedDioxusI18nAssetModule {
@@ -1260,8 +1264,11 @@ mod tests {
 
     fn loaded_fallback_module() -> LoadedDioxusI18nAssetModule {
         let lang = langid!("en");
-        let spec =
-            ModuleResourceSpec::new(ResourceKey::new("fallback-app"), "fallback-app.ftl", true);
+        let spec = ModuleResourceSpec::new(
+            ResourceKey::from_static_path("fallback-app"),
+            "fallback-app.ftl",
+            true,
+        );
         LoadedDioxusI18nAssetModule {
             data: &FALLBACK_DATA,
             loaded_resources: Arc::new(HashMap::from([(
@@ -1276,12 +1283,12 @@ mod tests {
     fn duplicate_resource_module() -> LoadedDioxusI18nAssetModule {
         let lang = langid!("en");
         let base_spec = ModuleResourceSpec::new(
-            ResourceKey::new("duplicate-resource-app"),
+            ResourceKey::from_static_path("duplicate-resource-app"),
             "duplicate-resource-app.ftl",
             false,
         );
         let ui_spec = ModuleResourceSpec::new(
-            ResourceKey::new("duplicate-resource-app/ui"),
+            ResourceKey::from_static_path("duplicate-resource-app/ui"),
             "duplicate-resource-app/ui.ftl",
             true,
         );

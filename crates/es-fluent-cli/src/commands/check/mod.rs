@@ -279,7 +279,7 @@ pub(crate) fn collect_check_run(
                 }
                 all_issues.push(ValidationIssue::ValidationExecution(
                     ValidationExecutionError {
-                        src: NamedSource::new(krate.name.to_string(), String::new()),
+                        src: NamedSource::new(&krate.name, String::new()),
                         crate_name: krate.name.to_string(),
                         help: error,
                     },

@@ -252,7 +252,7 @@ mod tests {
     static TEST_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "embedded-test-module",
-        domain: "embedded-test-module",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("embedded-test-module"),
         supported_languages: TEST_SUPPORTED_LANGUAGES,
         namespaces: &[],
     };

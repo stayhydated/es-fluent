@@ -508,7 +508,10 @@ mod tests {
             .expect("namespace configured");
 
         assert_eq!(namespace.as_str(), "ui/button");
-        assert_eq!(namespace.resource_key("demo").as_str(), "demo/ui/button");
+        assert_eq!(
+            namespace.try_resource_key("demo").unwrap().as_str(),
+            "demo/ui/button"
+        );
     }
 
     #[test]

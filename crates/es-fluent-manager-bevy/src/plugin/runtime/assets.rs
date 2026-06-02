@@ -155,7 +155,9 @@ mod tests {
     use unic_langid::langid;
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
-        ModuleResourceSpec::new(ResourceKey::new(key), format!("{key}.ftl"), required)
+        let resource_key = ResourceKey::try_new(key)
+            .unwrap_or_else(|error| panic!("test resource key '{key}' should be valid: {error}"));
+        ModuleResourceSpec::new(resource_key, format!("{key}.ftl"), required)
     }
 
     #[test]
@@ -233,7 +235,7 @@ mod tests {
     #[test]
     fn loaded_asset_without_registered_spec_is_ignored() {
         let lang = langid!("en");
-        let resource_key = ResourceKey::new("app");
+        let resource_key = ResourceKey::from_static_path("app");
         let mut ftl_assets = Assets::<FtlAsset>::default();
         let handle = ftl_assets.add(FtlAsset {
             content: "hello = Hello".to_string(),

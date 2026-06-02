@@ -6,7 +6,7 @@ use std::{
     path::{Component, Path},
 };
 
-use crate::resource::ResourceKey;
+use crate::resource::{ResourceKey, ResourceKeyError};
 
 /// Validation failures for resolved namespace paths.
 #[derive(Clone, Copy, Debug, Eq, thiserror::Error, PartialEq)]
@@ -67,8 +67,8 @@ impl ResolvedNamespace {
     }
 
     /// Returns the resource key for this namespace under the given domain.
-    pub fn resource_key(&self, domain: &str) -> ResourceKey {
-        ResourceKey::new(format!("{domain}/{}", self.as_str()))
+    pub fn try_resource_key(&self, domain: &str) -> Result<ResourceKey, ResourceKeyError> {
+        ResourceKey::try_new(format!("{domain}/{}", self.as_str()))
     }
 }
 
@@ -277,7 +277,10 @@ mod tests {
         let namespace = ResolvedNamespace::new("ui/button").unwrap();
 
         assert_eq!(namespace.as_str(), "ui/button");
-        assert_eq!(namespace.resource_key("demo").as_str(), "demo/ui/button");
+        assert_eq!(
+            namespace.try_resource_key("demo").unwrap().as_str(),
+            "demo/ui/button"
+        );
         assert_eq!(namespace.to_string(), "ui/button");
     }
 

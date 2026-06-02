@@ -16,7 +16,6 @@ use es_fluent_shared::{
 use heck::{ToPascalCase as _, ToSnakeCase as _};
 use proc_macro2::Span;
 use quote::ToTokens as _;
-use strum::IntoEnumIterator as _;
 use syn::spanned::Spanned as _;
 
 pub use es_fluent_shared::fluent::{
@@ -440,7 +439,7 @@ pub enum ArgumentValueStrategy {
     /// Convert the field value through `EsFluentChoice`.
     Choice { span: Span },
     /// Apply an explicit field-level transform expression.
-    Transform(ValueTransform),
+    Transform(Box<ValueTransform>),
 }
 
 impl ArgumentValueStrategy {
@@ -747,14 +746,13 @@ impl ChoiceModel {
     pub fn from_variant_idents<'a>(
         ident: &syn::Ident,
         variant_idents: impl IntoIterator<Item = &'a syn::Ident>,
-        rename_all: Option<&str>,
+        rename_all: Option<CaseStyle>,
     ) -> EsFluentCoreResult<Self> {
-        let case_style = parse_choice_case_style(rename_all, ident.span())?;
         let variants = variant_idents
             .into_iter()
             .map(|variant_ident| {
                 let variant_name = es_fluent_shared::namer::rust_ident_name(variant_ident);
-                let value = case_style
+                let value = rename_all
                     .map_or_else(|| variant_name.clone(), |style| style.apply(&variant_name));
                 ChoiceVariantModel::new(
                     variant_ident.clone(),
@@ -776,31 +774,6 @@ impl ChoiceModel {
     pub fn variants(&self) -> &[ChoiceVariantModel] {
         &self.variants
     }
-}
-
-fn parse_choice_case_style(
-    rename_all: Option<&str>,
-    span: Span,
-) -> EsFluentCoreResult<Option<CaseStyle>> {
-    let Some(rename_all) = rename_all else {
-        return Ok(None);
-    };
-
-    rename_all
-        .parse::<CaseStyle>()
-        .map(Some)
-        .map_err(|message| {
-            let supported = CaseStyle::iter()
-                .map(|style| style.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-            EsFluentCoreError::StructuredAttributeError(AttrError::new(
-                AttrContext::ChoiceContainer,
-                message.to_string(),
-                Some(span),
-            ))
-            .with_help(format!("supported values are: {supported}"))
-        })
 }
 
 fn semantic_error(
@@ -1046,7 +1019,7 @@ mod tests {
         let model = ChoiceModel::from_variant_idents(
             &choice_ident,
             [&high_ident, &low_ident],
-            Some("snake_case"),
+            Some(CaseStyle::SnakeCase),
         )
         .expect("choice model");
 
@@ -1054,21 +1027,5 @@ mod tests {
         assert_eq!(model.variants()[0].ident().to_string(), "VeryHigh");
         assert_eq!(model.variants()[0].value(), "very_high");
         assert_eq!(model.variants()[1].value(), "low");
-    }
-
-    #[test]
-    fn choice_model_rejects_invalid_rename_all_in_choice_context() {
-        let choice_ident: syn::Ident = syn::parse_quote!(SeverityChoice);
-        let variant_ident: syn::Ident = syn::parse_quote!(VeryHigh);
-
-        let err =
-            ChoiceModel::from_variant_idents(&choice_ident, [&variant_ident], Some("not_a_style"))
-                .expect_err("invalid rename_all should fail");
-
-        assert!(
-            err.to_string()
-                .contains("Attribute error in choice container")
-        );
-        assert!(err.to_string().contains("supported values are"));
     }
 }

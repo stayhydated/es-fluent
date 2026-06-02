@@ -57,23 +57,23 @@ impl ExposedArgumentIndex {
 }
 
 trait ArgumentIndex {
-    fn as_usize(self) -> usize;
+    fn index(self) -> usize;
 }
 
 impl ArgumentIndex for DeclarationIndex {
-    fn as_usize(self) -> usize {
+    fn index(self) -> usize {
         self.as_usize()
     }
 }
 
 impl ArgumentIndex for TupleFieldIndex {
-    fn as_usize(self) -> usize {
+    fn index(self) -> usize {
         self.as_usize()
     }
 }
 
 impl ArgumentIndex for ExposedArgumentIndex {
-    fn as_usize(self) -> usize {
+    fn index(self) -> usize {
         self.as_usize()
     }
 }
@@ -605,7 +605,7 @@ fn field_argument_model(
     span: proc_macro2::Span,
 ) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
     let value_strategy = field_value_strategy(field, span)?;
-    let name = field.fluent_arg_name(index.as_usize(), AttrContext::MessageField)?;
+    let name = field.fluent_arg_name(index.index(), AttrContext::MessageField)?;
     Ok(crate::semantic::ArgumentModel::new_with_value_strategy(
         name,
         value_strategy,

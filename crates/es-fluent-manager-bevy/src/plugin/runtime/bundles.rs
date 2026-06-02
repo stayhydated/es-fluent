@@ -280,7 +280,9 @@ mod tests {
     }
 
     fn spec(key: &str, required: bool) -> ModuleResourceSpec {
-        ModuleResourceSpec::new(ResourceKey::new(key), format!("{key}.ftl"), required)
+        let resource_key = ResourceKey::try_new(key)
+            .unwrap_or_else(|error| panic!("test resource key '{key}' should be valid: {error}"));
+        ModuleResourceSpec::new(resource_key, format!("{key}.ftl"), required)
     }
 
     fn empty_bundle(lang: &LanguageIdentifier) -> Arc<SyncFluentBundle> {
@@ -295,8 +297,14 @@ mod tests {
         let caches = build_bundle_caches(
             &lang,
             vec![
-                (ResourceKey::new("app"), resource("app-title = App")),
-                (ResourceKey::new("admin"), resource("admin-title = Admin")),
+                (
+                    ResourceKey::from_static_path("app"),
+                    resource("app-title = App"),
+                ),
+                (
+                    ResourceKey::from_static_path("admin"),
+                    resource("admin-title = Admin"),
+                ),
             ],
         )
         .expect("valid resources should build caches");
@@ -328,8 +336,14 @@ mod tests {
         let caches = build_bundle_caches(
             &langid!("en"),
             vec![
-                (ResourceKey::new("app"), resource("shared = First")),
-                (ResourceKey::new("admin"), resource("shared = Second")),
+                (
+                    ResourceKey::from_static_path("app"),
+                    resource("shared = First"),
+                ),
+                (
+                    ResourceKey::from_static_path("admin"),
+                    resource("shared = Second"),
+                ),
             ],
         )
         .expect("cross-domain duplicates should still build domain caches");
@@ -357,8 +371,14 @@ mod tests {
         let diagnostics = match build_bundle_from_resources(
             &langid!("en"),
             vec![
-                (ResourceKey::new("app"), resource("shared = First")),
-                (ResourceKey::new("admin"), resource("shared = Second")),
+                (
+                    ResourceKey::from_static_path("app"),
+                    resource("shared = First"),
+                ),
+                (
+                    ResourceKey::from_static_path("admin"),
+                    resource("shared = Second"),
+                ),
             ],
         ) {
             Ok(_) => panic!("duplicate message IDs should reject the cache rebuild"),
@@ -377,8 +397,14 @@ mod tests {
         let diagnostics = match build_domain_bundles(
             &langid!("en"),
             &[
-                (ResourceKey::new("app/main"), resource("shared = First")),
-                (ResourceKey::new("app/extra"), resource("shared = Second")),
+                (
+                    ResourceKey::from_static_path("app/main"),
+                    resource("shared = First"),
+                ),
+                (
+                    ResourceKey::from_static_path("app/extra"),
+                    resource("shared = Second"),
+                ),
             ],
         ) {
             Ok(_) => panic!("duplicate domain messages should reject the domain cache"),
@@ -641,12 +667,14 @@ mod tests {
 
         let (old_bundle, old_resources) = build_bundle_from_resources(
             &lang,
-            vec![(ResourceKey::new("app"), old_resource.clone())],
+            vec![(ResourceKey::from_static_path("app"), old_resource.clone())],
         )
         .expect("old unscoped cache should build");
-        let (old_domain_bundles, old_domain_resources) =
-            build_domain_bundles(&lang, &[(ResourceKey::new("app"), old_resource)])
-                .expect("old domain cache should build");
+        let (old_domain_bundles, old_domain_resources) = build_domain_bundles(
+            &lang,
+            &[(ResourceKey::from_static_path("app"), old_resource)],
+        )
+        .expect("old domain cache should build");
         i18n_bundle.set_bundle(lang.clone(), old_bundle);
         i18n_bundle.set_locale_resources(
             lang.clone(),

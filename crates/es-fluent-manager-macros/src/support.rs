@@ -1,6 +1,5 @@
 use es_fluent_derive_core::{
-    attribute::{AttributeLocation, AttributeName, validate_attribute_for_location},
-    error::EsFluentCoreError,
+    attribute::AttributeLocation, error::EsFluentCoreError, macro_input::ValidatedMacroInput,
     macro_support::ResolvedCratePath,
 };
 
@@ -24,10 +23,5 @@ pub(crate) fn validate_locale_marker(
     attr: &syn::Attribute,
     location: AttributeLocation,
 ) -> Result<bool, EsFluentCoreError> {
-    if !attr.path().is_ident("locale") {
-        return Ok(false);
-    }
-
-    validate_attribute_for_location(attr, AttributeName::Locale, location, None)?;
-    Ok(true)
+    ValidatedMacroInput::locale_marker(attr, location)
 }

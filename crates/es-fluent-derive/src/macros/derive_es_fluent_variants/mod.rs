@@ -30,19 +30,6 @@ fn expand_es_fluent_variants_with_context(
     }
 }
 
-#[cfg(test)]
-pub fn process_struct(
-    context: &CodegenContext,
-    container_context: &es_fluent_derive_core::context::ContainerContext,
-    opts: &es_fluent_derive_core::options::r#struct::StructVariantsOpts,
-    label_opts: Option<&es_fluent_derive_core::options::label::LabelOpts>,
-) -> TokenStream {
-    match EsFluentVariantsExpansion::from_struct_options(container_context, opts, label_opts) {
-        Ok(expansion) => emit_variants_expansion(context, &expansion),
-        Err(error) => expansion_error_to_tokens(error),
-    }
-}
-
 fn emit_variants_expansion(
     context: &CodegenContext,
     expansion: &EsFluentVariantsExpansion,
@@ -85,19 +72,6 @@ fn generated_variant_from_expansion(
     }
 }
 
-#[cfg(test)]
-pub fn process_enum(
-    context: &CodegenContext,
-    container_context: &es_fluent_derive_core::context::ContainerContext,
-    opts: &es_fluent_derive_core::options::r#enum::EnumVariantsOpts,
-    label_opts: Option<&es_fluent_derive_core::options::label::LabelOpts>,
-) -> TokenStream {
-    match EsFluentVariantsExpansion::from_enum_options(container_context, opts, label_opts) {
-        Ok(expansion) => emit_variants_expansion(context, &expansion),
-        Err(error) => expansion_error_to_tokens(error),
-    }
-}
-
 fn expansion_error_to_tokens(error: ExpansionError) -> TokenStream {
     match error {
         ExpansionError::Core(error) => crate::macros::utils::core_error_to_compile_error(error),
@@ -110,11 +84,6 @@ fn expansion_error_to_tokens(error: ExpansionError) -> TokenStream {
 mod tests {
     use crate::macros::ir::inventory_variant_tokens_for_model;
     use crate::macros::utils::CodegenContext;
-    use darling::FromDeriveInput as _;
-    use es_fluent_derive_core::context::ContainerContext;
-    use es_fluent_derive_core::options::{
-        r#enum::EnumVariantsOpts, label::LabelOpts, r#struct::StructVariantsOpts,
-    };
     use insta::assert_snapshot;
     use syn::parse_quote;
 
@@ -144,17 +113,8 @@ mod tests {
             }
         };
 
-        let opts = StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts");
-        let label_opts = LabelOpts::from_derive_input(&input).ok();
-        let context = CodegenContext::fallback();
-        let container_context = ContainerContext::from_derive_input(&input).expect("context");
-
-        let tokens = crate::snapshot_support::pretty_file_tokens(super::process_struct(
-            &context,
-            &container_context,
-            &opts,
-            label_opts.as_ref(),
-        ));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_variants(input));
         assert_snapshot!("process_struct_emits_keyed_generated_enums", tokens);
     }
 
@@ -206,17 +166,8 @@ mod tests {
             }
         };
 
-        let opts = EnumVariantsOpts::from_derive_input(&input).expect("EnumVariantsOpts");
-        let label_opts = LabelOpts::from_derive_input(&input).ok();
-        let context = CodegenContext::fallback();
-        let container_context = ContainerContext::from_derive_input(&input).expect("context");
-
-        let tokens = crate::snapshot_support::pretty_file_tokens(super::process_enum(
-            &context,
-            &container_context,
-            &opts,
-            label_opts.as_ref(),
-        ));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_variants(input));
         assert_snapshot!("process_enum_emits_variants_label_registration", tokens);
     }
 
@@ -231,17 +182,8 @@ mod tests {
             }
         };
 
-        let opts = EnumVariantsOpts::from_derive_input(&input).expect("EnumVariantsOpts");
-        let label_opts = LabelOpts::from_derive_input(&input).ok();
-        let context = CodegenContext::fallback();
-        let container_context = ContainerContext::from_derive_input(&input).expect("context");
-
-        let tokens = crate::snapshot_support::pretty_file_tokens(super::process_enum(
-            &context,
-            &container_context,
-            &opts,
-            label_opts.as_ref(),
-        ));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_variants(input));
 
         assert!(tokens.contains("StaticFluentDomain"));
         assert!(tokens.contains("\"es-fluent-lang\""));
@@ -267,17 +209,8 @@ mod tests {
             }
         };
 
-        let opts = StructVariantsOpts::from_derive_input(&input).expect("StructVariantsOpts");
-        let label_opts = LabelOpts::from_derive_input(&input).ok();
-        let context = CodegenContext::fallback();
-        let container_context = ContainerContext::from_derive_input(&input).expect("context");
-
-        let tokens = crate::snapshot_support::pretty_file_tokens(super::process_struct(
-            &context,
-            &container_context,
-            &opts,
-            label_opts.as_ref(),
-        ));
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_variants(input));
         assert!(tokens.contains("compile_error"));
         assert!(tokens.contains("conflicting namespace declarations"));
         assert!(tokens.contains("#[fluent(namespace = ...)]"));

@@ -109,9 +109,10 @@ fn i18n_assets_track_loaded_resources_and_languages() {
     assert_eq!(assets.available_languages(), vec![lang.clone()]);
 
     let resource = Arc::new(FluentResource::try_new("hello = hi".to_string()).expect("ftl"));
-    assets
-        .loaded_resources
-        .insert((lang.clone(), ResourceKey::new("app")), resource);
+    assets.loaded_resources.insert(
+        (lang.clone(), ResourceKey::from_static_path("app")),
+        resource,
+    );
 
     assert!(assets.is_language_loaded(&lang));
     assert_eq!(assets.get_language_resources(&lang).len(), 1);
@@ -124,12 +125,12 @@ fn i18n_assets_namespace_contract_matrix() {
 
     assets.add_optional_asset_spec(
         lang.clone(),
-        ModuleResourceSpec::new(ResourceKey::new("app"), "app.ftl", false),
+        ModuleResourceSpec::new(ResourceKey::from_static_path("app"), "app.ftl", false),
         Handle::default(),
     );
     assets.add_asset_spec(
         lang.clone(),
-        ModuleResourceSpec::new(ResourceKey::new("app/ui"), "app/ui.ftl", true),
+        ModuleResourceSpec::new(ResourceKey::from_static_path("app/ui"), "app/ui.ftl", true),
         Handle::default(),
     );
 
@@ -137,23 +138,24 @@ fn i18n_assets_namespace_contract_matrix() {
 
     let optional_resource =
         Arc::new(FluentResource::try_new("hello = optional".to_string()).expect("ftl"));
-    assets
-        .loaded_resources
-        .insert((lang.clone(), ResourceKey::new("app")), optional_resource);
+    assets.loaded_resources.insert(
+        (lang.clone(), ResourceKey::from_static_path("app")),
+        optional_resource,
+    );
     assert!(!assets.is_language_loaded(&lang));
 
     let required_resource =
         Arc::new(FluentResource::try_new("hello = required".to_string()).expect("ftl"));
     assets.loaded_resources.insert(
-        (lang.clone(), ResourceKey::new("app/ui")),
+        (lang.clone(), ResourceKey::from_static_path("app/ui")),
         required_resource,
     );
     assert!(assets.is_language_loaded(&lang));
 
     assets.load_errors.insert(
-        (lang.clone(), ResourceKey::new("app")),
+        (lang.clone(), ResourceKey::from_static_path("app")),
         ResourceLoadError::Parse {
-            key: ResourceKey::new("app"),
+            key: ResourceKey::from_static_path("app"),
             path: "app.ftl".to_string(),
             required: false,
             details: "optional parse".to_string(),
@@ -162,9 +164,9 @@ fn i18n_assets_namespace_contract_matrix() {
     assert!(assets.is_language_loaded(&lang));
 
     assets.load_errors.insert(
-        (lang.clone(), ResourceKey::new("app/ui")),
+        (lang.clone(), ResourceKey::from_static_path("app/ui")),
         ResourceLoadError::Parse {
-            key: ResourceKey::new("app/ui"),
+            key: ResourceKey::from_static_path("app/ui"),
             path: "app/ui.ftl".to_string(),
             required: true,
             details: "required parse".to_string(),
@@ -399,7 +401,10 @@ fn locale_aware_registration_needs_locale_changed_event_to_refresh_values() {
     app.world_mut()
         .resource_mut::<I18nAssets>()
         .loaded_resources
-        .insert((lang.clone(), ResourceKey::new("app")), resource.clone());
+        .insert(
+            (lang.clone(), ResourceKey::from_static_path("app")),
+            resource.clone(),
+        );
 
     let mut bundle = fluent_bundle::bundle::FluentBundle::new_concurrent(vec![lang.clone()]);
     bundle.add_resource(resource.clone()).expect("add resource");

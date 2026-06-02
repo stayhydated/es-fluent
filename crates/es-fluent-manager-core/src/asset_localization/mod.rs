@@ -35,7 +35,7 @@ mod tests {
     static NAMESPACES: &[&str] = &["ui", "errors"];
     static DATA: ModuleData = ModuleData {
         name: "test-module",
-        domain: "test-domain",
+        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
         supported_languages: SUPPORTED,
         namespaces: NAMESPACES,
     };
@@ -46,14 +46,14 @@ mod tests {
         let data = module.data();
 
         assert_eq!(data.name, "test-module");
-        assert_eq!(data.domain, "test-domain");
+        assert_eq!(data.domain(), "test-domain");
         assert_eq!(data.supported_languages, SUPPORTED);
         assert_eq!(data.namespaces, NAMESPACES);
     }
 
     #[test]
     fn resource_key_helpers_return_expected_shapes() {
-        let key = ResourceKey::new("app/ui");
+        let key = ResourceKey::from_static_path("app/ui");
         assert_eq!(key.as_str(), "app/ui");
         assert_eq!(key.domain(), "app");
         assert_eq!(key.to_string(), "app/ui");
@@ -62,7 +62,14 @@ mod tests {
     #[test]
     fn resource_plan_without_namespaces_requires_base_file() {
         let plan = resource_plan_for("app", &[]);
-        assert_eq!(plan, vec![ModuleResourceSpec::new("app", "app.ftl", true)]);
+        assert_eq!(
+            plan,
+            vec![ModuleResourceSpec::new(
+                ResourceKey::from_static_path("app"),
+                "app.ftl",
+                true
+            )]
+        );
     }
 
     #[test]
@@ -71,9 +78,17 @@ mod tests {
         assert_eq!(
             plan,
             vec![
-                ModuleResourceSpec::new("app", "app.ftl", false),
-                ModuleResourceSpec::new("app/ui", "app/ui.ftl", true),
-                ModuleResourceSpec::new("app/errors", "app/errors.ftl", true)
+                ModuleResourceSpec::new(ResourceKey::from_static_path("app"), "app.ftl", false),
+                ModuleResourceSpec::new(
+                    ResourceKey::from_static_path("app/ui"),
+                    "app/ui.ftl",
+                    true
+                ),
+                ModuleResourceSpec::new(
+                    ResourceKey::from_static_path("app/errors"),
+                    "app/errors.ftl",
+                    true
+                )
             ]
         );
         assert_eq!(plan[0].locale_path(&langid!("en-US")), "en-US/app.ftl");
@@ -86,8 +101,12 @@ mod tests {
         assert_eq!(
             plan,
             vec![
-                ModuleResourceSpec::new("app", "app.ftl", false),
-                ModuleResourceSpec::new("app/ui/button", "app/ui/button.ftl", true)
+                ModuleResourceSpec::new(ResourceKey::from_static_path("app"), "app.ftl", false),
+                ModuleResourceSpec::new(
+                    ResourceKey::from_static_path("app/ui/button"),
+                    "app/ui/button.ftl",
+                    true
+                )
             ]
         );
     }
@@ -96,8 +115,8 @@ mod tests {
     fn resource_plan_deduplicates_duplicate_namespaces() {
         let plan = resource_plan_for("app", &["ui", "ui"]);
         assert_eq!(plan.len(), 2);
-        assert_eq!(plan[0].key, ResourceKey::new("app"));
-        assert_eq!(plan[1].key, ResourceKey::new("app/ui"));
+        assert_eq!(plan[0].key, ResourceKey::from_static_path("app"));
+        assert_eq!(plan[1].key, ResourceKey::from_static_path("app/ui"));
     }
 
     #[test]
@@ -106,13 +125,18 @@ mod tests {
         let required = required_resource_keys_from_plan(&plan);
         let optional = optional_resource_keys_from_plan(&plan);
 
-        assert_eq!(optional, HashSet::from([ResourceKey::new("app")]));
+        assert_eq!(
+            optional,
+            HashSet::from([ResourceKey::from_static_path("app")])
+        );
 
-        let ready_loaded =
-            HashSet::from([ResourceKey::new("app/ui"), ResourceKey::new("app/errors")]);
+        let ready_loaded = HashSet::from([
+            ResourceKey::from_static_path("app/ui"),
+            ResourceKey::from_static_path("app/errors"),
+        ]);
         assert!(locale_is_ready(&required, &ready_loaded));
 
-        let missing_required = HashSet::from([ResourceKey::new("app/ui")]);
+        let missing_required = HashSet::from([ResourceKey::from_static_path("app/ui")]);
         assert!(!locale_is_ready(&required, &missing_required));
     }
 
@@ -121,18 +145,22 @@ mod tests {
         let plan = resource_plan_for("app", &["ui"]);
         let mut report = LocaleLoadReport::from_plan(&plan);
 
-        report.mark_loaded(ResourceKey::new("app/ui"));
+        report.mark_loaded(ResourceKey::from_static_path("app/ui"));
 
         assert!(report.is_ready());
         assert_eq!(
             report.required_keys(),
-            &HashSet::from([ResourceKey::new("app/ui")])
+            &HashSet::from([ResourceKey::from_static_path("app/ui")])
         );
         assert_eq!(
             report.optional_keys(),
-            &HashSet::from([ResourceKey::new("app")])
+            &HashSet::from([ResourceKey::from_static_path("app")])
         );
-        assert!(report.loaded_keys().contains(&ResourceKey::new("app/ui")));
+        assert!(
+            report
+                .loaded_keys()
+                .contains(&ResourceKey::from_static_path("app/ui"))
+        );
         assert_eq!(report.missing_required_keys(), HashSet::new());
     }
 
@@ -151,13 +179,13 @@ mod tests {
         ];
         static BAD_DATA: ModuleData = ModuleData {
             name: "test-module",
-            domain: "test-domain",
+            domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
             supported_languages: DUP_LANGUAGE,
             namespaces: INVALID_NAMESPACES,
         };
         static DUP_DOMAIN: ModuleData = ModuleData {
             name: "other-module",
-            domain: "test-domain",
+            domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
             supported_languages: SUPPORTED,
             namespaces: &[],
         };
@@ -215,7 +243,7 @@ mod tests {
         static PATH_NAMESPACES: &[&str] = &["ui/button", "errors/forms"];
         static PATH_DATA: ModuleData = ModuleData {
             name: "path-module",
-            domain: "path-domain",
+            domain: crate::StaticFluentDomain::new_unchecked("path-domain"),
             supported_languages: SUPPORTED,
             namespaces: PATH_NAMESPACES,
         };
@@ -226,7 +254,7 @@ mod tests {
     #[test]
     fn module_data_resource_plan_delegates_to_shared_builder() {
         let plan = DATA.resource_plan();
-        let direct = resource_plan_for(DATA.domain, DATA.namespaces);
+        let direct = resource_plan_for(DATA.domain(), DATA.namespaces);
         assert_eq!(plan, direct);
     }
 
@@ -234,7 +262,7 @@ mod tests {
     fn module_data_try_resource_plan_reports_invalid_namespaces() {
         static BAD_DATA: ModuleData = ModuleData {
             name: "bad-module",
-            domain: "bad-domain",
+            domain: crate::StaticFluentDomain::new_unchecked("bad-domain"),
             supported_languages: SUPPORTED,
             namespaces: &["../outside"],
         };
@@ -254,7 +282,8 @@ mod tests {
 
     #[test]
     fn parse_fluent_resource_content_reports_parse_errors() {
-        let spec = ModuleResourceSpec::new("app/ui", "app/ui.ftl", true);
+        let spec =
+            ModuleResourceSpec::new(ResourceKey::from_static_path("app/ui"), "app/ui.ftl", true);
 
         let err = parse_fluent_resource_content(&spec, "broken = {".to_string())
             .expect_err("invalid fluent should fail");
@@ -268,7 +297,7 @@ mod tests {
     fn load_locale_resources_centralizes_report_bookkeeping() {
         let plan = resource_plan_for("app", &["ui"]);
         let (resources, report) = load_locale_resources(&plan, |spec| {
-            if spec.key == ResourceKey::new("app/ui") {
+            if spec.key == ResourceKey::from_static_path("app/ui") {
                 ResourceLoadStatus::Loaded(
                     FluentResource::try_new("hello = Hello".to_string())
                         .map(Arc::new)
@@ -294,7 +323,8 @@ mod tests {
     #[test]
     fn locale_state_helpers_track_reports_resources_and_languages() {
         let lang = langid!("en");
-        let spec = ModuleResourceSpec::new("app/ui", "app/ui.ftl", true);
+        let spec =
+            ModuleResourceSpec::new(ResourceKey::from_static_path("app/ui"), "app/ui.ftl", true);
 
         let mut specs = HashMap::new();
         specs.insert((lang.clone(), spec.key.clone()), spec.clone());

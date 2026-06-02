@@ -42,8 +42,11 @@ runtime integrations.
 - `EmbeddedAssets` and `EmbeddedI18nModule`: reusable support for embedded assets
 - `BundleBuildError`: structured diagnostics for embedded locale switches that
   fail while assembling a Fluent bundle
-- `ModuleData`, `I18nModuleDescriptor`, and resource-plan helpers for asset-driven
-  managers such as Bevy
+- `ModuleData`, `StaticFluentDomain`, `I18nModuleDescriptor`, and resource-plan
+  helpers for asset-driven managers such as Bevy
+- `ResourceKey::try_new(...)` for dynamic resource keys and
+  `ResourceKey::from_static_path(...)` for validated static resource-key
+  literals
 
 ## Who should use it
 

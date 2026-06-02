@@ -7,11 +7,19 @@ use std::path::{Path, PathBuf};
 
 use crate::CanonicalLanguageIdentifierError;
 use crate::LanguageIdentifier;
+use crate::fluent::{FluentDomain, FluentIdentifierError};
 use crate::namespace::{NamespacePathError, ResolvedNamespace};
+use crate::registry::StaticFluentDomain;
 
 /// Errors produced while building a module resource plan.
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum ResourcePlanError {
+    /// The module domain is not a valid Fluent domain.
+    #[error("invalid Fluent domain '{domain}': {details}")]
+    InvalidDomain {
+        domain: String,
+        details: FluentIdentifierError,
+    },
     /// The module domain is not a valid resource key segment.
     #[error("invalid domain resource key '{key}': {details}")]
     InvalidResourceKey {
@@ -177,15 +185,43 @@ impl ResourceKey {
         Ok(Self(key))
     }
 
-    /// Creates a new resource key.
+    /// Validates and creates a resource key from static metadata.
     #[allow(
         clippy::panic,
         reason = "static metadata uses literal keys; use try_new for dynamic input"
     )]
-    pub fn new(key: impl Into<String>) -> Self {
-        let key = key.into();
-        Self::try_new(key.clone())
-            .unwrap_or_else(|error| panic!("invalid resource key '{key}': {error}"))
+    pub fn from_static_path(key: &'static str) -> Self {
+        Self::try_new(key)
+            .unwrap_or_else(|error| panic!("invalid static resource key '{key}': {error}"))
+    }
+
+    /// Creates a resource key from macro-generated static metadata validated before emission.
+    ///
+    /// This constructor is intentionally narrow. Prefer `try_new` for dynamic
+    /// input and `from_static_path` for hand-written static literals.
+    pub fn from_static_path_unchecked(key: &'static str) -> Self {
+        Self(key.to_string())
+    }
+
+    /// Creates a base resource key from an already-validated static Fluent domain.
+    pub fn from_static_domain(domain: StaticFluentDomain) -> Self {
+        Self(domain.as_str().to_string())
+    }
+
+    /// Creates a namespaced resource key from already-validated domain and namespace values.
+    pub fn from_static_domain_and_namespace(
+        domain: StaticFluentDomain,
+        namespace: &ResolvedNamespace,
+    ) -> Self {
+        Self(format!("{}/{namespace}", domain.as_str()))
+    }
+
+    fn from_domain(domain: &FluentDomain) -> Self {
+        Self(domain.as_str().to_string())
+    }
+
+    fn from_domain_and_namespace(domain: &FluentDomain, namespace: &ResolvedNamespace) -> Self {
+        Self(format!("{}/{namespace}", domain.as_str()))
     }
 
     /// Returns the key as a string slice.
@@ -202,18 +238,6 @@ impl ResourceKey {
 impl AsRef<str> for ResourceKey {
     fn as_ref(&self) -> &str {
         self.as_str()
-    }
-}
-
-impl From<String> for ResourceKey {
-    fn from(value: String) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<&str> for ResourceKey {
-    fn from(value: &str) -> Self {
-        Self::new(value.to_string())
     }
 }
 
@@ -374,10 +398,34 @@ impl ResourceRoute {
 
     /// Builds the concrete module resource specification for a crate domain.
     pub fn resource_spec(&self, domain: &str, required: bool) -> ModuleResourceSpec {
+        let domain =
+            FluentDomain::try_new(domain).expect("resource route domain should be validated");
+        self.resource_spec_for_domain(&domain, required)
+    }
+
+    /// Builds the concrete module resource specification for a validated crate domain.
+    pub fn resource_spec_for_static_domain(
+        &self,
+        domain: StaticFluentDomain,
+        required: bool,
+    ) -> ModuleResourceSpec {
         match self {
-            Self::Base => ModuleResourceSpec::base(domain, required),
+            Self::Base => ModuleResourceSpec::base_for_static_domain(domain, required),
             Self::Namespaced(namespace) => {
-                ModuleResourceSpec::namespaced(domain, namespace, required)
+                ModuleResourceSpec::namespaced_for_static_domain(domain, namespace, required)
+            },
+        }
+    }
+
+    fn resource_spec_for_domain(
+        &self,
+        domain: &FluentDomain,
+        required: bool,
+    ) -> ModuleResourceSpec {
+        match self {
+            Self::Base => ModuleResourceSpec::base_for_domain(domain, required),
+            Self::Namespaced(namespace) => {
+                ModuleResourceSpec::namespaced_for_domain(domain, namespace, required)
             },
         }
     }
@@ -416,13 +464,9 @@ impl ModuleResourceSpec {
     }
 
     /// Creates a resource specification.
-    pub fn new(
-        key: impl Into<ResourceKey>,
-        locale_relative_path: impl Into<String>,
-        required: bool,
-    ) -> Self {
+    pub fn new(key: ResourceKey, locale_relative_path: impl Into<String>, required: bool) -> Self {
         Self {
-            key: key.into(),
+            key,
             locale_relative_path: LocaleRelativeFtlPath::new(locale_relative_path),
             required,
         }
@@ -435,9 +479,24 @@ impl ModuleResourceSpec {
 
     /// Creates the base domain resource specification.
     pub fn base(domain: &str, required: bool) -> Self {
+        let domain =
+            FluentDomain::try_new(domain).expect("base resource domain should be validated");
+        Self::base_for_domain(&domain, required)
+    }
+
+    /// Creates the base domain resource specification from a validated static domain.
+    pub fn base_for_static_domain(domain: StaticFluentDomain, required: bool) -> Self {
         Self::new(
-            ResourceKey::new(domain.to_string()),
-            format!("{domain}.ftl"),
+            ResourceKey::from_static_domain(domain),
+            format!("{}.ftl", domain.as_str()),
+            required,
+        )
+    }
+
+    fn base_for_domain(domain: &FluentDomain, required: bool) -> Self {
+        Self::new(
+            ResourceKey::from_domain(domain),
+            format!("{}.ftl", domain.as_str()),
             required,
         )
     }
@@ -457,9 +516,32 @@ impl ModuleResourceSpec {
 
     /// Creates a namespaced resource specification.
     pub fn namespaced(domain: &str, namespace: &ResolvedNamespace, required: bool) -> Self {
+        let domain =
+            FluentDomain::try_new(domain).expect("namespaced resource domain should be validated");
+        Self::namespaced_for_domain(&domain, namespace, required)
+    }
+
+    /// Creates a namespaced resource specification from validated static metadata.
+    pub fn namespaced_for_static_domain(
+        domain: StaticFluentDomain,
+        namespace: &ResolvedNamespace,
+        required: bool,
+    ) -> Self {
         Self::new(
-            namespace.resource_key(domain),
-            format!("{domain}/{namespace}.ftl"),
+            ResourceKey::from_static_domain_and_namespace(domain, namespace),
+            format!("{}/{namespace}.ftl", domain.as_str()),
+            required,
+        )
+    }
+
+    fn namespaced_for_domain(
+        domain: &FluentDomain,
+        namespace: &ResolvedNamespace,
+        required: bool,
+    ) -> Self {
+        Self::new(
+            ResourceKey::from_domain_and_namespace(domain, namespace),
+            format!("{}/{namespace}.ftl", domain.as_str()),
             required,
         )
     }
@@ -517,16 +599,75 @@ impl SparseAssetResourcePlans {
 }
 
 impl ResourcePlan {
+    /// Builds the global/default canonical resource plan for a validated static domain.
+    pub fn for_static_domain(
+        domain: StaticFluentDomain,
+        namespaces: &[&str],
+    ) -> Result<Self, ResourcePlanError> {
+        let mut resolved_namespaces = Vec::with_capacity(namespaces.len());
+        let mut seen = HashSet::new();
+
+        for namespace in namespaces {
+            let namespace = ResolvedNamespace::new(*namespace).map_err(|details| {
+                ResourcePlanError::InvalidNamespace {
+                    namespace: (*namespace).to_string(),
+                    details,
+                }
+            })?;
+
+            if seen.insert(namespace.clone()) {
+                resolved_namespaces.push(namespace);
+            }
+        }
+
+        Ok(Self::from_static_domain_and_namespaces(
+            domain,
+            &resolved_namespaces,
+            namespaces.is_empty(),
+        ))
+    }
+
+    fn from_static_domain_and_namespaces(
+        domain: StaticFluentDomain,
+        namespaces: &[ResolvedNamespace],
+        base_required: bool,
+    ) -> Self {
+        if namespaces.is_empty() {
+            return Self {
+                specs: vec![ModuleResourceSpec::base_for_static_domain(
+                    domain,
+                    base_required,
+                )],
+            };
+        }
+
+        let mut specs = Vec::with_capacity(namespaces.len() + 1);
+        specs.push(ModuleResourceSpec::base_for_static_domain(domain, false));
+        for namespace in namespaces {
+            specs.push(ModuleResourceSpec::namespaced_for_static_domain(
+                domain, namespace, true,
+            ));
+        }
+
+        Self { specs }
+    }
+
     /// Builds the global/default canonical resource plan for a domain.
     pub fn for_domain(domain: &str, namespaces: &[&str]) -> Result<Self, ResourcePlanError> {
+        let domain =
+            FluentDomain::try_new(domain).map_err(|details| ResourcePlanError::InvalidDomain {
+                domain: domain.to_string(),
+                details,
+            })?;
+
         if namespaces.is_empty() {
             return Ok(Self {
-                specs: vec![ModuleResourceSpec::try_base(domain, true)?],
+                specs: vec![ModuleResourceSpec::base_for_domain(&domain, true)],
             });
         }
 
         let mut specs = Vec::with_capacity(namespaces.len() + 1);
-        specs.push(ModuleResourceSpec::try_base(domain, false)?);
+        specs.push(ModuleResourceSpec::base_for_domain(&domain, false));
 
         let mut seen = HashSet::new();
         for namespace in namespaces {
@@ -541,9 +682,9 @@ impl ResourcePlan {
                 continue;
             }
 
-            specs.push(ModuleResourceSpec::try_namespaced(
-                domain, &namespace, true,
-            )?);
+            specs.push(ModuleResourceSpec::namespaced_for_domain(
+                &domain, &namespace, true,
+            ));
         }
 
         Ok(Self { specs })
@@ -556,14 +697,52 @@ impl ResourcePlan {
         namespaces: &[ResolvedNamespace],
         base_required: bool,
     ) -> Self {
+        let domain =
+            FluentDomain::try_new(domain).expect("sparse resource domain should be validated");
+        Self::sparse_for_validated_domain(&domain, has_base_resource, namespaces, base_required)
+    }
+
+    /// Builds a sparse resource plan for a single locale from validated static metadata.
+    pub fn sparse_for_static_domain(
+        domain: StaticFluentDomain,
+        has_base_resource: bool,
+        namespaces: &[ResolvedNamespace],
+        base_required: bool,
+    ) -> Self {
         let mut specs = Vec::with_capacity(namespaces.len() + usize::from(has_base_resource));
 
         if has_base_resource {
-            specs.push(ModuleResourceSpec::base(domain, base_required));
+            specs.push(ModuleResourceSpec::base_for_static_domain(
+                domain,
+                base_required,
+            ));
         }
 
         for namespace in namespaces {
-            specs.push(ModuleResourceSpec::namespaced(domain, namespace, true));
+            specs.push(ModuleResourceSpec::namespaced_for_static_domain(
+                domain, namespace, true,
+            ));
+        }
+
+        Self { specs }
+    }
+
+    fn sparse_for_validated_domain(
+        domain: &FluentDomain,
+        has_base_resource: bool,
+        namespaces: &[ResolvedNamespace],
+        base_required: bool,
+    ) -> Self {
+        let mut specs = Vec::with_capacity(namespaces.len() + usize::from(has_base_resource));
+
+        if has_base_resource {
+            specs.push(ModuleResourceSpec::base_for_domain(domain, base_required));
+        }
+
+        for namespace in namespaces {
+            specs.push(ModuleResourceSpec::namespaced_for_domain(
+                domain, namespace, true,
+            ));
         }
 
         Self { specs }
@@ -838,14 +1017,14 @@ mod tests {
     use crate::namespace::NamespacePathError;
 
     #[test]
-    fn resource_key_conversions_preserve_key_and_domain() {
-        let from_string: ResourceKey = "demo/ui".to_string().into();
-        let from_str: ResourceKey = "demo/errors".into();
+    fn resource_key_explicit_constructors_preserve_key_and_domain() {
+        let dynamic = ResourceKey::try_new("demo/ui").expect("dynamic key");
+        let static_key = ResourceKey::from_static_path("demo/errors");
 
-        assert_eq!(from_string.as_str(), "demo/ui");
-        assert_eq!(from_string.domain(), "demo");
-        assert_eq!(from_string.as_ref(), "demo/ui");
-        assert_eq!(from_str.to_string(), "demo/errors");
+        assert_eq!(dynamic.as_str(), "demo/ui");
+        assert_eq!(dynamic.domain(), "demo");
+        assert_eq!(dynamic.as_ref(), "demo/ui");
+        assert_eq!(static_key.to_string(), "demo/errors");
     }
 
     #[test]
@@ -943,7 +1122,10 @@ mod tests {
     fn resource_plan_api_exposes_specs_and_sparse_plans() {
         let plan = ResourcePlan::for_domain("demo", &["ui"]).expect("resource plan");
         assert_eq!(plan.specs()[0], ModuleResourceSpec::base("demo", false));
-        assert_eq!(plan.specs()[1].key, ResourceKey::new("demo/ui"));
+        assert_eq!(
+            plan.specs()[1].key,
+            ResourceKey::from_static_path("demo/ui")
+        );
 
         let namespace = ResolvedNamespace::new("errors/forms").expect("namespace");
         let sparse = ResourcePlan::sparse_for_domain("demo", true, &[namespace], false);
@@ -953,7 +1135,11 @@ mod tests {
             specs,
             vec![
                 ModuleResourceSpec::base("demo", false),
-                ModuleResourceSpec::new("demo/errors/forms", "demo/errors/forms.ftl", true),
+                ModuleResourceSpec::new(
+                    ResourceKey::from_static_path("demo/errors/forms"),
+                    "demo/errors/forms.ftl",
+                    true
+                ),
             ]
         );
     }
@@ -1108,39 +1294,40 @@ mod tests {
     fn try_resource_plan_for_reports_invalid_domain_without_panicking() {
         let err = try_resource_plan_for("../demo", &[]).expect_err("invalid domain should fail");
 
-        assert_eq!(
+        assert!(matches!(
             err,
-            ResourcePlanError::InvalidResourceKey {
-                key: "../demo".to_string(),
-                details: ResourceKeyError(NamespacePathError::CurrentOrParentSegment),
-            }
-        );
+            ResourcePlanError::InvalidDomain { domain, .. } if domain == "../demo"
+        ));
     }
 
     #[test]
     fn resource_plan_uses_resolved_namespace_keys() {
         let plan = resource_plan_for("demo", &["ui/button"]);
 
-        assert_eq!(plan[1].key, ResourceKey::new("demo/ui/button"));
+        assert_eq!(plan[1].key, ResourceKey::from_static_path("demo/ui/button"));
         assert_eq!(plan[1].locale_relative_path, "demo/ui/button.ftl");
     }
 
     #[test]
     fn required_and_optional_keys_reflect_plan_membership() {
         let plan = vec![
-            ModuleResourceSpec::new("demo", "demo.ftl", true),
-            ModuleResourceSpec::new("demo/optional", "demo/optional.ftl", false),
+            ModuleResourceSpec::new(ResourceKey::from_static_path("demo"), "demo.ftl", true),
+            ModuleResourceSpec::new(
+                ResourceKey::from_static_path("demo/optional"),
+                "demo/optional.ftl",
+                false,
+            ),
         ];
 
         let required = required_resource_keys_from_plan(&plan);
         let optional = optional_resource_keys_from_plan(&plan);
 
-        assert!(required.contains(&ResourceKey::from("demo")));
-        assert!(!required.contains(&ResourceKey::from("demo/optional")));
-        assert!(optional.contains(&ResourceKey::from("demo/optional")));
-        assert!(!optional.contains(&ResourceKey::from("demo")));
+        assert!(required.contains(&ResourceKey::from_static_path("demo")));
+        assert!(!required.contains(&ResourceKey::from_static_path("demo/optional")));
+        assert!(optional.contains(&ResourceKey::from_static_path("demo/optional")));
+        assert!(!optional.contains(&ResourceKey::from_static_path("demo")));
 
-        let loaded = HashSet::from([ResourceKey::from("demo")]);
+        let loaded = HashSet::from([ResourceKey::from_static_path("demo")]);
         assert!(locale_is_ready(&required, &loaded));
 
         let unloaded = HashSet::new();

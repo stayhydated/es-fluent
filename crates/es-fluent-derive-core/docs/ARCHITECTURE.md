@@ -71,9 +71,11 @@ The checker accepts only the keys that are meaningful at that location and
 reports the grammar-owned accepted key set in the diagnostic help text.
 Message containers are split by Rust shape: structs accept only
 `namespace = ...`, while enums accept `id`, `domain`, and `namespace`.
-The language macro uses the same grammar module for `mode = "builtin"` /
-`mode = "custom"` parsing, so wrong-key and wrong-shape diagnostics stay aligned
-with derive attribute diagnostics.
+Attribute-like macros that do not use `darling` enter through
+`macro_input::ValidatedMacroInput`: the language macro uses it for
+`mode = "builtin"` / `mode = "custom"` parsing, while manager macros use it for
+bare `#[locale]` marker validation. Wrong-key and wrong-shape diagnostics stay
+aligned with derive attribute diagnostics.
 
 ### 2. Container Context (`src/context.rs`)
 
@@ -107,7 +109,7 @@ This module uses `darling` to define the schema for `#[fluent(...)]` attributes.
   field models used by code generation to avoid defensive empty collections
   and late internal aborts.
 - Namespace parsing stores `es_fluent_shared::namespace::NamespaceRule` in
-  `NamespaceSpec`, preserving the span of the literal or keyword value for
+  `SpannedNamespaceRule`, preserving the span of the literal or keyword value for
   diagnostics. It supports literal namespaces (`namespace = "ui"`), file stems
   (`namespace = file`), file-relative paths (`namespace = file_relative`),
   parent folder names (`namespace = folder`), and relative parent folder paths
@@ -131,9 +133,9 @@ String literal attribute payloads are converted to typed values during option
 parsing where they represent Fluent identifiers. Field argument names, variant
 key suffixes, enum base IDs, enum lookup domains, generated variant keys,
 and literal namespaces retain their source spans as `SpannedValue<T>` or
-`NamespaceSpec` and are not reparsed by token emission.
-Namespace attributes keep their value span in `NamespaceSpec` while exposing
-`NamespaceRule` accessors for code generation and validation.
+`SpannedNamespaceRule` and are not reparsed by token emission.
+Namespace attributes keep their value span in `SpannedNamespaceRule` while
+exposing `NamespaceRule` accessors for code generation and validation.
 `#[fluent_variants]` parsing converts `keys = [...]` into typed
 `GeneratedKeyName` values immediately, rejecting non-lowercase-snake-case keys
 during attribute parsing. It also supports generated enum `derive(...)`,

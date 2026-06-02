@@ -77,7 +77,7 @@ fn variant_runtime_arguments(
                 let binding_ident = namer::UnnamedItem::from(index.as_usize()).to_ident();
                 crate::macros::utils::generate_field_argument(
                     context,
-                    argument.clone(),
+                    argument.as_ref().clone(),
                     quote! { #binding_ident },
                     quote! { #binding_ident },
                 )

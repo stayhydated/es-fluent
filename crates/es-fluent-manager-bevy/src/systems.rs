@@ -151,9 +151,10 @@ mod tests {
             "app".to_string(),
             Handle::<FtlAsset>::default(),
         );
-        assets
-            .loaded_resources
-            .insert((lang, ResourceKey::new("app")), resource("hello = hi"));
+        assets.loaded_resources.insert(
+            (lang, ResourceKey::from_static_path("app")),
+            resource("hello = hi"),
+        );
         assets
     }
 
@@ -236,7 +237,7 @@ mod tests {
             );
             assets
                 .loaded_resources
-                .insert((lang, ResourceKey::new(domain)), resource);
+                .insert((lang, ResourceKey::try_new(domain).unwrap()), resource);
         }
 
         let mut domain_bundles = I18nDomainBundles::default();

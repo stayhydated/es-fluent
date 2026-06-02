@@ -31,7 +31,7 @@ pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryE
 
     for module in &modules {
         let data = module.data();
-        domains.insert(data.domain);
+        domains.insert(data.domain());
         for lang in data.supported_languages {
             all_languages.insert(lang.clone());
             if module.registration_kind() == ModuleRegistrationKind::MetadataOnly {
@@ -41,7 +41,9 @@ pub(super) fn discover_modules() -> Result<ModuleDiscovery, Vec<ModuleDiscoveryE
 
         info!(
             "Discovered i18n module: {} with domain: {}, namespaces: {:?}",
-            data.name, data.domain, data.namespaces
+            data.name,
+            data.domain(),
+            data.namespaces
         );
     }
 
@@ -261,14 +263,14 @@ mod tests {
     static TEST_MODULE_NAMESPACES: &[&str] = &["ui"];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "setup-test-module",
-        domain: "setup-domain",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("setup-domain"),
         supported_languages: TEST_MODULE_LANGUAGES,
         namespaces: TEST_MODULE_NAMESPACES,
     };
     static TEST_FOLLOWER_LANGUAGES: &[LanguageIdentifier] = &[langid!("fr")];
     static TEST_FOLLOWER_DATA: ModuleData = ModuleData {
         name: "setup-runtime-follower",
-        domain: "setup-runtime-follower",
+        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("setup-runtime-follower"),
         supported_languages: TEST_FOLLOWER_LANGUAGES,
         namespaces: &[],
     };
@@ -336,9 +338,13 @@ mod tests {
     fn setup_test_resource_plan(lang: &LanguageIdentifier) -> Option<Vec<ModuleResourceSpec>> {
         (lang == &langid!("en")).then(|| {
             vec![
-                ModuleResourceSpec::new(ResourceKey::new("setup-domain"), "setup-domain.ftl", true),
                 ModuleResourceSpec::new(
-                    ResourceKey::new("setup-domain/ui"),
+                    ResourceKey::from_static_path("setup-domain"),
+                    "setup-domain.ftl",
+                    true,
+                ),
+                ModuleResourceSpec::new(
+                    ResourceKey::from_static_path("setup-domain/ui"),
                     "setup-domain/ui.ftl",
                     false,
                 ),
@@ -533,8 +539,11 @@ mod tests {
         let asset_server = app.world().resource::<AssetServer>();
         let i18n_assets = build_i18n_assets(asset_server, "localized", &[&SETUP_TEST_ASSET_MODULE]);
 
-        let required_key = (langid!("en"), ResourceKey::new("setup-domain"));
-        let optional_key = (langid!("en"), ResourceKey::new("setup-domain/ui"));
+        let required_key = (langid!("en"), ResourceKey::from_static_path("setup-domain"));
+        let optional_key = (
+            langid!("en"),
+            ResourceKey::from_static_path("setup-domain/ui"),
+        );
 
         assert!(i18n_assets.assets.contains_key(&required_key));
         assert!(i18n_assets.assets.contains_key(&optional_key));
@@ -570,8 +579,11 @@ mod tests {
             &[&SETUP_TEST_ASSET_MODULE, &SETUP_TEST_MODULE],
         );
 
-        let required_key = (langid!("en"), ResourceKey::new("setup-domain"));
-        let optional_key = (langid!("en"), ResourceKey::new("setup-domain/ui"));
+        let required_key = (langid!("en"), ResourceKey::from_static_path("setup-domain"));
+        let optional_key = (
+            langid!("en"),
+            ResourceKey::from_static_path("setup-domain/ui"),
+        );
 
         assert_eq!(i18n_assets.assets.len(), 2);
         assert!(i18n_assets.assets.contains_key(&required_key));

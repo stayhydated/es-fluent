@@ -174,10 +174,9 @@ fn collect_locale_fields(
                 for field in &fields.named {
                     if locale_field_directive(field, AttributeLocation::LocaleNamedStructField)?
                         .is_locale()
+                        && let Some(ident) = field.ident.clone()
                     {
-                        if let Some(ident) = field.ident.clone() {
-                            locale_field_idents.push(ident);
-                        }
+                        locale_field_idents.push(ident);
                     }
                 }
 

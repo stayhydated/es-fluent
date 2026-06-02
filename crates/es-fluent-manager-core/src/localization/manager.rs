@@ -135,7 +135,7 @@ pub(crate) fn format_supported_languages(languages: &[LanguageIdentifier]) -> St
 }
 
 pub(crate) fn format_module_support(data: &ModuleData) -> String {
-    if data.domain == data.name {
+    if data.domain() == data.name {
         return format!(
             "{} (supports: {})",
             data.name,
@@ -146,7 +146,7 @@ pub(crate) fn format_module_support(data: &ModuleData) -> String {
     format!(
         "{} (domain: {}, supports: {})",
         data.name,
-        data.domain,
+        data.domain(),
         format_supported_languages(data.supported_languages)
     )
 }
@@ -431,7 +431,7 @@ impl FluentManager {
         args: Option<&HashMap<&str, FluentValue<'a>>>,
     ) -> Option<String> {
         for (data, localizer) in self.localizers.read().iter() {
-            if data.domain == domain
+            if data.domain() == domain
                 && let Some(message) = localizer.localize(id, args)
             {
                 return Some(message);
@@ -458,7 +458,7 @@ impl FluentManager {
         let localizers = self.localizers.read();
         let mut lookup = |domain: &str, id: &str, args: Option<&HashMap<&str, FluentValue<'_>>>| {
             for (data, localizer) in localizers.iter() {
-                if data.domain == domain
+                if data.domain() == domain
                     && let Some(message) = localizer.localize(id, args)
                 {
                     return Some(message);
@@ -484,37 +484,37 @@ mod tests {
 
     static MANAGER_INLINE_METADATA_DATA: ModuleData = ModuleData {
         name: "manager-inline-metadata",
-        domain: "manager-inline-metadata",
+        domain: crate::StaticFluentDomain::new_unchecked("manager-inline-metadata"),
         supported_languages: &[],
         namespaces: &[],
     };
     static MANAGER_INLINE_RUNTIME_DATA: ModuleData = ModuleData {
         name: "manager-inline-runtime",
-        domain: "manager-inline-runtime",
+        domain: crate::StaticFluentDomain::new_unchecked("manager-inline-runtime"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_INLINE_FOLLOWER_DATA: ModuleData = ModuleData {
         name: "manager-inline-follower",
-        domain: "manager-inline-follower",
+        domain: crate::StaticFluentDomain::new_unchecked("manager-inline-follower"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SHARED_DOMAIN_FIRST_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-first",
-        domain: "manager-shared-domain",
+        domain: crate::StaticFluentDomain::new_unchecked("manager-shared-domain"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SHARED_DOMAIN_SECOND_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-second",
-        domain: "manager-shared-domain",
+        domain: crate::StaticFluentDomain::new_unchecked("manager-shared-domain"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SCOPED_LOOKUP_DATA: ModuleData = ModuleData {
         name: "manager-scoped-lookup",
-        domain: "manager-scoped-lookup",
+        domain: crate::StaticFluentDomain::new_unchecked("manager-scoped-lookup"),
         supported_languages: &[langid!("en"), langid!("fr")],
         namespaces: &[],
     };

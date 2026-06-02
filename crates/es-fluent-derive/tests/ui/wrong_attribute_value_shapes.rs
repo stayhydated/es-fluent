@@ -6,6 +6,16 @@ pub struct WrongFluentFieldShape {
     value: String,
 }
 
+#[derive(EsFluent)]
+pub struct WrongBareFlagShapes {
+    #[fluent(skip = true)]
+    hidden: String,
+    #[fluent(selector = true)]
+    kind: String,
+    #[fluent(optional = true)]
+    maybe: Option<String>,
+}
+
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys("label"))]
 pub struct WrongVariantsKeysShape {
