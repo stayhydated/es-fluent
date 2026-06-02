@@ -24,7 +24,7 @@ This framework gives you:
 - [gpui-table](https://github.com/stayhydated/gpui-table)
 - [gpui-storybook](https://github.com/stayhydated/gpui-storybook)
 
-## Version compatibility
+## Version Matrix
 
 | Surface                                           | Version line | Runtime        |
 | :------------------------------------------------ | :----------- | :------------- |
@@ -50,7 +50,7 @@ es-fluent-manager-embedded = "0.16"
 # es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
 # es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
-# For Bevy integration: replace `es-fluent-manager-embedded` with  `es-fluent-manager-bevy`
+# For Bevy integration, use `es-fluent-manager-bevy`.
 # es-fluent-manager-bevy = "0.18.13"
 ```
 

@@ -74,7 +74,7 @@ pub struct I18nDomainBundles {
         HashMap<LanguageIdentifier, HashMap<String, Vec<Arc<FluentResource>>>>,
 }
 
-/// Bundle build failures that were rejected instead of replacing the last good cache.
+/// Bundle build failures that leave the last good cache active.
 #[derive(Clone, Default, Resource)]
 pub(crate) struct BundleBuildFailures(pub(crate) HashMap<LanguageIdentifier, Vec<String>>);
 

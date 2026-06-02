@@ -62,8 +62,8 @@ localizers. Prefer typed `localize_message(...)` wrappers or
 `localize(...)` directly only for simple single-domain apps or intentional
 first-match lookup.
 
-Strict discovery is now the default constructor behavior. Construction does not
-select a language, so custom runtime integrations must select the initial
+Constructors use strict discovery by default. Construction does not select a
+language, so custom runtime integrations must select the initial
 language before lookup:
 
 ```rust,no_run

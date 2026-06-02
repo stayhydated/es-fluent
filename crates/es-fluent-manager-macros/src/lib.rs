@@ -54,7 +54,7 @@ pub fn define_dioxus_i18n_module(input: TokenStream) -> TokenStream {
 ///
 /// If any fields are marked with `#[locale]`, the macro will:
 /// - Auto-generate a `RefreshForLocale` implementation
-/// - Use `register_fluent_text_from_locale` instead of `register_fluent_text`
+/// - Register through `register_fluent_text_from_locale`
 ///
 /// The `#[locale]` attribute marks fields that should be updated when the locale changes.
 /// The field type must implement `TryFrom<&LanguageIdentifier>`.

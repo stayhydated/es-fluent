@@ -25,7 +25,7 @@ changes.
 - **Hot Reloading**: Supports hot-reloading of translations during development.
 - **Reactive UI**: The `FluentText` component automatically refreshes text when the locale changes.
 - **Bevy-native Context**: Systems can request `BevyI18n` as a `SystemParam` for direct localization.
-- **Explicit Context**: Localization comes from Bevy resources instead of a context-free bridge.
+- **Explicit Context**: Localization uses Bevy resources and `BevyI18n` system params.
 
 ## Quick Start
 
@@ -77,20 +77,18 @@ app.add_plugins(I18nPlugin::with_config(
 ### Advanced behavior
 
 Plugin startup uses strict module discovery, so invalid or duplicate
-registrations are reported through `I18nPluginStartupError` instead of being
-normalized silently. When setup fails, the plugin skips localization runtime
-setup and leaves the error resource in the app world for diagnostics. Failed hot
-reloads or locale switches keep the last accepted locale active instead of
-publishing a broken update. A failed hot reload records diagnostics but keeps
-the previous ready cache selectable until a later rebuild succeeds.
+registrations are reported through `I18nPluginStartupError`. When setup fails,
+the plugin skips localization runtime setup and leaves the error resource in the
+app world for diagnostics. Failed hot reloads or locale switches keep the last
+accepted locale active. A failed hot reload records diagnostics but keeps the
+previous ready cache selectable until a later rebuild succeeds.
 
 Generated message lookup is domain-scoped. If separate domains define the same
 message ID, Bevy keeps typed domain-scoped lookup available and leaves raw
 unscoped lookup unavailable for the ambiguous merged locale.
 
 Locales with only optional resources, or with missing optional resources, are
-still treated as ready. They publish an empty Bevy cache instead of remaining
-pending indefinitely.
+treated as ready and publish an empty Bevy cache.
 
 Use `RequestedLanguageId` to read the latest user intent and `ActiveLanguageId`
 to read the currently published locale. `LocaleChangedEvent` refers to

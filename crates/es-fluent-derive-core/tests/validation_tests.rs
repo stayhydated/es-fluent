@@ -56,7 +56,7 @@ mod attribute_context_tests {
     }
 
     #[test]
-    fn message_struct_container_rejects_removed_default_field_key() {
+    fn message_struct_container_rejects_unsupported_default_field_key() {
         let input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
             pub struct LoginForm {
@@ -66,7 +66,7 @@ mod attribute_context_tests {
         };
 
         let err = es_fluent_derive_core::validation::validate_es_fluent_attribute_context(&input)
-            .expect_err("removed default key should fail in raw validation");
+            .expect_err("unsupported default key should fail in raw validation");
         let message = err.to_string();
         assert!(message.contains("#[fluent(default)]"));
         assert!(message.contains("message field"));

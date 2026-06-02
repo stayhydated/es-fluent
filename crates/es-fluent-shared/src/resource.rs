@@ -180,7 +180,7 @@ impl ResourceKey {
     /// Creates a new resource key.
     #[allow(
         clippy::panic,
-        reason = "panic wrapper retained for static metadata; use try_new for dynamic input"
+        reason = "static metadata uses literal keys; use try_new for dynamic input"
     )]
     pub fn new(key: impl Into<String>) -> Self {
         let key = key.into();
@@ -260,7 +260,7 @@ impl LocaleRelativeFtlPath {
     /// Creates a locale-relative Fluent resource path, panicking when invalid.
     #[allow(
         clippy::panic,
-        reason = "panic wrapper retained for static metadata; use try_new for dynamic input"
+        reason = "static metadata uses literal paths; use try_new for dynamic input"
     )]
     pub fn new(path: impl Into<String>) -> Self {
         let path = path.into();
@@ -796,13 +796,12 @@ pub fn try_resource_plan_for(
 
 /// Builds the global/default canonical resource plan for a domain.
 ///
-/// Prefer [`try_resource_plan_for`] when invalid namespace input should be
-/// reported as data instead of aborting. This panic wrapper is retained for
-/// static module metadata paths where invalid namespaces are programmer errors
-/// and recovery is not useful.
+/// Use [`try_resource_plan_for`] for dynamic namespace input that should return
+/// typed errors. This constructor is for static module metadata paths where
+/// invalid namespaces are programmer errors and recovery is not useful.
 #[allow(
     clippy::panic,
-    reason = "panic wrapper retained for static metadata; use try_resource_plan_for for dynamic input"
+    reason = "static metadata uses literal namespaces; use try_resource_plan_for for dynamic input"
 )]
 pub fn resource_plan_for(domain: &str, namespaces: &[&str]) -> Vec<ModuleResourceSpec> {
     try_resource_plan_for(domain, namespaces)

@@ -86,7 +86,7 @@ mod tests {
     }
 
     #[test]
-    fn context_table_covers_retained_attribute_keys() {
+    fn context_table_covers_supported_attribute_keys() {
         fn assert_allowed(
             meta: Meta,
             attribute_name: AttributeName,

@@ -13,7 +13,7 @@ and tooling crates.
 `#[derive(BevyFluentText)]` also owns the Bevy-specific `#[locale]` field
 marker. That marker is accepted only as bare `#[locale]` on named struct fields
 or named enum variant fields; argument and name-value forms are rejected during
-macro parsing instead of being silently treated as valid markers.
+macro parsing.
 
 ## Macros
 
@@ -24,7 +24,7 @@ Used by `es-fluent-manager-embedded`.
 1. **Scans**: The configured `assets_dir` from `i18n.toml`.
 1. **Generates**:
    - A struct deriving `RustEmbed` (from `rust-embed` crate), embedding files into the binary.
-   - Static `ModuleData` listing supported canonical locale directories and discovered namespace paths from the shared sparse asset plan. Non-canonical locale directory names are rejected at macro expansion time instead of being normalized at runtime.
+   - Static `ModuleData` listing supported canonical locale directories and discovered namespace paths from the shared sparse asset plan. Non-canonical locale directory names are rejected at macro expansion time.
    - For non-namespaced modules, the generated resource plan requires `{lang}/{crate}.ftl`.
    - For namespaced modules, namespace files such as `{lang}/{crate}/ui.ftl` or `{lang}/{crate}/ui/button.ftl` are required, while `{lang}/{crate}.ftl` remains an optional mixed-mode base resource.
    - `inventory::submit!` block to register the module.

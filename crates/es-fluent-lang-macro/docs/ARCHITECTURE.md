@@ -55,7 +55,7 @@ The detailed steps are:
 
 1. **Parse Attributes**: The `mode = "builtin"` / `mode = "custom"` argument is parsed through the shared derive-core grammar with `LanguageContainer` diagnostics.
 1. **Read Configuration**: The macro reads `i18n.toml` from the crate manifest directory (using `es-fluent-toml`) to determine the `assets_dir` and `fallback_language`. That config layer already enforces canonical locale tags.
-1. **Scan Assets**: It scans the configured assets directory for locale subdirectories. Non-canonical locale directory names are rejected during discovery instead of being silently normalized later.
+1. **Scan Assets**: It scans the configured assets directory for locale subdirectories. Non-canonical locale directory names are rejected during discovery.
 1. **Auto-Insert Fallback**: If the `fallback_language` from `i18n.toml` is not found in the assets directory, it is automatically added to the enum.
 1. **Deduplicate**: Languages are sorted alphabetically and deduplicated by their string representation.
 1. **Build Semantic Metadata**: The discovered languages are converted into a
@@ -95,7 +95,7 @@ impl es_fluent::FluentMessage for Languages {
 ```
 
 - **Expansion**: The empty enum is populated with variants derived from the folder names (converted to PascalCase).
-- **FluentMessage**: The macro emits the lookup implementation from the semantic language model instead of injecting synthetic `#[fluent]` attributes for `EsFluent`.
+- **FluentMessage**: The macro emits the lookup implementation from the semantic language model.
 - **Inventory**: Default mode skips registration because these are generic language names, not user-app content.
 
 ### Custom Mode (`mode = "custom"`)

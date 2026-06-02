@@ -38,8 +38,7 @@ impl ModuleData {
 
     /// Attempts to return the global/default canonical resource plan.
     ///
-    /// Unlike [`Self::resource_plan`], invalid namespace metadata is returned as
-    /// a typed error instead of panicking.
+    /// Returns invalid namespace metadata as a typed error.
     pub fn try_resource_plan(&self) -> Result<Vec<ModuleResourceSpec>, ResourcePlanError> {
         super::resource::try_resource_plan_for(self.domain, self.namespaces)
     }

@@ -352,7 +352,7 @@ pub fn parse_and_store_locale_resource_content(
     Ok(())
 }
 
-/// Records a localized resource error and clears any previously loaded resource for the same key.
+/// Records a localized resource error and clears any loaded resource for the same key.
 pub fn record_locale_resource_error(
     loaded_resources: &mut HashMap<(LanguageIdentifier, ResourceKey), Arc<FluentResource>>,
     load_errors: &mut HashMap<(LanguageIdentifier, ResourceKey), ResourceLoadError>,

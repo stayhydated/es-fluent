@@ -36,7 +36,7 @@ flowchart TD
 - `es-fluent-generate` uses it to reason about registered message metadata without depending on derive parsing.
 - `es-fluent-manager-core` uses the shared error surface for runtime-localization operations.
 - `es-fluent-cli-helpers` uses shared errors and metadata when running inside generated runner crates.
-- `es-fluent-derive-core` now builds macro parsing and validation on top of this crate instead of also owning these shared types.
+- `es-fluent-derive-core` builds macro parsing and validation on top of the shared types from this crate.
 
 ## Modules
 

@@ -11,7 +11,7 @@ implementations.
    closure.
 2. inventory metadata used by generation and validation.
 
-It does not emit context-free display/localization implementations.
+Generated runtime lookup flows through explicit localization contexts.
 
 `#[derive(EsFluentVariants)]` emits generated unit enums that also implement
 `FluentMessage` and inventory metadata.

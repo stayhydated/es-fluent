@@ -70,12 +70,10 @@ impl<T: FluentMessage + ?Sized> FluentMessage for &T {
     }
 }
 
-/// Runtime context that can resolve Fluent message IDs.
+/// Runtime context that resolves Fluent message IDs for typed message values.
 ///
-/// This is the manager-facing replacement for the removed context-free global
-/// lookup. Managers and framework adapters implement this trait so callers
-/// can keep typed message values while passing the active localization context
-/// explicitly.
+/// Managers and framework adapters implement this trait so callers can pass
+/// the active localization context explicitly.
 ///
 /// # Implementing `FluentLocalizer`
 ///

@@ -1,5 +1,4 @@
-/// This trait is used to convert an enum into a string that can be used as a
-/// Fluent choice.
+/// Converts an enum into a string that can be used as a Fluent choice.
 ///
 /// # Example
 ///

@@ -50,7 +50,7 @@ impl<'a> OrphanedCleaner<'a> {
     }
 }
 
-/// Clean orphaned FTL files that no longer exist in the fallback locale.
+/// Clean orphaned FTL files that are absent from the fallback locale.
 pub(super) fn clean_orphaned_files(
     workspace: &WorkspaceCrates,
     all_locales: bool,

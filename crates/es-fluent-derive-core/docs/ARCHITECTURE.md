@@ -10,9 +10,8 @@ By separating this logic from the `proc-macro` crate (`es-fluent-derive`) and th
 1. **Modularity**: Parsing and validation logic is isolated from code generation.
 1. **Performance**: Reduces code bloat in the main runtime crate.
 
-`es-fluent-derive-core` no longer serves as the shared dependency root for
-runtime-safe metadata. That surface now lives in `es-fluent-shared`, while this
-crate focuses on macro parsing, validation, lowering, and spanned error values.
+`es-fluent-derive-core` focuses on macro parsing, validation, lowering, and
+spanned error values. Runtime-safe metadata lives in `es-fluent-shared`.
 It does not abort or emit proc-macro diagnostics directly; `es-fluent-derive`
 turns core errors into `compile_error!` tokens at the proc-macro boundary.
 
@@ -53,7 +52,7 @@ flowchart TD
    inventory metadata live here. Rust identifiers needed by codegen are
    preserved as `syn::Ident` rather than being stringified and reconstructed
    later.
-1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`; this crate uses those shared types instead of defining local mirror types.
+1. **Shared Dependencies**: Runtime-safe naming and metadata types come directly from `es-fluent-shared`.
 
 ## Modules
 
@@ -99,7 +98,7 @@ options directly.
 
 This module uses `darling` to define the schema for `#[fluent(...)]` attributes. It transforms `syn` types into strictly typed structs.
 
-- **`mod.rs`**: Shared parsing helpers and traits. This now holds the common field/variant/container helper surface (`FluentField`, `VariantFields`, `StructDataOptions`, `EnumDataOptions`, `FilteredEnumDataOptions`, `GeneratedVariantsOptions`, `KeyedVariant`, `Skippable`) plus reusable attribute payload types.
+- **`mod.rs`**: Shared parsing helpers and traits. This module contains the common field/variant/container helper surface (`FluentField`, `VariantFields`, `StructDataOptions`, `EnumDataOptions`, `FilteredEnumDataOptions`, `GeneratedVariantsOptions`, `KeyedVariant`, `Skippable`) plus reusable attribute payload types.
 - **`struct.rs`**: Defines `StructOpts`. Handles top-level struct attributes and individual field attributes (`StructFieldOpts`).
 - **`enum.rs`**: Defines `EnumOpts`. Handles top-level enum attributes and variant attributes (`EnumVariantOpts`), including enum base ID/domain overrides and variant key overrides.
 - **`choice.rs`**: Options for `#[fluent_choice(...)]` enum choices.

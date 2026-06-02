@@ -20,7 +20,7 @@ Start from the user-facing facade. Most application code uses `es-fluent` plus e
 3. Put `define_i18n_module!()` in a library-reachable `src/i18n.rs`, and declare `pub mod i18n;` from `src/lib.rs`.
 4. Derive `EsFluent` for messages. Use `EsFluentChoice` for selector fields, `EsFluentVariants` for field/variant labels, and `EsFluentLabel` for type-level labels.
 5. Generate and inspect FTL through the es-fluent CLI: `cargo es-fluent generate`, then `cargo es-fluent status --all` or the narrower relevant command.
-6. Localize through an explicit context: `i18n.localize_message(&message)` or `MyType::localize_label(&i18n)`. Avoid process-global or context-free lookup in application guidance.
+6. Localize through an explicit context: `i18n.localize_message(&message)` or `MyType::localize_label(&i18n)`.
 
 ## Reference Selection
 

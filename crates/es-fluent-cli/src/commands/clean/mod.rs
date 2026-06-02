@@ -24,9 +24,9 @@ pub struct CleanArgs {
     #[arg(long)]
     pub force_run: bool,
 
-    /// Remove orphaned FTL files that are no longer tied to any types.
+    /// Remove orphaned FTL files that are not tied to any types.
     /// This removes files that don't correspond to any registered types
-    /// (e.g., when all items are now namespaced or the crate was deleted).
+    /// (e.g., when every item is namespaced or the crate was deleted).
     #[arg(long)]
     pub orphaned: bool,
 }

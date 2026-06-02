@@ -176,8 +176,8 @@ impl FluentManager {
 
     /// Creates a new `FluentManager` with strict registry validation.
     ///
-    /// This returns an error instead of panicking when discovery finds invalid
-    /// module metadata or unresolvable duplicate registrations.
+    /// Returns all invalid module metadata and unresolvable duplicate
+    /// registration errors from discovery.
     pub fn try_new_with_discovered_modules() -> Result<Self, Vec<ModuleDiscoveryError>> {
         Self::try_discover_runtime_modules().map(|modules| Self::from_discovered_modules(&modules))
     }
@@ -214,7 +214,7 @@ impl FluentManager {
         })
     }
 
-    /// Creates a new manager from previously discovered runtime modules.
+    /// Creates a new manager from already discovered runtime modules.
     pub fn from_discovered_modules(discovered: &DiscoveredRuntimeI18nModules) -> Self {
         Self {
             modules: discovered.modules.iter().copied().collect(),

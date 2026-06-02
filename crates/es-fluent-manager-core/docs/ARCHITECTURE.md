@@ -84,7 +84,7 @@ Common metadata contract for manager discovery.
 - Resource keys, locale-relative FTL paths, and module resource specs are
   defined in `es-fluent-shared` and re-exported here for manager integrations.
 - Dynamic callers can use `ModuleData::try_resource_plan()` to receive typed
-  namespace planning errors instead of using the static panic wrapper.
+  namespace planning errors.
 - Module registry validation resolves namespace metadata through
   `ResolvedNamespace` and reports shared `NamespacePathError` values, so strict
   discovery and resource planning use the same namespace validator.
@@ -114,7 +114,7 @@ Unified inventory contract used by managers.
 - Embedded asset backends derive their per-language fallback plan through the
   shared `ResourcePlan::sparse_for_domain` constructor, keeping runtime
   discovery aligned with macro-generated sparse plans.
-- `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity become hard errors instead of warnings.
+- `try_filter_module_registry()` provides the strict discovery path: invalid metadata, duplicate names/domains, and repeated registrations of the same kind for one exact identity are hard errors.
 - Successful strict discovery still normalizes one metadata-only registration
   plus one runtime-localizer registration for the same exact identity into a
   single module when their metadata matches exactly.
@@ -127,7 +127,7 @@ Responsible for the actual string formatting logic.
 - Wraps `fluent-bundle` logic.
 - Locale negotiation is centralized in the shared fallback helpers, which use
   ICU4X locale fallback data to build a CLDR-backed parent chain and pick the
-  first populated locale instead of hand-rolled subtag stripping.
+  first populated locale.
 - `FluentManager::select_language()` is best-effort for unsupported locales:
   modules that reject a locale with `LanguageNotSupported` are skipped as long
   as at least one content-supporting module accepts it.
@@ -144,7 +144,7 @@ Responsible for the actual string formatting logic.
   SSR to cache strict inventory validation and create fresh managers from the
   cached runtime-capable module list. Metadata-only registrations are validated
   during discovery but skipped for this runtime manager cache.
-- `EmbeddedLocalizer::select_language()` now rejects bundle-add conflicts (for
+- `EmbeddedLocalizer::select_language()` rejects bundle-add conflicts (for
   example duplicate message IDs across loaded files) and keeps the previous
   ready locale active on failure.
 - `EmbeddedLocalizer` stores the active bundle, requested language, and fallback

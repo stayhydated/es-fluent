@@ -339,7 +339,7 @@ fn test_fluent_feature_parsing(
 }
 
 #[test]
-fn test_fluent_feature_rejects_legacy_string_shape() {
+fn test_fluent_feature_requires_array_shape() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("i18n.toml");
 
@@ -348,8 +348,8 @@ fn test_fluent_feature_rejects_legacy_string_shape() {
         &config_document("en", "i18n", Some(string_value("fluent")), None),
     );
 
-    let error = I18nConfig::read_from_path(&config_path)
-        .expect_err("string fluent_feature should be rejected");
+    let error =
+        I18nConfig::read_from_path(&config_path).expect_err("string fluent_feature is invalid");
 
     assert!(error.to_string().contains("Failed to parse config"));
 }

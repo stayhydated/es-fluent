@@ -71,8 +71,7 @@ struct ActiveSelection {
 /// Explicit embedded localization context.
 ///
 /// Construct this once during application startup, keep it in application state,
-/// and pass it to code that needs localization. No context-free `es-fluent`
-/// context is installed.
+/// and pass it to code that needs localization.
 #[derive(Clone)]
 pub struct EmbeddedI18n {
     manager: Arc<FluentManager>,

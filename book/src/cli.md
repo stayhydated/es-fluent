@@ -129,7 +129,7 @@ in `{crate}.ftl` still reports as missing when the Rust type belongs in
 
 ### Clean
 
-Remove orphan keys and groups that are no longer present in your source code:
+Remove orphan keys and groups that are absent from your source code:
 
 ```sh
 cargo es-fluent clean
@@ -137,17 +137,17 @@ cargo es-fluent clean
 
 Use `--dry-run` to preview changes without writing them. Use `--all` to clean all locales. Use `--force-run` to bypass the staleness cache.
 `clean --all` only targets canonical locale directories from the configured
-`assets_dir`; invalid or non-canonical locale directory names are reported
-instead of cleaned.
+`assets_dir`; invalid or non-canonical locale directory names are reported and
+left unchanged.
 
-When the main crate file no longer has any non-namespaced registered Rust
-types, `clean` deletes that stale main file. When a namespaced file no longer
-has any registered Rust types, `clean` also removes that stale namespace file in
-the locale being cleaned so discovery metadata stays in sync with code.
+When the main crate file has zero non-namespaced registered Rust types, `clean`
+deletes that stale main file. When a namespaced file has zero registered Rust
+types, `clean` also removes that stale namespace file in the locale being
+cleaned so discovery metadata stays in sync with code.
 
 #### Clean Orphaned Files
 
-Remove FTL files that are no longer tied to any registered types (e.g., when all items are now namespaced or the crate was deleted):
+Remove FTL files that are not tied to any registered types (e.g., when every item is namespaced or the crate was deleted):
 
 ```sh
 cargo es-fluent clean --orphaned --all

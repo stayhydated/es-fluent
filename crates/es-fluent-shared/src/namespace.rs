@@ -367,8 +367,8 @@ mod tests {
         let list_literal: syn::Meta = parse_quote!(namespace("ui/list"));
         assert!(NamespaceRule::from_meta(&list_literal).is_err());
 
-        let legacy_name_value_call: syn::Meta = parse_quote!(namespace = file(relative));
-        assert!(NamespaceRule::from_meta(&legacy_name_value_call).is_err());
+        let unsupported_name_value_call: syn::Meta = parse_quote!(namespace = file(relative));
+        assert!(NamespaceRule::from_meta(&unsupported_name_value_call).is_err());
 
         let multiple_arguments: syn::Meta = parse_quote!(namespace(file(relative, extra)));
         assert!(NamespaceRule::from_meta(&multiple_arguments).is_err());
