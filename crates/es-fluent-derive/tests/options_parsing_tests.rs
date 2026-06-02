@@ -1,10 +1,11 @@
 use darling::FromDeriveInput as _;
 use es_fluent_derive_core::expansion::EsFluentExpansion;
+use es_fluent_derive_core::index::DeclarationIndex;
 use es_fluent_derive_core::options::{
     EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
     StructDataOptions as _, VariantFields as _,
-    choice::CaseStyle,
-    r#enum::{EnumChoiceOpts, EnumOpts},
+    choice::{CaseStyle, ChoiceOpts},
+    r#enum::EnumOpts,
     r#struct::{StructOpts, StructVariantsOpts},
 };
 use es_fluent_shared::namespace::NamespaceRule;
@@ -27,7 +28,7 @@ fn is_selector(field: &impl es_fluent_derive_core::options::FluentField) -> bool
 
 fn message_field_arg(
     field: &impl es_fluent_derive_core::options::FluentField,
-    index: usize,
+    index: DeclarationIndex,
 ) -> String {
     field
         .fluent_arg_name(
@@ -40,9 +41,7 @@ fn message_field_arg(
         .to_string()
 }
 
-fn ignored_enum_variant_count(
-    data: &darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
-) -> usize {
+fn ignored_enum_variant_count<T>(data: &darling::ast::Data<T, darling::util::Ignored>) -> usize {
     match data {
         darling::ast::Data::Enum(variants) => variants.len(),
         darling::ast::Data::Struct(_) => panic!("expected enum data"),
@@ -144,7 +143,10 @@ fn enum_tuple_field_arg_parsing() {
         .expect("Tuple variant present");
 
     let fields = tuple.all_fields();
-    assert_eq!(message_field_arg(fields[0], 0), "value");
+    assert_eq!(
+        message_field_arg(fields[0], DeclarationIndex::new(0)),
+        "value"
+    );
 }
 
 #[test]
@@ -167,7 +169,10 @@ fn enum_named_field_arg_parsing() {
         .expect("Named variant present");
 
     let fields = named.all_fields();
-    assert_eq!(message_field_arg(fields[0], 0), "display_value");
+    assert_eq!(
+        message_field_arg(fields[0], DeclarationIndex::new(0)),
+        "display_value"
+    );
 }
 
 #[test]
@@ -286,12 +291,12 @@ fn struct_tuple_fields_parsing() {
     assert_eq!(indexed_fields.len(), 2, "Two indexed fields remain");
 
     let (first_index, first_field) = &indexed_fields[0];
-    assert_eq!(*first_index, 1);
+    assert_eq!(first_index.as_usize(), 1);
     assert_eq!(message_field_arg(*first_field, *first_index), "f1");
     assert!(!is_selector(*first_field));
 
     let (second_index, second_field) = &indexed_fields[1];
-    assert_eq!(*second_index, 2);
+    assert_eq!(second_index.as_usize(), 2);
     assert_eq!(message_field_arg(*second_field, *second_index), "f2");
     assert!(is_selector(*second_field));
 }
@@ -330,7 +335,7 @@ fn enum_choice_parsing() {
         }
     };
 
-    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts should parse");
     assert_eq!(opts.ident().to_string(), "MyEnum");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 2);

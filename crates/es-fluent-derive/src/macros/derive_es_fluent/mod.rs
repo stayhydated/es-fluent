@@ -135,14 +135,13 @@ mod tests {
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(struct_input));
 
         assert!(tokens.contains("mod __es_fluent_inventory_type"));
-        assert!(tokens.contains("StaticFluentDomain"));
         assert!(tokens.contains("CARGO_PKG_NAME"));
-        assert!(tokens.contains("StaticFluentEntryId"));
+        assert!(tokens.contains("static_entry_id"));
         assert!(tokens.contains("\"type\""));
         assert!(tokens.contains("Some(&args)"));
         assert!(tokens.contains("registry::__macro::ftl_type_info"));
         assert!(tokens.contains("registry::__macro::ftl_variant"));
-        assert!(tokens.contains("StaticFluentArgumentName"));
+        assert!(tokens.contains("static_argument_name"));
         assert!(tokens.contains("\"match\""));
     }
 

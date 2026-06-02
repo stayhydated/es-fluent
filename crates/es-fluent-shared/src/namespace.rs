@@ -51,24 +51,47 @@ impl NamespacePathError {
 
 /// A namespace path that has been validated for locale-relative resource use.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct ResolvedNamespace(String);
+pub struct ResolvedNamespace(Cow<'static, str>);
 
 impl ResolvedNamespace {
     /// Creates a validated resolved namespace.
     pub fn new(namespace: impl Into<String>) -> Result<Self, NamespacePathError> {
         let namespace = namespace.into();
         validate_namespace_path_typed(&namespace)?;
-        Ok(Self(namespace))
+        Ok(Self(Cow::Owned(namespace)))
+    }
+
+    /// Creates a namespace from a value already validated by macro expansion.
+    pub(crate) const fn from_static_unchecked(namespace: &'static str) -> Self {
+        Self(Cow::Borrowed(namespace))
     }
 
     /// Returns the namespace as a string slice.
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.0.as_ref()
     }
 
     /// Returns the resource key for this namespace under the given domain.
     pub fn try_resource_key(&self, domain: &str) -> Result<ResourceKey, ResourceKeyError> {
         ResourceKey::try_new(format!("{domain}/{}", self.as_str()))
+    }
+}
+
+impl PartialEq<&str> for ResolvedNamespace {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<str> for ResolvedNamespace {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<ResolvedNamespace> for &str {
+    fn eq(&self, other: &ResolvedNamespace) -> bool {
+        *self == other.as_str()
     }
 }
 
@@ -88,7 +111,7 @@ impl fmt::Display for ResolvedNamespace {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum NamespaceRule {
     /// A literal namespace string.
-    Literal(Cow<'static, str>),
+    Literal(ResolvedNamespace),
     /// Use the source file name (stem only) as the namespace.
     File,
     /// Use the file path relative to the crate root as the namespace.
@@ -100,6 +123,11 @@ pub enum NamespaceRule {
 }
 
 impl NamespaceRule {
+    /// Creates a literal namespace rule after validating the namespace path.
+    pub fn literal(namespace: impl Into<String>) -> Result<Self, NamespacePathError> {
+        ResolvedNamespace::new(namespace).map(Self::Literal)
+    }
+
     /// Resolve the namespace string using the given file path.
     pub fn resolve(&self, file_path: &str, manifest_dir: Option<&Path>) -> String {
         match self {
@@ -173,7 +201,9 @@ impl FromMeta for NamespaceRule {
                     ..
                 }) = &nv.value
                 {
-                    Ok(Self::Literal(Cow::Owned(s.value())))
+                    ResolvedNamespace::new(s.value())
+                        .map(Self::Literal)
+                        .map_err(|error| darling::Error::custom(error.to_string()).with_span(s))
                 } else if let syn::Expr::Path(path) = &nv.value {
                     parse_namespace_ident(path)
                 } else {
@@ -229,7 +259,7 @@ mod tests {
 
     #[test]
     fn literal_namespace_constructor_accepts_static_str() {
-        let ns = NamespaceRule::Literal(Cow::Borrowed("ui"));
+        let ns = NamespaceRule::literal("ui").expect("valid namespace");
         assert_eq!(ns.resolve("/some/path/lib.rs", None), "ui");
     }
 
@@ -291,9 +321,7 @@ mod tests {
             .unwrap();
         assert_eq!(ns.as_str(), "ui/button");
 
-        let err = NamespaceRule::Literal(Cow::Borrowed("../escape"))
-            .try_resolve("src/ui/button.rs", None)
-            .unwrap_err();
+        let err = NamespaceRule::literal("../escape").unwrap_err();
         assert_eq!(err, NamespacePathError::CurrentOrParentSegment);
         assert_eq!(
             err.details(),

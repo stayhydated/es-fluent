@@ -430,8 +430,9 @@ pub fn namespace_rule_tokens(
     let es_fluent = context.facade_path().tokens();
     match namespace {
         Some(NamespaceRule::Literal(s)) => {
+            let s = s.as_str();
             quote! {
-                Some(#es_fluent::registry::NamespaceRule::Literal(::std::borrow::Cow::Borrowed(#s)))
+                Some(#es_fluent::registry::__macro::namespace_literal(#s))
             }
         },
         Some(NamespaceRule::File) => {

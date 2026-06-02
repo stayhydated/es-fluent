@@ -21,7 +21,7 @@ impl ::es_fluent::FluentMessage for CustomLanguages {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en-US"),
+                    ::es_fluent::registry::__macro::static_entry_id("en-US"),
                     None,
                 )
             }
@@ -30,7 +30,7 @@ impl ::es_fluent::FluentMessage for CustomLanguages {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zz"),
+                    ::es_fluent::registry::__macro::static_entry_id("zz"),
                     None,
                 )
             }
@@ -44,14 +44,14 @@ mod __es_fluent_language_inventory_custom_languages {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "EnUs",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en-US"),
+            ::es_fluent::registry::__macro::static_entry_id("en-US"),
             &[],
             module_path!(),
             line!(),
         ),
         ::es_fluent::registry::__macro::ftl_variant(
             "Zz",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zz"),
+            ::es_fluent::registry::__macro::static_entry_id("zz"),
             &[],
             module_path!(),
             line!(),

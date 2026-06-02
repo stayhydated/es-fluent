@@ -228,20 +228,20 @@ mod tests {
 
     static VALID_MODULE: ModuleData = ModuleData {
         name: "demo-module",
-        domain: crate::StaticFluentDomain::new_unchecked("demo-domain"),
+        domain: crate::__macro::static_domain("demo-domain"),
         supported_languages: &[langid!("en"), langid!("fr")],
         namespaces: &["ui", "errors"],
     };
     static DUPLICATE_MODULES: [&ModuleData; 2] = [
         &ModuleData {
             name: "dup-name",
-            domain: crate::StaticFluentDomain::new_unchecked("dup-domain-a"),
+            domain: crate::__macro::static_domain("dup-domain-a"),
             supported_languages: &[langid!("en"), langid!("en")],
             namespaces: &["ui", "ui"],
         },
         &ModuleData {
             name: "dup-name",
-            domain: crate::StaticFluentDomain::new_unchecked("dup-domain-a"),
+            domain: crate::__macro::static_domain("dup-domain-a"),
             supported_languages: &[],
             namespaces: &["../bad"],
         },

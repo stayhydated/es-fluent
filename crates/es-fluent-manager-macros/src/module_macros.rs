@@ -175,7 +175,7 @@ fn generate_embedded_tokens(
 
         impl #manager_core_path::EmbeddedAssets for #assets_struct_name {
             fn domain() -> #manager_core_path::StaticFluentDomain {
-                #manager_core_path::StaticFluentDomain::new_unchecked(#crate_name)
+                #manager_core_path::__macro::static_domain(#crate_name)
             }
 
             fn namespaces() -> &'static [&'static str] {
@@ -471,7 +471,7 @@ mod tests {
             static #module_data_name: ::es_fluent_manager_core::ModuleData =
                 ::es_fluent_manager_core::ModuleData {
                     name: "my-crate",
-                    domain: ::es_fluent_manager_core::StaticFluentDomain::new_unchecked("my-crate"),
+                    domain: ::es_fluent_manager_core::__macro::static_domain("my-crate"),
                     supported_languages: &[],
                     namespaces: &[],
                 };

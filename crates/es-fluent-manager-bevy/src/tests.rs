@@ -51,8 +51,8 @@ impl FluentMessage for DomainMessage {
         ) -> String,
     ) -> String {
         localize(
-            es_fluent::registry::StaticFluentDomain::new_unchecked("app"),
-            es_fluent::registry::StaticFluentEntryId::new_unchecked(self.0),
+            es_fluent::registry::__macro::static_domain("app"),
+            es_fluent::registry::__macro::static_entry_id(self.0),
             None,
         )
     }

@@ -1,6 +1,6 @@
 use crate::options::{
     EnumDataOptions, FilteredEnumDataOptions, GeneratedVariantDirective, GeneratedVariantsOptions,
-    KeyedVariant, MessageVariantDirective, Skippable, VariantFields, choice::CaseStyle,
+    KeyedVariant, MessageVariantDirective, Skippable, VariantFields,
 };
 use crate::{
     error::{AttrContext, EsFluentCoreResult},
@@ -166,28 +166,6 @@ impl FluentEnumAttributeArgs {
     pub fn namespace_span(&self) -> Option<proc_macro2::Span> {
         self.namespace_args.namespace_span()
     }
-}
-
-/// Options for an enum that can be used as a choice.
-#[derive(Clone, Debug, FromDeriveInput, Getters)]
-#[darling(supports(enum_unit), attributes(fluent_choice))]
-#[getset(get = "pub")]
-pub struct EnumChoiceOpts {
-    /// The identifier of the enum.
-    ident: syn::Ident,
-    /// The generics of the enum.
-    generics: syn::Generics,
-    data: darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
-    #[darling(flatten)]
-    attr_args: EnumChoiceAttributeArgs,
-}
-
-/// Attribute arguments for an enum that can be used as a choice.
-#[derive(Builder, Clone, Debug, Default, FromMeta, Getters)]
-#[getset(get = "pub")]
-pub struct EnumChoiceAttributeArgs {
-    #[darling(default)]
-    rename_all: Option<CaseStyle>,
 }
 
 /// Options for an enum variant in EsFluentVariants context.

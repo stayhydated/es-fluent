@@ -60,7 +60,7 @@ pub fn static_domain_tokens(
     match domain_override {
         Some(domain) => {
             let domain = domain.as_str();
-            quote! { #facade_path::registry::StaticFluentDomain::new_unchecked(#domain) }
+            quote! { #facade_path::registry::__macro::static_domain(#domain) }
         },
         None => quote! {
             #facade_path::registry::StaticFluentDomain::from_package_name(env!("CARGO_PKG_NAME"))
@@ -74,7 +74,7 @@ pub fn static_entry_id_tokens(
 ) -> TokenStream {
     let entry_id = entry_id.as_str();
     quote! {
-        #facade_path::registry::StaticFluentEntryId::new_unchecked(#entry_id)
+        #facade_path::registry::__macro::static_entry_id(#entry_id)
     }
 }
 
@@ -84,7 +84,7 @@ pub fn static_argument_name_tokens(
 ) -> TokenStream {
     let argument_name = argument_name.as_str();
     quote! {
-        #facade_path::registry::StaticFluentArgumentName::new_unchecked(#argument_name)
+        #facade_path::registry::__macro::static_argument_name(#argument_name)
     }
 }
 

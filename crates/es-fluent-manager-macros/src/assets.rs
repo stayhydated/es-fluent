@@ -62,7 +62,7 @@ pub(crate) fn module_data_static_tokens(
     quote! {
         static #static_name: #manager_core_path::ModuleData = #manager_core_path::ModuleData {
             name: #crate_name,
-            domain: #manager_core_path::StaticFluentDomain::new_unchecked(#crate_name),
+            domain: #manager_core_path::__macro::static_domain(#crate_name),
             supported_languages: &[
                 #(#language_identifiers),*
             ],

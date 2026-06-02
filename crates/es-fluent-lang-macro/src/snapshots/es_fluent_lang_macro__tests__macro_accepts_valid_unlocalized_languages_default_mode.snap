@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-lang-macro/src/lib.rs
+assertion_line: 802
 expression: pretty_tokens(&output)
 ---
 enum Languages {
@@ -22,19 +23,15 @@ impl ::es_fluent::FluentMessage for Languages {
         match self {
             Self::EnUs => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
-                        "es-fluent-lang",
-                    ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("en-US"),
+                    ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+                    ::es_fluent::registry::__macro::static_entry_id("en-US"),
                     None,
                 )
             }
             Self::Zz => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
-                        "es-fluent-lang",
-                    ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked("zz"),
+                    ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+                    ::es_fluent::registry::__macro::static_entry_id("zz"),
                     None,
                 )
             }

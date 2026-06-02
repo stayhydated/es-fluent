@@ -6,7 +6,6 @@ use es_fluent::registry::NamespaceRule;
 use es_fluent::{
     EsFluent, EsFluentLabel, EsFluentVariants, FluentLabel as _, FluentLocalizer, FluentValue,
 };
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 struct IdLocalizer;
@@ -148,9 +147,8 @@ fn test_derive_label_namespace_from_fluent() {
         1,
         "Expected one registration for TestLabelNamespace"
     );
-    assert_eq!(
-        infos[0].namespace(),
-        Some(&NamespaceRule::Literal(Cow::Borrowed("label_ns")))
+    assert!(
+        matches!(infos[0].namespace(), Some(NamespaceRule::Literal(namespace)) if namespace == "label_ns")
     );
     assert_eq!(infos[0].type_kind(), &TypeKind::Struct);
 }
@@ -180,9 +178,8 @@ fn test_derive_variants_namespace_from_fluent() {
         1,
         "Expected one registration for TestVariantsNamespaceVariants"
     );
-    assert_eq!(
-        infos[0].namespace(),
-        Some(&NamespaceRule::Literal(Cow::Borrowed("variants_ns")))
+    assert!(
+        matches!(infos[0].namespace(), Some(NamespaceRule::Literal(namespace)) if namespace == "variants_ns")
     );
 }
 
@@ -203,8 +200,7 @@ fn test_derive_label_and_variants_share_fluent_namespace() {
     assert!(
         infos
             .iter()
-            .all(|info| info.namespace()
-                == Some(&NamespaceRule::Literal(Cow::Borrowed("shared_ns"))))
+            .all(|info| matches!(info.namespace(), Some(NamespaceRule::Literal(namespace)) if namespace == "shared_ns"))
     );
 }
 

@@ -148,7 +148,7 @@ mod tests {
             inventory_variant_tokens_for_model(&context, &entry.message_entry.metadata).to_string();
 
         assert!(runtime_tokens.contains("\"login_form_variants-username\""));
-        assert!(inventory_tokens.contains("StaticFluentEntryId"));
+        assert!(inventory_tokens.contains("static_entry_id"));
         assert!(inventory_tokens.contains("\"login_form_variants-username\""));
         assert!(inventory_tokens.contains("__macro :: ftl_variant"));
         assert!(inventory_tokens.contains("\"Username\""));
@@ -185,13 +185,13 @@ mod tests {
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_variants(input));
 
-        assert!(tokens.contains("StaticFluentDomain"));
+        assert!(tokens.contains("static_domain"));
         assert!(tokens.contains("\"es-fluent-lang\""));
-        assert!(tokens.contains("StaticFluentEntryId"));
+        assert!(tokens.contains("static_entry_id"));
         assert!(tokens.contains("\"language_variants-English\""));
         assert!(tokens.contains("\"language_variants-French\""));
         assert!(tokens.contains("::es_fluent::__private::localize_label"));
-        assert!(tokens.contains("StaticFluentDomain"));
+        assert!(tokens.contains("static_domain"));
         assert!(tokens.contains("\"es-fluent-lang\""));
         assert!(tokens.contains(".as_str()"));
         assert!(tokens.contains("\"language_variants_label\""));

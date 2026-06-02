@@ -2,8 +2,8 @@ use darling::FromDeriveInput as _;
 use es_fluent_derive_core::options::{
     EnumDataOptions as _, FieldValueDirective, FluentField as _, GeneratedVariantsOptions as _,
     SkipDirective as _, StructDataOptions as _, VariantFields as _,
-    choice::CaseStyle,
-    r#enum::{EnumChoiceOpts, EnumOpts},
+    choice::{CaseStyle, ChoiceOpts},
+    r#enum::EnumOpts,
     r#struct::{StructOpts, StructVariantsOpts},
 };
 use syn::{DeriveInput, parse_quote};
@@ -46,9 +46,7 @@ fn generated_key_names(
     })
 }
 
-fn ignored_enum_variant_count(
-    data: &darling::ast::Data<darling::util::Ignored, darling::util::Ignored>,
-) -> usize {
+fn ignored_enum_variant_count<T>(data: &darling::ast::Data<T, darling::util::Ignored>) -> usize {
     match data {
         darling::ast::Data::Enum(variants) => variants.len(),
         darling::ast::Data::Struct(_) => panic!("expected enum data"),
@@ -336,7 +334,7 @@ fn es_fluent_choice_attributes_none_snapshot() {
         }
     };
 
-    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts should parse");
     assert_eq!(opts.ident().to_string(), "Gender");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 3);
@@ -357,7 +355,7 @@ fn es_fluent_choice_attributes_snake_case_snapshot() {
         }
     };
 
-    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts should parse");
     assert_eq!(opts.ident().to_string(), "Severity");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 5);
@@ -377,7 +375,7 @@ fn es_fluent_choice_attributes_screaming_snake_snapshot() {
         }
     };
 
-    let opts = EnumChoiceOpts::from_derive_input(&input).expect("EnumChoiceOpts should parse");
+    let opts = ChoiceOpts::from_derive_input(&input).expect("ChoiceOpts should parse");
     assert_eq!(opts.ident().to_string(), "Emphasis");
     assert_no_generics(opts.generics());
     assert_eq!(ignored_enum_variant_count(opts.data()), 4);

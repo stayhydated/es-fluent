@@ -484,37 +484,37 @@ mod tests {
 
     static MANAGER_INLINE_METADATA_DATA: ModuleData = ModuleData {
         name: "manager-inline-metadata",
-        domain: crate::StaticFluentDomain::new_unchecked("manager-inline-metadata"),
+        domain: crate::__macro::static_domain("manager-inline-metadata"),
         supported_languages: &[],
         namespaces: &[],
     };
     static MANAGER_INLINE_RUNTIME_DATA: ModuleData = ModuleData {
         name: "manager-inline-runtime",
-        domain: crate::StaticFluentDomain::new_unchecked("manager-inline-runtime"),
+        domain: crate::__macro::static_domain("manager-inline-runtime"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_INLINE_FOLLOWER_DATA: ModuleData = ModuleData {
         name: "manager-inline-follower",
-        domain: crate::StaticFluentDomain::new_unchecked("manager-inline-follower"),
+        domain: crate::__macro::static_domain("manager-inline-follower"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SHARED_DOMAIN_FIRST_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-first",
-        domain: crate::StaticFluentDomain::new_unchecked("manager-shared-domain"),
+        domain: crate::__macro::static_domain("manager-shared-domain"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SHARED_DOMAIN_SECOND_DATA: ModuleData = ModuleData {
         name: "manager-shared-domain-second",
-        domain: crate::StaticFluentDomain::new_unchecked("manager-shared-domain"),
+        domain: crate::__macro::static_domain("manager-shared-domain"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
     static MANAGER_SCOPED_LOOKUP_DATA: ModuleData = ModuleData {
         name: "manager-scoped-lookup",
-        domain: crate::StaticFluentDomain::new_unchecked("manager-scoped-lookup"),
+        domain: crate::__macro::static_domain("manager-scoped-lookup"),
         supported_languages: &[langid!("en"), langid!("fr")],
         namespaces: &[],
     };

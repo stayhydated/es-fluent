@@ -528,13 +528,13 @@ fn enum_variant_shape(
         lowered::MessageEnumVariant::Tuple { all_fields, .. } => all_fields
             .iter()
             .map(|field| {
-                if FluentField::is_skipped(field.field) {
+                if FluentField::is_skipped(field.field()) {
                     Ok(EsFluentTupleField::Skipped {
-                        index: field.original_index,
+                        index: field.original_index(),
                     })
                 } else {
                     Ok(EsFluentTupleField::Argument {
-                        index: field.original_index,
+                        index: field.original_index(),
                         argument: Box::new(field.argument_model()?),
                     })
                 }
@@ -549,7 +549,7 @@ fn enum_variant_shape(
             .iter()
             .map(|field| {
                 Ok(EsFluentNamedField {
-                    binding: field.binding.clone(),
+                    binding: field.binding().clone(),
                     argument: field.argument_model()?,
                 })
             })
@@ -609,7 +609,7 @@ impl EsFluentChoiceExpansion {
         let enum_ident = lowered.ident();
         let choice = ChoiceModel::from_variant_idents(
             enum_ident,
-            lowered.variants().iter().map(|variant| variant.ident),
+            lowered.variants().iter().map(|variant| variant.ident()),
             *opts.attr_args().rename_all(),
         )?;
 
@@ -978,7 +978,7 @@ fn build_struct_variant_seeds(
         .fields()
         .iter()
         .map(|field| {
-            let field_ident = field.ident;
+            let field_ident = field.ident();
             let original_field_name = es_fluent_shared::namer::rust_ident_name(field_ident);
             let pascal_case_name = original_field_name.to_pascal_case();
             let variant_ident = syn::Ident::new(&pascal_case_name, field_ident.span());
@@ -1000,7 +1000,7 @@ fn build_enum_variant_seeds(
         .variants()
         .iter()
         .map(|variant| {
-            let variant_ident = variant.ident;
+            let variant_ident = variant.ident();
             let variant_key = es_fluent_shared::namer::rust_ident_name(variant_ident);
             GeneratedVariantMessageSeed::new(
                 variant_ident.clone(),

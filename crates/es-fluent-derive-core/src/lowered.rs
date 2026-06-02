@@ -17,66 +17,9 @@ use crate::{
 };
 use es_fluent_shared::meta::TypeKind;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct DeclarationIndex(usize);
-
-impl DeclarationIndex {
-    pub fn new(index: usize) -> Self {
-        Self(index)
-    }
-
-    pub fn as_usize(self) -> usize {
-        self.0
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct TupleFieldIndex(usize);
-
-impl TupleFieldIndex {
-    pub fn new(index: usize) -> Self {
-        Self(index)
-    }
-
-    pub fn as_usize(self) -> usize {
-        self.0
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ExposedArgumentIndex(usize);
-
-impl ExposedArgumentIndex {
-    pub fn new(index: usize) -> Self {
-        Self(index)
-    }
-
-    pub fn as_usize(self) -> usize {
-        self.0
-    }
-}
-
-trait ArgumentIndex {
-    fn index(self) -> usize;
-}
-
-impl ArgumentIndex for DeclarationIndex {
-    fn index(self) -> usize {
-        self.as_usize()
-    }
-}
-
-impl ArgumentIndex for TupleFieldIndex {
-    fn index(self) -> usize {
-        self.as_usize()
-    }
-}
-
-impl ArgumentIndex for ExposedArgumentIndex {
-    fn index(self) -> usize {
-        self.as_usize()
-    }
-}
+pub use crate::index::{
+    DeclarationIndex, ExposedArgumentIndex, FieldArgumentIndex, TupleFieldIndex,
+};
 
 #[derive(Clone, Debug)]
 pub struct MessageStructModel<'a> {
@@ -370,11 +313,19 @@ impl<'a> MessageEnumVariant<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct MessageTupleField<'a> {
-    pub original_index: TupleFieldIndex,
-    pub field: &'a crate::options::FluentFieldOpts,
+    original_index: TupleFieldIndex,
+    field: &'a crate::options::FluentFieldOpts,
 }
 
 impl MessageTupleField<'_> {
+    pub fn original_index(&self) -> TupleFieldIndex {
+        self.original_index
+    }
+
+    pub fn field(&self) -> &crate::options::FluentFieldOpts {
+        self.field
+    }
+
     pub fn argument_model(&self) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
         field_argument_model(
             self.field,
@@ -386,12 +337,20 @@ impl MessageTupleField<'_> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct MessageNamedField<'a> {
-    pub binding: &'a syn::Ident,
-    pub exposed_index: ExposedArgumentIndex,
-    pub field: &'a crate::options::FluentFieldOpts,
+    binding: &'a syn::Ident,
+    exposed_index: ExposedArgumentIndex,
+    field: &'a crate::options::FluentFieldOpts,
 }
 
 impl MessageNamedField<'_> {
+    pub fn binding(&self) -> &syn::Ident {
+        self.binding
+    }
+
+    pub fn field(&self) -> &crate::options::FluentFieldOpts {
+        self.field
+    }
+
     pub fn argument_model(&self) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
         field_argument_model(self.field, self.exposed_index, self.binding.span())
     }
@@ -406,8 +365,8 @@ pub enum MessageEnumField<'a> {
 impl MessageEnumField<'_> {
     pub fn field(&self) -> &crate::options::FluentFieldOpts {
         match self {
-            Self::Tuple(field) => field.field,
-            Self::Named(field) => field.field,
+            Self::Tuple(field) => field.field(),
+            Self::Named(field) => field.field(),
         }
     }
 
@@ -460,7 +419,13 @@ impl<'a> GeneratedVariantsStructModel<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct GeneratedVariantsField<'a> {
-    pub ident: &'a syn::Ident,
+    ident: &'a syn::Ident,
+}
+
+impl<'a> GeneratedVariantsField<'a> {
+    pub fn ident(&self) -> &'a syn::Ident {
+        self.ident
+    }
 }
 
 #[derive(Debug)]
@@ -496,7 +461,13 @@ impl<'a> GeneratedVariantsEnumModel<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct GeneratedVariantsVariant<'a> {
-    pub ident: &'a syn::Ident,
+    ident: &'a syn::Ident,
+}
+
+impl<'a> GeneratedVariantsVariant<'a> {
+    pub fn ident(&self) -> &'a syn::Ident {
+        self.ident
+    }
 }
 
 #[derive(Debug)]
@@ -583,7 +554,13 @@ impl<'a> ChoiceModel<'a> {
 
 #[derive(Clone, Copy, Debug)]
 pub struct ChoiceVariant<'a> {
-    pub ident: &'a syn::Ident,
+    ident: &'a syn::Ident,
+}
+
+impl<'a> ChoiceVariant<'a> {
+    pub fn ident(&self) -> &'a syn::Ident {
+        self.ident
+    }
 }
 
 pub fn field_value_strategy(
@@ -601,11 +578,11 @@ pub fn field_value_strategy(
 
 fn field_argument_model(
     field: &impl FluentField,
-    index: impl ArgumentIndex,
+    index: impl FieldArgumentIndex,
     span: proc_macro2::Span,
 ) -> EsFluentCoreResult<crate::semantic::ArgumentModel> {
     let value_strategy = field_value_strategy(field, span)?;
-    let name = field.fluent_arg_name(index.index(), AttrContext::MessageField)?;
+    let name = field.fluent_arg_name(index, AttrContext::MessageField)?;
     Ok(crate::semantic::ArgumentModel::new_with_value_strategy(
         name,
         value_strategy,
@@ -709,16 +686,16 @@ mod tests {
         let fields = all_fields
             .iter()
             .copied()
-            .filter(|field| !FluentField::is_skipped(field.field))
+            .filter(|field| !FluentField::is_skipped(field.field()))
             .collect::<Vec<_>>();
 
         assert_eq!(all_fields.len(), 3);
-        assert_eq!(all_fields[0].original_index.as_usize(), 0);
-        assert_eq!(all_fields[1].original_index.as_usize(), 1);
-        assert_eq!(all_fields[2].original_index.as_usize(), 2);
+        assert_eq!(all_fields[0].original_index().as_usize(), 0);
+        assert_eq!(all_fields[1].original_index().as_usize(), 1);
+        assert_eq!(all_fields[2].original_index().as_usize(), 2);
         assert_eq!(fields.len(), 2);
-        assert_eq!(fields[0].original_index.as_usize(), 1);
-        assert_eq!(fields[1].original_index.as_usize(), 2);
+        assert_eq!(fields[0].original_index().as_usize(), 1);
+        assert_eq!(fields[1].original_index().as_usize(), 2);
         assert_eq!(
             fields[0]
                 .argument_model()

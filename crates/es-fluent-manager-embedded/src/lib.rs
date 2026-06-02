@@ -252,7 +252,7 @@ mod tests {
     static TEST_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("fr")];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "embedded-test-module",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("embedded-test-module"),
+        domain: es_fluent_manager_core::__macro::static_domain("embedded-test-module"),
         supported_languages: TEST_SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
@@ -326,8 +326,8 @@ mod tests {
             ) -> String,
         ) -> String {
             localize(
-                es_fluent::registry::StaticFluentDomain::new_unchecked("embedded-test-module"),
-                es_fluent::registry::StaticFluentEntryId::new_unchecked("hello"),
+                es_fluent::registry::__macro::static_domain("embedded-test-module"),
+                es_fluent::registry::__macro::static_entry_id("hello"),
                 None,
             )
         }

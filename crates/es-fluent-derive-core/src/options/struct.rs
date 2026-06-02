@@ -125,12 +125,13 @@ impl GeneratedVariantsOptions for StructVariantsOpts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::index::DeclarationIndex;
     use crate::options::FieldValueDirective;
     use es_fluent_shared::namespace::NamespaceRule;
     use quote::quote;
     use syn::{DeriveInput, parse_quote};
 
-    fn message_field_arg(field: &impl FluentField, index: usize) -> String {
+    fn message_field_arg(field: &impl FluentField, index: DeclarationIndex) -> String {
         field
             .fluent_arg_name(index, crate::error::AttrContext::MessageField)
             .expect("argument name")
@@ -163,18 +164,27 @@ mod tests {
 
         let fields = opts.fields();
         assert_eq!(fields.len(), 3);
-        assert_eq!(message_field_arg(fields[0], 0), "username");
+        assert_eq!(
+            message_field_arg(fields[0], DeclarationIndex::new(0)),
+            "username"
+        );
         assert!(matches!(
             fields[0].directive().argument().map(|arg| arg.value()),
             Some(FieldValueDirective::Borrowed { .. })
         ));
 
-        assert_eq!(message_field_arg(fields[1], 1), "role");
+        assert_eq!(
+            message_field_arg(fields[1], DeclarationIndex::new(1)),
+            "role"
+        );
         assert!(matches!(
             fields[1].directive().argument().map(|arg| arg.value()),
             Some(FieldValueDirective::Choice { .. })
         ));
-        assert_eq!(message_field_arg(fields[2], 2), "display_name");
+        assert_eq!(
+            message_field_arg(fields[2], DeclarationIndex::new(2)),
+            "display_name"
+        );
         let Some(FieldValueDirective::Transform(transform)) =
             fields[2].directive().argument().map(|arg| arg.value())
         else {
@@ -188,9 +198,9 @@ mod tests {
 
         let indexed = opts.indexed_fields();
         assert_eq!(indexed.len(), 3);
-        assert_eq!(indexed[0].0, 0);
-        assert_eq!(indexed[1].0, 1);
-        assert_eq!(indexed[2].0, 2);
+        assert_eq!(indexed[0].0.as_usize(), 0);
+        assert_eq!(indexed[1].0.as_usize(), 1);
+        assert_eq!(indexed[2].0.as_usize(), 2);
 
         let all_indexed = opts.all_indexed_fields();
         assert_eq!(all_indexed.len(), 4);
@@ -202,8 +212,14 @@ mod tests {
         let tuple_opts = StructOpts::from_derive_input(&tuple_input).expect("tuple struct parse");
         let tuple_fields = tuple_opts.fields();
         assert_eq!(tuple_fields.len(), 2);
-        assert_eq!(message_field_arg(tuple_fields[0], 1), "f1");
-        assert_eq!(message_field_arg(tuple_fields[1], 2), "f2");
+        assert_eq!(
+            message_field_arg(tuple_fields[0], DeclarationIndex::new(1)),
+            "f1"
+        );
+        assert_eq!(
+            message_field_arg(tuple_fields[1], DeclarationIndex::new(2)),
+            "f2"
+        );
     }
 
     #[test]
@@ -218,8 +234,14 @@ mod tests {
         };
         let named_opts = StructOpts::from_derive_input(&named_input).expect("named parse");
         let named_fields = named_opts.fields();
-        assert_eq!(message_field_arg(named_fields[0], 0), "display_name");
-        assert_eq!(message_field_arg(named_fields[1], 1), "value");
+        assert_eq!(
+            message_field_arg(named_fields[0], DeclarationIndex::new(0)),
+            "display_name"
+        );
+        assert_eq!(
+            message_field_arg(named_fields[1], DeclarationIndex::new(1)),
+            "value"
+        );
 
         let tuple_input: DeriveInput = parse_quote! {
             #[derive(EsFluent)]
@@ -227,9 +249,18 @@ mod tests {
         };
         let tuple_opts = StructOpts::from_derive_input(&tuple_input).expect("tuple parse");
         let tuple_fields = tuple_opts.fields();
-        assert_eq!(message_field_arg(tuple_fields[0], 0), "f0");
-        assert_eq!(message_field_arg(tuple_fields[1], 1), "f1");
-        assert_eq!(message_field_arg(tuple_fields[2], 2), "f2");
+        assert_eq!(
+            message_field_arg(tuple_fields[0], DeclarationIndex::new(0)),
+            "f0"
+        );
+        assert_eq!(
+            message_field_arg(tuple_fields[1], DeclarationIndex::new(1)),
+            "f1"
+        );
+        assert_eq!(
+            message_field_arg(tuple_fields[2], DeclarationIndex::new(2)),
+            "f2"
+        );
     }
 
     #[test]

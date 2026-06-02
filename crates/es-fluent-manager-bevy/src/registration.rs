@@ -166,8 +166,8 @@ mod tests {
             ) -> String,
         ) -> String {
             localize(
-                es_fluent::registry::StaticFluentDomain::new_unchecked("registration-test"),
-                es_fluent::registry::StaticFluentEntryId::new_unchecked("refreshable"),
+                es_fluent::registry::__macro::static_domain("registration-test"),
+                es_fluent::registry::__macro::static_entry_id("refreshable"),
                 None,
             )
         }
@@ -196,8 +196,8 @@ mod tests {
             ) -> String,
         ) -> String {
             localize(
-                es_fluent::registry::StaticFluentDomain::new_unchecked("registration-test"),
-                es_fluent::registry::StaticFluentEntryId::new_unchecked(self.0),
+                es_fluent::registry::__macro::static_domain("registration-test"),
+                es_fluent::registry::__macro::static_entry_id(self.0),
                 None,
             )
         }

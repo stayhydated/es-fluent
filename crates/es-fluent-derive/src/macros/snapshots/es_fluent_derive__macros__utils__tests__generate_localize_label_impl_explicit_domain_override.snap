@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/utils.rs
+assertion_line: 519
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for Languages {
@@ -8,8 +9,7 @@ impl ::es_fluent::FluentLabel for Languages {
     ) -> String {
         ::es_fluent::__private::localize_label(
             localizer,
-            (::es_fluent::registry::StaticFluentDomain::new_unchecked("es-fluent-lang"))
-                .as_str(),
+            (::es_fluent::registry::__macro::static_domain("es-fluent-lang")).as_str(),
             "es-fluent-lang-label",
         )
     }

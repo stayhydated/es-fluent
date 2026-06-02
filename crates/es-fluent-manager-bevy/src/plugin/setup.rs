@@ -263,14 +263,14 @@ mod tests {
     static TEST_MODULE_NAMESPACES: &[&str] = &["ui"];
     static TEST_MODULE_DATA: ModuleData = ModuleData {
         name: "setup-test-module",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("setup-domain"),
+        domain: es_fluent_manager_core::__macro::static_domain("setup-domain"),
         supported_languages: TEST_MODULE_LANGUAGES,
         namespaces: TEST_MODULE_NAMESPACES,
     };
     static TEST_FOLLOWER_LANGUAGES: &[LanguageIdentifier] = &[langid!("fr")];
     static TEST_FOLLOWER_DATA: ModuleData = ModuleData {
         name: "setup-runtime-follower",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("setup-runtime-follower"),
+        domain: es_fluent_manager_core::__macro::static_domain("setup-runtime-follower"),
         supported_languages: TEST_FOLLOWER_LANGUAGES,
         namespaces: &[],
     };

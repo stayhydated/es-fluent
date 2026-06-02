@@ -5,7 +5,8 @@
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::namer::FluentKey;
 use es_fluent_shared::registry::{
-    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentEntryId,
+    FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
+    StaticFluentEntryId,
 };
 use proc_macro2::Span;
 use syn::Ident;
@@ -24,7 +25,7 @@ pub fn leak_slice<T>(items: Vec<T>) -> &'static [T] {
 pub fn variant(name: &str, ftl_key: &str) -> FtlVariant {
     FtlVariant::new(
         leak_str(name),
-        StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
+        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test entry id"),
         Vec::new().leak(),
         "test",
         0,
@@ -35,10 +36,13 @@ pub fn variant(name: &str, ftl_key: &str) -> FtlVariant {
 pub fn variant_with_args(name: &str, ftl_key: &str, args: Vec<&str>) -> FtlVariant {
     FtlVariant::new(
         leak_str(name),
-        StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
+        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test entry id"),
         leak_slice(
             args.into_iter()
-                .map(|arg| StaticFluentArgumentName::new_unchecked(leak_str(arg)))
+                .map(|arg| {
+                    StaticFluentArgumentName::try_new(leak_str(arg))
+                        .expect("valid test argument name")
+                })
                 .collect(),
         ),
         "test",
@@ -94,6 +98,8 @@ pub fn enum_type_with_namespace(
         leak_slice(variants),
         "",
         "test",
-        Some(NamespaceRule::Literal(namespace.into())),
+        Some(NamespaceRule::Literal(
+            ResolvedNamespace::new(namespace).expect("valid test namespace"),
+        )),
     )
 }

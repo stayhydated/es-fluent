@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
+assertion_line: 171
 expression: tokens
 ---
 ///Variants of [`Status`].
@@ -24,7 +25,7 @@ impl ::es_fluent::FluentMessage for StatusVariants {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                    ::es_fluent::registry::__macro::static_entry_id(
                         "status_variants-Ready",
                     ),
                     None,
@@ -35,7 +36,7 @@ impl ::es_fluent::FluentMessage for StatusVariants {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                    ::es_fluent::registry::__macro::static_entry_id(
                         "status_variants-Failed",
                     ),
                     None,
@@ -51,18 +52,14 @@ mod __es_fluent_inventory_StatusVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "Ready",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                "status_variants-Ready",
-            ),
+            ::es_fluent::registry::__macro::static_entry_id("status_variants-Ready"),
             &[],
             module_path!(),
             line!(),
         ),
         ::es_fluent::registry::__macro::ftl_variant(
             "Failed",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                "status_variants-Failed",
-            ),
+            ::es_fluent::registry::__macro::static_entry_id("status_variants-Failed"),
             &[],
             module_path!(),
             line!(),
@@ -74,11 +71,7 @@ mod __es_fluent_inventory_StatusVariants {
         VARIANTS,
         file!(),
         module_path!(),
-        Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
-            ),
-        ),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
     );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
@@ -91,9 +84,7 @@ mod __es_fluent_label_inventory_StatusVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "StatusVariants",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                "status_variants_label",
-            ),
+            ::es_fluent::registry::__macro::static_entry_id("status_variants_label"),
             &[],
             module_path!(),
             line!(),
@@ -105,11 +96,7 @@ mod __es_fluent_label_inventory_StatusVariants {
         VARIANTS,
         file!(),
         module_path!(),
-        Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
-            ),
-        ),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
     );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)

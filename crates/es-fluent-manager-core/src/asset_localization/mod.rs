@@ -35,7 +35,7 @@ mod tests {
     static NAMESPACES: &[&str] = &["ui", "errors"];
     static DATA: ModuleData = ModuleData {
         name: "test-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: SUPPORTED,
         namespaces: NAMESPACES,
     };
@@ -179,13 +179,13 @@ mod tests {
         ];
         static BAD_DATA: ModuleData = ModuleData {
             name: "test-module",
-            domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+            domain: crate::__macro::static_domain("test-domain"),
             supported_languages: DUP_LANGUAGE,
             namespaces: INVALID_NAMESPACES,
         };
         static DUP_DOMAIN: ModuleData = ModuleData {
             name: "other-module",
-            domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+            domain: crate::__macro::static_domain("test-domain"),
             supported_languages: SUPPORTED,
             namespaces: &[],
         };
@@ -243,7 +243,7 @@ mod tests {
         static PATH_NAMESPACES: &[&str] = &["ui/button", "errors/forms"];
         static PATH_DATA: ModuleData = ModuleData {
             name: "path-module",
-            domain: crate::StaticFluentDomain::new_unchecked("path-domain"),
+            domain: crate::__macro::static_domain("path-domain"),
             supported_languages: SUPPORTED,
             namespaces: PATH_NAMESPACES,
         };
@@ -262,7 +262,7 @@ mod tests {
     fn module_data_try_resource_plan_reports_invalid_namespaces() {
         static BAD_DATA: ModuleData = ModuleData {
             name: "bad-module",
-            domain: crate::StaticFluentDomain::new_unchecked("bad-domain"),
+            domain: crate::__macro::static_domain("bad-domain"),
             supported_languages: SUPPORTED,
             namespaces: &["../outside"],
         };

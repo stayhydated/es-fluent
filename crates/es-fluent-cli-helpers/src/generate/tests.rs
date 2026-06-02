@@ -1,8 +1,7 @@
 use super::*;
-use es_fluent::registry::{FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentEntryId};
+use es_fluent::registry::{__macro, FtlTypeInfo, FtlVariant};
 use es_fluent_shared::meta::TypeKind;
 use fs_err as fs;
-use std::borrow::Cow;
 use std::path::Path;
 use toml::Value;
 
@@ -13,7 +12,7 @@ static ALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
     EMPTY_VARIANTS,
     "src/lib.rs",
     "test_crate",
-    Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
+    Some(__macro::namespace_literal("ui")),
 );
 static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
     TypeKind::Struct,
@@ -21,7 +20,7 @@ static DISALLOWED_INFO: FtlTypeInfo = FtlTypeInfo::new(
     EMPTY_VARIANTS,
     "src/lib.rs",
     "test_crate",
-    Some(NamespaceRule::Literal(Cow::Borrowed("errors"))),
+    Some(__macro::namespace_literal("errors")),
 );
 static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo::new(
     TypeKind::Struct,
@@ -29,11 +28,11 @@ static INVALID_NAMESPACE_INFO: FtlTypeInfo = FtlTypeInfo::new(
     EMPTY_VARIANTS,
     "src/lib.rs",
     "test_crate",
-    Some(NamespaceRule::Literal(Cow::Borrowed("../escape"))),
+    Some(__macro::namespace_literal("../escape")),
 );
 static CLEAN_VARIANTS: &[FtlVariant] = &[FtlVariant::new(
     "Key1",
-    StaticFluentEntryId::new_unchecked("group_a-Key1"),
+    __macro::static_entry_id("group_a-Key1"),
     &[],
     "test",
     0,

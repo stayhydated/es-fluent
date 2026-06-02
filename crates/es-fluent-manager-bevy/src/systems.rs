@@ -122,8 +122,8 @@ mod tests {
             ) -> String,
         ) -> String {
             localize(
-                es_fluent::registry::StaticFluentDomain::new_unchecked(self.domain),
-                es_fluent::registry::StaticFluentEntryId::new_unchecked(self.id),
+                es_fluent::registry::__macro::static_domain(self.domain),
+                es_fluent::registry::__macro::static_entry_id(self.id),
                 None,
             )
         }

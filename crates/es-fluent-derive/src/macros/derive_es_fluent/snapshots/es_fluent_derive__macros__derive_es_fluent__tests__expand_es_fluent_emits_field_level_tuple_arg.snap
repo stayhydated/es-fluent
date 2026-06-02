@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+assertion_line: 251
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for LoginError {
@@ -17,9 +18,7 @@ impl ::es_fluent::FluentMessage for LoginError {
                 {
                     use ::es_fluent::__private::IntoFluentArgumentValue as _;
                     args.insert(
-                        ::es_fluent::registry::StaticFluentArgumentName::new_unchecked(
-                            "value",
-                        ),
+                        ::es_fluent::registry::__macro::static_argument_name("value"),
                         (::es_fluent::__private::FluentBorrowedArgumentValue::new(f0))
                             .into_fluent_argument_value(localize),
                     );
@@ -28,7 +27,7 @@ impl ::es_fluent::FluentMessage for LoginError {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                    ::es_fluent::registry::__macro::static_entry_id(
                         "login_error-Something",
                     ),
                     Some(&args),
@@ -44,10 +43,8 @@ mod __es_fluent_inventory_LoginError {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "Something",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                "login_error-Something",
-            ),
-            &[::es_fluent::registry::StaticFluentArgumentName::new_unchecked("value")],
+            ::es_fluent::registry::__macro::static_entry_id("login_error-Something"),
+            &[::es_fluent::registry::__macro::static_argument_name("value")],
             module_path!(),
             line!(),
         ),

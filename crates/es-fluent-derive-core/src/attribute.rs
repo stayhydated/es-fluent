@@ -56,6 +56,7 @@ mod tests {
     use super::*;
     use crate::grammar::{ATTRIBUTE_RULES, AttributeRule};
     use quote::quote;
+    use std::collections::HashSet;
     use syn::parse_quote;
 
     #[test]
@@ -344,6 +345,146 @@ mod tests {
                 "wrong shape should use schema help for {rule:?}: {message}"
             );
         }
+    }
+
+    #[test]
+    fn attribute_schema_is_covered_by_typed_option_parsers() {
+        let parser_keys = option_parser_keys();
+        let schema_keys = ATTRIBUTE_RULES
+            .iter()
+            .map(|rule| (rule.family, rule.location, rule.key))
+            .collect::<HashSet<_>>();
+
+        for rule in ATTRIBUTE_RULES {
+            assert!(
+                parser_keys.contains(&(rule.family, rule.location, rule.key)),
+                "grammar key {:?}/{:?}/{:?} is not represented in the typed option parser map",
+                rule.family,
+                rule.location,
+                rule.key
+            );
+        }
+
+        for parser_key in parser_keys {
+            assert!(
+                schema_keys.contains(&parser_key),
+                "typed option parser map accepts a key not allowed by ATTRIBUTE_RULES: {parser_key:?}"
+            );
+        }
+    }
+
+    fn option_parser_keys() -> HashSet<(AttributeFamily, AttributeLocation, FluentAttributeKey)> {
+        [
+            // StructOpts / EnumOpts / FluentFieldOpts / VariantOpts.
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::MessageStructContainer,
+                &[FluentAttributeKey::Namespace][..],
+            ),
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::MessageEnumContainer,
+                &[
+                    FluentAttributeKey::Id,
+                    FluentAttributeKey::Domain,
+                    FluentAttributeKey::Namespace,
+                ][..],
+            ),
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::MessageField,
+                &[
+                    FluentAttributeKey::Skip,
+                    FluentAttributeKey::Selector,
+                    FluentAttributeKey::Optional,
+                    FluentAttributeKey::Arg,
+                    FluentAttributeKey::Value,
+                ][..],
+            ),
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::EnumVariant,
+                &[FluentAttributeKey::Skip, FluentAttributeKey::Key][..],
+            ),
+            // Parent #[fluent(...)] inherited by EsFluentLabel and EsFluentVariants.
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::LabelStructParentContainer,
+                &[FluentAttributeKey::Namespace][..],
+            ),
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::LabelEnumParentContainer,
+                &[FluentAttributeKey::Domain, FluentAttributeKey::Namespace][..],
+            ),
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::VariantsStructParentContainer,
+                &[FluentAttributeKey::Namespace][..],
+            ),
+            (
+                AttributeFamily::Fluent,
+                AttributeLocation::VariantsEnumParentContainer,
+                &[FluentAttributeKey::Domain, FluentAttributeKey::Namespace][..],
+            ),
+            // EsFluentVariants options.
+            (
+                AttributeFamily::FluentVariants,
+                AttributeLocation::VariantsContainer,
+                &[
+                    FluentAttributeKey::Keys,
+                    FluentAttributeKey::Derive,
+                    FluentAttributeKey::Namespace,
+                ][..],
+            ),
+            (
+                AttributeFamily::FluentVariants,
+                AttributeLocation::VariantsField,
+                &[FluentAttributeKey::Skip][..],
+            ),
+            (
+                AttributeFamily::FluentVariants,
+                AttributeLocation::VariantsVariant,
+                &[FluentAttributeKey::Skip][..],
+            ),
+            // EsFluentLabel options.
+            (
+                AttributeFamily::FluentLabel,
+                AttributeLocation::LabelContainer,
+                &[
+                    FluentAttributeKey::Origin,
+                    FluentAttributeKey::Variants,
+                    FluentAttributeKey::Namespace,
+                ][..],
+            ),
+            // EsFluentChoice options.
+            (
+                AttributeFamily::FluentChoice,
+                AttributeLocation::ChoiceContainer,
+                &[FluentAttributeKey::RenameAll][..],
+            ),
+            // es_fluent_language and locale field marker options.
+            (
+                AttributeFamily::EsFluentLanguage,
+                AttributeLocation::LanguageContainer,
+                &[FluentAttributeKey::Mode][..],
+            ),
+            (
+                AttributeFamily::Locale,
+                AttributeLocation::LocaleNamedStructField,
+                &[FluentAttributeKey::Locale][..],
+            ),
+            (
+                AttributeFamily::Locale,
+                AttributeLocation::LocaleNamedEnumVariantField,
+                &[FluentAttributeKey::Locale][..],
+            ),
+        ]
+        .into_iter()
+        .flat_map(|(family, location, keys)| {
+            keys.iter().copied().map(move |key| (family, location, key))
+        })
+        .collect()
     }
 
     fn all_locations() -> Vec<AttributeLocation> {

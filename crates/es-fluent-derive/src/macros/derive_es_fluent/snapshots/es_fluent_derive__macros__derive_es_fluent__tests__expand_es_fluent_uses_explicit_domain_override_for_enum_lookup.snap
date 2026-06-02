@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+assertion_line: 284
 expression: tokens
 ---
 impl ::es_fluent::FluentMessage for Languages {
@@ -14,12 +15,8 @@ impl ::es_fluent::FluentMessage for Languages {
         match self {
             Self::En => {
                 localize(
-                    ::es_fluent::registry::StaticFluentDomain::new_unchecked(
-                        "es-fluent-lang",
-                    ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                        "es-fluent-lang-en",
-                    ),
+                    ::es_fluent::registry::__macro::static_domain("es-fluent-lang"),
+                    ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-en"),
                     None,
                 )
             }
@@ -33,9 +30,7 @@ mod __es_fluent_inventory_Languages {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "En",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                "es-fluent-lang-en",
-            ),
+            ::es_fluent::registry::__macro::static_entry_id("es-fluent-lang-en"),
             &[],
             module_path!(),
             line!(),

@@ -1142,32 +1142,32 @@ mod tests {
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en"), langid!("fr")];
     static TEST_DATA: ModuleData = ModuleData {
         name: "test-app",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("test-app"),
+        domain: es_fluent_manager_core::__macro::static_domain("test-app"),
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
     static FALLBACK_LANGUAGES: &[LanguageIdentifier] = &[langid!("en-US"), langid!("en")];
     static FALLBACK_DATA: ModuleData = ModuleData {
         name: "fallback-app",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("fallback-app"),
+        domain: es_fluent_manager_core::__macro::static_domain("fallback-app"),
         supported_languages: FALLBACK_LANGUAGES,
         namespaces: &[],
     };
     static DUPLICATE_RESOURCE_DATA: ModuleData = ModuleData {
         name: "duplicate-resource-app",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("duplicate-resource-app"),
+        domain: es_fluent_manager_core::__macro::static_domain("duplicate-resource-app"),
         supported_languages: &[langid!("en")],
         namespaces: &["ui"],
     };
     static ASSET_DATA: ModuleData = ModuleData {
         name: "asset-test",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("asset-test"),
+        domain: es_fluent_manager_core::__macro::static_domain("asset-test"),
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
     static INVALID_ASSET_DATA: ModuleData = ModuleData {
         name: "invalid-asset-test",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("invalid-asset-test"),
+        domain: es_fluent_manager_core::__macro::static_domain("invalid-asset-test"),
         supported_languages: &[langid!("en")],
         namespaces: &[],
     };
@@ -1321,8 +1321,8 @@ mod tests {
             ) -> String,
         ) -> String {
             localize(
-                es_fluent::registry::StaticFluentDomain::new_unchecked("test-app"),
-                es_fluent::registry::StaticFluentEntryId::new_unchecked("hello"),
+                es_fluent::registry::__macro::static_domain("test-app"),
+                es_fluent::registry::__macro::static_entry_id("hello"),
                 None,
             )
         }

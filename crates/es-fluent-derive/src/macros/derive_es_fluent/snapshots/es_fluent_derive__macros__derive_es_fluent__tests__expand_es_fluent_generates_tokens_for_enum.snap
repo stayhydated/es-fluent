@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent/mod.rs
+assertion_line: 111
 expression: enum_tokens
 ---
 impl ::es_fluent::FluentMessage for Status {
@@ -17,9 +18,7 @@ impl ::es_fluent::FluentMessage for Status {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                        "status-Ready",
-                    ),
+                    ::es_fluent::registry::__macro::static_entry_id("status-Ready"),
                     None,
                 )
             }
@@ -33,7 +32,7 @@ mod __es_fluent_inventory_Status {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "Ready",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked("status-Ready"),
+            ::es_fluent::registry::__macro::static_entry_id("status-Ready"),
             &[],
             module_path!(),
             line!(),

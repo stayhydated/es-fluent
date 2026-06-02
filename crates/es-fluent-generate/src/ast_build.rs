@@ -14,7 +14,7 @@ pub(crate) fn create_group_comment_entry(type_name: &str) -> ast::Entry<String> 
 /// Create a message entry from an owned variant definition.
 pub(crate) fn create_message_entry(variant: &OwnedVariant) -> ast::Entry<String> {
     let message_id = ast::Identifier {
-        name: variant.ftl_key().to_string(),
+        name: variant.entry_id().as_str().to_string(),
     };
 
     let base_value = ValueFormatter::expand(&variant.name);

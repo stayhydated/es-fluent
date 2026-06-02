@@ -18,7 +18,7 @@ impl StaticFluentDomain {
     ///
     /// Derive macros emit this only after validating the domain during macro
     /// expansion. Manual callers should prefer [`Self::try_new`].
-    pub const fn new_unchecked(value: &'static str) -> Self {
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
         Self(value)
     }
 
@@ -75,7 +75,7 @@ impl StaticFluentEntryId {
     ///
     /// Derive macros emit this only after validating the id during macro
     /// expansion. Manual callers should prefer [`Self::try_new`].
-    pub const fn new_unchecked(value: &'static str) -> Self {
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
         Self(value)
     }
 
@@ -125,7 +125,7 @@ impl StaticFluentArgumentName {
     ///
     /// Derive macros emit this only after validating the name during macro
     /// expansion. Manual callers should prefer [`Self::try_new`].
-    pub const fn new_unchecked(value: &'static str) -> Self {
+    pub(crate) const fn new_unchecked(value: &'static str) -> Self {
         Self(value)
     }
 
@@ -194,14 +194,6 @@ impl FtlVariant {
 
     pub fn name(&self) -> &'static str {
         self.name
-    }
-
-    /// Returns the validated Fluent entry id for this variant.
-    ///
-    /// Unlike [`Self::message_id`], this accepts both message IDs and term IDs
-    /// such as `-shared`.
-    pub fn ftl_key(&self) -> &'static str {
-        self.ftl_key.as_str()
     }
 
     pub fn args(&self) -> &'static [StaticFluentArgumentName] {
@@ -346,9 +338,26 @@ impl FtlTypeInfo {
 #[doc(hidden)]
 pub mod __macro {
     use super::{
-        FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentEntryId,
+        FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
+        StaticFluentDomain, StaticFluentEntryId,
     };
     use crate::meta::TypeKind;
+
+    pub const fn static_domain(value: &'static str) -> StaticFluentDomain {
+        StaticFluentDomain::new_unchecked(value)
+    }
+
+    pub const fn static_entry_id(value: &'static str) -> StaticFluentEntryId {
+        StaticFluentEntryId::new_unchecked(value)
+    }
+
+    pub const fn static_argument_name(value: &'static str) -> StaticFluentArgumentName {
+        StaticFluentArgumentName::new_unchecked(value)
+    }
+
+    pub const fn namespace_literal(value: &'static str) -> NamespaceRule {
+        NamespaceRule::Literal(ResolvedNamespace::from_static_unchecked(value))
+    }
 
     pub const fn ftl_variant(
         name: &'static str,
@@ -523,7 +532,7 @@ mod tests {
             &[],
             "src/lib.rs",
             "demo",
-            Some(NamespaceRule::Literal("../escape".into())),
+            Some(super::__macro::namespace_literal("../escape")),
         );
 
         let err = info

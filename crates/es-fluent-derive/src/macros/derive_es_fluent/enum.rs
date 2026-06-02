@@ -273,9 +273,9 @@ mod tests {
         assert!(runtime_tokens.contains("\"login_error-Failed\""));
         assert!(runtime_tokens.contains("\"display_name\""));
         assert!(runtime_tokens.contains("\"f1\""));
-        assert!(inventory_tokens.contains("StaticFluentEntryId"));
+        assert!(inventory_tokens.contains("static_entry_id"));
         assert!(inventory_tokens.contains("\"login_error-Failed\""));
-        assert!(inventory_tokens.contains("StaticFluentArgumentName"));
+        assert!(inventory_tokens.contains("static_argument_name"));
         assert!(inventory_tokens.contains("\"display_name\""));
         assert!(inventory_tokens.contains("\"f1\""));
     }

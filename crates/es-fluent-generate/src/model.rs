@@ -47,12 +47,12 @@ impl OwnedVariant {
         })
     }
 
-    pub(crate) fn ftl_key(&self) -> &str {
-        self.ftl_key.as_str()
+    pub(crate) fn entry_id(&self) -> &FluentEntryId {
+        &self.ftl_key
     }
 
     pub(crate) fn is_label(&self) -> bool {
-        self.ftl_key().ends_with(FluentKey::LABEL_SUFFIX)
+        self.entry_id().as_str().ends_with(FluentKey::LABEL_SUFFIX)
     }
 }
 

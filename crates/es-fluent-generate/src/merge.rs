@@ -29,7 +29,7 @@ pub(crate) fn smart_merge(
     let mut key_to_group: IndexMap<String, String> = IndexMap::new();
     for (group_name, info) in &item_map {
         for variant in &info.variants {
-            key_to_group.insert(variant.ftl_key().to_string(), group_name.clone());
+            key_to_group.insert(variant.entry_id().as_str().to_string(), group_name.clone());
         }
     }
     let mut relocated_by_group: IndexMap<String, Vec<ast::Entry<String>>> = IndexMap::new();
@@ -56,8 +56,8 @@ pub(crate) fn smart_merge(
                         }
                         if !info.variants.is_empty() {
                             for variant in &info.variants {
-                                if !existing_keys.contains(variant.ftl_key()) {
-                                    seen_keys.insert(variant.ftl_key().to_string());
+                                if !existing_keys.contains(variant.entry_id().as_str()) {
+                                    seen_keys.insert(variant.entry_id().as_str().to_string());
                                     new_body.push(crate::ast_build::create_message_entry(variant));
                                 }
                             }
@@ -148,8 +148,8 @@ pub(crate) fn smart_merge(
             }
             if !info.variants.is_empty() {
                 for variant in &info.variants {
-                    if !existing_keys.contains(variant.ftl_key()) {
-                        seen_keys.insert(variant.ftl_key().to_string());
+                    if !existing_keys.contains(variant.entry_id().as_str()) {
+                        seen_keys.insert(variant.entry_id().as_str().to_string());
                         new_body.push(crate::ast_build::create_message_entry(variant));
                     }
                 }
@@ -167,15 +167,15 @@ pub(crate) fn smart_merge(
             let has_missing = info
                 .variants
                 .iter()
-                .any(|variant| !existing_keys.contains(variant.ftl_key()));
+                .any(|variant| !existing_keys.contains(variant.entry_id().as_str()));
             if has_missing || relocated.is_some() {
                 new_body.push(crate::ast_build::create_group_comment_entry(&type_name));
                 if let Some(entries) = relocated {
                     new_body.extend(entries);
                 }
                 for variant in info.variants {
-                    if !existing_keys.contains(variant.ftl_key()) {
-                        seen_keys.insert(variant.ftl_key().to_string());
+                    if !existing_keys.contains(variant.entry_id().as_str()) {
+                        seen_keys.insert(variant.entry_id().as_str().to_string());
                         new_body.push(crate::ast_build::create_message_entry(&variant));
                     }
                 }
@@ -261,7 +261,7 @@ fn remove_variant_from_group(
         && let Some(idx) = info
             .variants
             .iter()
-            .position(|variant| variant.ftl_key() == key)
+            .position(|variant| variant.entry_id().as_str() == key)
     {
         info.variants.remove(idx);
         return true;
@@ -278,7 +278,7 @@ fn remove_variant_from_any_group(
         if let Some(idx) = info
             .variants
             .iter()
-            .position(|variant| variant.ftl_key() == key)
+            .position(|variant| variant.entry_id().as_str() == key)
         {
             info.variants.remove(idx);
             return true;

@@ -325,6 +325,28 @@ impl std::fmt::Display for GeneratedDocName {
     }
 }
 
+/// A Fluent selector value emitted by `EsFluentChoice`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FluentChoiceValue {
+    value: FluentVariantKey,
+}
+
+impl FluentChoiceValue {
+    pub fn try_new(
+        value: impl Into<String>,
+        span: Span,
+        context: AttrContext,
+    ) -> EsFluentCoreResult<Self> {
+        Ok(Self {
+            value: parse_variant_key_in_context(value, span, context)?,
+        })
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.value.as_str()
+    }
+}
+
 /// Semantic seed for one generated unit-enum variant before the target enum key is known.
 #[derive(Clone, Debug)]
 pub struct GeneratedVariantMessageSeed {
@@ -714,11 +736,11 @@ impl GeneratedEnumModel {
 #[derive(Clone, Debug)]
 pub struct ChoiceVariantModel {
     ident: syn::Ident,
-    value: SpannedValue<String>,
+    value: SpannedValue<FluentChoiceValue>,
 }
 
 impl ChoiceVariantModel {
-    pub fn new(ident: syn::Ident, value: SpannedValue<String>) -> Self {
+    pub fn new(ident: syn::Ident, value: SpannedValue<FluentChoiceValue>) -> Self {
         Self { ident, value }
     }
 
@@ -727,7 +749,7 @@ impl ChoiceVariantModel {
     }
 
     pub fn value(&self) -> &str {
-        self.value.value()
+        self.value.value().as_str()
     }
 
     pub fn span(&self) -> Span {
@@ -754,12 +776,17 @@ impl ChoiceModel {
                 let variant_name = es_fluent_shared::namer::rust_ident_name(variant_ident);
                 let value = rename_all
                     .map_or_else(|| variant_name.clone(), |style| style.apply(&variant_name));
-                ChoiceVariantModel::new(
+                let value = FluentChoiceValue::try_new(
+                    value,
+                    variant_ident.span(),
+                    AttrContext::ChoiceContainer,
+                )?;
+                Ok(ChoiceVariantModel::new(
                     variant_ident.clone(),
                     SpannedValue::new(value, variant_ident.span()),
-                )
+                ))
             })
-            .collect();
+            .collect::<EsFluentCoreResult<Vec<_>>>()?;
 
         Ok(Self {
             ident: ident.clone(),
@@ -1027,5 +1054,21 @@ mod tests {
         assert_eq!(model.variants()[0].ident().to_string(), "VeryHigh");
         assert_eq!(model.variants()[0].value(), "very_high");
         assert_eq!(model.variants()[1].value(), "low");
+    }
+
+    #[test]
+    fn choice_model_rejects_invalid_generated_selector_values() {
+        let choice_ident: syn::Ident = syn::parse_quote!(SeverityChoice);
+        let high_ident: syn::Ident = syn::parse_quote!(VeryHigh);
+
+        let err = ChoiceModel::from_variant_idents(
+            &choice_ident,
+            [&high_ident],
+            Some(CaseStyle::TitleCase),
+        )
+        .expect_err("title case generates a selector value containing a space");
+
+        let message = err.to_string();
+        assert!(message.contains("choice container"), "{message}");
     }
 }

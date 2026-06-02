@@ -1,6 +1,7 @@
 //! This module provides types for parsing `es-fluent` attributes.
 
 use crate::error::{AttrContext, AttrError, EsFluentCoreError, EsFluentCoreResult};
+use crate::index::{DeclarationIndex, FieldArgumentIndex};
 use crate::namespace::SpannedNamespaceRule;
 use crate::semantic::{
     ArgName, ArgumentValueStrategy, DomainName, FluentMessageId, GeneratedKeyIdent,
@@ -209,8 +210,12 @@ pub fn collect_items<T>(items: &[T]) -> Vec<&T> {
     items.iter().collect()
 }
 
-pub fn indexed_items<T>(items: &[T]) -> Vec<(usize, &T)> {
-    items.iter().enumerate().collect()
+pub fn indexed_items<T>(items: &[T]) -> Vec<(DeclarationIndex, &T)> {
+    items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| (DeclarationIndex::new(index), item))
+        .collect()
 }
 
 pub trait SkipDirective {
@@ -230,11 +235,12 @@ pub fn filter_unskipped<T: Skippable>(items: &[T]) -> Vec<&T> {
         .collect()
 }
 
-pub fn indexed_unskipped<T: Skippable>(items: &[T]) -> Vec<(usize, &T)> {
+pub fn indexed_unskipped<T: Skippable>(items: &[T]) -> Vec<(DeclarationIndex, &T)> {
     items
         .iter()
         .enumerate()
         .filter(|(_, item)| !item.skip_directive().is_skipped())
+        .map(|(index, item)| (DeclarationIndex::new(index), item))
         .collect()
 }
 
@@ -247,7 +253,7 @@ pub fn struct_items<T: Skippable>(data: &darling::ast::Data<darling::util::Ignor
 
 pub fn indexed_struct_items<T: Skippable>(
     data: &darling::ast::Data<darling::util::Ignored, T>,
-) -> Vec<(usize, &T)> {
+) -> Vec<(DeclarationIndex, &T)> {
     match data {
         darling::ast::Data::Struct(fields) => indexed_unskipped(&fields.fields),
         _ => Vec::new(),
@@ -256,7 +262,7 @@ pub fn indexed_struct_items<T: Skippable>(
 
 pub fn all_indexed_struct_items<T>(
     data: &darling::ast::Data<darling::util::Ignored, T>,
-) -> Vec<(usize, &T)> {
+) -> Vec<(DeclarationIndex, &T)> {
     match data {
         darling::ast::Data::Struct(fields) => indexed_items(&fields.fields),
         _ => Vec::new(),
@@ -373,7 +379,7 @@ pub trait StructDataOptions {
     }
 
     /// Returns the fields of the struct paired with their declaration index.
-    fn indexed_fields(&self) -> Vec<(usize, &Self::Field)>
+    fn indexed_fields(&self) -> Vec<(DeclarationIndex, &Self::Field)>
     where
         Self::Field: Skippable,
     {
@@ -381,7 +387,7 @@ pub trait StructDataOptions {
     }
 
     /// Returns all fields (including skipped) paired with their declaration index.
-    fn all_indexed_fields(&self) -> Vec<(usize, &Self::Field)> {
+    fn all_indexed_fields(&self) -> Vec<(DeclarationIndex, &Self::Field)> {
         all_indexed_struct_items(self.struct_data())
     }
 }
@@ -463,13 +469,14 @@ pub trait FluentField {
     /// Resolves and validates the Fluent argument name for this field.
     fn fluent_arg_name(
         &self,
-        index: usize,
+        index: impl FieldArgumentIndex,
         context: AttrContext,
     ) -> EsFluentCoreResult<SpannedValue<ArgName>> {
         if let Some(arg) = self.arg_name() {
             return Ok(arg.clone());
         }
 
+        let index = index.argument_index();
         let (name, span) = self
             .ident()
             .map(|ident| (namer::rust_ident_name(ident), ident.span()))

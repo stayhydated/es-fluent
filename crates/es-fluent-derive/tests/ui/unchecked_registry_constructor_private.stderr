@@ -1,0 +1,10 @@
+error[E0624]: associated function `new_unchecked` is private
+ --> tests/ui/unchecked_registry_constructor_private.rs:2:55
+  |
+2 |     let _ = es_fluent::registry::StaticFluentEntryId::new_unchecked("hello");
+  |                                                       ^^^^^^^^^^^^^ private associated function
+  |
+ ::: $WORKSPACE/crates/es-fluent-shared/src/registry.rs
+  |
+  |     pub(crate) const fn new_unchecked(value: &'static str) -> Self {
+  |     -------------------------------------------------------------- private associated function defined here

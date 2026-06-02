@@ -340,7 +340,7 @@ resource for non-namespaced messages.
 
 ### Namespace Values
 
-- `namespace = "name"` - explicit namespace string
+- `namespace = "name"` - explicit namespace string. Literal namespaces must be safe locale-relative paths: no empty segments, `.`/`..`, backslashes, absolute paths, surrounding whitespace, or `.ftl` suffix.
 - `namespace = file` - uses the source file stem (e.g., `src/ui/button.rs` -> `button`)
 - `namespace = file_relative` - uses the file path relative to the crate root, strips `src/`, and removes the extension (e.g., `src/ui/button.rs` -> `ui/button`)
 - `namespace = folder` - uses the source file parent folder (e.g., `src/ui/button.rs` -> `ui`)
@@ -435,6 +435,9 @@ network_error-ApiUnavailable = API is unavailable
 ### `#[derive(EsFluentChoice)]`
 
 Allows an enum to be used _inside_ another message as a selector (e.g., for gender or status).
+Choice values are validated as Fluent select variant keys. `rename_all` styles
+that generate invalid selector values, such as values containing spaces, are
+rejected at compile time.
 
 ```rs
 use es_fluent::{EsFluent, EsFluentChoice};

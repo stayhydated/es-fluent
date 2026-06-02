@@ -662,7 +662,7 @@ mod validate_namespace_tests {
         // validation should pass for any literal namespace.
         // This test runs without setting up a config file, so it relies on
         // the graceful fallback behavior.
-        let ns = NamespaceRule::Literal("any_namespace".into());
+        let ns = NamespaceRule::literal("any_namespace").expect("valid namespace");
         with_manifest_dir(None, || {
             es_fluent_derive_core::validation::validate_namespace(&ns, None)
                 .expect("Should pass when no config exists");
@@ -674,7 +674,7 @@ mod validate_namespace_tests {
     fn literal_namespace_reports_parse_errors_from_config() {
         let temp = tempfile::tempdir().expect("tempdir");
         std::fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write i18n.toml");
-        let ns = NamespaceRule::Literal("ui".into());
+        let ns = NamespaceRule::literal("ui").expect("valid namespace");
 
         let err = with_manifest_dir(Some(temp.path()), || {
             es_fluent_derive_core::validation::validate_namespace(&ns, None)

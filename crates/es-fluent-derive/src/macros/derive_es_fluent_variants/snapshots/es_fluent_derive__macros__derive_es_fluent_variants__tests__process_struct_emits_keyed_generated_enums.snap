@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
+assertion_line: 118
 expression: tokens
 ---
 ///`label` variants of [`LoginForm`].
@@ -25,7 +26,7 @@ impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                    ::es_fluent::registry::__macro::static_entry_id(
                         "login_form_label_variants-username",
                     ),
                     None,
@@ -36,7 +37,7 @@ impl ::es_fluent::FluentMessage for LoginFormLabelVariants {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                    ::es_fluent::registry::__macro::static_entry_id(
                         "login_form_label_variants-password",
                     ),
                     None,
@@ -52,7 +53,7 @@ mod __es_fluent_inventory_LoginFormLabelVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "Username",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+            ::es_fluent::registry::__macro::static_entry_id(
                 "login_form_label_variants-username",
             ),
             &[],
@@ -61,7 +62,7 @@ mod __es_fluent_inventory_LoginFormLabelVariants {
         ),
         ::es_fluent::registry::__macro::ftl_variant(
             "Password",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+            ::es_fluent::registry::__macro::static_entry_id(
                 "login_form_label_variants-password",
             ),
             &[],
@@ -75,11 +76,7 @@ mod __es_fluent_inventory_LoginFormLabelVariants {
         VARIANTS,
         file!(),
         module_path!(),
-        Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
-            ),
-        ),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
     );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)
@@ -108,7 +105,7 @@ impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                    ::es_fluent::registry::__macro::static_entry_id(
                         "login_form_placeholder_variants-username",
                     ),
                     None,
@@ -119,7 +116,7 @@ impl ::es_fluent::FluentMessage for LoginFormPlaceholderVariants {
                     ::es_fluent::registry::StaticFluentDomain::from_package_name(
                         env!("CARGO_PKG_NAME"),
                     ),
-                    ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+                    ::es_fluent::registry::__macro::static_entry_id(
                         "login_form_placeholder_variants-password",
                     ),
                     None,
@@ -135,7 +132,7 @@ mod __es_fluent_inventory_LoginFormPlaceholderVariants {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "Username",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+            ::es_fluent::registry::__macro::static_entry_id(
                 "login_form_placeholder_variants-username",
             ),
             &[],
@@ -144,7 +141,7 @@ mod __es_fluent_inventory_LoginFormPlaceholderVariants {
         ),
         ::es_fluent::registry::__macro::ftl_variant(
             "Password",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
+            ::es_fluent::registry::__macro::static_entry_id(
                 "login_form_placeholder_variants-password",
             ),
             &[],
@@ -158,11 +155,7 @@ mod __es_fluent_inventory_LoginFormPlaceholderVariants {
         VARIANTS,
         file!(),
         module_path!(),
-        Some(
-            ::es_fluent::registry::NamespaceRule::Literal(
-                ::std::borrow::Cow::Borrowed("ui"),
-            ),
-        ),
+        Some(::es_fluent::registry::__macro::namespace_literal("ui")),
     );
     ::es_fluent::__inventory::submit!(
         ::es_fluent::registry::RegisteredFtlType(& TYPE_INFO)

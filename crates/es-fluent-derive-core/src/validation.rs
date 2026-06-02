@@ -1,6 +1,8 @@
 //! This module provides functions for validating `es-fluent` attributes.
 
-use crate::attribute::{AttributeLocation, AttributeName, validate_attribute_for_location};
+use crate::attribute::{
+    AttributeKey, AttributeLocation, AttributeName, validate_attribute_for_location,
+};
 use crate::error::{AttrContext, AttrError, ErrorExt as _, EsFluentCoreError, EsFluentCoreResult};
 use crate::lowered::{
     GeneratedVariantsEnumModel, GeneratedVariantsStructModel, MessageEnumModel, MessageStructModel,
@@ -68,6 +70,209 @@ impl AttributeDiagnostics {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DeriveAttributeFamily {
+    Message,
+    Label,
+    Variants,
+    Choice,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PolicyAttribute {
+    name: AttributeName,
+    struct_location: AttributeLocation,
+    enum_location: AttributeLocation,
+}
+
+impl PolicyAttribute {
+    const fn same_location(name: AttributeName, location: AttributeLocation) -> Self {
+        Self {
+            name,
+            struct_location: location,
+            enum_location: location,
+        }
+    }
+
+    fn location_for(self, input: &DeriveInput) -> AttributeLocation {
+        match &input.data {
+            syn::Data::Struct(_) | syn::Data::Union(_) => self.struct_location,
+            syn::Data::Enum(_) => self.enum_location,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DeriveAttributePolicy {
+    family: DeriveAttributeFamily,
+    container_attributes: &'static [PolicyAttribute],
+    variant_attributes: &'static [PolicyAttribute],
+    field_attributes: &'static [PolicyAttribute],
+    inherited_parent_keys: &'static [AttributeKey],
+}
+
+const ES_FLUENT_CONTAINER_ATTRIBUTES: &[PolicyAttribute] = &[PolicyAttribute {
+    name: AttributeName::Fluent,
+    struct_location: AttributeLocation::MessageStructContainer,
+    enum_location: AttributeLocation::MessageEnumContainer,
+}];
+const ES_FLUENT_VARIANT_ATTRIBUTES: &[PolicyAttribute] = &[PolicyAttribute::same_location(
+    AttributeName::Fluent,
+    AttributeLocation::EnumVariant,
+)];
+const ES_FLUENT_FIELD_ATTRIBUTES: &[PolicyAttribute] = &[PolicyAttribute::same_location(
+    AttributeName::Fluent,
+    AttributeLocation::MessageField,
+)];
+
+const ES_FLUENT_LABEL_CONTAINER_ATTRIBUTES: &[PolicyAttribute] = &[
+    PolicyAttribute {
+        name: AttributeName::Fluent,
+        struct_location: AttributeLocation::LabelStructParentContainer,
+        enum_location: AttributeLocation::LabelEnumParentContainer,
+    },
+    PolicyAttribute::same_location(
+        AttributeName::FluentLabel,
+        AttributeLocation::LabelContainer,
+    ),
+];
+
+const ES_FLUENT_VARIANTS_CONTAINER_ATTRIBUTES: &[PolicyAttribute] = &[
+    PolicyAttribute {
+        name: AttributeName::Fluent,
+        struct_location: AttributeLocation::VariantsStructParentContainer,
+        enum_location: AttributeLocation::VariantsEnumParentContainer,
+    },
+    PolicyAttribute::same_location(
+        AttributeName::FluentVariants,
+        AttributeLocation::VariantsContainer,
+    ),
+    PolicyAttribute::same_location(
+        AttributeName::FluentLabel,
+        AttributeLocation::LabelContainer,
+    ),
+];
+const ES_FLUENT_VARIANTS_VARIANT_ATTRIBUTES: &[PolicyAttribute] =
+    &[PolicyAttribute::same_location(
+        AttributeName::FluentVariants,
+        AttributeLocation::VariantsVariant,
+    )];
+const ES_FLUENT_VARIANTS_FIELD_ATTRIBUTES: &[PolicyAttribute] = &[PolicyAttribute::same_location(
+    AttributeName::FluentVariants,
+    AttributeLocation::VariantsField,
+)];
+
+const ES_FLUENT_CHOICE_CONTAINER_ATTRIBUTES: &[PolicyAttribute] =
+    &[PolicyAttribute::same_location(
+        AttributeName::FluentChoice,
+        AttributeLocation::ChoiceContainer,
+    )];
+
+const DERIVE_ATTRIBUTE_POLICIES: &[DeriveAttributePolicy] = &[
+    DeriveAttributePolicy {
+        family: DeriveAttributeFamily::Message,
+        container_attributes: ES_FLUENT_CONTAINER_ATTRIBUTES,
+        variant_attributes: ES_FLUENT_VARIANT_ATTRIBUTES,
+        field_attributes: ES_FLUENT_FIELD_ATTRIBUTES,
+        inherited_parent_keys: &[],
+    },
+    DeriveAttributePolicy {
+        family: DeriveAttributeFamily::Label,
+        container_attributes: ES_FLUENT_LABEL_CONTAINER_ATTRIBUTES,
+        variant_attributes: &[],
+        field_attributes: &[],
+        inherited_parent_keys: &[AttributeKey::Domain, AttributeKey::Namespace],
+    },
+    DeriveAttributePolicy {
+        family: DeriveAttributeFamily::Variants,
+        container_attributes: ES_FLUENT_VARIANTS_CONTAINER_ATTRIBUTES,
+        variant_attributes: ES_FLUENT_VARIANTS_VARIANT_ATTRIBUTES,
+        field_attributes: ES_FLUENT_VARIANTS_FIELD_ATTRIBUTES,
+        inherited_parent_keys: &[AttributeKey::Domain, AttributeKey::Namespace],
+    },
+    DeriveAttributePolicy {
+        family: DeriveAttributeFamily::Choice,
+        container_attributes: ES_FLUENT_CHOICE_CONTAINER_ATTRIBUTES,
+        variant_attributes: &[],
+        field_attributes: &[],
+        inherited_parent_keys: &[],
+    },
+];
+
+fn derive_attribute_policy(family: DeriveAttributeFamily) -> &'static DeriveAttributePolicy {
+    DERIVE_ATTRIBUTE_POLICIES
+        .iter()
+        .find(|policy| policy.family == family)
+        .expect("derive attribute policy is registered")
+}
+
+fn validate_attributes_with_policy(
+    input: &DeriveInput,
+    family: DeriveAttributeFamily,
+) -> EsFluentCoreResult<()> {
+    let policy = derive_attribute_policy(family);
+    let _inherited_parent_keys = policy.inherited_parent_keys;
+    let mut diagnostics = AttributeDiagnostics::default();
+
+    for attr in &input.attrs {
+        for policy_attr in policy.container_attributes {
+            diagnostics.record(validate_attribute_for_location(
+                attr,
+                policy_attr.name,
+                policy_attr.location_for(input),
+                Some(&input.ident),
+            ))?;
+        }
+    }
+
+    match &input.data {
+        syn::Data::Struct(data) => {
+            for field in &data.fields {
+                for attr in &field.attrs {
+                    for policy_attr in policy.field_attributes {
+                        diagnostics.record(validate_attribute_for_location(
+                            attr,
+                            policy_attr.name,
+                            policy_attr.location_for(input),
+                            field.ident.as_ref(),
+                        ))?;
+                    }
+                }
+            }
+        },
+        syn::Data::Enum(data) => {
+            for variant in &data.variants {
+                for attr in &variant.attrs {
+                    for policy_attr in policy.variant_attributes {
+                        diagnostics.record(validate_attribute_for_location(
+                            attr,
+                            policy_attr.name,
+                            policy_attr.location_for(input),
+                            Some(&variant.ident),
+                        ))?;
+                    }
+                }
+
+                for field in &variant.fields {
+                    for attr in &field.attrs {
+                        for policy_attr in policy.field_attributes {
+                            diagnostics.record(validate_attribute_for_location(
+                                attr,
+                                policy_attr.name,
+                                policy_attr.location_for(input),
+                                field.ident.as_ref(),
+                            ))?;
+                        }
+                    }
+                }
+            }
+        },
+        syn::Data::Union(_) => {},
+    }
+
+    diagnostics.finish()
+}
+
 pub fn resolve_single_namespace_source<'a>(
     sources: impl IntoIterator<Item = NamespaceSource<'a>>,
 ) -> EsFluentCoreResult<Option<SpannedNamespaceRuleRef<'a>>> {
@@ -105,153 +310,24 @@ pub fn resolve_single_namespace_source<'a>(
 /// Validates raw `#[fluent(...)]` usage on an `EsFluent` derive input before
 /// Darling parses the attributes.
 pub fn validate_es_fluent_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
-    let mut diagnostics = AttributeDiagnostics::default();
-
-    for attr in &input.attrs {
-        diagnostics.record(validate_attribute_for_location(
-            attr,
-            AttributeName::Fluent,
-            message_container_location(input),
-            Some(&input.ident),
-        ))?;
-    }
-
-    match &input.data {
-        syn::Data::Struct(data) => {
-            for field in &data.fields {
-                for attr in &field.attrs {
-                    diagnostics.record(validate_attribute_for_location(
-                        attr,
-                        AttributeName::Fluent,
-                        AttributeLocation::MessageField,
-                        field.ident.as_ref(),
-                    ))?;
-                }
-            }
-        },
-        syn::Data::Enum(data) => {
-            for variant in &data.variants {
-                for attr in &variant.attrs {
-                    diagnostics.record(validate_attribute_for_location(
-                        attr,
-                        AttributeName::Fluent,
-                        AttributeLocation::EnumVariant,
-                        Some(&variant.ident),
-                    ))?;
-                }
-
-                for field in &variant.fields {
-                    for attr in &field.attrs {
-                        diagnostics.record(validate_attribute_for_location(
-                            attr,
-                            AttributeName::Fluent,
-                            AttributeLocation::MessageField,
-                            field.ident.as_ref(),
-                        ))?;
-                    }
-                }
-            }
-        },
-        syn::Data::Union(_) => {},
-    }
-
-    diagnostics.finish()
+    validate_attributes_with_policy(input, DeriveAttributeFamily::Message)
 }
 
 /// Validates raw attributes used by `EsFluentVariants` before Darling parses them.
 pub fn validate_es_fluent_variants_attribute_context(
     input: &DeriveInput,
 ) -> EsFluentCoreResult<()> {
-    let mut diagnostics = AttributeDiagnostics::default();
-
-    for attr in &input.attrs {
-        diagnostics.record(validate_attribute_for_location(
-            attr,
-            AttributeName::Fluent,
-            variants_parent_location(input),
-            Some(&input.ident),
-        ))?;
-        diagnostics.record(validate_attribute_for_location(
-            attr,
-            AttributeName::FluentVariants,
-            AttributeLocation::VariantsContainer,
-            Some(&input.ident),
-        ))?;
-        diagnostics.record(validate_attribute_for_location(
-            attr,
-            AttributeName::FluentLabel,
-            AttributeLocation::LabelContainer,
-            Some(&input.ident),
-        ))?;
-    }
-
-    match &input.data {
-        syn::Data::Struct(data) => {
-            for field in &data.fields {
-                for attr in &field.attrs {
-                    diagnostics.record(validate_attribute_for_location(
-                        attr,
-                        AttributeName::FluentVariants,
-                        AttributeLocation::VariantsField,
-                        field.ident.as_ref(),
-                    ))?;
-                }
-            }
-        },
-        syn::Data::Enum(data) => {
-            for variant in &data.variants {
-                for attr in &variant.attrs {
-                    diagnostics.record(validate_attribute_for_location(
-                        attr,
-                        AttributeName::FluentVariants,
-                        AttributeLocation::VariantsVariant,
-                        Some(&variant.ident),
-                    ))?;
-                }
-            }
-        },
-        syn::Data::Union(_) => {},
-    }
-
-    diagnostics.finish()
+    validate_attributes_with_policy(input, DeriveAttributeFamily::Variants)
 }
 
 /// Validates raw attributes used by `EsFluentLabel` before Darling parses them.
 pub fn validate_es_fluent_label_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
-    let mut diagnostics = AttributeDiagnostics::default();
-
-    for attr in &input.attrs {
-        diagnostics.record(validate_attribute_for_location(
-            attr,
-            AttributeName::Fluent,
-            label_parent_location(input),
-            Some(&input.ident),
-        ))?;
-        diagnostics.record(validate_attribute_for_location(
-            attr,
-            AttributeName::FluentLabel,
-            AttributeLocation::LabelContainer,
-            Some(&input.ident),
-        ))?;
-    }
-
-    diagnostics.finish()
+    validate_attributes_with_policy(input, DeriveAttributeFamily::Label)
 }
 
 /// Validates raw attributes used by `EsFluentChoice` before Darling parses them.
 pub fn validate_es_fluent_choice_attribute_context(input: &DeriveInput) -> EsFluentCoreResult<()> {
-    let mut diagnostics = AttributeDiagnostics::default();
-
-    for attr in &input.attrs {
-        diagnostics.record(validate_attribute_for_location(
-            attr,
-            AttributeName::FluentChoice,
-            AttributeLocation::ChoiceContainer,
-            Some(&input.ident),
-        ))?;
-    }
-
-    diagnostics.finish()
+    validate_attributes_with_policy(input, DeriveAttributeFamily::Choice)
 }
 
 pub fn validate_struct(opts: &StructOpts) -> EsFluentCoreResult<()> {
@@ -277,30 +353,6 @@ pub(crate) fn validate_message_struct_model(
         }
     }
     Ok(())
-}
-
-fn message_container_location(input: &DeriveInput) -> AttributeLocation {
-    match &input.data {
-        syn::Data::Struct(_) => AttributeLocation::MessageStructContainer,
-        syn::Data::Enum(_) => AttributeLocation::MessageEnumContainer,
-        syn::Data::Union(_) => AttributeLocation::MessageStructContainer,
-    }
-}
-
-fn label_parent_location(input: &DeriveInput) -> AttributeLocation {
-    match &input.data {
-        syn::Data::Struct(_) => AttributeLocation::LabelStructParentContainer,
-        syn::Data::Enum(_) => AttributeLocation::LabelEnumParentContainer,
-        syn::Data::Union(_) => AttributeLocation::LabelStructParentContainer,
-    }
-}
-
-fn variants_parent_location(input: &DeriveInput) -> AttributeLocation {
-    match &input.data {
-        syn::Data::Struct(_) => AttributeLocation::VariantsStructParentContainer,
-        syn::Data::Enum(_) => AttributeLocation::VariantsEnumParentContainer,
-        syn::Data::Union(_) => AttributeLocation::VariantsStructParentContainer,
-    }
 }
 
 /// Validates enum-specific attributes.
@@ -394,18 +446,18 @@ pub(crate) fn validate_generated_variants_struct_model(
     let mut key_fragments = std::collections::HashMap::new();
 
     for field in model.fields() {
-        let source_name = namer::rust_ident_name(field.ident);
+        let source_name = namer::rust_ident_name(field.ident());
         reject_duplicate_generated_value(
             &mut rust_idents,
             source_name.to_pascal_case(),
-            field.ident.span(),
+            field.ident().span(),
             AttrContext::VariantsField,
             "Rust variant identifier",
         )?;
         reject_duplicate_generated_value(
             &mut key_fragments,
             source_name,
-            field.ident.span(),
+            field.ident().span(),
             AttrContext::VariantsField,
             "message id fragment",
         )?;
@@ -422,18 +474,18 @@ pub(crate) fn validate_generated_variants_enum_model(
     let mut key_fragments = std::collections::HashMap::new();
 
     for variant in model.variants() {
-        let source_name = namer::rust_ident_name(variant.ident);
+        let source_name = namer::rust_ident_name(variant.ident());
         reject_duplicate_generated_value(
             &mut rust_idents,
             source_name.clone(),
-            variant.ident.span(),
+            variant.ident().span(),
             AttrContext::VariantsContainer,
             "Rust variant identifier",
         )?;
         reject_duplicate_generated_value(
             &mut key_fragments,
             source_name,
-            variant.ident.span(),
+            variant.ident().span(),
             AttrContext::VariantsContainer,
             "message id fragment",
         )?;
@@ -614,8 +666,8 @@ mod tests {
 
         #[test]
         fn resolve_single_namespace_source_rejects_multiple_sources() {
-            let parent = NamespaceRule::Literal("parent".into());
-            let child = NamespaceRule::Literal("child".into());
+            let parent = NamespaceRule::literal("parent").expect("valid namespace");
+            let child = NamespaceRule::literal("child").expect("valid namespace");
 
             let err = resolve_single_namespace_source([
                 NamespaceSource::new(
@@ -647,7 +699,7 @@ mod tests {
 
         #[test]
         fn resolve_single_namespace_source_returns_the_only_source() {
-            let namespace = NamespaceRule::Literal("ui".into());
+            let namespace = NamespaceRule::literal("ui").expect("valid namespace");
             let resolved = resolve_single_namespace_source([
                 NamespaceSource::new(
                     "#[fluent(namespace = ...)]",
@@ -757,11 +809,78 @@ mod tests {
 
         #[test]
         fn literal_namespace_rejects_unsafe_path() {
-            let ns = NamespaceRule::Literal("../outside".into());
+            let ns = es_fluent_shared::registry::__macro::namespace_literal("../outside");
             let err = validate_namespace(&ns, None)
                 .expect_err("Literal namespaces should reject unsafe paths");
 
             assert!(err.to_string().contains("invalid namespace"));
+        }
+    }
+
+    mod derive_attribute_policy_tests {
+        use super::*;
+
+        #[test]
+        fn policies_cover_every_derive_family() {
+            for family in [
+                DeriveAttributeFamily::Message,
+                DeriveAttributeFamily::Label,
+                DeriveAttributeFamily::Variants,
+                DeriveAttributeFamily::Choice,
+            ] {
+                let policy = derive_attribute_policy(family);
+                assert_eq!(policy.family, family);
+                assert!(
+                    !policy.container_attributes.is_empty(),
+                    "derive policy {family:?} should define container attributes"
+                );
+            }
+        }
+
+        #[test]
+        fn label_and_variants_inherit_only_parent_domain_and_namespace() {
+            for family in [
+                DeriveAttributeFamily::Label,
+                DeriveAttributeFamily::Variants,
+            ] {
+                let policy = derive_attribute_policy(family);
+                assert_eq!(
+                    policy.inherited_parent_keys,
+                    &[AttributeKey::Domain, AttributeKey::Namespace]
+                );
+            }
+
+            assert!(
+                derive_attribute_policy(DeriveAttributeFamily::Message)
+                    .inherited_parent_keys
+                    .is_empty()
+            );
+            assert!(
+                derive_attribute_policy(DeriveAttributeFamily::Choice)
+                    .inherited_parent_keys
+                    .is_empty()
+            );
+        }
+
+        #[test]
+        fn variants_policy_separates_container_variant_and_field_attributes() {
+            let policy = derive_attribute_policy(DeriveAttributeFamily::Variants);
+
+            assert!(policy.container_attributes.iter().any(|attr| {
+                attr.name == AttributeName::Fluent
+                    && attr.struct_location == AttributeLocation::VariantsStructParentContainer
+                    && attr.enum_location == AttributeLocation::VariantsEnumParentContainer
+            }));
+            assert!(policy.variant_attributes.iter().any(|attr| {
+                attr.name == AttributeName::FluentVariants
+                    && attr.struct_location == AttributeLocation::VariantsVariant
+                    && attr.enum_location == AttributeLocation::VariantsVariant
+            }));
+            assert!(policy.field_attributes.iter().any(|attr| {
+                attr.name == AttributeName::FluentVariants
+                    && attr.struct_location == AttributeLocation::VariantsField
+                    && attr.enum_location == AttributeLocation::VariantsField
+            }));
         }
     }
 }

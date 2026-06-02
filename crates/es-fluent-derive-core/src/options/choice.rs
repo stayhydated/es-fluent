@@ -11,18 +11,18 @@ use strum::{Display, EnumIter, EnumString};
 #[darling(supports(enum_unit), attributes(fluent_choice))]
 #[getset(get = "pub")]
 pub struct ChoiceOpts {
-    pub ident: syn::Ident,
-    pub generics: syn::Generics,
-    pub data: darling::ast::Data<syn::Variant, darling::util::Ignored>,
+    ident: syn::Ident,
+    generics: syn::Generics,
+    data: darling::ast::Data<syn::Variant, darling::util::Ignored>,
     #[darling(flatten)]
-    pub attr_args: ChoiceAttributeArgs,
+    attr_args: ChoiceAttributeArgs,
 }
 
 #[derive(Default, FromMeta, Getters)]
 #[getset(get = "pub")]
 pub struct ChoiceAttributeArgs {
     #[darling(default)]
-    pub rename_all: Option<CaseStyle>,
+    rename_all: Option<CaseStyle>,
 }
 
 #[derive(Clone, Copy, Debug, Display, EnumIter, EnumString, Eq, PartialEq)]

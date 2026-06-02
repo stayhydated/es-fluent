@@ -1,12 +1,12 @@
 use super::*;
 use es_fluent_shared::meta::TypeKind;
 use es_fluent_shared::registry::{
-    FtlTypeInfo, FtlVariant, NamespaceRule, StaticFluentArgumentName, StaticFluentEntryId,
+    __macro, FtlTypeInfo, FtlVariant, NamespaceRule, ResolvedNamespace, StaticFluentArgumentName,
+    StaticFluentEntryId,
 };
 use fluent_syntax::{ast, parser};
 use fs_err as fs;
 use indexmap::IndexMap;
-use std::borrow::Cow;
 use std::path::PathBuf;
 
 fn leak_str(s: impl ToString) -> &'static str {
@@ -24,10 +24,13 @@ fn test_variant(name: &str, ftl_key: &str, args: &[&str]) -> FtlVariant {
 fn test_variant_at(name: &str, ftl_key: &str, args: &[&str], line: u32) -> FtlVariant {
     FtlVariant::new(
         leak_str(name),
-        StaticFluentEntryId::new_unchecked(leak_str(ftl_key)),
+        StaticFluentEntryId::try_new(leak_str(ftl_key)).expect("valid test entry id"),
         leak_slice(
             args.iter()
-                .map(|arg| StaticFluentArgumentName::new_unchecked(leak_str(arg)))
+                .map(|arg| {
+                    StaticFluentArgumentName::try_new(leak_str(arg))
+                        .expect("valid test argument name")
+                })
                 .collect(),
         ),
         "test",
@@ -77,7 +80,7 @@ fn owned_type_info_and_entry_helpers_work() {
     let owned = OwnedTypeInfo::from_ftl_type_info(&info).expect("owned type info");
     assert_eq!(owned.type_name, "Greeter");
     assert_eq!(owned.variants.len(), 1);
-    assert_eq!(owned.variants[0].ftl_key(), "greeter-hello_name");
+    assert_eq!(owned.variants[0].entry_id().as_str(), "greeter-hello_name");
 
     let message = create_message_entry(&owned.variants[0]);
     assert!(matches!(
@@ -525,8 +528,8 @@ fn generate_creates_namespaced_directories_and_handles_dry_run() {
         "NamespacedType",
         vec![test_variant("A1", "ns-a1", &[])],
         "",
-        Some(es_fluent_shared::registry::NamespaceRule::Literal(
-            std::borrow::Cow::Borrowed("ui"),
+        Some(NamespaceRule::Literal(
+            ResolvedNamespace::new("ui").expect("valid test namespace"),
         )),
     );
     let items = vec![&namespaced];
@@ -557,7 +560,9 @@ fn plan_outputs_uses_canonical_resource_specs_for_paths() {
         "NamespacedType",
         vec![test_variant("A1", "ns-a1", &[])],
         "",
-        Some(NamespaceRule::Literal(Cow::Borrowed("ui/forms"))),
+        Some(NamespaceRule::Literal(
+            ResolvedNamespace::new("ui/forms").expect("valid test namespace"),
+        )),
     );
     let items = vec![&base, &namespaced];
 
@@ -614,7 +619,7 @@ fn generate_rejects_namespace_paths_that_escape_the_crate_directory() {
         "LiteralEscape",
         vec![test_variant("Bye", "bye", &[])],
         "src/lib.rs",
-        Some(NamespaceRule::Literal(Cow::Borrowed("../literal-escape"))),
+        Some(__macro::namespace_literal("../literal-escape")),
     );
 
     let err = generate(
@@ -648,14 +653,14 @@ fn generate_rejects_noncanonical_namespace_literals() {
         "PaddedNamespace",
         vec![test_variant("Hello", "hello", &[])],
         "src/lib.rs",
-        Some(NamespaceRule::Literal(Cow::Borrowed(" ui "))),
+        Some(__macro::namespace_literal(" ui ")),
     );
 
     let with_extension = test_type_at_with_namespace(
         "FileNamespace",
         vec![test_variant("Bye", "bye", &[])],
         "src/lib.rs",
-        Some(NamespaceRule::Literal(Cow::Borrowed("ui.ftl"))),
+        Some(__macro::namespace_literal("ui.ftl")),
     );
 
     let err = generate(

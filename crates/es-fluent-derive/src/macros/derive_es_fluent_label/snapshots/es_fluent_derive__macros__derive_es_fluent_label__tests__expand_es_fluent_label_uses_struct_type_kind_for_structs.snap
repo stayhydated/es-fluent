@@ -1,5 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
+assertion_line: 170
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for LoginForm {
@@ -23,9 +24,7 @@ mod __es_fluent_label_inventory_LoginForm {
     static VARIANTS: &[::es_fluent::registry::FtlVariant] = &[
         ::es_fluent::registry::__macro::ftl_variant(
             "LoginForm",
-            ::es_fluent::registry::StaticFluentEntryId::new_unchecked(
-                "login_form_label",
-            ),
+            ::es_fluent::registry::__macro::static_entry_id("login_form_label"),
             &[],
             module_path!(),
             line!(),

@@ -23,7 +23,7 @@ pub use es_fluent_lang_macro::es_fluent_language;
 #[doc(hidden)]
 use es_fluent_manager_core::{
     I18nModule, I18nModuleDescriptor, I18nModuleRegistration, LocalizationError, Localizer,
-    ModuleData, StaticFluentDomain,
+    ModuleData,
 };
 use fluent_bundle::FluentValue;
 use icu_experimental::displaynames::{DisplayNamesOptions, multi::LocaleDisplayNamesFormatter};
@@ -102,7 +102,7 @@ struct EsFluentLanguageModule;
 
 static ES_FLUENT_LANG_MODULE_DATA: ModuleData = ModuleData {
     name: "es-fluent-lang",
-    domain: StaticFluentDomain::new_unchecked("es-fluent-lang"),
+    domain: es_fluent_manager_core::__macro::static_domain("es-fluent-lang"),
     supported_languages: &[],
     namespaces: &[],
 };

@@ -16,6 +16,8 @@ pub use asset_localization::{
     resource_plan_for, store_locale_resource, try_resource_plan_for, validate_module_registry,
 };
 pub use embedded_localization::{BundleBuildError, EmbeddedAssets, EmbeddedI18nModule};
+#[doc(hidden)]
+pub use es_fluent_shared::registry::__macro;
 pub use es_fluent_shared::registry::StaticFluentDomain;
 pub use fallback::{
     FallbackChainAvailability, fallback_locales, locale_candidates,

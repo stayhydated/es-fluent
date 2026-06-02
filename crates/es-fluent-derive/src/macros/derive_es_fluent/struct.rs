@@ -89,9 +89,9 @@ mod tests {
         assert!(tokens.contains("\"login_form\""));
         assert!(tokens.contains("\"display_name\""));
         assert!(tokens.contains("\"attempts\""));
-        assert!(tokens.contains("StaticFluentEntryId"));
+        assert!(tokens.contains("static_entry_id"));
         assert!(tokens.contains("\"login_form\""));
-        assert!(tokens.contains("StaticFluentArgumentName"));
+        assert!(tokens.contains("static_argument_name"));
         assert!(tokens.contains("\"display_name\""));
         assert!(tokens.contains("\"attempts\""));
     }

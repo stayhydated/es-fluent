@@ -6,6 +6,7 @@ pub mod context;
 pub mod error;
 pub mod expansion;
 pub mod grammar;
+pub mod index;
 pub(crate) mod lowered;
 pub mod macro_input;
 pub mod macro_support;

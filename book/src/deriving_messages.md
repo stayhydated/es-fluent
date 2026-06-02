@@ -102,6 +102,9 @@ network_error-ApiUnavailable = API is unavailable
 ## Using Choices
 
 Choices allow an enum to be used _inside_ another message as a Fluent selector (e.g., for gender or category). Derive `EsFluentChoice` alongside `EsFluent` on the selector enum.
+Choice values are validated as Fluent select variant keys. `rename_all` styles
+that generate invalid selector values, such as values containing spaces, are
+rejected at compile time.
 
 ```rust
 use es_fluent::{EsFluent, EsFluentChoice};

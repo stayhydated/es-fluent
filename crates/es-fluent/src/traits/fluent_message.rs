@@ -648,11 +648,11 @@ mod tests {
     use std::time::Duration;
 
     fn static_domain(value: &'static str) -> StaticFluentDomain {
-        StaticFluentDomain::new_unchecked(value)
+        StaticFluentDomain::try_new(value).expect("valid test domain")
     }
 
     fn static_entry(value: &'static str) -> StaticFluentEntryId {
-        StaticFluentEntryId::new_unchecked(value)
+        StaticFluentEntryId::try_new(value).expect("valid test entry id")
     }
 
     fn panic_lookup<'a>(

@@ -166,7 +166,7 @@ mod tests {
     static SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en"), langid!("fr")];
     static MODULE_DATA: ModuleData = ModuleData {
         name: "asset-test",
-        domain: es_fluent_manager_core::StaticFluentDomain::new_unchecked("asset-test"),
+        domain: es_fluent_manager_core::__macro::static_domain("asset-test"),
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
@@ -201,8 +201,8 @@ mod tests {
             ) -> String,
         ) -> String {
             localize(
-                es_fluent::registry::StaticFluentDomain::new_unchecked("asset-test"),
-                es_fluent::registry::StaticFluentEntryId::new_unchecked("asset-hello"),
+                es_fluent::registry::__macro::static_domain("asset-test"),
+                es_fluent::registry::__macro::static_entry_id("asset-hello"),
                 None,
             )
         }

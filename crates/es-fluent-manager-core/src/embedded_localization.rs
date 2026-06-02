@@ -420,7 +420,7 @@ mod tests {
 
     impl EmbeddedAssets for TestAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
 
         fn namespaces() -> &'static [&'static str] {
@@ -434,7 +434,7 @@ mod tests {
 
     impl EmbeddedAssets for BaseFileAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
     }
 
@@ -444,7 +444,7 @@ mod tests {
 
     impl EmbeddedAssets for NamespaceErrorAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
 
         fn namespaces() -> &'static [&'static str] {
@@ -458,7 +458,7 @@ mod tests {
 
     impl EmbeddedAssets for StrayBaseFileAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
 
         fn namespaces() -> &'static [&'static str] {
@@ -472,7 +472,7 @@ mod tests {
 
     impl EmbeddedAssets for NestedNamespaceAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
 
         fn namespaces() -> &'static [&'static str] {
@@ -486,7 +486,7 @@ mod tests {
 
     impl EmbeddedAssets for BundleAddErrorAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
 
         fn namespaces() -> &'static [&'static str] {
@@ -500,7 +500,7 @@ mod tests {
 
     impl EmbeddedAssets for PartialFallbackAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
 
         fn namespaces() -> &'static [&'static str] {
@@ -522,7 +522,7 @@ mod tests {
 
     impl EmbeddedAssets for OptionalOnlyAssets {
         fn domain() -> crate::StaticFluentDomain {
-            crate::StaticFluentDomain::new_unchecked("test-domain")
+            crate::__macro::static_domain("test-domain")
         }
 
         fn resource_plan_for_language(
@@ -563,35 +563,35 @@ mod tests {
     static NAMESPACES: &[&str] = &["ui"];
     static MODULE_DATA: ModuleData = ModuleData {
         name: "test-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
     static BASE_FILE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static BASE_FILE_MODULE_DATA: ModuleData = ModuleData {
         name: "base-file-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: BASE_FILE_SUPPORTED_LANGUAGES,
         namespaces: &[],
     };
     static NS_ERROR_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("ab"), langid!("ef")];
     static NS_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "ns-error-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: NS_ERROR_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
     static STRAY_BASE_FILE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static STRAY_BASE_FILE_MODULE_DATA: ModuleData = ModuleData {
         name: "stray-base-file-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: STRAY_BASE_FILE_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
     static NESTED_NAMESPACE_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static NESTED_NAMESPACE_MODULE_DATA: ModuleData = ModuleData {
         name: "nested-namespace-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: NESTED_NAMESPACE_SUPPORTED_LANGUAGES,
         namespaces: &["ui/button"],
     };
@@ -599,7 +599,7 @@ mod tests {
         &[langid!("en"), langid!("fr")];
     static BUNDLE_ADD_ERROR_MODULE_DATA: ModuleData = ModuleData {
         name: "bundle-add-error-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: BUNDLE_ADD_ERROR_SUPPORTED_LANGUAGES,
         namespaces: &["ui", "errors"],
     };
@@ -607,14 +607,14 @@ mod tests {
         &[langid!("en-US"), langid!("en")];
     static PARTIAL_FALLBACK_MODULE_DATA: ModuleData = ModuleData {
         name: "partial-fallback-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: PARTIAL_FALLBACK_SUPPORTED_LANGUAGES,
         namespaces: NAMESPACES,
     };
     static OPTIONAL_ONLY_SUPPORTED_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static OPTIONAL_ONLY_MODULE_DATA: ModuleData = ModuleData {
         name: "optional-only-module",
-        domain: crate::StaticFluentDomain::new_unchecked("test-domain"),
+        domain: crate::__macro::static_domain("test-domain"),
         supported_languages: OPTIONAL_ONLY_SUPPORTED_LANGUAGES,
         namespaces: &[],
     };

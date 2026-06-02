@@ -119,6 +119,10 @@ struct FolderModal;
 struct FolderRelativeModal;
 ```
 
+Literal namespace strings must be safe locale-relative paths: no empty
+segments, `.`/`..`, backslashes, absolute paths, surrounding whitespace, or
+`.ftl` suffix.
+
 The same `#[fluent(namespace = ...)]` syntax also applies to `EsFluentLabel` and `EsFluentVariants`.
 Use exactly one namespace source for each generated output: either inherit a
 shared namespace from `#[fluent(namespace = ...)]` or set one on
@@ -127,6 +131,9 @@ shared namespace from `#[fluent(namespace = ...)]` or set one on
 ### `#[derive(EsFluentChoice)]`
 
 Allows an enum to be used _inside_ another message as a selector (e.g., for gender or status).
+Choice values are validated as Fluent select variant keys. `rename_all` styles
+that generate invalid selector values, such as values containing spaces, are
+rejected at compile time.
 
 ```rs
 use es_fluent::{EsFluent, EsFluentChoice};

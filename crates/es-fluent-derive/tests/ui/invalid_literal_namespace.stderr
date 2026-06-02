@@ -1,0 +1,5 @@
+error: namespace path must not contain '.' or '..' segments
+ --> tests/ui/invalid_literal_namespace.rs:4:22
+  |
+4 | #[fluent(namespace = "../escape")]
+  |                      ^^^^^^^^^^^

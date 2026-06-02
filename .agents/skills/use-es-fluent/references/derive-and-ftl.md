@@ -92,6 +92,9 @@ network_error-ApiUnavailable = API is unavailable
 ## Choices
 
 Use `EsFluentChoice` for selector values inside another message:
+Choice values are validated as Fluent select variant keys. `rename_all` styles
+that generate invalid selector values, such as values containing spaces, are
+rejected at compile time.
 
 ```rust
 use es_fluent::{EsFluent, EsFluentChoice};
@@ -205,6 +208,9 @@ struct FolderRelativeModal;
 ```
 
 If `i18n.toml` has `namespaces = [...]`, string namespaces are validated against the allowlist by the compiler and the CLI during `generate` and `watch`.
+Literal namespace strings must also be safe locale-relative paths: no empty
+segments, `.`/`..`, backslashes, absolute paths, surrounding whitespace, or
+`.ftl` suffix.
 
 ## Inventory Discovery
 

@@ -200,13 +200,13 @@ mod tests {
     static REGISTRY_TEST_LANGUAGES: &[LanguageIdentifier] = &[langid!("en")];
     static REGISTRY_TEST_DATA: ModuleData = ModuleData {
         name: "registry-test",
-        domain: crate::StaticFluentDomain::new_unchecked("registry-domain"),
+        domain: crate::__macro::static_domain("registry-domain"),
         supported_languages: REGISTRY_TEST_LANGUAGES,
         namespaces: &[],
     };
     static REGISTRY_INVALID_DATA: ModuleData = ModuleData {
         name: "registry-invalid",
-        domain: crate::StaticFluentDomain::new_unchecked("registry-invalid"),
+        domain: crate::__macro::static_domain("registry-invalid"),
         supported_languages: &[],
         namespaces: &[" ../escape "],
     };

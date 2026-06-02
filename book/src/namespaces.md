@@ -24,7 +24,9 @@ messages when it exists.
 
 ### Explicit String
 
-`namespace = "name"` sets an explicit string namespace.
+`namespace = "name"` sets an explicit string namespace. Literal namespaces
+must be safe locale-relative paths: no empty segments, `.`/`..`, backslashes,
+absolute paths, surrounding whitespace, or `.ftl` suffix.
 
 ```rust
 use es_fluent::EsFluent;

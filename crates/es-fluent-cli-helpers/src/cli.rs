@@ -107,27 +107,26 @@ pub fn write_inventory_for_crate_at(
 mod tests {
     use super::*;
     use es_fluent::registry::{
-        FtlTypeInfo, FtlVariant, NamespaceRule, RegisteredFtlType, StaticFluentArgumentName,
+        __macro, FtlTypeInfo, FtlVariant, RegisteredFtlType, StaticFluentArgumentName,
         StaticFluentEntryId,
     };
     use es_fluent_shared::meta::TypeKind;
-    use std::borrow::Cow;
 
     static VARIANTS: &[FtlVariant] = &[
         FtlVariant::new(
             "Primary",
-            StaticFluentEntryId::new_unchecked("my_key"),
+            __macro::static_entry_id("my_key"),
             &[
-                StaticFluentArgumentName::new_unchecked("name"),
-                StaticFluentArgumentName::new_unchecked("count"),
+                __macro::static_argument_name("name"),
+                __macro::static_argument_name("count"),
             ],
             "test_crate",
             42,
         ),
         FtlVariant::new(
             "Secondary",
-            StaticFluentEntryId::new_unchecked("secondary_key"),
-            &[StaticFluentArgumentName::new_unchecked("extra")],
+            __macro::static_entry_id("secondary_key"),
+            &[__macro::static_argument_name("extra")],
             "test_crate",
             55,
         ),
@@ -139,7 +138,7 @@ mod tests {
         VARIANTS,
         "src/lib.rs",
         "test_crate",
-        Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
+        Some(__macro::namespace_literal("ui")),
     );
 
     es_fluent::__inventory::submit! {
@@ -149,15 +148,15 @@ mod tests {
     static DUPLICATE_VARIANTS: &[FtlVariant] = &[
         FtlVariant::new(
             "Primary",
-            StaticFluentEntryId::new_unchecked("duplicated_key"),
-            &[StaticFluentArgumentName::new_unchecked("name")],
+            __macro::static_entry_id("duplicated_key"),
+            &[__macro::static_argument_name("name")],
             "test_crate_duplicate_inventory",
             42,
         ),
         FtlVariant::new(
             "Secondary",
-            StaticFluentEntryId::new_unchecked("duplicated_key"),
-            &[StaticFluentArgumentName::new_unchecked("extra")],
+            __macro::static_entry_id("duplicated_key"),
+            &[__macro::static_argument_name("extra")],
             "test_crate_duplicate_inventory",
             55,
         ),
@@ -169,7 +168,7 @@ mod tests {
         DUPLICATE_VARIANTS,
         "src/lib.rs",
         "test_crate_duplicate_inventory",
-        Some(NamespaceRule::Literal(Cow::Borrowed("ui"))),
+        Some(__macro::namespace_literal("ui")),
     );
 
     es_fluent::__inventory::submit! {
@@ -178,7 +177,7 @@ mod tests {
 
     static VARIANTS_NO_FILE: &[FtlVariant] = &[FtlVariant::new(
         "NoFilePath",
-        StaticFluentEntryId::new_unchecked("empty_file_key"),
+        __macro::static_entry_id("empty_file_key"),
         &[],
         "test_crate_empty_file",
         7,
