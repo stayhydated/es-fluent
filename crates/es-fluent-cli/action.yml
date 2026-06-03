@@ -45,14 +45,17 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        version="${{ inputs.version }}"
-        if [[ -z "$version" ]]; then
-          cargo install --path "${GITHUB_ACTION_PATH}" --locked
-        elif [[ "$version" == "latest" ]]; then
-          cargo install es-fluent-cli --locked
-        else
-          cargo install es-fluent-cli --locked --version "$version"
-        fi
+        (
+          cd "${GITHUB_ACTION_PATH}"
+          version="${{ inputs.version }}"
+          if [[ -z "$version" ]]; then
+            cargo install --path . --locked
+          elif [[ "$version" == "latest" ]]; then
+            cargo install es-fluent-cli --locked
+          else
+            cargo install es-fluent-cli --locked --version "$version"
+          fi
+        )
 
     - name: Run es-fluent
       shell: bash
