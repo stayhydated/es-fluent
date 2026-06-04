@@ -27,6 +27,9 @@ fluent_feature = ["my-feature"]
 
 # Optional allowlist of namespace values for FTL file splitting
 namespaces = ["ui", "errors", "messages"]
+
+# Optional: disable warnings when non-fallback messages copy fallback text
+check_fallback_copies = false
 ```
 
 ### Common Workspace Options
@@ -119,10 +122,17 @@ cargo es-fluent check
 
 Use `--all` to check all locales, not just the fallback language. Use
 `--ignore <CRATE>` to skip specific crates; it can be repeated or passed as a
-comma-separated list. Use `--force-run` to bypass the staleness cache.
+comma-separated list. Use `--force-run` to bypass the staleness cache. Use
+`--no-fallback-copy-check` to disable untranslated fallback-copy warnings for
+this run.
 FTL variables that are not declared by Rust code are reported as errors.
 Rust-declared variables omitted by a translation are reported as warnings; any
 reported validation issue makes `check` exit non-zero for CI enforcement.
+When `--all` checks non-fallback locales, messages that are still identical to
+the fallback locale are reported as untranslated warnings. If a value is
+intentionally invariant, such as a product name or keyboard key, add
+`# es-fluent: same-as-fallback` immediately before that message, or set
+`check_fallback_copies = false` in `i18n.toml` for that crate.
 For namespaced types, `check` validates the expected namespace file, so a key
 in `{crate}.ftl` still reports as missing when the Rust type belongs in
 `{crate}/{namespace}.ftl`.

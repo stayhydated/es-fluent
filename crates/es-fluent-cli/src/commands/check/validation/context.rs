@@ -1,7 +1,7 @@
 use super::super::inventory::ExpectedKeys;
 use crate::core::{
     DuplicateKeyError, FtlSyntaxError, MissingKeyError, MissingVariableWarning,
-    UnexpectedVariableError, ValidationIssue,
+    UnexpectedVariableError, UntranslatedMessageWarning, ValidationIssue,
 };
 use miette::{NamedSource, SourceSpan};
 use std::fs;
@@ -111,6 +111,25 @@ impl ValidationContext<'_> {
             key: key.to_string(),
             locale: locale.to_string(),
             help: format!("Remove variable '${variable}' from '{key}' or declare it in Rust code"),
+        })
+    }
+
+    pub(super) fn untranslated_message_issue(
+        &self,
+        key: &str,
+        locale: &str,
+        fallback_locale: &str,
+        header_link: &str,
+    ) -> ValidationIssue {
+        ValidationIssue::UntranslatedMessage(UntranslatedMessageWarning {
+            src: NamedSource::new(header_link, String::new()),
+            span: SourceSpan::new(0_usize.into(), 1_usize),
+            key: key.to_string(),
+            locale: locale.to_string(),
+            fallback_locale: fallback_locale.to_string(),
+            help: format!(
+                "Translate '{key}' for locale '{locale}' instead of copying '{fallback_locale}', or add '# es-fluent: same-as-fallback' immediately before it if the text is intentionally invariant"
+            ),
         })
     }
 

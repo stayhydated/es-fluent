@@ -141,6 +141,7 @@ fn test_raw_config_rejects_invalid_fallback_language() {
         assets_dir: PathBuf::from("i18n"),
         fluent_feature: None,
         namespaces: None,
+        check_fallback_copies: true,
     }
     .validate();
 
@@ -158,6 +159,7 @@ fn test_raw_config_rejects_invalid_namespace() {
         assets_dir: PathBuf::from("i18n"),
         fluent_feature: None,
         namespaces: Some(vec!["../ui".to_string()]),
+        check_fallback_copies: true,
     }
     .validate();
 
@@ -336,6 +338,29 @@ fn test_fluent_feature_parsing(
     let expected =
         expected.map(|values| values.into_iter().map(str::to_string).collect::<Vec<_>>());
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_check_fallback_copies_defaults_to_true_and_parses_false() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    write_toml(&config_path, &config_document("en", "i18n", None, None));
+    let config = I18nConfig::read_from_path(&config_path).unwrap();
+    assert!(config.check_fallback_copies);
+
+    let mut disabled = table([
+        ("fallback_language", string_value("en")),
+        ("assets_dir", string_value("i18n")),
+    ]);
+    disabled.insert(
+        "check_fallback_copies".to_string(),
+        toml::Value::Boolean(false),
+    );
+    write_toml(&config_path, &toml::Value::Table(disabled));
+
+    let config = I18nConfig::read_from_path(&config_path).unwrap();
+    assert!(!config.check_fallback_copies);
 }
 
 #[test]

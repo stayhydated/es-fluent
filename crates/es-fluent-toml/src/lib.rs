@@ -118,6 +118,16 @@ pub struct RawI18nConfig {
     /// ```
     #[serde(default)]
     pub namespaces: Option<Vec<String>>,
+    /// Whether `cargo es-fluent check --all` should warn when a non-fallback
+    /// locale copies the fallback message text.
+    ///
+    /// # Examples
+    ///
+    /// ```toml
+    /// check_fallback_copies = false
+    /// ```
+    #[serde(default = "default_check_fallback_copies")]
+    pub check_fallback_copies: bool,
 }
 
 impl RawI18nConfig {
@@ -143,8 +153,13 @@ impl RawI18nConfig {
             assets_dir: self.assets_dir,
             fluent_feature: self.fluent_feature,
             namespaces,
+            check_fallback_copies: self.check_fallback_copies,
         })
     }
+}
+
+fn default_check_fallback_copies() -> bool {
+    true
 }
 
 /// The configuration for `es-fluent`.
@@ -175,6 +190,10 @@ pub struct I18nConfig {
     /// namespaces = ["ui", "errors", "messages"]
     /// ```
     pub namespaces: Option<Vec<ResolvedNamespace>>,
+    /// Whether `cargo es-fluent check --all` should warn when a non-fallback
+    /// locale copies the fallback message text.
+    #[builder(default = true)]
+    pub check_fallback_copies: bool,
 }
 
 /// Fully resolved project i18n layout derived from `i18n.toml`.

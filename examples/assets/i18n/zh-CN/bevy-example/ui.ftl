@@ -5,4 +5,5 @@ bevy_screen_messages-ToggleLanguageHint = 按下 '{ $key }' 切换语言，当�
 
 ## KbKeys
 
+# es-fluent: same-as-fallback
 kb_keys-T = T

@@ -199,7 +199,11 @@ pub fn generate_field_value_expr(
             let expr = transform.expr();
             let span = transform.span();
             quote_spanned! { span=>
-                #es_fluent::__private::FluentArgumentValue::new((#expr)(#transform_arg_expr))
+                {
+                    #[allow(clippy::redundant_closure_call)]
+                    let __es_fluent_value = (#expr)(#transform_arg_expr);
+                    #es_fluent::__private::FluentArgumentValue::new(__es_fluent_value)
+                }
             }
         },
         ArgumentValueStrategy::Choice { span, ty } => {

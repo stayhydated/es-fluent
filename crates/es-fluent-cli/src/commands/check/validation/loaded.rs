@@ -4,7 +4,10 @@ use crate::ftl::LoadedFtlFile;
 use es_fluent_shared::fluent::{FluentArgumentName, FluentEntryId};
 use fluent_syntax::ast;
 use indexmap::IndexMap;
+use indexmap::map::Entry;
 use std::collections::HashSet;
+
+const SAME_AS_FALLBACK_MARKER: &str = "es-fluent: same-as-fallback";
 
 #[derive(Clone)]
 struct ActualKeyInfo {
@@ -12,12 +15,48 @@ struct ActualKeyInfo {
     file_path: String,
     locale_relative_path: String,
     header_link: String,
+    translation_fingerprint: String,
+    allow_same_as_fallback: bool,
+}
+
+#[derive(Clone)]
+pub(super) struct FallbackKeyInfo {
+    locale_relative_path: String,
+    translation_fingerprint: String,
+}
+
+pub(super) type FallbackKeys = IndexMap<FluentEntryId, FallbackKeyInfo>;
+
+pub(super) fn collect_fallback_keys(loaded_files: &[LoadedFtlFile]) -> FallbackKeys {
+    let mut fallback_keys = IndexMap::new();
+
+    for file in loaded_files {
+        for entry in &file.resource.body {
+            let ast::Entry::Message(msg) = entry else {
+                continue;
+            };
+            let Ok(key) = FluentEntryId::try_new(msg.id.name.clone()) else {
+                continue;
+            };
+
+            if let Entry::Vacant(slot) = fallback_keys.entry(key) {
+                slot.insert(FallbackKeyInfo {
+                    locale_relative_path: file.relative_path.to_string_lossy().replace('\\', "/"),
+                    translation_fingerprint: message_translation_fingerprint(msg),
+                });
+            }
+        }
+    }
+
+    fallback_keys
 }
 
 pub(super) fn validate_loaded_ftl_files(
     ctx: &ValidationContext<'_>,
     loaded_files: Vec<LoadedFtlFile>,
     locale: &str,
+    fallback_locale: &str,
+    fallback_keys: Option<&FallbackKeys>,
 ) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
     let actual_keys = collect_actual_keys(ctx, loaded_files, locale, &mut issues);
@@ -43,6 +82,21 @@ pub(super) fn validate_loaded_ftl_files(
             ));
             continue;
         };
+
+        if let Some(fallback_keys) = fallback_keys
+            && locale != fallback_locale
+            && let Some(fallback) = fallback_keys.get(key)
+            && fallback.locale_relative_path == key_info.resource.locale_relative_path.as_str()
+            && fallback.translation_fingerprint == actual.translation_fingerprint
+            && !actual.allow_same_as_fallback
+        {
+            issues.push(ctx.untranslated_message_issue(
+                key.as_str(),
+                locale,
+                fallback_locale,
+                &actual.header_link,
+            ));
+        }
 
         for variable in &key_info.variables {
             if actual.variables.contains(variable) {
@@ -91,42 +145,59 @@ fn collect_actual_keys(
             &format!("file://{}", file.abs_path.display()),
         );
 
+        let mut allow_same_as_fallback = false;
         for entry in &file.resource.body {
-            if let ast::Entry::Message(msg) = entry {
-                let key = match FluentEntryId::try_new(msg.id.name.clone()) {
-                    Ok(key) => key,
-                    Err(error) => {
-                        issues.push(ctx.syntax_error_issue(
+            match entry {
+                ast::Entry::Comment(comment) => {
+                    allow_same_as_fallback |= comment
+                        .content
+                        .iter()
+                        .any(|line| line.contains(SAME_AS_FALLBACK_MARKER));
+                },
+                ast::Entry::Message(msg) => {
+                    let key = match FluentEntryId::try_new(msg.id.name.clone()) {
+                        Ok(key) => key,
+                        Err(error) => {
+                            issues.push(ctx.syntax_error_issue(
+                                locale,
+                                &file.abs_path,
+                                format!("Invalid FTL message id '{}': {error}", msg.id.name),
+                            ));
+                            allow_same_as_fallback = false;
+                            continue;
+                        },
+                    };
+                    if let Some(previous) = actual_keys.get(&key) {
+                        issues.push(ctx.duplicate_key_issue(
+                            key.as_str(),
                             locale,
-                            &file.abs_path,
-                            format!("Invalid FTL message id '{}': {error}", msg.id.name),
+                            &previous.file_path,
+                            &relative_path,
+                            &header_link,
                         ));
+                        allow_same_as_fallback = false;
                         continue;
-                    },
-                };
-                if let Some(previous) = actual_keys.get(&key) {
-                    issues.push(ctx.duplicate_key_issue(
-                        key.as_str(),
-                        locale,
-                        &previous.file_path,
-                        &relative_path,
-                        &header_link,
-                    ));
-                    continue;
-                }
+                    }
 
-                actual_keys.insert(
-                    key,
-                    ActualKeyInfo {
-                        variables: collect_actual_variables(ctx, msg, locale, &file, issues),
-                        file_path: relative_path.clone(),
-                        locale_relative_path: file
-                            .relative_path
-                            .to_string_lossy()
-                            .replace('\\', "/"),
-                        header_link: header_link.clone(),
-                    },
-                );
+                    actual_keys.insert(
+                        key,
+                        ActualKeyInfo {
+                            variables: collect_actual_variables(ctx, msg, locale, &file, issues),
+                            file_path: relative_path.clone(),
+                            locale_relative_path: file
+                                .relative_path
+                                .to_string_lossy()
+                                .replace('\\', "/"),
+                            header_link: header_link.clone(),
+                            translation_fingerprint: message_translation_fingerprint(msg),
+                            allow_same_as_fallback,
+                        },
+                    );
+                    allow_same_as_fallback = false;
+                },
+                _ => {
+                    allow_same_as_fallback = false;
+                },
             }
         }
     }
@@ -160,4 +231,11 @@ fn collect_actual_variables(
             },
         )
         .collect()
+}
+
+fn message_translation_fingerprint(msg: &ast::Message<String>) -> String {
+    let resource = ast::Resource {
+        body: vec![ast::Entry::Message(msg.clone())],
+    };
+    fluent_syntax::serializer::serialize(&resource)
 }

@@ -1,10 +1,10 @@
 ## UserProfile
 
-user_profile_label = User Profile
+user_profile_label = Profil utilisateur
 
 ## Gender
 
-gender-Female = Female
-gender-Helicopter = Helicopter { $type_ }
-gender-Male = Male
-gender-Other = Other { $f0 }
+gender-Female = Femme
+gender-Helicopter = Hélicoptère { $type_ }
+gender-Male = Homme
+gender-Other = Autre { $f0 }

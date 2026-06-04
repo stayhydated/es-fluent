@@ -33,7 +33,7 @@ home_workflow_message-ThreeLabel = 运行时管理器
 home_workflow_message-ThreeTitle = 使用一个管理器
 home_workflow_message-Title = es-fluent 工作流
 home_workflow_message-TwoBody = 用 `cargo es-fluent` 生成、检查并同步 FTL。
-home_workflow_message-TwoLabel = CLI
+home_workflow_message-TwoLabel = 命令行
 home_workflow_message-TwoTitle = 检查 FTL 文件
 page_metadata_message-BevyTitle = Bevy 示例
 page_metadata_message-DemosTitle = 演示
@@ -44,7 +44,9 @@ site_chrome_message-NavDemos = 演示
 site_chrome_message-NavDocs = 手册
 site_chrome_message-NavHome = 首页
 site_chrome_message-NavSource = 源码
+# es-fluent: same-as-fallback
 site_chrome_message-SiteName = es-fluent
+# es-fluent: same-as-fallback
 site_footer_message-BodyLinkLabel = es-fluent-manager-dioxus
 site_footer_message-BodyPrefix = 由 Dioxus 构建，本地化使用
 site_footer_message-Label = 本站

@@ -15,6 +15,9 @@ fluent_feature = ["my-feature"]
 
 # Optional: restrict string namespace values.
 namespaces = ["ui", "errors", "messages"]
+
+# Optional: disable warnings when non-fallback messages copy fallback text.
+check_fallback_copies = false
 ```
 
 Locale directory names should be canonical BCP-47 tags such as `en`, `fr-FR`, and `zh-CN`.
@@ -58,6 +61,13 @@ Check translations and variables:
 ```sh
 cargo es-fluent check --all
 ```
+
+With `--all`, check reports non-fallback messages that are still identical to
+the fallback locale as untranslated warnings. For intentionally invariant text
+such as product names, package names, or keyboard keys, add
+`# es-fluent: same-as-fallback` immediately before that message. To disable the
+warning for a crate, set `check_fallback_copies = false` in `i18n.toml`; to
+disable it for one run, pass `--no-fallback-copy-check`.
 
 Run a read-only pre-commit status:
 

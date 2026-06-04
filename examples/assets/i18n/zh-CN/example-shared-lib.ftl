@@ -4,7 +4,7 @@ empty_enum_label = 空枚举
 
 ## EmptyStructVariants
 
-empty_struct_variants_label = Empty Struct Variants
+empty_struct_variants_label = 空结构体变体
 
 ## ButtonState
 
@@ -41,20 +41,21 @@ empty_struct = 空结构体
 
 ## SplitVariants
 
-split_variants_label = Split Variants
-split_variants = Split Variants { $country }
+split_variants_label = 拆分变体
+split_variants = 拆分变体 { $country }
 
 ## SplitVariantsDescriptionVariants
 
-split_variants_description_variants_label = Split Variants Description Variants
-split_variants_description_variants-country = Country
+split_variants_description_variants_label = 拆分变体描述变体
+split_variants_description_variants-country = 国家
 
 ## SplitVariantsLabelVariants
 
-split_variants_label_variants_label = Split Variants Label Variants
-split_variants_label_variants-country = Country
+split_variants_label_variants_label = 拆分变体标签变体
+split_variants_label_variants-country = 国家
 
 ## USAState
 
 usa_state_label = 美国州
+# es-fluent: same-as-fallback
 usa_state-A = A

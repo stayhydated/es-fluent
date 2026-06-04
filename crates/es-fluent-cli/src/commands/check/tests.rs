@@ -27,6 +27,7 @@ fn check_args(temp: &tempfile::TempDir) -> CheckArgs {
         .all(false)
         .ignore(Vec::new())
         .force_run(false)
+        .check_fallback_copies(true)
         .output(OutputFormat::Text)
         .build()
 }
@@ -68,6 +69,29 @@ fn run_check_succeeds_with_fake_runner_and_matching_inventory() {
     let result = run_check(check_args(&temp));
 
     assert!(result.is_ok());
+}
+
+#[test]
+fn run_check_respects_no_fallback_copy_check_flag() {
+    let temp = crate::test_fixtures::create_test_crate_workspace();
+    setup_fake_runner_and_cache(&temp);
+    fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
+    fs::write(temp.path().join("i18n/fr/test-app.ftl"), "hello = Hello\n")
+        .expect("write copied fr ftl");
+
+    let inventory_path = es_fluent_runner::RunnerMetadataStore::new(temp.path().join(".es-fluent"))
+        .inventory_path(&package("test-app"));
+    fs::create_dir_all(inventory_path.parent().unwrap()).expect("create inventory dir");
+    fs::write(&inventory_path, INVENTORY_WITH_HELLO).expect("write inventory");
+
+    let mut args = check_args(&temp);
+    args.all = true;
+    assert!(matches!(run_check(args), Err(CliError::Validation(_))));
+
+    let mut args = check_args(&temp);
+    args.all = true;
+    args.check_fallback_copies = false;
+    assert!(run_check(args).is_ok());
 }
 
 #[test]
@@ -127,7 +151,7 @@ fn named_source(name: &str) -> NamedSource<String> {
 fn check_json_report_covers_all_issue_kinds_and_counts() {
     use crate::core::{
         DuplicateKeyError, FtlSyntaxError, MissingKeyError, MissingVariableWarning,
-        UnexpectedVariableError,
+        UnexpectedVariableError, UntranslatedMessageWarning,
     };
     use miette::SourceSpan;
 
@@ -156,6 +180,14 @@ fn check_json_report_covers_all_issue_kinds_and_counts() {
             locale: "en".to_string(),
             help: "use variable".to_string(),
         }),
+        ValidationIssue::UntranslatedMessage(UntranslatedMessageWarning {
+            src: named_source("untranslated.ftl"),
+            span,
+            key: "hello".to_string(),
+            locale: "fr".to_string(),
+            fallback_locale: "en".to_string(),
+            help: "translate message".to_string(),
+        }),
         ValidationIssue::UnexpectedVariable(UnexpectedVariableError {
             src: named_source("unexpected-var.ftl"),
             span,
@@ -183,13 +215,13 @@ fn check_json_report_covers_all_issue_kinds_and_counts() {
     };
 
     let (errors, warnings) = count_issues(&run.issues);
-    assert_eq!((errors, warnings), (5, 1));
+    assert_eq!((errors, warnings), (5, 2));
 
     let report = CheckJsonReport::from_run(&run);
     assert_eq!(report.crates_discovered, 2);
     assert_eq!(report.crates_checked, 1);
     assert_eq!(report.error_count, 5);
-    assert_eq!(report.warning_count, 1);
+    assert_eq!(report.warning_count, 2);
     assert!(
         report
             .issues
@@ -207,6 +239,12 @@ fn check_json_report_covers_all_issue_kinds_and_counts() {
             .issues
             .iter()
             .any(|issue| issue.kind == "missing_variable")
+    );
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|issue| issue.kind == "untranslated_message")
     );
     assert!(
         report
@@ -236,6 +274,7 @@ fn check_json_report_covers_all_issue_kinds_and_counts() {
     assert_eq!(source_for("missing_key"), Some("missing.ftl"));
     assert_eq!(source_for("duplicate_key"), Some("duplicate.ftl"));
     assert_eq!(source_for("missing_variable"), Some("missing-var.ftl"));
+    assert_eq!(source_for("untranslated_message"), Some("untranslated.ftl"));
     assert_eq!(
         source_for("unexpected_variable"),
         Some("unexpected-var.ftl")

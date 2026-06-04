@@ -18,6 +18,8 @@ custom tooling.
 - `ResolvedI18nLayout`: config plus resolved absolute paths and locale helpers
 - `fluent_feature`: optional array of Cargo features to enable while collecting
   derive inventory, such as `fluent_feature = ["name", "other"]`
+- `check_fallback_copies`: optional boolean for CLI fallback-copy validation,
+  such as `check_fallback_copies = false`
 
 ## Typical direct use
 

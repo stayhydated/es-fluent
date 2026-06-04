@@ -5,4 +5,5 @@ bevy_screen_messages-ToggleLanguageHint = Appuyez sur '{ $key }' pour changer de
 
 ## KbKeys
 
+# es-fluent: same-as-fallback
 kb_keys-T = T

@@ -24,8 +24,8 @@ greeting =
 ## LoginError
 
 login_error-InvalidPassword = 密码错误
-login_error-Something = Something { $f0 } { $f1 } { $f2 }
-login_error-SomethingArgNamed = Something Arg Named { $input } { $expected } { $details }
+login_error-Something = 出现问题 { $f0 } { $f1 } { $f2 }
+login_error-SomethingArgNamed = 出现带命名参数的问题 { $input } { $expected } { $details }
 login_error-UserNotFound = 未找到用户 { $username }
 
 ## LoginFormCombinedDescriptionVariants

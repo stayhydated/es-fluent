@@ -75,7 +75,7 @@ fn validate_loaded_ftl_files_reports_key_in_wrong_resource_as_missing_from_expec
         manifest_dir: temp.path(),
     };
 
-    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    let issues = validate_loaded(&ctx, loaded_files, "en");
     assert!(issues.iter().any(|issue| {
         matches!(
             issue,
@@ -89,6 +89,14 @@ fn validate_loaded_ftl_files_reports_key_in_wrong_resource_as_missing_from_expec
 
 fn expected_key(value: &str) -> FluentEntryId {
     FluentEntryId::try_new(value).unwrap()
+}
+
+fn validate_loaded(
+    ctx: &ValidationContext<'_>,
+    loaded_files: Vec<LoadedFtlFile>,
+    locale: &str,
+) -> Vec<ValidationIssue> {
+    super::loaded::validate_loaded_ftl_files(ctx, loaded_files, locale, "en", None)
 }
 
 fn with_force_hyperlink<T>(value: &str, f: impl FnOnce() -> T) -> T {
@@ -150,7 +158,7 @@ fn validate_loaded_ftl_files_reports_missing_key_and_variable() {
         manifest_dir: temp.path(),
     };
 
-    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    let issues = validate_loaded(&ctx, loaded_files, "en");
     assert!(issues.iter().any(|issue| {
         matches!(
             issue,
@@ -190,7 +198,7 @@ fn validate_loaded_ftl_files_reports_unexpected_variable_as_error() {
         manifest_dir: temp.path(),
     };
 
-    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    let issues = validate_loaded(&ctx, loaded_files, "en");
     assert!(issues.iter().any(|issue| {
         matches!(
             issue,
@@ -198,6 +206,118 @@ fn validate_loaded_ftl_files_reports_unexpected_variable_as_error() {
                 if err.key == "hello" && err.variable == "extra"
         )
     }));
+}
+
+#[test]
+fn validate_loaded_ftl_files_reports_non_fallback_copy_as_untranslated() {
+    let temp = tempfile::tempdir().unwrap();
+    let fallback_path = temp.path().join("i18n/en/test-app.ftl");
+    let target_path = temp.path().join("i18n/fr/test-app.ftl");
+    fs::create_dir_all(fallback_path.parent().unwrap()).unwrap();
+    fs::create_dir_all(target_path.parent().unwrap()).unwrap();
+    fs::write(&fallback_path, "hello = Hello { $name }\n").unwrap();
+    fs::write(&target_path, "hello = Hello { $name }\n").unwrap();
+
+    let fallback_resource =
+        fluent_syntax::parser::parse("hello = Hello { $name }\n".to_string()).unwrap();
+    let target_resource =
+        fluent_syntax::parser::parse("hello = Hello { $name }\n".to_string()).unwrap();
+    let fallback_files = vec![LoadedFtlFile {
+        abs_path: fallback_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource: fallback_resource,
+        keys: std::iter::once("hello".to_string()).collect(),
+    }];
+    let target_files = vec![LoadedFtlFile {
+        abs_path: target_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource: target_resource,
+        keys: std::iter::once("hello".to_string()).collect(),
+    }];
+
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert(expected_key("hello"), key_info(&["name"], None, None));
+
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+    let fallback_keys = super::loaded::collect_fallback_keys(&fallback_files);
+
+    let issues = super::loaded::validate_loaded_ftl_files(
+        &ctx,
+        target_files,
+        "fr",
+        "en",
+        Some(&fallback_keys),
+    );
+    assert!(issues.iter().any(|issue| {
+        matches!(
+            issue,
+            ValidationIssue::UntranslatedMessage(warning)
+                if warning.key == "hello"
+                    && warning.locale == "fr"
+                    && warning.fallback_locale == "en"
+        )
+    }));
+}
+
+#[test]
+fn validate_loaded_ftl_files_allows_marked_same_as_fallback_message() {
+    let temp = tempfile::tempdir().unwrap();
+    let fallback_path = temp.path().join("i18n/en/test-app.ftl");
+    let target_path = temp.path().join("i18n/fr/test-app.ftl");
+    fs::create_dir_all(fallback_path.parent().unwrap()).unwrap();
+    fs::create_dir_all(target_path.parent().unwrap()).unwrap();
+    fs::write(&fallback_path, "brand = es-fluent\n").unwrap();
+    fs::write(
+        &target_path,
+        "# es-fluent: same-as-fallback\nbrand = es-fluent\n",
+    )
+    .unwrap();
+
+    let fallback_resource =
+        fluent_syntax::parser::parse("brand = es-fluent\n".to_string()).unwrap();
+    let target_resource = fluent_syntax::parser::parse(
+        "# es-fluent: same-as-fallback\nbrand = es-fluent\n".to_string(),
+    )
+    .unwrap();
+    let fallback_files = vec![LoadedFtlFile {
+        abs_path: fallback_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource: fallback_resource,
+        keys: std::iter::once("brand".to_string()).collect(),
+    }];
+    let target_files = vec![LoadedFtlFile {
+        abs_path: target_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource: target_resource,
+        keys: std::iter::once("brand".to_string()).collect(),
+    }];
+
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert(expected_key("brand"), key_info(&[], None, None));
+
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+    let fallback_keys = super::loaded::collect_fallback_keys(&fallback_files);
+
+    let issues = super::loaded::validate_loaded_ftl_files(
+        &ctx,
+        target_files,
+        "fr",
+        "en",
+        Some(&fallback_keys),
+    );
+    assert!(
+        !issues
+            .iter()
+            .any(|issue| matches!(issue, ValidationIssue::UntranslatedMessage(_)))
+    );
 }
 
 #[test]
@@ -236,7 +356,7 @@ fn validate_loaded_ftl_files_reports_duplicate_keys_and_ignores_non_messages() {
         manifest_dir: temp.path(),
     };
 
-    let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+    let issues = validate_loaded(&ctx, loaded_files, "en");
     assert!(issues.iter().any(|issue| {
         matches!(
             issue,
@@ -287,13 +407,71 @@ fn validate_crate_reports_missing_main_file_as_missing_key() {
         fluent_features: Vec::new(),
     };
 
-    let issues = validate_crate(&krate, temp.path(), temp.path(), false).unwrap();
+    let issues = validate_crate(&krate, temp.path(), temp.path(), false, true).unwrap();
     assert_eq!(issues.len(), 1);
     assert!(
         issues
             .iter()
             .any(|issue| matches!(issue, ValidationIssue::MissingKey(err) if err.key == "hello"))
     );
+}
+
+#[test]
+fn validate_crate_respects_config_disabled_fallback_copy_check() {
+    let temp = tempfile::tempdir().unwrap();
+    fs::create_dir_all(temp.path().join("src")).unwrap();
+    fs::create_dir_all(temp.path().join("i18n/en")).unwrap();
+    fs::create_dir_all(temp.path().join("i18n/fr")).unwrap();
+    fs::write(
+        temp.path().join("i18n.toml"),
+        "fallback_language = \"en\"\nassets_dir = \"i18n\"\ncheck_fallback_copies = false\n",
+    )
+    .unwrap();
+    fs::write(
+        temp.path().join("i18n/en/test-crate.ftl"),
+        "hello = Hello\n",
+    )
+    .unwrap();
+    fs::write(
+        temp.path().join("i18n/fr/test-crate.ftl"),
+        "hello = Hello\n",
+    )
+    .unwrap();
+
+    let inventory_path = es_fluent_runner::RunnerMetadataStore::new(temp.path())
+        .inventory_path(&package("test-crate"));
+    fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
+    fs::write(
+        &inventory_path,
+        r#"{
+  "expected_keys": [
+    {
+      "key": "hello",
+      "variables": [],
+      "source_file": null,
+      "source_line": null
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+
+    let krate = CrateInfo {
+        name: package("test-crate"),
+        manifest_dir: crate::core::ManifestDir::from_discovered(temp.path().to_path_buf()),
+        src_dir: crate::core::SourceDir::from_discovered(temp.path().join("src")),
+        i18n_config_path: crate::core::DiscoveredI18nConfigPath::from_discovered(
+            temp.path().join("i18n.toml"),
+        ),
+        ftl_output_dir: crate::core::DiscoveredFtlOutputDir::from_discovered(
+            temp.path().join("i18n/en"),
+        ),
+        has_lib_rs: true,
+        fluent_features: Vec::new(),
+    };
+
+    let issues = validate_crate(&krate, temp.path(), temp.path(), true, true).unwrap();
+    assert!(issues.is_empty());
 }
 
 #[test]
@@ -340,7 +518,7 @@ fn validate_loaded_ftl_files_handles_source_file_variants_and_terminal_links() {
             manifest_dir: temp.path(),
         };
 
-        let issues = super::loaded::validate_loaded_ftl_files(&ctx, loaded_files, "en");
+        let issues = validate_loaded(&ctx, loaded_files, "en");
 
         assert!(issues.iter().any(|issue| {
             matches!(
@@ -378,7 +556,7 @@ fn validate_loaded_ftl_files_falls_back_to_unknown_when_no_actual_files() {
         manifest_dir: temp.path(),
     };
 
-    let issues = super::loaded::validate_loaded_ftl_files(&ctx, Vec::new(), "en");
+    let issues = validate_loaded(&ctx, Vec::new(), "en");
     assert_eq!(issues.len(), 1);
     assert!(matches!(
         &issues[0],
@@ -415,7 +593,7 @@ fn validate_ftl_files_reports_syntax_issue_when_discovery_errors() {
         fluent_features: Vec::new(),
     };
 
-    let issues = validate_ftl_files(&krate, temp.path(), &IndexMap::new(), false).unwrap();
+    let issues = validate_ftl_files(&krate, temp.path(), &IndexMap::new(), false, true).unwrap();
 
     assert!(issues.iter().any(|issue| {
         matches!(issue, ValidationIssue::SyntaxError(err) if err.help.contains("Failed to discover FTL files"))

@@ -101,7 +101,7 @@ pub fn run_status(args: StatusArgs) -> Result<(), CliError> {
         .collect::<Vec<_>>();
 
     let check_run =
-        super::check::collect_check_run(&workspace, args.all, &[], args.force_run, false)?;
+        super::check::collect_check_run(&workspace, args.all, &[], args.force_run, true, false)?;
     let (validation_errors, validation_warnings) = super::check::count_issues(&check_run.issues);
 
     let clean = generated_files_stale == 0

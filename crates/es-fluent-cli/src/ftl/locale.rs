@@ -23,6 +23,8 @@ pub struct LocaleContext {
     pub locales: Vec<String>,
     /// The crate name (for constructing FTL file paths).
     pub crate_name: String,
+    /// Whether fallback-copy warnings are enabled by this crate's i18n.toml.
+    pub check_fallback_copies: bool,
 }
 
 impl LocaleContext {
@@ -46,6 +48,7 @@ impl LocaleContext {
             fallback,
             locales,
             crate_name: krate.name.to_string(),
+            check_fallback_copies: layout.config.check_fallback_copies,
         })
     }
 

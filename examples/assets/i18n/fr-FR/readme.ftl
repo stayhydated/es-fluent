@@ -24,8 +24,8 @@ greeting =
 ## LoginError
 
 login_error-InvalidPassword = Mot de passe incorrect
-login_error-Something = Something { $f0 } { $f1 } { $f2 }
-login_error-SomethingArgNamed = Something Arg Named { $input } { $expected } { $details }
+login_error-Something = Quelque chose { $f0 } { $f1 } { $f2 }
+login_error-SomethingArgNamed = Quelque chose avec arguments nommés { $input } { $expected } { $details }
 login_error-UserNotFound = Utilisateur introuvable { $username }
 
 ## LoginFormCombinedDescriptionVariants
@@ -57,6 +57,7 @@ network_error-ApiUnavailable = API indisponible
 ## SettingsTabVariants
 
 settings_tab_variants-General = Général
+# es-fluent: same-as-fallback
 settings_tab_variants-Notifications = Notifications
 settings_tab_variants-Privacy = Confidentialité
 

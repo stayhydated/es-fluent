@@ -211,6 +211,9 @@ fluent_feature = ["my-feature"]
 
 # Optional allowlist of namespace values for FTL file splitting
 namespaces = ["ui", "errors", "messages"]
+
+# Optional: disable warnings when non-fallback messages copy fallback text
+check_fallback_copies = false
 ```
 
 Locale directory names use canonical BCP-47 tags. The executable README example

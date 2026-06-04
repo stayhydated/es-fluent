@@ -40,6 +40,11 @@ pub struct CheckArgs {
     #[arg(long)]
     pub force_run: bool,
 
+    /// Disable warnings for non-fallback messages that match the fallback locale.
+    #[arg(long = "no-fallback-copy-check", action = clap::ArgAction::SetFalse, default_value_t = true)]
+    #[builder(default = true)]
+    pub check_fallback_copies: bool,
+
     /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::default())]
     pub output: OutputFormat,
@@ -115,6 +120,15 @@ impl From<&ValidationIssue> for CheckIssueJson {
                 variable: Some(error.variable.clone()),
                 help: error.help.clone(),
             },
+            ValidationIssue::UntranslatedMessage(error) => Self {
+                severity: "warning",
+                kind: "untranslated_message",
+                source: error.src.name().to_string(),
+                locale: error.locale.clone(),
+                key: Some(error.key.clone()),
+                variable: None,
+                help: error.help.clone(),
+            },
             ValidationIssue::UnexpectedVariable(error) => Self {
                 severity: "error",
                 kind: "unexpected_variable",
@@ -162,7 +176,12 @@ pub(crate) fn count_issues(issues: &[ValidationIssue]) -> (usize, usize) {
         .count();
     let warning_count = issues
         .iter()
-        .filter(|i| matches!(i, ValidationIssue::MissingVariable(_)))
+        .filter(|i| {
+            matches!(
+                i,
+                ValidationIssue::MissingVariable(_) | ValidationIssue::UntranslatedMessage(_)
+            )
+        })
         .count();
 
     (error_count, warning_count)
@@ -173,6 +192,7 @@ pub(crate) fn collect_check_run(
     all: bool,
     ignore: &[String],
     force_run: bool,
+    check_fallback_copies: bool,
     show_progress: bool,
 ) -> Result<CheckRun, CliError> {
     // Convert ignore list to a HashSet for efficient lookups
@@ -265,6 +285,7 @@ pub(crate) fn collect_check_run(
             &workspace.workspace_info.root_dir,
             temp_store.base_dir(),
             all,
+            check_fallback_copies,
         ) {
             Ok(issues) => {
                 all_issues.extend(issues);
@@ -315,6 +336,7 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
         args.all,
         &args.ignore,
         args.force_run,
+        args.check_fallback_copies,
         show_text,
     )?;
     let (error_count, warning_count) = count_issues(&run.issues);
