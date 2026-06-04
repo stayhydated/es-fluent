@@ -1,6 +1,6 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
-assertion_line: 187
+assertion_line: 207
 expression: tokens
 ---
 impl ::es_fluent::FluentLabel for LoginState {
@@ -17,6 +17,7 @@ impl ::es_fluent::FluentLabel for LoginState {
         )
     }
 }
+impl ::es_fluent::__private::EsFluentLabelOriginWasDerived for LoginState {}
 #[doc(hidden)]
 #[allow(non_snake_case)]
 mod __es_fluent_label_inventory_LoginState {

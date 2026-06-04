@@ -1,0 +1,16 @@
+error[E0277]: the trait bound `LoginForm: es_fluent::__private::EsFluentLabelOriginWasDerived` is not satisfied
+ --> tests/ui/fluent_variants_origin_requires_label.rs:7:12
+  |
+7 | pub struct LoginForm {
+  |            ^^^^^^^^^ unsatisfied trait bound
+  |
+help: the trait `es_fluent::__private::EsFluentLabelOriginWasDerived` is not implemented for `LoginForm`
+ --> tests/ui/fluent_variants_origin_requires_label.rs:7:1
+  |
+7 | pub struct LoginForm {
+  | ^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `es_fluent::__private::EsFluentVariantsOriginRequiresEsFluentLabel`
+ --> $WORKSPACE/crates/es-fluent/src/lib.rs
+  |
+  |     pub trait EsFluentVariantsOriginRequiresEsFluentLabel: EsFluentLabelOriginWasDerived {}
+  |                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `EsFluentVariantsOriginRequiresEsFluentLabel`

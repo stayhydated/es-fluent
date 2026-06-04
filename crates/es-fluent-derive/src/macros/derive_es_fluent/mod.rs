@@ -335,4 +335,46 @@ mod tests {
             tokens
         );
     }
+
+    #[test]
+    fn skipped_variant_fallback_respects_skipped_fields() {
+        let single_skipped_tuple: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network(#[fluent(skip)] NetworkError),
+            }
+        };
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(
+            single_skipped_tuple,
+        ));
+        assert!(tokens.contains("Self::Network(_) => \"Network\".to_string()"));
+
+        let tuple_with_delegate: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network(#[fluent(skip)] u16, NetworkError),
+            }
+        };
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(
+            tuple_with_delegate,
+        ));
+        assert!(tokens.contains("Self::Network(_, f1)"));
+        assert!(tokens.contains("f1.to_fluent_string_with(localize)"));
+
+        let struct_with_delegate: syn::DeriveInput = parse_quote! {
+            enum LoginError {
+                #[fluent(skip)]
+                Network {
+                    #[fluent(skip)]
+                    code: u16,
+                    source: NetworkError,
+                },
+            }
+        };
+        let tokens = crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent(
+            struct_with_delegate,
+        ));
+        assert!(tokens.contains("Self::Network { source, .. }"));
+        assert!(tokens.contains("source.to_fluent_string_with(localize)"));
+    }
 }

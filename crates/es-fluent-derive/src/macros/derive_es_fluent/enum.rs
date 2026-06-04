@@ -28,11 +28,35 @@ fn skipped_variant_message_match_arm(
             }
         },
         EsFluentEnumVariantShape::Tuple { fields } => {
-            if fields.len() == 1 {
+            let delegate_fields = fields
+                .iter()
+                .filter_map(|field| match field {
+                    EsFluentTupleField::Argument { index, .. } => Some(index),
+                    EsFluentTupleField::Skipped { .. } => None,
+                })
+                .collect::<Vec<_>>();
+
+            if let [delegate_index] = delegate_fields.as_slice() {
+                let delegate_index = **delegate_index;
+                let delegate_ident = if fields.len() == 1 {
+                    quote::format_ident!("value")
+                } else {
+                    namer::UnnamedItem::from(delegate_index.as_usize()).to_ident()
+                };
+                let field_pats: Vec<_> = fields
+                    .iter()
+                    .map(|field| {
+                        if field.index() == delegate_index {
+                            quote! { #delegate_ident }
+                        } else {
+                            quote! { _ }
+                        }
+                    })
+                    .collect();
                 quote! {
-                    Self::#variant_ident(value) => {
+                    Self::#variant_ident(#(#field_pats),*) => {
                         use #es_fluent::FluentMessage as _;
-                        value.to_fluent_string_with(localize)
+                        #delegate_ident.to_fluent_string_with(localize)
                     }
                 }
             } else {
@@ -42,11 +66,19 @@ fn skipped_variant_message_match_arm(
                 }
             }
         },
-        EsFluentEnumVariantShape::Struct { fields, .. } => {
+        EsFluentEnumVariantShape::Struct {
+            fields,
+            has_skipped_fields,
+        } => {
             if fields.len() == 1 {
                 let field_ident = fields[0].binding();
+                let pattern = if *has_skipped_fields {
+                    quote! { Self::#variant_ident { #field_ident, .. } }
+                } else {
+                    quote! { Self::#variant_ident { #field_ident } }
+                };
                 quote! {
-                    Self::#variant_ident { #field_ident } => {
+                    #pattern => {
                         use #es_fluent::FluentMessage as _;
                         #field_ident.to_fluent_string_with(localize)
                     }

@@ -205,6 +205,7 @@ type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
 - `#[fluent_label(origin)]`: Required for `EsFluentLabel`; generates an implementation where `localize_label(localizer)` returns the base key for the type.
+- `origin` requires `#[derive(EsFluentLabel)]`; using it with only `EsFluentVariants` is rejected because `EsFluentVariants` can only generate labels for generated variant enums.
 - `origin` and `variants` are bare flags. Boolean forms such as `#[fluent_label(origin = true)]` are rejected.
 
 ```rs
@@ -225,7 +226,7 @@ pub enum Gender {
 // usage: Gender::localize_label(&i18n)
 ```
 
-- `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
+- `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants when the type also derives `EsFluentLabel`.
 
 ```rs
 use es_fluent::{EsFluentLabel, EsFluentVariants, FluentLabel as _};

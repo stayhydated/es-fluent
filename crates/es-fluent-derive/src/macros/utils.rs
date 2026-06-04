@@ -88,6 +88,41 @@ pub fn generate_localize_label_impl(
     }
 }
 
+pub fn generate_label_origin_marker_impl(
+    context: &CodegenContext,
+    ident: &syn::Ident,
+    generics: &syn::Generics,
+    enabled: bool,
+) -> TokenStream {
+    if !enabled {
+        return quote! {};
+    }
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let es_fluent = context.facade_path().tokens();
+
+    quote! {
+        impl #impl_generics #es_fluent::__private::EsFluentLabelOriginWasDerived
+            for #ident #ty_generics #where_clause
+        {}
+    }
+}
+
+pub fn generate_variants_origin_requirement_impl(
+    context: &CodegenContext,
+    ident: &syn::Ident,
+    generics: &syn::Generics,
+) -> TokenStream {
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let es_fluent = context.facade_path().tokens();
+
+    quote! {
+        impl #impl_generics #es_fluent::__private::EsFluentVariantsOriginRequiresEsFluentLabel
+            for #ident #ty_generics #where_clause
+        {}
+    }
+}
+
 pub(crate) fn static_domain_tokens(
     context: &CodegenContext,
     domain_override: Option<&DomainName>,

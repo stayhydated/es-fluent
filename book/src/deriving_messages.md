@@ -218,6 +218,9 @@ add derives to the generated enums.
 
 `#[fluent_label(origin)]` creates a single key for the type and is required
 when deriving `EsFluentLabel`. `origin` and `variants` are bare flags; boolean forms such as `#[fluent_label(origin = true)]` are rejected.
+`origin` requires `#[derive(EsFluentLabel)]`; using it with only
+`EsFluentVariants` is rejected because `EsFluentVariants` can only generate
+labels for generated variant enums.
 
 ```rust
 use es_fluent::EsFluentLabel;
@@ -243,7 +246,8 @@ let _ = GenderLabelOnly::localize_label(&i18n);
 ### Combined with Variants
 
 `#[fluent_label(origin, variants)]` can be combined with `EsFluentVariants` to
-generate type-level keys for each generated variant enum:
+generate type-level keys for each generated variant enum when the type also
+derives `EsFluentLabel`:
 
 ```rust
 use es_fluent::{EsFluentLabel, EsFluentVariants};

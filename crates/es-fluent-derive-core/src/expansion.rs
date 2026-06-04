@@ -787,8 +787,10 @@ impl EsFluentVariantsTarget {
 #[derive(Clone, Debug)]
 pub struct EsFluentVariantsExpansion {
     origin_ident: syn::Ident,
+    generics: syn::Generics,
     domain: Option<crate::semantic::DomainName>,
     namespace: Option<NamespaceRule>,
+    requires_label_origin: bool,
     targets: Vec<EsFluentVariantsTarget>,
 }
 
@@ -842,6 +844,11 @@ impl EsFluentVariantsExpansion {
         &self.origin_ident
     }
 
+    /// The source type generics.
+    pub fn generics(&self) -> &syn::Generics {
+        &self.generics
+    }
+
     /// The optional explicit Fluent domain inherited from parent `#[fluent(...)]`.
     pub fn domain(&self) -> Option<&crate::semantic::DomainName> {
         self.domain.as_ref()
@@ -850,6 +857,11 @@ impl EsFluentVariantsExpansion {
     /// The resolved namespace rule for all generated targets.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace.as_ref()
+    }
+
+    /// Whether `#[fluent_label(origin)]` was present and must be backed by `EsFluentLabel`.
+    pub fn requires_label_origin(&self) -> bool {
+        self.requires_label_origin
     }
 
     /// The generated enum targets.
@@ -864,11 +876,15 @@ fn build_variants_expansion(
     label_opts: Option<&LabelOpts>,
     variant_seeds: &[GeneratedVariantMessageSeed],
 ) -> ExpansionResult<EsFluentVariantsExpansion> {
+    let requires_label_origin = label_opts.is_some_and(|opts| opts.attr_args().has_origin());
+
     if variant_seeds.is_empty() {
         return Ok(EsFluentVariantsExpansion {
             origin_ident: opts.variants_ident().clone(),
+            generics: container_context.generics().clone(),
             domain: container_context.fluent_domain().cloned(),
             namespace: None,
+            requires_label_origin,
             targets: Vec::new(),
         });
     }
@@ -933,8 +949,10 @@ fn build_variants_expansion(
 
     Ok(EsFluentVariantsExpansion {
         origin_ident: opts.variants_ident().clone(),
+        generics: container_context.generics().clone(),
         domain: container_context.fluent_domain().cloned(),
         namespace,
+        requires_label_origin,
         targets,
     })
 }

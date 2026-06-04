@@ -34,8 +34,18 @@ fn emit_variants_expansion(
     context: &CodegenContext,
     expansion: &EsFluentVariantsExpansion,
 ) -> TokenStream {
+    let origin_requirement = expansion.requires_label_origin().then(|| {
+        crate::macros::utils::generate_variants_origin_requirement_impl(
+            context,
+            expansion.origin_ident(),
+            expansion.generics(),
+        )
+    });
+
     if expansion.targets().is_empty() {
-        return quote! {};
+        return quote! {
+            #origin_requirement
+        };
     }
 
     let items = expansion.targets().iter().map(|target| {
@@ -58,6 +68,7 @@ fn emit_variants_expansion(
     });
 
     quote! {
+        #origin_requirement
         #(#items)*
     }
 }

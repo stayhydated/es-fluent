@@ -135,7 +135,8 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 ///
 /// - `#[fluent_label(origin)]`: Required for `EsFluentLabel`; generates an implementation where `localize_label(localizer)` returns the base key for the type.
 /// - `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants`
-///   derives to generate keys for the generated variant enums.
+///   derives to generate keys for the generated variant enums when the type also derives `EsFluentLabel`.
+/// - `origin` requires `#[derive(EsFluentLabel)]`; using it with only `EsFluentVariants` is rejected.
 /// - `origin` and `variants` are bare flags. Boolean forms such as `#[fluent_label(origin = true)]` are rejected.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 #[proc_macro_derive(EsFluentLabel, attributes(fluent_label, fluent))]

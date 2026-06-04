@@ -36,6 +36,12 @@ fn expand_es_fluent_label_with_context(
         expansion.ftl_key(),
         expansion.domain(),
     );
+    let label_origin_marker_impl = crate::macros::utils::generate_label_origin_marker_impl(
+        context,
+        expansion.ident(),
+        expansion.generics(),
+        expansion.ftl_key().is_some(),
+    );
 
     let inventory_output = if let Some(label_model) = expansion.label_inventory() {
         if let Some(label) = label_model.label() {
@@ -55,6 +61,7 @@ fn expand_es_fluent_label_with_context(
 
     let tokens = quote! {
         #localize_label_impl
+        #label_origin_marker_impl
         #inventory_submit
     };
 

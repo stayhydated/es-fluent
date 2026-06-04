@@ -36,4 +36,8 @@ pub mod __private {
         FluentArgumentValue, FluentBorrowedArgumentValue, FluentLocalizerExt,
         FluentOptionalArgumentValue, IntoFluentArgumentValue, IntoFluentValue, localize_label,
     };
+
+    pub trait EsFluentLabelOriginWasDerived {}
+
+    pub trait EsFluentVariantsOriginRequiresEsFluentLabel: EsFluentLabelOriginWasDerived {}
 }
