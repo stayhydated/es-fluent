@@ -53,7 +53,7 @@ use es_fluent_manager_embedded::EmbeddedI18n;
 use unic_langid::langid;
 
 #[derive(EsFluent, EsFluentLabel)]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 enum MyMessage {
     Hello { name: String },
 }
@@ -219,7 +219,7 @@ fn app() -> Element {
 
 #[derive(Clone, Copy, EsFluent, EsFluentLabel)]
 #[fluent(namespace = "ui")]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 enum UiMessage {
     Hello,
 }

@@ -117,7 +117,7 @@ fn app() -> Element {
 
 #[derive(Clone, Copy, EsFluent, EsFluentLabel)]
 #[fluent(namespace = "ui")]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 enum UiMessage {
     Hello,
 }

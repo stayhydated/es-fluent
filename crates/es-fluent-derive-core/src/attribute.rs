@@ -169,13 +169,13 @@ mod tests {
             FluentAttributeKey::Keys,
         );
         assert_allowed(
-            parse_quote!(origin = true),
+            parse_quote!(origin),
             AttributeName::FluentLabel,
             AttributeLocation::LabelContainer,
             FluentAttributeKey::Origin,
         );
         assert_allowed(
-            parse_quote!(variants = true),
+            parse_quote!(variants),
             AttributeName::FluentLabel,
             AttributeLocation::LabelContainer,
             FluentAttributeKey::Variants,
@@ -547,10 +547,6 @@ mod tests {
             AttributeValueShape::Marker => {
                 let key = key_ident(rule.key);
                 syn::parse_quote!(#key)
-            },
-            AttributeValueShape::ExplicitBool => {
-                let key = key_ident(rule.key);
-                syn::parse_quote!(#key = true)
             },
             AttributeValueShape::StringLiteral
             | AttributeValueShape::ChoiceCaseStyle

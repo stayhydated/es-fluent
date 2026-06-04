@@ -17,10 +17,10 @@ error: Attribute error in variants container: duplicate key `keys` in variants c
 error: Attribute error in label container: duplicate key `origin` in label container `DuplicateLabelOrigin`
        note: first `origin` key in #[fluent_label] appears earlier
        help: keep only one `origin` entry in #[fluent_label]
-  --> tests/ui/duplicate_attribute_keys.rs:16:31
+  --> tests/ui/duplicate_attribute_keys.rs:16:24
    |
-16 | #[fluent_label(origin = true, origin = false)]
-   |                               ^^^^^^
+16 | #[fluent_label(origin, origin)]
+   |                        ^^^^^^
 
 error: Attribute error in choice container: duplicate key `rename_all` in choice container `DuplicateChoice`
        note: first `rename_all` key in #[fluent_choice] appears earlier

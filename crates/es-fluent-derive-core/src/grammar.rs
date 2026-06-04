@@ -174,7 +174,6 @@ impl AttributeKey {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AttributeValueShape {
     Flag,
-    ExplicitBool,
     StringLiteral,
     RustExpression,
     NamespaceRule,
@@ -199,17 +198,6 @@ impl AttributeValueShape {
         match self {
             Self::Flag => matches!(meta, Meta::Path(_)),
             Self::Marker => matches!(meta, Meta::Path(_)),
-            Self::ExplicitBool => matches!(
-                meta,
-                Meta::NameValue(name_value)
-                    if matches!(
-                        name_value.value,
-                        Expr::Lit(ExprLit {
-                            lit: Lit::Bool(_),
-                            ..
-                        })
-                    )
-            ),
             Self::StringLiteral | Self::ChoiceCaseStyle | Self::LanguageMode => {
                 is_name_value_string_literal(meta)
             },
@@ -239,9 +227,6 @@ impl AttributeValueShape {
         match self {
             Self::Flag => format!("use a bare flag, for example `{key_name}`"),
             Self::Marker => format!("use a bare marker, for example `#[{key_name}]`"),
-            Self::ExplicitBool => {
-                format!("use an explicit boolean, for example `{key_name} = true`")
-            },
             Self::StringLiteral => {
                 format!("use a string literal, for example `{key_name} = \"...\"`")
             },
@@ -840,14 +825,14 @@ pub(crate) const ATTRIBUTE_RULES: &[AttributeRule] = &[
         family: AttributeFamily::FluentLabel,
         location: AttributeLocation::LabelContainer,
         key: AttributeKey::Origin,
-        shape: AttributeValueShape::ExplicitBool,
+        shape: AttributeValueShape::Flag,
         location_help: LABEL_CONTAINER_HELP,
     },
     AttributeRule {
         family: AttributeFamily::FluentLabel,
         location: AttributeLocation::LabelContainer,
         key: AttributeKey::Variants,
-        shape: AttributeValueShape::ExplicitBool,
+        shape: AttributeValueShape::Flag,
         location_help: LABEL_CONTAINER_HELP,
     },
     AttributeRule {

@@ -216,16 +216,14 @@ add derives to the generated enums.
 
 ### Origin Only
 
-`origin` is enabled by default, so `#[derive(EsFluentLabel)]` creates a single
-key for the type. `#[fluent_label(origin = true)]` is equivalent; use
-`#[fluent_label(origin = false)]` when deriving only variant labels through
-`EsFluentVariants`. `origin` and `variants` use explicit booleans when supplied;
-bare flags like `#[fluent_label(origin)]` are not accepted.
+`#[fluent_label(origin)]` creates a single key for the type and is required
+when deriving `EsFluentLabel`. `origin` and `variants` are bare flags; boolean forms such as `#[fluent_label(origin = true)]` are rejected.
 
 ```rust
 use es_fluent::EsFluentLabel;
 
 #[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 pub enum GenderLabelOnly {
     Male,
     Female,
@@ -244,13 +242,14 @@ let _ = GenderLabelOnly::localize_label(&i18n);
 
 ### Combined with Variants
 
-`#[fluent_label(variants = true)]` can be combined with `EsFluentVariants` to generate type-level keys for each generated variant enum:
+`#[fluent_label(origin, variants)]` can be combined with `EsFluentVariants` to
+generate type-level keys for each generated variant enum:
 
 ```rust
 use es_fluent::{EsFluentLabel, EsFluentVariants};
 
 #[derive(EsFluentLabel, EsFluentVariants)]
-#[fluent_label(origin = true, variants = true)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,

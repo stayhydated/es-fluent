@@ -204,14 +204,14 @@ Generates a helper implementation of the `FluentLabel` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin = true)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
-- `#[fluent_label(origin = true)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
-- `origin` and `variants` use explicit booleans when supplied; bare flags like `#[fluent_label(origin)]` are not accepted.
+- `#[fluent_label(origin)]`: Required for `EsFluentLabel`; generates an implementation where `localize_label(localizer)` returns the base key for the type.
+- `origin` and `variants` are bare flags. Boolean forms such as `#[fluent_label(origin = true)]` are rejected.
 
 ```rs
 use es_fluent::{EsFluentLabel, FluentLabel as _};
 
 #[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = "forms")]
 pub enum Gender {
     Male,
@@ -225,13 +225,13 @@ pub enum Gender {
 // usage: Gender::localize_label(&i18n)
 ```
 
-- `#[fluent_label(variants = true)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
+- `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
 
 ```rs
 use es_fluent::{EsFluentLabel, EsFluentVariants, FluentLabel as _};
 
 #[derive(EsFluentVariants, EsFluentLabel)]
-#[fluent_label(origin = true, variants = true)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 #[fluent(namespace = "forms")]
 pub struct LoginForm {

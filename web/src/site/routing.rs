@@ -86,23 +86,18 @@ pub(crate) fn all_routes() -> Vec<SiteRoute> {
     routes
 }
 
-pub(crate) fn app_base_href() -> String {
-    app_base_href_typed().to_string()
-}
-
-fn app_base_href_typed() -> BaseHref {
+pub(crate) fn app_base_href() -> BaseHref {
     let base_path = cli_config::base_path();
     let base_path = base_path.as_deref().map(BasePath::new);
     stayhydated_site::routing::base_href(base_path.as_ref())
 }
 
-pub(crate) fn page_href(locale: SiteLanguage, page: PageKind) -> String {
-    stayhydated_site::routing::href(&app_base_href_typed(), &relative_path(locale, page))
-        .to_string()
+pub(crate) fn page_href(locale: SiteLanguage, page: PageKind) -> Href {
+    stayhydated_site::routing::href(&app_base_href(), &relative_path(locale, page))
 }
 
-pub(crate) fn book_href() -> String {
-    stayhydated_site::routing::href(&app_base_href_typed(), &RoutePath::new("book")).to_string()
+pub(crate) fn book_href() -> Href {
+    stayhydated_site::routing::href(&app_base_href(), &RoutePath::new("book"))
 }
 
 pub(crate) fn site_root_prefix(output_dir: &OutputDir) -> String {
@@ -137,7 +132,7 @@ impl FromStr for LocaleSegment {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Routable)]
+#[derive(Clone, Debug, Eq, PartialEq, Routable)]
 #[rustfmt::skip]
 pub(crate) enum AppRoute {
     #[route("/", HomeRoute)]
@@ -334,6 +329,7 @@ async fn static_routes() -> Result<Vec<String>, ServerFnError> {
     Ok(all_routes()
         .into_iter()
         .map(|route| page_href(route.locale, route.page))
+        .map(Href::into_string)
         .collect())
 }
 

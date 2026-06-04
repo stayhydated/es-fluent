@@ -7,7 +7,7 @@ use syn::Data;
 
 use crate::{
     context::{ContainerContext, ContainerEnvelope},
-    error::{AttrContext, EsFluentCoreError},
+    error::{AttrContext, AttrError, EsFluentCoreError},
     lowered,
     namespace::{SpannedNamespaceRule, SpannedNamespaceRuleRef},
     options::{
@@ -652,6 +652,21 @@ impl EsFluentLabelExpansion {
         let validated = ValidatedDeriveInput::for_es_fluent_label(input)?;
         let opts = LabelOpts::from_derive_input(validated.input())?;
         let container_context = ContainerContext::from_envelope(validated.required_envelope()?);
+        if !opts.attr_args().has_origin() {
+            let mut error = AttrError::new(
+                AttrContext::LabelContainer,
+                format!(
+                    "`#[derive(EsFluentLabel)]` on `{}` requires `#[fluent_label(origin)]`",
+                    opts.ident()
+                ),
+                Some(opts.ident().span()),
+            );
+            error.help = Some(
+                "add `#[fluent_label(origin)]`, or remove `EsFluentLabel` when only `EsFluentVariants` output is needed"
+                    .to_string(),
+            );
+            return Err(EsFluentCoreError::StructuredAttributeError(error).into());
+        }
         let model = lowered::LabelModel::from_options(&opts)?;
 
         let original_ident = model.ident();
@@ -689,7 +704,7 @@ impl EsFluentLabelExpansion {
         &self.generics
     }
 
-    /// The generated label message id, when `origin = true`.
+    /// The generated label message id, when the origin label is enabled.
     pub fn ftl_key(&self) -> Option<&FluentMessageId> {
         self.ftl_key.as_ref().map(SpannedValue::value)
     }
@@ -699,7 +714,7 @@ impl EsFluentLabelExpansion {
         self.domain.as_ref()
     }
 
-    /// The generated label inventory model, when `origin = true`.
+    /// The generated label inventory model, when the origin label is enabled.
     pub fn label_inventory(&self) -> Option<&MessageModel> {
         self.label_inventory.as_ref()
     }
@@ -755,7 +770,7 @@ impl EsFluentVariantsTarget {
         &self.variants
     }
 
-    /// Optional generated label key when `#[fluent_label(variants = true)]` is present.
+    /// Optional generated label key when `#[fluent_label(variants)]` is present.
     pub fn label_key(&self) -> Option<&FluentMessageId> {
         self.generated_model
             .label()
@@ -1162,7 +1177,7 @@ mod tests {
     fn validated_input_captures_label_parent_context() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(domain = "shared", namespace = "labels")]
-            #[fluent_label(origin = true)]
+            #[fluent_label(origin)]
             enum Status {
                 Active,
             }
@@ -1368,7 +1383,7 @@ mod tests {
     fn label_expansion_builds_label_impl_and_inventory_model() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "ui")]
-            #[fluent_label]
+            #[fluent_label(origin)]
             struct LoginForm<T>(T);
         };
 
@@ -1376,7 +1391,7 @@ mod tests {
             .expect("label expansion should build");
         let inventory = expansion
             .label_inventory()
-            .expect("origin=true builds inventory");
+            .expect("origin flag builds inventory");
 
         assert_eq!(expansion.ident().to_string(), "LoginForm");
         assert_eq!(
@@ -1406,7 +1421,26 @@ mod tests {
     }
 
     #[test]
-    fn label_expansion_skips_inventory_when_origin_is_false() {
+    fn label_expansion_rejects_missing_origin_flag() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_label]
+            enum MissingOrigin {
+                A,
+            }
+        };
+
+        let err = EsFluentLabelExpansion::from_derive_input(&input)
+            .expect_err("missing origin should fail");
+
+        assert!(matches!(err, ExpansionError::Core(_)));
+        assert!(
+            err.to_string()
+                .contains("requires `#[fluent_label(origin)]`")
+        );
+    }
+
+    #[test]
+    fn label_expansion_rejects_explicit_boolean_origin() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent_label(origin = false)]
             enum NoOrigin {
@@ -1414,18 +1448,18 @@ mod tests {
             }
         };
 
-        let expansion = EsFluentLabelExpansion::from_derive_input(&input)
-            .expect("label expansion should build");
+        let err = EsFluentLabelExpansion::from_derive_input(&input)
+            .expect_err("explicit boolean origin should fail");
 
-        assert!(expansion.ftl_key().is_none());
-        assert!(expansion.label_inventory().is_none());
+        assert!(matches!(err, ExpansionError::Core(_)));
+        assert!(err.to_string().contains("use a bare flag"));
     }
 
     #[test]
     fn label_expansion_rejects_conflicting_namespace_sources() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent")]
-            #[fluent_label(namespace = "child")]
+            #[fluent_label(origin, namespace = "child")]
             struct NamespacedLabel;
         };
 
@@ -1492,7 +1526,7 @@ mod tests {
     fn variants_expansion_builds_enum_label_key_and_domain() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(domain = "es-fluent-lang", namespace = "languages")]
-            #[fluent_label(variants = true)]
+            #[fluent_label(variants)]
             enum Language {
                 English,
                 French,
@@ -1526,7 +1560,7 @@ mod tests {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent_ns")]
             #[fluent_variants(namespace = "variant_ns")]
-            #[fluent_label(variants = true, namespace = "label_ns")]
+            #[fluent_label(variants, namespace = "label_ns")]
             struct NamespaceHolder {
                 field: String,
             }

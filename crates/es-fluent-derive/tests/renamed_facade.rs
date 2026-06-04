@@ -51,7 +51,7 @@ pub struct Greeting {
 }
 
 #[derive(EsFluentLabel, EsFluentVariants)]
-#[fluent_label(variants = true)]
+#[fluent_label(origin, variants)]
 pub struct LoginForm {
     pub username: String,
 }

@@ -5,11 +5,9 @@ use es_fluent_manager_dioxus::DioxusAssetI18nProvider;
 
 #[component]
 pub fn App() -> Element {
-    let stylesheet_href = format!("{}assets/site.css", crate::site::routing::app_base_href());
-    let components_theme_href = format!(
-        "{}dx-components-theme.css",
-        crate::site::routing::app_base_href()
-    );
+    let base_href = crate::site::routing::app_base_href();
+    let stylesheet_href = format!("{base_href}assets/site.css");
+    let components_theme_href = format!("{base_href}dx-components-theme.css");
 
     rsx! {
         stayhydated_dioxus::SharedStyles {}

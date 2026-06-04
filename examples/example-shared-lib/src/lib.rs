@@ -42,16 +42,19 @@ impl Languages {
 pub struct CurrentLanguage(pub Languages);
 
 #[derive(Clone, Debug, Default, EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
 pub struct EmptyStruct;
 
 #[derive(Clone, Debug, Default, EsFluentLabel, EsFluentVariants)]
+#[fluent_label(origin)]
 pub struct EmptyStructVariants;
 
 #[derive(Clone, Copy, Debug, EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
 pub enum EmptyEnum {}
 
 #[derive(Clone, EsFluent, EsFluentLabel, EsFluentVariants)]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 #[fluent_variants(keys = ["description", "label"])]
 pub enum Country {
     USA(USAState),
@@ -59,18 +62,20 @@ pub enum Country {
 }
 
 #[derive(Clone, EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
 pub enum USAState {
     A,
 }
 
 #[derive(Clone, EsFluent, EsFluentLabel)]
+#[fluent_label(origin)]
 pub enum CanadaProvince {
     A,
     B,
 }
 
 #[derive(EsFluent, EsFluentLabel, EsFluentVariants)]
-#[fluent_label(variants = true)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["description", "label"])]
 pub struct SplitVariants {
     pub country: Country,

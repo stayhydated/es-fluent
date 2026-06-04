@@ -79,6 +79,7 @@ pub enum SettingsTab {
 // #[derive(EsFluentLabel)] - origin only
 use es_fluent::EsFluentLabel;
 #[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 pub enum GenderLabelOnly {
     Male,
     Female,
@@ -88,7 +89,7 @@ pub enum GenderLabelOnly {
 // #[derive(EsFluentLabel)] - origin and members combined with EsFluentVariants
 use es_fluent::EsFluentVariants;
 #[derive(EsFluentLabel, EsFluentVariants)]
-#[fluent_label(origin = true, variants = true)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,

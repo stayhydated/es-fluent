@@ -44,7 +44,6 @@ site_chrome_message-NavDemos = 演示
 site_chrome_message-NavDocs = 手册
 site_chrome_message-NavHome = 首页
 site_chrome_message-NavSource = 源码
-site_chrome_message-PageKicker = Rust 本地化
 site_chrome_message-SiteName = es-fluent
 site_footer_message-BodyLinkLabel = es-fluent-manager-dioxus
 site_footer_message-BodyPrefix = 由 Dioxus 构建，本地化使用

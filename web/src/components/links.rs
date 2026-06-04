@@ -12,9 +12,7 @@ pub(crate) fn PageLink(
 ) -> Element {
     rsx! {
         RouteLink {
-            target: LinkTarget::<crate::site::routing::AppRoute>::href(
-                crate::site::routing::page_href(locale, page),
-            ),
+            target: LinkTarget::route(crate::site::routing::app_route(locale, page)),
             class,
             label,
         }
@@ -32,9 +30,7 @@ pub(crate) fn PageCardLink(
 ) -> Element {
     rsx! {
         RouteCardLink {
-            target: LinkTarget::<crate::site::routing::AppRoute>::href(
-                crate::site::routing::page_href(locale, page),
-            ),
+            target: LinkTarget::route(crate::site::routing::app_route(locale, page)),
             label,
             title,
             body,

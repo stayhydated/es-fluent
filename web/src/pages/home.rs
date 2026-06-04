@@ -50,7 +50,7 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
                         h1 { "{hero_title}" }
                         p { "{hero_body}" }
                         div { class: "hero-actions",
-                            a { class: "button-link primary", href: crate::site::routing::book_href(), "{hero_primary_action}" }
+                            a { class: "button-link primary", href: crate::site::routing::book_href().as_str(), "{hero_primary_action}" }
                             PageLink {
                                 locale,
                                 page: PageKind::Demos,

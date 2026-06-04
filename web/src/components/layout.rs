@@ -1,12 +1,9 @@
-use crate::components::{
-    LanguageSelect, PageLink, ProjectOption, ProjectSelect, localized_stayhydated_project_options,
-};
+use crate::components::{LanguageSelect, PageLink, ProjectSelect};
 use crate::site::constants::ES_FLUENT_MANAGER_DIOXUS_CRATES_URL;
 use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
 use dioxus::prelude::*;
 use dioxus::router::{navigator, try_router};
-use stayhydated_dioxus::ProjectId;
 
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
@@ -14,30 +11,15 @@ pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Elemen
         Ok(i18n) => i18n,
         Err(error) => return rsx! { header { class: "page-header", "failed: {error}" } },
     };
-    let page_kicker = i18n.localize_message(&SiteChromeMessage::PageKicker);
-    let site_name = i18n.localize_message(&SiteChromeMessage::SiteName);
     let nav_home = i18n.localize_message(&SiteChromeMessage::NavHome);
     let nav_demos = i18n.localize_message(&SiteChromeMessage::NavDemos);
     let nav_docs = i18n.localize_message(&SiteChromeMessage::NavDocs);
     let nav_source = i18n.localize_message(&SiteChromeMessage::NavSource);
-    let project_selector_label =
-        i18n.localize_message(&stayhydated_dioxus::ProjectSelectMessage::ProjectSelectorLabel);
-    let project_list_label =
-        i18n.localize_message(&stayhydated_dioxus::ProjectSelectMessage::ProjectListLabel);
 
     rsx! {
         header { class: "page-header",
             ProjectSelect {
-                selected: ProjectOption::builder()
-                    .id(ProjectId::EsFluent)
-                    .mark("EF")
-                    .name(site_name)
-                    .description(page_kicker)
-                    .href(crate::site::routing::page_href(locale, PageKind::Home))
-                    .build(),
-                projects: localized_stayhydated_project_options(&i18n),
-                label: project_selector_label,
-                list_label: project_list_label,
+                href: crate::site::routing::page_href(locale, PageKind::Home),
             }
             div { class: "header-cluster",
                 HeaderNavLinks {
@@ -92,7 +74,7 @@ fn HeaderNavLinks(
                 label: nav_demos,
             }
             ExternalNavLink {
-                href: crate::site::routing::book_href(),
+                href: crate::site::routing::book_href().into_string(),
                 class: "header-nav-item".to_string(),
                 label: nav_docs,
             }

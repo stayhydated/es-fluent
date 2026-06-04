@@ -24,6 +24,7 @@ struct InventoryLineVariantFields {
 }
 
 #[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[allow(dead_code)]
 enum InventoryLineLabel {
     A,

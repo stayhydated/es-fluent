@@ -159,7 +159,7 @@ mod tests {
     fn process_enum_emits_variants_label_registration() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "ui")]
-            #[fluent_label(variants = true)]
+            #[fluent_label(variants)]
             enum Status {
                 Ready,
                 Failed,
@@ -175,7 +175,7 @@ mod tests {
     fn process_enum_uses_parent_domain_for_generated_variants_and_label() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(domain = "es-fluent-lang", namespace = "languages")]
-            #[fluent_label(variants = true)]
+            #[fluent_label(variants)]
             enum Language {
                 English,
                 French,
@@ -203,7 +203,7 @@ mod tests {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent_ns")]
             #[fluent_variants(namespace = "variant_ns")]
-            #[fluent_label(variants = true, namespace = "label_ns")]
+            #[fluent_label(variants, namespace = "label_ns")]
             struct NamespaceHolder {
                 field: String,
             }

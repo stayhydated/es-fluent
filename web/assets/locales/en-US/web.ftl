@@ -64,7 +64,6 @@ site_chrome_message-NavDemos = Demos
 site_chrome_message-NavDocs = Book
 site_chrome_message-NavHome = Home
 site_chrome_message-NavSource = Source
-site_chrome_message-PageKicker = Rust localization
 site_chrome_message-SiteName = es-fluent
 
 ## SiteFooterMessage

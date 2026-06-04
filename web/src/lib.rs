@@ -45,6 +45,12 @@ mod tests {
         assert!(html.contains("href=\"/demos/\""));
         assert!(html.contains("href=\"/book/\""));
         assert!(html.contains("href=\"https://crates.io/crates/es-fluent-manager-dioxus\""));
+        assert!(html.contains("Project selector"));
+        assert!(html.contains("Rust localization"));
+        assert!(html.contains(">es-fluent<"));
+        assert!(!html.contains("/koruma/"));
+        assert!(!html.contains("Rust validation"));
+        assert!(!html.contains("Project index"));
     }
 
     #[test]
@@ -67,28 +73,6 @@ mod tests {
 
     #[test]
     #[serial]
-    fn localizes_shared_project_select_messages() {
-        let runtime = es_fluent_manager_dioxus::ssr::SsrI18nRuntime::new(
-            crate::site::i18n::app_dioxus_i18n_asset_modules(),
-        );
-        let i18n = runtime
-            .request_blocking(SiteLanguage::EnUs.lang())
-            .expect("SSR i18n should initialize");
-
-        assert_eq!(
-            i18n.localize_message(&stayhydated_dioxus::ProjectSelectMessage::KorumaDescription),
-            "Rust validation"
-        );
-        assert_eq!(
-            i18n.localize_message(
-                &stayhydated_dioxus::ProjectSelectMessage::StayhydatedDescription
-            ),
-            "Project index"
-        );
-    }
-
-    #[test]
-    #[serial]
     fn renders_simplified_chinese_demos_page() {
         let html = crate::site::render::render_route_body(SiteRoute::new(
             SiteLanguage::ZhCn,
@@ -97,6 +81,8 @@ mod tests {
         .expect("page should render");
         assert!(html.contains("href=\"/zh/bevy-example/\""));
         assert!(html.contains("href=\"/zh/gpui-example/\""));
+        assert!(html.contains("Project selector"));
+        assert!(html.contains("Rust localization"));
         assert!(html.contains("打开演示"));
         assert!(!html.contains("Lancer la démo"));
     }

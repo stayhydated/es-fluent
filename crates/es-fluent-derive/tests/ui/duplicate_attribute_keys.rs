@@ -13,7 +13,7 @@ pub struct DuplicateVariantsKeys {
 }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin = true, origin = false)]
+#[fluent_label(origin, origin)]
 pub struct DuplicateLabelOrigin;
 
 #[derive(EsFluentChoice)]

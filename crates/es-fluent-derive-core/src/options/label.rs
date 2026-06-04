@@ -20,22 +20,27 @@ pub struct LabelOpts {
 #[derive(Clone, Debug, Default, FromMeta, Getters)]
 pub struct LabelNamespacedAttributeArgs {
     #[darling(default)]
-    origin: Option<ExplicitBool>,
+    origin: Option<super::PresentFlag>,
     #[darling(default)]
-    variants: Option<ExplicitBool>,
+    variants: Option<super::PresentFlag>,
     #[darling(flatten)]
     namespace_args: super::NamespacedAttributeArgs,
 }
 
 impl LabelNamespacedAttributeArgs {
+    /// Returns `true` if the origin flag was provided.
+    pub fn has_origin(&self) -> bool {
+        self.origin.is_some()
+    }
+
     /// Returns `true` if `origin` should be generated.
     pub fn is_origin(&self) -> bool {
-        self.origin.as_ref().is_none_or(ExplicitBool::value)
+        self.origin.is_some_and(super::PresentFlag::is_present)
     }
 
     /// Returns `true` if `variants` should be generated.
     pub fn is_variants(&self) -> bool {
-        self.variants.as_ref().is_some_and(ExplicitBool::value)
+        self.variants.is_some_and(super::PresentFlag::is_present)
     }
 
     /// Returns the namespace value if provided.
@@ -49,39 +54,6 @@ impl LabelNamespacedAttributeArgs {
     }
 }
 
-#[derive(Clone, Debug)]
-struct ExplicitBool(bool);
-
-impl ExplicitBool {
-    fn value(&self) -> bool {
-        self.0
-    }
-}
-
-impl FromMeta for ExplicitBool {
-    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
-        match item {
-            syn::Meta::NameValue(nv) => {
-                if let syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Bool(value),
-                    ..
-                }) = &nv.value
-                {
-                    Ok(Self(value.value))
-                } else {
-                    Err(darling::Error::unexpected_type("expected boolean literal"))
-                }
-            },
-            syn::Meta::Path(_) => Err(darling::Error::custom(
-                "expected explicit boolean value, such as `origin = true`",
-            )),
-            _ => Err(darling::Error::unsupported_format(
-                "expected explicit boolean value, such as `origin = true`",
-            )),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,21 +62,22 @@ mod tests {
     use syn::{DeriveInput, parse_quote};
 
     #[test]
-    fn label_options_default_to_origin_only() {
+    fn label_options_default_to_no_outputs() {
         let input: DeriveInput = parse_quote! {
             struct SettingsLabel;
         };
 
         let opts = LabelOpts::from_derive_input(&input).expect("LabelOpts should parse");
 
-        assert!(opts.attr_args().is_origin());
+        assert!(!opts.attr_args().has_origin());
+        assert!(!opts.attr_args().is_origin());
         assert!(!opts.attr_args().is_variants());
     }
 
     #[test]
-    fn label_options_accept_explicit_boolean_flags() {
+    fn label_options_accept_bare_flags() {
         let input: DeriveInput = parse_quote! {
-            #[fluent_label(origin = true, variants = true)]
+            #[fluent_label(origin, variants)]
             struct SettingsLabel;
         };
 
@@ -115,29 +88,17 @@ mod tests {
     }
 
     #[test]
-    fn label_options_can_disable_origin_explicitly() {
+    fn label_options_reject_explicit_boolean_flags() {
         let input: DeriveInput = parse_quote! {
-            #[fluent_label(origin = false)]
+            #[fluent_label(origin = false, variants = true)]
             struct SettingsLabel;
         };
 
-        let opts = LabelOpts::from_derive_input(&input).expect("LabelOpts should parse");
-
-        assert!(!opts.attr_args().is_origin());
-        assert!(!opts.attr_args().is_variants());
-    }
-
-    #[test]
-    fn label_options_reject_bare_flags() {
-        let input: DeriveInput = parse_quote! {
-            #[fluent_label(origin, variants)]
-            struct SettingsLabel;
-        };
-
-        let err = LabelOpts::from_derive_input(&input).expect_err("bare flags should fail");
+        let err = LabelOpts::from_derive_input(&input).expect_err("boolean flags should fail");
 
         assert!(
-            err.to_string().contains("expected explicit boolean value"),
+            err.to_string()
+                .contains("expected bare flag syntax without `= true`"),
             "unexpected error: {err}"
         );
     }

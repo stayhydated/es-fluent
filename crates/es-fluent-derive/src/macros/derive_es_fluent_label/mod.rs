@@ -69,7 +69,7 @@ mod tests {
     #[test]
     fn expand_es_fluent_label_generates_inventory_when_origin_is_enabled() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
+            #[fluent_label(origin)]
             #[fluent(namespace = "ui")]
             struct LoginForm;
         };
@@ -83,7 +83,20 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_label_skips_inventory_when_origin_is_disabled() {
+    fn expand_es_fluent_label_rejects_missing_origin() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_label]
+            struct MissingOrigin;
+        };
+
+        let tokens =
+            crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
+        assert!(tokens.contains("compile_error"));
+        assert!(tokens.contains("requires `#[fluent_label(origin)]`"));
+    }
+
+    #[test]
+    fn expand_es_fluent_label_rejects_explicit_boolean_origin() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent_label(origin = false)]
             enum NoOrigin {
@@ -94,7 +107,7 @@ mod tests {
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_label_skips_inventory_when_origin_is_disabled",
+            "expand_es_fluent_label_rejects_explicit_boolean_origin",
             tokens
         );
     }
@@ -114,7 +127,7 @@ mod tests {
         );
 
         let struct_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
+            #[fluent_label(origin)]
             #[fluent(namespace = 123)]
             struct InvalidStructNamespace;
         };
@@ -127,7 +140,7 @@ mod tests {
         );
 
         let enum_namespace_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
+            #[fluent_label(origin)]
             #[fluent(namespace = 123)]
             enum InvalidEnumNamespace {
                 A
@@ -146,7 +159,7 @@ mod tests {
     fn expand_es_fluent_label_rejects_parent_and_label_namespace_conflict() {
         let input: syn::DeriveInput = parse_quote! {
             #[fluent(namespace = "parent")]
-            #[fluent_label(namespace = "child")]
+            #[fluent_label(origin, namespace = "child")]
             struct NamespacedLabel;
         };
 
@@ -161,7 +174,7 @@ mod tests {
     #[test]
     fn expand_es_fluent_label_uses_struct_type_kind_for_structs() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
+            #[fluent_label(origin)]
             struct LoginForm;
         };
 
@@ -176,7 +189,7 @@ mod tests {
     #[test]
     fn expand_es_fluent_label_uses_enum_type_kind_for_enums() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label]
+            #[fluent_label(origin)]
             enum LoginState {
                 Ready
             }

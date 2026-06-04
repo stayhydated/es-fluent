@@ -163,6 +163,7 @@ Use `EsFluentLabel` for a type-level label:
 use es_fluent::{EsFluentLabel, FluentLabel as _};
 
 #[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 #[fluent(namespace = "forms")]
 pub enum Gender {
     Male,
@@ -173,7 +174,7 @@ pub enum Gender {
 let title = Gender::localize_label(&i18n);
 ```
 
-`#[fluent_label(origin = true)]` generates a type-level label. `#[fluent_label(variants = true)]` can be combined with `EsFluentVariants`. Label flags use explicit booleans; bare `#[fluent_label(origin)]` is not accepted.
+`#[fluent_label(origin)]` generates a type-level label. `#[fluent_label(origin, variants)]` can be combined with `EsFluentVariants`. Label options are bare flags; boolean forms such as `#[fluent_label(origin = true)]` are rejected.
 
 ## Namespaces
 

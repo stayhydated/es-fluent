@@ -281,27 +281,27 @@ pub enum Gender {
 use es_fluent::EsFluentLabel;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 #[fluent(namespace = "forms")]
 pub enum GenderLabel { Male, Female, Other }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 #[fluent(namespace = file)]
 pub enum Status { Active, Inactive }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 #[fluent(namespace = file_relative)]
 pub struct UserProfile;
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 #[fluent(namespace = folder)]
 pub enum FolderStatus { Active, Inactive }
 
 #[derive(EsFluentLabel)]
-#[fluent_label(origin = true)]
+#[fluent_label(origin)]
 #[fluent(namespace = folder_relative)]
 pub struct FolderUserProfile;
 ```
@@ -520,14 +520,14 @@ Generates a helper implementation of the `FluentLabel` trait and registers the
 type's name as a key. This is similar to `EsFluentVariants` (which registers
 field- or variant-derived keys), but for the parent type itself.
 
-- `origin`: Enabled by default. `#[derive(EsFluentLabel)]` and `#[derive(EsFluentLabel)] #[fluent_label(origin = true)]` both generate the type-level label. Use `#[fluent_label(origin = false)]` when deriving only variant labels through `EsFluentVariants`.
-- `#[fluent_label(origin = true)]`: Explicitly generates an implementation where `localize_label(localizer)` returns the base key for the type.
-- `origin` and `variants` use explicit booleans when supplied; bare flags like `#[fluent_label(origin)]` are not accepted.
+- `#[fluent_label(origin)]`: Required for `EsFluentLabel`; generates an implementation where `localize_label(localizer)` returns the base key for the type.
+- `origin` and `variants` are bare flags. Boolean forms such as `#[fluent_label(origin = true)]` are rejected.
 
 ```rs
 use es_fluent::EsFluentLabel;
 
 #[derive(EsFluentLabel)]
+#[fluent_label(origin)]
 pub enum GenderLabelOnly {
     Male,
     Female,
@@ -541,11 +541,11 @@ use es_fluent::FluentLabel;
 let _ = GenderLabelOnly::localize_label(&i18n);
 ```
 
-- `#[fluent_label(variants = true)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
+- `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants.
 
 ```rs
 #[derive(EsFluentVariants, EsFluentLabel)]
-#[fluent_label(origin = true, variants = true)]
+#[fluent_label(origin, variants)]
 #[fluent_variants(keys = ["label", "description"])]
 pub struct LoginFormCombined {
     pub username: String,
