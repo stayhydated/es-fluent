@@ -1,8 +1,8 @@
 ---
 source: crates/es-fluent-derive/src/macros/derive_es_fluent_variants/mod.rs
-assertion_line: 171
 expression: tokens
 ---
+impl ::es_fluent::__private::EsFluentVariantsLabelWasDerived for Status {}
 ///Variants of [`Status`].
 pub enum StatusVariants {
     ///The `Ready` variant of [`Status`].

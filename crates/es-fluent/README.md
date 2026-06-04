@@ -542,7 +542,7 @@ use es_fluent::FluentLabel;
 let _ = GenderLabelOnly::localize_label(&i18n);
 ```
 
-- `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants when the type also derives `EsFluentLabel`.
+- `#[fluent_label(origin, variants)]`: Requires both `EsFluentLabel` and `EsFluentVariants`; it generates keys for variants when the type also derives `EsFluentLabel`.
 
 ```rs
 #[derive(EsFluentVariants, EsFluentLabel)]

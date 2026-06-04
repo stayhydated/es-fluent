@@ -40,4 +40,11 @@ pub mod __private {
     pub trait EsFluentLabelOriginWasDerived {}
 
     pub trait EsFluentVariantsOriginRequiresEsFluentLabel: EsFluentLabelOriginWasDerived {}
+
+    pub trait EsFluentVariantsLabelWasDerived {}
+
+    pub trait EsFluentLabelVariantsRequiresEsFluentVariants:
+        EsFluentVariantsLabelWasDerived
+    {
+    }
 }

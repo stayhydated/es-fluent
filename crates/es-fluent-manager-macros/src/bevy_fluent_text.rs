@@ -1,6 +1,7 @@
 use heck::ToSnakeCase as _;
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, quote_spanned};
+use syn::spanned::Spanned as _;
 use syn::{DeriveInput, parse_macro_input};
 
 use es_fluent_derive_core::attribute::AttributeLocation;
@@ -97,20 +98,34 @@ struct LocaleFieldInfo {
     /// The variant this field belongs to (for enums)
     variant_ident: Option<syn::Ident>,
     /// The locale-marked fields that should refresh together
-    locale_fields: Vec<syn::Ident>,
+    locale_fields: Vec<LocaleField>,
     /// Other fields in the same variant (for pattern matching)
     other_fields: Vec<syn::Ident>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Debug)]
+struct LocaleField {
+    ident: syn::Ident,
+    ty: syn::Type,
+    span: proc_macro2::Span,
+}
+
+#[derive(Clone, Copy, Debug)]
 enum LocaleFieldDirective {
-    Locale,
+    Locale { span: proc_macro2::Span },
     NotLocale,
 }
 
 impl LocaleFieldDirective {
     fn is_locale(self) -> bool {
-        matches!(self, Self::Locale)
+        matches!(self, Self::Locale { .. })
+    }
+
+    fn span(self) -> Option<proc_macro2::Span> {
+        match self {
+            Self::Locale { span } => Some(span),
+            Self::NotLocale => None,
+        }
     }
 }
 
@@ -131,13 +146,16 @@ fn collect_locale_fields(
                         for field in &fields.named {
                             if let Some(ident) = field.ident.clone() {
                                 all_field_idents.push(ident.clone());
-                                if locale_field_directive(
+                                let directive = locale_field_directive(
                                     field,
                                     AttributeLocation::LocaleNamedEnumVariantField,
-                                )?
-                                .is_locale()
-                                {
-                                    locale_field_idents.push(ident);
+                                )?;
+                                if directive.is_locale() {
+                                    locale_field_idents.push(LocaleField {
+                                        ident,
+                                        ty: field.ty.clone(),
+                                        span: directive.span().unwrap_or_else(|| field.span()),
+                                    });
                                 }
                             }
                         }
@@ -145,7 +163,11 @@ fn collect_locale_fields(
                         if !locale_field_idents.is_empty() {
                             let other_fields: Vec<_> = all_field_idents
                                 .iter()
-                                .filter(|id| !locale_field_idents.contains(id))
+                                .filter(|id| {
+                                    !locale_field_idents
+                                        .iter()
+                                        .any(|locale_field| locale_field.ident == **id)
+                                })
                                 .cloned()
                                 .collect();
 
@@ -172,11 +194,16 @@ fn collect_locale_fields(
             syn::Fields::Named(fields) => {
                 let mut locale_field_idents = Vec::new();
                 for field in &fields.named {
-                    if locale_field_directive(field, AttributeLocation::LocaleNamedStructField)?
-                        .is_locale()
+                    let directive =
+                        locale_field_directive(field, AttributeLocation::LocaleNamedStructField)?;
+                    if directive.is_locale()
                         && let Some(ident) = field.ident.clone()
                     {
-                        locale_field_idents.push(ident);
+                        locale_field_idents.push(LocaleField {
+                            ident,
+                            ty: field.ty.clone(),
+                            span: directive.span().unwrap_or_else(|| field.span()),
+                        });
                     }
                 }
 
@@ -207,7 +234,7 @@ fn locale_field_directive(
 ) -> Result<LocaleFieldDirective, es_fluent_derive_core::error::EsFluentCoreError> {
     for attr in &field.attrs {
         if crate::support::validate_locale_marker(attr, location)? {
-            return Ok(LocaleFieldDirective::Locale);
+            return Ok(LocaleFieldDirective::Locale { span: attr.span() });
         }
     }
 
@@ -232,7 +259,11 @@ fn generate_refresh_for_locale_impl(
                             compile_error!("internal error: enum locale field missing variant");
                         };
                     };
-                    let locale_field_idents = &info.locale_fields;
+                    let locale_field_idents: Vec<_> = info
+                        .locale_fields
+                        .iter()
+                        .map(|field| &field.ident)
+                        .collect();
                     let other_fields = &info.other_fields;
 
                     let locale_patterns: Vec<_> = locale_field_idents
@@ -243,8 +274,11 @@ fn generate_refresh_for_locale_impl(
                         other_fields.iter().map(|f| quote! { #f: _ }).collect();
                     let field_updates: Vec<_> = locale_field_idents
                         .iter()
-                        .map(|field_ident| {
+                        .zip(info.locale_fields.iter())
+                        .map(|(field_ident, field)| {
+                            let assertion = locale_conversion_assertion(field, manager_path);
                             quote! {
+                                #assertion
                                 if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
                                     *#field_ident = value;
                                 }
@@ -275,8 +309,11 @@ fn generate_refresh_for_locale_impl(
             let field_updates: Vec<_> = locale_fields
                 .iter()
                 .flat_map(|info| info.locale_fields.iter())
-                .map(|field_ident| {
+                .map(|field| {
+                    let field_ident = &field.ident;
+                    let assertion = locale_conversion_assertion(field, manager_path);
                     quote! {
+                        #assertion
                         if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
                             self.#field_ident = value;
                         }
@@ -293,6 +330,23 @@ fn generate_refresh_for_locale_impl(
             }
         },
         syn::Data::Union(_) => quote! {},
+    }
+}
+
+fn locale_conversion_assertion(
+    field: &LocaleField,
+    manager_path: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    let ty = &field.ty;
+    let span = field.span;
+
+    quote_spanned! { span=>
+        fn __es_fluent_assert_locale_try_from<
+            __EsFluentLocale: for<'__es_fluent_locale> ::std::convert::TryFrom<
+                &'__es_fluent_locale #manager_path::unic_langid::LanguageIdentifier,
+            >,
+        >() {}
+        __es_fluent_assert_locale_try_from::<#ty>();
     }
 }
 
@@ -337,7 +391,7 @@ mod tests {
             enum_fields[0]
                 .locale_fields
                 .iter()
-                .map(ToString::to_string)
+                .map(|field| field.ident.to_string())
                 .collect::<Vec<_>>(),
             vec![
                 "current_language".to_string(),

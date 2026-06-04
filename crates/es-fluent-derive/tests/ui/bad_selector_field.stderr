@@ -1,12 +1,20 @@
-error[E0599]: no method named `as_fluent_choice` found for struct `NotChoice` in the current scope
-  --> tests/ui/bad_selector_field.rs:10:5
+error[E0277]: the trait bound `NotChoice: EsFluentChoice` is not satisfied
+  --> tests/ui/bad_selector_field.rs:10:12
+   |
+10 |     value: NotChoice,
+   |            ^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `EsFluentChoice` is not implemented for `NotChoice`
+  --> tests/ui/bad_selector_field.rs:5:1
    |
  5 | struct NotChoice;
-   | ---------------- method `as_fluent_choice` not found for this struct
+   | ^^^^^^^^^^^^^^^^
+note: required by a bound in `__es_fluent_choice_value`
+  --> tests/ui/bad_selector_field.rs:7:10
+   |
+ 7 | #[derive(EsFluent)]
+   |          ^^^^^^^^ required by this bound in `__es_fluent_choice_value`
 ...
 10 |     value: NotChoice,
-   |     ^^^^^ method not found in `NotChoice`
-   |
-   = help: items from traits can only be used if the trait is implemented and in scope
-   = note: the following trait defines an item `as_fluent_choice`, perhaps you need to implement it:
-           candidate #1: `EsFluentChoice`
+   |     ----- required by a bound in this function
+   = note: this error originates in the derive macro `EsFluent` (in Nightly builds, run with -Z macro-backtrace for more info)

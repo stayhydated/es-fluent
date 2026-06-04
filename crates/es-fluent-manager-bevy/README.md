@@ -140,7 +140,8 @@ If a field depends on the active locale (like the `Languages` enum from
 macro will generate `RefreshForLocale` and register the locale-aware systems for
 you.
 `#[locale]` is supported on named struct fields and named enum variant fields,
-and multiple named fields in the same variant refresh together.
+and multiple named fields in the same variant refresh together. Each
+`#[locale]` field type must implement `TryFrom<&LanguageIdentifier>`.
 
 `RefreshForLocale` receives the originally requested locale, not the fallback
 resource locale. For example, if `en-GB` falls back to `en` assets, locale-aware

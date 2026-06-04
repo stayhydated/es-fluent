@@ -643,6 +643,7 @@ pub struct EsFluentLabelExpansion {
     generics: syn::Generics,
     ftl_key: Option<SpannedValue<FluentMessageId>>,
     domain: Option<crate::semantic::DomainName>,
+    requires_variants: bool,
     label_inventory: Option<MessageModel>,
 }
 
@@ -690,6 +691,7 @@ impl EsFluentLabelExpansion {
             generics: opts.generics().clone(),
             ftl_key,
             domain: container_context.fluent_domain().cloned(),
+            requires_variants: opts.attr_args().is_variants(),
             label_inventory,
         })
     }
@@ -712,6 +714,11 @@ impl EsFluentLabelExpansion {
     /// The optional explicit Fluent domain inherited from the parent `#[fluent(...)]`.
     pub fn domain(&self) -> Option<&crate::semantic::DomainName> {
         self.domain.as_ref()
+    }
+
+    /// Whether `#[fluent_label(variants)]` was present and must be backed by `EsFluentVariants`.
+    pub fn requires_variants(&self) -> bool {
+        self.requires_variants
     }
 
     /// The generated label inventory model, when the origin label is enabled.
@@ -791,6 +798,7 @@ pub struct EsFluentVariantsExpansion {
     domain: Option<crate::semantic::DomainName>,
     namespace: Option<NamespaceRule>,
     requires_label_origin: bool,
+    provides_variants_label: bool,
     targets: Vec<EsFluentVariantsTarget>,
 }
 
@@ -864,6 +872,11 @@ impl EsFluentVariantsExpansion {
         self.requires_label_origin
     }
 
+    /// Whether `#[fluent_label(variants)]` was present and this derive provides it.
+    pub fn provides_variants_label(&self) -> bool {
+        self.provides_variants_label
+    }
+
     /// The generated enum targets.
     pub fn targets(&self) -> &[EsFluentVariantsTarget] {
         &self.targets
@@ -877,14 +890,17 @@ fn build_variants_expansion(
     variant_seeds: &[GeneratedVariantMessageSeed],
 ) -> ExpansionResult<EsFluentVariantsExpansion> {
     let requires_label_origin = label_opts.is_some_and(|opts| opts.attr_args().has_origin());
+    let provides_variants_label = label_opts.is_some_and(|opts| opts.attr_args().is_variants());
 
     if variant_seeds.is_empty() {
+        validate_requested_generated_variants_have_targets(opts, label_opts)?;
         return Ok(EsFluentVariantsExpansion {
             origin_ident: opts.variants_ident().clone(),
             generics: container_context.generics().clone(),
             domain: container_context.fluent_domain().cloned(),
             namespace: None,
             requires_label_origin,
+            provides_variants_label,
             targets: Vec::new(),
         });
     }
@@ -953,8 +969,55 @@ fn build_variants_expansion(
         domain: container_context.fluent_domain().cloned(),
         namespace,
         requires_label_origin,
+        provides_variants_label,
         targets,
     })
+}
+
+fn validate_requested_generated_variants_have_targets(
+    opts: &impl GeneratedVariantsOptions,
+    label_opts: Option<&LabelOpts>,
+) -> Result<(), EsFluentCoreError> {
+    let mut errors = Vec::new();
+
+    if opts.variants_attr_args().keys().is_some() {
+        let mut error = AttrError::new(
+            AttrContext::VariantsContainer,
+            "`#[fluent_variants(keys = ...)]` requires at least one unskipped field or variant for generated variant enums",
+            opts.variants_attr_args()
+                .keys_span()
+                .or_else(|| Some(opts.variants_ident().span())),
+        );
+        error.help = Some(
+            "remove `keys = [...]`, or leave at least one field or variant without `#[fluent_variants(skip)]`"
+                .to_string(),
+        );
+        errors.push(error);
+    }
+
+    if let Some(label_opts) = label_opts.filter(|opts| opts.attr_args().is_variants()) {
+        let mut error = AttrError::new(
+            AttrContext::LabelContainer,
+            "`#[fluent_label(variants)]` requires at least one unskipped field or variant for generated variant labels",
+            label_opts
+                .attr_args()
+                .variants_span()
+                .or_else(|| Some(opts.variants_ident().span())),
+        );
+        error.help = Some(
+            "remove `variants` from `#[fluent_label(...)]`, or leave at least one field or variant without `#[fluent_variants(skip)]`"
+                .to_string(),
+        );
+        errors.push(error);
+    }
+
+    match errors.len() {
+        0 => Ok(()),
+        1 => Err(EsFluentCoreError::StructuredAttributeError(
+            errors.into_iter().next().expect("one error"),
+        )),
+        _ => Err(EsFluentCoreError::StructuredAttributeErrors(errors)),
+    }
 }
 
 struct GeneratedVariantsTargetSeed {
@@ -1538,6 +1601,42 @@ mod tests {
                 .as_str(),
             "login_form_label_variants-username"
         );
+    }
+
+    #[test]
+    fn variants_expansion_rejects_explicit_keys_with_no_unskipped_targets() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_variants(keys = ["label"])]
+            struct LoginForm {
+                #[fluent_variants(skip)]
+                ignored: String,
+            }
+        };
+
+        let err = EsFluentVariantsExpansion::from_derive_input(&input)
+            .expect_err("explicit keys with no generated members should fail");
+
+        assert!(matches!(err, ExpansionError::Core(_)));
+        assert!(err.to_string().contains("fluent_variants(keys = ...)"));
+        assert!(err.to_string().contains("at least one unskipped"));
+    }
+
+    #[test]
+    fn variants_expansion_rejects_label_variants_with_no_unskipped_targets() {
+        let input: syn::DeriveInput = parse_quote! {
+            #[fluent_label(variants)]
+            enum LoginState {
+                #[fluent_variants(skip)]
+                Ready,
+            }
+        };
+
+        let err = EsFluentVariantsExpansion::from_derive_input(&input)
+            .expect_err("variants label with no generated members should fail");
+
+        assert!(matches!(err, ExpansionError::Core(_)));
+        assert!(err.to_string().contains("fluent_label(variants)"));
+        assert!(err.to_string().contains("generated variant labels"));
     }
 
     #[test]

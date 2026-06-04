@@ -459,7 +459,7 @@ pub enum ArgumentValueStrategy {
     /// Treat the field value as an `Option<T>`.
     Optional { span: Span },
     /// Convert the field value through `EsFluentChoice`.
-    Choice { span: Span },
+    Choice { span: Span, ty: Box<syn::Type> },
     /// Apply an explicit field-level transform expression.
     Transform(Box<ValueTransform>),
 }
@@ -467,7 +467,7 @@ pub enum ArgumentValueStrategy {
 impl ArgumentValueStrategy {
     pub fn span(&self) -> Span {
         match self {
-            Self::Borrowed { span } | Self::Optional { span } | Self::Choice { span } => *span,
+            Self::Borrowed { span } | Self::Optional { span } | Self::Choice { span, .. } => *span,
             Self::Transform(transform) => transform.span(),
         }
     }
@@ -961,7 +961,10 @@ mod tests {
                 )),
                 ArgumentModel::new_with_value_strategy(
                     SpannedValue::new(parse_arg_name("second", span).expect("arg"), span),
-                    ArgumentValueStrategy::Choice { span },
+                    ArgumentValueStrategy::Choice {
+                        span,
+                        ty: Box::new(syn::parse_quote!(Status)),
+                    },
                 ),
             ],
             SourceLocation::new(span),

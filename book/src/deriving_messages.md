@@ -245,9 +245,9 @@ let _ = GenderLabelOnly::localize_label(&i18n);
 
 ### Combined with Variants
 
-`#[fluent_label(origin, variants)]` can be combined with `EsFluentVariants` to
-generate type-level keys for each generated variant enum when the type also
-derives `EsFluentLabel`:
+`#[fluent_label(origin, variants)]` requires both `EsFluentLabel` and
+`EsFluentVariants`. It generates type-level keys for each generated variant enum
+when the type also derives `EsFluentLabel`:
 
 ```rust
 use es_fluent::{EsFluentLabel, EsFluentVariants};

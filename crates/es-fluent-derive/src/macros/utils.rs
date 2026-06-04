@@ -108,6 +108,26 @@ pub fn generate_label_origin_marker_impl(
     }
 }
 
+pub fn generate_variants_label_marker_impl(
+    context: &CodegenContext,
+    ident: &syn::Ident,
+    generics: &syn::Generics,
+    enabled: bool,
+) -> TokenStream {
+    if !enabled {
+        return quote! {};
+    }
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let es_fluent = context.facade_path().tokens();
+
+    quote! {
+        impl #impl_generics #es_fluent::__private::EsFluentVariantsLabelWasDerived
+            for #ident #ty_generics #where_clause
+        {}
+    }
+}
+
 pub fn generate_variants_origin_requirement_impl(
     context: &CodegenContext,
     ident: &syn::Ident,
@@ -118,6 +138,26 @@ pub fn generate_variants_origin_requirement_impl(
 
     quote! {
         impl #impl_generics #es_fluent::__private::EsFluentVariantsOriginRequiresEsFluentLabel
+            for #ident #ty_generics #where_clause
+        {}
+    }
+}
+
+pub fn generate_label_variants_requirement_impl(
+    context: &CodegenContext,
+    ident: &syn::Ident,
+    generics: &syn::Generics,
+    enabled: bool,
+) -> TokenStream {
+    if !enabled {
+        return quote! {};
+    }
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let es_fluent = context.facade_path().tokens();
+
+    quote! {
+        impl #impl_generics #es_fluent::__private::EsFluentLabelVariantsRequiresEsFluentVariants
             for #ident #ty_generics #where_clause
         {}
     }
@@ -150,7 +190,7 @@ pub(crate) fn static_argument_name_tokens(
 pub fn generate_field_value_expr(
     context: &CodegenContext,
     value_strategy: &ArgumentValueStrategy,
-    access_expr: TokenStream,
+    _access_expr: TokenStream,
     transform_arg_expr: TokenStream,
 ) -> TokenStream {
     let es_fluent = context.facade_path().tokens();
@@ -162,11 +202,18 @@ pub fn generate_field_value_expr(
                 #es_fluent::__private::FluentArgumentValue::new((#expr)(#transform_arg_expr))
             }
         },
-        ArgumentValueStrategy::Choice { span } => {
+        ArgumentValueStrategy::Choice { span, ty } => {
+            let (assertion_ty, reference_depth) = choice_assertion_ty_and_reference_depth(ty);
+            let choice_ref_expr =
+                choice_reference_expr(transform_arg_expr.clone(), reference_depth);
             quote_spanned! { *span=>
                 #es_fluent::__private::FluentArgumentValue::new({
-                    use #es_fluent::EsFluentChoice as _;
-                    (#access_expr).as_fluent_choice()
+                    fn __es_fluent_choice_value<__EsFluentChoice: #es_fluent::EsFluentChoice + ?Sized>(
+                        value: &__EsFluentChoice,
+                    ) -> &'static str {
+                        value.as_fluent_choice()
+                    }
+                    __es_fluent_choice_value::<#assertion_ty>(#choice_ref_expr)
                 })
             }
         },
@@ -181,6 +228,24 @@ pub fn generate_field_value_expr(
             }
         },
     }
+}
+
+fn choice_assertion_ty_and_reference_depth(ty: &syn::Type) -> (&syn::Type, usize) {
+    match ty {
+        syn::Type::Reference(reference) => {
+            let (ty, depth) = choice_assertion_ty_and_reference_depth(&reference.elem);
+            (ty, depth + 1)
+        },
+        _ => (ty, 0),
+    }
+}
+
+fn choice_reference_expr(expr: TokenStream, reference_depth: usize) -> TokenStream {
+    let mut expr = expr;
+    for _ in 0..reference_depth {
+        expr = quote! { *(#expr) };
+    }
+    expr
 }
 
 pub fn generate_field_argument(
@@ -635,6 +700,7 @@ mod tests {
             &context,
             &ArgumentValueStrategy::Choice {
                 span: proc_macro2::Span::call_site(),
+                ty: Box::new(parse_quote!(FieldChoice)),
             },
             quote!(field),
             quote!(field),

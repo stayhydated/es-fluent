@@ -41,10 +41,17 @@ fn emit_variants_expansion(
             expansion.generics(),
         )
     });
+    let variants_label_marker = crate::macros::utils::generate_variants_label_marker_impl(
+        context,
+        expansion.origin_ident(),
+        expansion.generics(),
+        expansion.provides_variants_label(),
+    );
 
     if expansion.targets().is_empty() {
         return quote! {
             #origin_requirement
+            #variants_label_marker
         };
     }
 
@@ -69,6 +76,7 @@ fn emit_variants_expansion(
 
     quote! {
         #origin_requirement
+        #variants_label_marker
         #(#items)*
     }
 }

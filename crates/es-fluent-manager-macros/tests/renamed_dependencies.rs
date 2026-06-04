@@ -18,6 +18,7 @@ fn manager_macros_compile_when_runtime_dependencies_are_renamed() {
     let embedded_path = workspace_root.join("crates/es-fluent-manager-embedded");
     let bevy_path = workspace_root.join("crates/es-fluent-manager-bevy");
     let dioxus_path = workspace_root.join("crates/es-fluent-manager-dioxus");
+    let lang_path = workspace_root.join("crates/es-fluent-lang");
 
     std::fs::write(
         crate_dir.join("Cargo.toml"),
@@ -33,11 +34,13 @@ localized = {{ package = "es-fluent", path = "{}" }}
 embedded_runtime = {{ package = "es-fluent-manager-embedded", path = "{}" }}
 bevy_runtime = {{ package = "es-fluent-manager-bevy", path = "{}", default-features = false, features = ["macros"] }}
 dioxus_runtime = {{ package = "es-fluent-manager-dioxus", path = "{}" }}
+language_pack = {{ package = "es-fluent-lang", path = "{}" }}
 "#,
             facade_path.display(),
             embedded_path.display(),
             bevy_path.display(),
-            dioxus_path.display()
+            dioxus_path.display(),
+            lang_path.display()
         ),
     )
     .expect("write Cargo.toml");
@@ -58,10 +61,35 @@ assets_dir = "i18n"
 embedded_runtime::define_i18n_module!();
 dioxus_runtime::define_i18n_module!();
 
+use language_pack::es_fluent_language;
+
+#[es_fluent_language]
+#[derive(Clone, Copy)]
+pub enum Languages {}
+
 #[derive(bevy_runtime::BevyFluentText, Clone)]
 pub struct Message;
 
+#[derive(bevy_runtime::BevyFluentText, Clone)]
+pub struct LocalizedMessage {
+    #[locale]
+    language: Languages,
+}
+
 impl localized::FluentMessage for Message {
+    fn to_fluent_string_with(
+        &self,
+        _localize: &mut dyn for<'a> FnMut(
+            localized::registry::StaticFluentDomain,
+            localized::registry::StaticFluentEntryId,
+            Option<&localized::FluentArgs<'a>>,
+        ) -> String,
+    ) -> String {
+        String::new()
+    }
+}
+
+impl localized::FluentMessage for LocalizedMessage {
     fn to_fluent_string_with(
         &self,
         _localize: &mut dyn for<'a> FnMut(

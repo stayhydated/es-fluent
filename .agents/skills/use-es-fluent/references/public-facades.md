@@ -226,6 +226,9 @@ fn spawn_menu(mut commands: Commands) {
 
 For direct localization in systems, request `BevyI18n` as a `SystemParam` and call `localize_message(...)`.
 
+When using `#[locale]` with `BevyFluentText`, mark only named struct fields or
+named enum variant fields whose types implement `TryFrom<&LanguageIdentifier>`.
+
 ## Language Enum
 
 Use `es-fluent-lang` when the UI needs a type-safe supported-language list:

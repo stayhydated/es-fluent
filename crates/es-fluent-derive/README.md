@@ -226,7 +226,7 @@ pub enum Gender {
 // usage: Gender::localize_label(&i18n)
 ```
 
-- `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants` derives to generate keys for variants when the type also derives `EsFluentLabel`.
+- `#[fluent_label(origin, variants)]`: Requires both `EsFluentLabel` and `EsFluentVariants`; it generates keys for variants when the type also derives `EsFluentLabel`.
 
 ```rs
 use es_fluent::{EsFluentLabel, EsFluentVariants, FluentLabel as _};

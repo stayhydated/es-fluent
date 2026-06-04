@@ -43,6 +43,11 @@ impl LabelNamespacedAttributeArgs {
         self.variants.is_some_and(super::PresentFlag::is_present)
     }
 
+    /// Returns the span of the variants flag if provided.
+    pub fn variants_span(&self) -> Option<proc_macro2::Span> {
+        self.variants.map(super::PresentFlag::span)
+    }
+
     /// Returns the namespace value if provided.
     pub fn namespace(&self) -> Option<&NamespaceRule> {
         self.namespace_args.namespace()

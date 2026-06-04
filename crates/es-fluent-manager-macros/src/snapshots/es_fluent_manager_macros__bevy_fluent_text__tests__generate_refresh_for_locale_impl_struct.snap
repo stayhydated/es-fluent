@@ -7,6 +7,12 @@ impl ::es_fluent_manager_bevy::RefreshForLocale for ExampleStruct {
         &mut self,
         lang: &::es_fluent_manager_bevy::unic_langid::LanguageIdentifier,
     ) {
+        fn __es_fluent_assert_locale_try_from<
+            __EsFluentLocale: for<'__es_fluent_locale> ::std::convert::TryFrom<
+                    &'__es_fluent_locale ::es_fluent_manager_bevy::unic_langid::LanguageIdentifier,
+                >,
+        >() {}
+        __es_fluent_assert_locale_try_from::<Lang>();
         if let Ok(value) = ::std::convert::TryFrom::try_from(lang) {
             self.locale = value;
         }

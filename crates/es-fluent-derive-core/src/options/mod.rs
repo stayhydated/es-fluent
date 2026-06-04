@@ -37,18 +37,33 @@ fn string_literal_value(item: &syn::Meta) -> darling::Result<(String, proc_macro
 }
 
 /// Marker for a bare attribute flag whose grammar accepts only path syntax.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct PresentFlag;
+#[derive(Clone, Copy, Debug)]
+struct PresentFlag {
+    span: proc_macro2::Span,
+}
 
 impl PresentFlag {
     fn is_present(self) -> bool {
         true
     }
+
+    fn span(self) -> proc_macro2::Span {
+        self.span
+    }
 }
 
 impl FromMeta for PresentFlag {
     fn from_word() -> darling::Result<Self> {
-        Ok(Self)
+        Ok(Self {
+            span: proc_macro2::Span::call_site(),
+        })
+    }
+
+    fn from_meta(item: &syn::Meta) -> darling::Result<Self> {
+        match item {
+            syn::Meta::Path(path) => Ok(Self { span: path.span() }),
+            _ => Err(darling::Error::custom("use a bare flag").with_span(item)),
+        }
     }
 }
 
@@ -132,6 +147,10 @@ impl GeneratedKeyList {
 
     pub fn as_slice(&self) -> &[SpannedValue<GeneratedKeyName>] {
         &self.keys
+    }
+
+    pub fn span(&self) -> Option<proc_macro2::Span> {
+        self.keys.first().map(SpannedValue::span)
     }
 }
 
@@ -683,7 +702,10 @@ impl FluentFieldAttributeArgs {
         if is_selector {
             return Ok(FieldDirective::Argument(Box::new(FieldArgumentDirective {
                 name: self.arg.clone(),
-                value: FieldValueDirective::Choice { span },
+                value: FieldValueDirective::Choice {
+                    span,
+                    ty: ty.clone(),
+                },
             })));
         }
 
@@ -770,7 +792,10 @@ pub enum FieldValueDirective {
         inner_ty: syn::Type,
     },
     /// Convert the field value through `EsFluentChoice`.
-    Choice { span: proc_macro2::Span },
+    Choice {
+        span: proc_macro2::Span,
+        ty: syn::Type,
+    },
     /// Apply an explicit field-level transform expression.
     Transform(ValueTransform),
 }
@@ -783,7 +808,10 @@ impl FieldValueDirective {
         match self {
             Self::Borrowed { span } => ArgumentValueStrategy::Borrowed { span: *span },
             Self::Optional { span, .. } => ArgumentValueStrategy::Optional { span: *span },
-            Self::Choice { span } => ArgumentValueStrategy::Choice { span: *span },
+            Self::Choice { span, ty } => ArgumentValueStrategy::Choice {
+                span: *span,
+                ty: Box::new(ty.clone()),
+            },
             Self::Transform(transform) => {
                 ArgumentValueStrategy::Transform(Box::new(transform.clone()))
             },
@@ -1043,6 +1071,11 @@ impl VariantsFluentAttributeArgs {
     /// Returns the typed generated variant keys if provided.
     pub fn keys(&self) -> Option<&[SpannedValue<GeneratedKeyName>]> {
         self.keys.as_ref().map(GeneratedKeyList::as_slice)
+    }
+
+    /// Returns a span inside the explicit key list when provided.
+    pub fn keys_span(&self) -> Option<proc_macro2::Span> {
+        self.keys.as_ref().and_then(GeneratedKeyList::span)
     }
 
     /// Returns the namespace value if provided.
