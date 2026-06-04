@@ -204,8 +204,7 @@ pub fn generate_field_value_expr(
         },
         ArgumentValueStrategy::Choice { span, ty } => {
             let (assertion_ty, reference_depth) = choice_assertion_ty_and_reference_depth(ty);
-            let choice_ref_expr =
-                choice_reference_expr(transform_arg_expr.clone(), reference_depth);
+            let choice_ref_expr = choice_reference_expr(transform_arg_expr, reference_depth);
             quote_spanned! { *span=>
                 #es_fluent::__private::FluentArgumentValue::new({
                     fn __es_fluent_choice_value<__EsFluentChoice: #es_fluent::EsFluentChoice + ?Sized>(
