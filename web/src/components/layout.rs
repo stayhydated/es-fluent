@@ -4,7 +4,7 @@ use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
 use dioxus::prelude::*;
 use dioxus::router::{navigator, try_router};
-use stayhydated_dioxus::ProjectId;
+use stayhydated_dioxus::{DisplayText, ProjectId};
 
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
@@ -126,7 +126,7 @@ fn LocaleSwitcher(locale: SiteLanguage, current_page: PageKind) -> Element {
 
     rsx! {
         LanguageSelect::<SiteLanguage> {
-            label: locale_label,
+            label: DisplayText::new(locale_label),
             selected: locale,
             options: language_links,
             on_change: on_locale_changed,

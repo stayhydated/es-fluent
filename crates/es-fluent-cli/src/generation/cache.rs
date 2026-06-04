@@ -181,6 +181,8 @@ mod tests {
     use super::*;
     use std::fs;
 
+    const I18N_CONFIG: &str = "fallback_language = \"en\"\nassets_dir = \"i18n\"\n";
+
     /// Compute blake3 hash of all .rs files in a source directory, plus the i18n.toml file.
     ///
     /// Used for staleness detection - saving a file without modifications
@@ -264,7 +266,7 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash_with_toml = compute_content_hash(&src_dir, Some(&i18n_path));
         let hash_without_toml = compute_content_hash(&src_dir, None);
@@ -318,14 +320,14 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash1 = compute_content_hash(&src_dir, Some(&i18n_path));
 
         // Change the i18n.toml content (e.g., changing fluent_feature)
         fs::write(
             &i18n_path,
-            "default_language = \"en\"\nfluent_feature = [\"i18n\"]",
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\nfluent_feature = [\"i18n\"]",
         )
         .unwrap();
 
@@ -343,13 +345,13 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash1 = compute_content_hash(&src_dir, Some(&i18n_path));
 
         // Re-write same content (simulates save without changes)
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let hash2 = compute_content_hash(&src_dir, Some(&i18n_path));
 
@@ -381,7 +383,7 @@ mod tests {
         fs::write(src_dir.join("lib.rs"), "fn main() {}").unwrap();
 
         let i18n_path = temp_dir.path().join("i18n.toml");
-        fs::write(&i18n_path, "default_language = \"en\"").unwrap();
+        fs::write(&i18n_path, I18N_CONFIG).unwrap();
 
         let aliased_src_dir = temp_dir.path().join("src").join(".");
         let aliased_i18n_path = temp_dir.path().join(".").join("i18n.toml");

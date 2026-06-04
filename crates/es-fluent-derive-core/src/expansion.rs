@@ -1458,16 +1458,16 @@ mod tests {
     }
 
     #[test]
-    fn label_expansion_rejects_explicit_boolean_origin() {
+    fn label_expansion_rejects_non_bare_origin_flag() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin = false)]
+            #[fluent_label(origin("parent"))]
             enum NoOrigin {
                 A,
             }
         };
 
         let err = EsFluentLabelExpansion::from_derive_input(&input)
-            .expect_err("explicit boolean origin should fail");
+            .expect_err("non-bare origin should fail");
 
         assert!(matches!(err, ExpansionError::Core(_)));
         assert!(err.to_string().contains("use a bare flag"));

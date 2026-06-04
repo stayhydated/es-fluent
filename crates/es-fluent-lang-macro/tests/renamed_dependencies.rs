@@ -53,7 +53,7 @@ use language_pack::es_fluent_language;
 #[es_fluent_language(mode = "custom")]
 pub enum Languages {}
 
-pub fn default_language() -> localized::unic_langid::LanguageIdentifier {
+pub fn fallback_language() -> localized::unic_langid::LanguageIdentifier {
     Languages::default().into()
 }
 "#,

@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn validate_attribute_for_location_accumulates_related_errors() {
         let attr: syn::Attribute =
-            parse_quote!(#[fluent(arg, selector = true, unknown, arg = "name")]);
+            parse_quote!(#[fluent(arg, selector("kind"), unknown, arg = "name")]);
         let err = validate_attribute_for_location(
             &attr,
             AttributeName::Fluent,
@@ -276,7 +276,7 @@ mod tests {
         );
         assert!(
             message.contains(
-                "`#[fluent(selector = ...)]` has the wrong value shape for key `selector` in message field"
+                "`#[fluent(selector(...))]` has the wrong value shape for key `selector` in message field"
             ),
             "{message}"
         );
@@ -518,11 +518,11 @@ mod tests {
                     struct SchemaProbe;
                 },
                 Meta::List(_) => syn::parse_quote! {
-                    #[locale(true)]
+                    #[locale("invalid")]
                     struct SchemaProbe;
                 },
                 Meta::NameValue(_) => syn::parse_quote! {
-                    #[locale = true]
+                    #[locale("invalid")]
                     struct SchemaProbe;
                 },
             };
@@ -578,7 +578,7 @@ mod tests {
         let key = key_ident(rule.key);
         match rule.shape {
             AttributeValueShape::Flag | AttributeValueShape::Marker => {
-                syn::parse_quote!(#key = true)
+                syn::parse_quote!(#key("invalid"))
             },
             _ => syn::parse_quote!(#key),
         }

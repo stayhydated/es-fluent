@@ -64,9 +64,9 @@ fn run_with_app(app: Application, enable_tracing: bool) {
             )])
             .expect("Failed to load NotoSansSC-Bold font");
 
-        let default_language = Languages::default();
-        let i18n = i18n::try_new_with_language(default_language).expect("i18n should initialize");
-        cx.set_global(CurrentLanguage(default_language));
+        let startup_language = Languages::default();
+        let i18n = i18n::try_new_with_language(startup_language).expect("i18n should initialize");
+        cx.set_global(CurrentLanguage(startup_language));
         cx.set_global(i18n_global::CurrentI18n(i18n));
         cx.bind_keys([KeyBinding::new("t", CycleLocale, Some("GpuiExample"))]);
         gpui_component::init(cx);

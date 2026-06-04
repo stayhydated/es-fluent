@@ -1,16 +1,18 @@
 use dioxus::prelude::*;
-use stayhydated_dioxus::{ProjectId, stayhydated_project_options};
+use stayhydated_dioxus::{
+    DisplayText, Href as ComponentHref, ProjectId, stayhydated_project_options,
+};
 use stayhydated_site::routing::Href;
 
 #[component]
 pub(crate) fn ProjectSelect(href: Href) -> Element {
-    let selected = ProjectId::EsFluent.option_with_href(href.into_string());
+    let selected = ProjectId::EsFluent.option_with_href(ComponentHref::new(href.into_string()));
 
     rsx! {
         stayhydated_dioxus::ProjectSelect {
             selected,
             projects: stayhydated_project_options(),
-            label: "Project selector",
+            label: DisplayText::new("Project selector"),
         }
     }
 }

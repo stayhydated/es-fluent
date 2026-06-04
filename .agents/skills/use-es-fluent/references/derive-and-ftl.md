@@ -177,8 +177,7 @@ let title = Gender::localize_label(&i18n);
 `#[fluent_label(origin)]` generates a type-level label and requires
 `#[derive(EsFluentLabel)]`. `#[fluent_label(origin, variants)]` can be combined
 with `EsFluentVariants` when the type also derives `EsFluentLabel`. Label
-options are bare flags; boolean forms such as `#[fluent_label(origin = true)]`
-are rejected.
+options are bare flags.
 
 ## Namespaces
 

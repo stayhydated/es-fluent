@@ -103,9 +103,9 @@ mod tests {
     }
 
     #[test]
-    fn expand_es_fluent_label_rejects_explicit_boolean_origin() {
+    fn expand_es_fluent_label_rejects_non_bare_origin_flag() {
         let input: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin = false)]
+            #[fluent_label(origin("parent"))]
             enum NoOrigin {
                 A
             }
@@ -114,7 +114,7 @@ mod tests {
         let tokens =
             crate::snapshot_support::pretty_file_tokens(super::expand_es_fluent_label(input));
         assert_snapshot!(
-            "expand_es_fluent_label_rejects_explicit_boolean_origin",
+            "expand_es_fluent_label_rejects_non_bare_origin_flag",
             tokens
         );
     }
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn expand_es_fluent_label_returns_compile_errors_for_parse_failures() {
         let label_opts_error: syn::DeriveInput = parse_quote! {
-            #[fluent_label(origin = "nope")]
+            #[fluent_label(variants("children"))]
             struct InvalidLabelOpts;
         };
         let label_opts_tokens = crate::snapshot_support::pretty_file_tokens(

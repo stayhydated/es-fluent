@@ -529,7 +529,7 @@ field- or variant-derived keys), but for the parent type itself.
 
 - `#[fluent_label(origin)]`: Required for `EsFluentLabel`; generates an implementation where `localize_label(localizer)` returns the base key for the type.
 - `origin` requires `#[derive(EsFluentLabel)]`; using it with only `EsFluentVariants` is rejected because `EsFluentVariants` can only generate labels for generated variant enums.
-- `origin` and `variants` are bare flags. Boolean forms such as `#[fluent_label(origin = true)]` are rejected.
+- `origin` and `variants` are bare flags.
 
 ```rs
 use es_fluent::EsFluentLabel;

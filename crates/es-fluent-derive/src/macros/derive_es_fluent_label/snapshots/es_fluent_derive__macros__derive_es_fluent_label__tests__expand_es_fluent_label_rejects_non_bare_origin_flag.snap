@@ -1,0 +1,7 @@
+---
+source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
+expression: tokens
+---
+compile_error!(
+    "Attribute error in label container: `#[fluent_label(origin(...))]` has the wrong value shape for key `origin` in label container `NoOrigin`\nhelp: use a bare flag, for example `origin`"
+);

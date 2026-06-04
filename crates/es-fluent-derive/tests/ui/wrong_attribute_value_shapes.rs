@@ -1,4 +1,4 @@
-use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentVariants};
+use es_fluent_derive::{EsFluent, EsFluentChoice, EsFluentLabel, EsFluentVariants};
 
 #[derive(EsFluent)]
 pub struct WrongFluentFieldShape {
@@ -8,13 +8,17 @@ pub struct WrongFluentFieldShape {
 
 #[derive(EsFluent)]
 pub struct WrongBareFlagShapes {
-    #[fluent(skip = true)]
+    #[fluent(skip("hidden"))]
     hidden: String,
-    #[fluent(selector = true)]
+    #[fluent(selector("kind"))]
     kind: String,
-    #[fluent(optional = true)]
+    #[fluent(optional("maybe"))]
     maybe: Option<String>,
 }
+
+#[derive(EsFluentLabel)]
+#[fluent_label(origin("parent"), variants("children"))]
+pub struct WrongLabelFlagShapes;
 
 #[derive(EsFluentVariants)]
 #[fluent_variants(keys("label"))]

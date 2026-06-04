@@ -2,6 +2,7 @@ use crate::components::{FeatureCard, FooterPanel, PageHeader, PageLink};
 use crate::site::i18n::{HomeHeroMessage, HomeWorkflowMessage, SiteLanguage};
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
+use stayhydated_dioxus::DisplayText;
 
 #[component]
 pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
@@ -84,21 +85,21 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
                     p { class: "section-lead", "{workflow_lead}" }
                     div { class: "grid columns-3",
                         FeatureCard {
-                            label: workflow_one_label,
-                            title: workflow_one_title,
-                            body: workflow_one_body,
+                            label: DisplayText::new(workflow_one_label),
+                            title: DisplayText::new(workflow_one_title),
+                            body: DisplayText::new(workflow_one_body),
                             style: first_card_style,
                         }
                         FeatureCard {
-                            label: workflow_two_label,
-                            title: workflow_two_title,
-                            body: workflow_two_body,
+                            label: DisplayText::new(workflow_two_label),
+                            title: DisplayText::new(workflow_two_title),
+                            body: DisplayText::new(workflow_two_body),
                             style: second_card_style,
                         }
                         FeatureCard {
-                            label: workflow_three_label,
-                            title: workflow_three_title,
-                            body: workflow_three_body,
+                            label: DisplayText::new(workflow_three_label),
+                            title: DisplayText::new(workflow_three_title),
+                            body: DisplayText::new(workflow_three_body),
                             style: third_card_style,
                         }
                     }

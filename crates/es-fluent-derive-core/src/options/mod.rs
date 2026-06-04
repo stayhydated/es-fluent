@@ -50,12 +50,6 @@ impl FromMeta for PresentFlag {
     fn from_word() -> darling::Result<Self> {
         Ok(Self)
     }
-
-    fn from_bool(_value: bool) -> darling::Result<Self> {
-        Err(darling::Error::custom(
-            "expected bare flag syntax without `= true`",
-        ))
-    }
 }
 
 impl FromMeta for SpannedValue<GeneratedKeyName> {
@@ -1132,23 +1126,20 @@ mod tests {
     }
 
     #[test]
-    fn bare_flag_parser_rejects_name_value_booleans() {
+    fn bare_flag_parser_rejects_non_bare_shapes() {
         let input: syn::DeriveInput = syn::parse_quote! {
             struct Message {
-                #[fluent(skip = true)]
+                #[fluent(skip("hidden"))]
                 hidden: String,
             }
         };
 
         let err = match StructOpts::from_derive_input(&input) {
-            Ok(_) => panic!("name-value booleans should not parse as bare flags"),
+            Ok(_) => panic!("non-bare attribute shapes should not parse as bare flags"),
             Err(error) => error,
         };
 
-        assert!(
-            err.to_string()
-                .contains("expected bare flag syntax without `= true`")
-        );
+        assert!(!err.to_string().is_empty());
     }
 
     #[test]

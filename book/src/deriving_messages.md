@@ -217,7 +217,7 @@ add derives to the generated enums.
 ### Origin Only
 
 `#[fluent_label(origin)]` creates a single key for the type and is required
-when deriving `EsFluentLabel`. `origin` and `variants` are bare flags; boolean forms such as `#[fluent_label(origin = true)]` are rejected.
+when deriving `EsFluentLabel`. `origin` and `variants` are bare flags.
 `origin` requires `#[derive(EsFluentLabel)]`; using it with only
 `EsFluentVariants` is rejected because `EsFluentVariants` can only generate
 labels for generated variant enums.

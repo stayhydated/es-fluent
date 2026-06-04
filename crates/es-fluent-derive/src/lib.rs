@@ -137,7 +137,7 @@ pub fn derive_fluent_choice(input: proc_macro::TokenStream) -> proc_macro::Token
 /// - `#[fluent_label(origin, variants)]`: Can be combined with `EsFluentVariants`
 ///   derives to generate keys for the generated variant enums when the type also derives `EsFluentLabel`.
 /// - `origin` requires `#[derive(EsFluentLabel)]`; using it with only `EsFluentVariants` is rejected.
-/// - `origin` and `variants` are bare flags. Boolean forms such as `#[fluent_label(origin = true)]` are rejected.
+/// - `origin` and `variants` are bare flags.
 /// - `#[fluent(namespace = "...")]`: Routes generated registrations to a namespaced FTL file.
 #[proc_macro_derive(EsFluentLabel, attributes(fluent_label, fluent))]
 #[proc_macro_error]

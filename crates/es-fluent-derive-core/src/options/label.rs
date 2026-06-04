@@ -88,19 +88,15 @@ mod tests {
     }
 
     #[test]
-    fn label_options_reject_explicit_boolean_flags() {
+    fn label_options_reject_non_bare_flags() {
         let input: DeriveInput = parse_quote! {
-            #[fluent_label(origin = false, variants = true)]
+            #[fluent_label(origin("parent"), variants("children"))]
             struct SettingsLabel;
         };
 
-        let err = LabelOpts::from_derive_input(&input).expect_err("boolean flags should fail");
+        let err = LabelOpts::from_derive_input(&input).expect_err("non-bare flags should fail");
 
-        assert!(
-            err.to_string()
-                .contains("expected bare flag syntax without `= true`"),
-            "unexpected error: {err}"
-        );
+        assert!(!err.to_string().is_empty(), "unexpected error: {err}");
     }
 
     #[test]

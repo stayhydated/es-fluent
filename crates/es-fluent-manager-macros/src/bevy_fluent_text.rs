@@ -418,7 +418,7 @@ mod tests {
         );
 
         let invalid_locale_field: syn::Field = syn::parse_quote! {
-            #[locale(true)]
+            #[locale("invalid")]
             language: Lang
         };
         let err = locale_field_directive(
@@ -466,7 +466,7 @@ mod tests {
 
         let invalid_attr_input: DeriveInput = syn::parse_quote! {
             struct ExampleStruct {
-                #[locale = true]
+                #[locale("invalid")]
                 language: Lang,
             }
         };

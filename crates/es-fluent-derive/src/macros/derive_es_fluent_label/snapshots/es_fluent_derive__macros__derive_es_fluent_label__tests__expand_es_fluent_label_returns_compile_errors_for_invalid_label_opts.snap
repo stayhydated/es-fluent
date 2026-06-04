@@ -3,5 +3,5 @@ source: crates/es-fluent-derive/src/macros/derive_es_fluent_label/mod.rs
 expression: label_opts_tokens
 ---
 compile_error!(
-    "Attribute error in label container: `#[fluent_label(origin = ...)]` has the wrong value shape for key `origin` in label container `InvalidLabelOpts`\nhelp: use a bare flag, for example `origin`"
+    "Attribute error in label container: `#[fluent_label(variants(...))]` has the wrong value shape for key `variants` in label container `InvalidLabelOpts`\nhelp: use a bare flag, for example `variants`"
 );

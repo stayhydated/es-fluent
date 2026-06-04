@@ -1,7 +1,7 @@
 use crate::site::i18n::SiteLanguage;
 use crate::site::routing::PageKind;
 use dioxus::prelude::*;
-use stayhydated_dioxus::{LinkTarget, RouteCardLink, RouteLink};
+use stayhydated_dioxus::{CssClass, DisplayText, LinkTarget, RouteCardLink, RouteLink};
 
 #[component]
 pub(crate) fn PageLink(
@@ -13,8 +13,8 @@ pub(crate) fn PageLink(
     rsx! {
         RouteLink {
             target: LinkTarget::route(crate::site::routing::app_route(locale, page)),
-            class,
-            label,
+            class: CssClass::new(class),
+            label: DisplayText::new(label),
         }
     }
 }
@@ -31,11 +31,11 @@ pub(crate) fn PageCardLink(
     rsx! {
         RouteCardLink {
             target: LinkTarget::route(crate::site::routing::app_route(locale, page)),
-            label,
-            title,
-            body,
-            body_class: "card-copy".to_string(),
-            action,
+            label: DisplayText::new(label),
+            title: DisplayText::new(title),
+            body: DisplayText::new(body),
+            body_class: CssClass::new("card-copy"),
+            action: DisplayText::new(action),
         }
     }
 }
