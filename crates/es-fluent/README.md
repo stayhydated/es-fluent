@@ -396,6 +396,28 @@ Common derive attributes:
 - Optional-argument omission is explicit; plain `Option<T>` fields are treated like ordinary field values unless marked `#[fluent(optional)]`.
 - `#[fluent_variants(skip)]` omits a struct field or enum variant from generated variant enums; `keys = [...]` values must be lowercase snake_case.
 
+Rendering through a callback:
+
+```rs
+use es_fluent::{EsFluent, FluentArgs, FluentMessage};
+
+#[derive(EsFluent)]
+pub struct UsernameRequired {
+    #[fluent(value = |value: &String| value.trim().to_string())]
+    value: String,
+}
+
+let message = UsernameRequired {
+    value: "  mark  ".to_string(),
+};
+
+let rendered = message.to_fluent_string_with(&mut |domain, id, args: Option<&FluentArgs<'_>>| {
+    // Applications usually forward these values to an es-fluent manager.
+    // Koruma and GPUI integrations use this same callback shape for validator refs.
+    format!("{domain}:{id}:{:?}", args.map(FluentArgs::as_raw))
+});
+```
+
 Skipped single-field enum variants:
 
 `#[fluent(skip)]` on a single-field enum variant suppresses that variant's own
