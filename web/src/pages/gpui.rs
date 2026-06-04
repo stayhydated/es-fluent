@@ -10,7 +10,7 @@ pub(crate) fn GpuiPage(locale: SiteLanguage) -> Element {
         "{}gpui-demo/",
         crate::site::routing::site_root_prefix(&page_output_dir)
     );
-    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "fullscreen-demo", "failed: {error}" } },
     };

@@ -28,6 +28,6 @@ pub use asset_loader::{
 #[cfg(feature = "client")]
 pub use asset_loader::{
     DioxusAssetI18nHandle, DioxusAssetI18nLoadState, DioxusAssetI18nProvider,
-    DioxusAssetI18nReadyProvider, consume_asset_i18n, try_consume_asset_i18n, try_use_asset_i18n,
-    use_asset_i18n, use_init_asset_i18n_modules, use_provide_asset_i18n,
+    DioxusAssetI18nReadyProvider, consume_asset_i18n, try_consume_asset_i18n, try_use_i18n,
+    use_i18n, use_init_asset_i18n_modules, use_provide_asset_i18n,
 };

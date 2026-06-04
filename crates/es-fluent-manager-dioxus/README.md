@@ -57,7 +57,7 @@ as static web output.
 ```ignore
 use dioxus::prelude::*;
 use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
-use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_asset_i18n};
+use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
 use unic_langid::langid;
 
 use crate::i18n::dioxus_i18n_asset_modules;
@@ -81,7 +81,7 @@ enum UiMessage {
 
 #[component]
 fn LocaleButton() -> Element {
-    let i18n = match use_asset_i18n() {
+    let i18n = match use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { "Missing i18n context: {error}" },
     };
@@ -104,7 +104,7 @@ fn LocaleButton() -> Element {
 `DioxusAssetI18nProvider` loads the generated asset module set with a Dioxus
 resource. It renders `loading` while assets are being read, renders `fallback`
 on load failure, and otherwise provides a `DioxusAssetI18nHandle` through
-`use_asset_i18n()`, `try_use_asset_i18n()`, `consume_asset_i18n()`, or
+`use_i18n()`, `try_use_i18n()`, `consume_asset_i18n()`, or
 `try_consume_asset_i18n()`.
 Dioxus app translations are loaded only through the generated asset modules.
 Runtime follower modules that do not count as locale support, such as

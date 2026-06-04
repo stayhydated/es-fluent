@@ -202,7 +202,7 @@ The macro generates `dioxus_i18n_asset_modules()`,
 ```rust
 use dioxus::prelude::*;
 use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
-use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_asset_i18n};
+use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
 use unic_langid::langid;
 
 use crate::i18n::dioxus_i18n_asset_modules;
@@ -226,7 +226,7 @@ enum UiMessage {
 
 #[component]
 fn LocaleButton() -> Element {
-    let i18n = match use_asset_i18n() {
+    let i18n = match use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { "Missing i18n context: {error}" },
     };
@@ -271,7 +271,7 @@ components while preserving the requested locale when possible.
 
 Dioxus localizes through explicit component or request context. Keeping lookup context-bound avoids cross-root, hot-reload, test, and SSR request leakage.
 
-Descendants can call `try_use_asset_i18n()` to distinguish a missing provider from a
+Descendants can call `try_use_i18n()` to distinguish a missing provider from a
 loaded provider. Event handlers and async tasks can call `consume_asset_i18n()` or
 `try_consume_asset_i18n()` while the Dioxus runtime is active.
 

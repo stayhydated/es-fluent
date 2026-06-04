@@ -1043,14 +1043,14 @@ fn use_provide_asset_i18n_with_policy(
 }
 
 #[cfg(feature = "client")]
-pub fn try_use_asset_i18n() -> Option<DioxusAssetI18nHandle> {
+pub fn try_use_i18n() -> Option<DioxusAssetI18nHandle> {
     dioxus_hooks::try_use_context::<DioxusAssetI18nContext>()
         .map(|context| DioxusAssetI18nHandle { context })
 }
 
 #[cfg(feature = "client")]
-pub fn use_asset_i18n() -> Result<DioxusAssetI18nHandle, crate::DioxusAssetI18nContextError> {
-    try_use_asset_i18n().ok_or(crate::DioxusAssetI18nContextError::MissingContext)
+pub fn use_i18n() -> Result<DioxusAssetI18nHandle, crate::DioxusAssetI18nContextError> {
+    try_use_i18n().ok_or(crate::DioxusAssetI18nContextError::MissingContext)
 }
 
 #[cfg(feature = "client")]
@@ -1333,7 +1333,7 @@ mod tests {
     #[component]
     fn AssetContextMessage(i18n: DioxusAssetI18n) -> Element {
         let _provided = use_provide_asset_i18n(i18n);
-        let i18n = use_asset_i18n().expect("asset i18n context should be present");
+        let i18n = use_i18n().expect("asset i18n context should be present");
         let message = i18n
             .localize("hello", None)
             .unwrap_or_else(|| "missing".to_string());
@@ -1371,7 +1371,7 @@ mod tests {
     #[cfg(feature = "client")]
     #[allow(non_snake_case)]
     fn MissingAssetContextMessage() -> Element {
-        let message = if use_asset_i18n().is_err() {
+        let message = if use_i18n().is_err() {
             "missing"
         } else {
             "present"
@@ -1679,7 +1679,7 @@ mod tests {
     #[cfg(feature = "client")]
     #[test]
     #[serial]
-    fn use_asset_i18n_reports_missing_context() {
+    fn use_i18n_reports_missing_context() {
         let mut dom = VirtualDom::new(MissingAssetContextMessage);
 
         dom.rebuild_in_place();

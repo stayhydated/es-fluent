@@ -275,7 +275,7 @@ fn contains_generated_route_cache(dir: &Path) -> bool {
 }
 
 fn route_element(route: SiteRoute) -> Element {
-    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => {
             return rsx!(DevErrorPage {

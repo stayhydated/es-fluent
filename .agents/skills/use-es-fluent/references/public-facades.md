@@ -10,7 +10,7 @@ Use this reference to choose the crate or integration surface before writing cod
 | Generate/check/format/sync FTL | `cargo es-fluent` from `es-fluent-cli` | Use from crate or workspace root. Inventory comes from library targets. |
 | Track locale asset rebuilds from `build.rs` | `es-fluent-build` in `[build-dependencies]` | Call `es_fluent_build::track_i18n_assets()` when manager macros scan locale assets at compile time. |
 | General Rust runtime, CLI, TUI, desktop, GPUI-style apps | `es-fluent-manager-embedded` | Embeds FTL files and returns explicit `EmbeddedI18n` handles. |
-| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, pass generated `dioxus_i18n_asset_modules()` to `DioxusAssetI18nProvider`, aggregate multiple crates with `dioxus_i18n_asset_module()` when needed, and localize through `use_asset_i18n()`. |
+| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, pass generated `dioxus_i18n_asset_modules()` to `DioxusAssetI18nProvider`, aggregate multiple crates with `dioxus_i18n_asset_module()` when needed, and localize through `use_i18n()`. |
 | Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create `SsrI18nRuntime::new(dioxus_i18n_asset_modules())`, then one `SsrI18n` per request. |
 | Bevy ECS/assets | `es-fluent-manager-bevy` | Add `I18nPlugin`, use `FluentText<T>`, `BevyFluentText`, and `BevyI18n`. |
 | Typed language picker | `es-fluent-lang` | Use `#[es_fluent_language]` on an empty enum discovered from locale folders. |
@@ -100,7 +100,7 @@ Client apps localize through Dioxus context:
 ```rust
 use dioxus::prelude::*;
 use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
-use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_asset_i18n};
+use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
 use unic_langid::langid;
 
 use crate::i18n::dioxus_i18n_asset_modules;
@@ -124,7 +124,7 @@ enum UiMessage {
 
 #[component]
 fn LocaleButton() -> Element {
-    let i18n = match use_asset_i18n() {
+    let i18n = match use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { "Missing i18n context: {error}" },
     };

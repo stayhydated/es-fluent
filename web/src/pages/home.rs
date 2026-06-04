@@ -10,7 +10,7 @@ pub(crate) fn HomePage(locale: SiteLanguage) -> Element {
     let first_card_style = crate::components::use_reveal_style(160, 16.0);
     let second_card_style = crate::components::use_reveal_style(230, 16.0);
     let third_card_style = crate::components::use_reveal_style(300, 16.0);
-    let i18n = match es_fluent_manager_dioxus::use_asset_i18n() {
+    let i18n = match es_fluent_manager_dioxus::use_i18n() {
         Ok(i18n) => i18n,
         Err(error) => return rsx! { div { class: "page-shell", "failed: {error}" } },
     };
