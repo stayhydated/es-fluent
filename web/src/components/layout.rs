@@ -4,6 +4,7 @@ use crate::site::i18n::{SiteChromeMessage, SiteFooterMessage, SiteLanguage};
 use crate::site::routing::{PageKind, app_route};
 use dioxus::prelude::*;
 use dioxus::router::{navigator, try_router};
+use stayhydated_dioxus::ProjectId;
 
 #[component]
 pub(crate) fn PageHeader(locale: SiteLanguage, current_page: PageKind) -> Element {
@@ -79,7 +80,7 @@ fn HeaderNavLinks(
                 label: nav_docs,
             }
             ExternalNavLink {
-                href: "https://github.com/stayhydated/es-fluent".to_string(),
+                href: ProjectId::EsFluent.source_href().to_string(),
                 class: "header-nav-item".to_string(),
                 label: nav_source,
             }

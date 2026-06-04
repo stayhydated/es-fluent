@@ -4,11 +4,7 @@ use stayhydated_site::routing::Href;
 
 #[component]
 pub(crate) fn ProjectSelect(href: Href) -> Element {
-    let selected = ProjectId::EsFluent.option_with_description(
-        "es-fluent",
-        "Rust localization",
-        href.into_string(),
-    );
+    let selected = ProjectId::EsFluent.option_with_href(href.into_string());
 
     rsx! {
         stayhydated_dioxus::ProjectSelect {
