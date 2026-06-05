@@ -263,6 +263,26 @@ pub struct FtlSyntaxError {
     pub help: String,
 }
 
+/// Error when a non-fallback locale contains an FTL file with no matching fallback file.
+#[derive(Debug, Diagnostic, Error)]
+#[error("orphaned FTL file")]
+#[diagnostic(code(es_fluent::validate::orphaned_file), severity(Error))]
+pub struct OrphanedFtlFileError {
+    /// Empty source named after the orphaned file for grouped diagnostic output.
+    #[source_code]
+    pub src: NamedSource<String>,
+
+    /// The locale where the orphaned file exists.
+    pub locale: String,
+
+    /// The orphaned file path.
+    pub path: String,
+
+    /// Help text.
+    #[help]
+    pub help: String,
+}
+
 /// Aggregated validation report containing multiple issues.
 #[derive(Debug, Diagnostic, Error)]
 #[error("validation found {error_count} error(s) and {warning_count} warning(s)")]
@@ -309,6 +329,10 @@ pub enum ValidationIssue {
     #[error(transparent)]
     #[diagnostic(transparent)]
     SyntaxError(#[from] FtlSyntaxError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    OrphanedFtlFile(#[from] OrphanedFtlFileError),
 }
 
 impl ValidationIssue {
@@ -322,6 +346,9 @@ impl ValidationIssue {
         match self {
             ValidationIssue::SyntaxError(e) => {
                 format!("1:{:?}", e.src.name())
+            },
+            ValidationIssue::OrphanedFtlFile(e) => {
+                format!("1a:{:?}:{}", e.src.name(), e.path)
             },
             ValidationIssue::DuplicateKey(e) => {
                 format!("2:{:?}:{}", e.src.name(), e.key)

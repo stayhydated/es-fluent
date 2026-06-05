@@ -119,6 +119,141 @@ fn test_assets_dir_path() {
 }
 
 #[test]
+fn test_read_from_path_normalizes_assets_dir_inside_crate() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    write_toml(
+        &config_path,
+        &config_document("en", "assets/../i18n", None, None),
+    );
+
+    let config = I18nConfig::read_from_path(&config_path).expect("config should parse");
+
+    assert_eq!(config.assets_dir, PathBuf::from("i18n"));
+}
+
+#[test]
+fn test_read_from_path_rejects_assets_dir_outside_crate() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("i18n.toml");
+
+    for assets_dir in ["../outside/i18n", "/tmp/es-fluent-i18n"] {
+        write_toml(&config_path, &config_document("en", assets_dir, None, None));
+
+        let err =
+            I18nConfig::read_from_path(&config_path).expect_err("assets_dir should be rejected");
+
+        assert!(
+            matches!(err, I18nConfigError::InvalidAssetsDir { ref path, .. } if path == assets_dir),
+            "unexpected error for {assets_dir}: {err:?}"
+        );
+    }
+}
+
+#[test]
+fn test_assets_dir_from_base_rejects_programmatic_escape() {
+    let temp_dir = TempDir::new().unwrap();
+    let escaping = i18n_config("en", "../outside/i18n");
+
+    let err = escaping
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("escaping assets_dir should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { reason, .. }
+            if reason.contains("inside the crate root")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_symlink_escape() {
+    let temp_dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    std::os::unix::fs::symlink(outside.path(), temp_dir.path().join("i18n"))
+        .expect("create assets symlink");
+    let config = i18n_config("en", "i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("symlinked assets_dir should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "i18n" && reason.contains("inside the crate root")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_symlinked_parent_escape() {
+    let temp_dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    std::os::unix::fs::symlink(outside.path(), temp_dir.path().join("linked"))
+        .expect("create parent symlink");
+    let config = i18n_config("en", "linked/i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("assets_dir under symlinked parent should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "linked/i18n" && reason.contains("inside the crate root")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_in_crate_symlinked_assets_dir() {
+    let temp_dir = TempDir::new().unwrap();
+    fs::create_dir_all(temp_dir.path().join("real-i18n")).unwrap();
+    std::os::unix::fs::symlink(
+        temp_dir.path().join("real-i18n"),
+        temp_dir.path().join("i18n"),
+    )
+    .expect("create assets symlink");
+    let config = i18n_config("en", "i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("symlinked assets_dir should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "i18n" && reason.contains("not symlinks")
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn test_assets_dir_from_base_rejects_in_crate_symlinked_parent() {
+    let temp_dir = TempDir::new().unwrap();
+    fs::create_dir_all(temp_dir.path().join("real-parent/i18n")).unwrap();
+    std::os::unix::fs::symlink(
+        temp_dir.path().join("real-parent"),
+        temp_dir.path().join("linked"),
+    )
+    .expect("create parent symlink");
+    let config = i18n_config("en", "linked/i18n");
+
+    let err = config
+        .assets_dir_from_base(Some(temp_dir.path()))
+        .expect_err("assets_dir under symlinked parent should be rejected");
+
+    assert!(matches!(
+        err,
+        I18nConfigError::InvalidAssetsDir { path, reason }
+            if path == "linked/i18n" && reason.contains("not symlinks")
+    ));
+}
+
+#[test]
 fn test_fallback_language_id() {
     let config = i18n_config("en-US", "i18n");
 
@@ -238,6 +373,58 @@ fn test_available_locale_names_reject_noncanonical_directory_names() {
         .expect_err("noncanonical locale directories should fail");
     assert!(matches!(
         language_err,
+        I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical }
+            if name == "en-us" && canonical == "en-US"
+    ));
+}
+
+#[test]
+fn test_root_assets_ignore_crate_directories_when_discovering_locales() {
+    let temp_dir = TempDir::new().unwrap();
+    let manifest_dir = temp_dir.path();
+    fs::create_dir(manifest_dir.join("en")).unwrap();
+    fs::create_dir(manifest_dir.join("fr-FR")).unwrap();
+    fs::create_dir(manifest_dir.join("bin")).unwrap();
+    fs::create_dir(manifest_dir.join("dev")).unwrap();
+    fs::create_dir(manifest_dir.join("doc")).unwrap();
+    fs::create_dir(manifest_dir.join("lib")).unwrap();
+    fs::create_dir(manifest_dir.join("man")).unwrap();
+    fs::create_dir(manifest_dir.join("src")).unwrap();
+    fs::create_dir(manifest_dir.join("target")).unwrap();
+    fs::create_dir(manifest_dir.join(".git")).unwrap();
+
+    let config = i18n_config("en", ".");
+
+    let locale_names = config
+        .available_locale_names_from_base(Some(manifest_dir))
+        .expect("crate-root assets should ignore non-locale project directories");
+    assert_eq!(locale_names, vec!["en", "fr-FR"]);
+
+    let languages = config
+        .available_languages_from_base(Some(manifest_dir))
+        .expect("crate-root assets should ignore non-locale project directories");
+    let language_names = languages
+        .into_iter()
+        .map(|language| language.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(language_names, vec!["en", "fr-FR"]);
+}
+
+#[test]
+fn test_root_assets_still_reject_noncanonical_locale_directories() {
+    let temp_dir = TempDir::new().unwrap();
+    let manifest_dir = temp_dir.path();
+    fs::create_dir(manifest_dir.join("en")).unwrap();
+    fs::create_dir(manifest_dir.join("en-us")).unwrap();
+    fs::create_dir(manifest_dir.join("src")).unwrap();
+
+    let config = i18n_config("en", ".");
+
+    let err = config
+        .available_locale_names_from_base(Some(manifest_dir))
+        .expect_err("noncanonical locale directories should still fail");
+    assert!(matches!(
+        err,
         I18nConfigError::NonCanonicalLanguageIdentifier { name, canonical }
             if name == "en-us" && canonical == "en-US"
     ));
@@ -506,10 +693,13 @@ fn test_available_languages_accepts_variant_language_directory() {
 
 #[test]
 fn test_collect_language_entries_propagates_directory_iteration_errors() {
-    let err = collect_language_entries([Err(std::io::Error::new(
-        std::io::ErrorKind::PermissionDenied,
-        "boom",
-    ))])
+    let err = collect_language_entries(
+        [Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "boom",
+        ))],
+        LanguageEntryMode::Strict,
+    )
     .expect_err("directory iteration errors should not be dropped");
 
     assert!(matches!(

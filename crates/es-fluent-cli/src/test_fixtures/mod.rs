@@ -50,6 +50,7 @@ pub struct FakeRunnerBehavior {
     pub stderr: String,
     pub exit_code: i32,
     pub echo_args: bool,
+    pub record_args_path: Option<PathBuf>,
 }
 
 #[cfg(test)]
@@ -79,6 +80,13 @@ impl FakeRunnerBehavior {
             ..Self::default()
         }
     }
+
+    pub fn record_args(path: impl Into<PathBuf>) -> Self {
+        Self {
+            record_args_path: Some(path.into()),
+            ..Self::default()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -92,6 +100,58 @@ pub fn create_test_crate_workspace() -> tempfile::TempDir {
 pub fn create_test_crate_workspace_without_ftl() -> tempfile::TempDir {
     let temp = tempfile::tempdir().expect("tempdir");
     write_basic_workspace(temp.path(), false);
+    temp
+}
+
+#[cfg(test)]
+pub fn create_binary_only_i18n_workspace() -> tempfile::TempDir {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::create_dir_all(temp.path().join("src")).expect("create src");
+    fs::create_dir_all(temp.path().join("i18n/en")).expect("create i18n/en");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[package]\nname = \"bin-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::write(temp.path().join("src/main.rs"), "fn main() {}\n").expect("write main.rs");
+    fs::write(temp.path().join("i18n.toml"), I18N_TOML).expect("write i18n.toml");
+    fs::write(temp.path().join("i18n/en/bin-app.ftl"), HELLO_FTL).expect("write ftl");
+    temp
+}
+
+#[cfg(test)]
+pub fn create_mixed_library_and_binary_i18n_workspace() -> tempfile::TempDir {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        temp.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"valid-app\", \"bin-app\"]\nresolver = \"3\"\n",
+    )
+    .expect("write workspace Cargo.toml");
+
+    let valid = temp.path().join("valid-app");
+    fs::create_dir_all(valid.join("src")).expect("create valid src");
+    fs::create_dir_all(valid.join("i18n/en")).expect("create valid i18n");
+    fs::write(
+        valid.join("Cargo.toml"),
+        "[package]\nname = \"valid-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write valid Cargo.toml");
+    fs::write(valid.join("src/lib.rs"), LIB_RS).expect("write valid lib.rs");
+    fs::write(valid.join("i18n.toml"), I18N_TOML).expect("write valid i18n.toml");
+    fs::write(valid.join("i18n/en/valid-app.ftl"), HELLO_FTL).expect("write valid ftl");
+
+    let binary = temp.path().join("bin-app");
+    fs::create_dir_all(binary.join("src")).expect("create binary src");
+    fs::create_dir_all(binary.join("i18n/en")).expect("create binary i18n");
+    fs::write(
+        binary.join("Cargo.toml"),
+        "[package]\nname = \"bin-app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write binary Cargo.toml");
+    fs::write(binary.join("src/main.rs"), "fn main() {}\n").expect("write binary main.rs");
+    fs::write(binary.join("i18n.toml"), I18N_TOML).expect("write binary i18n.toml");
+    fs::write(binary.join("i18n/en/bin-app.ftl"), HELLO_FTL).expect("write binary ftl");
+
     temp
 }
 
@@ -235,6 +295,10 @@ fn main() {
         print!("{}", args.join(" "));
     }
 
+    if let Some(path) = read_sidecar(&exe, "recordargs") {
+        fs::write(path.trim(), args.join(" ")).expect("record args");
+    }
+
     if let Some(stdout) = read_sidecar(&exe, "stdout") {
         print!("{stdout}");
     }
@@ -306,6 +370,15 @@ pub fn install_fake_runner(binary_path: &Path, behavior: &FakeRunnerBehavior) {
         .expect("write fake runner stdout");
     fs::write(binary_path.with_extension("stderr"), &behavior.stderr)
         .expect("write fake runner stderr");
+    if let Some(path) = &behavior.record_args_path {
+        fs::write(
+            binary_path.with_extension("recordargs"),
+            path.display().to_string(),
+        )
+        .expect("write fake runner arg recorder path");
+    } else {
+        let _ = fs::remove_file(binary_path.with_extension("recordargs"));
+    }
     fs::write(
         binary_path.with_extension("exitcode"),
         behavior.exit_code.to_string(),

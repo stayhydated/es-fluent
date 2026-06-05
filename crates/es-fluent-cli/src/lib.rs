@@ -16,6 +16,7 @@ mod utils;
 
 use crate::core::CliError;
 use crate::utils::ui::Ui;
+use std::ffi::{OsStr, OsString};
 
 #[derive(Parser)]
 #[command(name = "cargo", bin_name = "cargo")]
@@ -50,14 +51,14 @@ enum Commands {
     /// Watch for changes and regenerate FTL files (TUI mode)
     Watch(WatchArgs),
 
-    /// Clean orphan keys from FTL files
+    /// Clean stale generated keys from locale files
     Clean(CleanArgs),
 
     /// Format FTL files (sort keys A-Z)
-    #[command(name = "fmt")]
+    #[command(name = "fmt", visible_alias = "format")]
     Fmt(FormatArgs),
 
-    /// Check FTL files for missing keys and variables
+    /// Validate FTL files, Rust-derived keys, and locale setup
     Check(CheckArgs),
 
     /// Diagnose es-fluent setup issues
@@ -79,7 +80,7 @@ enum Commands {
 #[doc(hidden)]
 pub fn run_cli() -> MietteResult<()> {
     // Parse first to check for e2e flag before setting up miette/logging.
-    let cli = Cli::parse();
+    let cli = Cli::parse_from(normalized_cli_args());
     let CargoCommand::EsFluent { command, e2e } = cli.command;
 
     if e2e {
@@ -108,6 +109,37 @@ pub fn run_cli() -> MietteResult<()> {
         Err(CliError::Exit(code)) => std::process::exit(code),
         Err(error) => Err(miette::Report::new(error)),
     }
+}
+
+fn normalized_cli_args() -> Vec<OsString> {
+    let mut args = std::env::args_os();
+    let binary = args
+        .next()
+        .unwrap_or_else(|| OsString::from("cargo-es-fluent"));
+    let mut rest = args.collect::<Vec<_>>();
+    let mut normalized = Vec::with_capacity(rest.len() + 2);
+    normalized.push(binary);
+
+    let starts_with_wrapper = rest
+        .first()
+        .is_some_and(|arg| arg == OsStr::new("es-fluent"));
+    if !starts_with_wrapper {
+        normalized.push(OsString::from("es-fluent"));
+    }
+
+    let help_index = usize::from(starts_with_wrapper);
+    if rest
+        .get(help_index)
+        .is_some_and(|arg| arg == OsStr::new("help"))
+        && rest
+            .get(help_index + 1)
+            .is_some_and(|arg| arg == OsStr::new("es-fluent"))
+    {
+        rest.remove(help_index + 1);
+    }
+
+    normalized.extend(rest);
+    normalized
 }
 
 fn dispatch(command: Commands) -> Result<(), CliError> {
@@ -205,6 +237,79 @@ mod tests {
     }
 
     #[test]
+    fn clap_help_describes_workspace_path_subdirectory_support() {
+        let mut cli = Cli::command();
+        let generate = cli
+            .find_subcommand_mut("es-fluent")
+            .and_then(|command| command.find_subcommand_mut("generate"))
+            .expect("generate subcommand should exist");
+        let help = generate.render_long_help().to_string();
+
+        assert!(
+            help.contains(
+                "Existing path to a crate/workspace root, its Cargo.toml, or a path inside a crate"
+            ),
+            "unexpected generate help:\n{help}"
+        );
+    }
+
+    #[test]
+    fn clap_help_describes_all_locale_discovery() {
+        let mut cli = Cli::command();
+        let es_fluent = cli
+            .find_subcommand_mut("es-fluent")
+            .expect("es-fluent subcommand should exist");
+
+        let cases = [
+            ("clean", "Clean all discovered locale directories"),
+            ("fmt", "Format all discovered locale directories"),
+            (
+                "check",
+                "Include non-fallback validation, fallback-copy warnings, and orphan-file checks",
+            ),
+            (
+                "status",
+                "Include non-fallback formatting, sync, orphan-file, and validation checks",
+            ),
+            (
+                "sync",
+                "Sync to all discovered locale directories, excluding the fallback language",
+            ),
+            ("tree", "Show all discovered locale directories"),
+        ];
+
+        for (subcommand, expected) in cases {
+            let help = es_fluent
+                .find_subcommand_mut(subcommand)
+                .expect("subcommand should exist")
+                .render_long_help()
+                .to_string();
+            assert!(
+                help.contains(expected),
+                "unexpected {subcommand} help:\n{help}"
+            );
+        }
+    }
+
+    #[test]
+    fn clap_help_describes_clean_without_implying_orphan_cleanup_by_default() {
+        let mut cli = Cli::command();
+        let es_fluent = cli
+            .find_subcommand_mut("es-fluent")
+            .expect("es-fluent subcommand should exist");
+        let help = es_fluent.render_long_help().to_string();
+
+        assert!(
+            help.contains("clean       Clean stale generated keys from locale files"),
+            "unexpected top-level help:\n{help}"
+        );
+        assert!(
+            !help.contains("clean       Clean stale generated keys and orphaned FTL files"),
+            "clean summary should not imply orphan cleanup runs by default:\n{help}"
+        );
+    }
+
+    #[test]
     fn cli_parses_every_public_subcommand() {
         let cases: &[(&[&str], &str)] = &[
             (&["generate"], "generate"),
@@ -249,30 +354,107 @@ mod tests {
     }
 
     #[test]
-    fn cli_rejects_unknown_format_subcommand() {
-        let error = match Cli::try_parse_from(["cargo", "es-fluent", "format"]) {
-            Ok(_) => panic!("unknown format subcommand should be rejected"),
-            Err(error) => error,
+    fn cli_parses_format_alias() {
+        let cli = Cli::try_parse_from(["cargo", "es-fluent", "format"]).expect("parse");
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(!e2e);
+        assert!(matches!(command, Commands::Fmt(_)));
+    }
+
+    #[test]
+    fn cli_parses_sync_comma_separated_locales() {
+        let cli = Cli::try_parse_from(["cargo", "es-fluent", "sync", "--locale", "es, fr-FR"])
+            .expect("parse");
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(!e2e);
+
+        let Commands::Sync(args) = command else {
+            panic!("expected sync command");
         };
-        assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
+        assert_eq!(args.locale, ["es", " fr-FR"]);
+    }
+
+    #[test]
+    fn cli_parses_add_locale_comma_separated_locales() {
+        let cli =
+            Cli::try_parse_from(["cargo", "es-fluent", "add-locale", "es, fr-FR"]).expect("parse");
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(!e2e);
+
+        let Commands::AddLocale(args) = command else {
+            panic!("expected add-locale command");
+        };
+        assert_eq!(args.locale, ["es", " fr-FR"]);
+    }
+
+    #[test]
+    fn cli_parses_dioxus_runtime_comma_separated_values_with_spaces() {
+        let cli = Cli::try_parse_from([
+            "cargo",
+            "es-fluent",
+            "init",
+            "--manager",
+            "dioxus",
+            "--update-cargo-toml",
+            "--dioxus-runtime",
+            "client, ssr",
+        ])
+        .expect("parse");
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(!e2e);
+
+        let Commands::Init(args) = command else {
+            panic!("expected init command");
+        };
+        assert_eq!(format!("{:?}", args.dioxus_runtime), "[Client, Ssr]");
+    }
+
+    #[test]
+    fn cli_parses_status_force_run_flag() {
+        let cli =
+            Cli::try_parse_from(["cargo", "es-fluent", "status", "--force-run"]).expect("parse");
+        let CargoCommand::EsFluent { command, e2e } = cli.command;
+        assert!(!e2e);
+
+        let Commands::Status(args) = command else {
+            panic!("expected status command");
+        };
+        assert!(args.force_run);
+    }
+
+    #[test]
+    fn cli_rejects_generate_only_flags_for_watch() {
+        for flag in ["--dry-run", "--force-run"] {
+            let error = match Cli::try_parse_from(["cargo", "es-fluent", "watch", flag]) {
+                Ok(_) => panic!("{flag} should not parse for watch"),
+                Err(error) => error,
+            };
+            assert_eq!(error.kind(), clap::error::ErrorKind::UnknownArgument);
+        }
     }
 
     #[test]
     fn dispatch_handles_all_commands_on_noninteractive_paths() {
         let temp = fixtures::create_workspace();
-        let workspace = missing_package_workspace_args(temp.path());
+        let missing_workspace = missing_package_workspace_args(temp.path());
+        let selected_workspace = WorkspaceArgs {
+            path: Some(temp.path().to_path_buf()),
+            package: None,
+        };
 
         assert!(
             dispatch(Commands::Generate(GenerateArgs {
-                workspace: workspace.clone(),
+                workspace: selected_workspace.clone(),
                 mode: FluentParseMode::default(),
-                dry_run: false,
+                dry_run: true,
                 force_run: false,
             }))
             .is_ok()
         );
 
         let init_root = tempfile::tempdir().expect("init tempdir");
+        fs_err::write(init_root.path().join("Cargo.toml"), fixtures::CARGO_TOML)
+            .expect("write init Cargo.toml");
         assert!(
             dispatch(Commands::Init(
                 InitArgs::builder()
@@ -292,28 +474,35 @@ mod tests {
             .is_ok()
         );
 
-        assert!(
-            dispatch(Commands::Watch(WatchArgs {
-                workspace: workspace.clone(),
-                mode: FluentParseMode::default(),
-            }))
-            .is_ok()
-        );
+        let watch_result = dispatch(Commands::Watch(WatchArgs {
+            workspace: missing_workspace.clone(),
+            mode: FluentParseMode::default(),
+        }));
+        assert!(watch_result.is_err());
 
         assert!(
             dispatch(Commands::Clean(CleanArgs {
-                workspace: workspace.clone(),
+                workspace: selected_workspace.clone(),
                 all: false,
-                dry_run: false,
+                dry_run: true,
                 force_run: false,
                 orphaned: false,
             }))
             .is_ok()
         );
 
+        let clean_result = dispatch(Commands::Clean(CleanArgs {
+            workspace: missing_workspace.clone(),
+            all: false,
+            dry_run: false,
+            force_run: false,
+            orphaned: false,
+        }));
+        assert!(clean_result.is_err());
+
         assert!(
             dispatch(Commands::Fmt(FormatArgs {
-                workspace: workspace.clone(),
+                workspace: selected_workspace.clone(),
                 all: false,
                 dry_run: false,
                 output: OutputFormat::Text,
@@ -321,10 +510,26 @@ mod tests {
             .is_ok()
         );
 
+        let fmt_result = dispatch(Commands::Fmt(FormatArgs {
+            workspace: missing_workspace.clone(),
+            all: false,
+            dry_run: false,
+            output: OutputFormat::Text,
+        }));
+        assert!(fmt_result.is_err());
+
+        let generate_result = dispatch(Commands::Generate(GenerateArgs {
+            workspace: missing_workspace.clone(),
+            mode: FluentParseMode::default(),
+            dry_run: false,
+            force_run: false,
+        }));
+        assert!(generate_result.is_err());
+
         assert!(
             dispatch(Commands::Check(
                 CheckArgs::builder()
-                    .workspace(workspace.clone())
+                    .workspace(missing_workspace.clone())
                     .all(false)
                     .ignore(Vec::new())
                     .force_run(false)
@@ -336,54 +541,48 @@ mod tests {
 
         assert!(
             dispatch(Commands::Doctor(DoctorArgs {
-                workspace: workspace.clone(),
+                workspace: missing_workspace.clone(),
                 output: OutputFormat::Text,
             }))
             .is_ok()
         );
 
-        assert!(
-            dispatch(Commands::Status(StatusArgs {
-                workspace: workspace.clone(),
-                all: false,
-                force_run: false,
-                output: OutputFormat::Text,
-            }))
-            .is_ok()
-        );
+        let status_result = dispatch(Commands::Status(StatusArgs {
+            workspace: missing_workspace.clone(),
+            all: false,
+            force_run: false,
+            output: OutputFormat::Text,
+        }));
+        assert!(matches!(status_result, Err(CliError::Exit(1))));
 
-        assert!(
-            dispatch(Commands::Sync(SyncArgs {
-                workspace: workspace.clone(),
-                locale: vec!["en".to_string()],
-                all: false,
-                create: false,
-                dry_run: false,
-                output: OutputFormat::Text,
-            }))
-            .is_ok()
-        );
+        let sync_result = dispatch(Commands::Sync(SyncArgs {
+            workspace: missing_workspace.clone(),
+            locale: vec!["en".to_string()],
+            all: false,
+            create: false,
+            dry_run: false,
+            output: OutputFormat::Text,
+        }));
+        assert!(sync_result.is_err());
 
         assert!(
             dispatch(Commands::AddLocale(AddLocaleArgs {
-                workspace: workspace.clone(),
+                workspace: selected_workspace,
                 locale: vec!["fr-FR".to_string()],
                 dry_run: true,
             }))
             .is_ok()
         );
 
-        assert!(
-            dispatch(Commands::Tree(TreeArgs {
-                workspace,
-                all: false,
-                attributes: true,
-                variables: true,
-                link_mode: Default::default(),
-                output: OutputFormat::Text,
-            }))
-            .is_ok()
-        );
+        let tree_result = dispatch(Commands::Tree(TreeArgs {
+            workspace: missing_workspace,
+            all: false,
+            attributes: true,
+            variables: true,
+            link_mode: "rust".to_string(),
+            output: OutputFormat::Text,
+        }));
+        assert!(matches!(tree_result, Err(CliError::Exit(1))));
     }
 
     #[test]

@@ -6,7 +6,7 @@ inputs:
     required: false
     default: ""
   path:
-    description: Path to the crate or workspace root (passed as --path).
+    description: Existing path to a crate/workspace root, its Cargo.toml, or a path inside a crate (passed as --path).
     required: false
     default: .
   package:
@@ -14,15 +14,19 @@ inputs:
     required: false
     default: ""
   all:
-    description: Check all locales, not just the fallback language.
+    description: Include non-fallback validation, fallback-copy warnings, and orphan-file checks. Must be true or false.
     required: false
     default: "false"
   ignore:
-    description: "Crates to skip (comma-separated), passed as --ignore."
+    description: "Crates to skip (comma- or newline-separated; blank entries ignored), passed as --ignore."
     required: false
     default: ""
+  no_fallback_copy_check:
+    description: Disable fallback-copy warnings for all-locale checks. Must be true or false and requires all=true.
+    required: false
+    default: "false"
   force_run:
-    description: Run the generated runner through Cargo, ignoring the staleness cache.
+    description: Run the generated runner through Cargo, ignoring the staleness cache. Must be true or false.
     required: false
     default: "false"
   toolchain:
@@ -43,11 +47,13 @@ runs:
 
     - name: Install es-fluent-cli
       shell: bash
+      env:
+        ES_FLUENT_CLI_VERSION: ${{ inputs.version }}
       run: |
         set -euo pipefail
         (
           cd "${GITHUB_ACTION_PATH}"
-          version="${{ inputs.version }}"
+          version="${ES_FLUENT_CLI_VERSION}"
           if [[ -z "$version" ]]; then
             cargo install --path . --locked
           elif [[ "$version" == "latest" ]]; then
@@ -59,23 +65,64 @@ runs:
 
     - name: Run es-fluent
       shell: bash
+      env:
+        ES_FLUENT_PATH: ${{ inputs.path }}
+        ES_FLUENT_PACKAGE: ${{ inputs.package }}
+        ES_FLUENT_ALL: ${{ inputs.all }}
+        ES_FLUENT_IGNORE: ${{ inputs.ignore }}
+        ES_FLUENT_NO_FALLBACK_COPY_CHECK: ${{ inputs.no_fallback_copy_check }}
+        ES_FLUENT_FORCE_RUN: ${{ inputs.force_run }}
       run: |
         set -euo pipefail
+        action_bool() {
+          local name="$1"
+          local value="$2"
+          case "$value" in
+            true)
+              return 0
+              ;;
+            false|"")
+              return 1
+              ;;
+            *)
+              echo "::error::input '$name' must be 'true' or 'false' (got '$value')" >&2
+              exit 1
+              ;;
+          esac
+        }
+
         args=()
-        if [[ -n "${{ inputs.path }}" ]]; then
-          args+=(--path "${{ inputs.path }}")
+        if [[ -n "$ES_FLUENT_PATH" ]]; then
+          args+=(--path "$ES_FLUENT_PATH")
         fi
-        if [[ -n "${{ inputs.package }}" ]]; then
-          args+=(--package "${{ inputs.package }}")
+        if [[ -n "$ES_FLUENT_PACKAGE" ]]; then
+          args+=(--package "$ES_FLUENT_PACKAGE")
         fi
-        if [[ "${{ inputs.all }}" == "true" ]]; then
+        if action_bool all "$ES_FLUENT_ALL"; then
           args+=(--all)
         fi
-        if [[ -n "${{ inputs.ignore }}" ]]; then
-          ignore_value=$(echo "${{ inputs.ignore }}" | tr '\n' ',' | sed 's/,*$//' | sed 's/^,*//')
-          args+=(--ignore "$ignore_value")
+        if [[ -n "$ES_FLUENT_IGNORE" ]]; then
+          ignore_value=$(
+            printf '%s\n' "$ES_FLUENT_IGNORE" |
+              tr '\n' ',' |
+              awk -v RS=',' '
+                {
+                  gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+                  if ($0 != "") {
+                    print $0
+                  }
+                }
+              ' |
+              paste -sd, -
+          )
+          if [[ -n "$ignore_value" ]]; then
+            args+=(--ignore "$ignore_value")
+          fi
         fi
-        if [[ "${{ inputs.force_run }}" == "true" ]]; then
+        if action_bool no_fallback_copy_check "$ES_FLUENT_NO_FALLBACK_COPY_CHECK"; then
+          args+=(--no-fallback-copy-check)
+        fi
+        if action_bool force_run "$ES_FLUENT_FORCE_RUN"; then
           args+=(--force-run)
         fi
 

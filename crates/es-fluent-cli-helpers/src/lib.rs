@@ -54,7 +54,6 @@ fn build_generator(
 ) -> generate::EsFluentGenerator {
     EsFluentGenerator::builder()
         .output_path(ctx.layout.output_dir.clone())
-        .assets_dir(ctx.layout.assets_dir.clone())
         .manifest_dir(ctx.layout.manifest_dir.clone())
         .crate_name(ctx.crate_name.as_str())
         .mode(mode)

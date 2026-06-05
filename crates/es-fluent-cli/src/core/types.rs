@@ -72,7 +72,7 @@ pub struct CrateInfo {
     pub i18n_config_path: DiscoveredI18nConfigPath,
     /// The path to the FTL output directory (e.g., assets/i18n/en).
     pub ftl_output_dir: DiscoveredFtlOutputDir,
-    /// Whether the crate has a lib.rs (required for inventory linking).
+    /// Whether the crate has a Cargo library target (required for inventory linking).
     pub has_lib_rs: bool,
     /// Feature flags that enable es-fluent derives in the crate.
     pub fluent_features: Vec<String>,
@@ -143,7 +143,7 @@ impl GenerateResult {
 /// The state of a crate in the workspace (used by TUI).
 #[derive(Clone, Debug)]
 pub enum CrateState {
-    /// The crate is missing lib.rs, so generation cannot work.
+    /// The crate is missing a Cargo library target, so generation cannot work.
     MissingLibRs,
     /// FTL files are currently being generated.
     Generating,

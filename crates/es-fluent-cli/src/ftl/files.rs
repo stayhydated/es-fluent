@@ -61,14 +61,31 @@ impl CrateFtlLayout {
         &self,
         fallback: &CrateFtlLayout,
     ) -> Result<HashSet<PathBuf>> {
+        if self.locale_dir.exists() {
+            ensure_ftl_directory_is_real(&self.locale_dir)?;
+        }
+        if fallback.locale_dir.exists() {
+            ensure_ftl_directory_is_real(&fallback.locale_dir)?;
+        }
+
         let mut expected = HashSet::new();
 
-        if fallback.main_file().exists() {
+        let fallback_main_file = fallback.main_file();
+        if fallback_main_file.exists() {
+            ensure_ftl_path_is_file(&fallback_main_file)?;
             expected.insert(self.main_file());
         }
 
         let fallback_crate_dir = fallback.crate_dir();
         if fallback_crate_dir.exists() {
+            ensure_ftl_directory_is_real(&fallback_crate_dir)?;
+            if !fallback_crate_dir.is_dir() {
+                return Err(anyhow!(
+                    "Expected crate namespace path to be a directory: {}",
+                    fallback_crate_dir.display()
+                ));
+            }
+
             for fallback_file in
                 discover_nested_ftl_files(&fallback_crate_dir, &fallback.locale_dir)?
             {
@@ -132,11 +149,16 @@ pub fn discover_crate_ftl_files_in_locale_dir(
     locale_dir: &Path,
     crate_name: &str,
 ) -> Result<Vec<FtlFileInfo>> {
+    if locale_dir.exists() {
+        ensure_ftl_directory_is_real(locale_dir)?;
+    }
+
     let layout = CrateFtlLayout::new(locale_dir.to_path_buf(), crate_name);
     let mut files = Vec::new();
 
     let main_file = layout.main_file();
     if main_file.exists() {
+        ensure_ftl_path_is_file(&main_file)?;
         files.push(FtlFileInfo::new(
             main_file,
             PathBuf::from(format!("{}.ftl", crate_name)),
@@ -145,6 +167,7 @@ pub fn discover_crate_ftl_files_in_locale_dir(
 
     let crate_subdir = layout.crate_dir();
     if crate_subdir.exists() {
+        ensure_ftl_directory_is_real(&crate_subdir)?;
         if !crate_subdir.is_dir() {
             return Err(anyhow!(
                 "Expected crate namespace path to be a directory: {}",
@@ -165,23 +188,63 @@ pub fn discover_nested_ftl_files(dir: &Path, base_dir: &Path) -> Result<Vec<FtlF
     if !dir.exists() {
         return Ok(files);
     }
+    ensure_ftl_directory_is_real(dir)?;
 
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
+        let file_type = entry.file_type()?;
         let path = entry.path();
 
-        if path.is_dir() {
-            files.extend(discover_nested_ftl_files(&path, base_dir)?);
+        if file_type.is_symlink() {
+            if path.extension().is_some_and(|ext| ext == "ftl") {
+                ensure_ftl_path_is_file(&path)?;
+            } else if path.is_dir() {
+                ensure_ftl_directory_is_real(&path)?;
+            }
         } else if path.extension().is_some_and(|ext| ext == "ftl") {
+            ensure_ftl_path_is_file(&path)?;
             let relative_path = path.strip_prefix(base_dir).map_err(|_| {
                 anyhow::anyhow!("Failed to calculate relative path for {}", path.display())
             })?;
             files.push(FtlFileInfo::new(path.clone(), relative_path.to_path_buf()));
+        } else if file_type.is_dir() {
+            files.extend(discover_nested_ftl_files(&path, base_dir)?);
         }
     }
 
     files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
     Ok(files)
+}
+
+fn ensure_ftl_path_is_file(path: &Path) -> Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Err(anyhow!(
+            "FTL paths must not be symlinks because commands may modify or delete their targets: {}",
+            path.display()
+        ));
+    }
+
+    if metadata.is_file() {
+        return Ok(());
+    }
+
+    Err(anyhow!(
+        "Expected FTL path to be a file, but found a directory or non-file path: {}",
+        path.display()
+    ))
+}
+
+fn ensure_ftl_directory_is_real(path: &Path) -> Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Err(anyhow!(
+            "FTL directories must not be symlinks because commands may modify or delete files outside the locale tree: {}",
+            path.display()
+        ));
+    }
+
+    Ok(())
 }
 
 /// Load and parse FTL files, returning a list of loaded file info.
@@ -285,6 +348,109 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("Expected crate namespace path to be a directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_discover_ftl_files_errors_when_main_ftl_path_is_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let locale_dir = temp_dir.path().join("en");
+        fs::create_dir_all(locale_dir.join("test-crate.ftl")).unwrap();
+
+        let err = discover_ftl_files(temp_dir.path(), "en", "test-crate")
+            .expect_err("main ftl directory should fail");
+        assert!(
+            err.to_string().contains("Expected FTL path to be a file"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            err.to_string().contains("test-crate.ftl"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_discover_ftl_files_errors_when_nested_ftl_path_is_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let locale_dir = temp_dir.path().join("en");
+        fs::create_dir_all(locale_dir.join("test-crate/ui.ftl")).unwrap();
+
+        let err = discover_ftl_files(temp_dir.path(), "en", "test-crate")
+            .expect_err("nested ftl directory should fail");
+        assert!(
+            err.to_string().contains("Expected FTL path to be a file"),
+            "unexpected error: {err}"
+        );
+        assert!(
+            err.to_string().contains("ui.ftl"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_discover_ftl_files_errors_when_main_ftl_path_is_symlink() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let locale_dir = temp_dir.path().join("en");
+        fs::create_dir_all(&locale_dir).unwrap();
+        fs::write(outside.path().join("test-crate.ftl"), "hello = Outside").unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("test-crate.ftl"),
+            locale_dir.join("test-crate.ftl"),
+        )
+        .unwrap();
+
+        let err = discover_ftl_files(temp_dir.path(), "en", "test-crate")
+            .expect_err("symlinked FTL file should fail");
+
+        assert!(
+            err.to_string().contains("FTL paths must not be symlinks"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_discover_ftl_files_errors_when_namespace_path_is_symlink() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let locale_dir = temp_dir.path().join("en");
+        fs::create_dir_all(&locale_dir).unwrap();
+        fs::create_dir_all(outside.path().join("test-crate")).unwrap();
+        fs::write(outside.path().join("test-crate/ui.ftl"), "button = Outside").unwrap();
+        std::os::unix::fs::symlink(
+            outside.path().join("test-crate"),
+            locale_dir.join("test-crate"),
+        )
+        .unwrap();
+
+        let err = discover_ftl_files(temp_dir.path(), "en", "test-crate")
+            .expect_err("symlinked namespace directory should fail");
+
+        assert!(
+            err.to_string()
+                .contains("FTL directories must not be symlinks"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_discover_ftl_files_errors_when_locale_path_is_symlink() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        fs::create_dir_all(outside.path().join("en")).unwrap();
+        fs::write(outside.path().join("en/test-crate.ftl"), "hello = Outside").unwrap();
+        std::os::unix::fs::symlink(outside.path().join("en"), temp_dir.path().join("en")).unwrap();
+
+        let err = discover_ftl_files(temp_dir.path(), "en", "test-crate")
+            .expect_err("symlinked locale directory should fail");
+
+        assert!(
+            err.to_string()
+                .contains("FTL directories must not be symlinks"),
             "unexpected error: {err}"
         );
     }

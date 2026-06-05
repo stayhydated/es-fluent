@@ -21,7 +21,9 @@ fn utf8_path_string(path: &Path, context: &str) -> Result<String> {
 
 #[cfg(test)]
 pub use exec::{run_cargo, run_cargo_with_output};
-pub use monolithic::{prepare_monolithic_runner_crate, run_monolithic};
+pub use monolithic::{
+    acquire_monolithic_runner_lock, prepare_monolithic_runner_crate, run_monolithic,
+};
 
 #[cfg(test)]
 mod tests;

@@ -9,13 +9,34 @@ use fs_err as fs;
 use indexmap::IndexMap;
 use path_slash::PathExt as _;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Component, Path};
 
-fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path) {
+const GENERATED_ROOT_SOURCE_DIRS: &[&str] = &[".es-fluent", "target"];
+
+fn is_ignored_root_source_entry(src_dir: &Path, path: &Path, ignored_root_dirs: &[&str]) -> bool {
+    let Ok(relative_path) = path.strip_prefix(src_dir) else {
+        return false;
+    };
+
+    relative_path
+        .components()
+        .next()
+        .and_then(|component| match component {
+            Component::Normal(name) => Some(name),
+            _ => None,
+        })
+        .is_some_and(|name| ignored_root_dirs.iter().any(|ignored| name == *ignored))
+}
+
+fn hash_rs_sources(hasher: &mut blake3::Hasher, src_dir: &Path, ignored_root_dirs: &[&str]) {
     let mut files: Vec<std::path::PathBuf> = Vec::new();
 
     if src_dir.exists() {
-        let walker = walkdir::WalkDir::new(src_dir);
+        let walker = walkdir::WalkDir::new(src_dir)
+            .into_iter()
+            .filter_entry(|entry| {
+                !is_ignored_root_source_entry(src_dir, entry.path(), ignored_root_dirs)
+            });
         for entry in walker.into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() && path.extension().is_some_and(|e| e == "rs") {
@@ -106,7 +127,12 @@ pub fn compute_crate_inputs_hash(
     use blake3::Hasher;
 
     let mut hasher = Hasher::new();
-    hash_rs_sources(&mut hasher, src_dir);
+    let ignored_root_dirs = if src_dir == manifest_dir {
+        GENERATED_ROOT_SOURCE_DIRS
+    } else {
+        &[]
+    };
+    hash_rs_sources(&mut hasher, src_dir, ignored_root_dirs);
 
     if let Some(toml_path) = i18n_toml_path
         && toml_path.is_file()
@@ -194,7 +220,7 @@ mod tests {
         use blake3::Hasher;
 
         let mut hasher = Hasher::new();
-        hash_rs_sources(&mut hasher, src_dir);
+        hash_rs_sources(&mut hasher, src_dir, &[]);
 
         // Include i18n.toml if provided and exists
         if let Some(toml_path) = i18n_toml_path
@@ -310,6 +336,36 @@ mod tests {
         let second = compute_crate_inputs_hash(temp_dir.path(), &src_dir, None);
 
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn test_compute_crate_inputs_hash_ignores_generated_dirs_for_root_source_dir() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        fs::write(temp_dir.path().join("lib.rs"), "pub struct Demo;\n").unwrap();
+
+        let first = compute_crate_inputs_hash(temp_dir.path(), temp_dir.path(), None);
+
+        fs::create_dir_all(temp_dir.path().join(".es-fluent/src")).unwrap();
+        fs::write(
+            temp_dir.path().join(".es-fluent/src/main.rs"),
+            "fn main() {}\n",
+        )
+        .unwrap();
+        fs::create_dir_all(temp_dir.path().join("target/debug/build/demo/out")).unwrap();
+        fs::write(
+            temp_dir
+                .path()
+                .join("target/debug/build/demo/out/generated.rs"),
+            "pub fn generated() {}\n",
+        )
+        .unwrap();
+
+        let second = compute_crate_inputs_hash(temp_dir.path(), temp_dir.path(), None);
+        assert_eq!(first, second);
+
+        fs::write(temp_dir.path().join("module.rs"), "pub struct Changed;\n").unwrap();
+        let third = compute_crate_inputs_hash(temp_dir.path(), temp_dir.path(), None);
+        assert_ne!(second, third);
     }
 
     #[test]

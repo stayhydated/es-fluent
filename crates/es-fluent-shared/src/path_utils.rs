@@ -33,7 +33,7 @@ pub fn parse_language_entry(
             EsFluentError::invalid_language_identifier(
                 &name,
                 format!(
-                    "Locale directory must use canonical BCP-47 casing '{}'",
+                    "Locale directory must use canonical BCP-47 form '{}'",
                     canonical
                 ),
             )
@@ -118,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_language_entry_rejects_noncanonical_locale_casing() {
+    fn parse_language_entry_rejects_noncanonical_locale_form() {
         let temp = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir_all(temp.path().join("en-us")).expect("create noncanonical");
 

@@ -7,7 +7,7 @@ Use this reference to choose the crate or integration surface before writing cod
 | Need | Use | Notes |
 | --- | --- | --- |
 | Define typed messages, labels, variants, choices | `es-fluent` | Default application dependency. Re-exports derive and runtime traits. |
-| Generate/check/format/sync FTL | `cargo es-fluent` from `es-fluent-cli` | Use from crate or workspace root. Inventory comes from library targets. |
+| Generate/check/format/sync FTL | `cargo es-fluent` from `es-fluent-cli` | Use from an existing crate/workspace root, its `Cargo.toml`, or a path inside a crate. Inventory comes from library targets. |
 | Track locale asset rebuilds from `build.rs` | `es-fluent-build` in `[build-dependencies]` | Call `es_fluent_build::track_i18n_assets()` when manager macros scan locale assets at compile time. |
 | General Rust runtime, CLI, TUI, desktop, GPUI-style apps | `es-fluent-manager-embedded` | Embeds FTL files and returns explicit `EmbeddedI18n` handles. |
 | Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, pass generated `dioxus_i18n_asset_modules()` to `DioxusAssetI18nProvider`, aggregate multiple crates with `dioxus_i18n_asset_module()` when needed, and localize through `use_i18n()`. |
@@ -25,13 +25,13 @@ es-fluent = "0.16"
 unic-langid = "0.9"
 es-fluent-manager-embedded = "0.16"
 
-# Dioxus
-es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
-es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
-es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
+# For Dioxus apps, enable only the runtime surface you use.
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+# es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 
-# Bevy
-es-fluent-manager-bevy = "0.18.13"
+# For Bevy integration, use `es-fluent-manager-bevy`.
+# es-fluent-manager-bevy = "0.18.13"
 
 [build-dependencies]
 es-fluent-build = "0.16"

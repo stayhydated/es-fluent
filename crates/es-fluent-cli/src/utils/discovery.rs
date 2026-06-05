@@ -3,17 +3,38 @@ use crate::core::{
     WorkspaceInfo,
 };
 use anyhow::{Context as _, Result};
-use cargo_metadata::MetadataCommand;
+use cargo_metadata::{MetadataCommand, TargetKind};
 use es_fluent_runner::PackageName;
 use es_fluent_toml::ResolvedI18nLayout;
 use std::path::{Path, PathBuf};
 
+pub(crate) enum DiscoveryScope<'a> {
+    #[allow(dead_code)]
+    All,
+    Package(&'a str),
+    RequestedPaths {
+        lexical: &'a Path,
+        canonical: &'a Path,
+    },
+}
+
 /// Discovers workspace information including root, target dir, and all crates with i18n.toml.
 /// This is used by the monolithic temp crate approach for efficient inventory collection.
+#[allow(dead_code)]
 pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
-    let root_dir = root_dir
-        .canonicalize()
-        .context("Failed to canonicalize root directory")?;
+    discover_workspace_scoped(root_dir, DiscoveryScope::All)
+}
+
+pub(crate) fn discover_workspace_scoped(
+    root_dir: &Path,
+    scope: DiscoveryScope<'_>,
+) -> Result<WorkspaceInfo> {
+    let root_dir = root_dir.canonicalize().with_context(|| {
+        format!(
+            "Failed to canonicalize root directory {}",
+            root_dir.display()
+        )
+    })?;
 
     let metadata = MetadataCommand::new()
         .current_dir(&root_dir)
@@ -23,24 +44,62 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
 
     let workspace_root: PathBuf = metadata.workspace_root.clone().into();
     let target_dir: PathBuf = metadata.target_directory.clone().into();
+    let path_scope = match scope {
+        DiscoveryScope::RequestedPaths { lexical, canonical } => requested_path_scope(
+            &[lexical, canonical],
+            &workspace_root,
+            &metadata.workspace_packages(),
+        ),
+        DiscoveryScope::All | DiscoveryScope::Package(_) => RequestedPathScope::All,
+    };
 
     let mut crates = Vec::new();
 
     for package in metadata.workspace_packages() {
         let manifest_dir: PathBuf = package.manifest_path.parent().unwrap().into();
+        let include_package = match scope {
+            DiscoveryScope::All => true,
+            DiscoveryScope::Package(package_filter) => package.name == package_filter,
+            DiscoveryScope::RequestedPaths { .. } => match &path_scope {
+                RequestedPathScope::All => true,
+                RequestedPathScope::None => false,
+                RequestedPathScope::ManifestDir(selected) => &manifest_dir == selected,
+            },
+        };
+        if !include_package {
+            continue;
+        }
 
         let i18n_config_path = manifest_dir.join("i18n.toml");
         if !i18n_config_path.exists() {
             continue;
         }
 
-        let layout = ResolvedI18nLayout::from_config_path(&i18n_config_path)
-            .with_context(|| format!("Failed to read {}", i18n_config_path.display()))?;
+        let layout = ResolvedI18nLayout::from_config_path(&i18n_config_path).map_err(|error| {
+            anyhow::anyhow!(
+                "Failed to read {}: {error}",
+                workspace_relative_path(&i18n_config_path, &workspace_root)
+            )
+        })?;
         let ftl_output_dir = layout.output_dir.clone();
         let fluent_features = layout.fluent_features();
 
-        let src_dir = manifest_dir.join("src");
-        let has_lib_rs = src_dir.join("lib.rs").exists();
+        let lib_target = package.targets.iter().find(|target| {
+            target.kind.iter().any(|kind| {
+                matches!(
+                    kind,
+                    TargetKind::Lib
+                        | TargetKind::RLib
+                        | TargetKind::DyLib
+                        | TargetKind::CDyLib
+                        | TargetKind::StaticLib
+                )
+            })
+        });
+        let src_dir = lib_target
+            .and_then(|target| target.src_path.parent().map(PathBuf::from))
+            .unwrap_or_else(|| manifest_dir.join("src"));
+        let has_lib_rs = lib_target.is_some();
 
         let package_name = PackageName::try_new(package.name.to_string())
             .with_context(|| format!("invalid package name `{}`", package.name))?;
@@ -66,11 +125,91 @@ pub fn discover_workspace(root_dir: &Path) -> Result<WorkspaceInfo> {
     })
 }
 
+pub(crate) fn discover_i18n_package_names(root_dir: &Path) -> Result<Vec<String>> {
+    let root_dir = root_dir.canonicalize().with_context(|| {
+        format!(
+            "Failed to canonicalize root directory {}",
+            root_dir.display()
+        )
+    })?;
+
+    let metadata = MetadataCommand::new()
+        .current_dir(&root_dir)
+        .no_deps()
+        .exec()
+        .context("Failed to get cargo metadata")?;
+
+    let mut package_names = metadata
+        .workspace_packages()
+        .iter()
+        .filter(|package| {
+            let manifest_dir: PathBuf = package.manifest_path.parent().unwrap().into();
+            manifest_dir.join("i18n.toml").exists()
+        })
+        .map(|package| package.name.to_string())
+        .collect::<Vec<_>>();
+    package_names.sort();
+    Ok(package_names)
+}
+
+enum RequestedPathScope {
+    All,
+    None,
+    ManifestDir(PathBuf),
+}
+
+fn requested_path_scope(
+    requested_paths: &[&Path],
+    workspace_root: &Path,
+    packages: &[&cargo_metadata::Package],
+) -> RequestedPathScope {
+    if requested_paths.iter().any(|requested_path| {
+        let is_workspace_manifest = requested_path
+            .file_name()
+            .is_some_and(|name| name == "Cargo.toml")
+            && requested_path.parent() == Some(workspace_root);
+        *requested_path == workspace_root || is_workspace_manifest
+    }) {
+        return RequestedPathScope::All;
+    }
+
+    let selected_manifest_dir = packages
+        .iter()
+        .filter_map(|package| {
+            let manifest_dir: PathBuf = package.manifest_path.parent()?.into();
+            requested_paths
+                .iter()
+                .any(|requested_path| requested_path.starts_with(&manifest_dir))
+                .then_some(manifest_dir)
+        })
+        .max_by_key(|path| path.components().count());
+
+    if let Some(manifest_dir) = selected_manifest_dir {
+        return RequestedPathScope::ManifestDir(manifest_dir);
+    }
+
+    if requested_paths
+        .iter()
+        .any(|requested_path| requested_path.starts_with(workspace_root))
+    {
+        return RequestedPathScope::None;
+    }
+
+    RequestedPathScope::All
+}
+
 /// Discovers all crates in a workspace (or single crate) that have i18n.toml.
 /// This is a convenience wrapper around discover_workspace that returns just the crates.
 #[cfg(test)]
 pub fn discover_crates(root_dir: &Path) -> Result<Vec<CrateInfo>> {
     discover_workspace(root_dir).map(|ws| ws.crates)
+}
+
+fn workspace_relative_path(path: &Path, workspace_root: &Path) -> String {
+    path.strip_prefix(workspace_root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
 }
 
 /// Counts the number of FTL resources (message keys) for a specific crate.
@@ -132,6 +271,21 @@ mod tests {
     }
 
     #[test]
+    fn discover_workspace_canonicalize_error_includes_requested_path() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let missing = temp.path().join("missing-workspace");
+
+        let err = discover_workspace(&missing).expect_err("missing workspace should fail");
+
+        let message = err.to_string();
+        assert!(message.contains("Failed to canonicalize root directory"));
+        assert!(
+            message.contains(&missing.display().to_string()),
+            "error should include the requested path, got {message}"
+        );
+    }
+
+    #[test]
     fn discover_workspace_finds_i18n_enabled_crate() {
         let temp = crate::test_fixtures::create_test_crate_workspace();
         let ws = discover_workspace(temp.path()).expect("discover workspace");
@@ -141,6 +295,28 @@ mod tests {
         assert_eq!(krate.name, "test-app");
         assert!(krate.has_lib_rs);
         assert!(krate.i18n_config_path.ends_with("i18n.toml"));
+    }
+
+    #[test]
+    fn discover_workspace_recognizes_custom_library_target_path() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"custom-lib\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[lib]\npath = \"lib.rs\"\n",
+        )
+        .expect("write Cargo.toml");
+        fs::write(temp.path().join("lib.rs"), LIB_RS).expect("write custom lib");
+        fs::write(
+            temp.path().join("i18n.toml"),
+            "fallback_language = \"en\"\nassets_dir = \"i18n\"\n",
+        )
+        .expect("write i18n.toml");
+
+        let ws = discover_workspace(temp.path()).expect("discover workspace");
+
+        assert_eq!(ws.crates.len(), 1);
+        assert!(ws.crates[0].has_lib_rs);
+        assert_eq!(ws.crates[0].src_dir.as_path(), temp.path());
     }
 
     #[test]
@@ -178,7 +354,12 @@ mod tests {
         fs::write(temp.path().join("i18n.toml"), "not = [valid").expect("write invalid i18n");
 
         let err = discover_workspace(temp.path()).expect_err("expected i18n parse failure");
-        assert!(err.to_string().contains("Failed to read"));
+        let message = err.to_string();
+        assert!(message.contains("Failed to read i18n.toml"));
+        assert!(
+            !message.contains(temp.path().to_string_lossy().as_ref()),
+            "discovery config errors should use workspace-relative paths: {message}"
+        );
     }
 
     #[test]

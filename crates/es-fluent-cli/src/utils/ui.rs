@@ -94,6 +94,14 @@ impl Ui {
         println!("{}", "Fluent FTL Generator".dimmed());
     }
 
+    pub fn print_watch_header() {
+        println!("{}", "Fluent FTL Watch".dimmed());
+    }
+
+    pub fn print_clean_header() {
+        println!("{}", "Fluent FTL Cleaner".dimmed());
+    }
+
     pub fn print_discovered(crates: &[CrateInfo]) {
         if crates.is_empty() {
             eprintln!("{}", "No crates with i18n.toml found.".red());
@@ -109,8 +117,8 @@ impl Ui {
     pub fn print_missing_lib_rs(crate_name: &str) {
         println!(
             "{} {}",
-            "Skipping".dimmed(),
-            format!("{} (missing lib.rs)", crate_name).yellow()
+            "Notice".dimmed(),
+            format!("{} (missing library target)", crate_name).yellow()
         );
     }
 
@@ -156,7 +164,7 @@ impl Ui {
     pub fn print_package_not_found(package: &str) {
         println!(
             "{} '{}'",
-            "No crate found matching package filter:".yellow(),
+            "No configured crate found matching package filter:".yellow(),
             package.white().bold()
         );
     }
@@ -220,6 +228,10 @@ impl Ui {
         println!("{}", "Fluent FTL Sync".dimmed());
     }
 
+    pub fn print_add_locale_header() {
+        println!("{}", "Fluent FTL Add Locale".dimmed());
+    }
+
     #[cfg(test)]
     pub fn print_syncing(crate_name: &str) {
         println!("{} {}", "Syncing".dimmed(), crate_name.green());
@@ -230,6 +242,24 @@ impl Ui {
             "{} {} key(s) to {} ({})",
             "Would add".yellow(),
             count,
+            locale.cyan(),
+            crate_name.bold()
+        );
+    }
+
+    pub fn print_would_create_locale(locale: &str, crate_name: &str) {
+        println!(
+            "{} locale directory for {} ({})",
+            "Would create".yellow(),
+            locale.cyan(),
+            crate_name.bold()
+        );
+    }
+
+    pub fn print_created_locale(locale: &str, crate_name: &str) {
+        println!(
+            "{} locale directory for {} ({})",
+            "Created".green(),
             locale.cyan(),
             crate_name.bold()
         );
@@ -247,10 +277,26 @@ impl Ui {
         println!("{}", "All locales are in sync!".green());
     }
 
+    pub fn print_no_locale_changes_needed() {
+        println!(
+            "{}",
+            "No locale directories or keys needed to be added.".green()
+        );
+    }
+
     pub fn print_sync_dry_run_summary(keys: usize, locales: usize) {
         println!(
             "{} {} key(s) across {} locale(s)",
             "Would sync".yellow(),
+            keys,
+            locales
+        );
+    }
+
+    pub fn print_add_locale_dry_run_summary(keys: usize, locales: usize) {
+        println!(
+            "{} {} key(s) across {} locale(s)",
+            "Would add".yellow(),
             keys,
             locales
         );
@@ -265,29 +311,17 @@ impl Ui {
         );
     }
 
-    pub fn print_no_locales_specified() {
+    pub fn print_add_locale_summary(keys: usize, locales: usize) {
         println!(
-            "{}",
-            "No locales specified. Use --locale <LOCALE> or --all".yellow()
+            "{} {} key(s) added to {} locale(s)",
+            "Done:".green(),
+            keys,
+            locales
         );
     }
 
     pub fn print_no_crates_found() {
         eprintln!("{}", "No crates with i18n.toml found.".red());
-    }
-
-    pub fn print_locale_not_found(locale: &str, available: &[String]) {
-        let available_str = if available.is_empty() {
-            "none".to_string()
-        } else {
-            available.join(", ")
-        };
-        eprintln!(
-            "{} '{}'. Available locales: {}",
-            "Locale not found:".red(),
-            locale.white().bold(),
-            available_str.cyan()
-        );
     }
 
     pub fn print_diff(old: &str, new: &str) {
@@ -422,6 +456,8 @@ mod tests {
         let crates = vec![test_crate("crate-a"), test_crate("crate-b")];
 
         Ui::print_header();
+        Ui::print_watch_header();
+        Ui::print_clean_header();
         Ui::print_discovered(&crates);
         Ui::print_discovered(&[]);
         Ui::print_missing_lib_rs("crate-missing");
@@ -446,16 +482,17 @@ mod tests {
 
         Ui::print_sync_header();
         Ui::print_syncing("crate-a");
+        Ui::print_would_create_locale("es", "crate-a");
+        Ui::print_created_locale("es", "crate-a");
         Ui::print_would_add_keys(2, "es", "crate-a");
         Ui::print_added_keys(2, "es");
         Ui::print_synced_key("hello_world");
         Ui::print_all_in_sync();
+        Ui::print_no_locale_changes_needed();
         Ui::print_sync_dry_run_summary(3, 2);
         Ui::print_sync_summary(3, 2);
-        Ui::print_no_locales_specified();
+        Ui::print_add_locale_summary(3, 2);
         Ui::print_no_crates_found();
-        Ui::print_locale_not_found("zz", &["en".to_string(), "es".to_string()]);
-        Ui::print_locale_not_found("zz", &[]);
 
         Ui::print_diff("a = 1\nb = 2\n", "a = 1\nc = 3\n");
         Ui::print_diff(

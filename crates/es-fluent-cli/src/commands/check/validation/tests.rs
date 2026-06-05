@@ -321,6 +321,63 @@ fn validate_loaded_ftl_files_allows_marked_same_as_fallback_message() {
 }
 
 #[test]
+fn validate_loaded_ftl_files_allows_same_as_fallback_marker_before_next_message_entry() {
+    let temp = tempfile::tempdir().unwrap();
+    let fallback_path = temp.path().join("i18n/en/test-app.ftl");
+    let target_path = temp.path().join("i18n/fr/test-app.ftl");
+    fs::create_dir_all(fallback_path.parent().unwrap()).unwrap();
+    fs::create_dir_all(target_path.parent().unwrap()).unwrap();
+    fs::write(&fallback_path, "brand = es-fluent\n").unwrap();
+    fs::write(
+        &target_path,
+        "# es-fluent: same-as-fallback\n\n# translator note\nbrand = es-fluent\n",
+    )
+    .unwrap();
+
+    let fallback_resource =
+        fluent_syntax::parser::parse("brand = es-fluent\n".to_string()).unwrap();
+    let target_resource = fluent_syntax::parser::parse(
+        "# es-fluent: same-as-fallback\n\n# translator note\nbrand = es-fluent\n".to_string(),
+    )
+    .unwrap();
+    let fallback_files = vec![LoadedFtlFile {
+        abs_path: fallback_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource: fallback_resource,
+        keys: std::iter::once("brand".to_string()).collect(),
+    }];
+    let target_files = vec![LoadedFtlFile {
+        abs_path: target_path,
+        relative_path: PathBuf::from("test-app.ftl"),
+        resource: target_resource,
+        keys: std::iter::once("brand".to_string()).collect(),
+    }];
+
+    let mut expected_keys = IndexMap::new();
+    expected_keys.insert(expected_key("brand"), key_info(&[], None, None));
+
+    let ctx = ValidationContext {
+        expected_keys: &expected_keys,
+        workspace_root: temp.path(),
+        manifest_dir: temp.path(),
+    };
+    let fallback_keys = super::loaded::collect_fallback_keys(&fallback_files);
+
+    let issues = super::loaded::validate_loaded_ftl_files(
+        &ctx,
+        target_files,
+        "fr",
+        "en",
+        Some(&fallback_keys),
+    );
+    assert!(
+        !issues
+            .iter()
+            .any(|issue| matches!(issue, ValidationIssue::UntranslatedMessage(_)))
+    );
+}
+
+#[test]
 fn validate_loaded_ftl_files_reports_duplicate_keys_and_ignores_non_messages() {
     let temp = tempfile::tempdir().unwrap();
     let first_path = temp.path().join("i18n/en/first.ftl");

@@ -12,7 +12,7 @@ use self::args::Action;
 pub use self::args::GeneratorArgs;
 pub use self::error::GeneratorError;
 pub use es_fluent_generate::FluentParseMode;
-use es_fluent_toml::ResolvedI18nLayout;
+use es_fluent_toml::{I18nConfigError, ResolvedI18nLayout};
 use std::path::{Path, PathBuf};
 
 /// Builder for generating FTL files from registered types.
@@ -108,7 +108,7 @@ impl EsFluentGenerator {
         }
 
         let mut paths = if let Some(assets_dir) = &self.assets_dir {
-            Self::resolve_clean_locale_dirs(assets_dir)?
+            self.resolve_clean_locale_dirs(assets_dir)?
         } else {
             let layout = self.resolve_layout()?;
             layout
@@ -185,14 +185,26 @@ impl EsFluentGenerator {
         Ok(any_changed)
     }
 
-    fn resolve_clean_locale_dirs(assets_dir: &Path) -> Result<Vec<PathBuf>, GeneratorError> {
+    fn resolve_clean_locale_dirs(&self, assets_dir: &Path) -> Result<Vec<PathBuf>, GeneratorError> {
+        let manifest_dir = self.resolve_manifest_dir()?;
+        let config_assets_dir = if assets_dir.is_absolute() {
+            assets_dir.strip_prefix(&manifest_dir).map_err(|_| {
+                I18nConfigError::InvalidAssetsDir {
+                    path: assets_dir.display().to_string(),
+                    reason: "must be relative to the crate root",
+                }
+            })?
+        } else {
+            assets_dir
+        };
+
         let config = es_fluent_toml::I18nConfig::builder()
             .fallback_language("en".parse().expect("static fallback language"))
-            .assets_dir(assets_dir)
+            .assets_dir(config_assets_dir)
             .build();
 
         Ok(config
-            .available_locale_names_from_base(Some(Path::new("")))?
+            .available_locale_names_from_base(Some(&manifest_dir))?
             .into_iter()
             .map(|locale| assets_dir.join(locale))
             .collect())

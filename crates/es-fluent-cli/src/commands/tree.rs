@@ -8,8 +8,8 @@ use crate::core::{CliError, WorkspaceInfo};
 use crate::ftl::{CrateFtlLayout, LocaleContext};
 use crate::generation::MonolithicExecutor;
 use crate::utils::ui;
-use anyhow::Result;
-use clap::{ArgAction, Parser, ValueEnum};
+use anyhow::{Context as _, Result};
+use clap::{ArgAction, Parser};
 use colored::Colorize as _;
 use fluent_syntax::ast;
 use serde::Serialize;
@@ -183,13 +183,25 @@ enum EntryKind {
     Term,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum TreeLinkMode {
     /// Link message and variable rows to Rust source locations when available.
     #[default]
     Rust,
     /// Link message, attribute, and variable rows to FTL source locations.
     Ftl,
+}
+
+impl TreeLinkMode {
+    fn parse_arg(value: &str) -> Result<Self, CliError> {
+        match value {
+            "rust" => Ok(Self::Rust),
+            "ftl" => Ok(Self::Ftl),
+            _ => Err(CliError::Other(format!(
+                "invalid link mode '{value}'; expected 'rust' or 'ftl'"
+            ))),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -412,8 +424,13 @@ impl<'a> TreeRenderer<'a> {
         }
 
         if self.show_variables {
+            let variable_attributes = if self.show_attributes {
+                attributes
+            } else {
+                &[]
+            };
             let mut variables: Vec<_> =
-                crate::ftl::extract_variables_from_value_and_attributes(value, attributes)
+                crate::ftl::extract_variables_from_value_and_attributes(value, variable_attributes)
                     .into_iter()
                     .collect();
 
@@ -569,21 +586,21 @@ pub struct TreeArgs {
     #[command(flatten)]
     pub workspace: WorkspaceArgs,
 
-    /// Show all locales, not just the fallback language.
+    /// Show all discovered locale directories, not just the fallback language.
     #[arg(long)]
     pub all: bool,
 
-    /// Hide attributes under each message.
+    /// Hide attributes under message and term entries.
     #[arg(long = "no-attributes", action = ArgAction::SetFalse, default_value_t = true)]
     pub attributes: bool,
 
-    /// Hide variables used in each message.
+    /// Hide variables used by each message or term entry.
     #[arg(long = "no-variables", action = ArgAction::SetFalse, default_value_t = true)]
     pub variables: bool,
 
-    /// Link target mode for message and variable rows.
-    #[arg(long = "link-mode", value_enum, default_value_t = TreeLinkMode::default())]
-    pub link_mode: TreeLinkMode,
+    /// Text hyperlink target mode for message, attribute, and variable rows: rust or ftl.
+    #[arg(long = "link-mode", default_value = "rust", value_name = "MODE")]
+    pub link_mode: String,
 
     /// Output format.
     #[arg(long, value_enum, default_value_t = OutputFormat::default())]
@@ -593,6 +610,8 @@ pub struct TreeArgs {
 #[derive(Serialize)]
 struct TreeJsonReport {
     crates: Vec<TreeCrateJson>,
+    error_count: usize,
+    errors: Vec<TreeErrorJson>,
 }
 
 #[derive(Serialize)]
@@ -605,6 +624,12 @@ struct TreeCrateJson {
 struct TreeLocaleJson {
     locale: String,
     files: Vec<TreeFileJson>,
+}
+
+#[derive(Serialize)]
+struct TreeErrorJson {
+    crate_name: String,
+    message: String,
 }
 
 #[derive(Serialize)]
@@ -624,8 +649,39 @@ struct TreeEntryJson {
 
 /// Run the tree command.
 pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
-    let workspace = WorkspaceCrates::discover(args.workspace)?;
-    let show_text = !args.output.is_json();
+    let output = args.output;
+    let link_mode = match TreeLinkMode::parse_arg(&args.link_mode) {
+        Ok(link_mode) => link_mode,
+        Err(error) if output.is_json() => {
+            output.print_json(&TreeJsonReport {
+                crates: Vec::new(),
+                error_count: 1,
+                errors: vec![TreeErrorJson {
+                    crate_name: "workspace".to_string(),
+                    message: error.to_string(),
+                }],
+            })?;
+            return Err(CliError::Exit(1));
+        },
+        Err(error) => return Err(error),
+    };
+
+    let workspace = match WorkspaceCrates::discover(args.workspace) {
+        Ok(workspace) => workspace,
+        Err(error) if output.is_json() => {
+            output.print_json(&TreeJsonReport {
+                crates: Vec::new(),
+                error_count: 1,
+                errors: vec![TreeErrorJson {
+                    crate_name: "workspace".to_string(),
+                    message: error.to_string(),
+                }],
+            })?;
+            return Err(CliError::Exit(1));
+        },
+        Err(error) => return Err(error),
+    };
+    let show_text = !output.is_json();
     let terminal_links = show_text && ui::Ui::terminal_links_enabled();
 
     if show_text {
@@ -633,23 +689,58 @@ pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
     }
 
     if workspace.crates.is_empty() {
-        if show_text {
-            ui::Ui::print_no_crates_found();
+        let message = workspace
+            .empty_selection_message()
+            .unwrap_or_else(|| "no crates with i18n.toml were found".to_string());
+        if output.is_json() {
+            output.print_json(&TreeJsonReport {
+                crates: Vec::new(),
+                error_count: 1,
+                errors: vec![TreeErrorJson {
+                    crate_name: "workspace".to_string(),
+                    message,
+                }],
+            })?;
+            return Err(CliError::Exit(1));
         }
-        return Ok(());
+        if show_text {
+            workspace.print_no_crates_found();
+        }
+        return Err(CliError::Exit(1));
     }
 
-    if args.output.is_json() {
-        let crates = workspace
-            .crates
-            .iter()
-            .map(|krate| build_crate_tree_json(krate, args.all))
-            .collect::<Result<Vec<_>>>()?;
-        args.output.print_json(&TreeJsonReport { crates })?;
-        return Ok(());
+    if output.is_json() {
+        let mut crates = Vec::new();
+        let mut errors = Vec::new();
+
+        for krate in &workspace.crates {
+            match build_crate_tree_json(krate, args.all, args.attributes, args.variables) {
+                Ok(tree) => crates.push(tree),
+                Err(error) => errors.push(TreeErrorJson {
+                    crate_name: krate.name.to_string(),
+                    message: relative_tree_message(
+                        &error.to_string(),
+                        &workspace.workspace_info.root_dir,
+                    ),
+                }),
+            }
+        }
+
+        let report = TreeJsonReport {
+            crates,
+            error_count: errors.len(),
+            errors,
+        };
+        output.print_json(&report)?;
+        return if report.error_count > 0 {
+            Err(CliError::Exit(1))
+        } else {
+            Ok(())
+        };
     }
 
-    let rust_link_indexes = collect_rust_link_indexes(&workspace, args.link_mode, terminal_links)?;
+    let rust_link_indexes =
+        collect_rust_link_indexes(&workspace, link_mode, terminal_links, args.all)?;
 
     for krate in &workspace.crates {
         print_crate_tree(
@@ -658,7 +749,7 @@ pub fn run_tree(args: TreeArgs) -> Result<(), CliError> {
             args.attributes,
             args.variables,
             terminal_links,
-            args.link_mode,
+            link_mode,
             rust_link_indexes.get(krate.name.as_str()),
         )?;
     }
@@ -670,16 +761,22 @@ fn collect_rust_link_indexes(
     workspace: &WorkspaceCrates,
     link_mode: TreeLinkMode,
     terminal_links: bool,
+    all_locales: bool,
 ) -> Result<HashMap<String, RustLinkIndex>, CliError> {
     if !terminal_links || link_mode != TreeLinkMode::Rust || workspace.valid.is_empty() {
         return Ok(HashMap::new());
     }
+    validate_tree_workspace_setup(workspace, all_locales)?;
 
     let runner_workspace = WorkspaceInfo {
         root_dir: workspace.workspace_info.root_dir.clone(),
         target_dir: workspace.workspace_info.target_dir.clone(),
         crates: workspace.valid.clone(),
     };
+
+    let _runner_lock =
+        crate::generation::acquire_monolithic_runner_lock(&runner_workspace.root_dir)
+            .map_err(|error| CliError::Other(error.to_string()))?;
 
     crate::generation::prepare_monolithic_runner_crate(&runner_workspace)
         .map_err(|error| CliError::Other(error.to_string()))?;
@@ -706,18 +803,49 @@ fn collect_rust_link_indexes(
     Ok(indexes)
 }
 
+fn validate_tree_workspace_setup(
+    workspace: &WorkspaceCrates,
+    all_locales: bool,
+) -> Result<(), CliError> {
+    for krate in &workspace.crates {
+        if let Some(error) = super::common::library_target_path_setup_error(krate) {
+            return Err(CliError::Other(error));
+        }
+        if let Some(error) = super::common::library_i18n_module_declaration_setup_error(krate) {
+            return Err(CliError::Other(error));
+        }
+
+        let ctx = LocaleContext::from_crate(krate, all_locales)
+            .map_err(|error| CliError::Other(format!("{}: {}", krate.name, error)))?;
+        validate_tree_locale_setup(&ctx, all_locales)
+            .map_err(|error| CliError::Other(format!("{}: {}", krate.name, error)))?;
+
+        for locale in &ctx.locales {
+            let locale_dir = ctx.locale_dir(locale);
+            validate_tree_locale_dir(locale, &locale_dir)
+                .map_err(|error| CliError::Other(format!("{}: {}", krate.name, error)))?;
+            CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
+                .discover_files()
+                .map_err(|error| CliError::Other(format!("{}: {}", krate.name, error)))?;
+        }
+    }
+
+    Ok(())
+}
+
 fn build_crate_tree_json(
     krate: &crate::core::CrateInfo,
     all_locales: bool,
+    include_attributes: bool,
+    include_variables: bool,
 ) -> Result<TreeCrateJson> {
     let ctx = LocaleContext::from_crate(krate, all_locales)?;
+    validate_tree_locale_setup(&ctx, all_locales)?;
     let mut locales = Vec::new();
 
     for locale in &ctx.locales {
         let locale_dir = ctx.locale_dir(locale);
-        if !locale_dir.exists() {
-            continue;
-        }
+        validate_tree_locale_dir(locale, &locale_dir)?;
 
         let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
             .discover_files()?;
@@ -727,6 +855,8 @@ fn build_crate_tree_json(
                 build_file_tree_json(
                     &file_info.relative_path.display().to_string(),
                     &file_info.abs_path,
+                    include_attributes,
+                    include_variables,
                 )
             })
             .collect::<Vec<_>>();
@@ -743,7 +873,108 @@ fn build_crate_tree_json(
     })
 }
 
-fn build_file_tree_json(relative_path: &str, abs_path: &Path) -> TreeFileJson {
+fn validate_tree_locale_dir(locale: &str, locale_dir: &Path) -> Result<()> {
+    match fs::symlink_metadata(locale_dir) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            anyhow::bail!(
+                "locale directory '{locale}' must be a real directory, not a symlink: {}",
+                locale_dir.display()
+            )
+        },
+        Ok(metadata) if metadata.is_dir() => Ok(()),
+        Ok(_) => {
+            anyhow::bail!(
+                "locale directory '{locale}' is missing or not a directory: {}",
+                locale_dir.display()
+            )
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            anyhow::bail!(
+                "locale directory '{locale}' is missing or not a directory: {}",
+                locale_dir.display()
+            )
+        },
+        Err(error) => Err(error).with_context(|| {
+            format!(
+                "failed to inspect locale directory '{locale}': {}",
+                locale_dir.display()
+            )
+        }),
+    }
+}
+
+fn validate_tree_locale_setup(ctx: &LocaleContext, all_locales: bool) -> Result<()> {
+    match fs::symlink_metadata(&ctx.assets_dir) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            anyhow::bail!(
+                "assets_dir must be a real directory, not a symlink: {}",
+                ctx.assets_dir.display()
+            );
+        },
+        Ok(metadata) if metadata.is_dir() => {},
+        Ok(_) => {
+            anyhow::bail!(
+                "assets_dir is missing or not a directory: {}",
+                ctx.assets_dir.display()
+            );
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            anyhow::bail!(
+                "assets_dir is missing or not a directory: {}",
+                ctx.assets_dir.display()
+            );
+        },
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!("failed to inspect assets_dir: {}", ctx.assets_dir.display())
+            });
+        },
+    }
+
+    let fallback_dir = ctx.locale_dir(&ctx.fallback);
+    validate_tree_locale_dir(&ctx.fallback, &fallback_dir)?;
+
+    if !all_locales {
+        return Ok(());
+    }
+
+    let issues = crate::ftl::locale_named_non_directory_paths(&ctx.assets_dir)?;
+    if let Some(issue) = issues.first() {
+        validate_tree_locale_dir(&issue.locale, &issue.path)?;
+    }
+
+    Ok(())
+}
+
+fn relative_tree_message(message: &str, base: &Path) -> String {
+    let base_canon = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
+    let base_canon = base_canon.display().to_string();
+    let base = base.display().to_string();
+    let mut normalized = replace_tree_path_prefix(message, &base_canon);
+    if base != base_canon {
+        normalized = replace_tree_path_prefix(&normalized, &base);
+    }
+    normalized
+}
+
+fn replace_tree_path_prefix(message: &str, base: &str) -> String {
+    if base.is_empty() {
+        return message.to_string();
+    }
+
+    let slash_prefix = format!("{base}/");
+    let separator_prefix = format!("{base}{}", std::path::MAIN_SEPARATOR);
+    message
+        .replace(&slash_prefix, "")
+        .replace(&separator_prefix, "")
+}
+
+fn build_file_tree_json(
+    relative_path: &str,
+    abs_path: &Path,
+    include_attributes: bool,
+    include_variables: bool,
+) -> TreeFileJson {
     let Ok(resource) = crate::ftl::parse_ftl_file(abs_path) else {
         return TreeFileJson {
             path: relative_path.to_string(),
@@ -759,39 +990,60 @@ fn build_file_tree_json(relative_path: &str, abs_path: &Path) -> TreeFileJson {
             ast::Entry::Message(message) => Some(TreeEntryJson {
                 id: message.id.name.clone(),
                 kind: "message",
-                attributes: message
-                    .attributes
-                    .iter()
-                    .map(|attribute| attribute.id.name.clone())
-                    .collect(),
-                variables: {
+                attributes: if include_attributes {
+                    message
+                        .attributes
+                        .iter()
+                        .map(|attribute| attribute.id.name.clone())
+                        .collect()
+                } else {
+                    Vec::new()
+                },
+                variables: if include_variables {
+                    let attributes = if include_attributes {
+                        message.attributes.as_slice()
+                    } else {
+                        &[]
+                    };
                     let mut variables = crate::ftl::extract_variables_from_value_and_attributes(
                         message.value.as_ref(),
-                        &message.attributes,
+                        attributes,
                     )
                     .into_iter()
                     .collect::<Vec<_>>();
                     variables.sort();
                     variables
+                } else {
+                    Vec::new()
                 },
             }),
             ast::Entry::Term(term) => Some(TreeEntryJson {
                 id: format!("-{}", term.id.name),
                 kind: "term",
-                attributes: term
-                    .attributes
-                    .iter()
-                    .map(|attribute| attribute.id.name.clone())
-                    .collect(),
-                variables: {
+                attributes: if include_attributes {
+                    term.attributes
+                        .iter()
+                        .map(|attribute| attribute.id.name.clone())
+                        .collect()
+                } else {
+                    Vec::new()
+                },
+                variables: if include_variables {
+                    let attributes = if include_attributes {
+                        term.attributes.as_slice()
+                    } else {
+                        &[]
+                    };
                     let mut variables = crate::ftl::extract_variables_from_value_and_attributes(
                         Some(&term.value),
-                        &term.attributes,
+                        attributes,
                     )
                     .into_iter()
                     .collect::<Vec<_>>();
                     variables.sort();
                     variables
+                } else {
+                    Vec::new()
                 },
             }),
             _ => None,
@@ -816,6 +1068,7 @@ fn print_crate_tree(
     rust_links: Option<&RustLinkIndex>,
 ) -> Result<()> {
     let ctx = LocaleContext::from_crate(krate, all_locales)?;
+    validate_tree_locale_setup(&ctx, all_locales)?;
     let renderer = TreeRenderer::new(
         show_attributes,
         show_variables,
@@ -828,16 +1081,10 @@ fn print_crate_tree(
 
     for locale in &ctx.locales {
         let locale_dir = ctx.locale_dir(locale);
-        if !locale_dir.exists() {
-            continue;
-        }
+        validate_tree_locale_dir(locale, &locale_dir)?;
 
         let ftl_files = CrateFtlLayout::from_assets_dir(&ctx.assets_dir, locale, &ctx.crate_name)
             .discover_files()?;
-
-        if ftl_files.is_empty() {
-            continue;
-        }
 
         let file_trees: Vec<Tree> = ftl_files
             .iter()
@@ -924,7 +1171,7 @@ mod tests {
         .expect("write i18n.toml");
         fs::write(
             temp.path().join("i18n/en/test-app.ftl"),
-            "hello = Hello { $name }\n-term = Term Value\n",
+            "hello = Hello { $name }\n    .title = Title { $name }\n-term = Term Value\n",
         )
         .expect("write main ftl");
         fs::write(
@@ -956,7 +1203,7 @@ mod tests {
         let default = TreeArgs::try_parse_from(["tree"]).expect("default tree args parse");
         assert!(default.attributes);
         assert!(default.variables);
-        assert_eq!(default.link_mode, TreeLinkMode::Rust);
+        assert_eq!(default.link_mode, "rust");
 
         let hidden = TreeArgs::try_parse_from(["tree", "--no-attributes", "--no-variables"])
             .expect("negative detail flags parse");
@@ -965,10 +1212,19 @@ mod tests {
 
         let ftl_links =
             TreeArgs::try_parse_from(["tree", "--link-mode", "ftl"]).expect("ftl link mode parses");
-        assert_eq!(ftl_links.link_mode, TreeLinkMode::Ftl);
+        assert_eq!(ftl_links.link_mode, "ftl");
 
         assert!(TreeArgs::try_parse_from(["tree", "--attributes"]).is_err());
         assert!(TreeArgs::try_parse_from(["tree", "--variables"]).is_err());
+    }
+
+    #[test]
+    fn tree_link_mode_parse_arg_rejects_invalid_values() {
+        assert_eq!(TreeLinkMode::parse_arg("rust").unwrap(), TreeLinkMode::Rust);
+        assert_eq!(TreeLinkMode::parse_arg("ftl").unwrap(), TreeLinkMode::Ftl);
+
+        let error = TreeLinkMode::parse_arg("bad").expect_err("bad mode should fail");
+        assert!(error.to_string().contains("invalid link mode 'bad'"));
     }
 
     #[test]
@@ -1143,6 +1399,22 @@ mod tests {
     }
 
     #[test]
+    fn hidden_attributes_do_not_contribute_visible_variables() {
+        let content = r#"button = Button { $label }
+    .tooltip = Tooltip { $tooltip }"#;
+        let resource = parse_ftl(content);
+        let msg = get_message(&resource, "button").unwrap();
+
+        let children =
+            renderer(false, true).build_entry_children(&msg.attributes, msg.value.as_ref());
+
+        assert_eq!(children.len(), 1);
+        let output = children[0].render_to_string();
+        assert!(output.contains("$label"));
+        assert!(!output.contains("$tooltip"));
+    }
+
+    #[test]
     fn test_build_file_tree_nonexistent() {
         let tree =
             renderer(false, false).build_file_tree("test.ftl", Path::new("/nonexistent/path.ftl"));
@@ -1283,7 +1555,7 @@ mod tests {
     }
 
     #[test]
-    fn run_tree_returns_ok_for_missing_package_filter() {
+    fn run_tree_errors_for_missing_package_filter() {
         let temp = create_workspace_with_tree_data();
         let result = run_tree(TreeArgs {
             workspace: WorkspaceArgs {
@@ -1293,16 +1565,48 @@ mod tests {
             all: false,
             attributes: false,
             variables: false,
-            link_mode: TreeLinkMode::Rust,
+            link_mode: "rust".to_string(),
             output: OutputFormat::Text,
         });
-        assert!(result.is_ok());
+        assert!(matches!(result, Err(CliError::Exit(1))));
+    }
+
+    #[test]
+    fn collect_rust_link_indexes_rejects_ftl_layout_before_runner_setup() {
+        let temp = crate::test_fixtures::create_test_crate_workspace();
+        let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+        fs::remove_file(&ftl_path).expect("remove ftl file");
+        fs::create_dir(&ftl_path).expect("create ftl directory");
+        fs::write(temp.path().join("src/lib.rs"), "this is not rust\n").expect("break Rust");
+        let workspace = WorkspaceCrates::discover(WorkspaceArgs {
+            path: Some(temp.path().to_path_buf()),
+            package: None,
+        })
+        .expect("discover workspace");
+
+        let error = collect_rust_link_indexes(&workspace, TreeLinkMode::Rust, true, false)
+            .expect_err("FTL layout should be rejected before Rust link collection");
+
+        assert!(error.to_string().contains("Expected FTL path"));
+        assert!(
+            !temp.path().join(".es-fluent").exists(),
+            "tree should reject invalid FTL paths before runner metadata"
+        );
+        assert!(
+            !temp.path().join("target").exists(),
+            "tree should reject invalid FTL paths before Cargo runs"
+        );
     }
 
     #[test]
     fn build_file_tree_json_reports_messages_terms_variables_and_parse_errors() {
         let temp = create_workspace_with_tree_data();
-        let valid = build_file_tree_json("test-app.ftl", &temp.path().join("i18n/en/test-app.ftl"));
+        let valid = build_file_tree_json(
+            "test-app.ftl",
+            &temp.path().join("i18n/en/test-app.ftl"),
+            true,
+            true,
+        );
 
         assert!(!valid.parse_error);
         assert_eq!(valid.path, "test-app.ftl");
@@ -1318,18 +1622,79 @@ mod tests {
 
         let invalid = temp.path().join("i18n/en/broken.ftl");
         fs::write(&invalid, "broken = {").expect("write invalid ftl");
-        let broken = build_file_tree_json("broken.ftl", &invalid);
+        let broken = build_file_tree_json("broken.ftl", &invalid, true, true);
         assert!(broken.parse_error);
         assert!(broken.entries.is_empty());
+    }
+
+    #[test]
+    fn build_file_tree_json_honors_attribute_and_variable_filters() {
+        let temp = create_workspace_with_tree_data();
+        fs::write(
+            temp.path().join("i18n/en/test-app.ftl"),
+            "hello = Hello { $name }\n    .title = Title { $title }\n-term = Term Value\n",
+        )
+        .expect("write ftl with distinct value and attribute variables");
+
+        let hidden = build_file_tree_json(
+            "test-app.ftl",
+            &temp.path().join("i18n/en/test-app.ftl"),
+            false,
+            false,
+        );
+
+        let hello = hidden
+            .entries
+            .iter()
+            .find(|entry| entry.id == "hello")
+            .expect("hello entry");
+        assert!(hello.attributes.is_empty());
+        assert!(hello.variables.is_empty());
+
+        let shown = build_file_tree_json(
+            "test-app.ftl",
+            &temp.path().join("i18n/en/test-app.ftl"),
+            true,
+            true,
+        );
+        let hello = shown
+            .entries
+            .iter()
+            .find(|entry| entry.id == "hello")
+            .expect("hello entry");
+        assert_eq!(hello.attributes, ["title"]);
+        assert_eq!(hello.variables, ["name", "title"]);
+
+        let hidden_attributes = build_file_tree_json(
+            "test-app.ftl",
+            &temp.path().join("i18n/en/test-app.ftl"),
+            false,
+            true,
+        );
+        let hello = hidden_attributes
+            .entries
+            .iter()
+            .find(|entry| entry.id == "hello")
+            .expect("hello entry");
+        assert!(hello.attributes.is_empty());
+        assert_eq!(hello.variables, ["name"]);
     }
 
     #[test]
     fn build_crate_tree_json_collects_locale_files_and_skips_missing_locales() {
         let temp = create_workspace_with_tree_data();
         fs::create_dir_all(temp.path().join("i18n/fr")).expect("create fr locale");
+        fs::create_dir_all(temp.path().join("i18n/en/unrelated")).expect("create unrelated dir");
+        fs::write(temp.path().join("i18n/en/other.ftl"), "other = Other\n")
+            .expect("write unrelated main ftl");
+        fs::write(
+            temp.path().join("i18n/en/unrelated/nested.ftl"),
+            "other-nested = Other nested\n",
+        )
+        .expect("write unrelated nested ftl");
         let krate = crate_info_from_temp(&temp);
 
-        let json = build_crate_tree_json(&krate, true).expect("tree json should build");
+        let json = build_crate_tree_json(&krate, true, true, true).expect("tree json should build");
 
         assert_eq!(json.name, "test-app");
         assert!(json.locales.iter().any(|locale| locale.locale == "en"));
@@ -1344,6 +1709,123 @@ mod tests {
                 .iter()
                 .any(|file| file.path.contains("test-app.ftl"))
         }));
+        let paths = json
+            .locales
+            .iter()
+            .flat_map(|locale| locale.files.iter().map(|file| file.path.as_str()))
+            .collect::<Vec<_>>();
+        assert!(
+            !paths.contains(&"other.ftl"),
+            "tree should ignore FTL files outside the crate layout"
+        );
+        assert!(
+            !paths.contains(&"unrelated/nested.ftl"),
+            "tree should ignore nested FTL files outside the crate layout"
+        );
+    }
+
+    #[test]
+    fn build_crate_tree_json_errors_when_fallback_locale_path_is_file() {
+        let temp = create_workspace_with_tree_data();
+        fs::remove_dir_all(temp.path().join("i18n/en")).expect("remove fallback locale");
+        fs::write(temp.path().join("i18n/en"), "not a directory\n").expect("write fallback file");
+        let krate = crate_info_from_temp(&temp);
+
+        let error = build_crate_tree_json(&krate, false, true, true)
+            .err()
+            .expect("fallback locale path as file should fail");
+
+        assert!(error.to_string().contains("locale directory 'en'"));
+        assert!(error.to_string().contains("not a directory"));
+    }
+
+    #[test]
+    fn build_crate_tree_json_all_errors_when_fallback_locale_is_missing() {
+        let temp = create_workspace_with_tree_data();
+        fs::remove_dir_all(temp.path().join("i18n/en")).expect("remove fallback locale");
+        fs::create_dir_all(temp.path().join("i18n/fr")).expect("create non-fallback locale");
+        fs::write(
+            temp.path().join("i18n/fr/test-app.ftl"),
+            "hello = Bonjour\n",
+        )
+        .expect("write non-fallback ftl");
+        let krate = crate_info_from_temp(&temp);
+
+        let error = build_crate_tree_json(&krate, true, true, true)
+            .err()
+            .expect("missing fallback locale should fail tree --all");
+
+        assert!(error.to_string().contains("locale directory 'en'"));
+        assert!(error.to_string().contains("missing or not a directory"));
+    }
+
+    #[test]
+    fn build_crate_tree_json_errors_when_assets_dir_path_is_file() {
+        let temp = create_workspace_with_tree_data();
+        fs::remove_dir_all(temp.path().join("i18n")).expect("remove assets dir");
+        fs::write(temp.path().join("i18n"), "not a directory\n").expect("write assets file");
+        let krate = crate_info_from_temp(&temp);
+
+        let error = build_crate_tree_json(&krate, false, true, true)
+            .err()
+            .expect("assets_dir path as file should fail");
+
+        assert!(error.to_string().contains("assets_dir"));
+        assert!(error.to_string().contains("not a directory"));
+    }
+
+    #[test]
+    fn build_crate_tree_json_all_errors_when_locale_named_asset_path_is_file() {
+        let temp = create_workspace_with_tree_data();
+        fs::write(temp.path().join("i18n/fr"), "not a directory\n").expect("write locale file");
+        let krate = crate_info_from_temp(&temp);
+
+        let error = build_crate_tree_json(&krate, true, true, true)
+            .err()
+            .expect("locale path as file should fail");
+
+        assert!(error.to_string().contains("locale directory 'fr'"));
+        assert!(error.to_string().contains("not a directory"));
+    }
+
+    #[test]
+    fn relative_tree_message_strips_workspace_paths_from_json_errors() {
+        let temp = create_workspace_with_tree_data();
+        let message = format!(
+            "locale directory 'fr' is missing or not a directory: {}",
+            temp.path().join("i18n/fr").display()
+        );
+
+        let normalized = relative_tree_message(&message, temp.path());
+
+        assert_eq!(
+            normalized,
+            "locale directory 'fr' is missing or not a directory: i18n/fr"
+        );
+    }
+
+    #[test]
+    fn run_tree_json_errors_use_workspace_relative_paths() {
+        let temp = create_workspace_with_tree_data();
+        fs::write(temp.path().join("i18n/fr"), "not a directory\n").expect("write locale file");
+        let workspace = WorkspaceCrates::discover(WorkspaceArgs {
+            path: Some(temp.path().to_path_buf()),
+            package: None,
+        })
+        .expect("discover workspace");
+        let krate = &workspace.crates[0];
+        let error = match build_crate_tree_json(krate, true, true, true) {
+            Ok(_) => panic!("locale path file should fail tree JSON"),
+            Err(error) => error,
+        };
+        let message = relative_tree_message(&error.to_string(), &workspace.workspace_info.root_dir);
+
+        assert!(message.contains("locale directory 'fr'"));
+        assert!(message.contains("i18n/fr"));
+        assert!(
+            !message.contains(temp.path().to_string_lossy().as_ref()),
+            "tree JSON errors should not include absolute temp paths: {message}"
+        );
     }
 
     #[test]
@@ -1358,7 +1840,7 @@ mod tests {
             all: true,
             attributes: true,
             variables: true,
-            link_mode: TreeLinkMode::Rust,
+            link_mode: "rust".to_string(),
             output: OutputFormat::Json,
         });
         assert!(json.is_ok());
@@ -1371,7 +1853,7 @@ mod tests {
             all: false,
             attributes: true,
             variables: true,
-            link_mode: TreeLinkMode::Ftl,
+            link_mode: "ftl".to_string(),
             output: OutputFormat::Text,
         });
         assert!(text.is_ok());

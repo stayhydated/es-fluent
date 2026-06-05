@@ -26,7 +26,7 @@ impl<'a> WatchRuntime<'a> {
         mode: &FluentParseMode,
     ) -> Self {
         let valid_crates: Vec<_> = crates.iter().filter(|krate| krate.has_lib_rs).collect();
-        let path_to_crate = super::events::build_path_to_crate(&valid_crates);
+        let path_to_crate = super::events::build_path_to_crate(&valid_crates, &workspace.root_dir);
         let mut crates_by_name = HashMap::new();
         let mut observed_hashes = HashMap::new();
 
@@ -43,9 +43,13 @@ impl<'a> WatchRuntime<'a> {
         }
 
         let (result_tx, result_rx) = crossbeam_channel::unbounded();
+        let runner_crates = valid_crates
+            .iter()
+            .map(|krate| (*krate).clone())
+            .collect::<Vec<_>>();
 
         Self {
-            workspace: Arc::new(workspace.clone()),
+            workspace: Arc::new(super::workspace_for_crates(workspace, &runner_crates)),
             mode: *mode,
             valid_crates,
             crates_by_name,

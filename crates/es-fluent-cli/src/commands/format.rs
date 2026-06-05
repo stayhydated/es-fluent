@@ -20,7 +20,7 @@ pub struct FormatArgs {
     #[command(flatten)]
     pub workspace: WorkspaceArgs,
 
-    /// Format all locales, not just the fallback language.
+    /// Format all discovered locale directories, not just the fallback language.
     #[arg(long)]
     pub all: bool,
 
@@ -80,10 +80,12 @@ impl FormatResult {
 
 #[derive(Serialize)]
 struct FormatJsonReport {
+    dry_run: bool,
     formatted_count: usize,
     unchanged_count: usize,
     error_count: usize,
     files: Vec<FormatFileJson>,
+    errors: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -95,16 +97,49 @@ struct FormatFileJson {
 
 /// Run the format command.
 pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
-    let workspace = WorkspaceCrates::discover(args.workspace)?;
-    let show_text = !args.output.is_json();
+    let output = args.output;
+    let workspace = match WorkspaceCrates::discover(args.workspace) {
+        Ok(workspace) => workspace,
+        Err(error) => {
+            if output.is_json() {
+                output.print_json(&FormatJsonReport {
+                    dry_run: args.dry_run,
+                    formatted_count: 0,
+                    unchanged_count: 0,
+                    error_count: 1,
+                    files: Vec::new(),
+                    errors: vec![error.to_string()],
+                })?;
+                return Err(CliError::Exit(1));
+            }
+            return Err(error);
+        },
+    };
+    let show_text = !output.is_json();
 
     if show_text && !workspace.print_discovery(ui::Ui::print_format_header) {
-        return Ok(());
+        return workspace.require_non_empty_selection();
+    }
+
+    if let Err(error) = workspace.require_non_empty_selection() {
+        if output.is_json() {
+            output.print_json(&FormatJsonReport {
+                dry_run: args.dry_run,
+                formatted_count: 0,
+                unchanged_count: 0,
+                error_count: 1,
+                files: Vec::new(),
+                errors: vec![error.to_string()],
+            })?;
+            return Err(CliError::Exit(1));
+        }
+        return Err(error);
     }
 
     let mut total_formatted = 0;
     let mut total_unchanged = 0;
     let mut errors: Vec<FormatError> = Vec::new();
+    let mut json_errors: Vec<String> = Vec::new();
     let mut files = Vec::new();
 
     let pb = if show_text {
@@ -115,16 +150,32 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
 
     for krate in &workspace.crates {
         pb.set_message(format!("Formatting {}", krate.name));
-        let results = format_crate(krate, args.all, args.dry_run)?;
+        let results = match format_crate(krate, args.all, args.dry_run) {
+            Ok(results) => results,
+            Err(error) => {
+                if output.is_json() {
+                    let message = relative_format_message(
+                        &error.to_string(),
+                        &workspace.workspace_info.root_dir,
+                    );
+                    json_errors.push(format!("{}: {}", krate.name, message));
+                    pb.inc(1);
+                    continue;
+                }
+                return Err(CliError::Other(error.to_string()));
+            },
+        };
 
         for result in results {
+            let json_path = relative_format_path(&result.path, &workspace.workspace_info.root_dir);
             files.push(FormatFileJson {
-                path: result.path.display().to_string(),
+                path: json_path.clone(),
                 changed: result.changed,
                 error: result.error.clone(),
             });
 
             if let Some(error) = result.error {
+                json_errors.push(format!("{json_path}: {error}"));
                 errors.push(FormatError {
                     path: result.path,
                     help: error,
@@ -156,14 +207,17 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     }
     pb.finish_and_clear();
 
-    if args.output.is_json() {
-        args.output.print_json(&FormatJsonReport {
+    if output.is_json() {
+        let error_count = json_errors.len();
+        output.print_json(&FormatJsonReport {
+            dry_run: args.dry_run,
             formatted_count: total_formatted,
             unchanged_count: total_unchanged,
-            error_count: errors.len(),
+            error_count,
             files,
+            errors: json_errors,
         })?;
-        if !errors.is_empty() {
+        if error_count > 0 {
             return Err(CliError::Exit(1));
         }
         return Ok(());
@@ -188,6 +242,44 @@ pub fn run_format(args: FormatArgs) -> Result<(), CliError> {
     }
 }
 
+fn relative_format_path(path: &Path, base: &Path) -> String {
+    let path_canon = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let base_canon = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
+
+    if let Ok(rel) = path_canon.strip_prefix(&base_canon) {
+        return rel.display().to_string();
+    }
+
+    if let Ok(rel) = path.strip_prefix(base) {
+        return rel.display().to_string();
+    }
+
+    path.display().to_string()
+}
+
+fn relative_format_message(message: &str, base: &Path) -> String {
+    let base_canon = std::fs::canonicalize(base).unwrap_or_else(|_| base.to_path_buf());
+    let base_canon = base_canon.display().to_string();
+    let base = base.display().to_string();
+    let mut normalized = replace_format_path_prefix(message, &base_canon);
+    if base != base_canon {
+        normalized = replace_format_path_prefix(&normalized, &base);
+    }
+    normalized
+}
+
+fn replace_format_path_prefix(message: &str, base: &str) -> String {
+    if base.is_empty() {
+        return message.to_string();
+    }
+
+    let slash_prefix = format!("{base}/");
+    let separator_prefix = format!("{base}{}", std::path::MAIN_SEPARATOR);
+    message
+        .replace(&slash_prefix, "")
+        .replace(&separator_prefix, "")
+}
+
 /// Format all FTL files for a crate.
 pub(crate) fn format_crate(
     krate: &CrateInfo,
@@ -195,12 +287,53 @@ pub(crate) fn format_crate(
     check_only: bool,
 ) -> Result<Vec<FormatResult>> {
     let ctx = LocaleContext::from_crate(krate, all_locales)?;
+    if !ctx.assets_dir.is_dir() {
+        return Ok(vec![FormatResult::error(
+            &ctx.assets_dir,
+            format!(
+                "assets_dir for {} is missing or not a directory",
+                krate.name
+            ),
+        )]);
+    }
+
+    let fallback_dir = ctx.locale_dir(&ctx.fallback);
+    if !fallback_dir.is_dir() {
+        return Ok(vec![FormatResult::error(
+            &fallback_dir,
+            format!(
+                "fallback locale directory '{}' is missing or not a directory",
+                ctx.fallback
+            ),
+        )]);
+    }
 
     let mut results = Vec::new();
 
+    if all_locales {
+        match crate::ftl::locale_named_non_directory_paths(&ctx.assets_dir) {
+            Ok(issues) => {
+                results.extend(issues.into_iter().map(|issue| {
+                    FormatResult::error(
+                        &issue.path,
+                        format!(
+                            "locale directory '{}' is missing or not a directory",
+                            issue.locale
+                        ),
+                    )
+                }));
+            },
+            Err(error) => results.push(FormatResult::error(&ctx.assets_dir, error.to_string())),
+        }
+    }
+
     for locale in &ctx.locales {
         let locale_dir = ctx.locale_dir(locale);
-        if !locale_dir.exists() {
+        if !locale_dir.is_dir() {
+            results.push(FormatResult::error(
+                &locale_dir,
+                format!("locale directory '{locale}' is missing or not a directory"),
+            ));
             continue;
         }
 
@@ -393,7 +526,7 @@ mod tests {
     }
 
     #[test]
-    fn run_format_returns_ok_when_package_filter_matches_nothing() {
+    fn run_format_errors_when_package_filter_matches_nothing() {
         let temp = tempfile::tempdir().expect("tempdir");
         write_workspace_files(temp.path());
         write_test_crate(temp.path());
@@ -408,7 +541,67 @@ mod tests {
             output: OutputFormat::Text,
         });
 
-        assert!(result.is_ok());
+        assert!(
+            matches!(result, Err(CliError::Other(message)) if message.contains("missing-package"))
+        );
+    }
+
+    #[test]
+    fn format_crate_errors_when_fallback_locale_path_is_file() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let krate = write_test_crate(temp.path());
+        let fallback_dir = temp.path().join("i18n/en");
+        std::fs::remove_dir_all(&fallback_dir).expect("remove fallback dir");
+        std::fs::write(&fallback_dir, "not a directory\n").expect("write fallback file");
+
+        let results = format_crate(&krate, false, false).expect("format crate");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, fallback_dir);
+        assert!(
+            results[0]
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("not a directory"))
+        );
+    }
+
+    #[test]
+    fn format_crate_errors_when_assets_dir_path_is_file() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let krate = write_test_crate(temp.path());
+        let assets_dir = temp.path().join("i18n");
+        std::fs::remove_dir_all(&assets_dir).expect("remove assets dir");
+        std::fs::write(&assets_dir, "not a directory\n").expect("write assets file");
+
+        let results = format_crate(&krate, false, false).expect("format crate");
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].path, assets_dir);
+        assert!(
+            results[0]
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("assets_dir for test-app"))
+        );
+    }
+
+    #[test]
+    fn format_crate_all_reports_locale_named_asset_path_as_file() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let krate = write_test_crate(temp.path());
+        let locale_file = temp.path().join("i18n/fr");
+        std::fs::write(&locale_file, "not a directory\n").expect("write locale file");
+
+        let results = format_crate(&krate, true, false).expect("format crate");
+
+        let error = results
+            .iter()
+            .find(|result| result.path == locale_file)
+            .and_then(|result| result.error.as_deref())
+            .expect("locale file should be reported as an error");
+        assert!(error.contains("locale directory 'fr'"));
+        assert!(error.contains("not a directory"));
     }
 
     #[test]
@@ -435,6 +628,34 @@ mod tests {
                 .error
                 .as_deref()
                 .is_some_and(|error| error.contains("Refusing to format file with parse errors"))
+        );
+    }
+
+    #[test]
+    fn relative_format_path_strips_workspace_paths_for_json() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let ftl_path = temp.path().join("i18n/en/test-app.ftl");
+        std::fs::create_dir_all(ftl_path.parent().expect("ftl parent")).expect("create ftl parent");
+        std::fs::write(&ftl_path, "hello = Hello\n").expect("write ftl");
+
+        let relative = relative_format_path(&ftl_path, temp.path());
+
+        assert_eq!(relative, "i18n/en/test-app.ftl");
+    }
+
+    #[test]
+    fn relative_format_message_strips_workspace_paths_for_json_errors() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let message = format!(
+            "Expected FTL path to be a file: {}",
+            temp.path().join("i18n/en/test-app.ftl").display()
+        );
+
+        let normalized = relative_format_message(&message, temp.path());
+
+        assert_eq!(
+            normalized,
+            "Expected FTL path to be a file: i18n/en/test-app.ftl"
         );
     }
 

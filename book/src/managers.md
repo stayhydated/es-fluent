@@ -164,14 +164,21 @@ Dioxus integration for `es-fluent` using Dioxus `asset!` loading.
 
 Enable the runtime surface your crate uses:
 
+Client apps:
+
 ```toml
-# Client apps
 es-fluent-manager-dioxus = { version = "0.7", features = ["client"] }
+```
 
-# SSR
+Server-side rendering:
+
+```toml
 es-fluent-manager-dioxus = { version = "0.7", features = ["ssr"] }
+```
 
-# Fullstack or static rendering that uses both paths
+Fullstack or static rendering that uses both paths:
+
+```toml
 es-fluent-manager-dioxus = { version = "0.7", features = ["client", "ssr"] }
 ```
 

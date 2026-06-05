@@ -1,0 +1,66 @@
+## GenderLabelOnly
+
+gender_label_only_label = Genre (étiquette uniquement)
+
+## LoginFormCombined
+
+login_form_combined_label = Formulaire de connexion combiné
+
+## GenderChoice
+
+gender_choice-Female = Femme
+gender_choice-Male = Homme
+gender_choice-Other = Autre
+
+## Greeting
+
+greeting =
+    { $gender ->
+        [male] Bienvenue M. { $name }
+        [female] Bienvenue Mme { $name }
+       *[other] Bienvenue { $name }
+    }
+
+## LoginError
+
+login_error-InvalidPassword = Mot de passe incorrect
+login_error-Something = Quelque chose { $f0 } { $f1 } { $f2 }
+login_error-SomethingArgNamed = Quelque chose avec arguments nommés { $input } { $expected } { $details }
+login_error-UserNotFound = Utilisateur introuvable { $username }
+
+## LoginFormCombinedDescriptionVariants
+
+login_form_combined_description_variants_label = Variantes de description du formulaire de connexion combiné
+login_form_combined_description_variants-password = Mot de passe
+login_form_combined_description_variants-username = Nom d'utilisateur
+
+## LoginFormCombinedLabelVariants
+
+login_form_combined_label_variants_label = Variantes de libellé du formulaire de connexion combiné
+login_form_combined_label_variants-password = Mot de passe
+login_form_combined_label_variants-username = Nom d'utilisateur
+
+## LoginFormVariantsDescriptionVariants
+
+login_form_variants_description_variants-password = Mot de passe
+login_form_variants_description_variants-username = Nom d'utilisateur
+
+## LoginFormVariantsLabelVariants
+
+login_form_variants_label_variants-password = Mot de passe
+login_form_variants_label_variants-username = Nom d'utilisateur
+
+## NetworkError
+
+network_error-ApiUnavailable = API indisponible
+
+## SettingsTabVariants
+
+settings_tab_variants-General = Général
+# es-fluent: same-as-fallback
+settings_tab_variants-Notifications = Notifications
+settings_tab_variants-Privacy = Confidentialité
+
+## WelcomeMessage
+
+welcome_message = Bienvenue { $name } { $count }

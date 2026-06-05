@@ -11,6 +11,12 @@ and manages the corresponding FTL translation files for you.
 cargo install es-fluent-cli --locked
 ```
 
+This book uses Cargo's subcommand form, `cargo es-fluent <COMMAND>`. The
+installed binary also accepts direct invocation as
+`cargo-es-fluent <COMMAND>`, so `cargo-es-fluent --help`,
+`cargo-es-fluent generate --help`, and `cargo-es-fluent help generate` show the
+same command surface as `cargo es-fluent --help`.
+
 ## Configuration
 
 The CLI reads your `i18n.toml` (see [Getting Started](getting_started.md)) to locate FTL assets. Make sure it exists in your crate root:
@@ -19,7 +25,8 @@ The CLI reads your `i18n.toml` (see [Getting Started](getting_started.md)) to lo
 # Default fallback language (required)
 fallback_language = "en"
 
-# Path to FTL assets relative to the config file (required)
+# Path to FTL assets relative to the crate root; must stay inside the crate
+# and must not use existing symlinked path components or locale targets (required)
 assets_dir = "assets/locales"
 
 # Features to enable if the crate's es-fluent derives are gated behind a feature (optional)
@@ -32,11 +39,40 @@ namespaces = ["ui", "errors", "messages"]
 check_fallback_copies = false
 ```
 
+Locale directory names and locale arguments must use canonical BCP-47 tags.
+Deprecated aliases such as `iw` and `src` are rejected; use canonical
+replacements such as `he` and `sc`.
+
 ### Common Workspace Options
 
-Every command accepts `--path <PATH>`/`-p <PATH>` to choose a crate or workspace
-root instead of the current directory, and `--package <NAME>`/`-P <NAME>` to
-process one package from a workspace.
+Commands accept `--path <PATH>`/`-p <PATH>` to choose an existing root,
+manifest, or path inside a crate instead of the current directory. The path
+value must not be empty or only whitespace;
+omit `--path` to use the current directory. `init` must target a package crate
+root or that package's `Cargo.toml`; virtual workspace roots and manifests are
+rejected, and `init` does not accept `--package`. For non-`init` commands, workspace-root
+`--path` values process all configured crates when they point to a workspace
+root or its `Cargo.toml`, but default to the selected member when `--path` is a
+workspace member root, that member's `Cargo.toml`, or a path inside one. If
+that path includes a symlink inside a member, the member is selected from the
+path you passed rather than from the symlink target. Use
+`--package <NAME>`/`-P <NAME>` with non-`init` commands to process a specific
+configured package from a workspace. `--package` is workspace-wide: when it is
+present, it selects the named configured package even if `--path` points inside
+a different workspace member. The package filter must not be empty or only
+whitespace; surrounding whitespace is trimmed, and you can omit `--package` to
+process the default selection. If the selected member or workspace subdirectory
+has no `i18n.toml`, the command sees an empty es-fluent selection rather than
+falling back to sibling crates. `generate`,
+`watch`, `clean`, `fmt`, `sync`, `add-locale`, `tree`, and `status` exit
+non-zero when `--package` matches no configured crate, so package-filter typos
+do not look successful. `check` and `doctor` report that case as a workspace
+warning and still exit successfully unless they find an actual issue.
+Filtered commands discover and parse only the selected package or member, so an
+invalid `i18n.toml` in an unselected sibling does not block the run.
+Runner-backed filtered commands also link only the selected package, so
+unrelated workspace crates do not need to compile for a package-scoped run.
+Workspace-root runs still parse every configured workspace crate.
 
 ## Commands
 
@@ -48,34 +84,63 @@ For a new crate, scaffold the standard files first:
 cargo es-fluent init
 ```
 
-This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
-`pub mod i18n;` declaration in `src/lib.rs`. Use `--manager dioxus` or
-`--manager bevy` to scaffold those manager imports instead of the embedded
-manager. Use `--build-rs` when the crate uses manager macros and should rebuild
-when locale files are added, removed, or renamed. For Dioxus manifests,
+This creates `i18n.toml`, `assets/locales/en/`, an `i18n.rs` module next to the
+crate's library target, and a `pub mod i18n;` declaration in that library file.
+In a Cargo workspace, run `init` inside the member crate or pass
+`--path <member-crate>` or `--path <member-crate>/Cargo.toml`; virtual workspace
+roots and manifests are rejected because they do not have a package library
+target to update.
+Plain `init` can scaffold missing es-fluent files in an existing Cargo package
+directory, but it does not create `Cargo.toml`; the target must already have a
+readable, parseable manifest with a `[package]` table.
+By default the library file is `src/lib.rs`; if `Cargo.toml` declares a
+custom `[lib].path`, `init` uses that path instead. The chosen library path
+must remain inside the crate root, resolve to a source file rather than a
+directory, must not use existing symlinked path components, and must not itself
+be the generated `i18n.rs` module path. Use
+`--manager dioxus` or `--manager bevy` to scaffold those manager imports
+instead of the embedded manager. Use
+`--build-rs` when the crate uses manager macros and should rebuild when locale
+files are added, removed, or renamed. `--build-rs` creates or updates
+`build.rs`; existing build-script logic is preserved when `init` can add the
+tracking call to `fn main`. If an existing `build.rs` has no updatable
+`fn main`, `init` reports the manual edit instead of overwriting it, even with
+`--force`. For Dioxus manifests,
 `--dioxus-runtime client`, `--dioxus-runtime ssr`, or
-`--dioxus-runtime client,ssr` selects which manager features are added by
-`--update-cargo-toml`; omitting it enables both. When `--build-rs` and
-`--update-cargo-toml` are used together, `init` also adds `es-fluent-build`
-under `[build-dependencies]`.
+`--dioxus-runtime "client, ssr"` selects which manager features are added by
+`--update-cargo-toml`; passing `--dioxus-runtime` requires
+`--manager dioxus` and `--update-cargo-toml`. Omitting `--dioxus-runtime`
+enables both. When
+`--build-rs` and `--update-cargo-toml` are used together, `init` also adds
+`es-fluent-build` under `[build-dependencies]`.
 
-`init` creates a library target because CLI inventory collection reads library
-targets. Put derived message types in `src/lib.rs` or another library crate;
-binary-only derived types in `src/main.rs` are not discovered by `generate`.
+`init` creates or updates the crate's library target because CLI inventory
+collection reads library targets. Put derived message types in that library
+file or another library crate; binary-only derived types in `src/main.rs` are
+not discovered by `generate`. If the library already defines an inline
+`mod i18n { ... }`, move that module to the generated `i18n.rs` path or remove
+it before running `init`. Existing external `i18n` declarations must be public;
+change `mod i18n;` or `pub(crate) mod i18n;` to `pub mod i18n;` before running
+`init`.
 
 Useful options:
 
 - `--fallback-language <LANG>`: choose the fallback locale directory and config value.
-- `--locales <LANG>`: create additional locale directories, repeatable or comma-separated.
-- `--assets-dir <PATH>`: choose the locale asset directory relative to the crate root.
-- `--namespaces <NAME>`: write a namespace allowlist into `i18n.toml`, repeatable or comma-separated.
-- `--dioxus-runtime <client|ssr>`: choose Dioxus manager features, repeatable or comma-separated.
-- `--update-cargo-toml`: add the matching `es-fluent`, manager, and `unic-langid` dependencies.
+- `--locales <LANG>`: create additional non-fallback locale directories, repeatable or comma-separated; quote comma lists that include spaces, such as `--locales "fr-FR, zh-CN"`; values must not include the fallback locale.
+- `--assets-dir <PATH>`: choose the locale asset directory relative to the crate root; it must stay inside the crate, existing path components must not be symlinks, and existing locale directory targets reused by `init` must be real directories rather than symlinks. Passing `.` is accepted and creates locale directories such as `./en` directly under the crate root; all-locale scans then process canonical locale directories, ignore common project directories such as `src`, `target`, `bin`, and `lib`, and still report noncanonical locale-looking names such as `en-us`. `init`, `sync --create`, and `add-locale` reject newly created locale names that match those ignored project directories when `--assets-dir .` is used; for `init`, this includes the fallback locale directory. Explicit `--locale <LANG>` targets can still use an existing ignored-name directory; use a dedicated asset directory instead of `.` if you need `--all` to process such a locale.
+- `--namespaces <NAME>`: write a namespace allowlist into `i18n.toml`, repeatable or comma-separated; quote comma lists that include spaces, such as `--namespaces "ui, errors"`.
+- `--dioxus-runtime <client|ssr>`: choose Dioxus manager features, repeatable or comma-separated; quote comma lists that include spaces, such as `--dioxus-runtime "client, ssr"`; requires `--manager dioxus` and `--update-cargo-toml`.
+- `--update-cargo-toml`: add missing `es-fluent`, manager, and `unic-langid` dependency entries; existing dependency entries are preserved and their version requirements are not replaced. The package `Cargo.toml` must be a real file, not a symlink.
+- `--build-rs`: create or update `build.rs` with locale asset rebuild tracking for manager macros.
 - `--dry-run`: preview files and manifest updates without writing them.
-- `--force`: overwrite generated files that already exist.
+- `--force`: overwrite existing `i18n.toml` and i18n module scaffold targets; existing `build.rs` files are only patched when `init` can safely add the tracking call.
 
-Before writing anything, `init` checks generated-file conflicts, directory
-targets, and `Cargo.toml` parseability when manifest updates are requested.
+Comma-separated list options are trimmed, empty entries are rejected, and
+duplicate additional-locale, namespace, and Dioxus runtime values are ignored
+in generated output.
+
+Before writing anything, `init` checks that the target is a Cargo package root,
+then checks scaffold-file conflicts and directory targets.
 
 ### Generate
 
@@ -88,7 +153,7 @@ cargo es-fluent generate
 This will:
 
 1. Collect derive inventory registrations from workspace library targets.
-1. Update `assets_dir/en/{your_crate}.ftl` (and `assets_dir/en/{your_crate}/{namespace}.ftl` for [namespaced](namespaces.md) types).
+1. Update `assets_dir/{fallback}/{your_crate}.ftl` (and `assets_dir/{fallback}/{your_crate}/{namespace}.ftl` for [namespaced](namespaces.md) types).
    - **New items**: Added as new messages.
    - **Changed items**: Variables updated (e.g. if you added a field).
    - **Existing translations**: Preserved untouched.
@@ -96,59 +161,148 @@ This will:
 Use `--mode conservative` to merge generated keys while preserving manual-only
 entries and existing translations. This is the default. Use `--mode aggressive`
 when you want generated files rebuilt from the current Rust inventory.
+Missing output directories are created when generation writes files, but
+existing path components leading to `assets_dir` and the fallback locale must be
+real directories, not symlinks; files such as `i18n` or `i18n/en` are reported
+as setup errors before runner metadata or Cargo build output is prepared.
+Existing fallback `.ftl` output paths, such as `i18n/en/my-crate.ftl`, must be
+real files, not symlinks; directory-valued FTL paths are rejected before runner
+metadata or Cargo build output is prepared.
+For crates with a custom `[lib].path`, existing library target path components
+must be real in-crate paths, not symlinks; symlinked or escaping library target
+paths are reported before runner metadata or Cargo build output is prepared.
+If a generated `i18n.rs` module exists, runner-backed generation also requires
+that path to be a real file and the library target to declare it with
+`pub mod i18n;`; symlinked or non-file module paths, inline `mod i18n { ... }`
+definitions, non-public declarations, and missing declarations are reported
+before runner metadata or Cargo build output is prepared.
 
-Use `--dry-run` to preview changes without writing them. Use `--force-run` to bypass the staleness cache and run the generated runner through Cargo.
+Use `--dry-run` to preview locale-file changes without editing FTL files. Like
+`status`, runner-backed dry runs may still prepare `.es-fluent` metadata and
+Cargo build output while collecting Rust inventory. If `.es-fluent` already
+exists, it and existing entries below it must be real paths, not symlinks,
+because runner-backed commands rewrite files there. Concurrent runner-backed
+commands for the same workspace serialize access to that shared `.es-fluent`
+runner cache. A dry run that previews pending generation work exits
+successfully; use `status` or `check` when a script should fail on pending
+generated FTL changes. Use `--force-run` to bypass the staleness cache and run
+the generated runner through Cargo.
 
 Literal string namespaces are checked as safe relative namespace paths at compile time. If you configure `namespaces = [...]` in `i18n.toml`, string-based namespaces are validated against the allowlist by both the compiler and the CLI during `generate` and `watch`.
 
 ### Watch
 
-Same as `generate`, but runs in watch mode — updating FTL files as you type:
+Run the generation step in a TUI and keep regenerating when Rust source,
+crate-local `Cargo.toml`, crate-local `build.rs`, crate-local `i18n.toml`,
+or the workspace root `Cargo.toml` or `Cargo.lock` changes:
 
 ```sh
 cargo es-fluent watch
 ```
 
 `watch` accepts the same `--mode conservative|aggressive` option as
-`generate`.
+`generate`, but it does not accept `--dry-run` or `--force-run` and always
+writes generation output. The same generation path setup checks apply before
+the TUI opens. File-valued paths such as `i18n` or `i18n/en`,
+directory-valued fallback `.ftl` paths, and invalid generated `i18n.rs` module
+setup are rejected before runner metadata is prepared. Changes to `.ftl` files
+are ignored so generated writes do not trigger a loop. For crates whose library
+target lives at the crate root, top-level `.es-fluent` and `target` output is
+also ignored.
 
 ### Check
 
-Verify that all your translations are valid and no keys are missing:
+Validate locale setup and ensure your FTL files match Rust-derived keys and variables:
 
 ```sh
 cargo es-fluent check
 ```
 
-Use `--all` to check all locales, not just the fallback language. Use
-`--ignore <CRATE>` to skip specific crates; it can be repeated or passed as a
-comma-separated list. Use `--force-run` to bypass the staleness cache. Use
-`--no-fallback-copy-check` to disable untranslated fallback-copy warnings for
-this run.
+Use `--all` to check all discovered locale directories, not just the fallback
+language. Use `--ignore <CRATE>` to skip specific crates; it can be repeated or
+passed as a comma-separated list. Quote comma lists that include spaces, such
+as `--ignore "api, web"`. Empty comma entries, such as `--ignore api,`, are
+rejected. Use `--force-run` to bypass the staleness cache.
+Fallback-copy warnings are only produced by `--all`; pass
+`--no-fallback-copy-check` on an all-locale run to disable them for that run.
+Passing `--no-fallback-copy-check` without `--all` is rejected before workspace
+discovery and is reported as a command error in JSON output.
 FTL variables that are not declared by Rust code are reported as errors.
 Rust-declared variables omitted by a translation are reported as warnings; any
 reported validation issue makes `check` exit non-zero for CI enforcement.
+Crates with `i18n.toml` but no Cargo library target are reported as validation
+errors because the CLI inventory runner cannot collect derives from them.
 When `--all` checks non-fallback locales, messages that are still identical to
 the fallback locale are reported as untranslated warnings. If a value is
 intentionally invariant, such as a product name or keyboard key, add
-`# es-fluent: same-as-fallback` immediately before that message, or set
+`# es-fluent: same-as-fallback` before that message. The marker applies to the
+next message entry in that file, so blank lines or additional `#` comments
+between the marker and message do not cancel it. You can also set
 `check_fallback_copies = false` in `i18n.toml` for that crate.
+With `--all`, `check` also reports orphaned FTL files in discovered
+non-fallback locales as errors when those files have no matching file in the
+fallback locale; valid crates can still report orphaned files when another
+selected crate has setup errors.
+Setup validation runs even without `--all`: `check` also reports setup errors
+such as a missing or file-valued `assets_dir`, a missing, file-valued, or
+symlinked fallback locale directory, locale-looking asset paths that are files
+or symlinks instead of real directories,
+directory-valued FTL paths such as
+`my-crate.ftl`, and non-canonical locale directory names like `i18n/en-us`.
+It also reports symlinked or escaping Cargo library target paths, generated
+`i18n.rs` paths that are symlinks or not files, and library `i18n`
+declarations that are inline, non-public, or missing when a generated module
+file exists. Crates with setup errors are reported before runner
+collection for those crates; if every selected crate has setup errors, `check`
+exits with those validation errors without preparing `.es-fluent` runner
+metadata or Cargo build output. Setup-invalid crates are excluded from the
+temporary runner crate, so unrelated Rust compile errors in those crates do not
+hide valid-crate validation issues. JSON `crates_checked` counts only crates
+that reached inventory collection and FTL validation.
+In JSON mode, discovery, command-level, and validation failures are reported in
+the `issues` list and the command exits non-zero when any issue is present.
+Command-level failures, such as an unknown crate passed to `--ignore`, use
+`kind: "command_error"`. File paths in issue help text are workspace-relative
+when they are under the selected workspace root.
+If package filters or `--ignore` leave no crates to validate, `check` reports
+that as a workspace warning instead of a validation issue and exits
+successfully.
+After at least one configured crate is selected, names passed to `--ignore` are
+validated against configured crates in the workspace, even when `--package`
+narrows the crates being checked. If `--package` matches no configured crate,
+`check` reports that package-filter warning before validating `--ignore`.
 For namespaced types, `check` validates the expected namespace file, so a key
 in `{crate}.ftl` still reports as missing when the Rust type belongs in
 `{crate}/{namespace}.ftl`.
 
 ### Clean
 
-Remove orphan keys and groups that are absent from your source code:
+Remove stale generated keys and groups that are absent from your source code:
 
 ```sh
 cargo es-fluent clean
 ```
 
-Use `--dry-run` to preview changes without writing them. Use `--all` to clean all locales. Use `--force-run` to bypass the staleness cache.
+Use `--dry-run` to preview locale-file changes without editing FTL files. Like
+`status`, runner-backed dry runs may still prepare `.es-fluent` metadata and
+Cargo build output while collecting Rust inventory. Use `--all` to clean all
+discovered locale directories. Use `--force-run` to bypass the staleness cache.
 `clean --all` only targets canonical locale directories from the configured
 `assets_dir`; invalid or non-canonical locale directory names are reported and
 left unchanged.
+`clean --all` also removes orphaned FTL files in non-fallback locales when the
+file has no matching file in the fallback locale.
+Because of that orphan-file scan, `clean --all` verifies non-fallback locale
+paths before runner-backed clean starts.
+Locale-looking asset paths must be real directories, not symlinks; files such
+as `i18n/fr` are reported as setup errors instead of being skipped.
+Existing `assets_dir` and fallback locale paths must also be real directories,
+not symlinks; files such as `i18n` or `i18n/en` are reported as setup errors
+before clean runs.
+Existing fallback `.ftl` paths must be real files, not symlinks;
+directory-valued FTL paths are reported before runner-backed clean starts.
+Runner-backed clean uses the same generated `i18n.rs` module setup checks as
+generation before runner metadata or Cargo build output is prepared.
 
 When the main crate file has zero non-namespaced registered Rust types, `clean`
 deletes that stale main file. When a namespaced file has zero registered Rust
@@ -157,15 +311,48 @@ cleaned so discovery metadata stays in sync with code.
 
 #### Clean Orphaned Files
 
-Remove FTL files that are not tied to any registered types (e.g., when every item is namespaced or the crate was deleted):
+Run an explicit orphan-file scan for non-fallback locales after the normal clean
+request:
 
 ```sh
-cargo es-fluent clean --orphaned --all
+cargo es-fluent clean --orphaned
 ```
 
-This compares files in non-fallback locales against the configured fallback locale (`en` in the executable README example). Files that exist in non-fallback locales but have no corresponding file in the fallback locale are considered orphaned and will be removed. The fallback locale itself is never modified.
+This compares files in non-fallback locales against the configured fallback
+locale (`en` in the executable README example). Files that exist in
+non-fallback locales but have no corresponding file in the fallback locale are
+considered orphaned and will be removed. The fallback locale itself is never
+modified.
+When an orphaned file is removed, now-empty parent directories under that locale
+are pruned as well. Orphaned file paths are printed relative to the selected
+workspace root when possible, so the locale directory is visible in output.
+Before runner-backed clean starts or any orphan is removed, `clean --orphaned`
+verifies that the orphan scan can safely use the configured `assets_dir`,
+fallback locale directory, and expected fallback FTL files for configured
+crates.
+When `--package` selects one crate, orphan detection still treats files for
+other configured workspace crates as expected when they share a locale root.
+If that setup is invalid, the command exits without preparing `.es-fluent`
+runner metadata, Cargo build output, or deleting orphaned files.
+For crates with a Cargo library target, `clean --orphaned` still runs the
+runner-backed clean first; by default that clean targets the fallback locale,
+and with `--all` it targets all discovered locale directories before the orphan
+scan starts. If inventory collection or runner execution fails, the explicit
+orphan scan is not reached.
+When no selected crate has a library target, `clean --orphaned` without `--all`
+skips runner-backed clean and the file-only orphan scan can still run. Combining
+`--all` with `--orphaned` keeps the normal all-locale generated-key cleaning
+requirement, so selected crates must have library targets.
+The fallback locale path must exist as a real directory, not a symlink, before
+an orphan scan runs; otherwise the CLI refuses to scan because every
+non-fallback file would appear orphaned.
+The configured `assets_dir` must also exist as a real directory.
+Locale-looking asset paths must also be real directories; files such as
+`i18n/fr` are reported as setup errors instead of being skipped.
+Directory-valued FTL paths such as `my-crate.ftl` or `my-crate/ui.ftl` are
+also setup errors and are reported before runner-backed clean starts.
 
-Use `--dry-run` to preview which files would be removed without actually deleting them.
+Use `--dry-run` to preview which files would be removed without actually deleting them. Passing `--orphaned` scans non-fallback locale files even when `--all` is not set.
 
 ### Fmt
 
@@ -175,8 +362,37 @@ Standardize the formatting of your FTL files using `fluent-syntax` rules:
 cargo es-fluent fmt
 ```
 
-Use `--dry-run` to preview changes and print diffs without writing them. Use
-`--all` to format all locales.
+`cargo es-fluent format` is accepted as an alias; `fmt` is the canonical form
+shown in help and examples.
+
+Use `--dry-run` to preview changes and print diffs without writing them. A
+dry-run that finds files needing formatting exits successfully; use the text
+summary or JSON `formatted_count` if a script should treat previewed formatting
+work as a failure. Use `--all` to format the selected crate's generated FTL
+layout in all discovered locale directories.
+`fmt` is crate-layout scoped: it formats `assets_dir/{locale}/{crate}.ftl` and
+`assets_dir/{locale}/{crate}/{namespace}.ftl` files for selected crates. Other
+FTL files in the same locale directories are ignored by `fmt`; use
+`status --all`, `check --all`, or `clean --orphaned --dry-run` to audit
+orphaned or unrelated FTL files.
+The configured `assets_dir` and fallback locale path must exist as real
+directories, not symlinks, before formatting. With `--all`, locale-looking
+asset paths must also be real directories; files such as `i18n/fr` are reported
+as format errors, and non-canonical locale directory names such as `i18n/en-us`
+are reported instead of being formatted.
+Discovered FTL paths must be real files, not symlinks; a directory named like
+`my-crate.ftl` or `my-crate/ui.ftl` is reported as a setup error instead of
+being formatted.
+In JSON mode, crate-level failures that prevent file enumeration, such as
+invalid config paths or unreadable FTL layouts, are reported in the `errors`
+list. File paths in `files` and `errors` are workspace-relative when they are
+under the selected workspace root. Path-specific setup or format failures, such
+as file-valued locale directories or parse errors in a discovered FTL file, stay
+attached to entries in `files`. For mixed workspaces, successful file entries
+may still be included when another selected crate has file-level format errors.
+`fmt` is not transactional across files or crates: in non-dry-run mode, files
+that can be formatted may already be written even if another file later fails
+and the command exits non-zero.
 
 ### Sync
 
@@ -184,12 +400,58 @@ Propagate keys from your fallback language to other languages (e.g., from `en` t
 
 ```sh
 cargo es-fluent sync --all
+cargo es-fluent sync --locale fr-FR,zh-CN
+cargo es-fluent sync --locale "fr-FR, zh-CN"
 ```
 
-Use `--locale <LANG>` to sync a specific locale, or `--all` to sync all
-non-fallback locales. Running `sync` without either option exits non-zero with an actionable message. Use `--dry-run` to preview changes and print diffs without
-writing them. Use `--create` with `--locale <LANG>` to create missing locale
-directories before seeding them from the fallback locale.
+Use `--locale <LANG>` to sync specific locales, repeating the flag or passing a
+comma-separated list. Quote comma lists that include spaces, such as
+`--locale "fr-FR, zh-CN"`. Use `--all` to sync all discovered non-fallback
+locale directories.
+Empty comma entries, such as `--locale fr-FR,`, are rejected. Duplicate
+explicit locale targets are ignored. `--all` cannot be combined with
+`--locale`. Running `sync` without either option exits non-zero with an
+actionable message. These target-selection errors are reported before workspace
+discovery and, with `--output json`, are emitted as JSON. Use `--dry-run` to
+preview locale directories and keys that would be synced, and print diffs
+without writing them. Use `--create` with
+`--locale <LANG>` to create missing locale
+directories before seeding them from the fallback locale; `--create` cannot be
+combined with `--all` because `--all` only processes locale directories that
+already exist. When `assets_dir = "."`, `--create` rejects missing target
+locale names that match crate-root project directories ignored by all-locale
+scans, such as `bin`. Explicit `--locale` targets must not be the configured
+fallback locale. Existing target locale paths must be real directories, not
+symlinks, and, without `--create`, each target locale directory must already
+exist for every selected crate. When fallback files use namespaces, matching
+target parent paths must also be directories; a file such as
+`i18n/fr/my-crate` blocks creation of `i18n/fr/my-crate/ui.ftl` and is
+reported before any same-crate file is written. Existing target FTL paths must
+be real files, not symlinks or directories, and are checked before any
+same-crate file is written. Explicit target runs do not scan
+unrelated locale directories; use
+`--all`, `status --all`, or `doctor` to audit discovered locale directory
+names. When `assets_dir = "."`, crate-root project directories such as `bin`
+are intentionally ignored by those all-locale audits. With `--all`,
+locale-looking asset paths must also be real directories; files such as
+`i18n/fr` are reported as setup errors instead of being skipped.
+The configured `assets_dir` must exist as a real directory for explicit
+`--locale` runs and `--all`.
+With `--create`, missing target locale directories are created even when the
+fallback locale directory has no FTL files yet. The fallback locale directory
+itself must exist as a directory. `sync` exits non-zero if no crate is
+selected, such as when `--package` matches no configured crate.
+With `--dry-run --create`, JSON `locale_created: true` and `locales_affected`
+preview locale directory creation even when `keys_added` is `0`; no directory
+is written during the dry run. `locales_affected` counts affected crate-locale
+targets, so the same locale changed in two workspace crates counts as `2`.
+In JSON mode, sync discovery, setup, and target-locale failures are reported in
+the `errors` list and the command exits non-zero. Error paths under the selected
+workspace root are workspace-relative. Before writing, `sync` preflights
+every selected crate for setup errors, fallback parse errors, and target path
+or parse errors. Those failures are reported before any selected crate is
+changed. The command is still not transactional for unexpected write-time I/O
+failures after preflight succeeds.
 
 The `sync` command properly handles [namespaced](namespaces.md) FTL files, creating matching subdirectories in target locales when syncing from the fallback locale.
 
@@ -199,10 +461,40 @@ Create one or more locale directories and seed them from the fallback locale:
 
 ```sh
 cargo es-fluent add-locale fr-FR zh-CN
+cargo es-fluent add-locale fr-FR,zh-CN
+cargo es-fluent add-locale "fr-FR, zh-CN"
 ```
 
-This is equivalent to `sync --create --locale <LANG>` for each requested
-locale. Use `--dry-run` to preview the files that would be created.
+This is a text-mode convenience wrapper around `sync --create --locale <LANG>`
+for each requested locale. Use `sync --create --locale <LANG> --output json`
+when scripts need machine-readable locale creation results. Locale arguments can
+be passed separately or comma-separated. Quote comma lists that include spaces.
+Empty comma entries, such as `add-locale fr-FR,`, are rejected. Duplicate
+locale targets are ignored. Requested locales must not be the configured
+fallback locale, and existing target locale paths must be real directories, not
+symlinks. When fallback files use namespaces, matching requested-locale parent
+paths must also be directories before seeding starts. Existing requested-locale
+FTL paths must be real files, not symlinks or directories. Use `--dry-run` to
+preview locale directories and keys that would be added. Unrelated existing
+locale directories are not scanned by `add-locale`; run `status --all` or
+`doctor` when you want to audit discovered locale directory names. When
+`assets_dir = "."`, crate-root project directories such as `bin` are
+intentionally ignored by those audits, and `add-locale` rejects missing
+requested locale directories whose names match those ignored directories.
+The configured `assets_dir` and fallback locale path must exist as real
+directories, not symlinks, before requested locale directories are created.
+If the fallback locale directory exists as a directory but has no FTL files yet,
+`add-locale` still creates the requested locale directories; FTL files are
+written after fallback keys exist. In `--dry-run` mode, that empty-fallback
+case previews locale directory creation and reports `0` keys added. When
+requested locales already exist and no fallback keys are missing, `add-locale`
+exits successfully and reports that no locale directories or keys needed to be
+added. If `--package` matches no configured crate, `add-locale` exits non-zero
+instead of reporting success without creating the locale. Like `sync --create`,
+`add-locale` preflights every selected crate for setup errors, fallback parse
+errors, and requested-locale path or parse errors before writing any selected
+crate. The command is still not transactional for unexpected write-time I/O
+failures after preflight succeeds.
 
 ### Tree
 
@@ -210,15 +502,49 @@ Inspect the discovered FTL file layout and message IDs for a crate:
 
 ```sh
 cargo es-fluent tree
+cargo es-fluent tree --all
 ```
 
-Use `--all` to show all locales instead of just the fallback language. Use
+Use `--all` to show all discovered locale directories instead of just the
+fallback language. Use
 `--no-attributes` to hide message and term attributes, and `--no-variables` to
-hide the Fluent variables referenced by each entry. In terminals that support
-hyperlinks, tree labels link to their crate, locale, FTL file, entry,
+hide the Fluent variables referenced by each entry. When attributes are hidden,
+variables that occur only inside hidden attributes are hidden too. The
+tree is crate-layout scoped: it inspects `assets_dir/{locale}/{crate}.ftl` and
+`assets_dir/{locale}/{crate}/{namespace}.ftl`. Other FTL files in the same
+locale directories are ignored; use `status --all`, `check --all`, or
+`clean --orphaned --dry-run` to audit orphaned or unrelated FTL files. The
+configured `assets_dir` and fallback locale path must exist as real directories,
+not symlinks, before tree inspection. With `--all`, locale-looking asset paths
+must also be real directories. In JSON mode, tree discovery and setup failures
+are reported in the `errors` list and the command exits non-zero; error paths
+under the selected workspace root are workspace-relative. For mixed workspaces,
+successful crate trees may still be
+included in `crates` while failing crates are listed in `errors`; text output
+can likewise print earlier crate trees before a later crate fails. Empty locale
+directories are included in the tree even when no FTL files exist yet. FTL parse
+errors inside discovered files are shown in the tree instead of failing the
+command; JSON output marks those files with `parse_error: true` and leaves their
+`entries` empty. Directory-valued FTL paths such as `my-crate.ftl` are setup
+errors, not parse errors, and make the command exit non-zero. JSON output is
+file-only: `--link-mode` does not collect Rust
+source links or prepare runner metadata there. Invalid `--link-mode` values are
+reported in the JSON `errors` list when `--output json` is used. In terminals
+that support hyperlinks, text tree labels link to their crate, locale, FTL file, entry,
 attribute, or variable source location. Message and variable rows link to Rust
 source by default; use `--link-mode ftl` to link those rows to FTL source
-locations instead.
+locations instead. In hyperlink-capable terminals, the default Rust link mode
+may prepare `.es-fluent` runner metadata and Cargo build output to collect Rust
+source locations for selected crates that have library targets. Crates without
+library targets still render from their discovered FTL files, but their message
+and variable rows fall back to FTL links or plain labels because there is no
+Rust inventory to link. Tree setup errors, such as directory-valued FTL paths
+and symlinked or escaping Cargo library target paths, generated `i18n.rs` paths
+that are symlinks or not files, and invalid library `i18n` declarations, are
+reported before that Rust-link collection starts. If setup is valid but the
+selected library cannot compile, Rust-link collection can fail before rendering
+the tree. Use `--link-mode ftl` for file-only text inspection because it uses
+only discovered FTL files.
 
 ### Doctor
 
@@ -228,13 +554,51 @@ Diagnose setup issues without changing files:
 cargo es-fluent doctor
 ```
 
+`doctor` only inspects project files; it does not prepare `.es-fluent` runner
+metadata or Cargo `target` output.
+
 `doctor` checks discovered i18n crates for common setup problems such as missing
-library targets, unreadable locale assets, manager dependency mismatches, and
-missing build-script asset tracking.
+library targets, symlinked or escaping library target paths, unreadable locale
+assets, configured `assets_dir` paths that are missing, files, or symlinks
+instead of real directories, locale-looking asset paths that are files or
+symlinks instead of real directories, directory-valued FTL paths such as
+`my-crate.ftl`, non-canonical names like `i18n/en-us`, manager dependency
+mismatches for direct or aliased manager imports, missing, symlinked, or
+non-file `i18n.rs` modules, inline or non-public library `i18n` declarations,
+generated `i18n.rs` modules that are not declared with `pub mod i18n;` from the
+library target, declared generated modules that do not invoke
+`define_i18n_module!()`, and, for generated modules or direct library-target
+macro calls that invoke `define_i18n_module!()`, missing build-script asset tracking,
+symlinked or non-file `build.rs` paths, and missing `es-fluent-build` build
+dependencies for existing tracking calls.
+When a crate has no library target, `doctor` reports that first and skips
+library-module and build-script follow-up checks until a library target exists.
+When a crate has a library target, a missing expected generated `i18n.rs`
+module is a warning unless the library target directly calls
+`define_i18n_module!()`; an existing generated module path that is a symlink or
+is not a file is an error. If a library target directly calls
+`define_i18n_module!()` and an unused `src/i18n.rs` also exists, remove the
+unused file or move the macro there and declare it with `pub mod i18n;`.
+Warning-only reports, such as manager dependency mismatches, declared
+`i18n.rs` modules that do not invoke `define_i18n_module!()`, or missing
+build-script asset tracking for manager macro modules, exit successfully; use
+the warning count when a script should fail on those findings. When `doctor`
+reports missing build-script tracking in an existing project, add
+`es_fluent_build::track_i18n_assets();` to `build.rs` directly and add
+`es-fluent-build` under `[build-dependencies]` so existing scaffold files are
+not refreshed by another `init` run. If `build.rs` exists but is a symlink or
+is not a file, `doctor` reports an error because the local crate should own a
+real build script.
+If `--package` matches no configured crate, `doctor` reports a warning and exits
+successfully because it did not find an error in a selected crate.
+In JSON mode, discovery and setup failures are reported in the `issues` list
+and the command exits non-zero when any error issue is present. File paths in
+issue help text are workspace-relative when they are under the selected
+workspace root.
 
 ### Status
 
-Run a read-only workflow summary before committing or in CI:
+Run a workflow summary before committing or in CI:
 
 ```sh
 cargo es-fluent status --all
@@ -242,7 +606,44 @@ cargo es-fluent status --all
 
 `status` reports whether generation would change fallback files, formatting is
 needed, non-fallback locales need synced keys, orphaned files exist, or
-validation would fail. It exits non-zero when attention is required.
+validation errors or warnings would be reported. It does not edit project source
+or locale files, but it may prepare `.es-fluent` runner metadata and Cargo build
+output while collecting generation and validation state. Use `--force-run` to
+bypass the staleness cache for the runner-backed generation preview and
+validation pass. Setup validation runs even without `--all`: it reports setup
+errors such as configured `assets_dir` paths that are missing, files, or
+symlinks instead of real directories, locale-looking asset paths that are files
+or symlinks instead of real directories, missing, file-valued, or symlinked
+fallback locale directories, directory-valued FTL paths such as
+`my-crate.ftl`, and non-canonical locale directory names such as `i18n/en-us`,
+plus symlinked or escaping Cargo library target paths, generated `i18n.rs`
+paths that are symlinks or not files, and library `i18n` declarations that are
+inline, non-public, or missing when a generated module file exists.
+The JSON field `generation_stale_crates` counts crates whose generation dry run
+would change at least one file.
+Sync or orphan-file checks can also add setup-style errors, such as parse errors
+that prevent syncing a non-fallback locale. It exits non-zero when attention is
+required.
+The sync count reports affected crate-locale targets, so the same locale
+needing sync in two workspace crates counts as `2`.
+When initial setup errors are present, status skips generation, formatting, sync,
+orphan-file, and validation checks that depend on valid locale paths.
+It also exits non-zero when no crates with `i18n.toml` are discovered, which
+helps catch CI path or package-filter mistakes.
+Configured crates without a Cargo library target are reported as setup errors
+and also make status non-zero. Empty selections and initial setup errors are
+reported before status prepares runner metadata or Cargo build output.
+Workspace-level issues, such as a package filter that matches no configured
+crate, are included as workspace warnings in the status report.
+In JSON mode, discovery and setup failures are reported in the `setup_errors`
+list and the command exits non-zero. File paths in `setup_errors`,
+`generation_errors`, `format_errors`, and `orphaned_files` are
+workspace-relative when they are under the selected workspace root. Orphaned FTL
+files do not also increment `validation_errors`. Validation warnings, such as
+untranslated fallback-copy warnings from `--all`, increment
+`validation_warnings` and also make `clean: false`.
+Use `--all` to include non-fallback locale formatting, sync, orphan-file, and
+validation checks beyond setup validation.
 
 ### Structured Output
 
@@ -256,6 +657,27 @@ cargo es-fluent status --all --output json
 
 `--output json` is supported by `check`, `fmt`, `sync`, `tree`, `doctor`,
 and `status`.
+After arguments parse successfully, JSON mode writes only the command report to
+stdout so scripts can parse it directly; use the exit status to distinguish
+failing runs from successful runs. Some successful reports still carry warnings,
+such as `check` workspace warnings or `doctor` warning issues, so scripts that
+care about warning-only states should also inspect those fields. Some argument
+problems are validated by commands and included in their JSON reports, such as
+`check` command errors, `sync` target-selection errors, and invalid
+`tree --link-mode` values. Parser-level failures, such as unknown flags,
+missing option values, or invalid `--output` values, are reported by clap before
+the command runs and use clap's normal stderr help text.
+`check` and `status` include workspace-level warnings separately from
+validation errors and warnings.
+`check` reports command-level failures, such as an unknown `--ignore` crate, as
+`issues` entries with `kind: "command_error"`.
+`fmt` reports per-file failures in each affected `files[].error` entry and also
+lists those failures in the top-level `errors` array.
+For commands that support both `--dry-run` and JSON output, such as `fmt` and
+`sync`, the report includes `dry_run: true`; changed, created, or added counts
+then describe the previewed work rather than files written to disk. Previewed
+work is not itself a command failure; check the counts when a script should fail
+on pending dry-run changes.
 
 ## CI/CD Integration
 
@@ -280,20 +702,45 @@ jobs:
 Inputs:
 
 - `version`: Optional `es-fluent-cli` version to install from crates.io. If omitted, the action installs the CLI from the pinned action ref. Use `latest` to install the newest crates.io release.
-- `path`: Path to the crate or workspace root (passed as `--path`). Default: `.`.
-- `package`: Package name filter for workspaces (passed as `--package`). Default: empty.
-- `all`: Check all locales, not just the fallback language. Default: `false`.
-- `ignore`: Crates to skip during validation (comma-separated). Default: empty.
-- `force_run`: Run the generated runner through Cargo, ignoring the staleness cache. Default: `false`.
+- `path`: Existing path to a crate/workspace root, its `Cargo.toml`, or a path inside a crate (passed as `--path`). Default: `.`.
+- `package`: Workspace-wide package name filter (passed as `--package`); when set, it selects the named package even if `path` points inside a different member. Default: empty.
+- `all`: Include non-fallback validation, fallback-copy warnings, and orphan-file checks. Must be `true` or `false`. Default: `false`.
+- `ignore`: Crates to skip during validation (comma- or newline-separated; blank entries are ignored). Default: empty.
+- `no_fallback_copy_check`: Disable fallback-copy warnings for all-locale checks (passed as `--no-fallback-copy-check`). Must be `true` or `false`; requires `all: true`. Default: `false`.
+- `force_run`: Run the generated runner through Cargo, ignoring the staleness cache. Must be `true` or `false`. Default: `false`.
 - `toolchain`: Rust toolchain to install for the action. Default: `stable`.
 
 This action always runs `cargo es-fluent check`. Pin the `uses` ref to a release
 tag or commit SHA for reproducible builds. Omit `version` to run the CLI from
 that ref, or set `version` when you intentionally want a crates.io release.
+Because the action runs `check`, a `package` value that matches no configured
+crate is reported as a workspace warning and exits successfully. Use
+`cargo es-fluent status --package <NAME>` in a separate workflow step when a
+package-filter typo should fail CI.
 
 ## Limitations
 
-The CLI runner links workspace crates as **library targets only**. If you define `#[derive(EsFluent*)]` types exclusively in a binary target, they won't be registered in the inventory, and commands like `generate` or `clean` may miss or remove their keys.
+The CLI runner links workspace crates as **library targets only**. If you
+define `#[derive(EsFluent*)]` types exclusively in a binary target, they won't
+be registered in the inventory. Commands that need inventory collection, such
+as `generate`, `watch`, `clean`, `check`, and `status`, fail when a configured
+crate has no library target. `clean --orphaned` without `--all` can still run
+its file-only orphan scan for such crates, and skips runner preparation when no
+selected crate has a library target. `clean --all --orphaned` still requires
+library targets because the all-locale generated-key clean must run before the
+orphan scan. File-only commands such as `fmt`, `sync`, and
+`add-locale`, plus `tree --output json` and text `tree --link-mode ftl`, can
+still inspect or edit discovered FTL files. Text `tree --link-mode rust` also
+renders crates without library targets from discovered FTL files, but only
+crates with library targets can contribute Rust source links. Commands that
+print the shared discovery summary, such as `fmt` and `clean --orphaned`,
+report the missing library target as a notice.
+When a custom `[lib].path` exists, runner-backed commands require the existing
+library target path components to stay inside the crate and avoid symlinks;
+violations are reported before `.es-fluent` runner metadata or Cargo build
+output is prepared. Runner-backed commands for the same workspace serialize
+access to the shared `.es-fluent` runner cache, so concurrent invocations may
+wait for one another.
 
 Workarounds:
 

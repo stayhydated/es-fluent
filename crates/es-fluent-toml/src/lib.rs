@@ -9,9 +9,46 @@ use fs_err::{self as fs, DirEntry};
 use path_slash::PathExt as _;
 use serde::{Deserialize, Serialize};
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 use unic_langid::{LanguageIdentifier, LanguageIdentifierError};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LanguageEntryMode {
+    Strict,
+    CrateRootAssets,
+}
+
+const CRATE_ROOT_ASSET_IGNORED_DIRS: &[&str] = &[
+    ".cargo", ".git", ".github", ".idea", ".vscode", "benches", "bin", "build", "dev", "dist",
+    "doc", "docs", "examples", "lib", "man", "src", "target", "tests",
+];
+
+/// Directory names ignored as locale candidates when `assets_dir = "."`.
+pub fn crate_root_asset_ignored_dir_names() -> &'static [&'static str] {
+    CRATE_ROOT_ASSET_IGNORED_DIRS
+}
+
+impl LanguageEntryMode {
+    fn should_ignore_dir_name(self, name: &str) -> bool {
+        self == Self::CrateRootAssets && CRATE_ROOT_ASSET_IGNORED_DIRS.contains(&name)
+    }
+
+    fn should_ignore_error(self, error: &I18nConfigError) -> bool {
+        match (self, error) {
+            (
+                Self::CrateRootAssets,
+                I18nConfigError::InvalidLanguageIdentifier { .. }
+                | I18nConfigError::IcuLanguageIdentifier { .. },
+            ) => true,
+            (
+                Self::CrateRootAssets,
+                I18nConfigError::NonCanonicalLanguageIdentifier { name, .. },
+            ) if name == "src" => true,
+            _ => false,
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum I18nConfigError {
@@ -44,7 +81,7 @@ pub enum I18nConfigError {
         details: String,
     },
     /// Encountered a non-canonical locale directory name.
-    #[error("Locale directory '{name}' must use canonical BCP-47 casing '{canonical}'")]
+    #[error("Locale directory '{name}' must use canonical BCP-47 form '{canonical}'")]
     NonCanonicalLanguageIdentifier {
         /// The locale directory name found on disk.
         name: String,
@@ -71,7 +108,7 @@ pub enum I18nConfigError {
         details: String,
     },
     /// Encountered a non-canonical fallback language identifier.
-    #[error("Fallback language '{name}' must use canonical BCP-47 casing '{canonical}'")]
+    #[error("Fallback language '{name}' must use canonical BCP-47 form '{canonical}'")]
     NonCanonicalFallbackLanguageIdentifier {
         /// The configured fallback language string.
         name: String,
@@ -86,6 +123,14 @@ pub enum I18nConfigError {
         /// The namespace validation error.
         #[source]
         source: NamespacePathError,
+    },
+    /// Encountered an invalid configured assets directory.
+    #[error("Invalid assets_dir '{path}' in i18n.toml: {reason}")]
+    InvalidAssetsDir {
+        /// The invalid assets_dir string.
+        path: String,
+        /// Explanation of the validation failure.
+        reason: &'static str,
     },
 }
 
@@ -148,9 +193,11 @@ impl RawI18nConfig {
             })
             .transpose()?;
 
+        let assets_dir = normalize_relative_assets_dir(&self.assets_dir)?;
+
         Ok(I18nConfig {
             fallback_language,
-            assets_dir: self.assets_dir,
+            assets_dir,
             fluent_feature: self.fluent_feature,
             namespaces,
             check_fallback_copies: self.check_fallback_copies,
@@ -342,6 +389,7 @@ impl I18nConfig {
         &self,
         base_dir: Option<&Path>,
     ) -> Result<PathBuf, I18nConfigError> {
+        let assets_dir = normalize_relative_assets_dir(&self.assets_dir)?;
         let base = match base_dir {
             Some(dir) => dir.to_path_buf(),
             None => {
@@ -351,7 +399,18 @@ impl I18nConfig {
             },
         };
 
-        Ok(base.join(&self.assets_dir))
+        let assets_path = base.join(&assets_dir);
+        validate_existing_components_stay_inside_base(
+            &assets_path,
+            &base,
+            &self.assets_dir.to_slash_lossy(),
+        )?;
+        validate_existing_assets_dir_components_are_real(
+            &base,
+            &assets_dir,
+            &self.assets_dir.to_slash_lossy(),
+        )?;
+        Ok(assets_path)
     }
 
     /// Returns the configured fallback language as a `LanguageIdentifier`.
@@ -377,14 +436,16 @@ impl I18nConfig {
     ) -> Result<Vec<LanguageIdentifier>, I18nConfigError> {
         let assets_path = self.validated_assets_dir_from_base(base_dir)?;
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
+        let entry_mode = self.language_entry_mode()?;
 
-        let mut languages: Vec<(String, LanguageIdentifier)> = collect_language_entries(entries)?
-            .into_iter()
-            .map(|entry| {
-                let canonical = entry.language.to_string();
-                (canonical, entry.language)
-            })
-            .collect();
+        let mut languages: Vec<(String, LanguageIdentifier)> =
+            collect_language_entries(entries, entry_mode)?
+                .into_iter()
+                .map(|entry| {
+                    let canonical = entry.language.to_string();
+                    (canonical, entry.language)
+                })
+                .collect();
 
         languages.sort_by(|a, b| a.0.cmp(&b.0));
         languages.dedup_by(|a, b| a.0 == b.0);
@@ -400,14 +461,24 @@ impl I18nConfig {
     ) -> Result<Vec<String>, I18nConfigError> {
         let assets_path = self.validated_assets_dir_from_base(base_dir)?;
         let entries = fs::read_dir(&assets_path).map_err(I18nConfigError::ReadError)?;
+        let entry_mode = self.language_entry_mode()?;
 
-        let mut locales = collect_language_entries(entries)?
+        let mut locales = collect_language_entries(entries, entry_mode)?
             .into_iter()
             .map(|entry| entry.raw_name)
             .collect::<Vec<_>>();
 
         locales.sort();
         Ok(locales)
+    }
+
+    fn language_entry_mode(&self) -> Result<LanguageEntryMode, I18nConfigError> {
+        let assets_dir = normalize_relative_assets_dir(&self.assets_dir)?;
+        if assets_dir == Path::new(".") {
+            Ok(LanguageEntryMode::CrateRootAssets)
+        } else {
+            Ok(LanguageEntryMode::Strict)
+        }
     }
 
     /// Validates the assets directory.
@@ -443,6 +514,107 @@ impl I18nConfig {
     }
 }
 
+fn normalize_relative_assets_dir(path: &Path) -> Result<PathBuf, I18nConfigError> {
+    if path.as_os_str().is_empty() {
+        return Err(I18nConfigError::InvalidAssetsDir {
+            path: path.to_slash_lossy().to_string(),
+            reason: "must point to a locale asset directory",
+        });
+    }
+    if path.is_absolute() {
+        return Err(I18nConfigError::InvalidAssetsDir {
+            path: path.to_slash_lossy().to_string(),
+            reason: "must be relative to the crate root",
+        });
+    }
+
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => normalized.push(part),
+            Component::CurDir => {},
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return Err(I18nConfigError::InvalidAssetsDir {
+                        path: path.to_slash_lossy().to_string(),
+                        reason: "must stay inside the crate root",
+                    });
+                }
+            },
+            Component::Prefix(_) | Component::RootDir => {
+                return Err(I18nConfigError::InvalidAssetsDir {
+                    path: path.to_slash_lossy().to_string(),
+                    reason: "must be relative to the crate root",
+                });
+            },
+        }
+    }
+
+    if normalized.as_os_str().is_empty() {
+        normalized.push(".");
+    }
+
+    Ok(normalized)
+}
+
+fn validate_existing_components_stay_inside_base(
+    path: &Path,
+    base: &Path,
+    raw_path: &str,
+) -> Result<(), I18nConfigError> {
+    let Ok(base) = base.canonicalize() else {
+        return Ok(());
+    };
+
+    let Some(existing_ancestor) = path.ancestors().find(|ancestor| ancestor.exists()) else {
+        return Ok(());
+    };
+    let Ok(existing_ancestor) = existing_ancestor.canonicalize() else {
+        return Ok(());
+    };
+
+    if existing_ancestor.starts_with(&base) {
+        return Ok(());
+    }
+
+    Err(I18nConfigError::InvalidAssetsDir {
+        path: raw_path.to_string(),
+        reason: "must stay inside the crate root after resolving existing path components",
+    })
+}
+
+fn validate_existing_assets_dir_components_are_real(
+    base: &Path,
+    assets_dir: &Path,
+    raw_path: &str,
+) -> Result<(), I18nConfigError> {
+    let mut current = base.to_path_buf();
+
+    for component in assets_dir.components() {
+        current.push(component.as_os_str());
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(I18nConfigError::InvalidAssetsDir {
+                    path: raw_path.to_string(),
+                    reason: "existing path components must be real directories, not symlinks",
+                });
+            },
+            Ok(_) => {},
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                ) =>
+            {
+                return Ok(());
+            },
+            Err(_) => return Ok(()),
+        }
+    }
+
+    Ok(())
+}
+
 fn parse_fallback_language_identifier(value: &str) -> Result<LanguageIdentifier, I18nConfigError> {
     es_fluent_shared::parse_canonical_language_identifier(value).map_err(|err| match err {
         CanonicalLanguageIdentifierError::Invalid { source, .. } => {
@@ -468,13 +640,29 @@ fn parse_fallback_language_identifier(value: &str) -> Result<LanguageIdentifier,
 
 fn collect_language_entries(
     entries: impl IntoIterator<Item = Result<DirEntry, std::io::Error>>,
+    mode: LanguageEntryMode,
 ) -> Result<Vec<language::ParsedLanguageEntry>, I18nConfigError> {
     let mut parsed_entries = Vec::new();
 
     for entry in entries {
         let entry = entry.map_err(I18nConfigError::ReadError)?;
-        if let Some(entry) = language::parse_language_entry(entry)? {
-            parsed_entries.push(entry);
+        if entry
+            .file_type()
+            .map_err(I18nConfigError::ReadError)?
+            .is_dir()
+            && entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| mode.should_ignore_dir_name(name))
+        {
+            continue;
+        }
+
+        match language::parse_language_entry(entry) {
+            Ok(Some(entry)) => parsed_entries.push(entry),
+            Ok(None) => {},
+            Err(error) if mode.should_ignore_error(&error) => {},
+            Err(error) => return Err(error),
         }
     }
 

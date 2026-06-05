@@ -182,7 +182,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp) {
         .map(|krate| {
             let state = app.states.get(krate.name.as_str());
             let (symbol, status_text, status_color) = match state {
-                Some(CrateState::MissingLibRs) => ("!", "missing lib.rs", Color::Red),
+                Some(CrateState::MissingLibRs) => ("!", "missing library target", Color::Red),
                 Some(CrateState::Generating) => (throbber_symbol, "generating", Color::Yellow),
                 Some(CrateState::Watching { resource_count }) => {
                     let text = format!("watching ({} resources)", resource_count);

@@ -10,6 +10,9 @@ use es_fluent_runner::{
 };
 use fs_err as fs;
 use std::path::Path;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 use toml::Value;
 
 fn package(name: impl AsRef<str>) -> PackageName {
@@ -114,7 +117,7 @@ fn utf8_path_string_accepts_valid_paths() {
 #[test]
 fn utf8_path_string_rejects_non_utf8_paths() {
     use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt;
+    use std::os::unix::ffi::OsStringExt as _;
 
     let path = std::path::PathBuf::from(OsString::from_vec(vec![0xff]));
     let error = utf8_path_string(&path, "runner path").unwrap_err();
@@ -337,6 +340,41 @@ fn prepare_monolithic_runner_crate_writes_expected_files() {
     assert!(runner_dir.join("src/main.rs").exists());
     assert!(runner_dir.join(".cargo/config.toml").exists());
     assert!(runner_dir.join(".gitignore").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn prepare_monolithic_runner_crate_rejects_symlinked_temp_dir_without_writing_target() {
+    let (temp, workspace) = create_workspace_fixture("runner-symlink", true);
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    std::os::unix::fs::symlink(outside.path(), temp.path().join(".es-fluent"))
+        .expect("create .es-fluent symlink");
+
+    let error = prepare_monolithic_runner_crate(&workspace)
+        .expect_err("symlinked .es-fluent path should be rejected");
+
+    assert!(error.to_string().contains(".es-fluent"));
+    assert!(error.to_string().contains("symlink"));
+    assert!(!outside.path().join("Cargo.toml").exists());
+    assert!(!outside.path().join("src/main.rs").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn prepare_monolithic_runner_crate_rejects_nested_temp_dir_symlink_without_writing_target() {
+    let (temp, workspace) = create_workspace_fixture("runner-nested-symlink", true);
+    let outside = tempfile::tempdir().expect("outside tempdir");
+    let temp_store = RunnerMetadataStore::temp_for_workspace(temp.path());
+    fs::create_dir_all(temp_store.base_dir()).expect("create .es-fluent");
+    std::os::unix::fs::symlink(outside.path(), temp_store.base_dir().join("src"))
+        .expect("create .es-fluent/src symlink");
+
+    let error = prepare_monolithic_runner_crate(&workspace)
+        .expect_err("nested symlinked .es-fluent path should be rejected");
+
+    assert!(error.to_string().contains(".es-fluent"));
+    assert!(error.to_string().contains("symlinks"));
+    assert!(!outside.path().join("main.rs").exists());
 }
 
 #[test]
@@ -616,6 +654,33 @@ fn monolithic_runner_staleness_detects_workspace_lockfile_changes() {
         runner.is_stale(),
         "workspace lockfile change should mark runner stale"
     );
+}
+
+#[test]
+fn monolithic_runner_lock_serializes_shared_runner_access() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let first = acquire_monolithic_runner_lock(temp.path()).expect("acquire first lock");
+    let root = temp.path().to_path_buf();
+    let (started_tx, started_rx) = mpsc::channel();
+    let (done_tx, done_rx) = mpsc::channel();
+
+    let handle = thread::spawn(move || {
+        started_tx.send(()).expect("send started");
+        let _second = acquire_monolithic_runner_lock(&root).expect("acquire second lock");
+        done_tx.send(()).expect("send done");
+    });
+
+    started_rx.recv().expect("second thread started");
+    assert!(
+        done_rx.recv_timeout(Duration::from_millis(150)).is_err(),
+        "second lock should wait while first lock is held"
+    );
+
+    drop(first);
+    done_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("second lock should acquire after first lock is dropped");
+    handle.join().expect("join lock thread");
 }
 
 #[test]

@@ -8,6 +8,6 @@ pub enum GenerationAction {
         mode: FluentParseMode,
         dry_run: bool,
     },
-    /// Clean orphan keys from FTL files.
+    /// Clean stale generated keys from FTL files.
     Clean { all_locales: bool, dry_run: bool },
 }

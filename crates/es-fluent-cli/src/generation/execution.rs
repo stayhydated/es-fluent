@@ -45,7 +45,7 @@ impl CrateInfo {
     fn ensure_inventory_library_target(&self) -> Result<()> {
         if !self.has_lib_rs {
             bail!(
-                "Crate '{}' has no lib.rs - inventory requires a library target for linking",
+                "Crate '{}' has no library target - inventory requires a library target for linking",
                 self.name
             );
         }

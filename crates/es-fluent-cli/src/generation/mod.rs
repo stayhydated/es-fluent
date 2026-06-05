@@ -9,4 +9,4 @@ mod runner;
 mod templates;
 
 pub(crate) use execution::MonolithicExecutor;
-pub use runner::prepare_monolithic_runner_crate;
+pub use runner::{acquire_monolithic_runner_lock, prepare_monolithic_runner_crate};
