@@ -199,7 +199,8 @@ the library target:
 es_fluent_manager_dioxus::define_i18n_module!();
 ```
 
-The macro generates `dioxus_i18n_asset_modules()`,
+The macro registers the generated Dioxus asset module with inventory and also
+generates explicit helpers: `dioxus_i18n_asset_modules()`,
 `dioxus_i18n_asset_module()`, `load_dioxus_i18n_assets(...)`, and
 `load_dioxus_i18n_assets_with_policy(...)`. Dioxus `asset!` requires
 `assets_dir` to point inside the crate, such as `assets/locales`.
@@ -212,12 +213,9 @@ use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
 use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
 use unic_langid::langid;
 
-use crate::i18n::dioxus_i18n_asset_modules;
-
 fn app() -> Element {
     rsx! {
         DioxusAssetI18nProvider {
-            modules: dioxus_i18n_asset_modules(),
             initial_language: langid!("en"),
             LocaleButton {}
         }
@@ -254,9 +252,9 @@ fn LocaleButton() -> Element {
 ```
 
 Client apps should localize through the `DioxusAssetI18nHandle` context
-provided by `DioxusAssetI18nProvider`, `use_init_asset_i18n_modules(...)`, or
-`use_provide_asset_i18n(...)`. `DioxusAssetI18nProvider` loads the generated
-module set asynchronously, renders `loading` while assets are being read,
+provided by `DioxusAssetI18nProvider`, `use_init_asset_i18n(...)`, or
+`use_provide_asset_i18n(...)`. `DioxusAssetI18nProvider` loads the
+inventory-discovered module set asynchronously, renders `loading` while assets are being read,
 renders `fallback` on load failure, and provides context after loading
 succeeds. Use `localize_message(...)` for typed context-bound lookup.
 `DioxusAssetI18nHandle` implements `FluentLocalizer`, so
@@ -265,13 +263,14 @@ client components. Locale switches use fallible `select_language(...)` or
 `select_language_strict(...)`, and `requested_language()` tracks the requested
 locale while `peek_requested_language()` reads it without subscribing.
 
-Dioxus application translations come from the generated Dioxus asset modules.
+Dioxus application translations come from inventory-discovered generated
+Dioxus asset modules.
 Runtime follower modules that do not count as locale support, such as
 `es-fluent-lang` for typed language picker labels, are discovered automatically
 and follow the selected asset-backed locale.
-To include Dioxus asset-backed translations from a component library, build a
-static slice containing both crates' `dioxus_i18n_asset_module()` references and
-pass `DioxusI18nAssetModules::new(...)` to the provider and SSR runtime.
+To use an explicit subset of Dioxus asset-backed translations, build a static
+slice of `dioxus_i18n_asset_module()` references and pass
+`DioxusI18nAssetModules::new(...)` to the provider and SSR runtime.
 In debug WASM builds served by `dx serve`, changed FTL assets are reloaded from
 Dioxus asset hot-reload messages and the provider updates subscribed
 components while preserving the requested locale when possible.
@@ -290,8 +289,6 @@ use es_fluent::EsFluent;
 use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 use unic_langid::langid;
 
-use crate::i18n::dioxus_i18n_asset_modules;
-
 #[derive(Clone, Copy, EsFluent)]
 #[fluent(namespace = "site")]
 enum SiteMessage {
@@ -305,7 +302,7 @@ fn App(i18n: SsrI18n) -> Element {
 }
 
 async fn render() -> Result<String, Box<dyn std::error::Error>> {
-    let runtime = SsrI18nRuntime::new(dioxus_i18n_asset_modules());
+    let runtime = SsrI18nRuntime::discovered();
     let i18n = runtime.request(langid!("en")).await?;
     let mut dom = VirtualDom::new_with_props(
         App,
@@ -318,11 +315,12 @@ async fn render() -> Result<String, Box<dyn std::error::Error>> {
 }
 ```
 
-Create one `SsrI18nRuntime` with the generated module handle, then create one
-`SsrI18n` per request. `request(...)` and `request_strict(...)` are async
-because Dioxus asset reads are async; `request_blocking(...)` and
-`request_strict_blocking(...)` are available for static generation or other
-synchronous SSR entry points.
+Create one `SsrI18nRuntime`, then create one `SsrI18n` per request.
+`SsrI18nRuntime::discovered()` uses inventory-discovered Dioxus asset modules;
+`SsrI18nRuntime::new(...)` accepts an explicit module subset.
+`request(...)` and `request_strict(...)` are async because Dioxus asset reads
+are async; `request_blocking(...)` and `request_strict_blocking(...)` are
+available for static generation or other synchronous SSR entry points.
 
 The render helpers do not install context automatically; pass `SsrI18n` as a prop or call `provide_context()` from a component when using hook-based lookup.
 

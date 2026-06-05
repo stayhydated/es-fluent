@@ -41,10 +41,9 @@ es_fluent_manager_embedded::define_i18n_module!();
 es_fluent_manager_dioxus::define_i18n_module!();
 ```
 
-This emits Dioxus `asset!` handles, a generated
-`dioxus_i18n_asset_modules()` handle for the static module set, and generated
-async loader functions. It requires the configured `assets_dir` to be inside
-the package root.
+This emits Dioxus `asset!` handles, registers the asset module with inventory,
+and also generates explicit module handles and async loader functions. It
+requires the configured `assets_dir` to be inside the package root.
 
 ### For Bevy Asset-based Translations
 

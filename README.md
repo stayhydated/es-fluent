@@ -154,8 +154,8 @@ For Dioxus, `es-fluent-manager-dioxus` provides a provider component,
 hook-based client helpers, typed context-bound localization, and signal-backed
 locale state behind the `client` feature. Its `ssr` feature provides a
 request-scoped runtime. Dioxus translations are loaded through generated
-Dioxus asset modules; pass `dioxus_i18n_asset_modules()` to the provider or SSR
-runtime. Dioxus code should use
+Dioxus asset modules registered with inventory. `DioxusAssetI18nProvider` and
+`SsrI18nRuntime::discovered()` use those registrations by default. Dioxus code should use
 `DioxusAssetI18nHandle::localize_message(...)` or typed label helpers through
 the component or SSR request context.
 Runtime follower modules such as `es-fluent-lang` language labels are

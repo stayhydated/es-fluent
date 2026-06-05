@@ -10,7 +10,7 @@ The crate has no default runtime feature.
 - `client` enables provider and hook APIs for interactive Dioxus rendering.
 - `ssr` enables request-scoped server-side rendering helpers.
 - `define_i18n_module!` is always available and emits Dioxus asset module
-  metadata for the current crate.
+  metadata and inventory registrations for the current crate.
 
 ## Asset module generation
 
@@ -21,7 +21,9 @@ generated code includes:
 - static `ModuleData`,
 - one `DioxusI18nAssetResource` per discovered FTL file,
 - one static `DioxusI18nAssetModule`,
-- `dioxus_i18n_asset_modules()` for provider/runtime initialization,
+- inventory registration for default provider/runtime discovery,
+- metadata-only inventory registration for shared module validation,
+- `dioxus_i18n_asset_modules()` for explicit provider/runtime subsets,
 - `load_dioxus_i18n_assets(...)` helpers for explicit async loading.
 
 Dioxus `asset!` resolves paths relative to the package root and rejects files
@@ -29,8 +31,9 @@ outside that root, so Dioxus manager assets must be package-local.
 
 ## Loaded localizer
 
-`DioxusAssetI18n::load_modules(...)` reads generated asset handles through the
-Dioxus asset resolver on WASM targets. On non-WASM targets it reads the
+`DioxusAssetI18n::load_discovered_modules(...)` reads inventory-discovered
+generated asset handles through the Dioxus asset resolver on WASM targets.
+`DioxusAssetI18n::load_modules(...)` accepts an explicit module subset. On non-WASM targets it reads the
 `asset!` source path directly, which avoids requiring a Tokio runtime during
 static generation and server-side tests. Loaded bytes are parsed into
 `FluentResource`s and stored in a cloneable explicit localizer.
@@ -67,8 +70,9 @@ while preserving the requested locale when the reloaded assets still support it.
 
 ## SSR runtime
 
-`SsrI18nRuntime` is constructed from the generated `DioxusI18nAssetModules`
-handle. Each request loads a fresh `DioxusAssetI18n`, so request language state
+`SsrI18nRuntime::discovered()` uses inventory-discovered
+`DioxusI18nAssetModules`; `SsrI18nRuntime::new(...)` accepts an explicit module
+subset. Each request loads a fresh `DioxusAssetI18n`, so request language state
 is isolated. `request(...)` is async because Dioxus asset reads are async;
 blocking wrappers exist for static generation and sync SSR entry points.
 

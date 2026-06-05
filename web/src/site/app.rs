@@ -1,4 +1,4 @@
-use crate::site::i18n::{SiteLanguage, app_dioxus_i18n_asset_modules};
+use crate::site::i18n::SiteLanguage;
 use crate::site::routing::AppRoute;
 use dioxus::{document, prelude::*};
 use es_fluent_manager_dioxus::DioxusAssetI18nProvider;
@@ -15,7 +15,6 @@ pub fn App() -> Element {
         document::Stylesheet { href: components_theme_href }
         stayhydated_dioxus::ShaderBackground {}
         DioxusAssetI18nProvider {
-            modules: app_dioxus_i18n_asset_modules(),
             initial_language: SiteLanguage::default().lang(),
             Router::<AppRoute> {}
         }

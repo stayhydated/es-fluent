@@ -7,10 +7,11 @@ use dioxus_core_macro::{Props, component, rsx};
 use dioxus_signals::{ReadableExt as _, Signal, WritableExt as _};
 use es_fluent::{FluentLocalizer, FluentLocalizerExt, FluentMessage, FluentValue};
 use es_fluent_manager_core::{
-    FluentManager, LanguageSelectionPolicy, LocaleLoadReport, LocalizationError, ModuleData,
-    ModuleDiscoveryError, ModuleResourceSpec, ResourceKey, ResourceLoadError, SyncFluentBundle,
-    build_sync_bundle, fallback_errors_are_fatal, localize_with_bundle,
-    localize_with_fallback_resources, parse_fluent_resource_bytes,
+    FluentManager, I18nModuleDescriptor, I18nModuleRegistration, LanguageSelectionPolicy,
+    LocaleLoadReport, LocalizationError, ModuleData, ModuleDiscoveryError, ModuleRegistrationKind,
+    ModuleResourceSpec, ResourceKey, ResourceLoadError, SyncFluentBundle, build_sync_bundle,
+    fallback_errors_are_fatal, localize_with_bundle, localize_with_fallback_resources,
+    parse_fluent_resource_bytes,
 };
 use fluent_bundle::FluentResource;
 use parking_lot::{Mutex, RwLock};
@@ -176,6 +177,35 @@ impl DioxusI18nAssetModule {
     }
 }
 
+impl I18nModuleDescriptor for DioxusI18nAssetModule {
+    fn data(&self) -> &'static ModuleData {
+        self.data
+    }
+}
+
+impl I18nModuleRegistration for DioxusI18nAssetModule {
+    fn registration_kind(&self) -> ModuleRegistrationKind {
+        ModuleRegistrationKind::MetadataOnly
+    }
+
+    fn resource_plan_for_language(
+        &self,
+        lang: &LanguageIdentifier,
+    ) -> Option<Vec<ModuleResourceSpec>> {
+        let mut resources = self
+            .resources
+            .iter()
+            .filter(|resource| &resource.language == lang)
+            .map(DioxusI18nAssetResource::spec)
+            .collect::<Vec<_>>();
+
+        resources.sort_by(|left, right| left.key.cmp(&right.key));
+        (!resources.is_empty()).then_some(resources)
+    }
+}
+
+inventory::collect!(&'static DioxusI18nAssetModule);
+
 async fn read_dioxus_asset_bytes(
     asset: &Asset,
     cache_bust: Option<u64>,
@@ -208,24 +238,48 @@ fn cache_busted_asset_path(path: &str, revision: u64) -> String {
 }
 
 #[derive(Clone, Copy)]
+enum DioxusI18nAssetModuleSource {
+    Static(&'static [&'static DioxusI18nAssetModule]),
+    Discovered,
+}
+
+#[derive(Clone, Copy)]
 pub struct DioxusI18nAssetModules {
-    modules: &'static [&'static DioxusI18nAssetModule],
+    source: DioxusI18nAssetModuleSource,
 }
 
 impl DioxusI18nAssetModules {
     pub const fn new(modules: &'static [&'static DioxusI18nAssetModule]) -> Self {
-        Self { modules }
+        Self {
+            source: DioxusI18nAssetModuleSource::Static(modules),
+        }
+    }
+
+    pub const fn discovered() -> Self {
+        Self {
+            source: DioxusI18nAssetModuleSource::Discovered,
+        }
     }
 
     pub fn as_slice(self) -> &'static [&'static DioxusI18nAssetModule] {
-        self.modules
+        match self.source {
+            DioxusI18nAssetModuleSource::Static(modules) => modules,
+            DioxusI18nAssetModuleSource::Discovered => discovered_dioxus_i18n_asset_modules(),
+        }
+    }
+}
+
+impl Default for DioxusI18nAssetModules {
+    fn default() -> Self {
+        Self::discovered()
     }
 }
 
 impl PartialEq for DioxusI18nAssetModules {
     fn eq(&self, other: &Self) -> bool {
-        self.modules.len() == other.modules.len()
-            && std::ptr::eq(self.modules.as_ptr(), other.modules.as_ptr())
+        let left = self.as_slice();
+        let right = other.as_slice();
+        left.len() == right.len() && std::ptr::eq(left.as_ptr(), right.as_ptr())
     }
 }
 
@@ -234,9 +288,22 @@ impl Eq for DioxusI18nAssetModules {}
 impl std::fmt::Debug for DioxusI18nAssetModules {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DioxusI18nAssetModules")
-            .field("len", &self.modules.len())
+            .field("len", &self.as_slice().len())
             .finish()
     }
+}
+
+fn discovered_dioxus_i18n_asset_modules() -> &'static [&'static DioxusI18nAssetModule] {
+    static MODULES: OnceLock<Box<[&'static DioxusI18nAssetModule]>> = OnceLock::new();
+
+    MODULES
+        .get_or_init(|| {
+            inventory::iter::<&'static DioxusI18nAssetModule>()
+                .copied()
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        })
+        .as_ref()
 }
 
 #[derive(Clone)]
@@ -466,6 +533,21 @@ impl PartialEq for DioxusAssetI18n {
 impl Eq for DioxusAssetI18n {}
 
 impl DioxusAssetI18n {
+    pub async fn load_discovered_modules<L>(
+        initial_language: L,
+        selection_policy: LanguageSelectionPolicy,
+    ) -> Result<Self, DioxusAssetLoadError>
+    where
+        L: Into<LanguageIdentifier>,
+    {
+        Self::load_modules(
+            DioxusI18nAssetModules::discovered(),
+            initial_language,
+            selection_policy,
+        )
+        .await
+    }
+
     pub async fn load_modules<L>(
         modules: DioxusI18nAssetModules,
         initial_language: L,
@@ -871,6 +953,21 @@ where
 }
 
 #[cfg(feature = "client")]
+pub fn use_init_asset_i18n<L>(
+    initial_language: L,
+    selection_policy: LanguageSelectionPolicy,
+) -> DioxusAssetI18nLoadState
+where
+    L: Into<LanguageIdentifier> + 'static,
+{
+    use_init_asset_i18n_modules(
+        DioxusI18nAssetModules::discovered(),
+        initial_language,
+        selection_policy,
+    )
+}
+
+#[cfg(feature = "client")]
 #[derive(Clone)]
 struct DioxusAssetI18nContext {
     i18n: Signal<DioxusAssetI18n>,
@@ -1068,7 +1165,7 @@ pub fn consume_asset_i18n() -> Result<DioxusAssetI18nHandle, crate::DioxusAssetI
 #[allow(non_snake_case)]
 #[component]
 pub fn DioxusAssetI18nProvider(
-    modules: DioxusI18nAssetModules,
+    #[props(default = DioxusI18nAssetModules::discovered())] modules: DioxusI18nAssetModules,
     initial_language: LanguageIdentifier,
     #[props(default = LanguageSelectionPolicy::BestEffort)]
     selection_policy: LanguageSelectionPolicy,

@@ -10,8 +10,8 @@ Use this reference to choose the crate or integration surface before writing cod
 | Generate/check/format/sync FTL | `cargo es-fluent` from `es-fluent-cli` | Use from an existing crate/workspace root, its `Cargo.toml`, or a path inside a crate. Inventory comes from library targets. |
 | Track locale asset rebuilds from `build.rs` | `es-fluent-build` in `[build-dependencies]` | Call `es_fluent_build::track_i18n_assets()` when manager macros scan locale assets at compile time. |
 | General Rust runtime, CLI, TUI, desktop, GPUI-style apps | `es-fluent-manager-embedded` | Embeds FTL files and returns explicit `EmbeddedI18n` handles. |
-| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, pass generated `dioxus_i18n_asset_modules()` to `DioxusAssetI18nProvider`, aggregate multiple crates with `dioxus_i18n_asset_module()` when needed, and localize through `use_i18n()`. |
-| Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create `SsrI18nRuntime::new(dioxus_i18n_asset_modules())`, then one `SsrI18n` per request. |
+| Dioxus client UI | `es-fluent-manager-dioxus` with `client` | Use `define_i18n_module!`, let `DioxusAssetI18nProvider` load inventory-discovered asset modules, pass `DioxusI18nAssetModules::new(...)` only for explicit subsets, and localize through `use_i18n()`. |
+| Dioxus SSR | `es-fluent-manager-dioxus` with `ssr` | Create `SsrI18nRuntime::discovered()`, then one `SsrI18n` per request. |
 | Bevy ECS/assets | `es-fluent-manager-bevy` | Add `I18nPlugin`, use `FluentText<T>`, `BevyFluentText`, and `BevyI18n`. |
 | Typed language picker | `es-fluent-lang` | Use `#[es_fluent_language]` on an empty enum discovered from locale folders. |
 
@@ -103,12 +103,9 @@ use es_fluent::{EsFluent, EsFluentLabel, FluentLabel as _};
 use es_fluent_manager_dioxus::{DioxusAssetI18nProvider, use_i18n};
 use unic_langid::langid;
 
-use crate::i18n::dioxus_i18n_asset_modules;
-
 fn app() -> Element {
     rsx! {
         DioxusAssetI18nProvider {
-            modules: dioxus_i18n_asset_modules(),
             initial_language: langid!("en"),
             LocaleButton {}
         }
@@ -143,8 +140,6 @@ use es_fluent::EsFluent;
 use es_fluent_manager_dioxus::ssr::{SsrI18n, SsrI18nRuntime};
 use unic_langid::langid;
 
-use crate::i18n::dioxus_i18n_asset_modules;
-
 #[derive(Clone, Copy, EsFluent)]
 #[fluent(namespace = "site")]
 enum SiteMessage {
@@ -158,7 +153,7 @@ fn App(i18n: SsrI18n) -> Element {
 }
 
 async fn render() -> Result<String, Box<dyn std::error::Error>> {
-    let runtime = SsrI18nRuntime::new(dioxus_i18n_asset_modules());
+    let runtime = SsrI18nRuntime::discovered();
     let i18n = runtime.request(langid!("en")).await?;
     let mut dom = VirtualDom::new_with_props(App, AppProps { i18n: i18n.clone() });
     Ok(i18n.rebuild_and_render(&mut dom))
@@ -169,11 +164,10 @@ Route locale switches through `DioxusAssetI18nHandle::select_language(...)`.
 Dioxus asset loading is async, so `DioxusAssetI18nProvider` owns
 loading/failure rendering on the client and `SsrI18nRuntime::request(...)` is
 async on the server. Application translations come from the generated Dioxus
-asset modules; runtime follower modules such as `es-fluent-lang` language
-labels are discovered automatically.
-For component libraries with their own Dioxus FTL assets, give the library its
-own `i18n.toml` and `define_i18n_module!()`, then pass a static aggregate of
-the app and library `dioxus_i18n_asset_module()` references to
+asset modules registered with inventory; runtime follower modules such as
+`es-fluent-lang` language labels are discovered automatically.
+For an explicit subset of Dioxus FTL assets, pass a static aggregate of
+`dioxus_i18n_asset_module()` references to
 `DioxusI18nAssetModules::new(...)`.
 During `dx serve` debug WASM runs, changed generated FTL assets refresh the
 provider context through Dioxus asset hot reload while preserving the requested

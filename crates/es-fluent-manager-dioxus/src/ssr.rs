@@ -17,6 +17,10 @@ impl SsrI18nRuntime {
         Self { modules }
     }
 
+    pub const fn discovered() -> Self {
+        Self::new(DioxusI18nAssetModules::discovered())
+    }
+
     pub async fn request<L: Into<LanguageIdentifier>>(
         &self,
         language: L,
@@ -54,6 +58,12 @@ impl SsrI18nRuntime {
         language: L,
     ) -> Result<SsrI18n, DioxusAssetLoadError> {
         futures::executor::block_on(self.request_strict(language))
+    }
+}
+
+impl Default for SsrI18nRuntime {
+    fn default() -> Self {
+        Self::discovered()
     }
 }
 

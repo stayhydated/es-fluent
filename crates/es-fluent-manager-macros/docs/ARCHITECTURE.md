@@ -38,12 +38,11 @@ Used by `es-fluent-manager-dioxus`.
    - Static `ModuleData` with the same supported-language and namespace metadata.
    - One `DioxusI18nAssetResource` entry per discovered FTL file, using Dioxus
      `asset!` to register package-local files with the Dioxus asset pipeline.
-   - A static `DioxusI18nAssetModule`, a static module-set slice exposed through
-     generated `dioxus_i18n_asset_modules()`, and generated
+   - A static `DioxusI18nAssetModule`, inventory submissions for Dioxus asset
+     discovery and metadata-only module validation, a static module-set slice
+     exposed through generated `dioxus_i18n_asset_modules()`, and generated
      `load_dioxus_i18n_assets(...)` helpers that asynchronously read resources
      with `dioxus::asset_resolver::read_asset_bytes`.
-   - No `inventory::submit!` block; this path is loaded explicitly because
-     Dioxus asset resolution is asynchronous.
 
 ### `define_bevy_i18n_module!`
 

@@ -296,6 +296,7 @@ fn generate_dioxus_asset_loader_tokens(
     let manager_core_path = &manager_paths.manager_core_path;
     let langid_path = &manager_paths.langid_path;
     let manager_path = manager_paths.manager_path.tokens();
+    let inventory_path = quote! { #manager_path::__inventory };
     let asset_tokens = dioxus_asset_resource_tokens(&assets, manager_paths)?;
 
     let expanded = quote! {
@@ -313,6 +314,14 @@ fn generate_dioxus_asset_loader_tokens(
 
         static #modules_name: &[& #manager_path::DioxusI18nAssetModule] =
             &[&#module_instance_name];
+
+        #inventory_path::submit! {
+            &#module_instance_name
+        }
+
+        #inventory_path::submit!(
+            &#module_instance_name as &dyn #manager_core_path::I18nModuleRegistration
+        );
 
         pub const fn dioxus_i18n_asset_module() -> &'static #manager_path::DioxusI18nAssetModule {
             &#module_instance_name
@@ -556,6 +565,7 @@ mod tests {
             assert!(dioxus.contains("DioxusI18nAssetResource"));
             assert!(dioxus.contains("dioxus_i18n_asset_module"));
             assert!(dioxus.contains("load_dioxus_i18n_assets_with_policy"));
+            assert!(dioxus.contains("submit"));
             assert!(dioxus.contains("/assets/locales/en-US/my-crate.ftl"));
             assert!(dioxus.contains("/assets/locales/fr/my-crate/ui.ftl"));
         });

@@ -56,9 +56,7 @@ mod tests {
     #[test]
     #[serial]
     fn localizes_language_select_labels() {
-        let runtime = es_fluent_manager_dioxus::ssr::SsrI18nRuntime::new(
-            crate::site::i18n::app_dioxus_i18n_asset_modules(),
-        );
+        let runtime = es_fluent_manager_dioxus::ssr::SsrI18nRuntime::discovered();
         let i18n = runtime
             .request_blocking(SiteLanguage::EnUs.lang())
             .expect("SSR i18n should initialize");

@@ -4,8 +4,6 @@ use crate::site::constants::SITE_URL;
 use stayhydated_site::routing::{Href, SiteUrl};
 
 #[cfg(test)]
-use crate::site::i18n::app_dioxus_i18n_asset_modules;
-#[cfg(test)]
 use crate::site::routing::SiteRoute;
 #[cfg(test)]
 use anyhow::{Context as _, Result};
@@ -23,7 +21,7 @@ fn SsrI18nProvider(i18n: SsrI18n, children: Element) -> Element {
 
 #[cfg(test)]
 pub(crate) fn render_route_body(route: SiteRoute) -> Result<String> {
-    let runtime = SsrI18nRuntime::new(app_dioxus_i18n_asset_modules());
+    let runtime = SsrI18nRuntime::discovered();
     let i18n = runtime
         .request_blocking(route.locale.lang())
         .context("failed to initialize the Dioxus SSR localizer")?;
