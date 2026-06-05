@@ -408,13 +408,12 @@ fn normalize_init_root_path(path: PathBuf) -> Result<PathBuf, CliError> {
         .file_name()
         .is_some_and(|name| name == std::ffi::OsStr::new("Cargo.toml"))
         && !path.is_dir()
+        && let Some(parent) = path.parent()
     {
-        if let Some(parent) = path.parent() {
-            if parent.as_os_str().is_empty() {
-                return Ok(PathBuf::from("."));
-            }
-            return Ok(parent.to_path_buf());
+        if parent.as_os_str().is_empty() {
+            return Ok(PathBuf::from("."));
         }
+        return Ok(parent.to_path_buf());
     }
 
     Ok(path)

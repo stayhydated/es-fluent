@@ -703,10 +703,8 @@ pub fn run_check(args: CheckArgs) -> Result<(), CliError> {
     };
     let show_text = !output.is_json();
 
-    if show_text {
-        if !workspace.crates.is_empty() {
-            validate_known_ignore_crates(&workspace, &ignore_crates)?;
-        }
+    if show_text && !workspace.crates.is_empty() {
+        validate_known_ignore_crates(&workspace, &ignore_crates)?;
     }
 
     if show_text {

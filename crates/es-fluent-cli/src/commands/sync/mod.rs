@@ -678,11 +678,7 @@ pub(crate) fn run_sync_with_text_mode(
 fn validate_sync_target_selection(args: &SyncArgs, output: OutputFormat) -> Result<(), CliError> {
     let error = if args.all && !args.locale.is_empty() {
         Some("--all cannot be combined with --locale; pass one target selection mode".to_string())
-    } else if args.all && args.create {
-        Some(
-            "--create requires explicit --locale targets and cannot be used with --all".to_string(),
-        )
-    } else if args.create && args.locale.is_empty() {
+    } else if args.create && (args.all || args.locale.is_empty()) {
         Some(
             "--create requires explicit --locale targets and cannot be used with --all".to_string(),
         )
