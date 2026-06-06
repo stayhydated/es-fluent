@@ -60,7 +60,7 @@ fn run_with_app(app: Application, enable_tracing: bool) {
     app.run(|cx: &mut App| {
         cx.text_system()
             .add_fonts(vec![Cow::Borrowed(
-                include_bytes!("../../assets/fonts/NotoSansSC-Bold.ttf").as_slice(),
+                include_bytes!("../assets/fonts/NotoSansSC-Bold.ttf").as_slice(),
             )])
             .expect("Failed to load NotoSansSC-Bold font");
 
