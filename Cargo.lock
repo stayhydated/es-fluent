@@ -6416,7 +6416,7 @@ replace = "gpui 0.2.2 (git+https://github.com/zed-industries/zed?rev=b077f41a9f2
 [[package]]
 name = "gpui-component"
 version = "0.5.2"
-source = "git+https://github.com/longbridge/gpui-component#b2472cd798422b05e2448d07aaab1550c21155f7"
+source = "git+https://github.com/longbridge/gpui-component?rev=dadfca97fec7221acf3ce7047bccdc1eac0506b9#dadfca97fec7221acf3ce7047bccdc1eac0506b9"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -6460,7 +6460,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-assets"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#b2472cd798422b05e2448d07aaab1550c21155f7"
+source = "git+https://github.com/longbridge/gpui-component?rev=dadfca97fec7221acf3ce7047bccdc1eac0506b9#dadfca97fec7221acf3ce7047bccdc1eac0506b9"
 dependencies = [
  "anyhow",
  "gpui 0.2.2 (git+https://github.com/zed-industries/zed)",
@@ -6474,7 +6474,7 @@ dependencies = [
 [[package]]
 name = "gpui-component-macros"
 version = "0.5.1"
-source = "git+https://github.com/longbridge/gpui-component#b2472cd798422b05e2448d07aaab1550c21155f7"
+source = "git+https://github.com/longbridge/gpui-component?rev=dadfca97fec7221acf3ce7047bccdc1eac0506b9#dadfca97fec7221acf3ce7047bccdc1eac0506b9"
 dependencies = [
  "proc-macro2",
  "quote",
