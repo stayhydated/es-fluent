@@ -1,15 +1,15 @@
 ---
 name: use-es-fluent
-description: 'Use when adding, changing, documenting, or reviewing user-facing es-fluent i18n/localization in Rust applications. Scope is public application workflow only: choosing `es-fluent`, using the `cargo es-fluent` CLI, embedded/Dioxus/Bevy managers, typed language enums, deriving Fluent messages, generated FTL, and explicit manager contexts. Do not use for es-fluent repository internals, maintenance tooling, crate architecture, release automation, or contributor-only implementation work.'
+description: 'Use when adding, changing, documenting, or reviewing es-fluent localization in Rust applications. Covers choosing `es-fluent`, using the `cargo es-fluent` CLI, embedded/Dioxus/Bevy managers, typed language enums, deriving Fluent messages, generated FTL, and explicit manager contexts.'
 ---
 
 # Use es-fluent
 
-## Scope Boundary
+## Scope
 
-Treat this skill as a hosted public-usage guide for es-fluent consumers. Even when working inside an es-fluent checkout, use this skill only for user-facing workflows: application setup, public crate usage, public CLI behavior, generated FTL expectations, and docs or examples intended for application developers.
+Use this skill for application setup, public crate usage, public CLI behavior, generated FTL expectations, and examples intended for Rust application developers.
 
-Do not use this skill as a contributor guide for es-fluent repository internals. For workspace maintenance, internal crate implementation, architecture docs, CI, releases, or maintainer-only workflows, read the repository source, `AGENTS.md`, and the relevant crate documentation directly.
+Keep guidance focused on reusable es-fluent application workflows. Prefer current public docs and executable examples when details matter.
 
 ## Core Workflow
 
@@ -29,8 +29,6 @@ Load only the reference needed for the task:
 - `references/public-facades.md`: dependency and runtime choice, setup snippets, and which crate to use for embedded, Dioxus, Bevy, or language enums.
 - `references/derive-and-ftl.md`: derive macro patterns, generated IDs/arguments, namespaces, choices, labels, variants, and FTL generation expectations.
 - `references/cli-workflow.md`: `cargo es-fluent` commands, `i18n.toml`, and generated asset layout.
-
-Prefer current public docs or source examples over memory when details matter.
 
 ## Implementation Rules
 

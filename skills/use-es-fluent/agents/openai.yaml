@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use es-fluent"
+  short_description: "Guide es-fluent app localization"
+  default_prompt: "Use $use-es-fluent to add typed es-fluent localization to this Rust app."
