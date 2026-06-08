@@ -9,7 +9,7 @@ support crates around it.
 
 1. **Runner-backed commands**: `generate`, `clean`, `check`, `status`, and the
    generation loop inside `watch`
-1. **Direct FTL commands**: `fmt`, `sync`, `add-locale`, `tree`, and `doctor`
+1. **Direct FTL commands**: `fmt`, `sync`, `add-locale`, and `tree`
 
 Runner-backed commands need access to inventory registrations emitted by user
 crates, so the CLI prepares a monolithic `.es-fluent/` runner workspace and
@@ -28,7 +28,7 @@ flowchart TD
     subgraph CLI["es-fluent-cli"]
         DISCOVER["workspace discovery"]
         RUNNERCMDS["generate / clean / check / watch"]
-        DIRECT["fmt / sync / tree"]
+        DIRECT["fmt / sync / add-locale / tree"]
         CACHE["runner + metadata caches"]
     end
 
@@ -71,7 +71,6 @@ flowchart TD
 | `sync`       | No                | Direct              | Copies missing keys from the fallback locale into target locales                              |
 | `add-locale` | No                | Direct              | Creates target locale directories and seeds them via the sync merge path                      |
 | `tree`       | No                | Direct              | Parses `.ftl` files and renders a structural tree view                                        |
-| `doctor`     | No                | Direct              | Inspects project setup, manager dependencies, locale assets, and build-script tracking        |
 
 ## Runner-Backed Flow
 
@@ -128,10 +127,7 @@ The direct commands stay entirely inside `es-fluent-cli`:
   attributes, and variables, adding terminal hyperlinks in text mode when the
   terminal supports them. Rust link mode collects runner inventory for source
   locations; FTL link mode derives locations from the parsed FTL source.
-- `doctor` reads manifests and scaffolded files to report setup issues without
-  running user code
-
-`check`, `fmt`, `sync`, `tree`, `doctor`, and `status` support
+`check`, `fmt`, `sync`, `tree`, and `status` support
 `--output json` for CI and editor integrations. JSON mode suppresses human
 headers and progress output so stdout remains machine-readable.
 

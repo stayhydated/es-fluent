@@ -59,7 +59,6 @@ page_metadata_message-HomeTitle = Home
 
 ## SiteChromeMessage
 
-site_chrome_message-LocaleLabel = Locale
 site_chrome_message-NavDemos = Demos
 site_chrome_message-NavDocs = Book
 site_chrome_message-NavHome = Home

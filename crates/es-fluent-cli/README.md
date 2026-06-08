@@ -24,126 +24,33 @@ same command surface as `cargo es-fluent --help`.
 
 ## Commands
 
-### Init
-
-For a new crate, scaffold the standard files first:
-
-```sh
-cargo es-fluent init
-```
-
-This creates `i18n.toml`, `assets/locales/en/`, an `i18n.rs` module next to the
-crate's library target, and a `pub mod i18n;` declaration in that library file.
-In a Cargo workspace, run `init` inside the member crate or pass
-`--path <member-crate>` or `--path <member-crate>/Cargo.toml`; virtual workspace
-roots and manifests are rejected because they do not have a package library
-target to update.
-Plain `init` can scaffold missing es-fluent files in an existing Cargo package
-directory, but it does not create `Cargo.toml`; the target must already have a
-readable, parseable manifest with a `[package]` table.
-By default the library file is `src/lib.rs`; if `Cargo.toml` declares a
-custom `[lib].path`, `init` uses that path instead. The chosen library path
-must remain inside the crate root, resolve to a source file rather than a
-directory, must not use existing symlinked path components, and must not itself
-be the generated `i18n.rs` module path. Use
-`--manager dioxus` or `--manager bevy` to scaffold those manager imports
-instead of the embedded manager. Use
-`--build-rs` when the crate uses manager macros and should rebuild when locale
-files are added, removed, or renamed. `--build-rs` creates or updates
-`build.rs`; existing build-script logic is preserved when `init` can add the
-tracking call to `fn main`. If an existing `build.rs` has no updatable
-`fn main`, `init` reports the manual edit instead of overwriting it, even with
-`--force`. For Dioxus manifests,
-`--dioxus-runtime client`, `--dioxus-runtime ssr`, or
-`--dioxus-runtime "client, ssr"` selects which manager features are added by
-`--update-cargo-toml`; passing `--dioxus-runtime` requires
-`--manager dioxus` and `--update-cargo-toml`. Omitting `--dioxus-runtime`
-enables both. When
-`--build-rs` and `--update-cargo-toml` are used together, `init` also adds
-`es-fluent-build` under `[build-dependencies]`.
-
-`init` creates or updates the crate's library target because CLI inventory
-collection reads library targets. Put derived message types in that library
-file or another library crate; binary-only derived types in `src/main.rs` are
-not discovered by `generate`. If the library already defines an inline
-`mod i18n { ... }`, move that module to the generated `i18n.rs` path or remove
-it before running `init`. Existing external `i18n` declarations must be public;
-change `mod i18n;` or `pub(crate) mod i18n;` to `pub mod i18n;` before running
-`init`.
-
-Useful options:
-
-- `--fallback-language <LANG>`: choose the fallback locale directory and config value.
-- `--locales <LANG>`: create additional non-fallback locale directories, repeatable or comma-separated; quote comma lists that include spaces, such as `--locales "fr-FR, zh-CN"`; values must not include the fallback locale.
-- `--assets-dir <PATH>`: choose the locale asset directory relative to the crate root; it must stay inside the crate, existing path components must not be symlinks, and existing locale directory targets reused by `init` must be real directories rather than symlinks. Passing `.` is accepted and creates locale directories such as `./en` directly under the crate root; all-locale scans then process canonical locale directories, ignore common project directories such as `src`, `target`, `bin`, and `lib`, and still report noncanonical locale-looking names such as `en-us`. `init`, `sync --create`, and `add-locale` reject newly created locale names that match those ignored project directories when `--assets-dir .` is used; for `init`, this includes the fallback locale directory. Explicit `--locale <LANG>` targets can still use an existing ignored-name directory; use a dedicated asset directory instead of `.` if you need `--all` to process such a locale.
-- `--namespaces <NAME>`: write a namespace allowlist into `i18n.toml`, repeatable or comma-separated; quote comma lists that include spaces, such as `--namespaces "ui, errors"`.
-- `--dioxus-runtime <client|ssr>`: choose Dioxus manager features, repeatable or comma-separated; quote comma lists that include spaces, such as `--dioxus-runtime "client, ssr"`; requires `--manager dioxus` and `--update-cargo-toml`.
-- `--update-cargo-toml`: add missing `es-fluent`, manager, and `unic-langid` dependency entries; existing dependency entries are preserved and their version requirements are not replaced. The package `Cargo.toml` must be a real file, not a symlink.
-- `--build-rs`: create or update `build.rs` with locale asset rebuild tracking for manager macros.
-- `--dry-run`: preview the files and manifest updates without writing them.
-- `--force`: overwrite existing `i18n.toml` and i18n module scaffold targets; existing `build.rs` files are only patched when `init` can safely add the tracking call.
-
-Comma-separated list options are trimmed, empty entries are rejected, and
-duplicate additional-locale, namespace, and Dioxus runtime values are ignored
-in generated output.
-
-Before writing anything, `init` checks that the target is a Cargo package root,
-then checks scaffold-file conflicts and directory targets.
-
-Ensure you have an `i18n.toml` in your crate root:
-
-```toml
-# Default fallback language (required)
-fallback_language = "en"
-
-# Path to FTL assets relative to the crate root; must stay inside the crate
-# and must not use existing symlinked path components or locale targets (required)
-assets_dir = "assets/locales"
-
-# Features to enable if the crate’s es-fluent derives are gated behind a feature (optional)
-fluent_feature = ["my-feature"]
-
-# Optional allowlist of namespace values for FTL file splitting
-namespaces = ["ui", "errors", "messages"]
-
-# Optional: disable warnings when non-fallback messages copy fallback text
-check_fallback_copies = false
-```
-
-Locale directory names and locale arguments must use canonical BCP-47 tags.
-Deprecated aliases such as `iw` and `src` are rejected; use canonical
-replacements such as `he` and `sc`.
-
 ### Common Workspace Options
 
 Commands accept `--path <PATH>`/`-p <PATH>` to choose an existing root,
 manifest, or path inside a crate instead of the current directory. The path
-value must not be empty or only whitespace;
-omit `--path` to use the current directory. `init` must target a package crate
-root or that package's `Cargo.toml`; virtual workspace roots and manifests are
-rejected, and `init` does not accept `--package`. For non-`init` commands, workspace-root
-`--path` values process all configured crates when they point to a workspace
-root or its `Cargo.toml`, but default to the selected member when `--path` is a
-workspace member root, that member's `Cargo.toml`, or a path inside one. If
-that path includes a symlink inside a member, the member is selected from the
-path you passed rather than from the symlink target. Use
-`--package <NAME>`/`-P <NAME>` with non-`init` commands to process a specific
-configured package from a workspace. `--package` is workspace-wide: when it is
-present, it selects the named configured package even if `--path` points inside
-a different workspace member. The package filter must not be empty or only
-whitespace; surrounding whitespace is trimmed, and you can omit `--package` to
-process the default selection. If the selected member or workspace subdirectory
-has no `i18n.toml`, the command sees an empty es-fluent selection rather than
-falling back to sibling crates. `generate`,
-`watch`, `clean`, `fmt`, `sync`, `add-locale`, `tree`, and `status` exit
-non-zero when `--package` matches no configured crate, so package-filter typos
-do not look successful. `check` and `doctor` report that case as a workspace
-warning and still exit successfully unless they find an actual issue.
-Filtered commands discover and parse only the selected package or member, so an
-invalid `i18n.toml` in an unselected sibling does not block the run.
-Runner-backed filtered commands also link only the selected package, so
-unrelated workspace crates do not need to compile for a package-scoped run.
-Workspace-root runs still parse every configured workspace crate.
+value must not be empty or only whitespace; omit `--path` to use the current
+directory. Workspace-root `--path` values process all configured crates when
+they point to a workspace root or its `Cargo.toml`, but default to the selected
+member when `--path` is a workspace member root, that member's `Cargo.toml`, or
+a path inside one. If that path includes a symlink inside a member, the member
+is selected from the path you passed rather than from the symlink target. Use
+`--package <NAME>`/`-P <NAME>` with commands that operate on discovered crates
+to process a specific configured package from a workspace. `--package` is
+workspace-wide: when it is present, it selects the named configured package even
+if `--path` points inside a different workspace member. The package filter must
+not be empty or only whitespace; surrounding whitespace is trimmed, and you can
+omit `--package` to process the default selection. If the selected member or
+workspace subdirectory has no `i18n.toml`, the command sees an empty es-fluent
+selection rather than falling back to sibling crates. `generate`, `watch`,
+`clean`, `fmt`, `sync`, `add-locale`, `tree`, and `status` exit non-zero when
+`--package` matches no configured crate, so package-filter typos do not look
+successful. `check` reports that case as a workspace warning and still exits
+successfully unless it finds an actual issue. Filtered commands discover and
+parse only the selected package or member, so an invalid `i18n.toml` in an
+unselected sibling does not block the run. Runner-backed filtered commands also
+link only the selected package, so unrelated workspace crates do not need to
+compile for a package-scoped run. Workspace-root runs still parse every
+configured workspace crate.
 
 ### Generate
 
@@ -459,7 +366,7 @@ reported before any same-crate file is written. Existing target FTL paths must
 be real files, not symlinks or directories, and are checked before any
 same-crate file is written. Explicit target runs do not scan
 unrelated locale directories; use
-`--all`, `status --all`, or `doctor` to audit discovered locale directory
+`--all`, `status --all`, or `check --all` to audit discovered locale directory
 names. When `assets_dir = "."`, crate-root project directories such as `bin`
 are intentionally ignored by those all-locale audits. With `--all`,
 locale-looking asset paths must also be real directories; files such as
@@ -506,7 +413,7 @@ paths must also be directories before seeding starts. Existing requested-locale
 FTL paths must be real files, not symlinks or directories. Use `--dry-run` to
 preview locale directories and keys that would be added. Unrelated existing
 locale directories are not scanned by `add-locale`; run `status --all` or
-`doctor` when you want to audit discovered locale directory names. When
+`check --all` when you want to audit discovered locale directory names. When
 `assets_dir = "."`, crate-root project directories such as `bin` are
 intentionally ignored by those audits, and `add-locale` rejects missing
 requested locale directories whose names match those ignored directories.
@@ -575,56 +482,6 @@ selected library cannot compile, Rust-link collection can fail before rendering
 the tree. Use `--link-mode ftl` for file-only text inspection because it uses
 only discovered FTL files.
 
-### Doctor
-
-Diagnose setup issues without changing files:
-
-```sh
-cargo es-fluent doctor
-```
-
-`doctor` only inspects project files; it does not prepare `.es-fluent` runner
-metadata or Cargo `target` output.
-
-`doctor` checks discovered i18n crates for common setup problems such as missing
-library targets, symlinked or escaping library target paths, unreadable locale
-assets, configured `assets_dir` paths that are missing, files, or symlinks
-instead of real directories, locale-looking asset paths that are files or
-symlinks instead of real directories, directory-valued FTL paths such as
-`my-crate.ftl`, non-canonical names like `i18n/en-us`, manager dependency
-mismatches for direct or aliased manager imports, missing, symlinked, or
-non-file `i18n.rs` modules, inline or non-public library `i18n` declarations,
-generated `i18n.rs` modules that are not declared with `pub mod i18n;` from the
-library target, declared generated modules that do not invoke
-`define_i18n_module!()`, and, for generated modules or direct library-target
-macro calls that invoke `define_i18n_module!()`, missing build-script asset tracking,
-symlinked or non-file `build.rs` paths, and missing `es-fluent-build` build
-dependencies for existing tracking calls.
-When a crate has no library target, `doctor` reports that first and skips
-library-module and build-script follow-up checks until a library target exists.
-When a crate has a library target, a missing expected generated `i18n.rs`
-module is a warning unless the library target directly calls
-`define_i18n_module!()`; an existing generated module path that is a symlink or
-is not a file is an error. If a library target directly calls
-`define_i18n_module!()` and an unused `src/i18n.rs` also exists, remove the
-unused file or move the macro there and declare it with `pub mod i18n;`.
-Warning-only reports, such as manager dependency mismatches, declared
-`i18n.rs` modules that do not invoke `define_i18n_module!()`, or missing
-build-script asset tracking for manager macro modules, exit successfully; use
-the warning count when a script should fail on those findings. When `doctor`
-reports missing build-script tracking in an existing project, add
-`es_fluent_build::track_i18n_assets();` to `build.rs` directly and add
-`es-fluent-build` under `[build-dependencies]` so existing scaffold files are
-not refreshed by another `init` run. If `build.rs` exists but is a symlink or
-is not a file, `doctor` reports an error because the local crate should own a
-real build script.
-If `--package` matches no configured crate, `doctor` reports a warning and exits
-successfully because it did not find an error in a selected crate.
-In JSON mode, discovery and setup failures are reported in the `issues` list
-and the command exits non-zero when any error issue is present. File paths in
-issue help text are workspace-relative when they are under the selected
-workspace root.
-
 ### Status
 
 Run a workflow summary before committing or in CI:
@@ -684,13 +541,13 @@ cargo es-fluent check --all --output json
 cargo es-fluent status --all --output json
 ```
 
-`--output json` is supported by `check`, `fmt`, `sync`, `tree`, `doctor`,
-and `status`.
+`--output json` is supported by `check`, `fmt`, `sync`, `tree`, and
+`status`.
 After arguments parse successfully, JSON mode writes only the command report to
 stdout so scripts can parse it directly; use the exit status to distinguish
-failing runs from successful runs. Some successful reports still carry warnings,
-such as `check` workspace warnings or `doctor` warning issues, so scripts that
-care about warning-only states should also inspect those fields. Some argument
+failing runs from successful runs. Some successful reports still carry warnings, such as `check` workspace
+warnings, so scripts that care about warning-only states should also inspect
+those fields. Some argument
 problems are validated by commands and included in their JSON reports, such as
 `check` command errors, `sync` target-selection errors, and invalid
 `tree --link-mode` values. Parser-level failures, such as unknown flags,

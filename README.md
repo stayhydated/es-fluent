@@ -172,54 +172,31 @@ asset readiness and fallback-manager behavior is documented in
 
 ## Project configuration
 
-For a new crate, start with the CLI scaffold:
+Create `i18n.toml` next to your crate's `Cargo.toml`, create the fallback
+locale directory, and expose an i18n module from your library target when you
+use manager macros:
 
-```sh
-cargo es-fluent init
+```rust
+// src/i18n.rs
+pub use es_fluent_manager_embedded::{
+    EmbeddedI18n as I18n, EmbeddedInitError, LocalizationError,
+};
+
+es_fluent_manager_embedded::define_i18n_module!();
 ```
 
-This creates `i18n.toml`, `assets/locales/en/`, `src/i18n.rs`, and a
-`pub mod i18n;` declaration in `src/lib.rs`. Use `--manager dioxus` or
-`--manager bevy` for framework-specific scaffolding, and `--build-rs` to create
-or update `build.rs` with locale asset rebuild tracking. Existing build-script
-logic is preserved when `init` can add the tracking call to `fn main`. If an
-existing `build.rs` has no updatable `fn main`, `init` reports the manual edit
-instead of overwriting it, even with `--force`. Existing `i18n` module
-declarations must be `pub mod i18n;`, not private or `pub(crate)`. Use
-`--locales "fr-FR, zh-CN"` to create additional non-fallback locale
-directories; do not include the fallback locale in that list. Existing locale
-directories that `init` reuses must be real directories, not symlinks. In a
-workspace, run `init` from the member crate or pass `--path <member-crate>` or
-`--path <member-crate>/Cargo.toml`; virtual workspace roots and manifests are
-rejected.
-Plain `init` can scaffold missing es-fluent files in an existing Cargo package
-directory, but it does not create `Cargo.toml`; the target must already have a
-readable, parseable manifest with a `[package]` table.
-By default `init` writes `i18n.rs` next to `src/lib.rs`; if `Cargo.toml`
-declares a custom `[lib].path`, `init` uses that library file instead. The
-chosen library path must remain inside the crate root, resolve to a source file
-rather than a directory, must not use existing symlinked path components, and
-must not itself be the generated `i18n.rs` module path.
-Use `--namespaces "ui, errors"` to write a namespace allowlist,
-and `--update-cargo-toml` to add missing dependency entries. Existing
-dependency entries are preserved, including their version requirements. When
-`--build-rs` is also passed, the manifest update includes `es-fluent-build`
-under `[build-dependencies]`. With `--manager dioxus --update-cargo-toml`,
-`--dioxus-runtime client`, `--dioxus-runtime ssr`, or
-`--dioxus-runtime "client, ssr"` selects the generated manager features;
-omitting it enables both.
-Comma-separated list options are trimmed, empty entries are rejected, and
-duplicate locale, namespace, and Dioxus runtime values are ignored in generated
-output. `--locales` must not include the fallback locale.
+```rust
+// src/lib.rs
+pub mod i18n;
+```
 
-Before writing anything, `init` checks that the target is a Cargo package root,
-then checks scaffold-file conflicts and directory targets.
+Use the Dioxus or Bevy manager crate in that module for framework-specific
+integrations. If manager macros scan locale assets at compile time, add
+`es-fluent-build` under `[build-dependencies]` and call
+`es_fluent_build::track_i18n_assets();` from `build.rs` so Cargo rebuilds when
+locale files are added, removed, or renamed.
 
-`init` creates a library target because CLI inventory collection reads library
-targets. Put derived message types in `src/lib.rs` or another library crate;
-binary-only derived types in `src/main.rs` are not discovered by `generate`.
-
-Or create an `i18n.toml` next to your `Cargo.toml` manually:
+Create an `i18n.toml` next to your `Cargo.toml`:
 
 ```toml
 # Default fallback language (required)

@@ -139,11 +139,6 @@ impl WorkspaceCrates {
         }
     }
 
-    /// Return the package filter that matched no crates, if any.
-    pub fn package_not_found(&self) -> Option<&str> {
-        self.package_not_found.as_deref()
-    }
-
     /// Return an actionable message for an empty command selection.
     pub fn empty_selection_message(&self) -> Option<String> {
         if !self.crates.is_empty() {
@@ -278,6 +273,298 @@ fn workspace_metadata_dir(
     } else {
         canonical_requested_path.to_path_buf()
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum I18nModuleVisibility {
+    Public,
+    Restricted,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum I18nModuleDeclaration {
+    External(I18nModuleVisibility),
+    Inline(I18nModuleVisibility),
+}
+
+fn active_rust_source_text(source: &str) -> String {
+    let bytes = source.as_bytes();
+    let mut output = String::with_capacity(source.len());
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if let Some(next) = skip_rust_comment_or_literal(bytes, index) {
+            output.extend(std::iter::repeat_n(' ', next.saturating_sub(index)));
+            index = next;
+            continue;
+        }
+
+        output.push(bytes[index] as char);
+        index += 1;
+    }
+
+    output
+}
+
+fn contains_macro_invocation(source: &str, macro_name: &str) -> bool {
+    let bytes = source.as_bytes();
+    let macro_bytes = macro_name.as_bytes();
+    let mut index = 0;
+
+    while index + macro_bytes.len() <= bytes.len() {
+        if bytes[index..].starts_with(macro_bytes)
+            && !bytes
+                .get(index.wrapping_sub(1))
+                .is_some_and(|byte| is_rust_ident_continue(*byte))
+        {
+            let after_name = index + macro_bytes.len();
+            if !bytes
+                .get(after_name)
+                .is_some_and(|byte| is_rust_ident_continue(*byte))
+                && next_non_whitespace_byte(bytes, after_name) == Some(b'!')
+            {
+                return true;
+            }
+        }
+
+        index += 1;
+    }
+
+    false
+}
+
+fn i18n_module_declaration_kind_in_source(source: &str) -> Option<I18nModuleDeclaration> {
+    let bytes = source.as_bytes();
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if let Some(next) = skip_rust_comment_or_literal(bytes, index) {
+            index = next;
+            continue;
+        }
+
+        if starts_rust_identifier(bytes, index, b"pub") {
+            let (after_visibility, visibility) = pub_visibility_end(bytes, index)?;
+            if starts_rust_identifier(bytes, after_visibility, b"mod") {
+                return i18n_module_declaration_after_mod(bytes, after_visibility, visibility);
+            }
+            index += 3;
+            continue;
+        }
+
+        if starts_rust_identifier(bytes, index, b"mod") {
+            return i18n_module_declaration_after_mod(
+                bytes,
+                index,
+                I18nModuleVisibility::Restricted,
+            );
+        }
+
+        index += 1;
+    }
+
+    None
+}
+
+fn i18n_module_declaration_after_mod(
+    bytes: &[u8],
+    index: usize,
+    visibility: I18nModuleVisibility,
+) -> Option<I18nModuleDeclaration> {
+    let after_mod = skip_rust_whitespace_and_comments(bytes, index + 3)?;
+    if starts_rust_identifier(bytes, after_mod, b"i18n") {
+        let after_name = skip_rust_whitespace_and_comments(bytes, after_mod + 4)?;
+        return match bytes.get(after_name) {
+            Some(b';') => Some(I18nModuleDeclaration::External(visibility)),
+            Some(b'{') => Some(I18nModuleDeclaration::Inline(visibility)),
+            _ => None,
+        };
+    }
+
+    None
+}
+
+fn pub_visibility_end(bytes: &[u8], index: usize) -> Option<(usize, I18nModuleVisibility)> {
+    let after_pub = skip_rust_whitespace_and_comments(bytes, index + 3)?;
+    if bytes.get(after_pub) != Some(&b'(') {
+        return Some((after_pub, I18nModuleVisibility::Public));
+    }
+
+    let after_restriction = find_balanced_paren_end(bytes, after_pub)?;
+    let after_restriction = skip_rust_whitespace_and_comments(bytes, after_restriction)?;
+    Some((after_restriction, I18nModuleVisibility::Restricted))
+}
+
+fn find_balanced_paren_end(bytes: &[u8], mut index: usize) -> Option<usize> {
+    let mut depth = 0usize;
+
+    while index < bytes.len() {
+        if let Some(next) = skip_rust_comment_or_literal(bytes, index) {
+            index = next;
+            continue;
+        }
+
+        match bytes[index] {
+            b'(' => depth += 1,
+            b')' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(index + 1);
+                }
+            },
+            _ => {},
+        }
+
+        index += 1;
+    }
+
+    None
+}
+
+fn next_non_whitespace_byte(bytes: &[u8], mut index: usize) -> Option<u8> {
+    while index < bytes.len() {
+        if !bytes[index].is_ascii_whitespace() {
+            return Some(bytes[index]);
+        }
+        index += 1;
+    }
+
+    None
+}
+
+fn skip_rust_whitespace_and_comments(bytes: &[u8], mut index: usize) -> Option<usize> {
+    loop {
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+
+        let Some(next) = skip_rust_comment(bytes, index) else {
+            return Some(index);
+        };
+        index = next;
+    }
+}
+
+fn skip_rust_comment_or_literal(bytes: &[u8], index: usize) -> Option<usize> {
+    skip_rust_comment(bytes, index)
+        .or_else(|| skip_rust_raw_string(bytes, index))
+        .or_else(|| skip_rust_quoted_literal(bytes, index))
+}
+
+fn skip_rust_comment(bytes: &[u8], index: usize) -> Option<usize> {
+    if bytes.get(index..index + 2) == Some(b"//") {
+        let next = bytes[index..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map_or(bytes.len(), |offset| index + offset + 1);
+        return Some(next);
+    }
+
+    if bytes.get(index..index + 2) != Some(b"/*") {
+        return None;
+    }
+
+    let mut depth = 1usize;
+    let mut next = index + 2;
+    while next + 1 < bytes.len() {
+        match &bytes[next..next + 2] {
+            b"/*" => {
+                depth += 1;
+                next += 2;
+            },
+            b"*/" => {
+                depth -= 1;
+                next += 2;
+                if depth == 0 {
+                    return Some(next);
+                }
+            },
+            _ => next += 1,
+        }
+    }
+
+    Some(bytes.len())
+}
+
+fn skip_rust_raw_string(bytes: &[u8], index: usize) -> Option<usize> {
+    let mut next = index;
+    if bytes.get(next) == Some(&b'b') {
+        next += 1;
+    }
+    if bytes.get(next) != Some(&b'r') {
+        return None;
+    }
+    next += 1;
+
+    let hash_start = next;
+    while bytes.get(next) == Some(&b'#') {
+        next += 1;
+    }
+    if bytes.get(next) != Some(&b'"') {
+        return None;
+    }
+    next += 1;
+
+    let hash_count = next - hash_start - 1;
+    while next < bytes.len() {
+        if bytes[next] == b'"'
+            && next + 1 + hash_count <= bytes.len()
+            && bytes[next + 1..next + 1 + hash_count]
+                .iter()
+                .all(|byte| *byte == b'#')
+        {
+            return Some(next + 1 + hash_count);
+        }
+        next += 1;
+    }
+
+    Some(bytes.len())
+}
+
+fn skip_rust_quoted_literal(bytes: &[u8], index: usize) -> Option<usize> {
+    let quote_index = match bytes.get(index..index + 2) {
+        Some(b"b\"") => index + 1,
+        _ if bytes.get(index) == Some(&b'"') || bytes.get(index) == Some(&b'\'') => index,
+        _ => return None,
+    };
+    let quote = bytes[quote_index];
+    let mut next = quote_index + 1;
+    let mut escaped = false;
+
+    while next < bytes.len() {
+        let byte = bytes[next];
+        if escaped {
+            escaped = false;
+        } else if byte == b'\\' {
+            escaped = true;
+        } else if byte == quote {
+            return Some(next + 1);
+        } else if quote == b'\'' && byte == b'\n' {
+            return None;
+        }
+        next += 1;
+    }
+
+    Some(bytes.len())
+}
+
+fn starts_rust_identifier(bytes: &[u8], index: usize, identifier: &[u8]) -> bool {
+    if bytes.get(index..index + identifier.len()) != Some(identifier) {
+        return false;
+    }
+    let before = index
+        .checked_sub(1)
+        .and_then(|before| bytes.get(before))
+        .is_some_and(|byte| is_rust_ident_continue(*byte));
+    let after = bytes
+        .get(index + identifier.len())
+        .is_some_and(|byte| is_rust_ident_continue(*byte));
+
+    !before && !after
+}
+
+fn is_rust_ident_continue(byte: u8) -> bool {
+    byte == b'_' || byte.is_ascii_alphanumeric()
 }
 
 #[cfg(test)]
@@ -553,10 +840,8 @@ pub(crate) fn library_i18n_module_declaration_setup_error(krate: &CrateInfo) -> 
             ));
         },
     };
-    let library_target_defines_i18n_module = super::doctor::contains_macro_invocation(
-        &super::doctor::active_rust_source_text(&source),
-        "define_i18n_module",
-    );
+    let library_target_defines_i18n_module =
+        contains_macro_invocation(&active_rust_source_text(&source), "define_i18n_module");
     let i18n_module_path = krate.src_dir.join("i18n.rs");
     let module_path = relative_to_crate(krate, &i18n_module_path);
     let module_file_exists = match fs::symlink_metadata(&i18n_module_path) {
@@ -582,17 +867,13 @@ pub(crate) fn library_i18n_module_declaration_setup_error(krate: &CrateInfo) -> 
         },
     };
 
-    match super::init::i18n_module_declaration_kind_in_source(&source) {
-        Some(super::init::I18nModuleDeclaration::External(
-            super::init::I18nModuleVisibility::Public,
-        )) => None,
-        Some(super::init::I18nModuleDeclaration::External(
-            super::init::I18nModuleVisibility::Restricted,
-        )) => Some(format!(
+    match i18n_module_declaration_kind_in_source(&source) {
+        Some(I18nModuleDeclaration::External(I18nModuleVisibility::Public)) => None,
+        Some(I18nModuleDeclaration::External(I18nModuleVisibility::Restricted)) => Some(format!(
             "{}: {library_path} declares module `i18n` without public visibility; change it to `pub mod i18n;`",
             krate.name
         )),
-        Some(super::init::I18nModuleDeclaration::Inline(_)) => Some(format!(
+        Some(I18nModuleDeclaration::Inline(_)) => Some(format!(
             "{}: {library_path} defines inline module `i18n`; move the inline module to i18n.rs or remove it, then declare `pub mod i18n;`",
             krate.name
         )),

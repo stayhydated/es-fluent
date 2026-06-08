@@ -24,31 +24,20 @@ check_fallback_copies = false
 
 `assets_dir` is relative to the crate root. Locale directory names and locale arguments should use canonical BCP-47 tags such as `en`, `fr-FR`, and `zh-CN`.
 
-## Scaffolding
+## Setup
 
-For a new crate, prefer:
+Create `i18n.toml` next to the crate `Cargo.toml`, create the fallback locale
+directory, and put localizable types in a library target. Inventory collection
+reads library targets, so binary-only derives in `src/main.rs` are not
+discovered.
 
-```sh
-cargo es-fluent init --update-cargo-toml
-```
+When using manager macros, expose a public i18n module from the library target
+and call the manager crate's `define_i18n_module!()` macro from that module. If
+locale assets are scanned at compile time, add `es-fluent-build` under
+`[build-dependencies]` and call `es_fluent_build::track_i18n_assets();` from
+`build.rs`.
 
-Useful options:
-
-- `--manager dioxus` or `--manager bevy`: use a framework-specific module scaffold.
-- `--dioxus-runtime client`, `--dioxus-runtime ssr`, or `--dioxus-runtime "client, ssr"`: choose generated Dioxus features; requires `--manager dioxus` and `--update-cargo-toml`.
-- `--build-rs`: create or update `build.rs` with locale asset rebuild tracking for manager macros.
-- `--fallback-language <LANG>`: choose fallback locale.
-- `--locales fr-FR,zh-CN`: create additional non-fallback locale directories.
-- `--assets-dir <PATH>`: choose locale asset directory relative to the crate root.
-- `--namespaces ui,errors`: write a namespace allowlist.
-- `--dry-run`: preview files and manifest updates without writing.
-- `--force`: overwrite existing `i18n.toml` and i18n module scaffold targets when appropriate.
-
-`init` creates or updates a library target because inventory collection reads library targets. If `Cargo.toml` declares a custom `[lib].path`, `init` uses that path and writes `i18n.rs` next to it.
-
-If the library already defines an inline `mod i18n { ... }`, move that module to the generated `i18n.rs` path or remove it before running `init`. Existing external `i18n` declarations must be public; change `mod i18n;` or `pub(crate) mod i18n;` to `pub mod i18n;` before running `init`.
-
-In a Cargo workspace, run `init` from the member crate or pass `--path <member-crate>` or `--path <member-crate>/Cargo.toml`.
+## Routine Commands
 
 ## Routine Commands
 

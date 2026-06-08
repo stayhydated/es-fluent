@@ -39,7 +39,6 @@ page_metadata_message-BevyTitle = Bevy 示例
 page_metadata_message-DemosTitle = 演示
 page_metadata_message-GpuiTitle = GPUI 示例
 page_metadata_message-HomeTitle = 首页
-site_chrome_message-LocaleLabel = 语言
 site_chrome_message-NavDemos = 演示
 site_chrome_message-NavDocs = 手册
 site_chrome_message-NavHome = 首页

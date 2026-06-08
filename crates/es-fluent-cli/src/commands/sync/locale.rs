@@ -52,7 +52,7 @@ fn build_sync_crate_plan(
 
     if !fallback_dir.is_dir() {
         bail!(
-            "fallback locale directory '{}' is missing or not a directory for {}: {}; create the directory or run `cargo es-fluent init`",
+            "fallback locale directory '{}' is missing or not a directory for {}: {}; create the directory manually",
             ctx.fallback,
             krate.name,
             fallback_dir.display()

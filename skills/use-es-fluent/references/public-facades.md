@@ -39,21 +39,7 @@ es-fluent-build = "0.16"
 
 ## Common Setup
 
-Prefer CLI scaffolding:
-
-```sh
-cargo es-fluent init --update-cargo-toml
-```
-
-Useful manager variants:
-
-```sh
-cargo es-fluent init --manager dioxus --dioxus-runtime client --update-cargo-toml
-cargo es-fluent init --manager dioxus --dioxus-runtime ssr --update-cargo-toml
-cargo es-fluent init --manager bevy --update-cargo-toml
-```
-
-The standard module should be library-reachable:
+Create `i18n.toml` next to the crate `Cargo.toml`, create the fallback locale directory, and keep the i18n module library-reachable:
 
 ```rust
 // src/i18n.rs
