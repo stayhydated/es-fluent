@@ -86,7 +86,7 @@ fs-err = "3.3"
 futures = "0.3"
 getset = "0.1"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
-gpui-component = { git = "https://github.com/longbridge/gpui-component", rev = "5b51aaa5d8f3c6308ce977b2e74eba3d08bd35c0" }
+gpui-component = { path = "../gpui-component-stayhydated/crates/ui" }
 gpui_platform = { features = [
   "font-kit",
   "x11",
