@@ -39,8 +39,6 @@ locale assets are scanned at compile time, add `es-fluent-build` under
 
 ## Routine Commands
 
-## Routine Commands
-
 After adding or changing derived localizable types:
 
 ```sh
