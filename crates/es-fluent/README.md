@@ -166,9 +166,7 @@ locale when possible.
 For Bevy, systems that need direct localization can request `BevyI18n` as a
 `SystemParam` and call `localize_message(...)` on it. The plugin also exposes
 `RequestedLanguageId` and `ActiveLanguageId` for systems that need to
-distinguish user intent from the currently published locale. Detailed Bevy
-asset readiness and fallback-manager behavior is documented in
-`crates/es-fluent-manager-bevy/docs/ARCHITECTURE.md`.
+distinguish user intent from the currently published locale.
 
 ## Project configuration
 
