@@ -34,7 +34,7 @@ Before editing, classify the change:
    `docs/ARCHITECTURE.md`.
 3. **Sync public workflow changes.** If behavior, commands, generated output,
    or recommended usage changes, update the relevant example, README, book page,
-   and `.agents/skills/*` guidance in the same change when applicable.
+   and public `skills/*` guidance in the same change when applicable.
 4. **Validate narrowly.** Run the smallest command that proves the edited
    behavior or documentation surface is still sound.
 
@@ -81,26 +81,17 @@ Keep these topics in architecture documents, not in READMEs or the book:
 
 ### Skill Guidance
 
-Skills are organized by audience and distribution:
+`skills/use-es-fluent` is the public reusable skill for application developers
+working with `es-fluent`. It must not include maintainer-only wording,
+repo-private assumptions, or implementation details that belong in this
+`AGENTS.md` or the relevant `docs/ARCHITECTURE.md`.
 
-- `.agents/skills/*-dev` contains repo-scoped development skills for
-  Codex/local agent use inside this repository. These skills may include
-  internal wording, repo-specific assumptions, implementation details,
-  maintainer workflows, and development-only instructions. Each skill
-  directory and its `SKILL.md` `name` field must use the same `-dev` suffix.
-- `skills/*` contains public, user-facing skills intended to be reusable
-  outside this repository or distributed as part of a skills catalog/plugin.
-  These skills must not include internal wording, maintainer-only language,
-  repo-private assumptions, or implementation details that belong only in the
-  corresponding `*-dev` skill.
+Do not assume root-level `skills/*` entries are auto-loaded as repo-local Codex
+skills. Treat `skills/*` as public distribution sources.
 
-Do not assume root-level `skills/*` are auto-loaded as repo-local Codex skills.
-Use `.agents/skills` for auto-discovered repo-local skills; use `skills/*` as
-the source location for public/reusable skills.
-
-Update relevant in-repository `.agents/skills/*-dev` and `skills/*` guidance
-when a code change alters user-facing workflows, CLI behavior, generated
-output, integration patterns, or recommended usage.
+Update relevant public `skills/*` guidance when a code change alters
+user-facing workflows, CLI behavior, generated output, integration patterns, or
+recommended usage.
 
 ## Synchronization Rules
 
@@ -110,7 +101,7 @@ user-visible API shape:
 1. Update the executable example in `examples/readme` when relevant.
 2. Update the affected user-facing `README.md` files.
 3. Update the matching `book/src/*.md` pages.
-4. Update relevant in-repository `.agents/skills/*-dev` and `skills/*` guidance.
+4. Update relevant public `skills/*` guidance.
 5. Keep these surfaces aligned in the same change unless there is a documented reason not to.
 
 `examples/readme` is the canonical source of truth for usage examples.
