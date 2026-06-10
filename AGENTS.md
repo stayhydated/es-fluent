@@ -34,7 +34,7 @@ Before editing, classify the change:
    `docs/ARCHITECTURE.md`.
 3. **Sync public workflow changes.** If behavior, commands, generated output,
    or recommended usage changes, update the relevant example, README, book page,
-   and public `skills/*` guidance in the same change when applicable.
+   and `skills/use-es-fluent` guidance in the same change when applicable.
 4. **Validate narrowly.** Run the smallest command that proves the edited
    behavior or documentation surface is still sound.
 
@@ -81,17 +81,12 @@ Keep these topics in architecture documents, not in READMEs or the book:
 
 ### Skill Guidance
 
-`skills/use-es-fluent` is the public reusable skill for application developers
-working with `es-fluent`. It must not include maintainer-only wording,
-repo-private assumptions, or implementation details that belong in this
-`AGENTS.md` or the relevant `docs/ARCHITECTURE.md`.
+`skills/use-es-fluent` is public application-developer guidance, not repo-local
+maintenance guidance. Keep maintainer-only details in this guide or the relevant
+`docs/ARCHITECTURE.md`.
 
-Do not assume root-level `skills/*` entries are auto-loaded as repo-local Codex
-skills. Treat `skills/*` as public distribution sources.
-
-Update relevant public `skills/*` guidance when a code change alters
-user-facing workflows, CLI behavior, generated output, integration patterns, or
-recommended usage.
+Update it when user-facing workflows, CLI behavior, generated output,
+integration patterns, or recommended usage change.
 
 ## Synchronization Rules
 
@@ -101,7 +96,7 @@ user-visible API shape:
 1. Update the executable example in `examples/readme` when relevant.
 2. Update the affected user-facing `README.md` files.
 3. Update the matching `book/src/*.md` pages.
-4. Update relevant public `skills/*` guidance.
+4. Update `skills/use-es-fluent` when public usage guidance changes.
 5. Keep these surfaces aligned in the same change unless there is a documented reason not to.
 
 `examples/readme` is the canonical source of truth for usage examples.
@@ -243,7 +238,8 @@ user-visible API shape:
 - Keep READMEs and the book user-facing.
 - Move implementation detail into `docs/ARCHITECTURE.md`.
 - Prefer examples over prose-only explanations.
-- Sync `examples/readme`, relevant READMEs, and book pages in the same change.
+- Sync `examples/readme`, relevant READMEs, book pages, and
+  `skills/use-es-fluent` when public usage guidance changes.
 
 ### When Editing Rust Crates
 
